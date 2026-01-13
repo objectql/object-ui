@@ -1,6 +1,7 @@
 {
   "name": "@object-ui/protocol",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "The Language. Pure Metadata Definitions & Types.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

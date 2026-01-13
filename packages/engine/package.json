@@ -1,6 +1,7 @@
 {
   "name": "@object-ui/engine",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "The Brain. Headless logic for handling data.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
