@@ -83,7 +83,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
-  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<any>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
 
@@ -120,6 +120,12 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     ? sortedData.slice((currentPage - 1) * pageSize, currentPage * pageSize)
     : sortedData;
 
+  // Generate unique row ID
+  const getRowId = (row: any, index: number) => {
+    // Try to use 'id' field, fall back to index
+    return row.id !== undefined ? row.id : `row-${index}`;
+  };
+
   // Handlers
   const handleSort = (columnKey: string) => {
     if (!sortable) return;
@@ -138,21 +144,43 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   };
 
   const handleSelectAll = (checked: boolean) => {
+    const newSelected = new Set<any>();
     if (checked) {
-      setSelectedRows(new Set(paginatedData.map((_, idx) => idx)));
-    } else {
-      setSelectedRows(new Set());
+      paginatedData.forEach((row, idx) => {
+        const globalIndex = (currentPage - 1) * pageSize + idx;
+        const rowId = getRowId(row, globalIndex);
+        newSelected.add(rowId);
+      });
+    }
+    setSelectedRowIds(newSelected);
+    
+    // Call callback if provided
+    if (schema.onSelectionChange) {
+      const selectedData = sortedData.filter((row, idx) => {
+        const rowId = getRowId(row, idx);
+        return newSelected.has(rowId);
+      });
+      schema.onSelectionChange(selectedData);
     }
   };
 
-  const handleSelectRow = (index: number, checked: boolean) => {
-    const newSelected = new Set(selectedRows);
+  const handleSelectRow = (rowId: any, checked: boolean) => {
+    const newSelected = new Set(selectedRowIds);
     if (checked) {
-      newSelected.add(index);
+      newSelected.add(rowId);
     } else {
-      newSelected.delete(index);
+      newSelected.delete(rowId);
     }
-    setSelectedRows(newSelected);
+    setSelectedRowIds(newSelected);
+    
+    // Call callback if provided
+    if (schema.onSelectionChange) {
+      const selectedData = sortedData.filter((row, idx) => {
+        const id = getRowId(row, idx);
+        return newSelected.has(id);
+      });
+      schema.onSelectionChange(selectedData);
+    }
   };
 
   const handleExport = () => {
@@ -182,8 +210,18 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     return <ChevronDown className="h-4 w-4 ml-1" />;
   };
 
-  const allSelected = paginatedData.length > 0 && selectedRows.size === paginatedData.length;
-  const someSelected = selectedRows.size > 0 && selectedRows.size < paginatedData.length;
+  // Check if all rows on current page are selected
+  const allPageRowsSelected = paginatedData.length > 0 && paginatedData.every((row, idx) => {
+    const globalIndex = (currentPage - 1) * pageSize + idx;
+    const rowId = getRowId(row, globalIndex);
+    return selectedRowIds.has(rowId);
+  });
+  
+  const somePageRowsSelected = paginatedData.some((row, idx) => {
+    const globalIndex = (currentPage - 1) * pageSize + idx;
+    const rowId = getRowId(row, globalIndex);
+    return selectedRowIds.has(rowId);
+  }) && !allPageRowsSelected;
 
   return (
     <div className={`space-y-4 ${className || ''}`}>
@@ -219,9 +257,9 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
             </Button>
           )}
           
-          {selectable && selectedRows.size > 0 && (
+          {selectable && selectedRowIds.size > 0 && (
             <div className="text-sm text-muted-foreground">
-              {selectedRows.size} selected
+              {selectedRowIds.size} selected
             </div>
           )}
         </div>
@@ -236,7 +274,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
               {selectable && (
                 <TableHead className="w-12">
                   <Checkbox
-                    checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                    checked={allPageRowsSelected ? true : somePageRowsSelected ? 'indeterminate' : false}
                     onCheckedChange={handleSelectAll}
                   />
                 </TableHead>
@@ -270,43 +308,49 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                 </TableCell>
               </TableRow>
             ) : (
-              paginatedData.map((row, rowIndex) => (
-                <TableRow key={rowIndex} data-state={selectedRows.has(rowIndex) ? 'selected' : undefined}>
-                  {selectable && (
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedRows.has(rowIndex)}
-                        onCheckedChange={(checked) => handleSelectRow(rowIndex, checked as boolean)}
-                      />
-                    </TableCell>
-                  )}
-                  {columns.map((col, colIndex) => (
-                    <TableCell key={colIndex} className={col.cellClassName}>
-                      {row[col.accessorKey]}
-                    </TableCell>
-                  ))}
-                  {rowActions && (
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => schema.onRowEdit?.(row)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => schema.onRowDelete?.(row)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))
+              paginatedData.map((row, rowIndex) => {
+                const globalIndex = (currentPage - 1) * pageSize + rowIndex;
+                const rowId = getRowId(row, globalIndex);
+                const isSelected = selectedRowIds.has(rowId);
+                
+                return (
+                  <TableRow key={rowId} data-state={isSelected ? 'selected' : undefined}>
+                    {selectable && (
+                      <TableCell>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => handleSelectRow(rowId, checked as boolean)}
+                        />
+                      </TableCell>
+                    )}
+                    {columns.map((col, colIndex) => (
+                      <TableCell key={colIndex} className={col.cellClassName}>
+                        {row[col.accessorKey]}
+                      </TableCell>
+                    ))}
+                    {rowActions && (
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => schema.onRowEdit?.(row)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => schema.onRowDelete?.(row)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
