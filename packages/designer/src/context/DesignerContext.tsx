@@ -10,9 +10,12 @@ export interface DesignerContextValue {
   setHoveredNodeId: React.Dispatch<React.SetStateAction<string | null>>;
   draggingType: string | null;
   setDraggingType: React.Dispatch<React.SetStateAction<string | null>>;
+  draggingNodeId: string | null;
+  setDraggingNodeId: React.Dispatch<React.SetStateAction<string | null>>;
   addNode: (parentId: string | null, node: SchemaNode, index?: number) => void;
   updateNode: (id: string, updates: Partial<SchemaNode>) => void;
   removeNode: (id: string) => void;
+  moveNode: (nodeId: string, targetParentId: string | null, targetIndex: number) => void;
 }
 
 const DesignerContext = createContext<DesignerContextValue | undefined>(undefined);
@@ -119,6 +122,47 @@ const removeNodeById = (node: SchemaNode, id: string): SchemaNode | null => {
     return node;
 };
 
+// Find Node by ID and return it
+const findNodeById = (node: SchemaNode, id: string): SchemaNode | null => {
+    if (node.id === id) return node;
+    
+    if (Array.isArray(node.body)) {
+        for (const child of node.body) {
+            const found = findNodeById(child, id);
+            if (found) return found;
+        }
+    } else if (node.body && typeof node.body === 'object') {
+        return findNodeById(node.body as SchemaNode, id);
+    }
+    
+    return null;
+};
+
+// Move Node - removes from current location and adds to new location
+const moveNodeInTree = (
+    root: SchemaNode, 
+    nodeId: string, 
+    targetParentId: string | null, 
+    targetIndex: number
+): SchemaNode => {
+    // First, find and extract the node
+    const nodeToMove = findNodeById(root, nodeId);
+    if (!nodeToMove) return root;
+    
+    // Don't allow moving a node into itself or its descendants
+    if (targetParentId === nodeId || findNodeById(nodeToMove, targetParentId || '')) {
+        return root;
+    }
+    
+    // Remove the node from its current location
+    const treeWithoutNode = removeNodeById(root, nodeId);
+    if (!treeWithoutNode) return root;
+    
+    // Add it to the new location
+    const finalTargetId = targetParentId || treeWithoutNode.id;
+    return addNodeToParent(treeWithoutNode, finalTargetId, nodeToMove, targetIndex);
+};
+
 
 interface DesignerProviderProps {
   children?: React.ReactNode;
@@ -144,6 +188,7 @@ export const DesignerProvider: React.FC<DesignerProviderProps> = ({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [draggingType, setDraggingType] = useState<string | null>(null);
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
 
   // Notify parent on change
   const isFirstRender = useRef(true);
@@ -187,6 +232,10 @@ export const DesignerProvider: React.FC<DesignerProviderProps> = ({
     setSelectedNodeId(null);
   }, []);
 
+  const moveNode = useCallback((nodeId: string, targetParentId: string | null, targetIndex: number) => {
+    setSchemaState(prev => moveNodeInTree(prev, nodeId, targetParentId, targetIndex));
+  }, []);
+
   return (
     <DesignerContext.Provider value={{
       schema,
@@ -197,9 +246,12 @@ export const DesignerProvider: React.FC<DesignerProviderProps> = ({
       setHoveredNodeId,
       draggingType,
       setDraggingType,
+      draggingNodeId,
+      setDraggingNodeId,
       addNode,
       updateNode,
-      removeNode
+      removeNode,
+      moveNode
     }}>
       {children}
     </DesignerContext.Provider>

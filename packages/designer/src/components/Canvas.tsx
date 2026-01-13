@@ -16,7 +16,10 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
         hoveredNodeId, 
         setHoveredNodeId,
         draggingType,
+        draggingNodeId,
+        setDraggingNodeId,
         addNode,
+        moveNode,
     } = useDesigner();
 
     const [scale, setScale] = useState(1);
@@ -35,15 +38,18 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
     };
 
     const handleDragOver = (e: React.DragEvent) => {
-        if (!draggingType) return;
+        if (!draggingType && !draggingNodeId) return;
         e.preventDefault();
         
         const target = (e.target as Element).closest('[data-obj-id]');
         if (target) {
             e.stopPropagation();
             const id = target.getAttribute('data-obj-id');
-            setHoveredNodeId(id);
-            e.dataTransfer.dropEffect = 'copy';
+            // Don't allow dropping on the node being dragged
+            if (id !== draggingNodeId) {
+                setHoveredNodeId(id);
+                e.dataTransfer.dropEffect = draggingNodeId ? 'move' : 'copy';
+            }
         } else {
             setHoveredNodeId(null);
         }
@@ -55,26 +61,80 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
-        if (!draggingType) return;
-
+        
         const target = (e.target as Element).closest('[data-obj-id]');
         const targetId = target?.getAttribute('data-obj-id');
 
         if (targetId) {
             e.stopPropagation();
-             const config = ComponentRegistry.getConfig(draggingType);
-             if (config) {
-                 const newNode = {
-                    type: draggingType,
-                    ...(config.defaultProps || {}),
-                    body: config.defaultChildren || undefined
-                };
-                addNode(targetId, newNode);
-             }
+            
+            // Handle moving existing component
+            if (draggingNodeId) {
+                // Don't allow dropping on itself
+                if (draggingNodeId !== targetId) {
+                    moveNode(draggingNodeId, targetId, 0);
+                }
+                setDraggingNodeId(null);
+            }
+            // Handle adding new component from palette
+            else if (draggingType) {
+                const config = ComponentRegistry.getConfig(draggingType);
+                if (config) {
+                    const newNode = {
+                        type: draggingType,
+                        ...(config.defaultProps || {}),
+                        body: config.defaultChildren || undefined
+                    };
+                    addNode(targetId, newNode);
+                }
+            }
         }
         
         setHoveredNodeId(null);
     };
+    
+    // Make components in canvas draggable
+    React.useEffect(() => {
+        const handleDragStart = (e: DragEvent) => {
+            const target = (e.target as Element).closest('[data-obj-id]');
+            if (target && target.getAttribute('data-obj-id')) {
+                const nodeId = target.getAttribute('data-obj-id');
+                // Don't allow dragging the root node
+                if (nodeId === schema.id) {
+                    e.preventDefault();
+                    return;
+                }
+                setDraggingNodeId(nodeId);
+                e.stopPropagation();
+                if (e.dataTransfer) {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', nodeId || '');
+                }
+            }
+        };
+
+        const handleDragEnd = () => {
+            setDraggingNodeId(null);
+        };
+
+        // Add draggable attribute and event listeners to all elements with data-obj-id
+        const elements = document.querySelectorAll('[data-obj-id]');
+        elements.forEach(el => {
+            // Don't make root draggable
+            if (el.getAttribute('data-obj-id') !== schema.id) {
+                el.setAttribute('draggable', 'true');
+                el.addEventListener('dragstart', handleDragStart as EventListener);
+                el.addEventListener('dragend', handleDragEnd as EventListener);
+            }
+        });
+
+        return () => {
+            elements.forEach(el => {
+                el.removeEventListener('dragstart', handleDragStart as EventListener);
+                el.removeEventListener('dragend', handleDragEnd as EventListener);
+            });
+        };
+    }, [schema, setDraggingNodeId]);
     
     // Inject styles for selection/hover using dynamic CSS
     // Using a more refined outline style
@@ -82,6 +142,14 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
         [data-obj-id] {
             position: relative; 
             transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        
+        [data-obj-id]:not([data-obj-id="${schema.id}"]) {
+            cursor: grab;
+        }
+        
+        [data-obj-id]:not([data-obj-id="${schema.id}"]):active {
+            cursor: grabbing;
         }
         
         [data-obj-id="${selectedNodeId}"] {
@@ -113,7 +181,11 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
             outline: 2px dashed #60a5fa !important;
             outline-offset: -2px;
             background-color: rgba(59, 130, 246, 0.05);
-            cursor: copy;
+            cursor: ${draggingNodeId ? 'move' : 'copy'};
+        }
+        
+        [data-obj-id="${draggingNodeId}"] {
+            opacity: 0.5;
         }
     `;
 
