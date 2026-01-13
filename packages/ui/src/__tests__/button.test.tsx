@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Button } from '../components/ui/button';
 
 describe('@object-ui/ui - Button', () => {
@@ -62,10 +63,11 @@ describe('@object-ui/ui - Button', () => {
     expect(screen.getByText('Disabled')).toBeDisabled();
   });
 
-  it('should handle onClick events', () => {
+  it('should handle onClick events', async () => {
     const handleClick = vi.fn();
+    const user = userEvent.setup();
     render(<Button onClick={handleClick}>Click me</Button>);
-    screen.getByText('Click me').click();
+    await user.click(screen.getByText('Click me'));
     expect(handleClick).toHaveBeenCalledOnce();
   });
 });
