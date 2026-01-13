@@ -292,9 +292,13 @@ export const Toolbar: React.FC = () => {
                     variant="outline" 
                     size="sm" 
                     className="h-8 gap-2 hidden md:flex border-gray-200 text-gray-600 hover:bg-gray-50"
-                    onClick={() => {
-                        const json = JSON.stringify(schema, null, 2);
-                        navigator.clipboard.writeText(json);
+                    onClick={async () => {
+                        try {
+                            const json = JSON.stringify(schema, null, 2);
+                            await navigator.clipboard.writeText(json);
+                        } catch (error) {
+                            console.error('Failed to copy to clipboard:', error);
+                        }
                     }}
                     title="Copy schema JSON to clipboard"
                 >

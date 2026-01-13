@@ -9,6 +9,10 @@ interface CanvasProps {
     className?: string;
 }
 
+// Constants for drag and drop
+const INSERT_AT_START = 0;
+const INSERT_AT_END = undefined; // undefined means append to end in addNode/moveNode
+
 export const Canvas: React.FC<CanvasProps> = ({ className }) => {
     const { 
         schema, 
@@ -77,16 +81,13 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
         
         const target = (e.target as Element).closest('[data-obj-id]');
         const targetId = target?.getAttribute('data-obj-id');
-        
-        // Use a large number to append to end - will be clamped by addNode/moveNode
-        const APPEND_TO_END = Number.MAX_SAFE_INTEGER;
 
         if (targetId) {
             e.stopPropagation();
             
             // Calculate insertion index based on drop position
             const targetRect = target?.getBoundingClientRect();
-            let insertIndex = 0;
+            let insertIndex: number | undefined = INSERT_AT_START;
             
             if (targetRect) {
                 // Calculate relative position within the target
@@ -94,14 +95,14 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
                 const relativePosition = relativeY / targetRect.height;
                 
                 // If dropping in the bottom half, append to end; otherwise insert at beginning
-                insertIndex = relativePosition > 0.5 ? APPEND_TO_END : 0;
+                insertIndex = relativePosition > 0.5 ? INSERT_AT_END : INSERT_AT_START;
             }
             
             // Handle moving existing component
             if (draggingNodeId) {
                 // Don't allow dropping on itself
                 if (draggingNodeId !== targetId) {
-                    moveNode(draggingNodeId, targetId, insertIndex);
+                    moveNode(draggingNodeId, targetId, insertIndex ?? Number.MAX_SAFE_INTEGER);
                 }
                 setDraggingNodeId(null);
             }
@@ -114,8 +115,7 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
                         ...(config.defaultProps || {}),
                         body: config.defaultChildren || undefined
                     };
-                    // undefined index means append to end
-                    addNode(targetId, newNode, insertIndex === APPEND_TO_END ? undefined : insertIndex);
+                    addNode(targetId, newNode, insertIndex);
                 }
             }
         }
