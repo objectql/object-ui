@@ -8,6 +8,9 @@ ComponentRegistry.register('text',
     label: 'Text',
     inputs: [
       { name: 'content', type: 'string', label: 'Content', required: true }
-    ]
+    ],
+    defaultProps: {
+      content: 'Text content'
+    }
   }
 );

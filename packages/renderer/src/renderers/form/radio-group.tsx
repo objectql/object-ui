@@ -24,6 +24,14 @@ ComponentRegistry.register('radio-group',
         description: 'Array of {label, value} objects'
       },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      id: 'radio-group', // Will be made unique by designer's ensureNodeIds
+      items: [
+        { label: 'Option 1', value: 'option1' },
+        { label: 'Option 2', value: 'option2' },
+        { label: 'Option 3', value: 'option3' }
+      ]
+    }
   }
 );

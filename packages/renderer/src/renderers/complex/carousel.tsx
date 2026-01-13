@@ -44,6 +44,16 @@ ComponentRegistry.register('carousel',
       },
       { name: 'itemClassName', type: 'string', label: 'Item CSS Class' },
       { name: 'className', type: 'string', label: 'Container CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      orientation: 'horizontal',
+      showArrows: true,
+      items: [
+        [{ type: 'div', className: 'p-8 border rounded bg-slate-50', body: [{ type: 'text', content: 'Slide 1' }] }],
+        [{ type: 'div', className: 'p-8 border rounded bg-slate-50', body: [{ type: 'text', content: 'Slide 2' }] }],
+        [{ type: 'div', className: 'p-8 border rounded bg-slate-50', body: [{ type: 'text', content: 'Slide 3' }] }]
+      ],
+      className: 'w-full max-w-xs'
+    }
   }
 );

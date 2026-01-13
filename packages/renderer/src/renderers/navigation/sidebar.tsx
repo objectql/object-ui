@@ -24,6 +24,13 @@ ComponentRegistry.register('sidebar-provider',
     label: 'Sidebar Provider',
     inputs: [
       { name: 'defaultOpen', type: 'boolean', label: 'Default Open', defaultValue: true }
+    ],
+    defaultProps: {
+      defaultOpen: true
+    },
+    defaultChildren: [
+      { type: 'sidebar' },
+      { type: 'sidebar-inset' }
     ]
   }
 );
@@ -38,6 +45,16 @@ ComponentRegistry.register('sidebar',
       { name: 'collapsible', type: 'enum', enum: ['offcanvas', 'icon', 'none'], defaultValue: 'icon', label: 'Collapsible' },
       { name: 'side', type: 'enum', enum: ['left', 'right'], defaultValue: 'left', label: 'Side' },
       { name: 'variant', type: 'enum', enum: ['sidebar', 'floating', 'inset'], defaultValue: 'sidebar', label: 'Variant' }
+    ],
+    defaultProps: {
+      collapsible: 'icon',
+      side: 'left',
+      variant: 'sidebar'
+    },
+    defaultChildren: [
+      { type: 'sidebar-header' },
+      { type: 'sidebar-content' },
+      { type: 'sidebar-footer' }
     ]
   }
 );
@@ -46,14 +63,24 @@ ComponentRegistry.register('sidebar-header',
   ({ schema, ...props }) => (
     <SidebarHeader {...props}>{renderChildren(schema.body)}</SidebarHeader>
   ),
-  { label: 'Sidebar Header' }
+  { 
+    label: 'Sidebar Header',
+    defaultChildren: [
+      { type: 'text', content: 'Sidebar Header' }
+    ]
+  }
 );
 
 ComponentRegistry.register('sidebar-content', 
   ({ schema, ...props }) => (
     <SidebarContent {...props}>{renderChildren(schema.body)}</SidebarContent>
   ),
-  { label: 'Sidebar Content' }
+  { 
+    label: 'Sidebar Content',
+    defaultChildren: [
+      { type: 'sidebar-group' }
+    ]
+  }
 );
 
 ComponentRegistry.register('sidebar-group', 
@@ -69,6 +96,12 @@ ComponentRegistry.register('sidebar-group',
     label: 'Sidebar Group',
     inputs: [
       { name: 'label', type: 'string', label: 'Label' }
+    ],
+    defaultProps: {
+      label: 'Menu'
+    },
+    defaultChildren: [
+      { type: 'sidebar-menu' }
     ]
   }
 );
@@ -77,14 +110,25 @@ ComponentRegistry.register('sidebar-menu',
   ({ schema, ...props }) => (
     <SidebarMenu {...props}>{renderChildren(schema.body)}</SidebarMenu>
   ),
-  { label: 'Sidebar Menu' }
+  { 
+    label: 'Sidebar Menu',
+    defaultChildren: [
+      { type: 'sidebar-menu-item' },
+      { type: 'sidebar-menu-item' }
+    ]
+  }
 );
 
 ComponentRegistry.register('sidebar-menu-item', 
   ({ schema, ...props }) => (
     <SidebarMenuItem {...props}>{renderChildren(schema.body)}</SidebarMenuItem>
   ),
-  { label: 'Sidebar Menu Item' }
+  { 
+    label: 'Sidebar Menu Item',
+    defaultChildren: [
+      { type: 'sidebar-menu-button' }
+    ]
+  }
 );
 
 ComponentRegistry.register('sidebar-menu-button', 
@@ -99,6 +143,12 @@ ComponentRegistry.register('sidebar-menu-button',
       { name: 'active', type: 'boolean', label: 'Active', defaultValue: false },
       { name: 'size', type: 'enum', enum: ['default', 'sm', 'lg'], defaultValue: 'default', label: 'Size' },
       { name: 'tooltip', type: 'string', label: 'Tooltip' }
+    ],
+    defaultProps: {
+      size: 'default'
+    },
+    defaultChildren: [
+      { type: 'text', content: 'Menu Item' }
     ]
   }
 );
@@ -107,14 +157,24 @@ ComponentRegistry.register('sidebar-footer',
   ({ schema, ...props }) => (
     <SidebarFooter {...props}>{renderChildren(schema.body)}</SidebarFooter>
   ),
-  { label: 'Sidebar Footer' }
+  { 
+    label: 'Sidebar Footer',
+    defaultChildren: [
+      { type: 'text', content: 'Footer' }
+    ]
+  }
 );
 
 ComponentRegistry.register('sidebar-inset', 
   ({ schema, ...props }) => (
     <SidebarInset {...props}>{renderChildren(schema.body)}</SidebarInset>
   ),
-  { label: 'Sidebar Inset' }
+  { 
+    label: 'Sidebar Inset',
+    defaultChildren: [
+      { type: 'div', className: 'p-4', body: [{ type: 'text', content: 'Main content area' }] }
+    ]
+  }
 );
 
 ComponentRegistry.register('sidebar-trigger', 

@@ -97,5 +97,46 @@ describe('@object-ui/renderer - Registry', () => {
 
       consoleWarnSpy.mockRestore();
     });
+
+    it('should support defaultProps in component metadata', () => {
+      const TestComponent: ComponentRenderer = ({ schema }) => (
+        <div>{schema.label}</div>
+      );
+
+      ComponentRegistry.register('test-with-defaults', TestComponent, {
+        label: 'Test With Defaults',
+        defaultProps: {
+          label: 'Default Label',
+          variant: 'primary'
+        }
+      });
+
+      const config = ComponentRegistry.getConfig('test-with-defaults');
+      expect(config).toBeDefined();
+      expect(config?.defaultProps).toBeDefined();
+      expect(config?.defaultProps?.label).toBe('Default Label');
+      expect(config?.defaultProps?.variant).toBe('primary');
+    });
+
+    it('should support defaultChildren in component metadata', () => {
+      const TestComponent: ComponentRenderer = ({ schema }) => (
+        <div>{schema.type}</div>
+      );
+
+      ComponentRegistry.register('test-with-children', TestComponent, {
+        label: 'Test With Children',
+        defaultChildren: [
+          { type: 'text', content: 'Child 1' },
+          { type: 'text', content: 'Child 2' }
+        ]
+      });
+
+      const config = ComponentRegistry.getConfig('test-with-children');
+      expect(config).toBeDefined();
+      expect(config?.defaultChildren).toBeDefined();
+      expect(config?.defaultChildren).toHaveLength(2);
+      expect(config?.defaultChildren?.[0].type).toBe('text');
+      expect(config?.defaultChildren?.[0].content).toBe('Child 1');
+    });
   });
 });

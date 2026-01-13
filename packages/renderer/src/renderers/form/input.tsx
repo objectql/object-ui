@@ -27,6 +27,12 @@ ComponentRegistry.register('input',
         defaultValue: 'text'
       },
       { name: 'id', type: 'string', label: 'ID', required: true }
-    ]
+    ],
+    defaultProps: {
+      label: 'Label',
+      placeholder: 'Enter text...',
+      inputType: 'text',
+      id: 'input-field' // Will be made unique by designer's ensureNodeIds
+    }
   }
 );

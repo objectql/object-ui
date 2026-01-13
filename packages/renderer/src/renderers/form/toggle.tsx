@@ -22,7 +22,12 @@ ComponentRegistry.register('toggle',
       { name: 'variant', type: 'enum', enum: ['default', 'outline'], defaultValue: 'default', label: 'Variant' },
       { name: 'size', type: 'enum', enum: ['default', 'sm', 'lg'], defaultValue: 'default', label: 'Size' },
          { name: 'ariaLabel', type: 'string', label: 'Aria Label' }
-    ]
+    ],
+    defaultProps: {
+      label: 'Toggle',
+      variant: 'default',
+      size: 'default'
+    }
   }
 );
 
@@ -55,6 +60,16 @@ ComponentRegistry.register('toggle-group',
         description: 'Array of {label, value, icon?} objects'
       },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      groupType: 'single',
+      variant: 'default',
+      size: 'default',
+      items: [
+        { label: 'A', value: 'a' },
+        { label: 'B', value: 'b' },
+        { label: 'C', value: 'c' }
+      ]
+    }
   }
 );

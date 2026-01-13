@@ -32,6 +32,15 @@ ComponentRegistry.register('tabs',
         type: 'array', 
         label: 'Items'
       }
-    ]
+    ],
+    defaultProps: {
+      defaultValue: 'tab1',
+      items: [
+        { label: 'Tab 1', value: 'tab1', body: [{ type: 'text', content: 'Content for Tab 1' }] },
+        { label: 'Tab 2', value: 'tab2', body: [{ type: 'text', content: 'Content for Tab 2' }] },
+        { label: 'Tab 3', value: 'tab3', body: [{ type: 'text', content: 'Content for Tab 3' }] }
+      ],
+      className: 'w-full'
+    }
   }
 );

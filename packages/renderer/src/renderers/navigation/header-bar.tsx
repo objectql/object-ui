@@ -38,6 +38,12 @@ ComponentRegistry.register('header-bar',
     label: 'Header Bar',
     inputs: [
        { name: 'crumbs', type: 'array', label: 'Breadcrumbs' }
-    ]
+    ],
+    defaultProps: {
+      crumbs: [
+        { label: 'Home', href: '#' },
+        { label: 'Current Page' }
+      ]
+    }
   }
 );

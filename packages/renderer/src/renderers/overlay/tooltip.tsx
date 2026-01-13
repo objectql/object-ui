@@ -46,6 +46,12 @@ ComponentRegistry.register('tooltip',
         label: 'Rich Content' 
       },
       { name: 'className', type: 'string', label: 'Content CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      trigger: [{ type: 'button', label: 'Hover me', variant: 'outline' }],
+      content: 'Tooltip content',
+      delayDuration: 700,
+      side: 'top'
+    }
   }
 );

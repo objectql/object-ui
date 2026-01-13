@@ -56,6 +56,12 @@ ComponentRegistry.register('drawer',
         label: 'Footer' 
       },
       { name: 'className', type: 'string', label: 'Content CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      title: 'Drawer Title',
+      description: 'Drawer description',
+      trigger: [{ type: 'button', label: 'Open Drawer' }],
+      content: [{ type: 'text', content: 'Drawer content goes here' }]
+    }
   }
 );

@@ -20,6 +20,10 @@ ComponentRegistry.register('badge',
         label: 'Variant'
       },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      label: 'Badge',
+      variant: 'default'
+    }
   }
 );

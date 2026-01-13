@@ -73,6 +73,17 @@ ComponentRegistry.register('dropdown-menu',
         description: 'Recursive structure: { type?: "separator"|"label", label, icon, shortcut, disabled, children: [] }'
       },
       { name: 'className', type: 'string', label: 'Content CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      trigger: [{ type: 'button', label: 'Menu', variant: 'outline' }],
+      items: [
+        { label: 'Item 1' },
+        { label: 'Item 2' },
+        { type: 'separator' },
+        { label: 'Item 3' }
+      ],
+      align: 'start',
+      side: 'bottom'
+    }
   }
 );

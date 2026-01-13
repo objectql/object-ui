@@ -11,6 +11,11 @@ ComponentRegistry.register('skeleton',
       { name: 'width', type: 'string', label: 'Width' },
       { name: 'height', type: 'string', label: 'Height' },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      width: '100%',
+      height: '20px',
+      className: 'rounded-md'
+    }
   }
 );

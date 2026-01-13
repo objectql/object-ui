@@ -11,6 +11,9 @@ ComponentRegistry.register('div',
     label: 'Container',
     inputs: [
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      className: 'p-4 border border-dashed border-gray-300 rounded min-h-[100px]'
+    }
   }
 );

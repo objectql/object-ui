@@ -27,6 +27,11 @@ ComponentRegistry.register('button',
         defaultValue: 'default'
       },
       { name: 'className', type: 'string', label: 'CSS Class', advanced: true }
-    ]
+    ],
+    defaultProps: {
+      label: 'Button',
+      variant: 'default',
+      size: 'default'
+    }
   }
 );

@@ -38,6 +38,16 @@ ComponentRegistry.register('resizable',
         description: 'Array of { defaultSize, minSize, maxSize, content }'
       },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      direction: 'horizontal',
+      minHeight: '200px',
+      withHandle: true,
+      panels: [
+        { defaultSize: 50, content: [{ type: 'div', className: 'p-4', body: [{ type: 'text', content: 'Panel 1' }] }] },
+        { defaultSize: 50, content: [{ type: 'div', className: 'p-4', body: [{ type: 'text', content: 'Panel 2' }] }] }
+      ],
+      className: 'rounded-lg border'
+    }
   }
 );
