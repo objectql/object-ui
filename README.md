@@ -2,14 +2,13 @@
 
 <div align="center">
 
-**The Modular Interface Engine for the Enterprise.**
+  **The Universal, Headless, Schema-Driven Rendering Engine.**
+  
+  Build complex Enterprise UIs with JSON. Styled with Tailwind CSS & Shadcn UI.
 
-A high-performance, schema-driven UI system built on **React 18**, **Tailwind CSS**, and **Shadcn UI**.
-
-[![CI](https://github.com/objectql/objectui/actions/workflows/ci.yml/badge.svg)](https://github.com/objectql/objectui/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-[Documentation](https://www.objectui.org) · [Playground](https://www.objectui.org/playground) · [Report Bug](https://github.com/objectql/objectui/issues)
+  [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+  [![TypeScript](https://img.shields.io/badge/written%20in-TypeScript-3178C6.svg)](https://www.typescriptlang.org/)
+  [![NPM](https://img.shields.io/npm/v/@object-ui/react.svg)](https://www.npmjs.com/package/@object-ui/react)
 
 </div>
 
@@ -17,152 +16,199 @@ A high-performance, schema-driven UI system built on **React 18**, **Tailwind CS
 
 ## 📖 Introduction
 
-**Object UI** is a collection of libraries designed to transform data objects into intelligent user interfaces. It is the official presentation layer of the **ObjectQL** ecosystem, working in harmony with [ObjectQL](https://github.com/objectql/objectql) and [ObjectOS](https://github.com/objectql/objectos).
+**Object UI** is a high-performance rendering engine for React. It transforms **JSON/YAML Schemas** into modern, responsive user interfaces.
 
-Unlike monolithic low-code frameworks, Object UI is built as a **modular ecosystem** under the `@object-ui` scope. You can use the core engine, the component library, or the visual designer independently or together.
+Unlike traditional low-code libraries (like Amis or RJSF) that ship with heavy, opinionated CSS, Object UI is **Tailwind-Native**. Every component is built using **Shadcn UI** primitives and utility classes, giving you complete control over the design system.
 
-## 📦 Ecosystem & Packages
+**Why Object UI?**
+* 🎨 **Tailwind Native:** No black-box styles. Override anything with `className`.
+* 🔌 **Protocol Agnostic:** Works with **ObjectQL**, any **REST API**, or just **Static JSON**.
+* ⚛️ **React First:** Built with React 18, Hooks, and modern Context patterns.
+* 📱 **Responsive:** Enterprise-grade layouts (Grid, Kanban, Dashboard) out of the box.
 
-Object UI is organized into several distinct packages, each serving a specific purpose:
+---
 
-| Package | NPM Name | Description |
-| --- | --- | --- |
-| **Core** | [`@object-ui/core`](./packages/core) | **The Brain.** Schema definitions, renderer registry, and logic. No UI dependencies. |
-| **React** | [`@object-ui/react`](./packages/react) | **The Glue.** React context, hooks, and the main `<SchemaRenderer />` component. |
-| **Components** | [`@object-ui/components`](./packages/components) | **The Look.** A set of high-quality UI renderers built with Tailwind CSS & Shadcn. |
-| **Designer** | [`@object-ui/designer`](./packages/designer) | **The Tool.** A drag-and-drop visual editor to generate Object UI schemas. |
+## 📦 Installation
 
-## 🏗 Architecture
-
-The architecture is designed for **maximum flexibility** and **zero bloat**.
-
-```mermaid
-graph TD
-    A[JSON Schema] -->|Parses| B(@object-ui/core)
-    B -->|Provides Context| C(@object-ui/react)
-    C -->|Renders| D(@object-ui/components)
-    D -->|Uses| E[Tailwind CSS]
-    D -->|Uses| F[Shadcn/Radix UI]
-
-```
-
-* **Decoupled Logic:** The `core` package handles schema validation and logic, meaning you could theoretically write a Vue or Svelte adapter in the future.
-* **Tailwind Native:** Styles are not hardcoded. Override anything using utility classes in your schema.
-* **Tree-Shakable:** If you only use the `Input` and `Button` components, your bundle won't include the heavy `DataGrid`.
-
-## 🚀 Quick Start
-
-To use Object UI in your React project, install the core and component packages.
-
-### 1. Installation
+Object UI is modular. Install the React core and the standard component set:
 
 ```bash
 npm install @object-ui/react @object-ui/components
 # or
-yarn add @object-ui/react @object-ui/components
+pnpm add @object-ui/react @object-ui/components
 
 ```
 
-### 2. Basic Usage
+> **Note:** You also need `tailwindcss` and `lucide-react` installed in your project.
 
-Define a schema and render it using the `SchemaRenderer`.
+---
+
+## ⚡ Quick Start
+
+### 1. Define your Schema
+
+You can define your UI structure using a simple JSON object.
 
 ```tsx
-import React from 'react';
-import { SchemaRenderer } from '@object-ui/react';
-import { Form, Input, Button } from '@object-ui/components'; // Register default components
+// schema.ts
+import { PageSchema } from '@object-ui/types';
 
-// 1. Register the components you want to use (or register all globally)
-import { registerRenderers } from '@object-ui/core';
-registerRenderers({ 
-  'form': Form, 
-  'input': Input, 
-  'button': Button 
-});
-
-// 2. Define your Schema
-const schema = {
-  type: "form",
-  className: "space-y-4 p-6 border rounded-lg",
+export const myPageSchema: PageSchema = {
+  type: 'page',
+  title: 'User Profile',
   body: [
     {
-      type: "input",
-      name: "username",
-      label: "Username",
-      required: true
+      type: 'grid',
+      columns: 2,
+      children: [
+        { 
+          type: 'input', 
+          name: 'first_name', 
+          label: 'First Name', 
+          required: true 
+        },
+        { 
+          type: 'input', 
+          name: 'email', 
+          label: 'Email', 
+          className: 'bg-slate-50' // Tailwind classes work here!
+        }
+      ]
     },
     {
-      type: "button",
-      label: "Submit",
-      level: "primary"
+      type: 'button',
+      label: 'Save Changes',
+      level: 'primary',
+      actionType: 'submit',
+      className: 'mt-4'
     }
   ]
 };
 
-// 3. Render
+```
+
+### 2. Render it!
+
+Use the `<SchemaRenderer />` component to bring it to life.
+
+```tsx
+import React from 'react';
+import { SchemaRenderer } from '@object-ui/react';
+import { standardComponents } from '@object-ui/components';
+import { myPageSchema } from './schema';
+
 export default function App() {
-  return <SchemaRenderer schema={schema} />;
+  const handleAction = (action, data) => {
+    console.log('User clicked:', action, 'Data:', data);
+  };
+
+  return (
+    <div className="p-8 max-w-4xl mx-auto">
+      <SchemaRenderer 
+        schema={myPageSchema} 
+        components={standardComponents}
+        onAction={handleAction}
+      />
+    </div>
+  );
 }
 
 ```
 
-## 🛠 Developing
+---
 
-This project is a Monorepo managed by **TurboRepo** and **pnpm**.
+## 🔌 Universal Data Source (Protocol Agnostic)
 
-### Prerequisites
+Object UI is not tied to any specific backend. You can use it with **any** data source.
 
-* Node.js 18+
-* pnpm 10+
+### Option A: Static / Uncontrolled
 
-### Setup
+Use it as a pure controlled component for forms.
 
-```bash
-# 1. Clone the repository
-git clone https://github.com/objectql/objectui.git
-
-# 2. Install dependencies
-pnpm install
-
-# 3. Start the development playground
-pnpm dev
+```tsx
+<SchemaRenderer 
+  schema={formSchema}
+  value={formData}
+  onChange={setFormData}
+/>
 
 ```
 
-### Testing
+### Option B: Generic REST API
 
-We use **Vitest** for testing. All tests are located in `__tests__` directories within each package.
+Connect to any API using a `DataSource` adapter.
 
-```bash
-# Run all tests
-pnpm test
+```tsx
+import { RestDataSource } from '@object-ui/data-rest';
 
-# Run tests in watch mode
-pnpm test:watch
+const api = new RestDataSource({
+  baseUrl: '[https://api.example.com/v1](https://api.example.com/v1)',
+  headers: { Authorization: 'Bearer ...' }
+});
 
-# Run tests with UI
-pnpm test:ui
-
-# Generate coverage report
-pnpm test:coverage
-
-```
-
-### Building
-
-```bash
-# Build all packages
-pnpm build
-
-# Lint all packages
-pnpm lint
+<SchemaRenderer 
+  schema={pageSchema}
+  dataSource={api} // The components will fetch data automatically
+/>
 
 ```
 
-## 🤝 Contributing
+### Option C: ObjectQL (The Perfect Match)
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+If you use **ObjectQL**, Object UI provides zero-config integration.
+
+```tsx
+import { ObjectQLDataSource } from '@object-ui/data-objectql';
+
+<SchemaRenderer 
+  schema={pageSchema}
+  dataSource={new ObjectQLDataSource()} 
+/>
+
+```
+
+---
+
+## 🧩 Architecture
+
+This project is organized as a Monorepo:
+
+| Package | Description |
+| --- | --- |
+| **`@object-ui/types`** | The protocol definitions. Pure TypeScript interfaces. |
+| **`@object-ui/core`** | The logic engine. Data scoping, validation, evaluation. |
+| **`@object-ui/react`** | The React framework adapter. |
+| **`@object-ui/components`** | The standard UI library implementation (Shadcn + Tailwind). |
+| **`@object-ui/plugin-*`** | Lazy-loaded complex components (e.g., AG Grid, Monaco). |
+
+---
+
+## 🤝 Comparison
+
+| Feature | Object UI | Amis / Lowcode Engine | Formily / RJSF |
+| --- | --- | --- | --- |
+| **Styling** | **Tailwind Native** (Utility) | Opinionated CSS (Hard to override) | Various (AntD/MUI wrappers) |
+| **Scope** | **Full Pages** & Apps | Full Pages & Apps | Mostly Forms |
+| **Protocol** | **JSON Schema** | Custom JSON | JSON Schema / Internal |
+| **Dependencies** | Light (Radix UI) | Heavy (Bootstrap/JQuery legacy) | Medium |
+| **Backend** | **Agnostic** | Tightly coupled (Amis) | Agnostic |
+
+---
+
+## 🛤️ Roadmap
+
+* [ ] **Visual Designer:** Drag-and-drop schema builder.
+* [ ] **Plugin Ecosystem:** Support for AG Grid Enterprise, ECharts, and Monaco Editor.
+* [ ] **SSR Support:** Full compatibility with Next.js App Router.
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+Licensed under the [MIT License](https://www.google.com/search?q=LICENSE).
+
+---
+
+<div align="center">
+<sub>Built with ❤️ by the Object Ecosystem Team.</sub>
+</div>
+
+```
