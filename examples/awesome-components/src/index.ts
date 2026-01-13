@@ -1,6 +1,8 @@
+import { AwesomeTable } from './components/AwesomeTable';
+import { AwesomeForm } from './components/AwesomeForm';
+
 // Export all components
-export { AwesomeTable } from './components/AwesomeTable';
-export { AwesomeForm } from './components/AwesomeForm';
+export { AwesomeTable, AwesomeForm };
 
 // Export types
 export type {
@@ -14,8 +16,8 @@ export const OBJECTQL_VERSION = '^1.7.0';
 
 // Default export for UMD
 export default {
-  AwesomeTable: require('./components/AwesomeTable').AwesomeTable,
-  AwesomeForm: require('./components/AwesomeForm').AwesomeForm,
+  AwesomeTable,
+  AwesomeForm,
   VERSION,
   OBJECTQL_VERSION
 };
