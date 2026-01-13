@@ -1,16 +1,35 @@
 # @object-ui/designer
 
-A drag-and-drop visual editor to generate Object UI schemas.
+A professional drag-and-drop visual editor to generate Object UI schemas with advanced features.
 
 ## Features
 
+### Core Functionality
 - **Visual Schema Editor**: Edit Object UI schemas visually with a live preview
 - **Drag-and-Drop**: Drag components from the palette to the canvas and reorder them within the canvas
-- **Component Palette**: Browse and add components from a categorized list
+- **Smart Insertion**: Intelligent drop position detection for precise component placement
+- **Component Search**: Quickly find components with the built-in search functionality
+- **JSON Import/Export**: Import and export schemas as JSON files or clipboard
+- **Undo/Redo**: Full history management with keyboard shortcuts
+- **Copy/Paste**: Duplicate components easily with Ctrl+C/V
+
+### Visual Design
+- **Enhanced Selection**: Clear visual feedback with component type labels
+- **Hover Indicators**: Helpful drop zone indicators during drag operations
+- **Empty State Guidance**: Helpful instructions when starting a new design
+- **Responsive Preview**: Switch between Desktop (1024px), Tablet (768px), and Mobile (375px) views
+- **Zoom Controls**: Scale the canvas to fit your workflow
+
+### User Experience
+- **Keyboard Shortcuts**: 
+  - `Ctrl+Z` / `Cmd+Z`: Undo
+  - `Ctrl+Y` / `Cmd+Y` / `Cmd+Shift+Z`: Redo
+  - `Ctrl+C` / `Cmd+C`: Copy component
+  - `Ctrl+V` / `Cmd+V`: Paste component
+  - `Delete` / `Backspace`: Delete component
+- **Tooltips**: Contextual help throughout the interface
 - **Property Editor**: Configure component properties with a dynamic form
-- **JSON Import/Export**: Import and export schemas as JSON
-- **Real-time Preview**: See changes immediately in the canvas
-- **Selection & Highlighting**: Click to select components and edit their properties
+- **Categorized Components**: Organized by Layout, Form, Data Display, Feedback, Overlay, and Navigation
 
 ## Installation
 
@@ -100,6 +119,21 @@ function CustomDesigner() {
   );
 }
 ```
+
+## Keyboard Shortcuts
+
+The designer supports the following keyboard shortcuts for efficient workflow:
+
+| Shortcut | Action | Description |
+|----------|--------|-------------|
+| `Ctrl+Z` / `Cmd+Z` | Undo | Undo the last change |
+| `Ctrl+Y` / `Cmd+Y` | Redo | Redo the last undone change |
+| `Cmd+Shift+Z` | Redo (Mac) | Alternative redo on macOS |
+| `Ctrl+C` / `Cmd+C` | Copy | Copy the selected component |
+| `Ctrl+V` / `Cmd+V` | Paste | Paste the copied component |
+| `Delete` / `Backspace` | Delete | Delete the selected component |
+
+**Note**: Copy, paste, and delete shortcuts only work when not editing text in input fields.
 
 ## Components
 
@@ -208,20 +242,36 @@ module.exports = {
 
 ## Features Roadmap
 
+### Completed ✅
 - [x] Drag and drop components from palette
 - [x] Drag to reorder components in canvas
-- [ ] Undo/redo functionality
-- [ ] Schema validation
-- [ ] Component tree view
-- [ ] Copy/paste components
-- [ ] Keyboard shortcuts
-- [ ] Component search in palette
-- [ ] Custom component templates
-- [ ] Export to React code
+- [x] Smart insertion based on drop position
+- [x] Undo/redo functionality with history
+- [x] Copy/paste components
+- [x] Keyboard shortcuts (Ctrl+Z/Y, Ctrl+C/V, Delete)
+- [x] Component search in palette
+- [x] JSON import/export with file and clipboard support
+- [x] Responsive viewport modes (Desktop/Tablet/Mobile)
+- [x] Enhanced visual feedback and tooltips
+- [x] Zoom controls for canvas
+
+### Planned 🚀
+- [ ] Schema validation with error indicators
+- [ ] Component tree view for better navigation
+- [ ] Copy/duplicate entire schema branches
+- [ ] Custom component templates library
+- [ ] Export to React/TypeScript code
+- [ ] Collaborative editing features
+- [ ] Version history and restore points
+- [ ] Accessibility checker
 
 ## Examples
 
 See the [examples/designer-demo](../../examples/designer-demo) directory for a complete working example.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
