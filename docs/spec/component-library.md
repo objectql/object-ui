@@ -68,6 +68,7 @@ Components for visualizing data.
 | `alert` | Highlighted message | `variant`, `title`, `description` |
 | `table` | Data-driven table | `columns`, `data`, `caption`, `footer` |
 | `carousel` | Slideshow component | `items`, `orientation`, `showArrows` |
+| `calendar-view` | Airtable-style calendar | `data`, `view`, `titleField`, `startDateField`, `endDateField`, `colorField` |
 
 ## 6. Feedback Components
 Indicators for system status or feedback.
