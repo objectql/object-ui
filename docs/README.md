@@ -1,6 +1,6 @@
 # Object UI Documentation
 
-This is the VitePress documentation site for Object UI.
+This directory contains the VitePress documentation site for Object UI.
 
 ## Development
 
@@ -20,18 +20,27 @@ Build the documentation:
 pnpm docs:build
 ```
 
+The built site will be in `docs/.vitepress/dist/`.
+
 Preview the built site:
 
 ```bash
 pnpm docs:preview
 ```
 
+## Deployment
+
+The documentation is automatically deployed to GitHub Pages when changes are pushed to the main branch.
+
+See `.github/workflows/deploy-docs.yml` for the deployment configuration.
+
 ## Structure
 
 ```
-apps/docs/
+docs/
 ├── .vitepress/
-│   └── config.mts       # VitePress configuration
+│   ├── config.mts       # VitePress configuration
+│   └── dist/            # Build output (generated)
 ├── guide/               # User guides
 │   ├── introduction.md
 │   ├── quick-start.md
@@ -47,7 +56,8 @@ apps/docs/
 │   ├── components.md
 │   └── designer.md
 ├── index.md            # Homepage
-└── roadmap.md          # Public roadmap
+├── roadmap.md          # Public roadmap
+└── package.json        # Docs workspace config
 ```
 
 ## Adding Content
@@ -60,7 +70,7 @@ apps/docs/
 ### New Protocol Spec
 
 1. Create a new `.md` file in `protocol/`
-2. Add it to the protocol sidebar section
+2. Add it to the protocol sidebar section in `.vitepress/config.mts`
 
 ## Customization
 

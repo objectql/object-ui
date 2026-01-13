@@ -4,7 +4,8 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: "Object UI",
   description: "The Modular Interface Engine for the Enterprise",
-  base: '/',
+  base: '/object-ui/',
+  ignoreDeadLinks: true,
   
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
@@ -13,7 +14,7 @@ export default defineConfig({
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide/introduction' },
-      { text: 'Roadmap', link: '/roadmap' },
+      { text: 'Roadmap', link: '/ROADMAP' },
       { text: 'Protocol', link: '/protocol/overview' },
       { text: 'API', link: '/api/core' }
     ],

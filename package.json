@@ -4,15 +4,15 @@
   "workspaces": [
     "packages/*",
     "examples/*",
-    "apps/*"
+    "docs"
   ],
   "scripts": {
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
-    "docs:dev": "pnpm --filter @object-ui/docs dev",
-    "docs:build": "pnpm --filter @object-ui/docs build",
-    "docs:preview": "pnpm --filter @object-ui/docs preview"
+    "docs:dev": "pnpm --filter object-ui-docs dev",
+    "docs:build": "pnpm --filter object-ui-docs build",
+    "docs:preview": "pnpm --filter object-ui-docs preview"
   },
   "devDependencies": {
     "typescript": "^5.0.0",

@@ -36,3 +36,7 @@ Thumbs.db
 # ObjectUI specific
 *.umd.js
 *.esm.js
+
+# VitePress build output
+docs/.vitepress/dist
+docs/.vitepress/cache
