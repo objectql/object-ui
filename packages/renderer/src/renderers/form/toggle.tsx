@@ -1,4 +1,3 @@
-import React from 'react';
 import { ComponentRegistry } from '../../registry';
 import { Toggle, ToggleGroup, ToggleGroupItem } from '@object-ui/ui';
 import { renderChildren } from '../../utils';

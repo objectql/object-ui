@@ -1,4 +1,3 @@
-import React from 'react';
 import { ComponentRegistry } from '../../registry';
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from '@object-ui/ui';
 

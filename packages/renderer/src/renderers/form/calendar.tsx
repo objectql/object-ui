@@ -1,4 +1,3 @@
-import React from 'react';
 import { ComponentRegistry } from '../../registry';
 import { Calendar } from '@object-ui/ui';
 

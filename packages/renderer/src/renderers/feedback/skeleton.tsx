@@ -1,4 +1,3 @@
-import React from 'react';
 import { ComponentRegistry } from '../../registry';
 import { Skeleton } from '@object-ui/ui';
 

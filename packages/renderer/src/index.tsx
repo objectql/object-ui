@@ -1,4 +1,3 @@
-import React from 'react';
 import type { SchemaNode } from '@object-ui/protocol';
 import { ComponentRegistry } from './registry';
 import './renderers'; // Import all renderers to register them

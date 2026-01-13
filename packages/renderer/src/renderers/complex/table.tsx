@@ -1,5 +1,4 @@
 // table.tsx implementation
-import React from 'react';
 import { ComponentRegistry } from '../../registry';
 import { 
   Table, 

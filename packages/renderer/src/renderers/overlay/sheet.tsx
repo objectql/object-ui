@@ -1,4 +1,3 @@
-import React from 'react';
 import { ComponentRegistry } from '../../registry';
 import { 
   Sheet, 
@@ -7,8 +6,7 @@ import {
   SheetHeader, 
   SheetFooter, 
   SheetTitle, 
-  SheetDescription,
-  SheetClose
+  SheetDescription
 } from '@object-ui/ui';
 import { renderChildren } from '../../utils';
 

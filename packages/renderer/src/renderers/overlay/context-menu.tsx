@@ -1,4 +1,3 @@
-import React from 'react';
 import { ComponentRegistry } from '../../registry';
 import { 
   ContextMenu, 
@@ -7,9 +6,6 @@ import {
   ContextMenuItem, 
   ContextMenuLabel, 
   ContextMenuSeparator,
-  ContextMenuCheckboxItem,
-  ContextMenuRadioGroup,
-  ContextMenuRadioItem,
   ContextMenuSub,
   ContextMenuSubTrigger,
   ContextMenuSubContent,

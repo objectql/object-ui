@@ -1,4 +1,3 @@
-import React from 'react';
 import { ComponentRegistry } from '../../registry';
 import { Toaster as SonnerToaster } from '@object-ui/ui';
 import { Toaster as DefaultToaster } from '@object-ui/ui'; 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { ComponentRegistry } from '../../registry';
 import { Badge } from '@object-ui/ui';
 import { renderChildren } from '../../utils';

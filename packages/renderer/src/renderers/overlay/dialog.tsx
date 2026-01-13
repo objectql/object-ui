@@ -1,4 +1,3 @@
-import React from 'react';
 import { ComponentRegistry } from '../../registry';
 import { 
   Dialog, 
@@ -7,8 +6,7 @@ import {
   DialogHeader, 
   DialogFooter, 
   DialogTitle, 
-  DialogDescription,
-  DialogClose
+  DialogDescription
 } from '@object-ui/ui';
 import { renderChildren } from '../../utils';
 

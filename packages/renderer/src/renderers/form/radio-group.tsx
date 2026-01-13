@@ -1,4 +1,3 @@
-import React from 'react';
 import { ComponentRegistry } from '../../registry';
 import { RadioGroup, RadioGroupItem, Label } from '@object-ui/ui';
 

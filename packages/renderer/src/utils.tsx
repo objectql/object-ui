@@ -1,4 +1,3 @@
-import React from 'react';
 import { SchemaRenderer } from './index';
 import type { SchemaNode } from '@object-ui/protocol';
 
