@@ -222,7 +222,7 @@ For contributing or local development:
 ```bash
 # Clone the repository
 git clone https://github.com/objectql/objectui.git
-cd object-ui
+cd objectui
 
 # Install dependencies
 pnpm install
