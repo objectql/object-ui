@@ -1,7 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 
 describe('Chatbot Component', () => {
+  // Import all renderers to register them
+  beforeAll(async () => {
+    await import('./index');
+  });
+
   it('should be registered in ComponentRegistry', () => {
     const chatbotRenderer = ComponentRegistry.get('chatbot');
     expect(chatbotRenderer).toBeDefined();
