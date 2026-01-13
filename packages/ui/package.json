@@ -1,6 +1,7 @@
 {
   "name": "@object-ui/ui",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "The Look. A set of high-quality UI renderers built with Tailwind CSS & Shadcn.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

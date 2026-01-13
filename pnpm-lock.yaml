@@ -130,6 +130,9 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(react@19.2.3)
     devDependencies:
+      '@eslint/js':
+        specifier: ^9.39.1
+        version: 9.39.2
       '@types/node':
         specifier: ^24.10.1
         version: 24.10.7

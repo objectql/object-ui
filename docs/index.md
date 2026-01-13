@@ -14,7 +14,7 @@ hero:
       link: /guide/introduction
     - theme: alt
       text: View Roadmap
-      link: /roadmap
+      link: /ROADMAP
     - theme: alt
       text: GitHub
       link: https://github.com/objectql/object-ui
@@ -28,9 +28,9 @@ features:
     title: Beautiful by Default
     details: Professional designs out of the box with Tailwind CSS and Shadcn/UI. Light/dark themes and full customization support.
   
-  - icon: 🔧
-    title: Developer Friendly
-    details: Full TypeScript support, standard React patterns, and complete control. Export to code anytime.
+  - icon: �️
+    title: Visual Designer
+    details: Drag-and-drop editor to build UIs visually. Real-time preview, property panels, and instant JSON export.
   
   - icon: 🚀
     title: Schema Driven

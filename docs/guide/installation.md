@@ -16,19 +16,30 @@ Object UI is distributed as several packages:
 
 | Package | Description | Required |
 |---------|-------------|----------|
-| `@object-ui/protocol` | Type definitions and schemas | Optional |
-| `@object-ui/engine` | Core logic and state management | Optional |
-| `@object-ui/react` | React integration and hooks | **Yes** |
-| `@object-ui/components` | UI component library | **Yes** |
-| `@object-ui/designer` | Visual designer (Q3 2026) | Optional |
+| `@object-ui/protocol` | Type definitions and schemas | Yes |
+| `@object-ui/renderer` | The core compiler that turns JSON into React | Yes |
+| `@object-ui/ui` | The visual component library (Shadcn extended) | Yes |
+| `@object-ui/designer` | Visual schema editor and builder | Optional |
 
 ## Basic Installation
 
-For most projects, you only need two packages:
+To get started, install the core packages:
 
 ::: code-group
 
 ```bash [npm]
+npm install @object-ui/renderer @object-ui/ui @object-ui/protocol
+```
+
+```bash [pnpm]
+pnpm add @object-ui/renderer @object-ui/ui @object-ui/protocol
+```
+
+```bash [yarn]
+yarn add @object-ui/renderer @object-ui/ui @object-ui/protocol
+```
+
+:::bash [npm]
 npm install @object-ui/react @object-ui/components
 ```
 

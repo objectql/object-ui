@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState } from 'react';
 import { Designer } from '@object-ui/designer';
 import type { SchemaNode } from '@object-ui/protocol';

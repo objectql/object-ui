@@ -1,6 +1,7 @@
 {
   "name": "object-ui-monorepo",
   "private": true,
+  "license": "MIT",
   "homepage": "https://www.objectui.org",
   "workspaces": [
     "packages/*",

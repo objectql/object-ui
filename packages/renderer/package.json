@@ -1,6 +1,7 @@
 {
   "name": "@object-ui/renderer",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "The Compiler. Turns Metadata into UI components.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
