@@ -172,11 +172,10 @@ This project is organized as a Monorepo:
 
 | Package | Description |
 | --- | --- |
-| **`@object-ui/types`** | The protocol definitions. Pure TypeScript interfaces. |
-| **`@object-ui/core`** | The logic engine. Data scoping, validation, evaluation. |
-| **`@object-ui/react`** | The React framework adapter. |
+| **`@object-ui/core`** | Core logic, types, and validation. Zero React dependencies. |
+| **`@object-ui/react`** | The React framework adapter with SchemaRenderer. |
 | **`@object-ui/components`** | The standard UI library implementation (Shadcn + Tailwind). |
-| **`@object-ui/plugin-*`** | Lazy-loaded complex components (e.g., AG Grid, Monaco). |
+| **`@object-ui/designer`** | Visual schema editor for building UIs without code. |
 
 ---
 

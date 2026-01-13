@@ -34,11 +34,11 @@ A professional drag-and-drop visual editor to generate Object UI schemas with ad
 ## Installation
 
 ```bash
-npm install @object-ui/designer @object-ui/renderer @object-ui/ui
+npm install @object-ui/designer @object-ui/react @object-ui/components
 # or
-yarn add @object-ui/designer @object-ui/renderer @object-ui/ui
+yarn add @object-ui/designer @object-ui/react @object-ui/components
 # or
-pnpm add @object-ui/designer @object-ui/renderer @object-ui/ui
+pnpm add @object-ui/designer @object-ui/react @object-ui/components
 ```
 
 ## Usage
@@ -48,7 +48,7 @@ pnpm add @object-ui/designer @object-ui/renderer @object-ui/ui
 ```tsx
 import { Designer } from '@object-ui/designer';
 import { useState } from 'react';
-import type { SchemaNode } from '@object-ui/protocol';
+import type { SchemaNode } from '@object-ui/core';
 
 function App() {
   const [schema, setSchema] = useState<SchemaNode>({
@@ -235,6 +235,7 @@ module.exports = {
   content: [
     './src/**/*.{js,ts,jsx,tsx}',
     './node_modules/@object-ui/designer/**/*.{js,ts,jsx,tsx}',
+    './node_modules/@object-ui/components/**/*.{js,ts,jsx,tsx}',
   ],
   // ...
 }

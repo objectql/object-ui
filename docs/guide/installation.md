@@ -16,9 +16,9 @@ Object UI is distributed as several packages:
 
 | Package | Description | Required |
 |---------|-------------|----------|
-| `@object-ui/protocol` | Type definitions and schemas | Yes |
-| `@object-ui/renderer` | The core compiler that turns JSON into React | Yes |
-| `@object-ui/ui` | The visual component library (Shadcn extended) | Yes |
+| `@object-ui/core` | Core logic, types, and validation (Zero React dependencies) | Yes |
+| `@object-ui/react` | React bindings and SchemaRenderer component | Yes |
+| `@object-ui/components` | Standard UI library with Shadcn + Tailwind components | Yes |
 | `@object-ui/designer` | Visual schema editor and builder | Optional |
 
 ## Basic Installation
@@ -28,27 +28,15 @@ To get started, install the core packages:
 ::: code-group
 
 ```bash [npm]
-npm install @object-ui/renderer @object-ui/ui @object-ui/protocol
-```
-
-```bash [pnpm]
-pnpm add @object-ui/renderer @object-ui/ui @object-ui/protocol
-```
-
-```bash [yarn]
-yarn add @object-ui/renderer @object-ui/ui @object-ui/protocol
-```
-
-:::bash [npm]
 npm install @object-ui/react @object-ui/components
-```
-
-```bash [yarn]
-yarn add @object-ui/react @object-ui/components
 ```
 
 ```bash [pnpm]
 pnpm add @object-ui/react @object-ui/components
+```
+
+```bash [yarn]
+yarn add @object-ui/react @object-ui/components
 ```
 
 :::
@@ -158,19 +146,19 @@ Create React App requires no special configuration.
 For TypeScript type definitions:
 
 ```bash
-npm install @object-ui/protocol
+npm install @object-ui/core
 ```
 
 ```typescript
-import type { PageSchema, FormSchema } from '@object-ui/protocol'
+import type { PageSchema, FormSchema } from '@object-ui/core'
 ```
 
-### Engine
+### Designer
 
-For advanced state management and data handling:
+For visual schema editing:
 
 ```bash
-npm install @object-ui/engine
+npm install @object-ui/designer
 ```
 
 ## Verification

@@ -1,11 +1,13 @@
 # Core API
 
-The `@object-ui/core` package (also published as `@object-ui/protocol`) provides the foundational type definitions and schemas for Object UI.
+The `@object-ui/core` package provides the foundational type definitions, schemas, and core logic for Object UI.
+
+This package is **framework-agnostic** with zero React dependencies, making it suitable for use in Node.js environments, build tools, or other frameworks.
 
 ## Installation
 
 ```bash
-npm install @object-ui/protocol
+npm install @object-ui/core
 ```
 
 ## Type Definitions
@@ -19,7 +21,7 @@ import type {
   FormSchema,
   ViewSchema,
   ComponentSchema
-} from '@object-ui/protocol'
+} from '@object-ui/core'
 ```
 
 ### BaseSchema
@@ -82,7 +84,7 @@ interface InputSchema extends BaseSchema {
 ### Using Zod
 
 ```typescript
-import { PageSchema } from '@object-ui/protocol'
+import { PageSchema } from '@object-ui/core'
 import { z } from 'zod'
 
 const pageValidator = z.object({
@@ -100,7 +102,7 @@ const result = pageValidator.safeParse(mySchema)
 ### Type Guards
 
 ```typescript
-import { isPageSchema, isFormSchema } from '@object-ui/protocol'
+import { isPageSchema, isFormSchema } from '@object-ui/core'
 
 if (isPageSchema(schema)) {
   // TypeScript knows schema is PageSchema
@@ -108,10 +110,30 @@ if (isPageSchema(schema)) {
 }
 ```
 
+## Component Registry
+
+The core package provides a framework-agnostic component registry:
+
+```typescript
+import { ComponentRegistry } from '@object-ui/core'
+
+const registry = new ComponentRegistry()
+registry.register('button', buttonMetadata)
+```
+
+## Data Scope
+
+Data scope management for expression evaluation:
+
+```typescript
+import { DataScope } from '@object-ui/core'
+
+const scope = new DataScope({ user: { name: 'John' } })
+const value = scope.get('user.name') // 'John'
+```
+
 ## API Reference
 
-Full API documentation coming soon.
-
-For now, see:
-- [GitHub Repository](https://github.com/objectql/objectui/tree/main/packages/protocol)
-- [TypeScript Definitions](https://github.com/objectql/objectui/blob/main/packages/protocol/src/types)
+For detailed API documentation, see:
+- [GitHub Repository](https://github.com/objectql/objectui/tree/main/packages/core)
+- [TypeScript Definitions](https://github.com/objectql/objectui/blob/main/packages/core/src/index.ts)

@@ -71,27 +71,29 @@ Dynamic logic is handled via string expressions in the JSON schema.
 ## 4. Architecture Layers
 
 ```
-Layer 1: @object-ui/protocol (The Language)
-  - Types definitions for Object, Field, View, Page (from docs/objectql)
+Layer 1: @object-ui/core (The Foundation)
+  - Type definitions for schemas and components
+  - Core logic with zero React dependencies
   - Validation Logic (Zod)
+  - Component Registry
+  - Data Scope and Expression Evaluation
 
-Layer 2: @object-ui/engine (The Brain)
-  - Headless State Management
-  - Data Source / API Connectors
-  - Expression Evaluation utils
+Layer 2: @object-ui/react (The Glue)
+  - React bindings and hooks
+  - SchemaRenderer component
+  - Context providers
+  - React-specific state management
 
-Layer 3: @object-ui/ui (The Look)
+Layer 3: @object-ui/components (The Look)
   - Shadcn/UI primitives
   - Tailwind Configuration
-  - Dumb React Components
+  - Component Renderers
+  - Standard UI implementations
 
-Layer 4: @object-ui/renderer (The Compiler)
-  - SchemaRenderer
-  - Component Registry
-  - Concrete implementations of Page, View, Object renderers
-
-Layer 5: @object-ui/designer (The Tool)
-  - Visual Editor
+Layer 4: @object-ui/designer (The Tool)
+  - Visual Schema Editor
+  - Drag-and-Drop Interface
+  - Property Editing
 ```
 
 ## 5. Advantages over Traditional Engines

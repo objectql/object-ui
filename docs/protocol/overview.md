@@ -149,7 +149,7 @@ All schemas can be validated using:
 Example validation:
 
 ```typescript
-import { PageSchema } from '@object-ui/protocol'
+import { PageSchema } from '@object-ui/core'
 import { z } from 'zod'
 
 const pageSchema = z.object({
@@ -233,7 +233,7 @@ This single schema creates a complete user management interface with:
 The reference implementation is available in TypeScript:
 
 ```bash
-npm install @object-ui/protocol
+npm install @object-ui/core
 ```
 
 ```typescript
@@ -241,7 +241,7 @@ import {
   PageSchema,
   ViewSchema,
   ObjectSchema
-} from '@object-ui/protocol'
+} from '@object-ui/core'
 ```
 
 ## Contributing

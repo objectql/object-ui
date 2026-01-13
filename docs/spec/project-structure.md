@@ -1,6 +1,6 @@
-# AI-Driven Project Structure
+# Project Structure
 
-This document defines the directory structure designed to facilitate AI-driven development. The goal is to establish a deterministic 1:1 mapping between the ObjectQL specifications (in `docs/objectql`) and the source code.
+This document defines the current directory structure of Object UI, designed for clarity and AI-driven development.
 
 ## 1. Top-Level Structure (Monorepo)
 
@@ -8,78 +8,150 @@ We use a standard Monorepo structure managed by `pnpm`.
 
 ```
 /
-├── apps/                   # End-user applications
-│   ├── design-studio/      # The visual designer (Next.js/Vite)
-│   └── docs/               # Documentation site
-├── packages/               # Shared libraries
-│   ├── protocol/           # (New) Pure Metadata Definitions & Types
-│   ├── engine/             # (New) The Core Logic (State, Data, Expressions)
-│   ├── ui/                 # (New) The Atomic Component Library (Shadcn + Tailwind)
-│   └── renderer/           # (Renamed from react) The Schema->React Transformer
-├── docs/
-│   ├── objectql/           # The Source of Truth (Specs)
-│   └── spec/               # Technical Specs
+├── examples/               # Example applications
+│   ├── prototype/         # Main prototype/demo app
+│   └── designer-demo/     # Designer demonstration
+├── packages/              # Shared libraries
+│   ├── core/             # Core logic, types, and validation (Zero React)
+│   ├── react/            # React bindings and SchemaRenderer
+│   ├── components/       # Standard UI components (Shadcn + Tailwind)
+│   └── designer/         # Visual schema editor
+├── docs/                 # Documentation site (VitePress)
+│   ├── .vitepress/       # VitePress configuration
+│   ├── guide/            # User guides
+│   ├── api/              # API documentation
+│   ├── protocol/         # Protocol specifications
+│   └── spec/             # Technical specifications
+└── .github/              # GitHub workflows and configurations
 ```
 
 ## 2. Package Responsibilities
 
-### `@object-ui/protocol` (was `core`)
-**Goal**: Define the "Language" of ObjectQL.
-**Mapping**: `docs/objectql/*.md` → `packages/protocol/src/*.ts`
+### `@object-ui/core`
+**Goal**: The "Brain" - Core logic with zero React dependencies.
+**Tech**: Pure TypeScript + Zod + Lodash
 
-*   `src/types/object.ts` (Defines ObjectConfig)
-*   `src/types/field.ts` (Defines FieldConfig)
-*   `src/types/view.ts` (Defines ViewConfig)
-*   `src/types/page.ts` (Defines PageConfig)
-*   `src/utils/validator.ts` (Zod schemas for runtime validation)
+**Contents**:
+- `src/types/` - TypeScript type definitions (schemas, components)
+- `src/registry/` - Component registry system
+- `src/data-scope/` - Data scope and expression evaluation
+- `src/validators/` - Zod validation schemas
 
-### `@object-ui/engine` (was `react` internals)
-**Goal**: The "Brain". Headless logic for handling data.
+**Key Principle**: This package can run in Node.js or any JavaScript environment.
 
-*   `src/store/` (Zustand stores for Object data)
-*   `src/data-source/` (React Query wrappers)
-*   `src/expressions/` (Expression evaluator)
-*   `src/context/` (DataScope implementation)
+### `@object-ui/react`
+**Goal**: The "Glue" - React bindings and renderer.
+**Tech**: React 18+ with Hooks
 
-### `@object-ui/ui` (was `components`)
-**Goal**: The "Look". Dumb, stateless UI atoms.
-**Tech**: Radix UI + Tailwind + Shadcn.
-
-*   `src/primitives/` (Button, Input, Dialog)
-*   `src/layout/` (Grid, Stack, Card)
-
-### `@object-ui/renderer` (was `react` public)
-**Goal**: The "Compiler". Turns Metadata into UI.
-**Structure**: Strictly organized by Schema Type.
-
+**Structure**:
 ```
 src/
-├── renderers/
-│   ├── page/
-│   │   ├── PageRenderer.tsx
-│   │   └── index.ts
-│   ├── object/
-│   │   ├── ObjectFormRenderer.tsx
-│   │   ├── ObjectTableRenderer.tsx
-│   │   └── ...
-│   ├── view/
-│   │   ├── ViewRenderer.tsx  (Dispatcher)
-│   │   ├── ListView.tsx
-│   │   ├── KanbanView.tsx
-│   │   └── ...
-│   └── field/
-│       ├── FieldRenderer.tsx (Dispatcher)
-│       ├── StringField.tsx
-│       └── SelectField.tsx
-├── registry.ts               # Maps types to renderers
-└── SchemaRenderer.tsx        # Entry point
+├── SchemaRenderer.tsx      # Main renderer component
+├── hooks/                  # React hooks
+│   ├── useRenderer.ts
+│   ├── useDataScope.ts
+│   └── useRegistry.ts
+└── context/               # React Context providers
+    ├── RendererContext.tsx
+    └── DataScopeContext.tsx
 ```
 
-## 3. Workflow for AI
+### `@object-ui/components`
+**Goal**: The "Body" - Standard UI implementation.
+**Tech**: Shadcn UI + Radix UI + Tailwind CSS
 
-When asked to "Implement the View spec":
+**Structure**:
+```
+src/
+├── ui/                    # Base Shadcn components
+│   ├── button.tsx
+│   ├── input.tsx
+│   ├── select.tsx
+│   └── ...
+├── renderers/            # Object UI component renderers
+│   ├── basic/           # Basic components
+│   ├── form/            # Form components
+│   ├── layout/          # Layout components
+│   └── data-display/    # Data display components
+└── index.ts             # Public exports
+```
 
-1.  **Read** `docs/objectql/view.md`.
-2.  **Define** `packages/protocol/src/types/view.ts`.
-3.  **Create** `packages/renderer/src/renderers/view/ViewRenderer.tsx`.
-4.  **Register** it in `packages/renderer/src/registry.ts`.
+### `@object-ui/designer`
+**Goal**: The "Tool" - Visual schema editor.
+**Tech**: React + Drag-and-Drop
+
+**Contents**:
+- `src/Designer.tsx` - Main designer component
+- `src/Canvas.tsx` - Visual editing canvas
+- `src/ComponentPalette.tsx` - Component library browser
+- `src/PropertyPanel.tsx` - Property editor
+- `src/Toolbar.tsx` - Actions toolbar
+- `src/context/` - Designer state management
+
+## 3. Development Workflow
+
+### Adding a New Component
+
+When implementing a new component:
+
+1. **Define Types** in `packages/core/src/types/`
+   ```typescript
+   export interface MyComponentSchema extends BaseSchema {
+     type: 'my-component'
+     // ... component-specific properties
+   }
+   ```
+
+2. **Create UI Component** in `packages/components/src/ui/` (if needed)
+   ```tsx
+   // Base Shadcn component
+   export function MyComponent({ ... }) { ... }
+   ```
+
+3. **Create Renderer** in `packages/components/src/renderers/`
+   ```tsx
+   export function MyComponentRenderer({ schema, ...props }) {
+     return <MyComponent {...props} {...schema} />
+   }
+   ```
+
+4. **Register** in `packages/components/src/index.ts`
+   ```typescript
+   registry.register('my-component', MyComponentRenderer)
+   ```
+
+### Package Dependencies
+
+```
+designer
+   ↓
+components ──→ react ──→ core
+   ↓                        ↓
+ui components         types & logic
+```
+
+**Dependency Rules**:
+- `core`: NO dependencies on React or any UI framework
+- `react`: Depends on `core`, peer depends on React
+- `components`: Depends on `core` + `react` + Shadcn/Radix
+- `designer`: Depends on `components`
+
+## 4. File Naming Conventions
+
+- **Components**: PascalCase with `.tsx` extension (e.g., `Button.tsx`)
+- **Hooks**: camelCase starting with `use` (e.g., `useRenderer.ts`)
+- **Types**: PascalCase with `.ts` extension (e.g., `Schema.ts`)
+- **Utilities**: camelCase with `.ts` extension (e.g., `registry.ts`)
+
+## 5. Import Aliases
+
+When working within the monorepo, use workspace protocol:
+
+```typescript
+// In packages/react
+import { BaseSchema } from '@object-ui/core'
+
+// In packages/components
+import { SchemaRenderer } from '@object-ui/react'
+import type { ButtonSchema } from '@object-ui/core'
+```

@@ -119,11 +119,10 @@ Object UI automatically:
 Object UI is built as a modular ecosystem:
 
 ```
-@object-ui/protocol  → Type definitions and schemas
-@object-ui/engine    → Core logic and state management
-@object-ui/ui        → UI components (Tailwind + Shadcn)
-@object-ui/renderer  → Schema-to-React transformer
-@object-ui/designer  → Visual editor (coming Q3 2026)
+@object-ui/core       → Core logic, types, and validation (Zero React)
+@object-ui/react      → React bindings and SchemaRenderer
+@object-ui/components → UI components (Tailwind + Shadcn)
+@object-ui/designer   → Visual schema editor
 ```
 
 This modular design means:

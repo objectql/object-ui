@@ -34,7 +34,7 @@ pnpm test:coverage
 pnpm build
 
 # Build specific package
-cd packages/protocol && pnpm build
+cd packages/core && pnpm build
 ```
 
 ### Linting
