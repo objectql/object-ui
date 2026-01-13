@@ -181,13 +181,13 @@ Now that you have the basics:
 
 Check out complete examples:
 
-- [Form Example](https://github.com/objectql/object-ui/tree/main/examples/forms)
-- [CRUD Example](https://github.com/objectql/object-ui/tree/main/examples/crud)
-- [Dashboard Example](https://github.com/objectql/object-ui/tree/main/examples/dashboard)
+- [Form Example](https://github.com/objectql/objectui/tree/main/examples/forms)
+- [CRUD Example](https://github.com/objectql/objectui/tree/main/examples/crud)
+- [Dashboard Example](https://github.com/objectql/objectui/tree/main/examples/dashboard)
 
 ## Need Help?
 
 - 📖 [Full Documentation](/)
-- 💬 [GitHub Discussions](https://github.com/objectql/object-ui/discussions)
-- 🐛 [Report Issues](https://github.com/objectql/object-ui/issues)
+- 💬 [GitHub Discussions](https://github.com/objectql/objectui/discussions)
+- 🐛 [Report Issues](https://github.com/objectql/objectui/issues)
 - 📧 [Email Support](mailto:hello@objectui.org)

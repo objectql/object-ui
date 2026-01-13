@@ -113,5 +113,5 @@ if (isPageSchema(schema)) {
 Full API documentation coming soon.
 
 For now, see:
-- [GitHub Repository](https://github.com/objectql/object-ui/tree/main/packages/protocol)
-- [TypeScript Definitions](https://github.com/objectql/object-ui/blob/main/packages/protocol/src/types)
+- [GitHub Repository](https://github.com/objectql/objectui/tree/main/packages/protocol)
+- [TypeScript Definitions](https://github.com/objectql/objectui/blob/main/packages/protocol/src/types)

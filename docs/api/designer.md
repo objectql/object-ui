@@ -56,7 +56,7 @@ Real-time multi-user editing like Google Docs.
 
 Want to be notified when Designer launches?
 
-- ⭐ [Star on GitHub](https://github.com/objectql/object-ui)
+- ⭐ [Star on GitHub](https://github.com/objectql/objectui)
 - 📧 [Email us](mailto:hello@objectui.org)
 - 📋 [View Roadmap](/roadmap)
 

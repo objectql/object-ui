@@ -221,8 +221,8 @@ For contributing or local development:
 
 ```bash
 # Clone the repository
-git clone https://github.com/objectql/object-ui.git
-cd object-ui
+git clone https://github.com/objectql/objectui.git
+cd objectui
 
 # Install dependencies
 pnpm install
@@ -242,6 +242,6 @@ pnpm dev
 Having trouble? We're here to help:
 
 - 📖 [Documentation](/)
-- 💬 [GitHub Discussions](https://github.com/objectql/object-ui/discussions)
-- 🐛 [Report Issues](https://github.com/objectql/object-ui/issues)
+- 💬 [GitHub Discussions](https://github.com/objectql/objectui/discussions)
+- 🐛 [Report Issues](https://github.com/objectql/objectui/issues)
 - 📧 [Email](mailto:hello@objectui.org)

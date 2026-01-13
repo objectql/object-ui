@@ -17,7 +17,7 @@ hero:
       link: /ROADMAP
     - theme: alt
       text: GitHub
-      link: https://github.com/objectql/object-ui
+      link: https://github.com/objectql/objectui
 
 features:
   - icon: ⚡
@@ -121,6 +121,6 @@ import { SchemaRenderer } from '@object-ui/react'
 
 ## Community
 
-- ⭐ [Star on GitHub](https://github.com/objectql/object-ui)
+- ⭐ [Star on GitHub](https://github.com/objectql/objectui)
 - 📧 [Email us](mailto:hello@objectui.org)
-- 🐛 [Report issues](https://github.com/objectql/object-ui/issues)
+- 🐛 [Report issues](https://github.com/objectql/objectui/issues)

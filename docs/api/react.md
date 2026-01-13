@@ -87,5 +87,5 @@ import { SchemaProvider } from '@object-ui/react'
 Full API documentation coming soon.
 
 For now, see:
-- [GitHub Repository](https://github.com/objectql/object-ui/tree/main/packages/react)
-- [Examples](https://github.com/objectql/object-ui/tree/main/examples)
+- [GitHub Repository](https://github.com/objectql/objectui/tree/main/packages/react)
+- [Examples](https://github.com/objectql/objectui/tree/main/examples)

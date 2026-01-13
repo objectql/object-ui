@@ -6,10 +6,10 @@
 
 A high-performance, schema-driven UI system built on **React 18**, **Tailwind CSS**, and **Shadcn UI**.
 
-[![CI](https://github.com/objectql/object-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/objectql/object-ui/actions/workflows/ci.yml)
+[![CI](https://github.com/objectql/objectui/actions/workflows/ci.yml/badge.svg)](https://github.com/objectql/objectui/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[Documentation](https://www.objectui.org) · [Playground](https://www.objectui.org/playground) · [Report Bug](https://github.com/objectql/object-ui/issues)
+[Documentation](https://www.objectui.org) · [Playground](https://www.objectui.org/playground) · [Report Bug](https://github.com/objectql/objectui/issues)
 
 </div>
 
@@ -119,7 +119,7 @@ This project is a Monorepo managed by **TurboRepo** and **pnpm**.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/objectql/object-ui.git
+git clone https://github.com/objectql/objectui.git
 
 # 2. Install dependencies
 pnpm install

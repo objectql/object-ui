@@ -196,7 +196,7 @@ While we're building the future, you can already:
 We have an early preview available! Check out our [Playground](https://objectui.org/playground) to see what's possible.
 
 ### Join the Community
-- ⭐ **Star us on GitHub**: [objectql/object-ui](https://github.com/objectql/object-ui)
+- ⭐ **Star us on GitHub**: [objectql/objectui](https://github.com/objectql/objectui)
 - 📧 **Email us**: hello@objectui.org
 
 ### Shape the Future
@@ -269,7 +269,7 @@ Yes. We're committed to backward compatibility. Your schemas will keep working a
 
 Want to know when new features launch? Here's how to stay in the loop:
 
-- ⭐ **Star on GitHub**: Watch releases at [objectql/object-ui](https://github.com/objectql/object-ui)
+- ⭐ **Star on GitHub**: Watch releases at [objectql/objectui](https://github.com/objectql/objectui)
 - 📧 **Email**: Contact us at hello@objectui.org for announcements
 
 We update this roadmap monthly with our progress.
@@ -282,7 +282,7 @@ Object UI is built by developers, for developers. Thank you for your interest an
 
 **Questions?** Email us at hello@objectui.org
 
-**Want to contribute?** Open an issue or pull request on [GitHub](https://github.com/objectql/object-ui)
+**Want to contribute?** Open an issue or pull request on [GitHub](https://github.com/objectql/objectui)
 
 ---
 
@@ -290,6 +290,6 @@ Object UI is built by developers, for developers. Thank you for your interest an
 
 *Building the future of interface development, one JSON schema at a time* 🚀
 
-**[GitHub](https://github.com/objectql/object-ui)** · **[Documentation](https://objectui.org)** · **[Playground](https://objectui.org/playground)**
+**[GitHub](https://github.com/objectql/objectui)** · **[Documentation](https://objectui.org)** · **[Playground](https://objectui.org/playground)**
 
 </div>
