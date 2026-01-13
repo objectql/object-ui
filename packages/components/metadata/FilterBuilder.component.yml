@@ -1,0 +1,39 @@
+name: FilterBuilder
+label: Filter Builder
+description: Airtable-like filter builder for creating complex query conditions
+category: complex
+version: 1.0.0
+framework: react
+
+props:
+  - name: label
+    type: string
+    description: Label text displayed above the filter builder
+  - name: name
+    type: string
+    required: true
+    description: Form field name for the filter value
+  - name: fields
+    type: array
+    required: true
+    description: Available fields for filtering
+    schema:
+      - value: string
+      - label: string
+      - type: string
+  - name: value
+    type: object
+    description: Current filter configuration
+    schema:
+      - id: string
+      - logic: enum[and, or]
+      - conditions: array
+
+events:
+  - name: onChange
+    payload: "{ name: string, value: FilterGroup }"
+
+features:
+  dynamic_conditions: true
+  multiple_operators: true
+  field_type_aware: true
