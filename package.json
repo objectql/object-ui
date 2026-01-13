@@ -7,19 +7,30 @@
   ],
   "scripts": {
     "build": "pnpm -r build",
-    "test": "pnpm -r test",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
     "lint": "pnpm -r lint"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "eslint": "^8.0.0",
-    "prettier": "^3.0.0",
-    "turbo": "^2.6.3",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.2.3",
     "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.0.17",
+    "@vitest/ui": "^4.0.17",
+    "eslint": "^8.0.0",
+    "happy-dom": "^20.1.0",
+    "jsdom": "^27.4.0",
+    "prettier": "^3.0.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "tailwindcss": "^3.0.0",
-    "tslib": "^2.6.0"
+    "tslib": "^2.6.0",
+    "turbo": "^2.6.3",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.17"
   }
 }
