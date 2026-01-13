@@ -220,21 +220,30 @@ export function KanbanBoard({ columns, onCardMove, className }: KanbanBoardProps
     }
   }
 
-  const findCard = (cardId: string): KanbanCard | null => {
-    for (const column of boardColumns) {
-      const card = column.cards.find((c) => c.id === cardId)
-      if (card) return card
-    }
-    return null
-  }
+  const findCard = React.useCallback(
+    (cardId: string): KanbanCard | null => {
+      for (const column of boardColumns) {
+        const card = column.cards.find((c) => c.id === cardId)
+        if (card) return card
+      }
+      return null
+    },
+    [boardColumns]
+  )
 
-  const findColumnByCardId = (cardId: string): KanbanColumn | null => {
-    return boardColumns.find((col) => col.cards.some((c) => c.id === cardId)) || null
-  }
+  const findColumnByCardId = React.useCallback(
+    (cardId: string): KanbanColumn | null => {
+      return boardColumns.find((col) => col.cards.some((c) => c.id === cardId)) || null
+    },
+    [boardColumns]
+  )
 
-  const findColumnById = (columnId: string): KanbanColumn | null => {
-    return boardColumns.find((col) => col.id === columnId) || null
-  }
+  const findColumnById = React.useCallback(
+    (columnId: string): KanbanColumn | null => {
+      return boardColumns.find((col) => col.id === columnId) || null
+    },
+    [boardColumns]
+  )
 
   return (
     <DndContext

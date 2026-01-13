@@ -4,34 +4,10 @@ import React from 'react';
 
 ComponentRegistry.register('kanban', 
   ({ schema, className, ...props }) => {
-    const [columns, setColumns] = React.useState<KanbanColumn[]>(schema.columns || []);
-
-    React.useEffect(() => {
-      if (schema.columns) {
-        setColumns(schema.columns);
-      }
-    }, [schema.columns]);
-
-    const handleCardMove = (
-      cardId: string,
-      fromColumnId: string,
-      toColumnId: string,
-      newIndex: number
-    ) => {
-      // This is where you would handle the card move event
-      // For example, you could call an API or trigger an action
-      console.log('Card moved:', { cardId, fromColumnId, toColumnId, newIndex });
-      
-      // If there's an onCardMove callback in schema, call it
-      if (schema.onCardMove) {
-        schema.onCardMove({ cardId, fromColumnId, toColumnId, newIndex });
-      }
-    };
-
     return (
       <KanbanBoard 
-        columns={columns}
-        onCardMove={schema.onCardMove ? handleCardMove : undefined}
+        columns={schema.columns || []}
+        onCardMove={schema.onCardMove}
         className={className}
         {...props}
       />
