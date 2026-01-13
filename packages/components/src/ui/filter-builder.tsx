@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { X, Plus } from "lucide-react"
+import { X, Plus, Trash2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/ui/button"
@@ -22,10 +22,16 @@ export interface FilterGroup {
 }
 
 export interface FilterBuilderProps {
-  fields?: Array<{ value: string; label: string; type?: string }>
+  fields?: Array<{ 
+    value: string
+    label: string
+    type?: string
+    options?: Array<{ value: string; label: string }> // For select fields
+  }>
   value?: FilterGroup
   onChange?: (value: FilterGroup) => void
   className?: string
+  showClearAll?: boolean
 }
 
 const defaultOperators = [
@@ -39,17 +45,25 @@ const defaultOperators = [
   { value: "lessThan", label: "Less than" },
   { value: "greaterOrEqual", label: "Greater than or equal" },
   { value: "lessOrEqual", label: "Less than or equal" },
+  { value: "before", label: "Before" },
+  { value: "after", label: "After" },
+  { value: "between", label: "Between" },
+  { value: "in", label: "In" },
+  { value: "notIn", label: "Not in" },
 ]
 
 const textOperators = ["equals", "notEquals", "contains", "notContains", "isEmpty", "isNotEmpty"]
 const numberOperators = ["equals", "notEquals", "greaterThan", "lessThan", "greaterOrEqual", "lessOrEqual", "isEmpty", "isNotEmpty"]
 const booleanOperators = ["equals", "notEquals"]
+const dateOperators = ["equals", "notEquals", "before", "after", "between", "isEmpty", "isNotEmpty"]
+const selectOperators = ["equals", "notEquals", "in", "notIn", "isEmpty", "isNotEmpty"]
 
 function FilterBuilder({
   fields = [],
   value,
   onChange,
   className,
+  showClearAll = true,
 }: FilterBuilderProps) {
   const [filterGroup, setFilterGroup] = React.useState<FilterGroup>(
     value || {
@@ -90,6 +104,13 @@ function FilterBuilder({
     })
   }
 
+  const clearAllConditions = () => {
+    handleChange({
+      ...filterGroup,
+      conditions: [],
+    })
+  }
+
   const updateCondition = (conditionId: string, updates: Partial<FilterCondition>) => {
     handleChange({
       ...filterGroup,
@@ -115,6 +136,10 @@ function FilterBuilder({
         return defaultOperators.filter((op) => numberOperators.includes(op.value))
       case "boolean":
         return defaultOperators.filter((op) => booleanOperators.includes(op.value))
+      case "date":
+        return defaultOperators.filter((op) => dateOperators.includes(op.value))
+      case "select":
+        return defaultOperators.filter((op) => selectOperators.includes(op.value))
       case "text":
       default:
         return defaultOperators.filter((op) => textOperators.includes(op.value))
@@ -125,18 +150,105 @@ function FilterBuilder({
     return !["isEmpty", "isNotEmpty"].includes(operator)
   }
 
+  const getInputType = (fieldValue: string) => {
+    const field = fields.find((f) => f.value === fieldValue)
+    const fieldType = field?.type || "text"
+    
+    switch (fieldType) {
+      case "number":
+        return "number"
+      case "date":
+        return "date"
+      default:
+        return "text"
+    }
+  }
+
+  const renderValueInput = (condition: FilterCondition) => {
+    const field = fields.find((f) => f.value === condition.field)
+    
+    // For select fields with options
+    if (field?.type === "select" && field.options) {
+      return (
+        <Select
+          value={String(condition.value || "")}
+          onValueChange={(value) =>
+            updateCondition(condition.id, { value })
+          }
+        >
+          <SelectTrigger className="h-9 text-sm">
+            <SelectValue placeholder="Select value" />
+          </SelectTrigger>
+          <SelectContent>
+            {field.options.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )
+    }
+
+    // For boolean fields
+    if (field?.type === "boolean") {
+      return (
+        <Select
+          value={String(condition.value || "")}
+          onValueChange={(value) =>
+            updateCondition(condition.id, { value: value === "true" })
+          }
+        >
+          <SelectTrigger className="h-9 text-sm">
+            <SelectValue placeholder="Select value" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true">True</SelectItem>
+            <SelectItem value="false">False</SelectItem>
+          </SelectContent>
+        </Select>
+      )
+    }
+
+    // Default input for text, number, date
+    return (
+      <Input
+        type={getInputType(condition.field)}
+        className="h-9 text-sm"
+        placeholder="Value"
+        value={String(condition.value || "")}
+        onChange={(e) =>
+          updateCondition(condition.id, { value: e.target.value })
+        }
+      />
+    )
+  }
+
   return (
     <div className={cn("space-y-3", className)}>
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">Where</span>
-        {filterGroup.conditions.length > 1 && (
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Where</span>
+          {filterGroup.conditions.length > 1 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleLogic}
+              className="h-7 text-xs"
+            >
+              {filterGroup.logic.toUpperCase()}
+            </Button>
+          )}
+        </div>
+        {showClearAll && filterGroup.conditions.length > 0 && (
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            onClick={toggleLogic}
-            className="h-7 text-xs"
+            onClick={clearAllConditions}
+            className="h-7 text-xs text-muted-foreground hover:text-destructive"
           >
-            {filterGroup.logic.toUpperCase()}
+            <Trash2 className="h-3 w-3 mr-1" />
+            Clear all
           </Button>
         )}
       </div>
@@ -187,14 +299,7 @@ function FilterBuilder({
 
               {needsValueInput(condition.operator) && (
                 <div className="col-span-4">
-                  <Input
-                    className="h-9 text-sm"
-                    placeholder="Value"
-                    value={String(condition.value || "")}
-                    onChange={(e) =>
-                      updateCondition(condition.id, { value: e.target.value })
-                    }
-                  />
+                  {renderValueInput(condition)}
                 </div>
               )}
             </div>

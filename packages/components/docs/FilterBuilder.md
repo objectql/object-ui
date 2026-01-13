@@ -8,8 +8,11 @@ The Filter Builder component provides a user-friendly interface for creating and
 
 - ✅ Dynamic add/remove filter conditions
 - ✅ Field selection from configurable list
-- ✅ Type-aware operators (text, number, boolean)
+- ✅ Type-aware operators (text, number, boolean, date, select)
 - ✅ AND/OR logic toggling
+- ✅ Clear all filters button
+- ✅ Date picker support for date fields
+- ✅ Dropdown support for select fields
 - ✅ Schema-driven configuration
 - ✅ Tailwind CSS styled with Shadcn UI components
 
@@ -43,7 +46,7 @@ The Filter Builder component provides a user-friendly interface for creating and
 }
 ```
 
-### With Initial Empty State
+### With Select Fields
 
 ```typescript
 {
@@ -53,6 +56,16 @@ The Filter Builder component provides a user-friendly interface for creating and
   fields: [
     { value: 'name', label: 'Product Name', type: 'text' },
     { value: 'price', label: 'Price', type: 'number' },
+    { 
+      value: 'category', 
+      label: 'Category', 
+      type: 'select',
+      options: [
+        { value: 'electronics', label: 'Electronics' },
+        { value: 'clothing', label: 'Clothing' },
+        { value: 'food', label: 'Food' }
+      ]
+    },
     { value: 'inStock', label: 'In Stock', type: 'boolean' }
   ],
   value: {
@@ -60,6 +73,23 @@ The Filter Builder component provides a user-friendly interface for creating and
     logic: 'and',
     conditions: []
   }
+}
+```
+
+### With Date Fields
+
+```typescript
+{
+  type: 'filter-builder',
+  name: 'orderFilters',
+  label: 'Order Filters',
+  fields: [
+    { value: 'orderId', label: 'Order ID', type: 'text' },
+    { value: 'amount', label: 'Amount', type: 'number' },
+    { value: 'orderDate', label: 'Order Date', type: 'date' },
+    { value: 'shipped', label: 'Shipped', type: 'boolean' }
+  ],
+  showClearAll: true
 }
 ```
 
@@ -74,6 +104,7 @@ The Filter Builder component provides a user-friendly interface for creating and
 | `label` | `string` | ❌ | Label displayed above the filter builder |
 | `fields` | `Field[]` | ✅ | Array of available fields for filtering |
 | `value` | `FilterGroup` | ❌ | Initial filter configuration |
+| `showClearAll` | `boolean` | ❌ | Show "Clear all" button (default: true) |
 
 ### Field Type
 
@@ -81,7 +112,8 @@ The Filter Builder component provides a user-friendly interface for creating and
 interface Field {
   value: string;    // Field identifier
   label: string;    // Display label
-  type?: string;    // Field type: 'text' | 'number' | 'boolean'
+  type?: string;    // Field type: 'text' | 'number' | 'boolean' | 'date' | 'select'
+  options?: Array<{ value: string; label: string }> // For select fields
 }
 ```
 
@@ -127,6 +159,23 @@ The available operators change based on the field type:
 ### Boolean Fields
 - `equals` - Equals
 - `notEquals` - Does not equal
+
+### Date Fields
+- `equals` - Equals
+- `notEquals` - Does not equal
+- `before` - Before
+- `after` - After
+- `between` - Between
+- `isEmpty` - Is empty
+- `isNotEmpty` - Is not empty
+
+### Select Fields
+- `equals` - Equals
+- `notEquals` - Does not equal
+- `in` - In
+- `notIn` - Not in
+- `isEmpty` - Is empty
+- `isNotEmpty` - Is not empty
 
 ## Events
 

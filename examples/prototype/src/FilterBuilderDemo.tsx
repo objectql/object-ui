@@ -24,13 +24,13 @@ const filterBuilderSchema = {
               className: 'text-muted-foreground',
               body: { 
                 type: 'text', 
-                content: 'Airtable-like filter component for building complex query conditions' 
+                content: 'Airtable-like filter component with advanced field types and operators' 
               }
             }
           ]
         },
 
-        // Example 1: User Data Filtering
+        // Example 1: User Data Filtering with Date and Select
         {
           type: 'card',
           className: 'shadow-lg',
@@ -49,7 +49,7 @@ const filterBuilderSchema = {
                   className: 'text-sm text-muted-foreground mt-1',
                   body: { 
                     type: 'text', 
-                    content: 'Filter users by name, email, age, and status' 
+                    content: 'Advanced filtering with date, select, and boolean fields' 
                   }
                 }
               ]
@@ -65,9 +65,29 @@ const filterBuilderSchema = {
                   { value: 'name', label: 'Name', type: 'text' },
                   { value: 'email', label: 'Email', type: 'text' },
                   { value: 'age', label: 'Age', type: 'number' },
-                  { value: 'status', label: 'Status', type: 'text' },
-                  { value: 'department', label: 'Department', type: 'text' },
-                  { value: 'joinDate', label: 'Join Date', type: 'text' }
+                  { 
+                    value: 'status', 
+                    label: 'Status', 
+                    type: 'select',
+                    options: [
+                      { value: 'active', label: 'Active' },
+                      { value: 'inactive', label: 'Inactive' },
+                      { value: 'pending', label: 'Pending' }
+                    ]
+                  },
+                  { 
+                    value: 'department', 
+                    label: 'Department', 
+                    type: 'select',
+                    options: [
+                      { value: 'engineering', label: 'Engineering' },
+                      { value: 'sales', label: 'Sales' },
+                      { value: 'marketing', label: 'Marketing' },
+                      { value: 'support', label: 'Support' }
+                    ]
+                  },
+                  { value: 'joinDate', label: 'Join Date', type: 'date' },
+                  { value: 'isVerified', label: 'Is Verified', type: 'boolean' }
                 ],
                 value: {
                   id: 'root',
@@ -85,8 +105,6 @@ const filterBuilderSchema = {
             }
           ]
         },
-
-        // Example 2: Product Filtering
         {
           type: 'card',
           className: 'shadow-lg',
@@ -236,6 +254,22 @@ const filterBuilderSchema = {
                     body: [
                       { type: 'div', body: { type: 'text', content: '✓' }, className: 'text-primary font-bold' },
                       { type: 'div', body: { type: 'text', content: 'AND/OR logic toggling' } }
+                    ]
+                  },
+                  {
+                    type: 'div',
+                    className: 'flex items-start gap-2',
+                    body: [
+                      { type: 'div', body: { type: 'text', content: '✓' }, className: 'text-primary font-bold' },
+                      { type: 'div', body: { type: 'text', content: 'Date & Select field support' } }
+                    ]
+                  },
+                  {
+                    type: 'div',
+                    className: 'flex items-start gap-2',
+                    body: [
+                      { type: 'div', body: { type: 'text', content: '✓' }, className: 'text-primary font-bold' },
+                      { type: 'div', body: { type: 'text', content: 'Clear all filters button' } }
                     ]
                   },
                   {
