@@ -19,6 +19,10 @@ ComponentRegistry.register('avatar',
       { name: 'alt', type: 'string', label: 'Alt Text' },
       { name: 'fallback', type: 'string', label: 'Fallback Initials', defaultValue: 'CN' },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      fallback: 'CN',
+      alt: 'Avatar'
+    }
   }
 );

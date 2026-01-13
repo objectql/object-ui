@@ -63,6 +63,19 @@ ComponentRegistry.register('table',
           description: 'Array of objects'
       },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      caption: 'Table Caption',
+      columns: [
+        { header: 'Column 1', accessorKey: 'col1' },
+        { header: 'Column 2', accessorKey: 'col2' },
+        { header: 'Column 3', accessorKey: 'col3' }
+      ],
+      data: [
+        { col1: 'Row 1, Col 1', col2: 'Row 1, Col 2', col3: 'Row 1, Col 3' },
+        { col1: 'Row 2, Col 1', col2: 'Row 2, Col 2', col3: 'Row 2, Col 3' },
+        { col1: 'Row 3, Col 1', col2: 'Row 3, Col 2', col3: 'Row 3, Col 3' }
+      ]
+    }
   }
 );

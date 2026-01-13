@@ -71,6 +71,15 @@ ComponentRegistry.register('context-menu',
         description: 'Recursive structure: { type?: "separator"|"label", label, shortcut, children }'
       },
       { name: 'className', type: 'string', label: 'Content CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      items: [
+        { label: 'Action 1' },
+        { label: 'Action 2' },
+        { type: 'separator' },
+        { label: 'Action 3' }
+      ],
+      trigger: [{ type: 'text', content: 'Right click here' }]
+    }
   }
 );

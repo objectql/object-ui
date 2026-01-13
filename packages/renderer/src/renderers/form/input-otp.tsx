@@ -22,6 +22,9 @@ ComponentRegistry.register('input-otp',
     inputs: [
       { name: 'maxLength', type: 'number', label: 'Max Length', defaultValue: 6 },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      maxLength: 6
+    }
   }
 );

@@ -19,6 +19,11 @@ ComponentRegistry.register('textarea',
       { name: 'label', type: 'string', label: 'Label' },
       { name: 'placeholder', type: 'string', label: 'Placeholder' },
       { name: 'id', type: 'string', label: 'ID', required: true }
-    ]
+    ],
+    defaultProps: {
+      label: 'Textarea label',
+      placeholder: 'Enter text here...',
+      id: 'textarea-' + Math.random().toString(36).substr(2, 9)
+    }
   }
 );

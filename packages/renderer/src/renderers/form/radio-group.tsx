@@ -24,6 +24,14 @@ ComponentRegistry.register('radio-group',
         description: 'Array of {label, value} objects'
       },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      id: 'radio-' + Math.random().toString(36).substr(2, 9),
+      items: [
+        { label: 'Option 1', value: 'option1' },
+        { label: 'Option 2', value: 'option2' },
+        { label: 'Option 3', value: 'option3' }
+      ]
+    }
   }
 );

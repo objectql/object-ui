@@ -35,6 +35,12 @@ ComponentRegistry.register('popover',
         label: 'Content', 
       },
       { name: 'className', type: 'string', label: 'Content CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      trigger: [{ type: 'button', label: 'Open Popover', variant: 'outline' }],
+      content: [{ type: 'text', content: 'Popover content goes here' }],
+      align: 'center',
+      side: 'bottom'
+    }
   }
 );

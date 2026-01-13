@@ -36,6 +36,15 @@ ComponentRegistry.register('select',
         label: 'Options',
         description: 'Array of {label, value} objects'
       }
-    ]
+    ],
+    defaultProps: {
+      label: 'Select an option',
+      placeholder: 'Choose...',
+      options: [
+        { label: 'Option 1', value: 'option1' },
+        { label: 'Option 2', value: 'option2' },
+        { label: 'Option 3', value: 'option3' }
+      ]
+    }
   }
 );

@@ -32,6 +32,28 @@ ComponentRegistry.register('accordion',
         description: 'Array of { trigger, content, value }'
       },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      accordionType: 'single',
+      collapsible: true,
+      items: [
+        { 
+          label: 'Item 1', 
+          value: 'item-1', 
+          content: [{ type: 'text', content: 'Content for item 1' }] 
+        },
+        { 
+          label: 'Item 2', 
+          value: 'item-2', 
+          content: [{ type: 'text', content: 'Content for item 2' }] 
+        },
+        { 
+          label: 'Item 3', 
+          value: 'item-3', 
+          content: [{ type: 'text', content: 'Content for item 3' }] 
+        }
+      ],
+      className: 'w-full'
+    }
   }
 );

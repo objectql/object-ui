@@ -55,6 +55,13 @@ ComponentRegistry.register('dialog',
         label: 'Footer' 
       },
       { name: 'className', type: 'string', label: 'Content CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      title: 'Dialog Title',
+      description: 'Dialog description goes here',
+      modal: true,
+      trigger: [{ type: 'button', label: 'Open Dialog' }],
+      content: [{ type: 'text', content: 'Dialog content goes here' }]
+    }
   }
 );

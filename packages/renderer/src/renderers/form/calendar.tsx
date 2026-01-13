@@ -15,6 +15,10 @@ ComponentRegistry.register('calendar',
     inputs: [
       { name: 'mode', type: 'enum', enum: ['default', 'single', 'multiple', 'range'], defaultValue: 'single', label: 'Mode' },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      mode: 'single',
+      className: 'rounded-md border'
+    }
   }
 );

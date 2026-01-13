@@ -17,6 +17,9 @@ ComponentRegistry.register('toaster',
     label: 'Toaster',
     inputs: [
       { name: 'provider', type: 'enum', enum: ['default', 'sonner'], defaultValue: 'default', label: 'Provider' }
-    ]
+    ],
+    defaultProps: {
+      provider: 'default'
+    }
   }
 );

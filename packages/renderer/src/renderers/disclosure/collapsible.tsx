@@ -33,6 +33,11 @@ ComponentRegistry.register('collapsible',
         label: 'Content' 
       },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      trigger: [{ type: 'button', label: 'Toggle', variant: 'outline' }],
+      content: [{ type: 'text', content: 'Collapsible content goes here' }],
+      className: 'w-full'
+    }
   }
 );

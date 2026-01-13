@@ -50,6 +50,13 @@ ComponentRegistry.register('alert-dialog',
         label: 'Content/Body'
       },
       { name: 'className', type: 'string', label: 'Content CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      title: 'Are you sure?',
+      description: 'This action cannot be undone.',
+      cancelText: 'Cancel',
+      actionText: 'Continue',
+      trigger: [{ type: 'button', label: 'Open Alert', variant: 'destructive' }]
+    }
   }
 );

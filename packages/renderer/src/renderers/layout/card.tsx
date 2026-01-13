@@ -28,6 +28,11 @@ ComponentRegistry.register('card',
       { name: 'title', type: 'string', label: 'Title' },
       { name: 'description', type: 'string', label: 'Description' },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      title: 'Card Title',
+      description: 'Card description goes here',
+      className: 'w-full'
+    }
   }
 );

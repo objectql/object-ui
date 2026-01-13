@@ -27,6 +27,12 @@ ComponentRegistry.register('input',
         defaultValue: 'text'
       },
       { name: 'id', type: 'string', label: 'ID', required: true }
-    ]
+    ],
+    defaultProps: {
+      label: 'Label',
+      placeholder: 'Enter text...',
+      inputType: 'text',
+      id: 'input-' + Math.random().toString(36).substr(2, 9)
+    }
   }
 );

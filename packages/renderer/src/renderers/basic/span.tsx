@@ -11,6 +11,12 @@ ComponentRegistry.register('span',
     label: 'Inline Container',
     inputs: [
       { name: 'className', type: 'string', label: 'CSS Class' }
+    ],
+    defaultProps: {
+      className: 'px-2 py-1'
+    },
+    defaultChildren: [
+      { type: 'text', content: 'Inline text' }
     ]
   }
 );

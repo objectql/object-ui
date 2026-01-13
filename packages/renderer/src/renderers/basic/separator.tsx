@@ -16,6 +16,10 @@ ComponentRegistry.register('separator',
         label: 'Orientation'
       },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      orientation: 'horizontal',
+      className: 'my-4'
+    }
   }
 );

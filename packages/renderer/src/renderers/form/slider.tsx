@@ -20,6 +20,13 @@ ComponentRegistry.register('slider',
       { name: 'min', type: 'number', label: 'Min', defaultValue: 0 },
       { name: 'step', type: 'number', label: 'Step', defaultValue: 1 },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      defaultValue: [50],
+      max: 100,
+      min: 0,
+      step: 1,
+      className: 'w-full'
+    }
   }
 );

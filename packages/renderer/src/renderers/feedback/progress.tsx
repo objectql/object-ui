@@ -10,6 +10,10 @@ ComponentRegistry.register('progress',
     inputs: [
       { name: 'value', type: 'number', label: 'Value', defaultValue: 0 },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      value: 50,
+      className: 'w-full'
+    }
   }
 );

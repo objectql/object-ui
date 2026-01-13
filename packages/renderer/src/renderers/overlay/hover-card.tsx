@@ -35,6 +35,11 @@ ComponentRegistry.register('hover-card',
         label: 'Content' 
       },
       { name: 'className', type: 'string', label: 'Content CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      trigger: [{ type: 'button', label: 'Hover me', variant: 'link' }],
+      content: [{ type: 'text', content: 'Hover card content appears on hover' }],
+      side: 'top'
+    }
   }
 );

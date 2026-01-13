@@ -54,6 +54,14 @@ ComponentRegistry.register('sheet',
         label: 'Footer' 
       },
       { name: 'className', type: 'string', label: 'Content CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      title: 'Sheet Title',
+      description: 'Sheet description',
+      side: 'right',
+      modal: true,
+      trigger: [{ type: 'button', label: 'Open Sheet' }],
+      content: [{ type: 'text', content: 'Sheet content goes here' }]
+    }
   }
 );

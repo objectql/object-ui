@@ -14,6 +14,10 @@ ComponentRegistry.register('switch',
       { name: 'label', type: 'string', label: 'Label', required: true },
       { name: 'id', type: 'string', label: 'ID', required: true },
       { name: 'checked', type: 'boolean', label: 'Checked' }
-    ]
+    ],
+    defaultProps: {
+      label: 'Switch label',
+      id: 'switch-' + Math.random().toString(36).substr(2, 9)
+    }
   }
 );

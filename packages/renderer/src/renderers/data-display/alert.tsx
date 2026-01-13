@@ -26,6 +26,11 @@ ComponentRegistry.register('alert',
         label: 'Variant'
       },
       { name: 'className', type: 'string', label: 'CSS Class' }
-    ]
+    ],
+    defaultProps: {
+      title: 'Alert Title',
+      description: 'This is an alert message.',
+      variant: 'default'
+    }
   }
 );
