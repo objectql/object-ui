@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { DesignerProvider, useDesigner } from '../context/DesignerContext';
-import type { SchemaNode } from '@object-ui/protocol';
+import type { SchemaNode } from '@object-ui/core';
 import React from 'react';
 import userEvent from '@testing-library/user-event';
 

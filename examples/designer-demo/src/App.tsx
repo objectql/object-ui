@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Designer } from '@object-ui/designer';
-import type { SchemaNode } from '@object-ui/protocol';
+import type { SchemaNode } from '@object-ui/core';
 
 function App() {
   const [schema, setSchema] = useState<SchemaNode>({

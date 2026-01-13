@@ -36,6 +36,10 @@ Your biggest competitive advantage is Design System Compatibility.
 🧩 Rule #3: The "Schema First" Mindset
 All components are driven by the Schema in packages/types.
  * Documentation: Every property in the Schema MUST have JSDoc. This allows us to auto-generate documentation for the open-source community.
+📄 Rule #4: JSON-Object First (No Runtime YAML)
+While ObjectQL uses YAML for definition, **Object UI Runtime** expects **JavaScript Objects** (JSON).
+* **Constraint:** The `<SchemaRenderer schema={...} />` prop MUST be a typed Object, not a YAML string.
+* **Why:** To keep the core bundle small and fast. YAML parsing belongs in the **Backend API** or **Build Tools**.
 5. Implementation Patterns
 Pattern A: The Universal Data Adapter
 We support ObjectQL, but we also support generic REST.

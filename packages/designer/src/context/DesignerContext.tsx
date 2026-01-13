@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
-import type { SchemaNode } from '@object-ui/protocol';
+import type { SchemaNode } from '@object-ui/core';
 
 export interface DesignerContextValue {
   schema: SchemaNode;

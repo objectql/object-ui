@@ -11,9 +11,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@object-ui/protocol": "workspace:*",
-    "@object-ui/renderer": "workspace:*",
-    "@object-ui/ui": "workspace:*",
+    "@object-ui/core": "workspace:*",
+    "@object-ui/react": "workspace:*",
+    "@object-ui/components": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

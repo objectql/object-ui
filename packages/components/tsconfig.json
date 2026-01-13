@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    // Removed rootDir to prevent file not under rootDir errors when importing from ..
+    "noImplicitAny": false,
+    "noEmit": false,
+    "declaration": true,
+    "composite": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}

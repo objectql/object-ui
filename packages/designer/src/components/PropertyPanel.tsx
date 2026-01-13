@@ -1,22 +1,22 @@
 import React from 'react';
 import { useDesigner } from '../context/DesignerContext';
-import { ComponentRegistry } from '@object-ui/renderer';
-import { Label } from '@object-ui/ui/components/ui/label';
-import { Input } from '@object-ui/ui/components/ui/input';
-import { Button } from '@object-ui/ui/components/ui/button';
-import { Switch } from '@object-ui/ui/components/ui/switch';
+import { ComponentRegistry } from '@object-ui/core';
+import { Label } from '@object-ui/components';
+import { Input } from '@object-ui/components';
+import { Button } from '@object-ui/components';
+import { Switch } from '@object-ui/components';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@object-ui/ui/components/ui/select"
-import { Textarea } from '@object-ui/ui/components/ui/textarea';
-import { ScrollArea } from '@object-ui/ui/components/ui/scroll-area';
+} from "@object-ui/components"
+import { Textarea } from '@object-ui/components';
+import { ScrollArea } from '@object-ui/components';
 import { Settings2, Trash2, Layers, Type } from 'lucide-react';
-import { cn } from '@object-ui/ui/lib/utils';
-import type { ComponentInput } from '@object-ui/renderer/src/registry';
+import { cn } from '@object-ui/components';
+import type { ComponentInput } from '@object-ui/core';
 
 interface PropertyPanelProps {
     className?: string;

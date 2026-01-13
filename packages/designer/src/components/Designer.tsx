@@ -4,7 +4,7 @@ import { ComponentPalette } from './ComponentPalette';
 import { Canvas } from './Canvas';
 import { PropertyPanel } from './PropertyPanel';
 import { Toolbar } from './Toolbar';
-import type { SchemaNode } from '@object-ui/protocol';
+import type { SchemaNode } from '@object-ui/core';
 
 interface DesignerProps {
   initialSchema?: SchemaNode;

@@ -6,7 +6,7 @@ hero:
   text: "The Modular Interface Engine"
   tagline: From JSON to world-class UI in minutes
   image:
-    src: /hero.svg
+    src: /logo.svg
     alt: Object UI
   actions:
     - theme: brand

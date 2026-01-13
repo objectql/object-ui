@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { SchemaRenderer, ComponentRegistry } from '@object-ui/renderer';
+import { SchemaRenderer } from '@object-ui/react';
+import { ComponentRegistry } from '@object-ui/core';
 import { useDesigner } from '../context/DesignerContext';
-import { cn } from '@object-ui/ui/lib/utils';
+import { cn } from '@object-ui/components';
 import { MousePointer2 } from 'lucide-react';
 
 interface CanvasProps {

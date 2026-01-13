@@ -23,9 +23,6 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "./tsconfig.node.json" },
-    { "path": "../../packages/designer" },
-    { "path": "../../packages/renderer" },
-    { "path": "../../packages/protocol" }
+    { "path": "./tsconfig.node.json" }
   ]
 }

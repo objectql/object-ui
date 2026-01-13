@@ -1,29 +1,23 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "module": "ESNext",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "skipLibCheck": true,
     "outDir": "./dist",
     "noEmit": false,
     "jsx": "react-jsx",
-    "declaration": true,
-    "declarationMap": true,
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "strict": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
     "baseUrl": ".",
     "paths": {
-      "@object-ui/protocol": ["../protocol/src"],
-      "@object-ui/renderer": ["../renderer/src"],
-      "@object-ui/ui": ["../ui/src"],
-      "@object-ui/ui/*": ["../ui/src/*"]
-    }
+      "@/*": ["./src/*"]
+    },
+    // Relax strictness to allow build
+    "strict": false,
+    "strictNullChecks": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitAny": false,
+    "declaration": true,
+    "composite": true,
+    "skipLibCheck": true
   },
   "include": ["src"],
-  "exclude": ["node_modules", "dist", "../renderer", "../ui", "**/__tests__/**", "**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"]
+  "exclude": ["node_modules", "dist"]
 }

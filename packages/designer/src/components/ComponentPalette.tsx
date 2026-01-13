@@ -1,5 +1,5 @@
 import React from 'react';
-import { ComponentRegistry } from '@object-ui/renderer';
+import { ComponentRegistry } from '@object-ui/core';
 import { useDesigner } from '../context/DesignerContext';
 import { 
     Layout, 
@@ -16,8 +16,8 @@ import {
     Grid,
     AlignJustify
 } from 'lucide-react';
-import { cn } from '@object-ui/ui/lib/utils';
-import { ScrollArea } from '@object-ui/ui/components/ui/scroll-area';
+import { cn } from '@object-ui/components';
+import { ScrollArea } from '@object-ui/components';
 
 interface ComponentPaletteProps {
   className?: string;

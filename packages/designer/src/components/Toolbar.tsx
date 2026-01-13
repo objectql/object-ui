@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '@object-ui/ui/components/ui/button';
+import { Button } from '@object-ui/components';
 import { 
     Monitor, 
     Smartphone, 

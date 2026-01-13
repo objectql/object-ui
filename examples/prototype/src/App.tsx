@@ -1,4 +1,4 @@
-import { SchemaRenderer } from '@object-ui/renderer';
+import { SchemaRenderer } from '@object-ui/react';
 
 const schema = {
   type: 'sidebar-provider',
