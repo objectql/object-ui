@@ -69,7 +69,7 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/objectql/object-ui' }
+      { icon: 'github', link: 'https://github.com/objectql/objectui' }
     ],
     
     footer: {

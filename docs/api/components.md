@@ -111,5 +111,5 @@ import { ThemeProvider } from '@object-ui/components'
 Full component API documentation coming soon.
 
 For now, see:
-- [GitHub Repository](https://github.com/objectql/object-ui/tree/main/packages/components)
+- [GitHub Repository](https://github.com/objectql/objectui/tree/main/packages/components)
 - [Storybook](https://storybook.objectui.org) (coming soon)

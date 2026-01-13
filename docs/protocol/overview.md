@@ -248,9 +248,9 @@ import {
 
 Help us improve the protocol:
 
-1. [Report issues](https://github.com/objectql/object-ui/issues)
-2. [Propose changes](https://github.com/objectql/object-ui/pulls)
-3. [Join discussions](https://github.com/objectql/object-ui/discussions)
+1. [Report issues](https://github.com/objectql/objectui/issues)
+2. [Propose changes](https://github.com/objectql/objectui/pulls)
+3. [Join discussions](https://github.com/objectql/objectui/discussions)
 
 ## Next Steps
 
