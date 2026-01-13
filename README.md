@@ -113,7 +113,7 @@ This project is a Monorepo managed by **TurboRepo** and **pnpm**.
 ### Prerequisites
 
 * Node.js 18+
-* pnpm 8+
+* pnpm 10+
 
 ### Setup
 
