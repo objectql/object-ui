@@ -6,6 +6,9 @@
 
 A high-performance, schema-driven UI system built on **React 18**, **Tailwind CSS**, and **Shadcn UI**.
 
+[![CI](https://github.com/objectql/object-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/objectql/object-ui/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 [Documentation](https://objectui.org) · [Playground](https://object-ui.org/playground) · [Report Bug](https://github.com/objectql/object-ui/issues)
 
 </div>
@@ -123,6 +126,36 @@ pnpm install
 
 # 3. Start the development playground
 pnpm dev
+
+```
+
+### Testing
+
+We use **Vitest** for testing. All tests are located in `__tests__` directories within each package.
+
+```bash
+# Run all tests
+pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
+
+# Run tests with UI
+pnpm test:ui
+
+# Generate coverage report
+pnpm test:coverage
+
+```
+
+### Building
+
+```bash
+# Build all packages
+pnpm build
+
+# Lint all packages
+pnpm lint
 
 ```
 
