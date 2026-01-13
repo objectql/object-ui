@@ -9,3 +9,5 @@ import './slider';
 import './toggle';
 import './input-otp';
 import './calendar';
+import './date-picker';
+import './file-upload';
