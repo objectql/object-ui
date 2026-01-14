@@ -220,7 +220,7 @@ export type {
 // ============================================================================
 export type {
   CodeEditorSchema,
-  ChartSchema,
+  BarChartSchema,
 } from './plugin';
 
 // ============================================================================
@@ -236,7 +236,7 @@ import type { DisclosureSchema } from './disclosure';
 import type { OverlaySchema } from './overlay';
 import type { NavigationSchema } from './navigation';
 import type { ComplexSchema } from './complex';
-import type { CodeEditorSchema, ChartSchema } from './plugin';
+import type { CodeEditorSchema, BarChartSchema } from './plugin';
 
 /**
  * Union of all component schemas.
@@ -253,7 +253,7 @@ export type AnySchema =
   | NavigationSchema
   | ComplexSchema
   | CodeEditorSchema
-  | ChartSchema;
+  | BarChartSchema;
 
 /**
  * Utility type to extract the schema type from a type string.

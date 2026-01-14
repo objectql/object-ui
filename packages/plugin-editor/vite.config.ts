@@ -23,11 +23,14 @@ export default defineConfig({
       fileName: 'index',
     },
     rollupOptions: {
-      external: ['react', 'react-dom'],
+      external: ['react', 'react-dom', '@object-ui/components', '@object-ui/core', '@object-ui/react'],
       output: {
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
+          '@object-ui/components': 'ObjectUIComponents',
+          '@object-ui/core': 'ObjectUICore',
+          '@object-ui/react': 'ObjectUIReact',
         },
       },
     },

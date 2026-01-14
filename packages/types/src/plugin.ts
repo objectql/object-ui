@@ -69,7 +69,7 @@ export interface CodeEditorSchema extends BaseSchema {
  * 
  * @example
  * ```typescript
- * const chartSchema: ChartSchema = {
+ * const chartSchema: BarChartSchema = {
  *   type: 'chart-bar',
  *   data: [
  *     { name: 'Jan', value: 400 },
@@ -80,7 +80,7 @@ export interface CodeEditorSchema extends BaseSchema {
  * }
  * ```
  */
-export interface ChartSchema extends BaseSchema {
+export interface BarChartSchema extends BaseSchema {
   type: 'chart-bar';
   
   /**
