@@ -18,7 +18,7 @@ ComponentRegistry.register('tabs',
       </TabsList>
       {schema.items?.map((item) => (
         <TabsContent key={item.value} value={item.value}>
-          {renderChildren(item.body)}
+          {renderChildren((item as any).body)}
         </TabsContent>
       ))}
     </Tabs>

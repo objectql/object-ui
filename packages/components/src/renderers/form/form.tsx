@@ -71,7 +71,7 @@ ComponentRegistry.register('form',
             type: 'form_submit',
             data,
             formData: data,
-          });
+          }) as any;
 
           // Check if submission returned an error
           if (result?.error) {
@@ -97,7 +97,7 @@ ComponentRegistry.register('form',
         setSubmitError(errorMessage);
         
         // Log errors for debugging (dev environment only)
-        // @ts-expect-error - process may not be defined in all environments
+        // process may not be defined in all environments
         if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
           console.error('Form submission error:', error);
         }

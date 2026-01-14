@@ -5,8 +5,8 @@ import { Calendar } from '@/ui';
 ComponentRegistry.register('calendar', 
   ({ schema, className, ...props }: { schema: CalendarSchema; className?: string; [key: string]: any }) => (
     <Calendar
-      mode={schema.mode || "single"}
-      selected={schema.value || schema.defaultValue}
+      mode={(schema.mode || "single") as any}
+      selected={(schema.value || schema.defaultValue) as any}
       className={className}
       {...props}
     />

@@ -20,7 +20,7 @@ ComponentRegistry.register('tooltip',
           {renderChildren(schema.trigger)}
         </TooltipTrigger>
         <TooltipContent side={schema.side} align={schema.align} className={className}>
-           {schema.content || renderChildren(schema.body)}
+           {(schema.content || renderChildren(schema.body)) as any}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

@@ -97,7 +97,7 @@ const Chatbot = React.forwardRef<HTMLDivElement, ChatbotProps>(
               </div>
             ) : (
               messages.map((message) => (
-                <ChatMessage
+                <ChatMessageItem
                   key={message.id}
                   message={message}
                   showTimestamp={showTimestamp}
@@ -148,7 +148,7 @@ export interface ChatMessageProps {
   assistantAvatarFallback?: string
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({
+const ChatMessageItem: React.FC<ChatMessageProps> = ({
   message,
   showTimestamp,
   userAvatarUrl,
@@ -238,4 +238,3 @@ const TypingIndicator = React.forwardRef<HTMLDivElement, TypingIndicatorProps>(
 TypingIndicator.displayName = "TypingIndicator"
 
 export { Chatbot, TypingIndicator }
-export type { ChatMessage }
