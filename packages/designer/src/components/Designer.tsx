@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { DesignerProvider } from '../context/DesignerContext';
 import { ComponentPalette } from './ComponentPalette';
+import { ComponentTree } from './ComponentTree';
 import { Canvas } from './Canvas';
 import { PropertyPanel } from './PropertyPanel';
 import { useDesigner } from '../context/DesignerContext';
@@ -13,7 +14,17 @@ interface DesignerProps {
 
 
 export const DesignerContent: React.FC = () => {
-  const { undo, redo, copyNode, pasteNode, removeNode, selectedNodeId, canUndo, canRedo } = useDesigner();
+  const { 
+    undo, 
+    redo, 
+    copyNode, 
+    pasteNode, 
+    removeNode, 
+    selectedNodeId, 
+    canUndo, 
+    canRedo,
+    showComponentTree 
+  } = useDesigner();
   
   // Keyboard shortcuts
   useEffect(() => {
@@ -64,17 +75,24 @@ export const DesignerContent: React.FC = () => {
       {/* <Toolbar /> removed, moved to parent */}
       
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar */}
+        {/* Left Sidebar - Component Palette */}
         <div className="w-72 flex-shrink-0 z-10 shadow-[1px_0_5px_rgba(0,0,0,0.03)] h-full">
            <ComponentPalette className="h-full border-r-0" />
         </div>
+        
+        {/* Component Tree (Optional) */}
+        {showComponentTree && (
+          <div className="w-64 flex-shrink-0 z-10 h-full">
+            <ComponentTree className="h-full" />
+          </div>
+        )}
         
         {/* Main Canvas Area */}
         <div className="flex-1 relative bg-gray-100 z-0">
            <Canvas className="h-full w-full" />
         </div>
         
-        {/* Right Sidebar */}
+        {/* Right Sidebar - Property Panel */}
         <div className="w-80 flex-shrink-0 z-10 shadow-[-1px_0_5px_rgba(0,0,0,0.03)] h-full">
            <PropertyPanel className="h-full border-l-0 shadow-none border-l custom-scrollbar" />
         </div>
