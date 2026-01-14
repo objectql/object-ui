@@ -44,11 +44,11 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = React.memo(({ className }
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden border-r-0">
         {activeTab === 'palette' ? (
-          <ComponentPalette className="h-full border-r-0" />
+          <ComponentPalette className="h-full" />
         ) : (
-          <ComponentTree className="h-full border-r-0" />
+          <ComponentTree className="h-full" />
         )}
       </div>
     </div>
