@@ -14,6 +14,9 @@ interface CanvasProps {
 const INSERT_AT_START = 0;
 const INSERT_AT_END = undefined; // undefined means append to end in addNode/moveNode
 
+// Context menu configuration
+const ALLOW_ROOT_CONTEXT_MENU = false; // Prevent context menu on root component
+
 export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
     const { 
         schema, 
@@ -66,7 +69,9 @@ export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
         const target = (e.target as Element).closest('[data-obj-id]');
         if (target) {
             const id = target.getAttribute('data-obj-id');
-            if (id && id !== schema.id) { // Don't show context menu for root
+            const isRoot = id === schema.id;
+            
+            if (id && (!isRoot || ALLOW_ROOT_CONTEXT_MENU)) {
                 setContextMenu({
                     x: e.clientX,
                     y: e.clientY,

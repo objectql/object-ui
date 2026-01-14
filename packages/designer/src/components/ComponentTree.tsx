@@ -41,6 +41,21 @@ const TreeNode: React.FC<TreeNodeProps> = React.memo(({ node, level, isSelected,
         return [node.body as SchemaNode];
     }, [node.body]);
     
+    // Check if selectedNodeId exists anywhere in this node's subtree
+    const hasSelectedDescendant = useMemo(() => {
+        if (!selectedNodeId) return false;
+        
+        const checkNode = (n: SchemaNode): boolean => {
+            if (n.id === selectedNodeId) return true;
+            if (!n.body) return false;
+            
+            const childNodes = Array.isArray(n.body) ? n.body : [n.body as SchemaNode];
+            return childNodes.some(child => checkNode(child));
+        };
+        
+        return children.some(child => checkNode(child));
+    }, [children, selectedNodeId]);
+    
     const handleClick = useCallback(() => {
         onSelect(node.id || '');
     }, [node.id, onSelect]);
@@ -61,7 +76,11 @@ const TreeNode: React.FC<TreeNodeProps> = React.memo(({ node, level, isSelected,
                 onClick={handleClick}
                 className={cn(
                     "flex items-center gap-1 py-1.5 px-2 hover:bg-blue-50 cursor-pointer transition-colors group text-sm border-l-2",
-                    isSelected ? "bg-blue-100 border-blue-600 text-blue-900" : "border-transparent text-gray-700"
+                    isSelected 
+                        ? "bg-blue-100 border-blue-600 text-blue-900" 
+                        : hasSelectedDescendant 
+                            ? "border-blue-300 text-gray-700" 
+                            : "border-transparent text-gray-700"
                 )}
                 style={{ paddingLeft: `${level * 16 + 8}px` }}
             >
