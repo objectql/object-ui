@@ -1,4 +1,5 @@
 import { ComponentRegistry } from '@object-ui/core';
+import type { TabsSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import {
   Tabs,
@@ -8,14 +9,14 @@ import {
 } from '@/ui';
 
 ComponentRegistry.register('tabs', 
-  ({ schema, className, ...props }) => (
+  ({ schema, className, ...props }: { schema: TabsSchema; className?: string; [key: string]: any }) => (
     <Tabs defaultValue={schema.defaultValue} className={className} {...props}>
       <TabsList>
-        {schema.items?.map((item: any) => (
+        {schema.items?.map((item) => (
           <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>
         ))}
       </TabsList>
-      {schema.items?.map((item: any) => (
+      {schema.items?.map((item) => (
         <TabsContent key={item.value} value={item.value}>
           {renderChildren(item.body)}
         </TabsContent>

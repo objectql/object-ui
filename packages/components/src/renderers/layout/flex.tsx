@@ -1,9 +1,10 @@
 import { ComponentRegistry } from '@object-ui/core';
+import type { FlexSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import { cn } from '@/lib/utils';
 
 ComponentRegistry.register('flex', 
-  ({ schema, className, ...props }) => {
+  ({ schema, className, ...props }: { schema: FlexSchema; className?: string; [key: string]: any }) => {
     const direction = schema.direction || 'row';
     const justify = schema.justify || 'start';
     const align = schema.align || 'start';

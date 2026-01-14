@@ -1,4 +1,5 @@
 import { ComponentRegistry } from '@object-ui/core';
+import type { CardSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import {
   Card,
@@ -10,7 +11,7 @@ import {
 } from '@/ui';
 
 ComponentRegistry.register('card', 
-  ({ schema, className, ...props }) => (
+  ({ schema, className, ...props }: { schema: CardSchema; className?: string; [key: string]: any }) => (
     <Card className={className} {...props}>
       {(schema.title || schema.description) && (
         <CardHeader>

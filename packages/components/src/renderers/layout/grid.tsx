@@ -1,9 +1,10 @@
 import { ComponentRegistry } from '@object-ui/core';
+import type { GridSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import { cn } from '@/lib/utils';
 
 ComponentRegistry.register('grid', 
-  ({ schema, className, ...props }) => {
+  ({ schema, className, ...props }: { schema: GridSchema; className?: string; [key: string]: any }) => {
     const gridCols = schema.columns || 2;
     const gap = schema.gap || 4;
     
