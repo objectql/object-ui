@@ -1,0 +1,72 @@
+{
+  "type": "div",
+  "className": "p-8 space-y-6",
+  "children": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "children": [
+        {
+          "type": "text",
+          "className": "text-3xl font-bold",
+          "content": "Charts Plugin Demo"
+        },
+        {
+          "type": "text",
+          "className": "text-muted-foreground",
+          "content": "This example demonstrates lazy-loaded Recharts component"
+        }
+      ]
+    },
+    {
+      "type": "chart-bar",
+      "className": "border rounded-lg p-4",
+      "data": [
+        { "name": "Jan", "value": 400 },
+        { "name": "Feb", "value": 300 },
+        { "name": "Mar", "value": 600 },
+        { "name": "Apr", "value": 800 },
+        { "name": "May", "value": 500 },
+        { "name": "Jun", "value": 700 }
+      ],
+      "dataKey": "value",
+      "xAxisKey": "name",
+      "height": 400,
+      "color": "#8884d8"
+    },
+    {
+      "type": "div",
+      "className": "grid grid-cols-2 gap-4",
+      "children": [
+        {
+          "type": "chart-bar",
+          "className": "border rounded-lg p-4",
+          "data": [
+            { "category": "Product A", "sales": 120 },
+            { "category": "Product B", "sales": 200 },
+            { "category": "Product C", "sales": 150 },
+            { "category": "Product D", "sales": 300 }
+          ],
+          "dataKey": "sales",
+          "xAxisKey": "category",
+          "height": 300,
+          "color": "#82ca9d"
+        },
+        {
+          "type": "chart-bar",
+          "className": "border rounded-lg p-4",
+          "data": [
+            { "month": "Q1", "revenue": 5000 },
+            { "month": "Q2", "revenue": 7500 },
+            { "month": "Q3", "revenue": 6200 },
+            { "month": "Q4", "revenue": 9800 }
+          ],
+          "dataKey": "revenue",
+          "xAxisKey": "month",
+          "height": 300,
+          "color": "#ffc658"
+        }
+      ]
+    }
+  ]
+}

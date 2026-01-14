@@ -1,7 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { Studio } from './pages/Studio';
-import '@object-ui/components'; 
+import '@object-ui/components';
+
+// Import lazy-loaded plugins
+import '@object-ui/plugin-editor';
+import '@object-ui/plugin-charts';
 
 // Import core styles
 import './index.css';

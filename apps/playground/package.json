@@ -14,6 +14,8 @@
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/designer": "workspace:*",
+    "@object-ui/plugin-charts": "workspace:*",
+    "@object-ui/plugin-editor": "workspace:*",
     "@object-ui/react": "workspace:*",
     "lucide-react": "^0.469.0",
     "react": "^18.3.1",

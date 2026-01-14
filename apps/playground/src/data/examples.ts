@@ -12,6 +12,7 @@ import { feedback } from './examples/feedback';
 import { disclosure } from './examples/disclosure';
 import { complex } from './examples/complex';
 import { dashboards } from './examples/dashboards';
+import { plugins } from './examples/plugins';
 
 export const examples = {
   ...primitives,
@@ -22,13 +23,15 @@ export const examples = {
   ...feedback,
   ...disclosure,
   ...complex,
-  ...dashboards
+  ...dashboards,
+  ...plugins
 };
 
 export type ExampleKey = keyof typeof examples;
 
 export const exampleCategories = {
   'Dashboards': ['analytics-dashboard', 'ecommerce-dashboard', 'project-management'],
+  'Plugins': ['plugins-showcase', 'code-editor-demo', 'charts-demo'],
   'Basic': ['text-typography', 'image-gallery', 'icon-showcase', 'divider-demo'],
   'Primitives': ['simple-page', 'input-states', 'button-variants'],
   'Forms': ['form-demo', 'airtable-form', 'form-controls', 'date-time-pickers', 'file-upload-demo', 'input-otp-demo', 'toggle-group-demo'],
