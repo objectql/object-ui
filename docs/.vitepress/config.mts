@@ -15,7 +15,6 @@ export default defineConfig({
       { text: 'Home', link: '/' },
       { text: 'Studio', link: '/studio/', target: '_self' },
       { text: 'Guide', link: '/guide/introduction' },
-      { text: 'Roadmap', link: '/ROADMAP' },
       { text: 'Protocol', link: '/protocol/overview' },
       { text: 'API', link: '/api/core' }
     ],
