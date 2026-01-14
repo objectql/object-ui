@@ -2,6 +2,14 @@ import React, { createContext, useContext, useState, useCallback, useRef, useEff
 import type { SchemaNode } from '@object-ui/core';
 
 export type ViewportMode = 'desktop' | 'tablet' | 'mobile';
+export type ResizingState = {
+  nodeId: string;
+  direction: string;
+  startX: number;
+  startY: number;
+  startWidth: number;
+  startHeight: number;
+} | null;
 
 export interface DesignerContextValue {
   schema: SchemaNode;
@@ -14,6 +22,8 @@ export interface DesignerContextValue {
   setDraggingType: React.Dispatch<React.SetStateAction<string | null>>;
   draggingNodeId: string | null;
   setDraggingNodeId: React.Dispatch<React.SetStateAction<string | null>>;
+  resizingNode: ResizingState;
+  setResizingNode: React.Dispatch<React.SetStateAction<ResizingState>>;
   viewportMode: ViewportMode;
   setViewportMode: React.Dispatch<React.SetStateAction<ViewportMode>>;
   addNode: (parentId: string | null, node: SchemaNode, index?: number) => void;
@@ -200,6 +210,7 @@ export const DesignerProvider: React.FC<DesignerProviderProps> = ({
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [draggingType, setDraggingType] = useState<string | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const [resizingNode, setResizingNode] = useState<ResizingState>(null);
   const [viewportMode, setViewportMode] = useState<ViewportMode>('desktop');
   
   // Undo/Redo state
@@ -334,6 +345,8 @@ export const DesignerProvider: React.FC<DesignerProviderProps> = ({
       setDraggingType,
       draggingNodeId,
       setDraggingNodeId,
+      resizingNode,
+      setResizingNode,
       viewportMode,
       setViewportMode,
       addNode,

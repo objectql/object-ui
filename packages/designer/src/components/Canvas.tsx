@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { SchemaRenderer } from '@object-ui/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { useDesigner } from '../context/DesignerContext';
 import { ContextMenu } from './ContextMenu';
+import { ResizeHandles, ResizeDirection } from './ResizeHandle';
 import { cn } from '@object-ui/components';
 import { MousePointer2 } from 'lucide-react';
 
@@ -28,8 +29,11 @@ export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
         draggingType,
         draggingNodeId,
         setDraggingNodeId,
+        resizingNode,
+        setResizingNode,
         addNode,
         moveNode,
+        updateNode,
         viewportMode,
     } = useDesigner();
 
@@ -151,6 +155,135 @@ export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
         
         setHoveredNodeId(null);
     }, [draggingNodeId, draggingType, moveNode, addNode, setDraggingNodeId, setHoveredNodeId]);
+    
+    // Resize handlers
+    const handleResizeStart = useCallback((direction: ResizeDirection, e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        if (!selectedNodeId) return;
+        
+        const element = canvasRef.current?.querySelector(`[data-obj-id="${selectedNodeId}"]`);
+        if (!element) return;
+        
+        const rect = element.getBoundingClientRect();
+        
+        setResizingNode({
+            nodeId: selectedNodeId,
+            direction,
+            startX: e.clientX,
+            startY: e.clientY,
+            startWidth: rect.width,
+            startHeight: rect.height
+        });
+    }, [selectedNodeId, setResizingNode]);
+
+    // Global mouse move and mouse up for resizing
+    useEffect(() => {
+        if (!resizingNode) return;
+        
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!resizingNode) return;
+            
+            const deltaX = e.clientX - resizingNode.startX;
+            const deltaY = e.clientY - resizingNode.startY;
+            
+            let newWidth = resizingNode.startWidth;
+            let newHeight = resizingNode.startHeight;
+            
+            // Calculate new dimensions based on direction
+            if (resizingNode.direction.includes('e')) {
+                newWidth = Math.max(100, resizingNode.startWidth + deltaX);
+            }
+            if (resizingNode.direction.includes('w')) {
+                newWidth = Math.max(100, resizingNode.startWidth - deltaX);
+            }
+            if (resizingNode.direction.includes('s')) {
+                newHeight = Math.max(50, resizingNode.startHeight + deltaY);
+            }
+            if (resizingNode.direction.includes('n')) {
+                newHeight = Math.max(50, resizingNode.startHeight - deltaY);
+            }
+            
+            // Apply constraints from component config
+            const config = ComponentRegistry.getConfig(schema.type);
+            if (config?.resizeConstraints) {
+                const constraints = config.resizeConstraints;
+                if (constraints.minWidth) newWidth = Math.max(constraints.minWidth, newWidth);
+                if (constraints.maxWidth) newWidth = Math.min(constraints.maxWidth, newWidth);
+                if (constraints.minHeight) newHeight = Math.max(constraints.minHeight, newHeight);
+                if (constraints.maxHeight) newHeight = Math.min(constraints.maxHeight, newHeight);
+            }
+            
+            // Update the element's inline style temporarily for visual feedback
+            const element = canvasRef.current?.querySelector(`[data-obj-id="${resizingNode.nodeId}"]`) as HTMLElement;
+            if (element) {
+                element.style.width = `${newWidth}px`;
+                element.style.height = `${newHeight}px`;
+            }
+        };
+        
+        const handleMouseUp = () => {
+            if (!resizingNode) return;
+            
+            // Get final dimensions and update schema
+            const element = canvasRef.current?.querySelector(`[data-obj-id="${resizingNode.nodeId}"]`) as HTMLElement;
+            if (element) {
+                const width = element.style.width;
+                const height = element.style.height;
+                
+                // Update node with new dimensions in className
+                // We'll add custom width/height to the existing className
+                const currentNode = findNodeInSchema(schema, resizingNode.nodeId);
+                if (currentNode) {
+                    const existingClasses = currentNode.className || '';
+                    // Remove any existing width/height classes
+                    let newClassName = existingClasses
+                        .split(' ')
+                        .filter(c => !c.startsWith('w-') && !c.startsWith('h-') && !c.includes('width') && !c.includes('height'))
+                        .join(' ');
+                    
+                    // Add inline style instead via data attribute for persistent sizing
+                    updateNode(resizingNode.nodeId, {
+                        style: {
+                            width,
+                            height
+                        }
+                    });
+                }
+                
+                // Clear inline style after update
+                element.style.width = '';
+                element.style.height = '';
+            }
+            
+            setResizingNode(null);
+        };
+        
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [resizingNode, setResizingNode, updateNode, schema]);
+    
+    // Helper to find node in schema
+    const findNodeInSchema = (node: any, targetId: string): any => {
+        if (node.id === targetId) return node;
+        
+        if (Array.isArray(node.body)) {
+            for (const child of node.body) {
+                const found = findNodeInSchema(child, targetId);
+                if (found) return found;
+            }
+        } else if (node.body && typeof node.body === 'object') {
+            return findNodeInSchema(node.body, targetId);
+        }
+        
+        return null;
+    };
     
     // Make components in canvas draggable
     React.useEffect(() => {
@@ -341,8 +474,60 @@ export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
                     }}
                 >
                     {/* Render the Schema */}
-                    <div className="h-full w-full">
+                    <div className="h-full w-full relative">
                          <SchemaRenderer schema={schema} />
+                         
+                         {/* Resize Handles - show only when a resizable component is selected */}
+                         {selectedNodeId && (() => {
+                             const selectedNode = findNodeInSchema(schema, selectedNodeId);
+                             if (!selectedNode) return null;
+                             
+                             const config = ComponentRegistry.getConfig(selectedNode.type);
+                             if (!config?.resizable) return null;
+                             
+                             const element = canvasRef.current?.querySelector(`[data-obj-id="${selectedNodeId}"]`);
+                             if (!element) return null;
+                             
+                             const rect = element.getBoundingClientRect();
+                             const canvasRect = canvasRef.current?.getBoundingClientRect();
+                             if (!canvasRect) return null;
+                             
+                             // Calculate position relative to canvas
+                             const top = rect.top - canvasRect.top;
+                             const left = rect.left - canvasRect.left;
+                             
+                             // Determine which directions to show based on constraints
+                             const constraints = config.resizeConstraints || {};
+                             const directions: ResizeDirection[] = [];
+                             
+                             if (constraints.width !== false) {
+                                 directions.push('e', 'w');
+                             }
+                             if (constraints.height !== false) {
+                                 directions.push('n', 's');
+                             }
+                             if (constraints.width !== false && constraints.height !== false) {
+                                 directions.push('ne', 'nw', 'se', 'sw');
+                             }
+                             
+                             return (
+                                 <div
+                                     className="absolute pointer-events-none"
+                                     style={{
+                                         top: `${top}px`,
+                                         left: `${left}px`,
+                                         width: `${rect.width}px`,
+                                         height: `${rect.height}px`,
+                                     }}
+                                 >
+                                     <ResizeHandles
+                                         directions={directions}
+                                         onResizeStart={handleResizeStart}
+                                         className="pointer-events-auto"
+                                     />
+                                 </div>
+                             );
+                         })()}
                     </div>
                 </div>
 

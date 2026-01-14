@@ -34,6 +34,14 @@ ComponentRegistry.register('card',
       title: 'Card Title',
       description: 'Card description goes here',
       className: 'w-full'
+    },
+    isContainer: true,
+    resizable: true,
+    resizeConstraints: {
+      width: true,
+      height: true,
+      minWidth: 200,
+      minHeight: 100
     }
   }
 );
