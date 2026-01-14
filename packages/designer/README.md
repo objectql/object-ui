@@ -35,8 +35,11 @@ A professional drag-and-drop visual editor to generate Object UI schemas with ad
   - `Ctrl+X` / `Cmd+X`: Cut component 🆕
   - `Ctrl+V` / `Cmd+V`: Paste component
   - `Ctrl+D` / `Cmd+D`: Duplicate component 🆕
+  - `Ctrl+↑` / `Cmd+↑`: Move component up in tree 🆕
+  - `Ctrl+↓` / `Cmd+↓`: Move component down in tree 🆕
   - `Delete` / `Backspace`: Delete component
   - `Click`: Select component (shows resize handles if resizable)
+- **Keyboard Shortcuts Help**: 🆕 Click the keyboard icon in toolbar to view all shortcuts
 - **Context Menu**: 🆕 Right-click components for quick actions (Copy, Cut, Paste, Duplicate, Move Up/Down, Delete)
 - **Resize Handles**: 🆕 8-directional handles appear on selected container components
 - **Visual Constraints**: 🆕 Min/max width and height constraints prevent invalid sizing
@@ -155,9 +158,13 @@ The designer supports the following keyboard shortcuts for efficient workflow:
 | `Ctrl+X` / `Cmd+X` | Cut | Cut the selected component 🆕 |
 | `Ctrl+V` / `Cmd+V` | Paste | Paste the copied component |
 | `Ctrl+D` / `Cmd+D` | Duplicate | Duplicate the selected component 🆕 |
+| `Ctrl+↑` / `Cmd+↑` | Move Up | Move component up in parent container 🆕 |
+| `Ctrl+↓` / `Cmd+↓` | Move Down | Move component down in parent container 🆕 |
 | `Delete` / `Backspace` | Delete | Delete the selected component |
 
 **Note**: Copy, cut, paste, duplicate, and delete shortcuts only work when not editing text in input fields.
+
+**Tip**: Click the keyboard icon (⌨️) in the toolbar to view the interactive keyboard shortcuts reference anytime!
 
 ## Components
 
@@ -281,6 +288,8 @@ module.exports = {
 - [x] **Duplicate functionality (Ctrl+D/Cmd+D)** 🆕
 - [x] **Component tree with expand/collapse all** 🆕
 - [x] **Context menu with move up/down** 🆕
+- [x] **Keyboard navigation (Ctrl+↑/↓ for reordering)** 🆕
+- [x] **Keyboard shortcuts help dialog** 🆕
 - [x] Keyboard shortcuts (Ctrl+Z/Y, Ctrl+C/X/V/D, Delete)
 - [x] Component search in palette
 - [x] JSON import/export with file and clipboard support
@@ -292,11 +301,12 @@ module.exports = {
 - [ ] Snap-to-grid for precise positioning and resizing
 - [ ] Aspect ratio locking (Shift+Drag during resize)
 - [ ] Keyboard resize controls (Shift+Arrow keys)
-- [ ] Keyboard navigation in component tree (Arrow keys)
 - [ ] Resize preview overlay showing dimensions
 - [ ] Schema validation with error indicators
 - [ ] Component visibility toggle (hide/show components)
 - [ ] Copy/duplicate entire schema branches
+- [ ] Multi-select components with Shift+Click
+- [ ] Component grouping and ungrouping
 - [ ] Custom component templates library
 - [ ] Export to React/TypeScript code
 - [ ] Collaborative editing features

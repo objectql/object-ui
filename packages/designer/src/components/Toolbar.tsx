@@ -30,6 +30,7 @@ import {
 import { Textarea } from '@object-ui/components';
 import { useDesigner } from '../context/DesignerContext';
 import { cn } from '@object-ui/components';
+import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 
 export const Toolbar: React.FC = React.memo(() => {
     const { 
@@ -297,6 +298,9 @@ export const Toolbar: React.FC = React.memo(() => {
                         </DialogContent>
                     </Dialog>
                 </div>
+                
+                {/* Keyboard Shortcuts Help */}
+                <KeyboardShortcutsHelp />
                 
                 <Button 
                     variant="outline" 

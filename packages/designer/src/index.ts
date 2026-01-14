@@ -15,6 +15,7 @@ export { ContextMenu } from './components/ContextMenu';
 export { LeftSidebar } from './components/LeftSidebar';
 export { ResizeHandle, ResizeHandles } from './components/ResizeHandle';
 export type { ResizeDirection } from './components/ResizeHandle';
+export { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
 
 export const name = '@object-ui/designer';
 export const version = '0.1.0';

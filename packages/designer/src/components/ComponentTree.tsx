@@ -177,7 +177,7 @@ const TreeNode: React.FC<TreeNodeProps> = React.memo(({ node, level, isSelected,
 TreeNode.displayName = 'TreeNode';
 
 export const ComponentTree: React.FC<ComponentTreeProps> = React.memo(({ className }) => {
-    const { schema, selectedNodeId, setSelectedNodeId } = useDesigner();
+    const { schema, selectedNodeId, setSelectedNodeId, moveNodeUp, moveNodeDown } = useDesigner();
     const [expandTrigger, setExpandTrigger] = useState(0);
     const [collapseTrigger, setCollapseTrigger] = useState(0);
     
@@ -192,6 +192,35 @@ export const ComponentTree: React.FC<ComponentTreeProps> = React.memo(({ classNa
     const handleCollapseAll = useCallback(() => {
         setCollapseTrigger(prev => prev + 1);
     }, []);
+    
+    // Keyboard navigation for tree
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Only handle keyboard events when tree is focused and not in an input
+            const target = e.target as HTMLElement;
+            const isEditing = 
+                target.tagName === 'INPUT' || 
+                target.tagName === 'TEXTAREA' || 
+                target.tagName === 'SELECT' ||
+                target.isContentEditable;
+            
+            if (isEditing || !selectedNodeId) return;
+            
+            // Arrow Up: Move component up in tree (reorder)
+            if (e.key === 'ArrowUp' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                moveNodeUp(selectedNodeId);
+            }
+            // Arrow Down: Move component down in tree (reorder)
+            else if (e.key === 'ArrowDown' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                moveNodeDown(selectedNodeId);
+            }
+        };
+        
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedNodeId, moveNodeUp, moveNodeDown]);
     
     const expansionContextValue = useMemo(() => ({
         expandAll: expandTrigger > 0,
