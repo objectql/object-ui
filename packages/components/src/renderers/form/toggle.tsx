@@ -12,7 +12,7 @@ ComponentRegistry.register('toggle',
       aria-label={schema.ariaLabel}
       {...props}
     >
-      {schema.label || renderChildren(schema.body || schema.children)}
+      {schema.label || renderChildren(schema.children)}
     </Toggle>
   ),
   {

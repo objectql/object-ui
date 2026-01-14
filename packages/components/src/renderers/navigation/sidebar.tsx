@@ -37,7 +37,7 @@ ComponentRegistry.register('sidebar-provider',
 );
 
 ComponentRegistry.register('sidebar', 
-  ({ schema, ...props }) => (
+  ({ schema, ...props }: { schema: SidebarSchema; [key: string]: any }) => (
     <Sidebar {...props}>{renderChildren(schema.body)}</Sidebar>
   ),
   {

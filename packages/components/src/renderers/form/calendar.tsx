@@ -8,7 +8,7 @@ ComponentRegistry.register('calendar',
       mode={schema.mode || "single"}
       selected={schema.value || schema.defaultValue}
       className={className}
-      {...props as any}
+      {...props}
     />
   ),
   {

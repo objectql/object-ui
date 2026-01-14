@@ -43,7 +43,7 @@ const renderContextMenuItems = (items: any[]) => {
 };
 
 ComponentRegistry.register('context-menu', 
-  ({ schema, className, ...props }) => (
+  ({ schema, className, ...props }: { schema: ContextMenuSchema; className?: string; [key: string]: any }) => (
     <ContextMenu modal={schema.modal} {...props}>
       <ContextMenuTrigger asChild>
           {/* Usually a Right Click area */}

@@ -10,7 +10,7 @@ import { renderChildren } from '../../lib/utils';
 
 ComponentRegistry.register('accordion', 
   ({ schema, className, ...props }: { schema: AccordionSchema; className?: string; [key: string]: any }) => (
-    <Accordion type={schema.type || 'single'} collapsible={schema.collapsible} className={className} {...props}>
+    <Accordion type={schema.accordionType || 'single'} collapsible={schema.collapsible} className={className} {...props}>
       {schema.items?.map((item, index: number) => (
         <AccordionItem key={item.value || index} value={item.value || `item-${index}`}>
           <AccordionTrigger>{item.title}</AccordionTrigger>
