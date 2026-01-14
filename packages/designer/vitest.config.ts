@@ -3,7 +3,7 @@ import path from 'path';
 
 export default defineConfig({
   test: {
-    environment: 'jsdom',
+    environment: 'happy-dom',
     exclude: ['**/node_modules/**', '**/dist/**'],
     alias: {
       '@object-ui/core': path.resolve(__dirname, '../core/src/index.ts'),
