@@ -333,25 +333,51 @@ export class ObjectQLDataSource<T = any> implements DataSource<T> {
    * 
    * @param resource - Object name
    * @param operation - Operation type
-   * @param data - Bulk data
+   * @param data - Bulk data or filters for update/delete
    * @returns Promise resolving to operation results
    */
   async bulk(
     resource: string, 
     operation: 'create' | 'update' | 'delete', 
-    data: Partial<T>[]
+    data: Partial<T>[] | any
   ): Promise<T[]> {
     try {
       if (operation === 'create') {
         const response = await this.client.createMany<T>(resource, data);
         return response.items || [];
       } else if (operation === 'update') {
-        // For bulk updates, we need to use updateMany with filters
-        // This is a simplified implementation
-        throw new Error('Bulk update not yet implemented with SDK');
+        // For bulk updates with SDK, we need filters and update data
+        // This is a limitation - the old API accepted array of records
+        // The new SDK requires filters + data
+        if (Array.isArray(data)) {
+          // If array of records is provided, we need to update them individually
+          // This is less efficient but maintains compatibility
+          const results: T[] = [];
+          for (const item of data) {
+            if ('_id' in item && item._id) {
+              const updated = await this.client.update<T>(resource, item._id, item);
+              results.push(updated as T);
+            }
+          }
+          return results;
+        } else {
+          throw new Error('Bulk update requires array of records with _id field');
+        }
       } else if (operation === 'delete') {
-        // For bulk deletes, we need to use deleteMany with filters
-        throw new Error('Bulk delete not yet implemented with SDK');
+        // For bulk deletes with SDK, similar approach
+        if (Array.isArray(data)) {
+          // Delete each record individually
+          const results: T[] = [];
+          for (const item of data) {
+            if ('_id' in item && item._id) {
+              await this.client.delete(resource, item._id);
+              results.push(item as T);
+            }
+          }
+          return results;
+        } else {
+          throw new Error('Bulk delete requires array of records with _id field');
+        }
       }
       
       throw new Error(`Unknown bulk operation: ${operation}`);
