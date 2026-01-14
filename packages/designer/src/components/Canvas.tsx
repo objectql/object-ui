@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { SchemaRenderer } from '@object-ui/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { useDesigner } from '../context/DesignerContext';
@@ -13,7 +13,7 @@ interface CanvasProps {
 const INSERT_AT_START = 0;
 const INSERT_AT_END = undefined; // undefined means append to end in addNode/moveNode
 
-export const Canvas: React.FC<CanvasProps> = ({ className }) => {
+export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
     const { 
         schema, 
         selectedNodeId, 
@@ -31,17 +31,17 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
     const [scale, setScale] = useState(1);
     const canvasRef = React.useRef<HTMLDivElement>(null);
     
-    // Calculate canvas width based on viewport mode
-    const getCanvasWidth = () => {
+    // Memoize canvas width calculation
+    const canvasWidth = useMemo(() => {
         switch (viewportMode) {
             case 'mobile': return '375px'; // iPhone size
             case 'tablet': return '768px'; // iPad size
             case 'desktop': return '1024px'; // Desktop size
             default: return '1024px';
         }
-    };
+    }, [viewportMode]);
 
-    const handleClick = (e: React.MouseEvent) => {
+    const handleClick = useCallback((e: React.MouseEvent) => {
         // Find closest element with data-obj-id
         const target = (e.target as Element).closest('[data-obj-id]');
         if (target) {
@@ -52,9 +52,9 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
             // Clicked on empty canvas area
             setSelectedNodeId(null);
         }
-    };
+    }, [setSelectedNodeId]);
 
-    const handleDragOver = (e: React.DragEvent) => {
+    const handleDragOver = useCallback((e: React.DragEvent) => {
         if (!draggingType && !draggingNodeId) return;
         e.preventDefault();
         
@@ -70,13 +70,13 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
         } else {
             setHoveredNodeId(null);
         }
-    };
+    }, [draggingType, draggingNodeId, setHoveredNodeId]);
     
-    const handleDragLeave = () => {
+    const handleDragLeave = useCallback(() => {
         setHoveredNodeId(null);
-    };
+    }, [setHoveredNodeId]);
 
-    const handleDrop = (e: React.DragEvent) => {
+    const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         
         const target = (e.target as Element).closest('[data-obj-id]');
@@ -121,7 +121,7 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
         }
         
         setHoveredNodeId(null);
-    };
+    }, [draggingNodeId, draggingType, moveNode, addNode, setDraggingNodeId, setHoveredNodeId]);
     
     // Make components in canvas draggable
     React.useEffect(() => {
@@ -303,7 +303,7 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
                 <div 
                     className="bg-white shadow-lg transition-transform origin-top duration-200 ease-out"
                     style={{
-                        width: getCanvasWidth(),
+                        width: canvasWidth,
                         maxWidth: '100%',
                         minHeight: '800px', // Standard height
                         transform: `scale(${scale})`,
@@ -345,4 +345,6 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
             </div>
         </div>
     );
-};
+});
+
+Canvas.displayName = 'Canvas';

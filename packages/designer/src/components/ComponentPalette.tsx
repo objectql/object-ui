@@ -98,12 +98,12 @@ const CATEGORIES = {
     'Navigation': ['tabs', 'breadcrumb', 'pagination', 'menubar']
 };
 
-export const ComponentPalette: React.FC<ComponentPaletteProps> = ({ className }) => {
+export const ComponentPalette: React.FC<ComponentPaletteProps> = React.memo(({ className }) => {
   const { setDraggingType } = useDesigner();
   const allConfigs = ComponentRegistry.getAllConfigs();
   const [searchQuery, setSearchQuery] = React.useState('');
 
-  const handleDragStart = (e: React.DragEvent, type: string) => {
+  const handleDragStart = React.useCallback((e: React.DragEvent, type: string) => {
     e.dataTransfer.setData('componentType', type);
     e.dataTransfer.effectAllowed = 'copy';
     setDraggingType(type);
@@ -115,13 +115,13 @@ export const ComponentPalette: React.FC<ComponentPaletteProps> = ({ className })
     document.body.appendChild(dragPreview);
     e.dataTransfer.setDragImage(dragPreview, 0, 0);
     setTimeout(() => document.body.removeChild(dragPreview), 0);
-  };
+  }, [setDraggingType]);
   
-  const handleDragEnd = () => {
+  const handleDragEnd = React.useCallback(() => {
     setDraggingType(null);
-  };
+  }, [setDraggingType]);
 
-  const renderComponentItem = (type: string) => {
+  const renderComponentItem = React.useCallback((type: string) => {
       const config = ComponentRegistry.getConfig(type);
       if (!config) return null; // Skip if not found
       
@@ -146,10 +146,10 @@ export const ComponentPalette: React.FC<ComponentPaletteProps> = ({ className })
             </span>
           </div>
       );
-  };
+  }, [handleDragStart, handleDragEnd]);
 
   // Filter components by search query
-  const filterBySearch = (types: string[]) => {
+  const filterBySearch = React.useCallback((types: string[]) => {
     if (!searchQuery.trim()) return types;
     
     const query = searchQuery.toLowerCase();
@@ -158,12 +158,12 @@ export const ComponentPalette: React.FC<ComponentPaletteProps> = ({ className })
       return type.toLowerCase().includes(query) || 
              config?.label?.toLowerCase().includes(query);
     });
-  };
+  }, [searchQuery]);
 
   // Filter available components based on category
-  const getComponentscategory = (categoryComponents: string[]) => {
+  const getComponentscategory = React.useCallback((categoryComponents: string[]) => {
       return categoryComponents.filter(type => ComponentRegistry.getConfig(type));
-  };
+  }, []);
 
   return (
     <div className={cn("flex flex-col h-full bg-gray-50/50 border-r w-72 overflow-hidden", className)}>
@@ -228,4 +228,6 @@ export const ComponentPalette: React.FC<ComponentPaletteProps> = ({ className })
         </ScrollArea>
     </div>
   );
-};
+});
+
+ComponentPalette.displayName = 'ComponentPalette';

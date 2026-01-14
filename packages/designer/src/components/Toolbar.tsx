@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Button } from '@object-ui/components';
 import { 
     Monitor, 
@@ -31,7 +31,7 @@ import { Textarea } from '@object-ui/components';
 import { useDesigner } from '../context/DesignerContext';
 import { cn } from '@object-ui/components';
 
-export const Toolbar: React.FC = () => {
+export const Toolbar: React.FC = React.memo(() => {
     const { schema, setSchema, undo, redo, canUndo, canRedo, viewportMode, setViewportMode } = useDesigner();
     const [showExportDialog, setShowExportDialog] = useState(false);
     const [showImportDialog, setShowImportDialog] = useState(false);
@@ -39,7 +39,7 @@ export const Toolbar: React.FC = () => {
     const [importError, setImportError] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleExport = () => {
+    const handleExport = useCallback(() => {
         const json = JSON.stringify(schema, null, 2);
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -48,9 +48,9 @@ export const Toolbar: React.FC = () => {
         a.download = 'schema.json';
         a.click();
         URL.revokeObjectURL(url);
-    };
+    }, [schema]);
 
-    const handleCopyJson = async () => {
+    const handleCopyJson = useCallback(async () => {
         try {
             const json = JSON.stringify(schema, null, 2);
             await navigator.clipboard.writeText(json);
@@ -59,9 +59,9 @@ export const Toolbar: React.FC = () => {
             console.error('Failed to copy to clipboard:', error);
             // Fallback: could show an error message or use a different copy method
         }
-    };
+    }, [schema]);
 
-    const handleImport = () => {
+    const handleImport = useCallback(() => {
         try {
             setImportError('');
             const parsed = JSON.parse(importJson);
@@ -71,9 +71,9 @@ export const Toolbar: React.FC = () => {
         } catch (error) {
             setImportError(error instanceof Error ? error.message : 'Invalid JSON');
         }
-    };
+    }, [importJson, setSchema]);
 
-    const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -89,7 +89,7 @@ export const Toolbar: React.FC = () => {
             }
         };
         reader.readAsText(file);
-    };
+    }, [setSchema]);
 
     return (
         <TooltipProvider delayDuration={300}>
@@ -321,4 +321,6 @@ export const Toolbar: React.FC = () => {
         </div>
         </TooltipProvider>
     );
-};
+});
+
+Toolbar.displayName = 'Toolbar';

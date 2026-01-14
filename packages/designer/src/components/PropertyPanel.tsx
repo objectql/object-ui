@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useDesigner } from '../context/DesignerContext';
 import { ComponentRegistry } from '@object-ui/core';
 import { Label } from '@object-ui/components';
@@ -22,11 +22,11 @@ interface PropertyPanelProps {
     className?: string;
 }
 
-export const PropertyPanel: React.FC<PropertyPanelProps> = ({ className }) => {
+export const PropertyPanel: React.FC<PropertyPanelProps> = React.memo(({ className }) => {
     const { schema, selectedNodeId, updateNode, removeNode, copyNode, pasteNode, canPaste } = useDesigner();
     
-    // Recursive finder
-    const findNode = (node: any, id: string): any => {
+    // Recursive finder - memoized to prevent recreation on every render
+    const findNode = useCallback((node: any, id: string): any => {
         if (!node) return null;
         if (node.id === id) return node;
         if (node.body) {
@@ -40,12 +40,19 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({ className }) => {
             }
         }
         return null;
-    };
+    }, []);
     
-    const selectedNode = selectedNodeId ? findNode(schema, selectedNodeId) : null;
-    const config = selectedNode ? ComponentRegistry.getConfig(selectedNode.type) : null;
+    const selectedNode = useMemo(() => 
+        selectedNodeId ? findNode(schema, selectedNodeId) : null,
+        [selectedNodeId, schema, findNode]
+    );
+    
+    const config = useMemo(() => 
+        selectedNode ? ComponentRegistry.getConfig(selectedNode.type) : null,
+        [selectedNode]
+    );
 
-    const handleInputChange = (name: string, value: any) => {
+    const handleInputChange = useCallback((name: string, value: any) => {
         if (!selectedNodeId) return;
         
         // Special case: direct schema properties vs props which go into ...rest
@@ -53,7 +60,7 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({ className }) => {
         // or inside a 'props' object. The renderer spreads the schema node itself or schema.props.
         // Let's assume flat for simple properties like className, label, etc.
         updateNode(selectedNodeId, { [name]: value });
-    };
+    }, [selectedNodeId, updateNode]);
 
     if (!selectedNode) {
         return (
@@ -235,4 +242,6 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({ className }) => {
             </ScrollArea>
         </div>
     );
-};
+});
+
+PropertyPanel.displayName = 'PropertyPanel';
