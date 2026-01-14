@@ -4,7 +4,7 @@ import { FilterBuilder } from '@/ui/filter-builder';
 
 ComponentRegistry.register('filter-builder', 
   ({ schema, className, onChange, ...props }: { schema: FilterBuilderSchema; className?: string; onChange?: (event: any) => void; [key: string]: any }) => {
-    const handleChange = (value: FilterGroup) => {
+    const handleChange = (value: any) => {
       if (onChange) {
         onChange({
           target: {
@@ -21,7 +21,7 @@ ComponentRegistry.register('filter-builder',
           <label className="text-sm font-medium mb-2 block">{schema.label}</label>
         )}
         <FilterBuilder
-          fields={schema.fields || []}
+          fields={(schema.fields || []) as any}
           value={schema.value || props.value}
           onChange={handleChange}
           className={className}

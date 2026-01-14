@@ -174,8 +174,8 @@ function ChartTooltipContent({
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
         {payload
-          .filter((item) => item.type !== "none")
-          .map((item, index) => {
+          .filter((item: any) => item.type !== "none")
+          .map((item: any, index: number) => {
             const key = `${nameKey || item.name || item.dataKey || "value"}`
             const itemConfig = getPayloadConfigFromPayload(config, item, key)
             const indicatorColor = color || item.payload.fill || item.color
@@ -185,7 +185,7 @@ function ChartTooltipContent({
                 key={item.dataKey}
                 className={cn(
                   "[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
-                  indicator === "dot" && "items-center"
+                  indicator === "dot" ? "items-center" : ""
                 )}
               >
                 {formatter && item?.value !== undefined && item.name ? (
@@ -199,15 +199,13 @@ function ChartTooltipContent({
                         <div
                           className={cn(
                             "shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg)",
-                            {
-                              "h-2.5 w-2.5": indicator === "dot",
-                              "w-1": indicator === "line",
-                              "w-0 border-[1.5px] border-dashed bg-transparent":
-                                indicator === "dashed",
-                              "my-0.5": nestLabel && indicator === "dashed",
-                            }
+                            indicator === "dot" ? "h-2.5 w-2.5" : "",
+                            indicator === "line" ? "w-1" : "",
+                            indicator === "dashed" ? "w-0 border-[1.5px] border-dashed bg-transparent" : "",
+                            (nestLabel && indicator === "dashed") ? "my-0.5" : "",
                           )}
                           style={
+
                             {
                               "--color-bg": indicatorColor,
                               "--color-border": indicatorColor,
@@ -268,8 +266,8 @@ function ChartLegendContent({
       )}
     >
       {payload
-        .filter((item) => item.type !== "none")
-        .map((item) => {
+        .filter((item: any) => item.type !== "none")
+        .map((item: any) => {
           const key = `${nameKey || item.dataKey || "value"}`
           const itemConfig = getPayloadConfigFromPayload(config, item, key)
 

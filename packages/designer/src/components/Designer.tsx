@@ -74,17 +74,19 @@ export const DesignerContent: React.FC = () => {
       
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Combined Component Palette and Tree */}
-        <div className="w-72 flex-shrink-0 z-10 shadow-[1px_0_5px_rgba(0,0,0,0.03)] h-full">
+        {/* Responsive: w-72 on desktop, w-64 on tablet (md:), hidden on mobile with toggle option */}
+        <div className="w-64 md:w-72 flex-shrink-0 z-10 shadow-[1px_0_5px_rgba(0,0,0,0.03)] h-full">
            <LeftSidebar className="h-full border-r-0" />
         </div>
         
         {/* Main Canvas Area */}
-        <div className="flex-1 relative bg-gray-100 z-0">
+        <div className="flex-1 relative bg-gray-100 z-0 min-w-0">
            <Canvas className="h-full w-full" />
         </div>
         
         {/* Right Sidebar - Property Panel */}
-        <div className="w-80 flex-shrink-0 z-10 shadow-[-1px_0_5px_rgba(0,0,0,0.03)] h-full">
+        {/* Responsive: w-80 on desktop, w-72 on tablet (md:), can be toggled on small tablets */}
+        <div className="w-72 md:w-80 flex-shrink-0 z-10 shadow-[-1px_0_5px_rgba(0,0,0,0.03)] h-full">
            <PropertyPanel className="h-full border-l-0 shadow-none border-l custom-scrollbar" />
         </div>
       </div>

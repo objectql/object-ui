@@ -9,7 +9,9 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint ."
   },
   "peerDependencies": {
     "react": "^18.3.1",

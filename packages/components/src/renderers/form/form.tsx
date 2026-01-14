@@ -71,7 +71,7 @@ ComponentRegistry.register('form',
             type: 'form_submit',
             data,
             formData: data,
-          });
+          }) as any;
 
           // Check if submission returned an error
           if (result?.error) {
@@ -97,7 +97,7 @@ ComponentRegistry.register('form',
         setSubmitError(errorMessage);
         
         // Log errors for debugging (dev environment only)
-        // @ts-ignore - process may not be defined in all environments
+        // process may not be defined in all environments
         if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
           console.error('Form submission error:', error);
         }
@@ -356,7 +356,7 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
     case 'textarea':
       return <Textarea placeholder={placeholder} {...fieldProps} />;
     
-    case 'checkbox':
+    case 'checkbox': {
       // For checkbox, we need to handle the value differently
       const { value, onChange, ...checkboxProps } = fieldProps;
       return (
@@ -368,8 +368,9 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
           />
         </div>
       );
+    }
     
-    case 'select':
+    case 'select': {
       // For select with react-hook-form, we need to handle the onChange
       const { value: selectValue, onChange: selectOnChange, ...selectProps } = fieldProps;
       
@@ -392,6 +393,7 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
           </SelectContent>
         </Select>
       );
+    }
     
     default:
       return <Input type={inputType || 'text'} placeholder={placeholder} {...fieldProps} />;

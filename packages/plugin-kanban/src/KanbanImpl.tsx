@@ -93,6 +93,7 @@ function KanbanColumn({
   column: KanbanColumn
   cards: KanbanCard[]
 }) {
+  const safeCards = cards || [];
   const { setNodeRef } = useSortable({
     id: column.id,
     data: {
@@ -100,7 +101,7 @@ function KanbanColumn({
     },
   })
 
-  const isLimitExceeded = column.limit && cards.length >= column.limit
+  const isLimitExceeded = column.limit && safeCards.length >= column.limit
 
   return (
     <div
@@ -115,7 +116,7 @@ function KanbanColumn({
           <h3 className="font-semibold text-sm">{column.title}</h3>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">
-              {cards.length}
+              {safeCards.length}
               {column.limit && ` / ${column.limit}`}
             </span>
             {isLimitExceeded && (
@@ -128,11 +129,11 @@ function KanbanColumn({
       </div>
       <ScrollArea className="flex-1 p-4">
         <SortableContext
-          items={cards.map((c) => c.id)}
+          items={safeCards.map((c) => c.id)}
           strategy={verticalListSortingStrategy}
         >
           <div className="space-y-2">
-            {cards.map((card) => (
+            {safeCards.map((card) => (
               <SortableCard key={card.id} card={card} />
             ))}
           </div>
@@ -144,11 +145,20 @@ function KanbanColumn({
 
 export default function KanbanBoard({ columns, onCardMove, className }: KanbanBoardProps) {
   const [activeCard, setActiveCard] = React.useState<KanbanCard | null>(null)
-  const [boardColumns, setBoardColumns] = React.useState<KanbanColumn[]>(columns)
+  
+  // Ensure we always have valid columns with cards array
+  const safeColumns = React.useMemo(() => {
+    return (columns || []).map(col => ({
+      ...col,
+      cards: col.cards || []
+    }));
+  }, [columns]);
+
+  const [boardColumns, setBoardColumns] = React.useState<KanbanColumn[]>(safeColumns)
 
   React.useEffect(() => {
-    setBoardColumns(columns)
-  }, [columns])
+    setBoardColumns(safeColumns)
+  }, [safeColumns])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

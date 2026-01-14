@@ -7,7 +7,7 @@ import React from 'react';
 ComponentRegistry.register('calendar-view', 
   ({ schema, className, onAction, ...props }: { schema: CalendarViewSchema; className?: string; onAction?: (action: any) => void; [key: string]: any }) => {
     // Transform schema data to CalendarEvent format
-    const events: CalendarEvent[] = React.useMemo(() => {
+    const events = React.useMemo(() => {
       if (!schema.data || !Array.isArray(schema.data)) return [];
       
       return schema.data.map((record: any, index: number) => {
@@ -34,7 +34,7 @@ ComponentRegistry.register('calendar-view',
         }
         
         return {
-          id: record.id || record._id || index,
+          id: String(record.id || record._id || index),
           title,
           start,
           end,
@@ -45,7 +45,7 @@ ComponentRegistry.register('calendar-view',
       });
     }, [schema.data, schema.titleField, schema.startDateField, schema.endDateField, schema.colorField, schema.allDayField, schema.colorMapping]);
 
-    const handleEventClick = React.useCallback((event: CalendarEvent) => {
+    const handleEventClick = React.useCallback((event: any) => {
       if (onAction) {
         onAction({
           type: 'event_click',
@@ -95,8 +95,8 @@ ComponentRegistry.register('calendar-view',
 
     return (
       <CalendarView
-        events={events}
-        view={schema.view || 'month'}
+        events={events as any[]}
+        view={(schema.view as any) || 'month'}
         currentDate={schema.currentDate ? new Date(schema.currentDate) : undefined}
         onEventClick={handleEventClick}
         onDateClick={schema.allowCreate || schema.onDateClick ? handleDateClick : undefined}

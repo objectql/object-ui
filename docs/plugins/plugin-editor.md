@@ -1,0 +1,140 @@
+# Plugin Editor
+
+Code editor component powered by Monaco Editor (VS Code's editor).
+
+## Installation
+
+```bash
+npm install @object-ui/plugin-editor
+```
+
+## Usage
+
+### Basic Usage
+
+```tsx
+// Import once in your app entry point
+import '@object-ui/plugin-editor'
+
+// Use in schemas
+const schema = {
+  type: 'code-editor',
+  value: 'console.log("Hello, World!");',
+  language: 'javascript',
+  theme: 'vs-dark',
+  height: '400px'
+}
+```
+
+## Features
+
+- **Syntax highlighting** for 100+ languages
+- **IntelliSense and code completion**
+- **Find and replace**
+- **Multiple themes**
+- **Lazy-loaded** (~20 KB initial, Monaco loads on-demand)
+
+## Schema API
+
+```typescript
+{
+  type: 'code-editor',
+  value?: string,              // Code content
+  language?: string,           // Programming language
+  theme?: 'vs-dark' | 'light', // Editor theme
+  height?: string,             // Height (e.g., '400px')
+  readOnly?: boolean,          // Read-only mode
+  className?: string           // Tailwind classes
+}
+```
+
+### Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `value` | string | `''` | The code content to display |
+| `language` | string | `'javascript'` | Programming language for syntax highlighting |
+| `theme` | `'vs-dark'` \| `'light'` | `'vs-dark'` | Editor theme |
+| `height` | string | `'400px'` | Height of the editor |
+| `readOnly` | boolean | `false` | Whether the editor is read-only |
+| `className` | string | `''` | Additional Tailwind CSS classes |
+
+## Supported Languages
+
+The Monaco Editor supports 100+ programming languages including:
+
+- JavaScript / TypeScript
+- Python
+- Java / C# / C++
+- HTML / CSS / SCSS
+- JSON / YAML / XML
+- Markdown
+- SQL
+- Shell / Bash
+- And many more...
+
+## Examples
+
+### JavaScript Editor
+
+```tsx
+const schema = {
+  type: 'code-editor',
+  value: 'function hello() {\n  console.log("Hello!");\n}',
+  language: 'javascript',
+  theme: 'vs-dark',
+  height: '300px'
+}
+```
+
+### Read-only Code Display
+
+```tsx
+const schema = {
+  type: 'code-editor',
+  value: 'const API_KEY = "secret";\n// Do not modify',
+  language: 'typescript',
+  readOnly: true,
+  theme: 'light'
+}
+```
+
+### Python Editor
+
+```tsx
+const schema = {
+  type: 'code-editor',
+  value: 'def hello():\n    print("Hello, World!")',
+  language: 'python',
+  height: '400px'
+}
+```
+
+## Bundle Size
+
+The plugin uses lazy loading to optimize bundle size:
+
+- **Initial load**: ~0.2 KB (entry point)
+- **Lazy chunk**: ~20 KB (loaded when editor is rendered)
+- **Monaco Editor**: Loaded on-demand from CDN
+
+This keeps your main application bundle small while providing full IDE-like editing capabilities.
+
+## TypeScript Support
+
+```typescript
+import type { CodeEditorSchema } from '@object-ui/plugin-editor'
+
+const editorSchema: CodeEditorSchema = {
+  type: 'code-editor',
+  value: 'console.log("TypeScript!");',
+  language: 'typescript',
+  theme: 'vs-dark'
+}
+```
+
+## Related Documentation
+
+- [Plugin System Overview](../guide/plugins.md)
+- [Lazy-Loaded Plugins Architecture](../lazy-loaded-plugins.md)
+- [Package README](https://github.com/objectstack-ai/objectui/tree/main/packages/plugin-editor)

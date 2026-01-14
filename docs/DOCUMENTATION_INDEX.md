@@ -16,7 +16,9 @@ Complete guide to Object UI documentation. Find what you need quickly.
 **Understanding how Object UI works:**
 
 - [Schema Rendering](./guide/schema-rendering.md) - The core rendering system
+- [Components](./guide/components.md) - Complete component reference guide
 - [Component Registry](./guide/component-registry.md) - How components are registered and used
+- [Plugins](./guide/plugins.md) - Extending Object UI with plugins
 - [Expression System](./guide/expressions.md) - Dynamic data binding and logic
 
 ## 📋 Protocol Specifications
@@ -76,18 +78,26 @@ Complete guide to Object UI documentation. Find what you need quickly.
 ### I want to...
 
 **Build a form**
-1. [Form Protocol](./protocol/form.md) - Schema reference
-2. [Quick Start](./guide/quick-start.md#your-first-component) - Form example
-3. [Form Component](./components/form.md) - Detailed guide
+1. [Components Guide](./guide/components.md#form-components) - Form components overview
+2. [Form Protocol](./protocol/form.md) - Schema reference
+3. [Quick Start](./guide/quick-start.md#your-first-component) - Form example
+4. [Form Component](./components/form.md) - Detailed guide
 
 **Display data in a table**
-1. [View Protocol](./protocol/view.md) - Table schema
-2. [Components API](./api/components.md) - Table component API
+1. [Components Guide](./guide/components.md#data-display) - Data display components
+2. [View Protocol](./protocol/view.md) - Table schema
+3. [Components API](./api/components.md) - Table component API
+
+**Extend with plugins**
+1. [Plugins Guide](./guide/plugins.md) - Overview and official plugins
+2. [Lazy-Loaded Plugins](./lazy-loaded-plugins.md) - Plugin architecture
+3. [Component Packages](./spec/component-package.md) - Creating custom plugins
 
 **Create custom components**
-1. [Component Registry](./guide/component-registry.md) - Registration guide
-2. [Component Packages](./spec/component-package.md) - Creation guide
-3. [Architecture](./spec/architecture.md) - Understanding the system
+1. [Components Guide](./guide/components.md#customization) - Customization overview
+2. [Component Registry](./guide/component-registry.md) - Registration guide
+3. [Component Packages](./spec/component-package.md) - Creation guide
+4. [Architecture](./spec/architecture.md) - Understanding the system
 
 **Use the visual designer**
 1. [Visual Studio](./guide/studio.md) - Designer guide
@@ -116,10 +126,12 @@ Just getting started:
 
 Building real applications:
 1. [Schema Rendering](./guide/schema-rendering.md)
-2. [Component Registry](./guide/component-registry.md)
-3. [Expression System](./guide/expressions.md)
-4. [View Protocol](./protocol/view.md)
-5. [Page Protocol](./protocol/page.md)
+2. [Components](./guide/components.md)
+3. [Component Registry](./guide/component-registry.md)
+4. [Plugins](./guide/plugins.md)
+5. [Expression System](./guide/expressions.md)
+6. [View Protocol](./protocol/view.md)
+7. [Page Protocol](./protocol/page.md)
 
 ### Advanced
 
@@ -160,7 +172,9 @@ Want to improve the docs?
 - [Installation](./guide/installation.md)
 - [Visual Studio](./guide/studio.md)
 - [Schema Rendering](./guide/schema-rendering.md)
+- [Components](./guide/components.md)
 - [Component Registry](./guide/component-registry.md)
+- [Plugins](./guide/plugins.md)
 - [Expression System](./guide/expressions.md)
 
 ### All Protocols

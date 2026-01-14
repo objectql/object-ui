@@ -19,6 +19,24 @@ const INSERT_AT_END = undefined; // undefined means append to end in addNode/mov
 // Set to true to allow context menu on the root component, false to disable it
 const ALLOW_ROOT_CONTEXT_MENU = false;
 
+// Helper to find node in schema - extracted to top level
+const findNodeInSchema = (node: SchemaNode, targetId: string): SchemaNode | null => {
+    if (node.id === targetId) return node;
+    
+    if (Array.isArray(node.body)) {
+        for (const child of node.body) {
+            if (typeof child === 'object' && child !== null) {
+                const found = findNodeInSchema(child as SchemaNode, targetId);
+                if (found) return found;
+            }
+        }
+    } else if (node.body && typeof node.body === 'object') {
+        return findNodeInSchema(node.body as SchemaNode, targetId);
+    }
+    
+    return null;
+};
+
 export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
     const { 
         schema, 
@@ -39,6 +57,7 @@ export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
 
     const [scale, setScale] = useState(1);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
+    const [selectionBounds, setSelectionBounds] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
     const canvasRef = React.useRef<HTMLDivElement>(null);
     
     // Memoize canvas width calculation
@@ -258,24 +277,6 @@ export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
         };
     }, [resizingNode, setResizingNode, updateNode, schema]);
     
-    // Helper to find node in schema
-    const findNodeInSchema = (node: SchemaNode, targetId: string): SchemaNode | null => {
-        if (node.id === targetId) return node;
-        
-        if (Array.isArray(node.body)) {
-            for (const child of node.body) {
-                if (typeof child === 'object' && child !== null) {
-                    const found = findNodeInSchema(child as SchemaNode, targetId);
-                    if (found) return found;
-                }
-            }
-        } else if (node.body && typeof node.body === 'object') {
-            return findNodeInSchema(node.body as SchemaNode, targetId);
-        }
-        
-        return null;
-    };
-    
     // Make components in canvas draggable
     React.useEffect(() => {
         if (!canvasRef.current) return;
@@ -321,6 +322,44 @@ export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
         };
     }, [schema, setDraggingNodeId]);
     
+    // Measure selected node bounds for resize handles
+    React.useLayoutEffect(() => {
+        if (!selectedNodeId || !canvasRef.current) {
+            setSelectionBounds(null);
+            return;
+        }
+
+        const measure = () => {
+             const element = canvasRef.current?.querySelector(`[data-obj-id="${selectedNodeId}"]`);
+             if (!element) {
+                 setSelectionBounds(null);
+                 return;
+             }
+             
+             const rect = element.getBoundingClientRect();
+             const canvasRect = canvasRef.current?.getBoundingClientRect();
+             if (!canvasRect) return;
+             
+             setSelectionBounds({
+                 top: rect.top - canvasRect.top,
+                 left: rect.left - canvasRect.left,
+                 width: rect.width,
+                 height: rect.height
+             });
+        };
+
+        measure();
+        
+        // Update on resize or scroll
+        window.addEventListener('resize', measure);
+        window.addEventListener('scroll', measure, true);
+        
+        return () => {
+             window.removeEventListener('resize', measure);
+             window.removeEventListener('scroll', measure, true);
+        };
+    }, [selectedNodeId, schema]);
+
     // Inject styles for selection/hover using dynamic CSS
     // Enhanced with smooth transitions and gradient effects for premium UX
     const highlightStyles = `
@@ -555,23 +594,12 @@ export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
                          <SchemaRenderer schema={schema} />
                          
                          {/* Resize Handles - show only when a resizable component is selected */}
-                         {selectedNodeId && (() => {
+                         {selectedNodeId && selectionBounds && (() => {
                              const selectedNode = findNodeInSchema(schema, selectedNodeId);
                              if (!selectedNode) return null;
                              
                              const config = ComponentRegistry.getConfig(selectedNode.type);
                              if (!config?.resizable) return null;
-                             
-                             const element = canvasRef.current?.querySelector(`[data-obj-id="${selectedNodeId}"]`);
-                             if (!element) return null;
-                             
-                             const rect = element.getBoundingClientRect();
-                             const canvasRect = canvasRef.current?.getBoundingClientRect();
-                             if (!canvasRect) return null;
-                             
-                             // Calculate position relative to canvas
-                             const top = rect.top - canvasRect.top;
-                             const left = rect.left - canvasRect.left;
                              
                              // Determine which directions to show based on constraints
                              const constraints = config.resizeConstraints || {};
@@ -591,10 +619,10 @@ export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
                                  <div
                                      className="absolute pointer-events-none"
                                      style={{
-                                         top: `${top}px`,
-                                         left: `${left}px`,
-                                         width: `${rect.width}px`,
-                                         height: `${rect.height}px`,
+                                         top: `${selectionBounds.top}px`,
+                                         left: `${selectionBounds.left}px`,
+                                         width: `${selectionBounds.width}px`,
+                                         height: `${selectionBounds.height}px`,
                                      }}
                                  >
                                      <ResizeHandles

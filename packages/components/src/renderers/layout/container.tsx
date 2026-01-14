@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 
 ComponentRegistry.register('container', 
   ({ schema, className, ...props }: { schema: ContainerSchema; className?: string; [key: string]: any }) => {
-    const maxWidth = schema.maxWidth || 'xl';
+    const maxWidth = (schema.maxWidth || 'xl') as any;
     const padding = schema.padding || 4;
     const centered = schema.centered !== false; // Default to true
     

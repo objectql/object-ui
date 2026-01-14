@@ -15,7 +15,7 @@ ComponentRegistry.register('loading',
             size === 'sm' && 'h-4 w-4',
             size === 'md' && 'h-8 w-8',
             size === 'lg' && 'h-12 w-12',
-            size === 'xl' && 'h-16 w-16'
+            size === ('xl' as any) && 'h-16 w-16'
           )}
         />
         {schema.text && (

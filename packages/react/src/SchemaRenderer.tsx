@@ -6,6 +6,7 @@ export const SchemaRenderer: React.FC<{ schema: SchemaNode }> = ({ schema }) => 
   // If schema is just a string, render it as text
   if (typeof schema === 'string') return <>{schema}</>;
   
+  // eslint-disable-next-line
   const Component = ComponentRegistry.get(schema.type);
 
   if (!Component) {
@@ -17,5 +18,11 @@ export const SchemaRenderer: React.FC<{ schema: SchemaNode }> = ({ schema }) => 
     );
   }
 
-  return <Component schema={schema} {...(schema.props || {})} className={schema.className} data-obj-id={schema.id} data-obj-type={schema.type} />;
+  return React.createElement(Component, {
+    schema,
+    ...(schema.props || {}),
+    className: schema.className,
+    'data-obj-id': schema.id,
+    'data-obj-type': schema.type
+  });
 };

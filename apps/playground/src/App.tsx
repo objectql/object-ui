@@ -1,6 +1,8 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { Home } from './pages/Home';
 import { Studio } from './pages/Studio';
+import { MyDesigns } from './pages/MyDesigns';
 import '@object-ui/components';
 
 // Import lazy-loaded plugins
@@ -15,9 +17,13 @@ import './index.css';
 export default function App() {
   return (
     <Router>
+      <Toaster position="top-right" richColors />
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/:id" element={<Studio />} />
+        <Route path="/my-designs" element={<MyDesigns />} />
+        <Route path="/studio/:id" element={<Studio />} />
+        {/* Default redirect to first example if typed manually specifically */}
+        <Route path="/studio" element={<Navigate to="/studio/dashboard" replace />} />
       </Routes>
     </Router>
   );

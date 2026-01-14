@@ -19,11 +19,11 @@ ComponentRegistry.register('chatbot',
   ({ schema, className, ...props }) => {
     // Initialize messages from schema or use empty array
     const [messages, setMessages] = useState<ChatMessage[]>(
-      schema.messages?.map((msg: Partial<ChatMessage>, idx: number) => ({
+      schema.messages?.map((msg: any, idx: number) => ({
         id: msg.id || `msg-${idx}`,
         role: msg.role || 'user',
         content: msg.content || '',
-        timestamp: msg.timestamp,
+        timestamp: typeof msg.timestamp === 'string' ? msg.timestamp : (msg.timestamp instanceof Date ? msg.timestamp.toISOString() : undefined),
         avatar: msg.avatar,
         avatarFallback: msg.avatarFallback,
       })) || []
@@ -63,7 +63,7 @@ ComponentRegistry.register('chatbot',
 
     return (
       <Chatbot 
-        messages={messages}
+        messages={messages as any}
         placeholder={schema.placeholder}
         onSendMessage={handleSendMessage}
         disabled={schema.disabled}

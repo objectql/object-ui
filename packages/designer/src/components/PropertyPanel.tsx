@@ -25,18 +25,20 @@ interface PropertyPanelProps {
 export const PropertyPanel: React.FC<PropertyPanelProps> = React.memo(({ className }) => {
     const { schema, selectedNodeId, updateNode, removeNode, copyNode, pasteNode, canPaste } = useDesigner();
     
-    // Recursive finder - memoized to prevent recreation on every render
-    const findNode = useCallback((node: any, id: string): any => {
-        if (!node) return null;
-        if (node.id === id) return node;
-        if (node.body) {
-            if (Array.isArray(node.body)) {
-                for (const child of node.body) {
-                    const found = findNode(child, id);
-                    if (found) return found;
+    // Recursive finder
+    const findNode = useCallback((root: any, id: string): any => {
+        const queue = [root];
+        while (queue.length > 0) {
+            const node = queue.shift();
+            if (!node) continue;
+            if (node.id === id) return node;
+            
+            if (node.body) {
+                if (Array.isArray(node.body)) {
+                    queue.push(...node.body);
+                } else if (typeof node.body === 'object') {
+                    queue.push(node.body);
                 }
-            } else if (typeof node.body === 'object') {
-                return findNode(node.body, id);
             }
         }
         return null;
@@ -89,7 +91,7 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = React.memo(({ classNa
                         />
                     </div>
                 );
-            case 'enum':
+            case 'enum': {
                 const options = Array.isArray(input.enum) 
                     ? input.enum.map(opt => typeof opt === 'string' ? { label: opt, value: opt } : opt)
                     : [];
@@ -113,6 +115,7 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = React.memo(({ classNa
                         </Select>
                     </div>
                 );
+            }
             case 'number':
                 return (
                     <div className="space-y-1.5">
