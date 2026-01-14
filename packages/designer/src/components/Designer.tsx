@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { DesignerProvider } from '../context/DesignerContext';
-import { ComponentPalette } from './ComponentPalette';
-import { ComponentTree } from './ComponentTree';
+import { LeftSidebar } from './LeftSidebar';
 import { Canvas } from './Canvas';
 import { PropertyPanel } from './PropertyPanel';
 import { useDesigner } from '../context/DesignerContext';
@@ -22,8 +21,7 @@ export const DesignerContent: React.FC = () => {
     removeNode, 
     selectedNodeId, 
     canUndo, 
-    canRedo,
-    showComponentTree 
+    canRedo
   } = useDesigner();
   
   // Keyboard shortcuts
@@ -75,17 +73,10 @@ export const DesignerContent: React.FC = () => {
       {/* <Toolbar /> removed, moved to parent */}
       
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Component Palette */}
+        {/* Left Sidebar - Combined Component Palette and Tree */}
         <div className="w-72 flex-shrink-0 z-10 shadow-[1px_0_5px_rgba(0,0,0,0.03)] h-full">
-           <ComponentPalette className="h-full border-r-0" />
+           <LeftSidebar className="h-full border-r-0" />
         </div>
-        
-        {/* Component Tree (Optional) */}
-        {showComponentTree && (
-          <div className="w-64 flex-shrink-0 z-10 h-full">
-            <ComponentTree className="h-full" />
-          </div>
-        )}
         
         {/* Main Canvas Area */}
         <div className="flex-1 relative bg-gray-100 z-0">

@@ -16,8 +16,6 @@ export interface DesignerContextValue {
   setDraggingNodeId: React.Dispatch<React.SetStateAction<string | null>>;
   viewportMode: ViewportMode;
   setViewportMode: React.Dispatch<React.SetStateAction<ViewportMode>>;
-  showComponentTree: boolean;
-  setShowComponentTree: React.Dispatch<React.SetStateAction<boolean>>;
   addNode: (parentId: string | null, node: SchemaNode, index?: number) => void;
   updateNode: (id: string, updates: Partial<SchemaNode>) => void;
   removeNode: (id: string) => void;
@@ -203,7 +201,6 @@ export const DesignerProvider: React.FC<DesignerProviderProps> = ({
   const [draggingType, setDraggingType] = useState<string | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [viewportMode, setViewportMode] = useState<ViewportMode>('desktop');
-  const [showComponentTree, setShowComponentTree] = useState(true);
   
   // Undo/Redo state
   const [history, setHistory] = useState<SchemaNode[]>([ensureNodeIds(initialSchema || defaultSchema)]);
@@ -339,8 +336,6 @@ export const DesignerProvider: React.FC<DesignerProviderProps> = ({
       setDraggingNodeId,
       viewportMode,
       setViewportMode,
-      showComponentTree,
-      setShowComponentTree,
       addNode,
       updateNode,
       removeNode,

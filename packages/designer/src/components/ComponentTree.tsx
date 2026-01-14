@@ -163,15 +163,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = React.memo(({ classNa
     }, [setSelectedNodeId]);
     
     return (
-        <div className={cn("flex flex-col h-full bg-white border-r", className)}>
-            <div className="px-4 py-3 border-b shrink-0">
-                <div className="flex items-center gap-2">
-                    <Layers size={16} className="text-blue-600" />
-                    <h2 className="text-sm font-semibold text-gray-900">Component Tree</h2>
-                </div>
-                <p className="text-xs text-gray-500 mt-0.5">Navigate and organize components</p>
-            </div>
-            
+        <div className={cn("flex flex-col h-full bg-white", className)}>
             <ScrollArea className="flex-1">
                 <div className="p-2">
                     {schema && (

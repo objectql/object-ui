@@ -12,7 +12,6 @@ import {
     Upload,
     Copy,
     FileJson,
-    Layers,
 } from 'lucide-react';
 import {
     Dialog,
@@ -41,9 +40,7 @@ export const Toolbar: React.FC = React.memo(() => {
         canUndo, 
         canRedo, 
         viewportMode, 
-        setViewportMode,
-        showComponentTree,
-        setShowComponentTree
+        setViewportMode
     } = useDesigner();
     const [showExportDialog, setShowExportDialog] = useState(false);
     const [showImportDialog, setShowImportDialog] = useState(false);
@@ -167,26 +164,6 @@ export const Toolbar: React.FC = React.memo(() => {
                             <TooltipContent>Mobile View (375px)</TooltipContent>
                         </Tooltip>
                     </div>
-                    
-                    {/* Component Tree Toggle */}
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className={cn(
-                                    "h-8 w-8 p-0 transition-all",
-                                    showComponentTree ? "text-blue-600" : "text-gray-500 hover:text-gray-900"
-                                )}
-                                onClick={() => setShowComponentTree(!showComponentTree)}
-                            >
-                                <Layers size={16} />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            {showComponentTree ? 'Hide' : 'Show'} Component Tree
-                        </TooltipContent>
-                    </Tooltip>
             </div>
 
             {/* Right Actions */}

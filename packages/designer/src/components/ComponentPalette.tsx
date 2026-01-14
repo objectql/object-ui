@@ -166,12 +166,8 @@ export const ComponentPalette: React.FC<ComponentPaletteProps> = React.memo(({ c
   }, []);
 
   return (
-    <div className={cn("flex flex-col h-full bg-gray-50/50 border-r w-72 overflow-hidden", className)}>
+    <div className={cn("flex flex-col h-full bg-gray-50/50 w-72 overflow-hidden", className)}>
         <div className="px-4 py-3 border-b bg-white shrink-0 space-y-3">
-            <div>
-                <h2 className="text-sm font-semibold text-gray-900">Components</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Drag to add to canvas</p>
-            </div>
             <div className="relative">
                 <input
                     type="text"
