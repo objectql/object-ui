@@ -122,8 +122,8 @@ export const Home = () => {
                       <div className="flex-1 p-3">
                         <div className="space-y-2.5">
                           <div className="h-2.5 bg-gradient-to-r from-indigo-200 to-purple-200 rounded-full w-1/2 animate-pulse"></div>
-                          <div className="h-2.5 bg-gradient-to-r from-blue-200 to-cyan-200 rounded-full w-3/4 animate-pulse delay-75"></div>
-                          <div className="h-2.5 bg-gradient-to-r from-purple-200 to-pink-200 rounded-full w-full animate-pulse delay-150"></div>
+                          <div className="h-2.5 bg-gradient-to-r from-blue-200 to-cyan-200 rounded-full w-3/4 animate-pulse [animation-delay:75ms]"></div>
+                          <div className="h-2.5 bg-gradient-to-r from-purple-200 to-pink-200 rounded-full w-full animate-pulse [animation-delay:150ms]"></div>
                         </div>
                       </div>
                     </div>
