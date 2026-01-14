@@ -1,0 +1,168 @@
+{
+  "type": "div",
+  "className": "space-y-6 max-w-4xl",
+  "body": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "body": [
+        {
+          "type": "text",
+          "content": "Timeline Component",
+          "className": "text-3xl font-bold"
+        },
+        {
+          "type": "text",
+          "content": "Display chronological events in a visual timeline",
+          "className": "text-muted-foreground"
+        }
+      ]
+    },
+    {
+      "type": "card",
+      "className": "p-6",
+      "body": {
+        "type": "div",
+        "className": "space-y-6",
+        "body": [
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Project Timeline",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "timeline",
+                "items": [
+                  {
+                    "title": "Project Initiated",
+                    "description": "Initial planning and team formation completed",
+                    "timestamp": "2024-01-15",
+                    "status": "completed"
+                  },
+                  {
+                    "title": "Design Phase",
+                    "description": "UI/UX design and architecture planning",
+                    "timestamp": "2024-02-01",
+                    "status": "completed"
+                  },
+                  {
+                    "title": "Development Sprint 1",
+                    "description": "Core components and infrastructure setup",
+                    "timestamp": "2024-03-01",
+                    "status": "completed"
+                  },
+                  {
+                    "title": "Testing & QA",
+                    "description": "Comprehensive testing and bug fixes",
+                    "timestamp": "2024-04-15",
+                    "status": "in-progress"
+                  },
+                  {
+                    "title": "Production Release",
+                    "description": "Deploy to production environment",
+                    "timestamp": "2024-05-01",
+                    "status": "pending"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "User Activity",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "timeline",
+                "items": [
+                  {
+                    "title": "Account Created",
+                    "description": "Welcome to Object UI! Your account is ready.",
+                    "timestamp": "2 hours ago",
+                    "icon": "UserPlus"
+                  },
+                  {
+                    "title": "First Project",
+                    "description": "Created 'My Awesome Dashboard'",
+                    "timestamp": "1 hour ago",
+                    "icon": "FolderPlus"
+                  },
+                  {
+                    "title": "Component Added",
+                    "description": "Added a data table to your project",
+                    "timestamp": "30 minutes ago",
+                    "icon": "Plus"
+                  },
+                  {
+                    "title": "Design Updated",
+                    "description": "Applied custom Tailwind styling",
+                    "timestamp": "15 minutes ago",
+                    "icon": "Palette"
+                  },
+                  {
+                    "title": "Project Published",
+                    "description": "Your project is now live!",
+                    "timestamp": "Just now",
+                    "icon": "Rocket"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "card",
+      "className": "p-6",
+      "body": {
+        "type": "div",
+        "className": "space-y-4",
+        "body": [
+          {
+            "type": "text",
+            "content": "Order Tracking",
+            "className": "text-lg font-semibold"
+          },
+          {
+            "type": "timeline",
+            "orientation": "horizontal",
+            "items": [
+              {
+                "title": "Ordered",
+                "description": "Order confirmed",
+                "status": "completed"
+              },
+              {
+                "title": "Processing",
+                "description": "Preparing items",
+                "status": "completed"
+              },
+              {
+                "title": "Shipped",
+                "description": "On the way",
+                "status": "in-progress"
+              },
+              {
+                "title": "Delivered",
+                "description": "Awaiting delivery",
+                "status": "pending"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -30,8 +30,8 @@ export const exampleCategories = {
   'Primitives': ['simple-page', 'input-states', 'button-variants'],
   'Forms': ['form-demo', 'airtable-form', 'form-controls', 'date-time-pickers', 'file-upload-demo', 'input-otp-demo', 'toggle-group-demo'],
   'Layouts': ['grid-layout', 'dashboard', 'tabs-demo'],
-  'Data Display': ['calendar-view', 'enterprise-table', 'data-table-simple', 'alert-messages', 'badge-labels', 'avatar-profiles', 'list-views'],
+  'Data Display': ['calendar-view', 'enterprise-table', 'data-table-simple', 'alert-messages', 'badge-labels', 'avatar-profiles', 'list-views', 'markdown-renderer', 'tree-hierarchy'],
   'Feedback': ['loading-states', 'progress-indicators', 'skeleton-loading'],
   'Disclosure': ['accordion-faq', 'collapsible-sections'],
-  'Complex': ['kanban-board']
+  'Complex': ['kanban-board', 'carousel-gallery', 'timeline-events', 'table-basic']
 };

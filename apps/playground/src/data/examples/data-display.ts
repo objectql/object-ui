@@ -5,6 +5,8 @@ import alertMessages from './data-display/alert-messages.json';
 import badgeLabels from './data-display/badge-labels.json';
 import avatarProfiles from './data-display/avatar-profiles.json';
 import listViews from './data-display/list-views.json';
+import markdownRenderer from './data-display/markdown-renderer.json';
+import treeHierarchy from './data-display/tree-hierarchy.json';
 
 export const dataDisplay = {
   'enterprise-table': JSON.stringify(enterpriseTable, null, 2),
@@ -13,5 +15,7 @@ export const dataDisplay = {
   'alert-messages': JSON.stringify(alertMessages, null, 2),
   'badge-labels': JSON.stringify(badgeLabels, null, 2),
   'avatar-profiles': JSON.stringify(avatarProfiles, null, 2),
-  'list-views': JSON.stringify(listViews, null, 2)
+  'list-views': JSON.stringify(listViews, null, 2),
+  'markdown-renderer': JSON.stringify(markdownRenderer, null, 2),
+  'tree-hierarchy': JSON.stringify(treeHierarchy, null, 2)
 };
