@@ -96,7 +96,7 @@ The `validation` object supports various rules:
       "message": "Project name must not exceed 50 characters"
     },
     "pattern": {
-      "value": "^[a-zA-Z0-9\\s]+$",
+      "value": "/^[a-zA-Z0-9\\s]+$/",
       "message": "Only letters, numbers, and spaces allowed"
     }
   }
@@ -110,8 +110,10 @@ The `validation` object supports various rules:
 - `maxLength`: `{value: number, message: string}` - Maximum length
 - `min`: `{value: number, message: string}` - Minimum value (for numbers)
 - `max`: `{value: number, message: string}` - Maximum value (for numbers)
-- `pattern`: `{value: string, message: string}` - Regex pattern
+- `pattern`: `{value: string | RegExp, message: string}` - Regex pattern (string format: "/pattern/" or raw regex)
 - `validate`: Custom validation function
+
+**Note**: For `pattern` validation, you can provide either a regex string (e.g., "/^[a-z]+$/") or a raw regex string without delimiters (e.g., "^[a-z]+$"). React Hook Form will handle the conversion internally.
 
 ## Conditional Fields
 

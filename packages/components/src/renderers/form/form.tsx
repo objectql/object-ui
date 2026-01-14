@@ -15,7 +15,47 @@ import {
 import { renderChildren } from '../../lib/utils';
 import { Alert, AlertDescription } from '@/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import React from 'react';
+
+// TypeScript interfaces for type safety
+interface SelectOption {
+  label: string;
+  value: string;
+}
+
+interface FieldValidation {
+  required?: string | boolean;
+  minLength?: { value: number; message: string };
+  maxLength?: { value: number; message: string };
+  min?: { value: number; message: string };
+  max?: { value: number; message: string };
+  pattern?: { value: string | RegExp; message: string };
+  validate?: (value: any) => boolean | string;
+}
+
+interface FieldCondition {
+  field: string;
+  equals?: any;
+  notEquals?: any;
+  in?: any[];
+}
+
+interface FormFieldConfig {
+  id?: string;
+  name: string;
+  label?: string;
+  description?: string;
+  type?: string;
+  inputType?: string;
+  required?: boolean;
+  disabled?: boolean;
+  placeholder?: string;
+  options?: SelectOption[];
+  validation?: FieldValidation;
+  condition?: FieldCondition;
+  [key: string]: any;
+}
 
 // Form renderer component - Airtable-style feature-complete form
 ComponentRegistry.register('form',
@@ -44,9 +84,9 @@ ComponentRegistry.register('form',
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [submitError, setSubmitError] = React.useState<string | null>(null);
 
-    // Watch for form changes
+    // Watch for form changes - only track changes when onAction is available
     React.useEffect(() => {
-      if (onChangeProp && onAction) {
+      if (onAction) {
         const subscription = form.watch((data) => {
           onAction({
             type: 'form_change',
@@ -56,7 +96,7 @@ ComponentRegistry.register('form',
         });
         return () => subscription.unsubscribe();
       }
-    }, [form, onAction, onChangeProp]);
+    }, [form, onAction]);
 
     // Handle form submission
     const handleSubmit = form.handleSubmit(async (data) => {
@@ -85,9 +125,19 @@ ComponentRegistry.register('form',
         if (resetOnSubmit) {
           form.reset();
         }
-      } catch (error: any) {
-        setSubmitError(error?.message || 'An error occurred during submission');
-        console.error('Form submission error:', error);
+      } catch (error) {
+        // Handle different error types safely
+        const errorMessage = error instanceof Error 
+          ? error.message 
+          : typeof error === 'string' 
+            ? error 
+            : 'An error occurred during submission';
+        setSubmitError(errorMessage);
+        
+        // Only log errors in development
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Form submission error:', error);
+        }
       } finally {
         setIsSubmitting(false);
       }
@@ -104,9 +154,15 @@ ComponentRegistry.register('form',
       }
     };
 
-    // Determine grid classes based on columns
+    // Determine grid classes based on columns (explicit classes for Tailwind JIT)
+    const gridColsClass = 
+      columns === 1 ? '' :
+      columns === 2 ? 'md:grid-cols-2' :
+      columns === 3 ? 'md:grid-cols-3' :
+      'md:grid-cols-4';
+    
     const gridClass = columns > 1 
-      ? `grid gap-4 md:grid-cols-${Math.min(columns, 4)}`
+      ? cn('grid gap-4', gridColsClass)
       : 'space-y-4';
 
     return (
@@ -129,7 +185,7 @@ ComponentRegistry.register('form',
           ) : (
             // Otherwise render fields from schema
             <div className={schema.fieldContainerClass || gridClass}>
-              {fields.map((field: any, index: number) => {
+              {fields.map((field: FormFieldConfig, index: number) => {
                 const {
                   name,
                   label,
@@ -142,18 +198,21 @@ ComponentRegistry.register('form',
                   ...fieldProps
                 } = field;
 
-                // Handle conditional rendering
+                // Handle conditional rendering with null/undefined safety
                 if (condition) {
                   const watchField = condition.field;
                   const watchValue = form.watch(watchField);
                   
-                  if (condition.equals && watchValue !== condition.equals) {
+                  // Check for null/undefined before evaluating conditions
+                  const hasValue = watchValue !== undefined && watchValue !== null;
+                  
+                  if (condition.equals !== undefined && watchValue !== condition.equals) {
                     return null;
                   }
-                  if (condition.notEquals && watchValue === condition.notEquals) {
+                  if (condition.notEquals !== undefined && watchValue === condition.notEquals) {
                     return null;
                   }
-                  if (condition.in && !condition.in.includes(watchValue)) {
+                  if (condition.in && (!hasValue || !condition.in.includes(watchValue))) {
                     return null;
                   }
                 }
@@ -164,12 +223,17 @@ ComponentRegistry.register('form',
                 };
 
                 if (required) {
-                  rules.required = validation.required || `${label || name} is required`;
+                  rules.required = typeof validation.required === 'string' 
+                    ? validation.required 
+                    : `${label || name} is required`;
                 }
+
+                // Use field.id or field.name for stable keys (never use index alone)
+                const fieldKey = field.id ?? name;
 
                 return (
                   <FormField
-                    key={field.id || name || index}
+                    key={fieldKey}
                     control={form.control}
                     name={name}
                     rules={rules}
@@ -178,7 +242,11 @@ ComponentRegistry.register('form',
                         {label && (
                           <FormLabel>
                             {label}
-                            {required && <span className="text-destructive ml-1">*</span>}
+                            {required && (
+                              <span className="text-destructive ml-1" aria-label="required">
+                                *
+                              </span>
+                            )}
                           </FormLabel>
                         )}
                         <FormControl>
@@ -188,6 +256,7 @@ ComponentRegistry.register('form',
                             ...formField,
                             inputType: fieldProps.inputType,
                             options: fieldProps.options,
+                            placeholder: fieldProps.placeholder,
                             disabled: disabled || fieldDisabled || isSubmitting,
                           })}
                         </FormControl>
@@ -303,16 +372,26 @@ ComponentRegistry.register('form',
   }
 );
 
-// Helper function to render field components
-function renderFieldComponent(type: string, props: any) {
-  const { schema, inputType, options, ...fieldProps } = props;
+// Helper function to render field components with proper typing
+interface RenderFieldProps {
+  inputType?: string;
+  options?: SelectOption[];
+  placeholder?: string;
+  value?: any;
+  onChange?: (value: any) => void;
+  disabled?: boolean;
+  [key: string]: any;
+}
+
+function renderFieldComponent(type: string, props: RenderFieldProps) {
+  const { inputType, options = [], placeholder, ...fieldProps } = props;
 
   switch (type) {
     case 'input':
-      return <Input type={inputType || 'text'} {...fieldProps} />;
+      return <Input type={inputType || 'text'} placeholder={placeholder} {...fieldProps} />;
     
     case 'textarea':
-      return <Textarea {...fieldProps} />;
+      return <Textarea placeholder={placeholder} {...fieldProps} />;
     
     case 'checkbox':
       // For checkbox, we need to handle the value differently
@@ -330,13 +409,19 @@ function renderFieldComponent(type: string, props: any) {
     case 'select':
       // For select with react-hook-form, we need to handle the onChange
       const { value: selectValue, onChange: selectOnChange, ...selectProps } = fieldProps;
+      
+      // Safety check for options
+      if (!options || options.length === 0) {
+        return <div className="text-sm text-muted-foreground">No options available</div>;
+      }
+      
       return (
         <Select value={selectValue} onValueChange={selectOnChange} {...selectProps}>
           <SelectTrigger>
-            <SelectValue placeholder="Select an option" />
+            <SelectValue placeholder={placeholder ?? 'Select an option'} />
           </SelectTrigger>
           <SelectContent>
-            {options?.map((opt: any) => (
+            {options.map((opt: SelectOption) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
               </SelectItem>
@@ -346,6 +431,6 @@ function renderFieldComponent(type: string, props: any) {
       );
     
     default:
-      return <Input type={inputType || 'text'} {...fieldProps} />;
+      return <Input type={inputType || 'text'} placeholder={placeholder} {...fieldProps} />;
   }
 }
