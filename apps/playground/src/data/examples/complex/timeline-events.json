@@ -1,93 +1,88 @@
 {
   "type": "div",
-  "className": "min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6 md:p-8",
+  "className": "space-y-6 max-w-4xl",
   "body": [
     {
       "type": "div",
-      "className": "max-w-4xl mx-auto space-y-8",
+      "className": "space-y-2",
       "body": [
         {
-          "type": "div",
-          "className": "space-y-3 backdrop-blur-sm bg-white/40 p-6 rounded-2xl border border-white/60 shadow-xl text-center",
-          "body": [
-            {
-              "type": "text",
-              "content": "⏱️ Timeline Component",
-              "className": "text-4xl font-black bg-gradient-to-r from-slate-700 via-blue-600 to-indigo-600 bg-clip-text text-transparent"
-            },
-            {
-              "type": "text",
-              "content": "Display chronological events in a beautiful visual timeline",
-              "className": "text-gray-600 font-medium text-lg"
-            }
-          ]
+          "type": "text",
+          "content": "Timeline Component",
+          "className": "text-3xl font-bold"
         },
         {
-          "type": "card",
-          "className": "p-8 shadow-2xl border-0 bg-white/90 backdrop-blur-lg rounded-2xl",
-          "body": {
+          "type": "text",
+          "content": "Display chronological events in a visual timeline",
+          "className": "text-muted-foreground"
+        }
+      ]
+    },
+    {
+      "type": "card",
+      "className": "p-6",
+      "body": {
+        "type": "div",
+        "className": "space-y-6",
+        "body": [
+          {
             "type": "div",
-            "className": "space-y-8",
+            "className": "space-y-4",
             "body": [
               {
-                "type": "div",
-                "className": "space-y-6",
-                "body": [
+                "type": "text",
+                "content": "Project Timeline",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "timeline",
+                "items": [
                   {
-                    "type": "text",
-                    "content": "🚀 Project Timeline",
-                    "className": "text-2xl font-bold text-gray-900"
+                    "title": "Project Initiated",
+                    "description": "Initial planning and team formation completed",
+                    "timestamp": "2024-01-15",
+                    "status": "completed"
                   },
                   {
-                    "type": "timeline",
-                    "items": [
-                      {
-                        "title": "✨ Project Initiated",
-                        "description": "Initial planning and team formation completed",
-                        "timestamp": "2024-01-15",
-                        "status": "completed"
-                      },
-                      {
-                        "title": "🎨 Design Phase",
-                        "description": "UI/UX design and architecture planning",
-                        "timestamp": "2024-02-01",
-                        "status": "completed"
-                      },
-                      {
-                        "title": "⚡ Development Sprint 1",
-                        "description": "Core components and infrastructure setup",
-                        "timestamp": "2024-03-01",
-                        "status": "completed"
-                      },
-                      {
-                        "title": "🧪 Testing & QA",
-                        "description": "Comprehensive testing and bug fixes",
-                        "timestamp": "2024-04-15",
-                        "status": "in-progress"
-                      },
-                      {
-                        "title": "🚀 Production Release",
-                        "description": "Deploy to production environment",
-                        "timestamp": "2024-05-01",
-                        "status": "pending"
-                      }
-                    ]
+                    "title": "Design Phase",
+                    "description": "UI/UX design and architecture planning",
+                    "timestamp": "2024-02-01",
+                    "status": "completed"
+                  },
+                  {
+                    "title": "Development Sprint 1",
+                    "description": "Core components and infrastructure setup",
+                    "timestamp": "2024-03-01",
+                    "status": "completed"
+                  },
+                  {
+                    "title": "Testing & QA",
+                    "description": "Comprehensive testing and bug fixes",
+                    "timestamp": "2024-04-15",
+                    "status": "in-progress"
+                  },
+                  {
+                    "title": "Production Release",
+                    "description": "Deploy to production environment",
+                    "timestamp": "2024-05-01",
+                    "status": "pending"
                   }
                 ]
-              },
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
               {
-                "type": "separator",
-                "className": "my-6"
+                "type": "text",
+                "content": "User Activity",
+                "className": "text-lg font-semibold"
               },
-              {
-                "type": "div",
-                "className": "space-y-6",
-                "body": [
-                  {
-                    "type": "text",
-                    "content": "👤 User Activity",
-                    "className": "text-2xl font-bold text-gray-900"
-                  },
               {
                 "type": "timeline",
                 "items": [
@@ -127,19 +122,19 @@
           }
         ]
       }
-        },
-        {
-          "type": "card",
-          "className": "p-8 shadow-2xl border-0 bg-white/90 backdrop-blur-lg rounded-2xl",
-          "body": {
-            "type": "div",
-            "className": "space-y-6",
-            "body": [
-              {
-                "type": "text",
-                "content": "📦 Order Tracking",
-                "className": "text-2xl font-bold text-gray-900"
-              },
+    },
+    {
+      "type": "card",
+      "className": "p-6",
+      "body": {
+        "type": "div",
+        "className": "space-y-4",
+        "body": [
+          {
+            "type": "text",
+            "content": "Order Tracking",
+            "className": "text-lg font-semibold"
+          },
           {
             "type": "timeline",
             "orientation": "horizontal",

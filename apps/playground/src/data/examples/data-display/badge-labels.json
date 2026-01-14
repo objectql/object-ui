@@ -1,43 +1,39 @@
 {
   "type": "div",
-  "className": "min-h-screen bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-100 p-6 md:p-8",
+  "className": "space-y-6 max-w-4xl",
   "body": [
     {
       "type": "div",
-      "className": "max-w-4xl mx-auto space-y-8",
+      "className": "space-y-2",
       "body": [
         {
-          "type": "div",
-          "className": "space-y-3 backdrop-blur-sm bg-white/40 p-6 rounded-2xl border border-white/60 shadow-xl text-center",
-          "body": [
-            {
-              "type": "text",
-              "content": "🏷️ Badge Component",
-              "className": "text-4xl font-black bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent"
-            },
-            {
-              "type": "text",
-              "content": "Beautiful labels and status indicators for modern UIs",
-              "className": "text-gray-600 font-medium text-lg"
-            }
-          ]
+          "type": "text",
+          "content": "Badge Component",
+          "className": "text-3xl font-bold"
         },
         {
-          "type": "card",
-          "className": "p-8 shadow-2xl border-0 bg-white/90 backdrop-blur-lg rounded-2xl",
-          "body": {
+          "type": "text",
+          "content": "Labels and status indicators",
+          "className": "text-muted-foreground"
+        }
+      ]
+    },
+    {
+      "type": "card",
+      "className": "p-6",
+      "body": {
+        "type": "div",
+        "className": "space-y-6",
+        "body": [
+          {
             "type": "div",
-            "className": "space-y-8",
+            "className": "space-y-4",
             "body": [
               {
-                "type": "div",
-                "className": "space-y-6",
-                "body": [
-                  {
-                    "type": "text",
-                    "content": "✨ Badge Variants",
-                    "className": "text-2xl font-bold text-gray-900"
-                  },
+                "type": "text",
+                "content": "Badge Variants",
+                "className": "text-lg font-semibold"
+              },
               {
                 "type": "flex",
                 "direction": "row",
