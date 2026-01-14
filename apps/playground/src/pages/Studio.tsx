@@ -14,10 +14,13 @@ import {
     Code2, 
     PenTool, 
     ArrowLeft, 
-    Download 
+    Download,
+    Save,
+    Share2
 } from 'lucide-react';
 import '@object-ui/components';
 import { examples, ExampleKey } from '../data/examples';
+import { designStorage } from '../services/designStorage';
 
 type ViewportSize = 'desktop' | 'tablet' | 'mobile';
 type ViewMode = 'code' | 'design' | 'preview';
@@ -59,22 +62,35 @@ const StudioToolbarContext = ({
   jsonError, 
   viewMode, 
   setViewMode, 
-  onCopyJson 
+  onCopyJson,
+  onSave,
+  onShare,
+  currentDesignId
 }: { 
   exampleTitle: string, 
   jsonError: string | null, 
   viewMode: ViewMode, 
   setViewMode: (m: ViewMode) => void,
-  onCopyJson: () => void
+  onCopyJson: () => void,
+  onSave: () => void,
+  onShare: () => void,
+  currentDesignId?: string
 }) => {
   const navigate = useNavigate();
   const { canUndo, undo, canRedo, redo, schema } = useDesigner();
   const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const handleCopy = () => {
     onCopyJson();
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSave = () => {
+    onSave();
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   const handleExport = () => {
@@ -183,12 +199,33 @@ const StudioToolbarContext = ({
            <div className="h-6 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent mx-2"></div>
 
            <button 
+             onClick={onShare}
+             className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border-2 border-gray-200 rounded-xl hover:border-gray-300 transition-all shadow-sm hover:shadow"
+             title="Share Design"
+           >
+              <Share2 className="w-4 h-4" />
+              Share
+           </button>
+
+           <button 
              onClick={handleExport}
              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border-2 border-gray-200 rounded-xl hover:border-gray-300 transition-all shadow-sm hover:shadow"
              title="Download JSON"
            >
               <Download className="w-4 h-4" />
               Export
+           </button>
+
+           <button 
+             onClick={handleSave}
+             className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-lg ${
+               saved 
+                 ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-700 hover:to-green-700 shadow-emerald-300/50' 
+                 : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-300/50'
+             }`}
+           >
+             {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+             {saved ? 'Saved!' : 'Save'}
            </button>
 
            <button
@@ -208,9 +245,17 @@ const StudioToolbarContext = ({
 };
 
 // Inner Component handles state for a specific example
-const StudioEditor = ({ exampleId, initialJson }: { exampleId: ExampleKey, initialJson: string }) => {
+const StudioEditor = ({ exampleId, initialJson, isUserDesign, currentDesignId }: { 
+  exampleId: ExampleKey | 'new', 
+  initialJson: string,
+  isUserDesign?: boolean,
+  currentDesignId?: string
+}) => {
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('design');
-  // ... state setup ...
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [saveDescription, setSaveDescription] = useState('');
   
   // Initialize state based on props (which change on example switch)
   const [code, setCode] = useState(initialJson);
@@ -260,6 +305,53 @@ const StudioEditor = ({ exampleId, initialJson }: { exampleId: ExampleKey, initi
      }
   };
 
+  const handleSave = () => {
+    if (currentDesignId && isUserDesign) {
+      // Update existing design
+      try {
+        designStorage.updateDesign(currentDesignId, {
+          schema: JSON.parse(code)
+        });
+      } catch (error) {
+        alert('Error saving design: ' + (error as Error).message);
+      }
+    } else {
+      // Show save modal for new design
+      setShowSaveModal(true);
+    }
+  };
+
+  const handleSaveNew = () => {
+    try {
+      const saved = designStorage.saveDesign({
+        name: saveName || 'Untitled Design',
+        description: saveDescription,
+        schema: JSON.parse(code),
+        tags: []
+      });
+      setShowSaveModal(false);
+      setSaveName('');
+      setSaveDescription('');
+      navigate(`/studio/${saved.id}`);
+    } catch (error) {
+      alert('Error saving design: ' + (error as Error).message);
+    }
+  };
+
+  const handleShare = () => {
+    if (currentDesignId && isUserDesign) {
+      try {
+        const shareUrl = designStorage.shareDesign(currentDesignId);
+        navigator.clipboard.writeText(shareUrl);
+        alert('Share link copied to clipboard!');
+      } catch (error) {
+        alert('Error sharing design: ' + (error as Error).message);
+      }
+    } else {
+      alert('Please save the design first before sharing.');
+    }
+  };
+
   const viewportStyles: Record<ViewportSize, string> = {
     desktop: 'w-full',
     tablet: 'max-w-3xl mx-auto',
@@ -271,8 +363,15 @@ const StudioEditor = ({ exampleId, initialJson }: { exampleId: ExampleKey, initi
       <div className="flex h-screen w-screen bg-background text-foreground flex-col">
         {/* Top Header injected into Designer Context */}
         <StudioToolbarContext 
-           exampleTitle={exampleId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+           exampleTitle={exampleId === 'new' ? 'New Design' : (typeof exampleId === 'string' ? exampleId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : 'Untitled')}
            jsonError={jsonError}
+           viewMode={viewMode}
+           setViewMode={setViewMode}
+           onCopyJson={handleCopySchema}
+           onSave={handleSave}
+           onShare={handleShare}
+           currentDesignId={currentDesignId}
+        />
            viewMode={viewMode}
            setViewMode={setViewMode}
            onCopyJson={handleCopySchema}
@@ -434,6 +533,63 @@ const StudioEditor = ({ exampleId, initialJson }: { exampleId: ExampleKey, initi
         </div>
       )}
       </div>
+
+      {/* Save Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-gray-900">Save Design</h2>
+              <p className="text-sm text-gray-600 mt-1">Give your design a name and description</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Design Name *
+                </label>
+                <input
+                  type="text"
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  placeholder="My Awesome Design"
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Description (optional)
+                </label>
+                <textarea
+                  value={saveDescription}
+                  onChange={(e) => setSaveDescription(e.target.value)}
+                  placeholder="A brief description of your design..."
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none resize-none h-24 transition-colors"
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowSaveModal(false);
+                  setSaveName('');
+                  setSaveDescription('');
+                }}
+                className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 border-2 border-gray-200 rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveNew}
+                disabled={!saveName.trim()}
+                className="px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl shadow-lg shadow-indigo-300/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save Design
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </DesignerProvider>
   );
@@ -442,7 +598,42 @@ const StudioEditor = ({ exampleId, initialJson }: { exampleId: ExampleKey, initi
 export const Studio = () => {
   const { id } = useParams<{ id: string }>();
   
-  // Validate ID
+  // Check if this is a new design
+  if (id === 'new') {
+    const blankSchema = JSON.stringify({
+      type: 'page',
+      title: 'New Page',
+      body: []
+    }, null, 2);
+    return <StudioEditor key="new" exampleId="new" initialJson={blankSchema} />;
+  }
+  
+  // Check if this is a user design
+  const userDesign = designStorage.getDesign(id || '');
+  if (userDesign) {
+    const initialCode = JSON.stringify(userDesign.schema, null, 2);
+    return (
+      <StudioEditor 
+        key={userDesign.id} 
+        exampleId={userDesign.id as any} 
+        initialJson={initialCode}
+        isUserDesign={true}
+        currentDesignId={userDesign.id}
+      />
+    );
+  }
+  
+  // Check if this is a shared design
+  if (id?.startsWith('shared/')) {
+    const shareId = id.substring(7);
+    const sharedDesign = designStorage.getSharedDesign(shareId);
+    if (sharedDesign) {
+      const initialCode = JSON.stringify(sharedDesign.schema, null, 2);
+      return <StudioEditor key={shareId} exampleId={sharedDesign.name as any} initialJson={initialCode} />;
+    }
+  }
+  
+  // Fall back to example templates
   const exampleId = (id && id in examples) ? (id as ExampleKey) : 'dashboard';
   const initialCode = examples[exampleId];
 

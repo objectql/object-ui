@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { Studio } from './pages/Studio';
+import { MyDesigns } from './pages/MyDesigns';
 import '@object-ui/components';
 
 // Import lazy-loaded plugins
@@ -17,6 +18,7 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/my-designs" element={<MyDesigns />} />
         <Route path="/studio/:id" element={<Studio />} />
         {/* Default redirect to first example if typed manually specifically */}
         <Route path="/studio" element={<Navigate to="/studio/dashboard" replace />} />
