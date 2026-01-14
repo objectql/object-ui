@@ -21,10 +21,11 @@ interface TreeNodeProps {
     node: SchemaNode;
     level: number;
     isSelected: boolean;
+    selectedNodeId: string | null;
     onSelect: (id: string) => void;
 }
 
-const TreeNode: React.FC<TreeNodeProps> = React.memo(({ node, level, isSelected, onSelect }) => {
+const TreeNode: React.FC<TreeNodeProps> = React.memo(({ node, level, isSelected, selectedNodeId, onSelect }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     const [isVisible, setIsVisible] = useState(true);
     
@@ -114,7 +115,8 @@ const TreeNode: React.FC<TreeNodeProps> = React.memo(({ node, level, isSelected,
                             key={child.id || `child-${index}`}
                             node={child}
                             level={level + 1}
-                            isSelected={false}
+                            isSelected={child.id === selectedNodeId}
+                            selectedNodeId={selectedNodeId}
                             onSelect={onSelect}
                         />
                     ))}
@@ -150,6 +152,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = React.memo(({ classNa
                             node={schema}
                             level={0}
                             isSelected={selectedNodeId === schema.id}
+                            selectedNodeId={selectedNodeId}
                             onSelect={handleSelect}
                         />
                     )}
