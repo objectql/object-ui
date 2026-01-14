@@ -16,6 +16,7 @@
   },
   "scripts": {
     "build": "vite build",
+    "pretest": "pnpm --filter @object-ui/core build && pnpm --filter @object-ui/react build",
     "test": "vitest run"
   },
   "dependencies": {

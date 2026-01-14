@@ -21,8 +21,8 @@
 
     "baseUrl": ".",
     "paths": {
-      "@object-ui/protocol": ["packages/protocol/src"],
-      "@object-ui/protocol/*": ["packages/protocol/src/*"],
+      "@object-ui/protocol": ["packages/core/src"],
+      "@object-ui/protocol/*": ["packages/core/src/*"],
       "@object-ui/engine": ["packages/engine/src"],
       "@object-ui/engine/*": ["packages/engine/src/*"],
       "@object-ui/ui": ["packages/ui/src"],

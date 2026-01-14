@@ -608,6 +608,142 @@ export const examples = {
   ]
 }`,
 
+  'airtable-form': `{
+  "type": "div",
+  "className": "max-w-4xl space-y-6",
+  "body": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "body": [
+        {
+          "type": "text",
+          "content": "Airtable-Style Feature-Complete Form",
+          "className": "text-3xl font-bold"
+        },
+        {
+          "type": "text",
+          "content": "A comprehensive form component with validation, multi-column layout, and conditional fields",
+          "className": "text-muted-foreground"
+        }
+      ]
+    },
+    {
+      "type": "card",
+      "className": "shadow-sm",
+      "body": {
+        "type": "form",
+        "className": "p-6",
+        "submitLabel": "Create Project",
+        "cancelLabel": "Reset",
+        "showCancel": true,
+        "columns": 2,
+        "validationMode": "onBlur",
+        "resetOnSubmit": false,
+        "defaultValues": {
+          "projectType": "personal",
+          "priority": "medium",
+          "notifications": true
+        },
+        "fields": [
+          {
+            "name": "projectName",
+            "label": "Project Name",
+            "type": "input",
+            "required": true,
+            "placeholder": "Enter project name",
+            "validation": {
+              "minLength": {
+                "value": 3,
+                "message": "Project name must be at least 3 characters"
+              }
+            }
+          },
+          {
+            "name": "projectType",
+            "label": "Project Type",
+            "type": "select",
+            "required": true,
+            "options": [
+              { "label": "Personal", "value": "personal" },
+              { "label": "Team", "value": "team" },
+              { "label": "Enterprise", "value": "enterprise" }
+            ]
+          },
+          {
+            "name": "teamSize",
+            "label": "Team Size",
+            "type": "input",
+            "inputType": "number",
+            "placeholder": "Number of team members",
+            "condition": {
+              "field": "projectType",
+              "in": ["team", "enterprise"]
+            },
+            "validation": {
+              "min": {
+                "value": 2,
+                "message": "Team must have at least 2 members"
+              }
+            }
+          },
+          {
+            "name": "budget",
+            "label": "Budget",
+            "type": "input",
+            "inputType": "number",
+            "placeholder": "Project budget",
+            "condition": {
+              "field": "projectType",
+              "equals": "enterprise"
+            }
+          },
+          {
+            "name": "priority",
+            "label": "Priority Level",
+            "type": "select",
+            "required": true,
+            "options": [
+              { "label": "Low", "value": "low" },
+              { "label": "Medium", "value": "medium" },
+              { "label": "High", "value": "high" },
+              { "label": "Critical", "value": "critical" }
+            ]
+          },
+          {
+            "name": "deadline",
+            "label": "Deadline",
+            "type": "input",
+            "inputType": "date",
+            "condition": {
+              "field": "priority",
+              "in": ["high", "critical"]
+            }
+          },
+          {
+            "name": "description",
+            "label": "Project Description",
+            "type": "textarea",
+            "placeholder": "Describe your project goals and objectives",
+            "validation": {
+              "maxLength": {
+                "value": 500,
+                "message": "Description must not exceed 500 characters"
+              }
+            }
+          },
+          {
+            "name": "notifications",
+            "label": "Enable Notifications",
+            "type": "checkbox",
+            "description": "Receive updates about project progress"
+          }
+        ]
+      }
+    }
+  ]
+}`,
+
   'simple-page': `{
   "type": "div",
   "className": "space-y-4",
@@ -733,6 +869,6 @@ export type ExampleKey = keyof typeof examples;
 export const exampleCategories = {
   'Primitives': ['simple-page', 'input-states', 'button-variants'],
   'Layouts': ['grid-layout', 'dashboard', 'tabs-demo'],
-  'Forms': ['form-demo'],
+  'Forms': ['form-demo', 'airtable-form'],
   'Data Display': ['calendar-view']
 };

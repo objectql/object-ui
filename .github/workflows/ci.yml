@@ -97,7 +97,7 @@ jobs:
 
       - name: Check for build artifacts
         run: |
-          if [ ! -d "packages/protocol/dist" ]; then
+          if [ ! -d "packages/core/dist" ]; then
             echo "Protocol package build failed"
             exit 1
           fi

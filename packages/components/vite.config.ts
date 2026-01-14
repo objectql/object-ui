@@ -32,4 +32,13 @@ export default defineConfig({
       },
     },
   },
+  test: {
+    globals: true,
+    environment: 'happy-dom',
+    setupFiles: [],
+    // Ensure dependencies are resolved properly for tests
+    deps: {
+      inline: ['@object-ui/core', '@object-ui/react'],
+    },
+  },
 });

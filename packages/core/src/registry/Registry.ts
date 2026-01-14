@@ -12,6 +12,7 @@ export type ComponentInput = {
   uiType?: string; // UI hint (e.g., 'textarea', 'password')
   description?: string;
   advanced?: boolean;
+  inputType?: string;
 };
 
 export type ComponentMeta = {
