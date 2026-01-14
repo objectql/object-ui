@@ -638,6 +638,93 @@ export const examples = {
       ]
     }
   ]
+}`,
+
+  // Calendar View - Airtable-style calendar
+  'calendar-view': `{
+  "type": "div",
+  "className": "space-y-4",
+  "body": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "body": [
+        {
+          "type": "text",
+          "content": "Calendar View",
+          "className": "text-2xl font-bold"
+        },
+        {
+          "type": "text",
+          "content": "Airtable-style calendar for displaying records as events",
+          "className": "text-muted-foreground"
+        }
+      ]
+    },
+    {
+      "type": "calendar-view",
+      "className": "h-[600px] border rounded-lg",
+      "view": "month",
+      "titleField": "title",
+      "startDateField": "start",
+      "endDateField": "end",
+      "colorField": "type",
+      "colorMapping": {
+        "meeting": "#3b82f6",
+        "deadline": "#ef4444",
+        "event": "#10b981",
+        "holiday": "#8b5cf6"
+      },
+      "data": [
+        {
+          "id": 1,
+          "title": "Team Standup",
+          "start": "${new Date(new Date().setHours(9, 0, 0, 0)).toISOString()}",
+          "end": "${new Date(new Date().setHours(9, 30, 0, 0)).toISOString()}",
+          "type": "meeting",
+          "allDay": false
+        },
+        {
+          "id": 2,
+          "title": "Project Launch",
+          "start": "${new Date(new Date().setDate(new Date().getDate() + 3)).toISOString()}",
+          "type": "deadline",
+          "allDay": true
+        },
+        {
+          "id": 3,
+          "title": "Client Meeting",
+          "start": "${new Date(new Date().setDate(new Date().getDate() + 5)).toISOString()}",
+          "end": "${new Date(new Date(new Date().setDate(new Date().getDate() + 5)).setHours(14, 0, 0, 0)).toISOString()}",
+          "type": "meeting",
+          "allDay": false
+        },
+        {
+          "id": 4,
+          "title": "Team Building Event",
+          "start": "${new Date(new Date().setDate(new Date().getDate() + 7)).toISOString()}",
+          "end": "${new Date(new Date().setDate(new Date().getDate() + 9)).toISOString()}",
+          "type": "event",
+          "allDay": true
+        },
+        {
+          "id": 5,
+          "title": "Code Review",
+          "start": "${new Date(new Date().setDate(new Date().getDate() + 1)).toISOString()}",
+          "end": "${new Date(new Date(new Date().setDate(new Date().getDate() + 1)).setHours(15, 0, 0, 0)).toISOString()}",
+          "type": "meeting",
+          "allDay": false
+        },
+        {
+          "id": 6,
+          "title": "National Holiday",
+          "start": "${new Date(new Date().setDate(new Date().getDate() + 10)).toISOString()}",
+          "type": "holiday",
+          "allDay": true
+        }
+      ]
+    }
+  ]
 }`
 };
 
@@ -646,5 +733,6 @@ export type ExampleKey = keyof typeof examples;
 export const exampleCategories = {
   'Primitives': ['simple-page', 'input-states', 'button-variants'],
   'Layouts': ['grid-layout', 'dashboard', 'tabs-demo'],
-  'Forms': ['form-demo']
+  'Forms': ['form-demo'],
+  'Data Display': ['calendar-view']
 };
