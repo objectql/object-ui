@@ -134,8 +134,9 @@ ComponentRegistry.register('form',
             : 'An error occurred during submission';
         setSubmitError(errorMessage);
         
-        // Only log errors in development
-        if (process.env.NODE_ENV === 'development') {
+        // Log errors for debugging (dev environment only)
+        // @ts-ignore - process may not be defined in all environments
+        if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
           console.error('Form submission error:', error);
         }
       } finally {
@@ -185,7 +186,7 @@ ComponentRegistry.register('form',
           ) : (
             // Otherwise render fields from schema
             <div className={schema.fieldContainerClass || gridClass}>
-              {fields.map((field: FormFieldConfig, index: number) => {
+              {fields.map((field: FormFieldConfig) => {
                 const {
                   name,
                   label,
