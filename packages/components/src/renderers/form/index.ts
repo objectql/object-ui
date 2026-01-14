@@ -1,3 +1,4 @@
+import './form';
 import './button';
 import './input';
 import './textarea';
