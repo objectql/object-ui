@@ -23,9 +23,9 @@ export interface ChatbotProps extends React.HTMLAttributes<HTMLDivElement> {
   onSendMessage?: (message: string) => void
   disabled?: boolean
   showTimestamp?: boolean
-  userAvatar?: string
+  userAvatarUrl?: string
   userAvatarFallback?: string
-  assistantAvatar?: string
+  assistantAvatarUrl?: string
   assistantAvatarFallback?: string
   maxHeight?: string
 }
@@ -40,9 +40,9 @@ const Chatbot = React.forwardRef<HTMLDivElement, ChatbotProps>(
       onSendMessage,
       disabled = false,
       showTimestamp = false,
-      userAvatar,
+      userAvatarUrl,
       userAvatarFallback = "You",
-      assistantAvatar,
+      assistantAvatarUrl,
       assistantAvatarFallback = "AI",
       maxHeight = "500px",
       ...props
@@ -101,9 +101,9 @@ const Chatbot = React.forwardRef<HTMLDivElement, ChatbotProps>(
                   key={message.id}
                   message={message}
                   showTimestamp={showTimestamp}
-                  userAvatar={userAvatar}
+                  userAvatarUrl={userAvatarUrl}
                   userAvatarFallback={userAvatarFallback}
-                  assistantAvatar={assistantAvatar}
+                  assistantAvatarUrl={assistantAvatarUrl}
                   assistantAvatarFallback={assistantAvatarFallback}
                 />
               ))
@@ -142,18 +142,18 @@ Chatbot.displayName = "Chatbot"
 export interface ChatMessageProps {
   message: ChatMessage
   showTimestamp?: boolean
-  userAvatar?: string
+  userAvatarUrl?: string
   userAvatarFallback?: string
-  assistantAvatar?: string
+  assistantAvatarUrl?: string
   assistantAvatarFallback?: string
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({
   message,
   showTimestamp,
-  userAvatar,
+  userAvatarUrl,
   userAvatarFallback,
-  assistantAvatar,
+  assistantAvatarUrl,
   assistantAvatarFallback,
 }) => {
   const isUser = message.role === "user"
@@ -170,8 +170,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   }
 
   const avatar = isUser 
-    ? (message.avatar || userAvatar)
-    : (message.avatar || assistantAvatar)
+    ? (message.avatar || userAvatarUrl)
+    : (message.avatar || assistantAvatarUrl)
   
   const avatarFallback = isUser
     ? (message.avatarFallback || userAvatarFallback)

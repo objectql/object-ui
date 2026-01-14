@@ -2,11 +2,23 @@ import { ComponentRegistry } from '@object-ui/core';
 import { Chatbot, type ChatMessage } from '@/ui';
 import { useState } from 'react';
 
+/**
+ * Chatbot component for Object UI
+ * 
+ * @remarks
+ * This component supports an optional `onSend` callback in the schema:
+ * - Signature: `onSend(content: string, messages: ChatMessage[]): void`
+ * - Parameters:
+ *   - content: The message text that was sent
+ *   - messages: Array of all messages including the newly added message
+ * - Called when: User sends a message via the input field
+ * - Use case: Connect to backend API or trigger custom actions on message send
+ */
 ComponentRegistry.register('chatbot', 
   ({ schema, className, ...props }) => {
     // Initialize messages from schema or use empty array
     const [messages, setMessages] = useState<ChatMessage[]>(
-      schema.messages?.map((msg: any, idx: number) => ({
+      schema.messages?.map((msg: Partial<ChatMessage>, idx: number) => ({
         id: msg.id || `msg-${idx}`,
         role: msg.role || 'user',
         content: msg.content || '',
@@ -18,9 +30,9 @@ ComponentRegistry.register('chatbot',
 
     // Handle sending new messages
     const handleSendMessage = (content: string) => {
-      // Create user message
+      // Create user message with robust ID generation
       const userMessage: ChatMessage = {
-        id: `msg-${Date.now()}`,
+        id: crypto.randomUUID(),
         role: 'user',
         content,
         timestamp: schema.showTimestamp ? new Date().toLocaleTimeString() : undefined,
@@ -38,7 +50,7 @@ ComponentRegistry.register('chatbot',
       if (schema.autoResponse) {
         setTimeout(() => {
           const assistantMessage: ChatMessage = {
-            id: `msg-${Date.now()}-response`,
+            id: crypto.randomUUID(),
             role: 'assistant',
             content: schema.autoResponseText || 'Thank you for your message!',
             timestamp: schema.showTimestamp ? new Date().toLocaleTimeString() : undefined,
@@ -55,9 +67,9 @@ ComponentRegistry.register('chatbot',
         onSendMessage={handleSendMessage}
         disabled={schema.disabled}
         showTimestamp={schema.showTimestamp}
-        userAvatar={schema.userAvatar}
+        userAvatarUrl={schema.userAvatarUrl}
         userAvatarFallback={schema.userAvatarFallback}
-        assistantAvatar={schema.assistantAvatar}
+        assistantAvatarUrl={schema.assistantAvatarUrl}
         assistantAvatarFallback={schema.assistantAvatarFallback}
         maxHeight={schema.maxHeight}
         className={className}
@@ -93,26 +105,30 @@ ComponentRegistry.register('chatbot',
         defaultValue: false
       },
       { 
-        name: 'userAvatar', 
+        name: 'userAvatarUrl', 
         type: 'string', 
-        label: 'User Avatar URL'
+        label: 'User Avatar URL',
+        description: 'URL of the user avatar image'
       },
       { 
         name: 'userAvatarFallback', 
         type: 'string', 
         label: 'User Avatar Fallback',
-        defaultValue: 'You'
+        defaultValue: 'You',
+        description: 'Fallback text shown when user avatar image is not available'
       },
       { 
-        name: 'assistantAvatar', 
+        name: 'assistantAvatarUrl', 
         type: 'string', 
-        label: 'Assistant Avatar URL'
+        label: 'Assistant Avatar URL',
+        description: 'URL of the assistant avatar image'
       },
       { 
         name: 'assistantAvatarFallback', 
         type: 'string', 
         label: 'Assistant Avatar Fallback',
-        defaultValue: 'AI'
+        defaultValue: 'AI',
+        description: 'Fallback text shown when assistant avatar image is not available'
       },
       { 
         name: 'maxHeight', 

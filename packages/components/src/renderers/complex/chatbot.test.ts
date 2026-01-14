@@ -27,8 +27,8 @@ describe('Chatbot Component', () => {
     expect(inputNames).toContain('messages');
     expect(inputNames).toContain('placeholder');
     expect(inputNames).toContain('showTimestamp');
-    expect(inputNames).toContain('userAvatar');
-    expect(inputNames).toContain('assistantAvatar');
+    expect(inputNames).toContain('userAvatarUrl');
+    expect(inputNames).toContain('assistantAvatarUrl');
   });
 
   it('should have sensible default props', () => {
