@@ -172,10 +172,52 @@ Object UI is a modular monorepo with packages designed for specific use cases:
 | **[@object-ui/react](./packages/react)** | React bindings and `SchemaRenderer` | 15KB |
 | **[@object-ui/components](./packages/components)** | Standard UI components (Tailwind + Shadcn) | 50KB |
 | **[@object-ui/designer](./packages/designer)** | Visual drag-and-drop schema editor | 80KB |
+| **[@object-ui/data-objectql](./packages/data-objectql)** | ObjectQL API adapter for data integration | 15KB |
 
 **Plugins** (lazy-loaded):
 - `@object-ui/plugin-charts` - Chart components (Chart.js)
 - `@object-ui/plugin-editor` - Rich text editor components
+
+## 🔌 Data Integration
+
+Object UI is designed to work with any backend through its universal DataSource interface:
+
+### ObjectQL Integration
+
+```bash
+npm install @object-ui/data-objectql
+```
+
+```typescript
+import { ObjectQLDataSource } from '@object-ui/data-objectql';
+
+const dataSource = new ObjectQLDataSource({
+  baseUrl: 'https://api.example.com',
+  token: 'your-auth-token'
+});
+
+// Use with any component
+<SchemaRenderer schema={schema} dataSource={dataSource} />
+```
+
+[**ObjectQL Integration Guide →**](./docs/integration/objectql.md)
+
+### Custom Data Sources
+
+You can create adapters for any backend (REST, GraphQL, Firebase, etc.) by implementing the `DataSource` interface:
+
+```typescript
+import type { DataSource, QueryParams, QueryResult } from '@object-ui/types';
+
+class MyCustomDataSource implements DataSource {
+  async find(resource: string, params?: QueryParams): Promise<QueryResult> {
+    // Your implementation
+  }
+  // ... other methods
+}
+```
+
+[**Data Source Examples →**](./packages/types/examples/rest-data-source.ts)
 
 ## 📚 Documentation
 
@@ -189,6 +231,10 @@ Object UI is a modular monorepo with packages designed for specific use cases:
 - [Schema Rendering](./docs/spec/schema-rendering.md) - Understand the rendering system
 - [Architecture](./docs/spec/architecture.md) - Technical architecture overview
 - [Component System](./docs/spec/component.md) - How components work
+
+### Data Integration
+- [ObjectQL Integration](./docs/integration/objectql.md) - Connect to ObjectQL backends
+- [Custom Data Sources](./packages/types/examples/rest-data-source.ts) - Build your own adapters
 
 ### Protocol Specifications
 - [Protocol Overview](./docs/protocol/overview.md) - Complete protocol reference
