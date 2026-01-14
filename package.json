@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "dev": "pnpm --filter @apps/playground dev",
-    "start": "pnpm --filter @apps/playground preview",
+    "start": "pnpm --filter @examples/prototype dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "docs:dev": "pnpm --filter object-ui-docs dev",

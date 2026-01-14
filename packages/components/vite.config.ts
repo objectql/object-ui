@@ -34,7 +34,7 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: 'jsdom',
+    environment: 'happy-dom',
     setupFiles: [],
     // Ensure dependencies are resolved properly for tests
     deps: {
