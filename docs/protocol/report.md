@@ -1,5 +1,9 @@
 # Report & Dashboard Metadata
 
+> **Implementation Status**: 📝 **Planned** - Report and dashboard features planned for Q3-Q4 2026.
+> 
+> See [Implementation Status](./implementation-status.md#protocol-specifications) for roadmap.
+
 Report and dashboard metadata defines data visualization, analytics, and reporting capabilities. This enables business intelligence directly from ObjectQL metadata.
 
 ## 1. Overview

@@ -1,5 +1,9 @@
 # Application Metadata
 
+> **Implementation Status**: 📝 **Planned** - App protocol planned for Q4 2026.
+> 
+> See [Implementation Status](./implementation-status.md#protocol-specifications) for roadmap.
+
 Application metadata defines the high-level container for a specific set of functionality (e.g., "Sales", "HR", "Admin"). It serves effectively as a grouping mechanism for menus and other resources.
 
 ## 1. File Naming

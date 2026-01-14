@@ -1,5 +1,9 @@
 # Page Specification
 
+> **Implementation Status**: 🚧 **75% Complete** - Core page features implemented, advanced features in progress.
+> 
+> See [Implementation Status](./implementation-status.md#page-components) for detailed feature status.
+
 ## Overview
 
 Pages are the visual interface layer in ObjectQL applications. They define composable UI layouts that can render data from objects, display custom components, and orchestrate user interactions. Pages are defined using `*.page.yml` files and follow a declarative, component-based architecture.
@@ -12,6 +16,23 @@ src/
   ├── project_detail.page.yml
   └── create_wizard.page.yml
 ```
+
+## Page Feature Implementation Status
+
+| Feature | Status | Notes |
+|:--------|:-------|:------|
+| Basic Page Layout | ✅ Implemented | Single/multi-column layouts working |
+| Schema-based Body | ✅ Implemented | Full schema rendering support |
+| Component Composition | ✅ Implemented | Nested components working |
+| Data Sources | 🚧 Partial | Basic data binding implemented |
+| Actions & Events | 🚧 Partial | onClick, onSubmit working; custom actions partial |
+| Styling (className) | ✅ Implemented | Tailwind className support |
+| Responsive Config | 📝 Planned | Planned for Q2 2026 |
+| Permissions | 📝 Planned | Planned for Q4 2026 |
+| Page Metadata | ✅ Implemented | Title, description supported |
+| State Management | 🚧 Partial | Basic state, persistence planned |
+| Real-time Updates | 📝 Planned | Planned for Q2 2026 |
+| AI Context | 📝 Planned | Future feature |
 
 ## Schema
 

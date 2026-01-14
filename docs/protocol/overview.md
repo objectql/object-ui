@@ -1,5 +1,7 @@
 # Protocol Specifications
 
+> **📊 [View Implementation Status](./implementation-status.md)** - Track the current status of all protocol features.
+
 The Object UI Protocol defines the standard schemas and conventions for describing user interfaces in JSON. This protocol is the foundation of Object UI and ensures consistency across all implementations.
 
 ## Overview
@@ -8,13 +10,13 @@ The protocol is organized into several core types, each representing a different
 
 ### Core Types
 
-- **[Object](/protocol/object)** - Data models and CRUD operations
-- **[View](/protocol/view)** - Data visualization (list, table, kanban, etc.)
-- **[Page](/protocol/page)** - Page layouts and structure
-- **[Form](/protocol/form)** - Form definitions and validation
-- **[Menu](/protocol/menu)** - Navigation menus and breadcrumbs
-- **[App](/protocol/app)** - Application configuration
-- **[Report](/protocol/report)** - Reports and analytics
+- **[Object](/protocol/object)** 📝 Planned - Data models and CRUD operations
+- **[View](/protocol/view)** ✅ Implemented - Data visualization (list, table, kanban, etc.)
+- **[Page](/protocol/page)** 🚧 Partial - Page layouts and structure
+- **[Form](/protocol/form)** ✅ Implemented - Form definitions and validation
+- **[Menu](/protocol/menu)** 🚧 Partial - Navigation menus and breadcrumbs
+- **[App](/protocol/app)** 📝 Planned - Application configuration
+- **[Report](/protocol/report)** 📝 Planned - Reports and analytics
 
 ## Design Principles
 

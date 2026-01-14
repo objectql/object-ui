@@ -1,5 +1,9 @@
 # Object Definition
 
+> **Implementation Status**: 📝 **Planned** - Object protocol specification is complete but implementation is planned for Q2 2026.
+> 
+> See [Implementation Status](./implementation-status.md#object-protocol) for detailed status.
+
 Object files define business entities or database tables in YAML (or JSON). They are the foundation of your application's data model and are designed to be both human-readable and AI-friendly for automated code generation.
 
 **File Naming Convention:** `<object_name>.object.yml`
