@@ -6,6 +6,8 @@ import '@object-ui/components';
 // Import lazy-loaded plugins
 import '@object-ui/plugin-editor';
 import '@object-ui/plugin-charts';
+import '@object-ui/plugin-markdown';
+import '@object-ui/plugin-kanban';
 
 // Import core styles
 import './index.css';
