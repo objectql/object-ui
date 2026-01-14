@@ -36,7 +36,6 @@
               },
               {
                 "type": "accordion",
-                "type": "single",
                 "collapsible": true,
                 "items": [
                   {
@@ -77,7 +76,6 @@
               },
               {
                 "type": "accordion",
-                "type": "single",
                 "collapsible": true,
                 "items": [
                   {
@@ -121,7 +119,6 @@
           },
           {
             "type": "accordion",
-            "type": "multiple",
             "items": [
               {
                 "value": "section-1",
