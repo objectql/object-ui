@@ -13,6 +13,10 @@ import {
 } from 'lucide-react';
 import type { SchemaNode } from '@object-ui/core';
 
+// Maximum depth to check when searching for selected descendants
+// Prevents stack overflow with extremely deeply nested components
+const MAX_TREE_DEPTH = 100;
+
 interface ComponentTreeProps {
     className?: string;
 }
@@ -42,13 +46,13 @@ const TreeNode: React.FC<TreeNodeProps> = React.memo(({ node, level, isSelected,
     }, [node.body]);
     
     // Check if selectedNodeId exists anywhere in this node's subtree
-    // Uses iterative approach to avoid stack overflow with deeply nested components
+    // Uses recursive approach with depth limiting to prevent stack overflow
     const hasSelectedDescendant = useMemo(() => {
         if (!selectedNodeId) return false;
         
         const checkNode = (n: SchemaNode, depth = 0): boolean => {
-            // Prevent infinite recursion with max depth check (100 levels should be more than enough)
-            if (depth > 100) return false;
+            // Prevent stack overflow with max depth check
+            if (depth > MAX_TREE_DEPTH) return false;
             
             if (n.id === selectedNodeId) return true;
             if (!n.body) return false;
