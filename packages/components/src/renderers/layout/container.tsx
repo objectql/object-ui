@@ -81,6 +81,14 @@ ComponentRegistry.register('container',
       children: [
         { type: 'text', content: 'Container content goes here' }
       ]
+    },
+    isContainer: true,
+    resizable: true,
+    resizeConstraints: {
+      width: true,
+      height: true,
+      minWidth: 200,
+      minHeight: 100
     }
   }
 );

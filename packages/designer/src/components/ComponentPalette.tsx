@@ -126,6 +126,7 @@ export const ComponentPalette: React.FC<ComponentPaletteProps> = React.memo(({ c
       if (!config) return null; // Skip if not found
       
       const Icon = getIconForType(type);
+      const isResizable = config.resizable || false;
       
       return (
           <div
@@ -134,14 +135,24 @@ export const ComponentPalette: React.FC<ComponentPaletteProps> = React.memo(({ c
             onDragStart={(e) => handleDragStart(e, type)}
             onDragEnd={handleDragEnd}
             className={cn(
-                "group flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg border border-transparent hover:border-blue-200 hover:bg-blue-50 hover:shadow-sm cursor-grab active:cursor-grabbing transition-all bg-white relative",
-                "h-20"
+                "group flex flex-col items-center justify-center gap-2 p-3 rounded-xl border-2 border-transparent hover:border-indigo-200 hover:bg-gradient-to-br hover:from-indigo-50 hover:to-purple-50 hover:shadow-lg cursor-grab active:cursor-grabbing transition-all duration-200 bg-white relative overflow-hidden",
+                "h-24 hover:scale-105 active:scale-95"
             )}
+            aria-label={`${config.label || type}${isResizable ? ' (resizable)' : ''}`}
           >
-            <div className="w-7 h-7 rounded-md bg-gray-50 group-hover:bg-white flex items-center justify-center text-gray-500 group-hover:text-blue-600 transition-colors border border-gray-100 group-hover:border-blue-100">
-                <Icon size={16} strokeWidth={1.5} />
+            {/* Resizable badge indicator */}
+            {isResizable && (
+                <div 
+                    className="absolute top-1 right-1 w-2 h-2 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm ring-2 ring-white" 
+                    title="Resizable"
+                    aria-hidden="true"
+                ></div>
+            )}
+            
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 group-hover:from-indigo-100 group-hover:to-purple-100 flex items-center justify-center text-gray-600 group-hover:text-indigo-700 transition-all border border-gray-200 group-hover:border-indigo-300 group-hover:shadow-md">
+                <Icon size={18} strokeWidth={2} />
             </div>
-            <span className="text-xs font-medium text-gray-600 group-hover:text-blue-700 text-center w-full truncate px-1">
+            <span className="text-xs font-semibold text-gray-700 group-hover:text-indigo-800 text-center w-full truncate px-1 transition-colors">
                 {config.label || type}
             </span>
           </div>
@@ -166,20 +177,20 @@ export const ComponentPalette: React.FC<ComponentPaletteProps> = React.memo(({ c
   }, []);
 
   return (
-    <div className={cn("flex flex-col h-full bg-gray-50/50 w-72 overflow-hidden", className)}>
-        <div className="px-4 py-3 border-b bg-white shrink-0 space-y-3">
+    <div className={cn("flex flex-col h-full bg-gradient-to-b from-gray-50 to-white w-72 overflow-hidden", className)}>
+        <div className="px-4 py-4 border-b border-gray-200/80 bg-white/80 backdrop-blur-sm shrink-0 space-y-3">
             <div className="relative">
                 <input
                     type="text"
                     placeholder="Search components..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full h-8 px-3 text-xs border rounded-md bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full h-10 px-4 text-sm border-2 border-gray-200 rounded-xl bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-400 transition-all placeholder:text-gray-400 font-medium shadow-sm hover:shadow-md"
                 />
                 {searchQuery && (
                     <button
                         onClick={() => setSearchQuery('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full p-1 transition-all"
                         aria-label="Clear search"
                     >
                         <X size={14} />
@@ -196,8 +207,11 @@ export const ComponentPalette: React.FC<ComponentPaletteProps> = React.memo(({ c
                     
                     return (
                         <div key={category}>
-                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2.5 px-1">{category}</h3>
-                            <div className="grid grid-cols-2 gap-2">
+                            <h3 className="text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 uppercase tracking-widest mb-3 px-1 flex items-center gap-2">
+                                <span className="w-1 h-4 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full"></span>
+                                {category}
+                            </h3>
+                            <div className="grid grid-cols-2 gap-2.5">
                                 {availableTypes.map(renderComponentItem)}
                             </div>
                         </div>
@@ -213,8 +227,11 @@ export const ComponentPalette: React.FC<ComponentPaletteProps> = React.memo(({ c
 
                     return (
                         <div>
-                             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2.5 px-1">Other</h3>
-                             <div className="grid grid-cols-2 gap-2">
+                             <h3 className="text-xs font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 uppercase tracking-widest mb-3 px-1 flex items-center gap-2">
+                                 <span className="w-1 h-4 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full"></span>
+                                 Other
+                             </h3>
+                             <div className="grid grid-cols-2 gap-2.5">
                                 {uncategorized.map(renderComponentItem)}
                              </div>
                         </div>

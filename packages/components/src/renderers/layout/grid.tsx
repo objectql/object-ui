@@ -86,6 +86,14 @@ ComponentRegistry.register('grid',
         { type: 'card', title: 'Card 3', description: 'Third card' },
         { type: 'card', title: 'Card 4', description: 'Fourth card' }
       ]
+    },
+    isContainer: true,
+    resizable: true,
+    resizeConstraints: {
+      width: true,
+      height: true,
+      minWidth: 200,
+      minHeight: 100
     }
   }
 );

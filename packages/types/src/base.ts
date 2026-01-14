@@ -216,6 +216,23 @@ export interface ComponentMeta {
   isContainer?: boolean;
 
   /**
+   * Whether the component can be resized in the designer
+   */
+  resizable?: boolean;
+
+  /**
+   * Resize constraints (which dimensions can be resized)
+   */
+  resizeConstraints?: {
+    width?: boolean;
+    height?: boolean;
+    minWidth?: number;
+    maxWidth?: number;
+    minHeight?: number;
+    maxHeight?: number;
+  };
+
+  /**
    * Tags for search/filtering
    */
   tags?: string[];

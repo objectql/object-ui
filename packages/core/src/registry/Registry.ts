@@ -22,6 +22,16 @@ export type ComponentMeta = {
   defaultProps?: Record<string, any>; // Default props when dropped
   defaultChildren?: SchemaNode[]; // Default children when dropped
   examples?: Record<string, any>; // Example configurations
+  isContainer?: boolean; // Whether the component can have children
+  resizable?: boolean; // Whether the component can be resized in the designer
+  resizeConstraints?: {
+    width?: boolean;
+    height?: boolean;
+    minWidth?: number;
+    maxWidth?: number;
+    minHeight?: number;
+    maxHeight?: number;
+  };
 };
 
 export type ComponentConfig<T = any> = ComponentMeta & {

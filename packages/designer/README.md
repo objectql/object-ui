@@ -1,35 +1,51 @@
 # @object-ui/designer
 
-A professional drag-and-drop visual editor to generate Object UI schemas with advanced features.
+A professional drag-and-drop visual editor to generate Object UI schemas with advanced features including **component resizing**.
 
 ## Features
 
 ### Core Functionality
 - **Visual Schema Editor**: Edit Object UI schemas visually with a live preview
 - **Drag-and-Drop**: Drag components from the palette to the canvas and reorder them within the canvas
+- **Component Resizing**: 🆕 Resize container components with 8-directional handles (width, height, or both)
 - **Smart Insertion**: Intelligent drop position detection for precise component placement
 - **Component Search**: Quickly find components with the built-in search functionality
 - **JSON Import/Export**: Import and export schemas as JSON files or clipboard
-- **Undo/Redo**: Full history management with keyboard shortcuts
+- **Undo/Redo**: Full history management with keyboard shortcuts (works with resize!)
 - **Copy/Paste**: Duplicate components easily with Ctrl+C/V
 
 ### Visual Design
-- **Enhanced Selection**: Clear visual feedback with component type labels
-- **Hover Indicators**: Helpful drop zone indicators during drag operations
+- **Premium Gradient Effects**: 🆕 Smooth gradient borders and backgrounds for enhanced visual feedback
+- **Enhanced Selection**: Clear visual feedback with animated component type labels
+- **Animated Drop Zones**: 🆕 Pulsing gradient borders guide drag operations
+- **Hover Indicators**: Helpful indicators with smooth scale animations
+- **Resizable Badges**: 🆕 Visual indicators show which components can be resized
 - **Empty State Guidance**: Helpful instructions when starting a new design
 - **Responsive Preview**: Switch between Desktop (1024px), Tablet (768px), and Mobile (375px) views
-- **Zoom Controls**: Scale the canvas to fit your workflow
+- **Enhanced Zoom Controls**: 🆕 Premium controls with gradient hover effects
 
 ### User Experience
 - **Keyboard Shortcuts**: 
-  - `Ctrl+Z` / `Cmd+Z`: Undo
-  - `Ctrl+Y` / `Cmd+Y` / `Cmd+Shift+Z`: Redo
+  - `Ctrl+Z` / `Cmd+Z`: Undo (including resize operations)
+  - `Ctrl+Y` / `Cmd+Y` / `Cmd+Shift+Z`: Redo (including resize operations)
   - `Ctrl+C` / `Cmd+C`: Copy component
   - `Ctrl+V` / `Cmd+V`: Paste component
   - `Delete` / `Backspace`: Delete component
+  - `Click`: Select component (shows resize handles if resizable)
+- **Resize Handles**: 🆕 8-directional handles appear on selected container components
+- **Visual Constraints**: 🆕 Min/max width and height constraints prevent invalid sizing
 - **Tooltips**: Contextual help throughout the interface
 - **Property Editor**: Configure component properties with a dynamic form
 - **Categorized Components**: Organized by Layout, Form, Data Display, Feedback, Overlay, and Navigation
+
+## Resizable Components
+
+The following layout components support resizing:
+- **Card**: Container with title/description
+- **Container**: Responsive wrapper with max-width
+- **Grid**: Grid layout component
+
+See [DRAG_AND_RESIZE_GUIDE.md](./DRAG_AND_RESIZE_GUIDE.md) for detailed documentation on drag-and-drop and resize functionality.
 
 ## Installation
 
@@ -247,16 +263,24 @@ module.exports = {
 - [x] Drag and drop components from palette
 - [x] Drag to reorder components in canvas
 - [x] Smart insertion based on drop position
-- [x] Undo/redo functionality with history
+- [x] **Component resizing with 8-directional handles** 🆕
+- [x] **Premium gradient visual effects** 🆕
+- [x] **Animated selection and hover states** 🆕
+- [x] **Resizable component indicators** 🆕
+- [x] Undo/redo functionality with history (works with resize)
 - [x] Copy/paste components
 - [x] Keyboard shortcuts (Ctrl+Z/Y, Ctrl+C/V, Delete)
 - [x] Component search in palette
 - [x] JSON import/export with file and clipboard support
 - [x] Responsive viewport modes (Desktop/Tablet/Mobile)
 - [x] Enhanced visual feedback and tooltips
-- [x] Zoom controls for canvas
+- [x] Zoom controls for canvas with gradient effects
 
 ### Planned 🚀
+- [ ] Snap-to-grid for precise positioning and resizing
+- [ ] Aspect ratio locking (Shift+Drag during resize)
+- [ ] Keyboard resize controls (Shift+Arrow keys)
+- [ ] Resize preview overlay showing dimensions
 - [ ] Schema validation with error indicators
 - [ ] Component tree view for better navigation
 - [ ] Copy/duplicate entire schema branches
