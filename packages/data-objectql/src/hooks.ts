@@ -76,9 +76,10 @@ export interface UseObjectQLMutationOptions {
  * ```
  */
 export function useObjectQL(options: UseObjectQLOptions): ObjectQLDataSource {
+  const { baseUrl, token, spaceId } = options.config;
   return useMemo(
-    () => new ObjectQLDataSource(options.config),
-    [options.config.baseUrl, options.config.token, options.config.spaceId]
+    () => new ObjectQLDataSource({ baseUrl, token, spaceId }),
+    [baseUrl, token, spaceId]
   );
 }
 
@@ -127,6 +128,9 @@ export function useObjectQLQuery<T = any>(
     ...queryParams
   } = options;
   
+  // Serialize params to string for stable dependency checking
+  const queryParamsString = JSON.stringify(queryParams);
+  
   const fetchData = useCallback(async () => {
     if (!enabled) return;
     
@@ -134,7 +138,10 @@ export function useObjectQLQuery<T = any>(
     setError(null);
     
     try {
-      const queryResult = await dataSource.find(resource, queryParams);
+      // Parse params back from string to ensure we use the version 
+      // corresponding to the dependency trigger
+      const params = JSON.parse(queryParamsString);
+      const queryResult = await dataSource.find(resource, params);
       setResult(queryResult);
       setData(queryResult.data);
       onSuccess?.(queryResult.data);
@@ -145,7 +152,7 @@ export function useObjectQLQuery<T = any>(
     } finally {
       setLoading(false);
     }
-  }, [dataSource, resource, enabled, onSuccess, onError, JSON.stringify(queryParams)]);
+  }, [dataSource, resource, enabled, onSuccess, onError, queryParamsString]);
   
   useEffect(() => {
     fetchData();

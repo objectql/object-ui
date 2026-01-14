@@ -62,7 +62,7 @@ ComponentRegistry.register(
         name: 'body', 
         type: 'array', 
         label: 'Content',
-        // @ts-ignore - itemType is experimental/extended metadata
+        // @ts-expect-error - itemType is experimental/extended metadata
         itemType: 'component' 
       }
     ]
