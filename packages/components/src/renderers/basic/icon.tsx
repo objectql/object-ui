@@ -9,9 +9,10 @@ ComponentRegistry.register('icon',
   },
   {
     label: 'Icon',
-    type: 'basic',
+    icon: 'smile',
+    category: 'basic',
     inputs: [
-      { name: 'name', type: 'string', label: 'Icon Name' },
+      { name: 'name', type: 'string', label: 'Icon Name', defaultValue: 'smile' },
       { name: 'className', type: 'string', label: 'CSS Class' }
     ]
   }

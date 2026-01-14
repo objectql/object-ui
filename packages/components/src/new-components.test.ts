@@ -74,7 +74,7 @@ describe('New Components Registration', () => {
       const component = ComponentRegistry.getConfig('timeline');
       expect(component).toBeDefined();
       expect(component?.label).toBe('Timeline');
-      expect(component?.type).toBe('data-display');
+      expect(component?.category).toBe('data-display');
     });
   });
 });

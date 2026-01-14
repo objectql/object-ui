@@ -15,9 +15,12 @@
     "react-dom": "^18.3.1"
   },
   "dependencies": {
+    "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/react": "workspace:*",
-    "@object-ui/components": "workspace:*",
     "lucide-react": "^0.562.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.2"
   }
 }

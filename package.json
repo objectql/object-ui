@@ -10,11 +10,11 @@
     "docs"
   ],
   "scripts": {
-    "dev": "pnpm --filter prototype dev",
-    "start": "pnpm --filter prototype preview",
-    "playground:dev": "pnpm --filter @apps/playground dev",
-    "playground:build": "pnpm --filter @apps/playground build",
-    "playground:preview": "pnpm --filter @apps/playground preview",
+    "dev": "pnpm --filter @apps/playground dev",
+    "start": "pnpm --filter prototype dev",
+    "designer": "pnpm --filter @examples/designer-demo dev",
+    "prototype": "pnpm --filter prototype dev",
+    "playground": "pnpm --filter @apps/playground dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "docs:dev": "pnpm --filter object-ui-docs dev",

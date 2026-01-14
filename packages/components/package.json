@@ -1,6 +1,7 @@
 {
   "name": "@object-ui/components",
   "version": "0.1.0",
+  "type": "module",
   "license": "MIT",
   "main": "dist/index.umd.js",
   "module": "dist/index.mjs",
@@ -75,11 +76,12 @@
   "devDependencies": {
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.31",
     "tailwindcss": "^3.3.5",
     "typescript": "^5.0.0",
     "vite": "^5.0.0",
-    "vite-plugin-dts": "^4.5.4"
+    "vite-plugin-dts": "^3.9.1"
   }
 }

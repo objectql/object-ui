@@ -9,6 +9,7 @@ export type ComponentInput = {
   defaultValue?: any;
   required?: boolean;
   enum?: string[] | { label: string; value: any }[];
+  uiType?: string; // UI hint (e.g., 'textarea', 'password')
   description?: string;
   advanced?: boolean;
 };
@@ -16,9 +17,11 @@ export type ComponentInput = {
 export type ComponentMeta = {
   label?: string; // Display name in designer
   icon?: string; // Icon name or svg string
+  category?: string; // Grouping category
   inputs?: ComponentInput[];
   defaultProps?: Record<string, any>; // Default props when dropped
   defaultChildren?: SchemaNode[]; // Default children when dropped
+  examples?: Record<string, any>; // Example configurations
 };
 
 export type ComponentConfig<T = any> = ComponentMeta & {

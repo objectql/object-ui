@@ -274,7 +274,7 @@ ComponentRegistry.register(
   },
   {
     label: 'Timeline',
-    type: 'data-display',
+    category: 'data-display',
     inputs: [
       {
         name: 'variant',

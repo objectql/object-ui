@@ -62,13 +62,13 @@ ComponentRegistry.register('chart',
   },
   {
     label: 'Chart',
-    type: 'data-display',
+    category: 'data-display',
     inputs: [
       { 
         name: 'chartType', 
-        type: 'select', 
+        type: 'enum', 
         label: 'Chart Type',
-        options: [
+        enum: [
             { label: 'Bar', value: 'bar' },
             { label: 'Line', value: 'line' },
             { label: 'Area', value: 'area' }
