@@ -11,11 +11,15 @@ Menu and navigation metadata defines the application structure, navigation hiera
 Navigation features include:
 
 - **Menu Structures**: Top nav, side nav, context menus
-- **Hierarchical Organization**: Nested menu items and folders
-- **Dynamic Menus**: Role-based, permission-aware navigation
-- **Quick Actions**: Global actions and shortcuts
-- **Breadcrumbs**: Automatic navigation trails
-- **Search Integration**: Global search within navigation
+  - Header Bar: ✅ Implemented
+  - Sidebar: ✅ Implemented
+  - Dropdown Menu: ✅ Implemented
+  - Context Menu: ✅ Implemented
+- **Hierarchical Organization**: Nested menu items and folders 🚧 Partial
+- **Dynamic Menus**: Role-based, permission-aware navigation 📝 Planned
+- **Quick Actions**: Global actions and shortcuts 📝 Planned
+- **Breadcrumbs**: Automatic navigation trails 📝 Planned (Q2 2026)
+- **Search Integration**: Global search within navigation 📝 Planned
 
 **File Naming Convention:** `<menu_name>.menu.yml`
 

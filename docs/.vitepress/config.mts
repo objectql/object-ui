@@ -45,6 +45,7 @@ export default defineConfig({
           text: 'Protocol Specifications',
           items: [
             { text: 'Overview', link: '/protocol/overview' },
+            { text: '📊 Implementation Status', link: '/protocol/implementation-status' },
             { text: 'Object', link: '/protocol/object' },
             { text: 'View', link: '/protocol/view' },
             { text: 'Page', link: '/protocol/page' },
