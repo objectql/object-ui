@@ -107,7 +107,31 @@ const schema = {
 
 ## Quick Start
 
-### Installation
+### Option 1: Using CLI (Fastest Way) 🚀
+
+The easiest way to get started is using the Object UI CLI:
+
+```bash
+# Install the CLI globally
+npm install -g @object-ui/cli
+
+# Create a new app from JSON schema
+objectui init my-app
+
+# Start the development server
+cd my-app
+objectui serve app.schema.json
+```
+
+Your app will be running at http://localhost:3000! 🎉
+
+Just edit `app.schema.json` to build your UI - no React code needed.
+
+[📖 CLI Documentation](./docs/CLI_GUIDE.md) | [🇨🇳 中文文档](./docs/CLI_GUIDE.md#chinese)
+
+### Option 2: Using as a Library
+
+#### Installation
 
 ```bash
 # Using npm
@@ -120,7 +144,7 @@ yarn add @object-ui/react @object-ui/components
 pnpm add @object-ui/react @object-ui/components
 ```
 
-### Basic Usage
+#### Basic Usage
 
 ```tsx
 import React from 'react'
@@ -167,6 +191,7 @@ Object UI is a modular monorepo with packages designed for specific use cases:
 
 | Package | Description | Size |
 |---------|-------------|------|
+| **[@object-ui/cli](./packages/cli)** | CLI tool for building apps from JSON schemas | 25KB |
 | **[@object-ui/types](./packages/types)** | TypeScript definitions and protocol specs | 10KB |
 | **[@object-ui/core](./packages/core)** | Core logic, validation, registry (Zero React) | 20KB |
 | **[@object-ui/react](./packages/react)** | React bindings and `SchemaRenderer` | 15KB |

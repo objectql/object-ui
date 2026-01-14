@@ -27,7 +27,9 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "cli": "node packages/cli/dist/cli.js",
+    "objectui": "node packages/cli/dist/cli.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

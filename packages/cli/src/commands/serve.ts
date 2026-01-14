@@ -1,12 +1,27 @@
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join, resolve } from 'path';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, realpathSync } from 'fs';
+import { join, resolve, dirname } from 'path';
 import chalk from 'chalk';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 interface ServeOptions {
   port: string;
   host: string;
+}
+
+// Check if we're running from the monorepo
+function isInMonorepo(): boolean {
+  try {
+    const cliRoot = resolve(__dirname, '../..');
+    const monorepoRoot = resolve(cliRoot, '../..');
+    return existsSync(join(monorepoRoot, 'pnpm-workspace.yaml'));
+  } catch {
+    return false;
+  }
 }
 
 export async function serve(schemaPath: string, options: ServeOptions) {
@@ -33,14 +48,33 @@ export async function serve(schemaPath: string, options: ServeOptions) {
   const tmpDir = join(cwd, '.objectui-tmp');
   mkdirSync(tmpDir, { recursive: true });
 
+  // Determine if we should use workspace or npm packages
+  const useWorkspace = isInMonorepo();
+
   // Create temporary app files
-  createTempApp(tmpDir, schema);
+  createTempApp(tmpDir, schema, useWorkspace);
+
+  if (!useWorkspace) {
+    // Install dependencies only when not in workspace
+    console.log(chalk.blue('📦 Installing dependencies...'));
+    console.log(chalk.dim('  This may take a moment on first run...'));
+    const { execSync } = await import('child_process');
+    try {
+      execSync('npm install --silent --prefer-offline', { 
+        cwd: tmpDir, 
+        stdio: 'inherit',
+      });
+      console.log(chalk.green('✓ Dependencies installed'));
+    } catch (error) {
+      throw new Error('Failed to install dependencies. Please check your internet connection and try again.');
+    }
+  }
 
   console.log(chalk.green('✓ Schema loaded successfully'));
   console.log(chalk.blue('🚀 Starting development server...\n'));
 
-  // Create Vite server
-  const server = await createServer({
+  // Create Vite config
+  const viteConfig: any = {
     root: tmpDir,
     server: {
       port: parseInt(options.port),
@@ -48,10 +82,23 @@ export async function serve(schemaPath: string, options: ServeOptions) {
       open: true,
     },
     plugins: [react()],
-    optimizeDeps: {
-      include: ['react', 'react-dom', '@object-ui/react', '@object-ui/components'],
-    },
-  });
+  };
+
+  // If in workspace, add resolve aliases
+  if (useWorkspace) {
+    const monorepoRoot = resolve(__dirname, '../../../..');
+    viteConfig.resolve = {
+      alias: {
+        '@object-ui/react': resolve(monorepoRoot, 'packages/react/src'),
+        '@object-ui/components': resolve(monorepoRoot, 'packages/components/src'),
+        '@object-ui/core': resolve(monorepoRoot, 'packages/core/src'),
+        '@object-ui/types': resolve(monorepoRoot, 'packages/types/src'),
+      },
+    };
+  }
+
+  // Create Vite server
+  const server = await createServer(viteConfig);
 
   await server.listen();
 
@@ -68,7 +115,7 @@ export async function serve(schemaPath: string, options: ServeOptions) {
   console.log();
 }
 
-function createTempApp(tmpDir: string, schema: any) {
+function createTempApp(tmpDir: string, schema: any, useWorkspace: boolean) {
   // Create index.html
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -261,7 +308,7 @@ export default {
 
   writeFileSync(join(tmpDir, 'postcss.config.js'), postcssConfig);
 
-  // Create package.json
+  // Create package.json with published packages or workspace
   const packageJson = {
     name: 'objectui-temp-app',
     private: true,
@@ -269,8 +316,16 @@ export default {
     dependencies: {
       react: '^18.3.1',
       'react-dom': '^18.3.1',
-      '@object-ui/react': 'workspace:*',
-      '@object-ui/components': 'workspace:*',
+      ...(useWorkspace 
+        ? {
+            '@object-ui/react': 'workspace:*',
+            '@object-ui/components': 'workspace:*',
+          }
+        : {
+            '@object-ui/react': '^0.1.0',
+            '@object-ui/components': '^0.1.0',
+          }
+      ),
     },
     devDependencies: {
       '@types/react': '^18.3.12',
