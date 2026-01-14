@@ -863,6 +863,127 @@ export const examples = {
   ]
 }`,
 
+  'kanban-board': `{
+  "type": "kanban",
+  "className": "w-full h-[600px]",
+  "columns": [
+    {
+      "id": "backlog",
+      "title": "📋 Backlog",
+      "cards": [
+        {
+          "id": "card-1",
+          "title": "User Authentication",
+          "description": "Implement user login and registration flow",
+          "badges": [
+            { "label": "Feature", "variant": "default" },
+            { "label": "High Priority", "variant": "destructive" }
+          ]
+        },
+        {
+          "id": "card-2",
+          "title": "API Documentation",
+          "description": "Write comprehensive API docs",
+          "badges": [
+            { "label": "Documentation", "variant": "outline" }
+          ]
+        },
+        {
+          "id": "card-3",
+          "title": "Database Optimization",
+          "description": "Improve query performance",
+          "badges": [
+            { "label": "Performance", "variant": "secondary" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "todo",
+      "title": "📝 To Do",
+      "cards": [
+        {
+          "id": "card-4",
+          "title": "Design Landing Page",
+          "description": "Create wireframes and mockups",
+          "badges": [
+            { "label": "Design", "variant": "default" }
+          ]
+        },
+        {
+          "id": "card-5",
+          "title": "Setup CI/CD Pipeline",
+          "description": "Configure GitHub Actions",
+          "badges": [
+            { "label": "DevOps", "variant": "secondary" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "in-progress",
+      "title": "⚙️ In Progress",
+      "limit": 3,
+      "cards": [
+        {
+          "id": "card-6",
+          "title": "Payment Integration",
+          "description": "Integrate Stripe payment gateway",
+          "badges": [
+            { "label": "Feature", "variant": "default" },
+            { "label": "In Progress", "variant": "secondary" }
+          ]
+        },
+        {
+          "id": "card-7",
+          "title": "Bug Fix: Login Issue",
+          "description": "Fix session timeout bug",
+          "badges": [
+            { "label": "Bug", "variant": "destructive" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "review",
+      "title": "👀 Review",
+      "cards": [
+        {
+          "id": "card-8",
+          "title": "Dashboard Analytics",
+          "description": "Add charts and metrics",
+          "badges": [
+            { "label": "Feature", "variant": "default" },
+            { "label": "Needs Review", "variant": "outline" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "done",
+      "title": "✅ Done",
+      "cards": [
+        {
+          "id": "card-9",
+          "title": "Project Setup",
+          "description": "Initialize repository and dependencies",
+          "badges": [
+            { "label": "Completed", "variant": "outline" }
+          ]
+        },
+        {
+          "id": "card-10",
+          "title": "Basic Layout",
+          "description": "Create header and navigation",
+          "badges": [
+            { "label": "Completed", "variant": "outline" }
+          ]
+        }
+      ]
+    }
+  ]
+}`,
+
   // Enterprise Data Table - Airtable-like functionality
   'enterprise-table': `{
   "type": "div",
@@ -1129,4 +1250,5 @@ export const exampleCategories = {
   'Layouts': ['grid-layout', 'dashboard', 'tabs-demo'],
   'Data Display': ['calendar-view', 'enterprise-table', 'data-table-simple'],
   'Forms': ['form-demo', 'airtable-form'],
+  'Complex': ['kanban-board']
 };

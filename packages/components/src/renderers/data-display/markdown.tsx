@@ -38,7 +38,7 @@ ComponentRegistry.register('markdown',
         type: 'string', 
         label: 'Markdown Content', 
         required: true,
-        uiType: 'textarea'
+        inputType: 'textarea'
       },
       { name: 'className', type: 'string', label: 'CSS Class' }
     ],

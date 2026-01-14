@@ -9,7 +9,6 @@ export type ComponentInput = {
   defaultValue?: any;
   required?: boolean;
   enum?: string[] | { label: string; value: any }[];
-  uiType?: string; // UI hint (e.g., 'textarea', 'password')
   description?: string;
   advanced?: boolean;
   inputType?: string;

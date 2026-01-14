@@ -144,3 +144,27 @@ export const InputRenderer = ({ schema, value, onChange }: Props) => {
     </div>
   );
 };
+
+```
+
+---
+
+## 6. AI Workflow Instructions
+
+### 🟢 On "Create New Component":
+
+1. **Define Protocol:** Create `interface XSchema` in `@object-ui/types`.
+2. **Implement UI:** Create `XRenderer` in `@object-ui/components` using Shadcn primitives.
+3. **Register:** Add to the default component registry.
+4. **Standalone Check:** Ask yourself: *"Can a user use this component with a static JSON array?"* If no, refactor data logic to `DataSource`.
+
+### 🟡 On "Data Fetching Logic":
+
+1. **Abstraction:** Never import `axios` or `fetch` directly in a UI component.
+2. **Hook:** Use `useDataSource()` or `useDataScope()` to request data.
+3. **Example:** For an Autocomplete, call `dataSource.find({ search: term })`, allowing the user to inject *any* data source (REST API, Algolia, or local array).
+
+### 🟣 On "Promoting the Project":
+
+1. **Keywords:** Focus on "Tailwind-Native", "Headless", "Shadcn Compatible".
+2. **Differentiation:** Emphasize that unlike other low-code renderers, Object UI allows full styling control via standard Tailwind classes.
