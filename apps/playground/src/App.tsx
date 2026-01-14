@@ -9,21 +9,26 @@ type ViewportSize = 'desktop' | 'tablet' | 'mobile';
 export default function Playground() {
   const [selectedExample, setSelectedExample] = useState<ExampleKey>('dashboard');
   const [code, setCode] = useState(examples['dashboard']);
-  const [schema, setSchema] = useState<any>(null);
+  const [schema, setSchema] = useState<Record<string, unknown> | null>(null);
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [viewportSize, setViewportSize] = useState<ViewportSize>('desktop');
   const [copied, setCopied] = useState(false);
 
   // Real-time JSON parsing
   useEffect(() => {
-    try {
-      const parsed = JSON.parse(code);
-      setSchema(parsed);
-      setJsonError(null);
-    } catch (e) {
-      setJsonError((e as Error).message);
-      // Keep previous schema on error
-    }
+    // Parse JSON in a microtask to avoid synchronous setState in effect
+    const timer = setTimeout(() => {
+      try {
+        const parsed = JSON.parse(code);
+        setSchema(parsed);
+        setJsonError(null);
+      } catch (e) {
+        setJsonError((e as Error).message);
+        // Keep previous schema on error
+      }
+    }, 0);
+    
+    return () => clearTimeout(timer);
   }, [code]);
 
   const handleExampleChange = (key: ExampleKey) => {
