@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { SchemaRenderer } from '@object-ui/react';
 import '@object-ui/components';
 import { examples, exampleCategories, ExampleKey } from './data/examples';
@@ -8,27 +8,38 @@ type ViewportSize = 'desktop' | 'tablet' | 'mobile';
 
 export default function Playground() {
   const [selectedExample, setSelectedExample] = useState<ExampleKey>('dashboard');
-  const [code, setCode] = useState(examples['dashboard']);
-  const [schema, setSchema] = useState<any>(null);
+  
+  // Initialize state based on default example
+  const initialCode = examples['dashboard'];
+  const [code, setCode] = useState(initialCode);
+  
+  const [schema, setSchema] = useState<unknown>(() => {
+    try {
+      return JSON.parse(initialCode);
+    } catch {
+      return null;
+    }
+  });
+  
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [viewportSize, setViewportSize] = useState<ViewportSize>('desktop');
   const [copied, setCopied] = useState(false);
 
-  // Real-time JSON parsing
-  useEffect(() => {
+  const updateCode = (newCode: string) => {
+    setCode(newCode);
     try {
-      const parsed = JSON.parse(code);
+      const parsed = JSON.parse(newCode);
       setSchema(parsed);
       setJsonError(null);
     } catch (e) {
       setJsonError((e as Error).message);
       // Keep previous schema on error
     }
-  }, [code]);
+  };
 
   const handleExampleChange = (key: ExampleKey) => {
     setSelectedExample(key);
-    setCode(examples[key]);
+    updateCode(examples[key]);
   };
 
   const handleCopySchema = async () => {
@@ -118,7 +129,7 @@ export default function Playground() {
         <div className="flex-1 overflow-hidden">
           <textarea
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => updateCode(e.target.value)}
             className="w-full h-full p-4 font-mono text-sm resize-none focus:outline-none border-0 bg-background"
             spellCheck={false}
             style={{ 
