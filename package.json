@@ -3,6 +3,10 @@
   "private": true,
   "license": "MIT",
   "homepage": "https://www.objectui.org",
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=9"
+  },
   "workspaces": [
     "packages/*",
     "examples/*",
