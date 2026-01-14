@@ -365,7 +365,76 @@ const schema = {
                 {
                   value: 'analytics',
                   label: 'Analytics',
-                  body: { type: 'text', content: 'Analytics Content' }
+                  body: {
+                    type: 'div',
+                    className: 'grid gap-6',
+                    body: [
+                      {
+                        type: 'card',
+                        className: 'shadow-sm',
+                        title: 'Markdown Component Demo',
+                        description: 'A fully-featured markdown renderer with GitHub Flavored Markdown support.',
+                        body: {
+                          type: 'div',
+                          className: 'p-6 pt-0',
+                          body: {
+                            type: 'markdown',
+                            content: `# Markdown Component
+
+This is a new **Markdown** component for Object UI! It supports:
+
+## Features
+
+- **Bold** and *italic* text
+- [Links](https://objectui.org)
+- \`Inline code\`
+- Code blocks with syntax highlighting
+
+\`\`\`javascript
+function hello() {
+  console.log("Hello, Object UI!");
+}
+\`\`\`
+
+## Lists
+
+### Unordered Lists
+- Item 1
+- Item 2
+  - Nested item 2.1
+  - Nested item 2.2
+- Item 3
+
+### Ordered Lists
+1. First item
+2. Second item
+3. Third item
+
+## Tables (GitHub Flavored Markdown)
+
+| Feature | Status |
+|---------|--------|
+| Headers | ✅ |
+| Lists | ✅ |
+| Tables | ✅ |
+| Code | ✅ |
+
+## Blockquotes
+
+> This is a blockquote. You can use it to highlight important information or quotes.
+
+## Images
+
+![Object UI Logo](/logo.svg)
+
+---
+
+*This markdown is rendered using react-markdown with remark-gfm support!*`
+                          }
+                        }
+                      }
+                    ]
+                  }
                 },
                 {
                   value: 'reports',

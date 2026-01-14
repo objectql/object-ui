@@ -4,3 +4,4 @@ import './alert';
 import './chart';
 import './list';
 import './tree-view';
+import './markdown';

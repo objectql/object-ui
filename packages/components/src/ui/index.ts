@@ -30,6 +30,7 @@ export * from './input';
 export * from './item';
 export * from './kbd';
 export * from './label';
+export * from './markdown';
 export * from './menubar';
 export * from './navigation-menu';
 export * from './pagination';
