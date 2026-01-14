@@ -185,15 +185,16 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
         }
         
         [data-obj-id]:not([data-obj-id="${schema.id}"]):hover {
-            outline: 1px solid #93c5fd;
-            outline-offset: 1px;
+            outline: 1px solid #818cf8; /* indigo-400 */
+            outline-offset: -1px;
+            background-color: rgba(99, 102, 241, 0.05); /* indigo tint */
         }
         
         [data-obj-id="${selectedNodeId}"] {
-            outline: 2px solid #3b82f6 !important;
+            outline: 2px solid #4f46e5 !important; /* indigo-600 */
             outline-offset: 0px;
             z-index: 10;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.1), 0 2px 4px -1px rgba(79, 70, 229, 0.06);
         }
         
         [data-obj-id="${selectedNodeId}"]::after {
@@ -203,13 +204,13 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
             left: -2px;
             height: 20px;
             padding: 0 8px;
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); /* indigo-600 to indigo-700 */
             color: white;
             font-size: 10px;
-            font-family: ui-monospace, monospace;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             display: flex;
             align-items: center;
-            border-radius: 3px 3px 0 0;
+            border-radius: 4px 4px 0 0;
             pointer-events: none;
             white-space: nowrap;
             font-weight: 600;
@@ -219,52 +220,67 @@ export const Canvas: React.FC<CanvasProps> = ({ className }) => {
         }
         
         [data-obj-id="${hoveredNodeId}"] {
-            outline: 2px dashed #60a5fa !important;
-            outline-offset: 2px;
-            background-color: rgba(59, 130, 246, 0.03);
+            outline: 2px dashed #6366f1 !important; /* indigo-500 */
+            outline-offset: -2px;
+            background-color: rgba(99, 102, 241, 0.1);
             cursor: ${draggingNodeId ? 'move' : 'copy'};
         }
         
         [data-obj-id="${hoveredNodeId}"]::before {
             content: ${draggingNodeId ? '"Drop to move here"' : '"Drop to add here"'};
             position: absolute;
-            bottom: -20px;
+            bottom: -24px;
             right: 0px;
-            height: 18px;
-            padding: 0 6px;
-            background: #60a5fa;
+            height: 20px;
+            padding: 0 8px;
+            background: #6366f1;
             color: white;
-            font-size: 9px;
+            font-size: 10px;
             font-family: ui-sans-serif, system-ui;
             display: flex;
             align-items: center;
-            border-radius: 3px;
+            border-radius: 4px;
             pointer-events: none;
             white-space: nowrap;
-            font-weight: 500;
+            font-weight: 600;
             z-index: 20;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
         [data-obj-id="${draggingNodeId}"] {
-            opacity: 0.4;
-            filter: grayscale(50%);
+            opacity: 0.5;
+            filter: grayscale(100%);
+            transform: scale(0.98);
         }
     `;
 
     return (
         <div 
             className={cn(
-                "h-full overflow-hidden bg-gray-100/50 flex flex-col relative", 
+                "h-full overflow-hidden bg-gray-50 flex flex-col relative", 
                 className
             )}
         >
-            {/* Toolbar for Canvas controls (Zoom etc - simplified) */}
+            {/* Toolbar for Canvas controls */}
             <div className="absolute bottom-6 left-6 z-20 flex gap-2">
-                 <div className="bg-white rounded-md shadow-sm border p-1 flex items-center gap-1 text-xs font-medium text-gray-500">
-                     <span className="px-2">{Math.round(scale * 100)}%</span>
-                     <button onClick={() => setScale(s => Math.max(0.25, s - 0.1))} className="w-6 h-6 hover:bg-gray-100 rounded flex items-center justify-center">-</button>
-                     <button onClick={() => setScale(s => Math.min(2, s + 0.1))} className="w-6 h-6 hover:bg-gray-100 rounded flex items-center justify-center">+</button>
-                     <button onClick={() => setScale(1)} className="px-2 hover:bg-gray-100 rounded">Reset</button>
+                 <div className="bg-white/90 backdrop-blur shadow-[0_2px_10px_rgba(0,0,0,0.08)] rounded-full border border-gray-100 p-1.5 flex items-center gap-1 text-xs font-semibold text-gray-600 transition-all hover:shadow-md">
+                     <span className="px-3 min-w-[3.5rem] text-center font-mono">{Math.round(scale * 100)}%</span>
+                     <div className="w-px h-4 bg-gray-200 mx-0.5"></div>
+                     <button 
+                        onClick={() => setScale(s => Math.max(0.25, s - 0.1))} 
+                        className="w-7 h-7 hover:bg-gray-100 rounded-full flex items-center justify-center transition-colors text-gray-500 hover:text-gray-900"
+                        title="Zoom Out"
+                     >-</button>
+                     <button 
+                        onClick={() => setScale(s => Math.min(2, s + 0.1))} 
+                        className="w-7 h-7 hover:bg-gray-100 rounded-full flex items-center justify-center transition-colors text-gray-500 hover:text-gray-900"
+                        title="Zoom In"
+                     >+</button>
+                     <button 
+                        onClick={() => setScale(1)} 
+                        className="px-3 py-1 hover:bg-gray-100 rounded-full ml-1 transition-colors text-gray-500 hover:text-gray-900"
+                        title="Reset Zoom"
+                     >Reset</button>
                  </div>
             </div>
 
