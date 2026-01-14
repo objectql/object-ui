@@ -12,7 +12,7 @@
 
 ## 🎨 Try It Online
 
-**[Launch Object UI Studio →](https://objectql.github.io/objectui/studio/)**
+**[Launch Object UI Studio →](https://www.objectui.org/studio/)**
 
 Experience our interactive visual editor with drag-and-drop design, live preview, and instant JSON export. Perfect for prototyping and learning!
 
