@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { exampleCategories } from '../data/examples';
-import { LayoutTemplate, ArrowRight, Component, Layers, Database, Shield, Box } from 'lucide-react';
+import { LayoutTemplate, ArrowRight, Component, Layers, Database, Shield, Box, FolderOpen, Plus } from 'lucide-react';
 
 const CategoryIcon = ({ name }: { name: string }) => {
   switch (name) {
@@ -29,16 +29,32 @@ export const Home = () => {
             </div>
             <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">Object UI Studio</span>
           </div>
-          <a 
-            href="https://github.com/objectql/objectui" 
-            target="_blank"
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 bg-white/50 hover:bg-white border border-gray-200 rounded-lg transition-all shadow-sm hover:shadow"
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
-            </svg>
-            GitHub
-          </a>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/studio/new')}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-all shadow-sm hover:shadow"
+            >
+              <Plus className="w-4 h-4" />
+              New Design
+            </button>
+            <button
+              onClick={() => navigate('/my-designs')}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 hover:text-gray-900 bg-white/50 hover:bg-white border border-gray-200 rounded-lg transition-all shadow-sm hover:shadow"
+            >
+              <FolderOpen className="w-4 h-4" />
+              My Designs
+            </button>
+            <a 
+              href="https://github.com/objectql/objectui" 
+              target="_blank"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 bg-white/50 hover:bg-white border border-gray-200 rounded-lg transition-all shadow-sm hover:shadow"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+              </svg>
+              GitHub
+            </a>
+          </div>
         </div>
       </header>
       
@@ -62,11 +78,28 @@ export const Home = () => {
             Build Stunning Interfaces,<br />
             <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">Purely from JSON.</span>
           </h1>
-          <p className="max-w-2xl mx-auto text-xl text-gray-600 leading-relaxed">
+          <p className="max-w-2xl mx-auto text-xl text-gray-600 leading-relaxed mb-8">
             Object UI transforms JSON schemas into fully functional, accessible, and responsive React applications. 
             <br className="hidden sm:block" />
-            <span className="font-semibold text-gray-700">Select a template below to start building.</span>
+            <span className="font-semibold text-gray-700">Select a template below or start from scratch.</span>
           </p>
+
+          <div className="flex justify-center gap-4">
+             <button
+              onClick={() => navigate('/studio/new')}
+              className="flex items-center gap-2 px-6 py-3 text-lg font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl shadow-lg shadow-indigo-300/50 transition-all transform hover:scale-105"
+            >
+              <Plus className="w-5 h-5" />
+              Start New Design
+            </button>
+             <button
+              onClick={() => navigate('/my-designs')}
+              className="flex items-center gap-2 px-6 py-3 text-lg font-bold text-gray-700 bg-white hover:bg-gray-50 border-2 border-gray-200 rounded-xl shadow-lg transition-all transform hover:scale-105"
+            >
+              <FolderOpen className="w-5 h-5" />
+              Open Saved
+            </button>
+          </div>
         </div>
 
         {/* Category Filter */}

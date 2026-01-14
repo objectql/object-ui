@@ -74,6 +74,7 @@ export type {
   ResizableSchema,
   ResizablePanel,
   LayoutSchema,
+  PageSchema,
 } from './layout';
 
 // ============================================================================

@@ -6,7 +6,9 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@object-ui/core": "workspace:*"

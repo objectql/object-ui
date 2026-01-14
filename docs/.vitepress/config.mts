@@ -13,7 +13,6 @@ export default defineConfig({
     
     nav: [
       { text: 'Home', link: '/' },
-      { text: 'Studio', link: '/studio/', target: '_self' },
       { text: 'Guide', link: '/guide/introduction' },
       { 
         text: 'Documentation',

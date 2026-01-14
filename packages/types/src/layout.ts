@@ -369,6 +369,30 @@ export interface ResizablePanel {
 }
 
 /**
+ * Page layout component
+ * Top-level container for a page route
+ */
+export interface PageSchema extends BaseSchema {
+  type: 'page';
+  /**
+   * Page title
+   */
+  title?: string;
+  /**
+   * Page description
+   */
+  description?: string;
+  /**
+   * Main content array
+   */
+  body?: SchemaNode[];
+  /**
+   * Alternative content prop
+   */
+  children?: SchemaNode | SchemaNode[];
+}
+
+/**
  * Union type of all layout schemas
  */
 export type LayoutSchema =
@@ -384,4 +408,5 @@ export type LayoutSchema =
   | CardSchema
   | TabsSchema
   | ScrollAreaSchema
-  | ResizableSchema;
+  | ResizableSchema
+  | PageSchema;
