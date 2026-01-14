@@ -138,10 +138,15 @@ export const ComponentPalette: React.FC<ComponentPaletteProps> = React.memo(({ c
                 "group flex flex-col items-center justify-center gap-2 p-3 rounded-xl border-2 border-transparent hover:border-indigo-200 hover:bg-gradient-to-br hover:from-indigo-50 hover:to-purple-50 hover:shadow-lg cursor-grab active:cursor-grabbing transition-all duration-200 bg-white relative overflow-hidden",
                 "h-24 hover:scale-105 active:scale-95"
             )}
+            aria-label={`${config.label || type}${isResizable ? ' (resizable)' : ''}`}
           >
             {/* Resizable badge indicator */}
             {isResizable && (
-                <div className="absolute top-1 right-1 w-2 h-2 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm ring-2 ring-white" title="Resizable"></div>
+                <div 
+                    className="absolute top-1 right-1 w-2 h-2 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm ring-2 ring-white" 
+                    title="Resizable"
+                    aria-hidden="true"
+                ></div>
             )}
             
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 group-hover:from-indigo-100 group-hover:to-purple-100 flex items-center justify-center text-gray-600 group-hover:text-indigo-700 transition-all border border-gray-200 group-hover:border-indigo-300 group-hover:shadow-md">

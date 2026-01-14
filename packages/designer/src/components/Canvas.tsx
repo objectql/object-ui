@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { SchemaRenderer } from '@object-ui/react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, type SchemaNode } from '@object-ui/core';
 import { useDesigner } from '../context/DesignerContext';
 import { ContextMenu } from './ContextMenu';
 import { ResizeHandles, ResizeDirection } from './ResizeHandle';
@@ -206,7 +206,8 @@ export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
             }
             
             // Apply constraints from component config
-            const config = ComponentRegistry.getConfig(schema.type);
+            const currentNode = findNodeInSchema(schema, resizingNode.nodeId);
+            const config = currentNode ? ComponentRegistry.getConfig(currentNode.type) : null;
             if (config?.resizeConstraints) {
                 const constraints = config.resizeConstraints;
                 if (constraints.minWidth) newWidth = Math.max(constraints.minWidth, newWidth);
@@ -232,25 +233,13 @@ export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
                 const width = element.style.width;
                 const height = element.style.height;
                 
-                // Update node with new dimensions in className
-                // We'll add custom width/height to the existing className
-                const currentNode = findNodeInSchema(schema, resizingNode.nodeId);
-                if (currentNode) {
-                    const existingClasses = currentNode.className || '';
-                    // Remove any existing width/height classes
-                    let newClassName = existingClasses
-                        .split(' ')
-                        .filter(c => !c.startsWith('w-') && !c.startsWith('h-') && !c.includes('width') && !c.includes('height'))
-                        .join(' ');
-                    
-                    // Add inline style instead via data attribute for persistent sizing
-                    updateNode(resizingNode.nodeId, {
-                        style: {
-                            width,
-                            height
-                        }
-                    });
-                }
+                // Persist new dimensions via style on the node schema
+                updateNode(resizingNode.nodeId, {
+                    style: {
+                        width,
+                        height
+                    }
+                });
                 
                 // Clear inline style after update
                 element.style.width = '';
@@ -270,16 +259,18 @@ export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
     }, [resizingNode, setResizingNode, updateNode, schema]);
     
     // Helper to find node in schema
-    const findNodeInSchema = (node: any, targetId: string): any => {
+    const findNodeInSchema = (node: SchemaNode, targetId: string): SchemaNode | null => {
         if (node.id === targetId) return node;
         
         if (Array.isArray(node.body)) {
             for (const child of node.body) {
-                const found = findNodeInSchema(child, targetId);
-                if (found) return found;
+                if (typeof child === 'object' && child !== null) {
+                    const found = findNodeInSchema(child as SchemaNode, targetId);
+                    if (found) return found;
+                }
             }
         } else if (node.body && typeof node.body === 'object') {
-            return findNodeInSchema(node.body, targetId);
+            return findNodeInSchema(node.body as SchemaNode, targetId);
         }
         
         return null;
@@ -480,7 +471,12 @@ export const Canvas: React.FC<CanvasProps> = React.memo(({ className }) => {
         /* Resizing state cursor override */
         ${resizingNode ? `
             * {
-                cursor: ${resizingNode.direction.includes('e') || resizingNode.direction.includes('w') ? 'ew-resize' : 'ns-resize'} !important;
+                cursor: ${
+                    resizingNode.direction === 'ne' || resizingNode.direction === 'sw' ? 'nesw-resize' :
+                    resizingNode.direction === 'nw' || resizingNode.direction === 'se' ? 'nwse-resize' :
+                    resizingNode.direction.includes('e') || resizingNode.direction.includes('w') ? 'ew-resize' : 
+                    'ns-resize'
+                } !important;
             }
             
             [data-obj-id="${resizingNode.nodeId}"] {

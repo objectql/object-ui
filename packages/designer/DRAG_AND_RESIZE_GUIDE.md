@@ -344,7 +344,6 @@ Planned features for future releases:
 - [ ] **Keyboard resize** (Arrow keys with Shift)
 - [ ] **Percentage-based constraints** 
 - [ ] **Resize preview overlay** showing dimensions
-- [ ] **Undo/redo for resize operations** (currently works)
 - [ ] **Multi-select resize** (resize multiple components)
 - [ ] **Resize from center** (Alt+Drag)
 
