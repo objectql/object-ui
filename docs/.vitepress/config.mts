@@ -15,8 +15,17 @@ export default defineConfig({
       { text: 'Home', link: '/' },
       { text: 'Studio', link: '/studio/', target: '_self' },
       { text: 'Guide', link: '/guide/introduction' },
-      { text: 'Protocol', link: '/protocol/overview' },
-      { text: 'API', link: '/api/core' }
+      { 
+        text: 'Documentation',
+        items: [
+          { text: '📚 Documentation Index', link: '/DOCUMENTATION_INDEX' },
+          { text: 'Protocol Specs', link: '/protocol/overview' },
+          { text: 'API Reference', link: '/api/core' },
+          { text: 'Technical Specs', link: '/spec/architecture' },
+          { text: 'Components', link: '/components/form' }
+        ]
+      },
+      { text: 'Roadmap', link: '/ROADMAP' }
     ],
 
     sidebar: {
@@ -37,6 +46,14 @@ export default defineConfig({
             { text: 'Component Registry', link: '/guide/component-registry' },
             { text: 'Expression System', link: '/guide/expressions' }
           ]
+        },
+        {
+          text: 'Architecture',
+          items: [
+            { text: 'Architecture Overview', link: '/spec/architecture' },
+            { text: 'Project Structure', link: '/spec/project-structure' },
+            { text: 'Lazy-Loaded Plugins', link: '/lazy-loaded-plugins' }
+          ]
         }
       ],
       
@@ -45,26 +62,61 @@ export default defineConfig({
           text: 'Protocol Specifications',
           items: [
             { text: 'Overview', link: '/protocol/overview' },
-            { text: '📊 Implementation Status', link: '/protocol/implementation-status' },
-            { text: 'Object', link: '/protocol/object' },
-            { text: 'View', link: '/protocol/view' },
-            { text: 'Page', link: '/protocol/page' },
-            { text: 'Form', link: '/protocol/form' },
-            { text: 'Menu', link: '/protocol/menu' },
-            { text: 'App', link: '/protocol/app' },
-            { text: 'Report', link: '/protocol/report' }
+            { text: '📊 Implementation Status', link: '/protocol/implementation-status' }
+          ]
+        },
+        {
+          text: 'Core Protocols',
+          items: [
+            { text: 'Object Protocol', link: '/protocol/object' },
+            { text: 'View Protocol', link: '/protocol/view' },
+            { text: 'Page Protocol', link: '/protocol/page' },
+            { text: 'Form Protocol', link: '/protocol/form' }
+          ]
+        },
+        {
+          text: 'Advanced Protocols',
+          items: [
+            { text: 'Menu Protocol', link: '/protocol/menu' },
+            { text: 'App Protocol', link: '/protocol/app' },
+            { text: 'Report Protocol', link: '/protocol/report' }
           ]
         }
       ],
       
       '/api/': [
         {
-          text: 'API Reference',
+          text: 'Package API Reference',
           items: [
-            { text: 'Core', link: '/api/core' },
-            { text: 'React', link: '/api/react' },
-            { text: 'Components', link: '/api/components' },
-            { text: 'Designer', link: '/api/designer' }
+            { text: '@object-ui/core', link: '/api/core' },
+            { text: '@object-ui/react', link: '/api/react' },
+            { text: '@object-ui/components', link: '/api/components' },
+            { text: '@object-ui/designer', link: '/api/designer' }
+          ]
+        }
+      ],
+      
+      '/spec/': [
+        {
+          text: 'Technical Specifications',
+          items: [
+            { text: 'Architecture', link: '/spec/architecture' },
+            { text: 'Project Structure', link: '/spec/project-structure' },
+            { text: 'Schema Rendering', link: '/spec/schema-rendering' },
+            { text: 'Component System', link: '/spec/component' },
+            { text: 'Base Components', link: '/spec/base-components' },
+            { text: 'Component Library', link: '/spec/component-library' },
+            { text: 'Component Packages', link: '/spec/component-package' }
+          ]
+        }
+      ],
+      
+      '/components/': [
+        {
+          text: 'Component Examples',
+          items: [
+            { text: 'Form Component', link: '/components/form' },
+            { text: 'Calendar View', link: '/components/calendar-view' }
           ]
         }
       ]
