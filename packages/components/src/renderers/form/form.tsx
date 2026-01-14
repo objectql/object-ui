@@ -2,6 +2,16 @@ import { ComponentRegistry } from '@object-ui/core';
 import { useForm } from 'react-hook-form';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '@/ui/form';
 import { Button } from '@/ui/button';
+import { Input } from '@/ui/input';
+import { Textarea } from '@/ui/textarea';
+import { Checkbox } from '@/ui/checkbox';
+import { 
+  Select, 
+  SelectTrigger, 
+  SelectValue, 
+  SelectContent, 
+  SelectItem 
+} from '@/ui/select';
 import { renderChildren } from '../../lib/utils';
 import { Alert, AlertDescription } from '@/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
@@ -176,8 +186,9 @@ ComponentRegistry.register('form',
                           {renderFieldComponent(type, {
                             ...fieldProps,
                             ...formField,
+                            inputType: fieldProps.inputType,
+                            options: fieldProps.options,
                             disabled: disabled || fieldDisabled || isSubmitting,
-                            schema: { type, ...fieldProps },
                           })}
                         </FormControl>
                         {description && (
@@ -294,32 +305,47 @@ ComponentRegistry.register('form',
 
 // Helper function to render field components
 function renderFieldComponent(type: string, props: any) {
-  const { schema, ...fieldProps } = props;
+  const { schema, inputType, options, ...fieldProps } = props;
 
   switch (type) {
     case 'input':
-      return <input className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm" {...fieldProps} />;
+      return <Input type={inputType || 'text'} {...fieldProps} />;
     
     case 'textarea':
-      return <textarea className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm" {...fieldProps} />;
+      return <Textarea {...fieldProps} />;
     
     case 'checkbox':
+      // For checkbox, we need to handle the value differently
+      const { value, onChange, ...checkboxProps } = fieldProps;
       return (
         <div className="flex items-center space-x-2">
-          <input type="checkbox" className="h-4 w-4 rounded border-gray-300" {...fieldProps} />
+          <Checkbox 
+            checked={value}
+            onCheckedChange={onChange}
+            {...checkboxProps}
+          />
         </div>
       );
     
     case 'select':
+      // For select with react-hook-form, we need to handle the onChange
+      const { value: selectValue, onChange: selectOnChange, ...selectProps } = fieldProps;
       return (
-        <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm" {...fieldProps}>
-          {schema.options?.map((opt: any) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+        <Select value={selectValue} onValueChange={selectOnChange} {...selectProps}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select an option" />
+          </SelectTrigger>
+          <SelectContent>
+            {options?.map((opt: any) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       );
     
     default:
-      return <input className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm" {...fieldProps} />;
+      return <Input type={inputType || 'text'} {...fieldProps} />;
   }
 }
