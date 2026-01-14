@@ -10,11 +10,15 @@ ComponentRegistry.register('calendar-view',
       if (!schema.data || !Array.isArray(schema.data)) return [];
       
       return schema.data.map((record: any, index: number) => {
-        // Get field values based on field mappings
+        /** Field name to use for event title display */
         const titleField = schema.titleField || 'title';
+        /** Field name containing the event start date/time */
         const startField = schema.startDateField || 'start';
+        /** Field name containing the event end date/time (optional) */
         const endField = schema.endDateField || 'end';
+        /** Field name to determine event color or color category */
         const colorField = schema.colorField || 'color';
+        /** Field name indicating if event is all-day */
         const allDayField = schema.allDayField || 'allDay';
         
         const title = record[titleField] || 'Untitled';
@@ -91,7 +95,7 @@ ComponentRegistry.register('calendar-view',
     return (
       <CalendarView
         events={events}
-        view={schema.view || schema.defaultView || 'month'}
+        view={schema.view || 'month'}
         currentDate={schema.currentDate ? new Date(schema.currentDate) : undefined}
         onEventClick={handleEventClick}
         onDateClick={schema.allowCreate || schema.onDateClick ? handleDateClick : undefined}
@@ -157,14 +161,8 @@ ComponentRegistry.register('calendar-view',
         type: 'enum', 
         enum: ['month', 'week', 'day'], 
         defaultValue: 'month', 
-        label: 'Default View' 
-      },
-      { 
-        name: 'defaultView', 
-        type: 'enum', 
-        enum: ['month', 'week', 'day'], 
-        defaultValue: 'month', 
-        label: 'Default View (alias)' 
+        label: 'View Mode',
+        description: 'Calendar view mode (month, week, or day)'
       },
       {
         name: 'currentDate',
