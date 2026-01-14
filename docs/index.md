@@ -11,7 +11,7 @@ hero:
   actions:
     - theme: brand
       text: Try Studio Now
-      link: /studio/
+      link: https://play.objectstack.ai
     - theme: alt
       text: Get Started
       link: /guide/introduction
@@ -82,7 +82,7 @@ That's it! This JSON automatically creates a beautiful, accessible, and function
   <p class="custom-block-title" style="color: #6366f1;">✨ Experience Object UI Studio</p>
   <p>Explore our interactive visual editor with drag-and-drop design, live preview, and instant JSON export. Perfect for prototyping and learning!</p>
   <p style="margin-top: 12px;">
-    <a href="/studio/" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; text-decoration: none; font-weight: 600; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); transition: all 0.3s;">
+    <a href="https://play.objectstack.ai" target="_blank" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; text-decoration: none; font-weight: 600; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); transition: all 0.3s;">
       🚀 Launch Studio
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
     </a>

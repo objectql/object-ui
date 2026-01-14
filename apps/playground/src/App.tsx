@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { Studio } from './pages/Studio';
 import '@object-ui/components';
@@ -17,9 +17,7 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/studio/:id" element={<Studio />} />
-        {/* Default redirect to first example if typed manually specifically */}
-        <Route path="/studio" element={<Navigate to="/studio/dashboard" replace />} />
+        <Route path="/:id" element={<Studio />} />
       </Routes>
     </Router>
   );

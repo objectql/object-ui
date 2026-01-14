@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - 'docs/**'
-      - 'apps/playground/**'
       - 'packages/**'
       - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:
@@ -57,16 +56,6 @@ jobs:
 
       - name: Build documentation
         run: pnpm docs:build
-
-      - name: Build Studio (Playground)
-        run: pnpm --filter @apps/playground... build
-        env:
-          NODE_ENV: production
-
-      - name: Copy Studio to docs dist
-        run: |
-          mkdir -p docs/.vitepress/dist/studio
-          cp -r apps/playground/dist/* docs/.vitepress/dist/studio/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

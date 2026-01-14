@@ -6,7 +6,7 @@ The **Object UI Studio** is a powerful, interactive visual editor that allows yo
 
 <div class="tip custom-block">
   <p><strong>Try it now!</strong></p>
-  <p>Access the Studio at: <a href="/studio/" target="_blank">/studio/</a></p>
+  <p>Access the Studio at: <a href="https://play.objectstack.ai" target="_blank">play.objectstack.ai</a></p>
 </div>
 
 ## Features

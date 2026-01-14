@@ -11,7 +11,7 @@
 [![React](https://img.shields.io/badge/React-18+-61dafb.svg)](https://reactjs.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.0+-38bdf8.svg)](https://tailwindcss.com/)
 
-[**Documentation**](https://www.objectui.org) | [**Quick Start**](#quick-start) | [**Examples**](#examples) | [**Studio**](https://www.objectui.org/studio/)
+[**Documentation**](https://www.objectui.org) | [**Quick Start**](#quick-start) | [**Examples**](#examples) | [**Studio**](https://play.objectstack.ai)
 
 </div>
 
@@ -159,7 +159,7 @@ export default App
 
 Explore our interactive drag-and-drop designer:
 
-🚀 [**Launch Object UI Studio**](https://www.objectui.org/studio/) - Design visually, export JSON instantly.
+🚀 [**Launch Object UI Studio**](https://play.objectstack.ai) - Design visually, export JSON instantly.
 
 ## 📦 Packages
 

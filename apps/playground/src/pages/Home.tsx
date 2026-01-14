@@ -102,7 +102,7 @@ export const Home = () => {
              return (
               <div 
                 key={key}
-                onClick={() => navigate(`/studio/${key}`)}
+                onClick={() => navigate(`/${key}`)}
                 className="group relative bg-white rounded-2xl border-2 border-gray-200 overflow-hidden hover:shadow-2xl hover:shadow-indigo-500/20 transition-all duration-300 cursor-pointer hover:border-indigo-400 hover:-translate-y-1 flex flex-col h-72"
               >
                 {/* Gradient overlay on hover */}
