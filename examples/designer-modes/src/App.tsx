@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Designer, type DesignerMode } from '@object-ui/designer';
 import type { SchemaNode } from '@object-ui/core';
 
