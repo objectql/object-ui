@@ -31,7 +31,7 @@
   "author": "ObjectQL Team",
   "license": "MIT",
   "dependencies": {
-    "commander": "^12.1.0",
+    "commander": "^14.0.2",
     "chalk": "^5.4.1",
     "vite": "^5.0.0",
     "@vitejs/plugin-react": "^4.2.1",
