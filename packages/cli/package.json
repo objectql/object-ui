@@ -43,7 +43,7 @@
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
-    "@types/node": "^24.10.8",
+    "@types/node": "^25.0.8",
     "@types/js-yaml": "^4.0.9",
     "tsup": "^8.0.0",
     "typescript": "^5.9.3"
