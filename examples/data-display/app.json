@@ -1,0 +1,521 @@
+{
+  "type": "div",
+  "className": "min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6",
+  "body": {
+    "type": "div",
+    "className": "max-w-6xl mx-auto space-y-8",
+    "body": [
+      {
+        "type": "div",
+        "className": "text-center space-y-3",
+        "body": [
+          {
+            "type": "text",
+            "content": "📊 Data Display Showcase",
+            "className": "text-4xl font-extrabold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent"
+          },
+          {
+            "type": "text",
+            "content": "Explore various ways to display data using Object UI components",
+            "className": "text-gray-600 text-lg"
+          }
+        ]
+      },
+      {
+        "type": "card",
+        "className": "shadow-xl",
+        "title": "👤 User Profiles",
+        "description": "Avatar, badges, and profile information",
+        "body": {
+          "type": "div",
+          "className": "p-6 space-y-6",
+          "body": [
+            {
+              "type": "div",
+              "className": "flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-100",
+              "body": [
+                {
+                  "type": "div",
+                  "className": "w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg",
+                  "body": {
+                    "type": "text",
+                    "content": "JD"
+                  }
+                },
+                {
+                  "type": "div",
+                  "className": "flex-1 space-y-1",
+                  "body": [
+                    {
+                      "type": "text",
+                      "content": "John Doe",
+                      "className": "text-xl font-bold"
+                    },
+                    {
+                      "type": "text",
+                      "content": "Senior Product Manager",
+                      "className": "text-sm text-muted-foreground"
+                    },
+                    {
+                      "type": "div",
+                      "className": "flex gap-2 mt-2",
+                      "body": [
+                        {
+                          "type": "div",
+                          "className": "px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full",
+                          "body": {
+                            "type": "text",
+                            "content": "✓ Active"
+                          }
+                        },
+                        {
+                          "type": "div",
+                          "className": "px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full",
+                          "body": {
+                            "type": "text",
+                            "content": "⭐ Premium"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "button",
+                  "label": "View Profile",
+                  "size": "sm"
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "className": "flex items-center gap-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-100",
+              "body": [
+                {
+                  "type": "div",
+                  "className": "w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg",
+                  "body": {
+                    "type": "text",
+                    "content": "AS"
+                  }
+                },
+                {
+                  "type": "div",
+                  "className": "flex-1 space-y-1",
+                  "body": [
+                    {
+                      "type": "text",
+                      "content": "Alice Smith",
+                      "className": "text-xl font-bold"
+                    },
+                    {
+                      "type": "text",
+                      "content": "Lead Software Engineer",
+                      "className": "text-sm text-muted-foreground"
+                    },
+                    {
+                      "type": "div",
+                      "className": "flex gap-2 mt-2",
+                      "body": [
+                        {
+                          "type": "div",
+                          "className": "px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full",
+                          "body": {
+                            "type": "text",
+                            "content": "✓ Active"
+                          }
+                        },
+                        {
+                          "type": "div",
+                          "className": "px-2 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full",
+                          "body": {
+                            "type": "text",
+                            "content": "🔧 Developer"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "button",
+                  "label": "View Profile",
+                  "size": "sm"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "card",
+        "className": "shadow-xl",
+        "title": "📋 Task List",
+        "description": "Organize and track your tasks",
+        "body": {
+          "type": "div",
+          "className": "p-6 pt-0 space-y-2",
+          "body": [
+            {
+              "type": "div",
+              "className": "flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors border-l-4 border-l-green-500",
+              "body": [
+                {
+                  "type": "div",
+                  "className": "w-5 h-5 rounded-full bg-green-500 flex items-center justify-center text-white text-xs",
+                  "body": {
+                    "type": "text",
+                    "content": "✓"
+                  }
+                },
+                {
+                  "type": "div",
+                  "className": "flex-1",
+                  "body": [
+                    {
+                      "type": "text",
+                      "content": "Complete project documentation",
+                      "className": "font-medium line-through text-muted-foreground"
+                    },
+                    {
+                      "type": "text",
+                      "content": "Due: Yesterday",
+                      "className": "text-xs text-muted-foreground"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "content": "✅ Done",
+                  "className": "text-sm font-semibold text-green-600"
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "className": "flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors border-l-4 border-l-blue-500",
+              "body": [
+                {
+                  "type": "div",
+                  "className": "w-5 h-5 rounded-full border-2 border-blue-500"
+                },
+                {
+                  "type": "div",
+                  "className": "flex-1",
+                  "body": [
+                    {
+                      "type": "text",
+                      "content": "Review pull requests",
+                      "className": "font-medium"
+                    },
+                    {
+                      "type": "text",
+                      "content": "Due: Today",
+                      "className": "text-xs text-muted-foreground"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "content": "⏳ In Progress",
+                  "className": "text-sm font-semibold text-blue-600"
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "className": "flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors border-l-4 border-l-orange-500",
+              "body": [
+                {
+                  "type": "div",
+                  "className": "w-5 h-5 rounded-full border-2 border-orange-500"
+                },
+                {
+                  "type": "div",
+                  "className": "flex-1",
+                  "body": [
+                    {
+                      "type": "text",
+                      "content": "Prepare presentation slides",
+                      "className": "font-medium"
+                    },
+                    {
+                      "type": "text",
+                      "content": "Due: Tomorrow",
+                      "className": "text-xs text-muted-foreground"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "content": "📅 Pending",
+                  "className": "text-sm font-semibold text-orange-600"
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "className": "flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors border-l-4 border-l-red-500",
+              "body": [
+                {
+                  "type": "div",
+                  "className": "w-5 h-5 rounded-full border-2 border-red-500"
+                },
+                {
+                  "type": "div",
+                  "className": "flex-1",
+                  "body": [
+                    {
+                      "type": "text",
+                      "content": "Fix critical bug in production",
+                      "className": "font-medium text-red-600"
+                    },
+                    {
+                      "type": "text",
+                      "content": "Due: ASAP",
+                      "className": "text-xs text-red-600 font-semibold"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "content": "🚨 Urgent",
+                  "className": "text-sm font-semibold text-red-600"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "div",
+        "className": "grid gap-6 lg:grid-cols-2",
+        "body": [
+          {
+            "type": "card",
+            "className": "shadow-xl",
+            "title": "📊 Statistics",
+            "description": "Key performance indicators",
+            "body": {
+              "type": "div",
+              "className": "p-6 pt-0 space-y-4",
+              "body": [
+                {
+                  "type": "div",
+                  "className": "space-y-2",
+                  "body": [
+                    {
+                      "type": "div",
+                      "className": "flex items-center justify-between",
+                      "body": [
+                        {
+                          "type": "text",
+                          "content": "Completion Rate",
+                          "className": "text-sm font-medium"
+                        },
+                        {
+                          "type": "text",
+                          "content": "85%",
+                          "className": "text-sm font-bold text-green-600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "progress",
+                      "value": 85,
+                      "className": "h-2"
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "className": "space-y-2",
+                  "body": [
+                    {
+                      "type": "div",
+                      "className": "flex items-center justify-between",
+                      "body": [
+                        {
+                          "type": "text",
+                          "content": "Team Productivity",
+                          "className": "text-sm font-medium"
+                        },
+                        {
+                          "type": "text",
+                          "content": "92%",
+                          "className": "text-sm font-bold text-blue-600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "progress",
+                      "value": 92,
+                      "className": "h-2"
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "className": "space-y-2",
+                  "body": [
+                    {
+                      "type": "div",
+                      "className": "flex items-center justify-between",
+                      "body": [
+                        {
+                          "type": "text",
+                          "content": "Customer Satisfaction",
+                          "className": "text-sm font-medium"
+                        },
+                        {
+                          "type": "text",
+                          "content": "78%",
+                          "className": "text-sm font-bold text-orange-600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "progress",
+                      "value": 78,
+                      "className": "h-2"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "type": "card",
+            "className": "shadow-xl",
+            "title": "🏆 Achievements",
+            "description": "Milestones and badges earned",
+            "body": {
+              "type": "div",
+              "className": "p-6 pt-0 space-y-4",
+              "body": [
+                {
+                  "type": "div",
+                  "className": "flex items-center gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200",
+                  "body": [
+                    {
+                      "type": "text",
+                      "content": "🏅",
+                      "className": "text-3xl"
+                    },
+                    {
+                      "type": "div",
+                      "className": "flex-1",
+                      "body": [
+                        {
+                          "type": "text",
+                          "content": "Early Adopter",
+                          "className": "font-semibold"
+                        },
+                        {
+                          "type": "text",
+                          "content": "Joined in the first month",
+                          "className": "text-xs text-muted-foreground"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "className": "flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200",
+                  "body": [
+                    {
+                      "type": "text",
+                      "content": "💎",
+                      "className": "text-3xl"
+                    },
+                    {
+                      "type": "div",
+                      "className": "flex-1",
+                      "body": [
+                        {
+                          "type": "text",
+                          "content": "Premium Member",
+                          "className": "font-semibold"
+                        },
+                        {
+                          "type": "text",
+                          "content": "Upgraded to premium tier",
+                          "className": "text-xs text-muted-foreground"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "className": "flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200",
+                  "body": [
+                    {
+                      "type": "text",
+                      "content": "🎯",
+                      "className": "text-3xl"
+                    },
+                    {
+                      "type": "div",
+                      "className": "flex-1",
+                      "body": [
+                        {
+                          "type": "text",
+                          "content": "Goal Crusher",
+                          "className": "font-semibold"
+                        },
+                        {
+                          "type": "text",
+                          "content": "Completed 100+ tasks",
+                          "className": "text-xs text-muted-foreground"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "card",
+        "className": "shadow-xl bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200",
+        "body": {
+          "type": "div",
+          "className": "p-6 space-y-3 text-center",
+          "body": [
+            {
+              "type": "text",
+              "content": "✨ Built with Object UI",
+              "className": "text-2xl font-bold text-indigo-900"
+            },
+            {
+              "type": "text",
+              "content": "All these beautiful data displays were created using pure JSON schemas. No React components, no CSS files - just JSON!",
+              "className": "text-sm text-indigo-800"
+            },
+            {
+              "type": "div",
+              "className": "flex items-center justify-center gap-3 pt-4",
+              "body": [
+                {
+                  "type": "button",
+                  "label": "View Source",
+                  "variant": "outline",
+                  "size": "sm"
+                },
+                {
+                  "type": "button",
+                  "label": "Learn More",
+                  "size": "sm"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,516 @@
+{
+  "type": "div",
+  "className": "min-h-screen bg-white",
+  "body": [
+    {
+      "type": "div",
+      "className": "bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600",
+      "body": {
+        "type": "div",
+        "className": "container mx-auto px-6 py-20",
+        "body": [
+          {
+            "type": "div",
+            "className": "text-center max-w-4xl mx-auto space-y-8",
+            "body": [
+              {
+                "type": "text",
+                "content": "🚀 Object UI",
+                "className": "text-6xl font-extrabold text-white drop-shadow-lg"
+              },
+              {
+                "type": "text",
+                "content": "Build Beautiful Interfaces with JSON",
+                "className": "text-3xl font-bold text-white/90"
+              },
+              {
+                "type": "text",
+                "content": "The universal, schema-driven UI engine that transforms JSON into stunning React interfaces. No repetitive coding. No complex setup. Just pure productivity.",
+                "className": "text-xl text-white/80 leading-relaxed max-w-2xl mx-auto"
+              },
+              {
+                "type": "div",
+                "className": "flex items-center justify-center gap-4 pt-8",
+                "body": [
+                  {
+                    "type": "button",
+                    "label": "🎯 Get Started",
+                    "className": "px-8 py-4 bg-white text-indigo-600 font-semibold text-lg rounded-lg shadow-xl hover:shadow-2xl hover:scale-105 transition-all"
+                  },
+                  {
+                    "type": "button",
+                    "label": "📖 Documentation",
+                    "variant": "outline",
+                    "className": "px-8 py-4 border-2 border-white text-white font-semibold text-lg rounded-lg hover:bg-white hover:text-indigo-600 transition-all"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "div",
+      "className": "container mx-auto px-6 py-20",
+      "body": [
+        {
+          "type": "div",
+          "className": "text-center mb-16",
+          "body": [
+            {
+              "type": "text",
+              "content": "✨ Why Choose Object UI?",
+              "className": "text-4xl font-extrabold mb-4"
+            },
+            {
+              "type": "text",
+              "content": "Everything you need to build enterprise-grade applications faster",
+              "className": "text-xl text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "div",
+          "className": "grid md:grid-cols-3 gap-8",
+          "body": [
+            {
+              "type": "card",
+              "className": "shadow-2xl border-0 bg-gradient-to-br from-blue-50 to-cyan-50 hover:scale-105 transition-transform",
+              "body": {
+                "type": "div",
+                "className": "p-8 space-y-4",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "⚡",
+                    "className": "text-5xl"
+                  },
+                  {
+                    "type": "text",
+                    "content": "Lightning Fast",
+                    "className": "text-2xl font-bold"
+                  },
+                  {
+                    "type": "text",
+                    "content": "3x faster page loads than traditional low-code platforms. Built on React 18+ with automatic optimizations.",
+                    "className": "text-muted-foreground leading-relaxed"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "className": "shadow-2xl border-0 bg-gradient-to-br from-purple-50 to-pink-50 hover:scale-105 transition-transform",
+              "body": {
+                "type": "div",
+                "className": "p-8 space-y-4",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "🎨",
+                    "className": "text-5xl"
+                  },
+                  {
+                    "type": "text",
+                    "content": "Beautiful by Default",
+                    "className": "text-2xl font-bold"
+                  },
+                  {
+                    "type": "text",
+                    "content": "Professional designs using Tailwind CSS and Shadcn/UI. Fully customizable with utility classes.",
+                    "className": "text-muted-foreground leading-relaxed"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "className": "shadow-2xl border-0 bg-gradient-to-br from-green-50 to-emerald-50 hover:scale-105 transition-transform",
+              "body": {
+                "type": "div",
+                "className": "p-8 space-y-4",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "🔧",
+                    "className": "text-5xl"
+                  },
+                  {
+                    "type": "text",
+                    "content": "Developer Friendly",
+                    "className": "text-2xl font-bold"
+                  },
+                  {
+                    "type": "text",
+                    "content": "TypeScript-first with complete type definitions. Zero learning curve if you know React.",
+                    "className": "text-muted-foreground leading-relaxed"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "div",
+      "className": "bg-gradient-to-r from-slate-50 to-gray-100 py-20",
+      "body": {
+        "type": "div",
+        "className": "container mx-auto px-6",
+        "body": [
+          {
+            "type": "div",
+            "className": "text-center mb-16",
+            "body": [
+              {
+                "type": "text",
+                "content": "🎯 Simple Yet Powerful",
+                "className": "text-4xl font-extrabold mb-4"
+              },
+              {
+                "type": "text",
+                "content": "See how easy it is to build interfaces with JSON",
+                "className": "text-xl text-muted-foreground"
+              }
+            ]
+          },
+          {
+            "type": "div",
+            "className": "max-w-4xl mx-auto",
+            "body": {
+              "type": "card",
+              "className": "shadow-2xl",
+              "body": {
+                "type": "div",
+                "className": "p-8 space-y-6",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "Traditional React: 200+ lines of code",
+                    "className": "text-lg font-semibold text-muted-foreground"
+                  },
+                  {
+                    "type": "div",
+                    "className": "bg-gradient-to-r from-red-50 to-orange-50 p-6 rounded-lg border border-red-200",
+                    "body": {
+                      "type": "div",
+                      "className": "font-mono text-sm space-y-1",
+                      "body": [
+                        {
+                          "type": "text",
+                          "content": "function UserForm() {",
+                          "className": "text-gray-700"
+                        },
+                        {
+                          "type": "text",
+                          "content": "  const [state, setState] = useState({})",
+                          "className": "text-gray-700 ml-4"
+                        },
+                        {
+                          "type": "text",
+                          "content": "  // ... 200+ lines of validation, handlers, JSX",
+                          "className": "text-gray-500 ml-4"
+                        },
+                        {
+                          "type": "text",
+                          "content": "}",
+                          "className": "text-gray-700"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "separator"
+                  },
+                  {
+                    "type": "text",
+                    "content": "Object UI: 20 lines of JSON ✨",
+                    "className": "text-lg font-semibold text-green-600"
+                  },
+                  {
+                    "type": "div",
+                    "className": "bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg border border-green-200",
+                    "body": {
+                      "type": "div",
+                      "className": "font-mono text-sm space-y-1",
+                      "body": [
+                        {
+                          "type": "text",
+                          "content": "{",
+                          "className": "text-gray-700"
+                        },
+                        {
+                          "type": "text",
+                          "content": "  \"type\": \"form\",",
+                          "className": "text-gray-700 ml-4"
+                        },
+                        {
+                          "type": "text",
+                          "content": "  \"fields\": [...],",
+                          "className": "text-gray-700 ml-4"
+                        },
+                        {
+                          "type": "text",
+                          "content": "  \"validation\": {...}",
+                          "className": "text-gray-700 ml-4"
+                        },
+                        {
+                          "type": "text",
+                          "content": "}",
+                          "className": "text-gray-700"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "div",
+      "className": "container mx-auto px-6 py-20",
+      "body": [
+        {
+          "type": "div",
+          "className": "text-center mb-16",
+          "body": [
+            {
+              "type": "text",
+              "content": "🏆 Trusted by Developers",
+              "className": "text-4xl font-extrabold mb-4"
+            },
+            {
+              "type": "text",
+              "content": "Join thousands of developers building better UIs faster",
+              "className": "text-xl text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "div",
+          "className": "grid md:grid-cols-4 gap-8 max-w-5xl mx-auto",
+          "body": [
+            {
+              "type": "card",
+              "className": "shadow-lg text-center p-8 border-2 border-blue-100",
+              "body": [
+                {
+                  "type": "text",
+                  "content": "10K+",
+                  "className": "text-4xl font-bold text-blue-600 mb-2"
+                },
+                {
+                  "type": "text",
+                  "content": "Active Users",
+                  "className": "text-sm text-muted-foreground"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "className": "shadow-lg text-center p-8 border-2 border-green-100",
+              "body": [
+                {
+                  "type": "text",
+                  "content": "50+",
+                  "className": "text-4xl font-bold text-green-600 mb-2"
+                },
+                {
+                  "type": "text",
+                  "content": "Components",
+                  "className": "text-sm text-muted-foreground"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "className": "shadow-lg text-center p-8 border-2 border-purple-100",
+              "body": [
+                {
+                  "type": "text",
+                  "content": "85%",
+                  "className": "text-4xl font-bold text-purple-600 mb-2"
+                },
+                {
+                  "type": "text",
+                  "content": "Test Coverage",
+                  "className": "text-sm text-muted-foreground"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "className": "shadow-lg text-center p-8 border-2 border-orange-100",
+              "body": [
+                {
+                  "type": "text",
+                  "content": "< 50KB",
+                  "className": "text-4xl font-bold text-orange-600 mb-2"
+                },
+                {
+                  "type": "text",
+                  "content": "Bundle Size",
+                  "className": "text-sm text-muted-foreground"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "div",
+      "className": "bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 py-20",
+      "body": {
+        "type": "div",
+        "className": "container mx-auto px-6",
+        "body": {
+          "type": "div",
+          "className": "text-center max-w-3xl mx-auto space-y-8",
+          "body": [
+            {
+              "type": "text",
+              "content": "Ready to Get Started?",
+              "className": "text-5xl font-extrabold text-white drop-shadow-lg"
+            },
+            {
+              "type": "text",
+              "content": "Install Object UI CLI and start building in minutes",
+              "className": "text-xl text-white/90"
+            },
+            {
+              "type": "div",
+              "className": "bg-black/30 backdrop-blur-lg rounded-2xl p-8 border border-white/20",
+              "body": {
+                "type": "div",
+                "className": "font-mono text-left space-y-2",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "# Install CLI",
+                    "className": "text-sm text-white/60"
+                  },
+                  {
+                    "type": "text",
+                    "content": "$ npm install -g @object-ui/cli",
+                    "className": "text-lg text-white font-semibold"
+                  },
+                  {
+                    "type": "text",
+                    "content": "",
+                    "className": "py-1"
+                  },
+                  {
+                    "type": "text",
+                    "content": "# Create new app",
+                    "className": "text-sm text-white/60"
+                  },
+                  {
+                    "type": "text",
+                    "content": "$ objectui init my-app",
+                    "className": "text-lg text-white font-semibold"
+                  },
+                  {
+                    "type": "text",
+                    "content": "",
+                    "className": "py-1"
+                  },
+                  {
+                    "type": "text",
+                    "content": "# Start dev server",
+                    "className": "text-sm text-white/60"
+                  },
+                  {
+                    "type": "text",
+                    "content": "$ objectui serve app.json",
+                    "className": "text-lg text-white font-semibold"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "div",
+              "className": "flex items-center justify-center gap-4 pt-8",
+              "body": [
+                {
+                  "type": "button",
+                  "label": "🚀 Start Building",
+                  "className": "px-8 py-4 bg-white text-indigo-600 font-semibold text-lg rounded-lg shadow-xl hover:shadow-2xl hover:scale-105 transition-all"
+                },
+                {
+                  "type": "button",
+                  "label": "⭐ Star on GitHub",
+                  "variant": "outline",
+                  "className": "px-8 py-4 border-2 border-white text-white font-semibold text-lg rounded-lg hover:bg-white hover:text-indigo-600 transition-all"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "div",
+      "className": "bg-gray-900 text-white py-12",
+      "body": {
+        "type": "div",
+        "className": "container mx-auto px-6",
+        "body": {
+          "type": "div",
+          "className": "text-center space-y-4",
+          "body": [
+            {
+              "type": "text",
+              "content": "Built with ❤️ by the Object UI Team",
+              "className": "text-sm text-gray-400"
+            },
+            {
+              "type": "div",
+              "className": "flex items-center justify-center gap-6 text-sm text-gray-400",
+              "body": [
+                {
+                  "type": "text",
+                  "content": "Documentation"
+                },
+                {
+                  "type": "text",
+                  "content": "•"
+                },
+                {
+                  "type": "text",
+                  "content": "GitHub"
+                },
+                {
+                  "type": "text",
+                  "content": "•"
+                },
+                {
+                  "type": "text",
+                  "content": "Examples"
+                },
+                {
+                  "type": "text",
+                  "content": "•"
+                },
+                {
+                  "type": "text",
+                  "content": "Blog"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "content": "© 2026 Object UI. MIT License.",
+              "className": "text-xs text-gray-500"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

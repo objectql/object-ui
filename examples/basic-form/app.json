@@ -1,0 +1,137 @@
+{
+  "type": "div",
+  "className": "min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-6",
+  "body": {
+    "type": "div",
+    "className": "max-w-2xl mx-auto space-y-8",
+    "body": [
+      {
+        "type": "div",
+        "className": "text-center space-y-3",
+        "body": [
+          {
+            "type": "text",
+            "content": "📝 Contact Form Example",
+            "className": "text-4xl font-extrabold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent"
+          },
+          {
+            "type": "text",
+            "content": "A beautiful form built entirely with JSON - No code required!",
+            "className": "text-gray-600 text-lg"
+          }
+        ]
+      },
+      {
+        "type": "card",
+        "className": "shadow-2xl border-0 bg-white/80 backdrop-blur-lg rounded-2xl overflow-hidden",
+        "title": "Get in Touch",
+        "description": "Fill out the form below and we'll get back to you soon",
+        "body": {
+          "type": "div",
+          "className": "p-8 space-y-6",
+          "body": [
+            {
+              "type": "div",
+              "className": "grid gap-6 md:grid-cols-2",
+              "body": [
+                {
+                  "type": "input",
+                  "label": "First Name",
+                  "placeholder": "John",
+                  "required": true,
+                  "className": "transition-all focus:ring-2 focus:ring-indigo-500"
+                },
+                {
+                  "type": "input",
+                  "label": "Last Name",
+                  "placeholder": "Doe",
+                  "required": true,
+                  "className": "transition-all focus:ring-2 focus:ring-indigo-500"
+                }
+              ]
+            },
+            {
+              "type": "input",
+              "label": "📧 Email Address",
+              "inputType": "email",
+              "required": true,
+              "placeholder": "john.doe@example.com",
+              "className": "transition-all focus:ring-2 focus:ring-purple-500"
+            },
+            {
+              "type": "input",
+              "label": "📱 Phone Number",
+              "inputType": "tel",
+              "placeholder": "+1 (555) 000-0000",
+              "className": "transition-all focus:ring-2 focus:ring-pink-500"
+            },
+            {
+              "type": "textarea",
+              "label": "💬 Message",
+              "placeholder": "Tell us what you need help with...",
+              "rows": 5,
+              "className": "transition-all focus:ring-2 focus:ring-purple-500"
+            },
+            {
+              "type": "separator",
+              "className": "my-4"
+            },
+            {
+              "type": "div",
+              "className": "flex items-center justify-end gap-3 pt-4",
+              "body": [
+                {
+                  "type": "button",
+                  "label": "Reset",
+                  "variant": "outline",
+                  "className": "px-6 py-2.5 hover:bg-gray-100 transition-colors"
+                },
+                {
+                  "type": "button",
+                  "label": "✓ Send Message",
+                  "className": "px-6 py-2.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "card",
+        "className": "shadow-lg border border-indigo-100",
+        "body": {
+          "type": "div",
+          "className": "p-6 space-y-3",
+          "body": [
+            {
+              "type": "text",
+              "content": "💡 Built with Object UI",
+              "className": "text-lg font-semibold text-indigo-900"
+            },
+            {
+              "type": "text",
+              "content": "This entire form was created using a simple JSON schema. Edit app.json to customize it!",
+              "className": "text-sm text-gray-600"
+            },
+            {
+              "type": "div",
+              "className": "bg-gray-50 rounded-lg p-4 mt-4",
+              "body": [
+                {
+                  "type": "text",
+                  "content": "Quick Start:",
+                  "className": "text-sm font-mono font-semibold text-gray-700 mb-2"
+                },
+                {
+                  "type": "text",
+                  "content": "$ objectui serve app.json",
+                  "className": "text-sm font-mono text-indigo-600"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
