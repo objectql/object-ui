@@ -135,8 +135,6 @@ export default App;`;
   const indexCss = `@tailwind base;
 @tailwind components;
 @tailwind utilities;
-@tailwind components;
-@tailwind utilities;
 
 @layer base {
   :root {
