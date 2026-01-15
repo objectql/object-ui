@@ -16,8 +16,6 @@
   "scripts": {
     "dev": "pnpm --filter prototype dev",
     "start": "pnpm --filter prototype dev",
-    "designer": "pnpm --filter @examples/designer-demo dev",
-    "prototype": "pnpm --filter prototype dev",
     "build": "pnpm -r build",
     "pretest": "pnpm --filter @object-ui/types build && pnpm --filter @object-ui/core build && pnpm --filter @object-ui/react build && pnpm --filter @object-ui/components build",
     "test": "vitest run",
