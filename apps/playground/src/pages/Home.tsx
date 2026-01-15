@@ -65,13 +65,6 @@ export const Home = () => {
             <h2 className="text-lg font-semibold">Quick Start</h2>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => navigate('/studio/new')}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                New Design
-              </button>
-              <button
                 onClick={() => navigate('/my-designs')}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium hover:bg-muted rounded-md transition-colors"
               >
