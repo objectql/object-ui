@@ -413,7 +413,7 @@ export const MyDesigns = () => {
               <button
                 onClick={handleImport}
                 disabled={!importJson.trim()}
-                className="px-4 py-2 text-sm font-bold text-white bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-lg  transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Import
               </button>
@@ -448,7 +448,7 @@ export const MyDesigns = () => {
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 rounded-xl shadow-lg  transition-all"
+                className="px-4 py-2 text-sm font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl shadow-lg transition-all"
               >
                 Delete Design
               </button>

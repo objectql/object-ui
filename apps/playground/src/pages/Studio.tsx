@@ -244,7 +244,7 @@ const StudioToolbarContext = ({
                 className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-lg ${
                   copied 
                     ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg' 
-                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-indigo-300/50'
+                    : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg'
                 }`}
               >
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
