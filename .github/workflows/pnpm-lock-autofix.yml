@@ -87,11 +87,14 @@ jobs:
           CONFLICT_FILES=$(git diff --name-only --diff-filter=U)
           echo "Conflicted files: $CONFLICT_FILES"
           
-          if [ "$CONFLICT_FILES" = "pnpm-lock.yaml" ] || [ -z "$CONFLICT_FILES" ]; then
-            echo "Only pnpm-lock.yaml has conflicts or no conflicts. Regenerating lockfile..."
+          # Only proceed if pnpm-lock.yaml is the only conflicted file
+          if [ "$CONFLICT_FILES" = "pnpm-lock.yaml" ]; then
+            echo "Only pnpm-lock.yaml has conflicts. Regenerating lockfile..."
             
             # Remove the conflicted lockfile
-            git checkout --theirs pnpm-lock.yaml || git checkout --ours pnpm-lock.yaml || rm -f pnpm-lock.yaml
+            # We remove it completely to let pnpm regenerate from package.json files
+            # This ensures both branches' dependency changes are merged correctly
+            rm -f pnpm-lock.yaml
             
             # Regenerate the lockfile
             pnpm install --no-frozen-lockfile
