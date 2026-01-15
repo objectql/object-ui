@@ -3,6 +3,9 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { serve } from './commands/serve.js';
 import { init } from './commands/init.js';
+import { dev } from './commands/dev.js';
+import { buildApp } from './commands/build.js';
+import { start } from './commands/start.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -31,6 +34,52 @@ program
   .action(async (schema, options) => {
     try {
       await serve(schema, options);
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('dev')
+  .description('Start development server (alias for serve)')
+  .argument('[schema]', 'Path to JSON/YAML schema file', 'app.json')
+  .option('-p, --port <port>', 'Port to run the server on', '3000')
+  .option('-h, --host <host>', 'Host to bind the server to', 'localhost')
+  .option('--no-open', 'Do not open browser automatically')
+  .action(async (schema, options) => {
+    try {
+      await dev(schema, options);
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('build')
+  .description('Build application for production')
+  .argument('[schema]', 'Path to JSON/YAML schema file', 'app.json')
+  .option('-o, --out-dir <dir>', 'Output directory', 'dist')
+  .option('--clean', 'Clean output directory before build', false)
+  .action(async (schema, options) => {
+    try {
+      await buildApp(schema, options);
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('start')
+  .description('Start production server')
+  .option('-p, --port <port>', 'Port to run the server on', '3000')
+  .option('-h, --host <host>', 'Host to bind the server to', '0.0.0.0')
+  .option('-d, --dir <dir>', 'Directory to serve', 'dist')
+  .action(async (options) => {
+    try {
+      await start(options);
     } catch (error) {
       console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
       process.exit(1);

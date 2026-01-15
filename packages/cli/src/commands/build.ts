@@ -1,18 +1,22 @@
-import { createServer } from 'vite';
+import { build as viteBuild } from 'vite';
 import react from '@vitejs/plugin-react';
-import { existsSync, mkdirSync } from 'fs';
-import { join, resolve, relative } from 'path';
+import { existsSync, mkdirSync, cpSync, rmSync } from 'fs';
+import { join, resolve } from 'path';
 import chalk from 'chalk';
-import { execSync } from 'child_process';
 import { scanPagesDirectory, createTempAppWithRouting, createTempApp, parseSchemaFile } from '../utils/app-generator.js';
 
-interface ServeOptions {
-  port: string;
-  host: string;
+interface BuildOptions {
+  outDir?: string;
+  clean?: boolean;
 }
 
-export async function serve(schemaPath: string, options: ServeOptions) {
+export async function buildApp(schemaPath: string, options: BuildOptions) {
   const cwd = process.cwd();
+  const outDir = options.outDir || 'dist';
+  const outputPath = resolve(cwd, outDir);
+  
+  console.log(chalk.blue('🔨 Building application for production...'));
+  console.log();
   
   // Check if pages directory exists for file-system routing
   const pagesDir = join(cwd, 'pages');
@@ -24,7 +28,7 @@ export async function serve(schemaPath: string, options: ServeOptions) {
 
   if (hasPagesDir) {
     // File-system based routing
-    console.log(chalk.blue('📁 Detected pages/ directory - using file-system routing'));
+    console.log(chalk.blue('📁 Using file-system routing'));
     routes = scanPagesDirectory(pagesDir);
     useFileSystemRouting = true;
     
@@ -33,9 +37,6 @@ export async function serve(schemaPath: string, options: ServeOptions) {
     }
     
     console.log(chalk.green(`✓ Found ${routes.length} route(s)`));
-    routes.forEach(route => {
-      console.log(chalk.dim(`  ${route.path} → ${relative(cwd, route.filePath)}`));
-    });
   } else {
     // Single schema file mode
     const fullSchemaPath = resolve(cwd, schemaPath);
@@ -68,45 +69,52 @@ export async function serve(schemaPath: string, options: ServeOptions) {
 
   // Install dependencies
   console.log(chalk.blue('📦 Installing dependencies...'));
-  console.log(chalk.dim('  This may take a moment on first run...'));
+  const { execSync } = await import('child_process');
   try {
     execSync('npm install --silent --prefer-offline', { 
       cwd: tmpDir, 
-      stdio: 'inherit',
+      stdio: 'pipe',
     });
     console.log(chalk.green('✓ Dependencies installed'));
   } catch (error) {
     throw new Error('Failed to install dependencies. Please check your internet connection and try again.');
   }
 
-  console.log(chalk.green('✓ Schema loaded successfully'));
-  console.log(chalk.blue('🚀 Starting development server...\n'));
-
-  // Create Vite config
-  const viteConfig: any = {
-    root: tmpDir,
-    server: {
-      port: parseInt(options.port),
-      host: options.host,
-      open: true,
-    },
-    plugins: [react()],
-  };
-
-  // Create Vite server
-  const server = await createServer(viteConfig);
-
-  await server.listen();
-
-  const { port, host } = server.config.server;
-  const protocol = server.config.server.https ? 'https' : 'http';
-  const displayHost = host === '0.0.0.0' ? 'localhost' : host;
-
+  console.log(chalk.blue('⚙️  Building with Vite...'));
   console.log();
-  console.log(chalk.green('✓ Server started successfully!'));
-  console.log();
-  console.log(chalk.bold('  Local:   ') + chalk.cyan(`${protocol}://${displayHost}:${port}`));
-  console.log();
-  console.log(chalk.dim('  Press Ctrl+C to stop the server'));
-  console.log();
+
+  // Clean output directory if requested
+  if (options.clean && existsSync(outputPath)) {
+    console.log(chalk.dim(`  Cleaning ${outDir}/ directory...`));
+    rmSync(outputPath, { recursive: true, force: true });
+  }
+
+  // Build with Vite
+  try {
+    await viteBuild({
+      root: tmpDir,
+      build: {
+        outDir: join(tmpDir, 'dist'),
+        emptyOutDir: true,
+        reportCompressedSize: true,
+      },
+      plugins: [react()],
+      logLevel: 'info',
+    });
+
+    // Copy built files to output directory
+    mkdirSync(outputPath, { recursive: true });
+    cpSync(join(tmpDir, 'dist'), outputPath, { recursive: true });
+
+    console.log();
+    console.log(chalk.green('✓ Build completed successfully!'));
+    console.log();
+    console.log(chalk.bold('  Output: ') + chalk.cyan(outDir + '/'));
+    console.log();
+    console.log(chalk.dim('  To serve the production build, run:'));
+    console.log(chalk.cyan(`  objectui start --dir ${outDir}`));
+    console.log();
+  } catch (error) {
+    throw new Error(`Build failed: ${error instanceof Error ? error.message : error}`);
+  }
 }
