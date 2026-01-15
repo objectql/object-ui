@@ -388,6 +388,62 @@ You can also define navigation in your main schema using button click handlers:
 
 **Note:** Layout support with `app.json` and `_layout.json` is planned for a future release. Currently, all routing is handled at the page level.
 
+## Running Example Projects
+
+The Object UI repository includes ready-to-use examples that demonstrate various UI patterns and features. You can run them directly using the CLI:
+
+### Available Examples
+
+1. **Basic Form** - Contact form with validation
+   ```bash
+   objectui serve examples/basic-form/app.json
+   ```
+
+2. **Dashboard** - Analytics dashboard with metrics and activity feeds
+   ```bash
+   objectui serve examples/dashboard/app.json
+   ```
+
+3. **Data Display** - User profiles, task lists, progress bars, and badges
+   ```bash
+   objectui serve examples/data-display/app.json
+   ```
+
+4. **Landing Page** - Complete marketing page with hero section and CTAs
+   ```bash
+   objectui serve examples/landing-page/app.json
+   ```
+
+5. **CLI Demo** - Bilingual form demonstration
+   ```bash
+   objectui serve examples/cli-demo/app.schema.json
+   ```
+
+### Exploring Examples
+
+Each example includes:
+- `app.json` - The JSON schema definition
+- `README.md` - Detailed documentation and customization guide
+- `.gitignore` - Git ignore configuration
+
+To explore an example:
+
+```bash
+# Clone the repository
+git clone https://github.com/objectql/objectui.git
+cd objectui/examples
+
+# View available examples
+ls -la
+
+# Run an example
+objectui serve basic-form/app.json
+```
+
+Then open http://localhost:3000 in your browser and start editing the `app.json` file to see live updates!
+
+For more details, see the [Examples README](https://github.com/objectql/objectui/tree/main/examples).
+
 ## FAQ
 
 ### 1. How to customize styles?

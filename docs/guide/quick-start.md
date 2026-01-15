@@ -179,11 +179,19 @@ Now that you have the basics:
 
 ## Examples
 
-Check out complete examples:
+Check out our JSON-based examples that you can run immediately:
 
-- [Form Example](https://github.com/objectql/objectui/tree/main/examples/forms)
-- [CRUD Example](https://github.com/objectql/objectui/tree/main/examples/crud)
-- [Dashboard Example](https://github.com/objectql/objectui/tree/main/examples/dashboard)
+- [Basic Form](https://github.com/objectql/objectui/tree/main/examples/basic-form) - Contact form with validation
+- [Dashboard](https://github.com/objectql/objectui/tree/main/examples/dashboard) - Analytics dashboard with metrics
+- [Data Display](https://github.com/objectql/objectui/tree/main/examples/data-display) - Lists, badges, and progress bars
+- [Landing Page](https://github.com/objectql/objectui/tree/main/examples/landing-page) - Complete marketing page
+- [All Examples](https://github.com/objectql/objectui/tree/main/examples) - View the full collection
+
+Run any example with the CLI:
+```bash
+npm install -g @object-ui/cli
+objectui serve examples/basic-form/app.json
+```
 
 ## Need Help?
 
