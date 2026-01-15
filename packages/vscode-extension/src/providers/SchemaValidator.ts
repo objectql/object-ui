@@ -183,14 +183,31 @@ export class SchemaValidator {
 
   /**
    * Find the range of a property in the document
+   * Note: This is a simplified implementation that returns a default range.
+   * TODO: For production use, implement proper JSON parsing to find exact property locations.
+   * Consider using a JSON parser with position tracking or VSCode's built-in JSON language service.
    */
   private findPropertyRange(
     document: vscode.TextDocument,
     path: string,
     property: string
   ): vscode.Range {
-    // For now, return the start of the document
-    // In a full implementation, this would parse the JSON and find the exact location
+    try {
+      // Attempt to find the property in the document
+      const text = document.getText();
+      const searchPattern = new RegExp(`"${property}"\\s*:`);
+      const match = searchPattern.exec(text);
+      
+      if (match && match.index !== undefined) {
+        const pos = document.positionAt(match.index);
+        return new vscode.Range(pos, pos.translate(0, property.length + 2));
+      }
+    } catch (error) {
+      // If we can't find it, fall back to the beginning
+      console.error('Error finding property range:', error);
+    }
+    
+    // Fallback: return the start of the document
     return new vscode.Range(0, 0, 0, 1);
   }
 

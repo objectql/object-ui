@@ -14,7 +14,7 @@ export class CompletionProvider
   ): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
     const linePrefix = document
       .lineAt(position)
-      .text.substr(0, position.character);
+      .text.substring(0, position.character);
 
     // Get completion items based on context
     const items: vscode.CompletionItem[] = [];
@@ -148,17 +148,32 @@ export class CompletionProvider
 
   /**
    * Get current type from document context
+   * Note: This is a simplified implementation. For production use,
+   * consider using a proper JSON parser or AST for accurate context detection.
    */
   private getCurrentType(
     document: vscode.TextDocument,
     position: vscode.Position
   ): string | null {
-    // Simple implementation - in production would use proper JSON parsing
-    const text = document.getText();
-    const offset = document.offsetAt(position);
-    const before = text.substring(Math.max(0, offset - 200), offset);
-
-    const match = before.match(/"type"\s*:\s*"(\w+)"/);
-    return match ? match[1] : null;
+    try {
+      const text = document.getText();
+      const offset = document.offsetAt(position);
+      
+      // Look backwards for the nearest "type" property
+      const before = text.substring(Math.max(0, offset - 500), offset);
+      
+      // Find all type declarations in the context
+      const typeMatches = Array.from(before.matchAll(/"type"\s*:\s*"(\w+)"/g));
+      
+      // Return the most recent one
+      if (typeMatches.length > 0) {
+        return typeMatches[typeMatches.length - 1][1];
+      }
+    } catch (error) {
+      // Fail silently - just won't provide context-specific completions
+      console.error('Error detecting current type:', error);
+    }
+    
+    return null;
   }
 }
