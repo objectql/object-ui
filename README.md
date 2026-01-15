@@ -200,10 +200,14 @@ Object UI is a modular monorepo with packages designed for specific use cases:
 | **[@object-ui/components](./packages/components)** | Standard UI components (Tailwind + Shadcn) | 50KB |
 | **[@object-ui/designer](./packages/designer)** | Visual drag-and-drop schema editor | 80KB |
 | **[@object-ui/data-objectql](./packages/data-objectql)** | ObjectQL API adapter for data integration | 15KB |
+| **[vscode-extension](./packages/vscode-extension)** | VSCode extension for schema development | 32KB |
 
 **Plugins** (lazy-loaded):
 - `@object-ui/plugin-charts` - Chart components (Chart.js)
 - `@object-ui/plugin-editor` - Rich text editor components
+
+**Developer Tools**:
+- **[VSCode Extension](./packages/vscode-extension)** - IntelliSense, live preview, validation, and snippets for Object UI schemas
 
 ## 🔌 Data Integration
 
