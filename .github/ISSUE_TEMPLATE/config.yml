@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discord Community
+    url: https://discord.gg/objectstack
+    about: Join our Discord community for questions and discussions
+  - name: 📖 Documentation
+    url: https://www.objectui.org
+    about: Check our documentation for guides and API references
+  - name: 💡 Feature Request
+    url: https://github.com/objectstack-ai/objectui/discussions/categories/ideas
+    about: Share your ideas and feature requests in discussions

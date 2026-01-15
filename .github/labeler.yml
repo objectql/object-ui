@@ -1,0 +1,112 @@
+# Configuration for pull-requests labeler
+# https://github.com/actions/labeler
+
+# Core packages
+'package: core':
+  - changed-files:
+    - any-glob-to-any-file: 'packages/core/**/*'
+
+'package: types':
+  - changed-files:
+    - any-glob-to-any-file: 'packages/types/**/*'
+
+'package: react':
+  - changed-files:
+    - any-glob-to-any-file: 'packages/react/**/*'
+
+'package: components':
+  - changed-files:
+    - any-glob-to-any-file: 'packages/components/**/*'
+
+# Plugins
+'plugin':
+  - changed-files:
+    - any-glob-to-any-file: 'packages/plugin-*/**/*'
+
+'plugin: charts':
+  - changed-files:
+    - any-glob-to-any-file: 'packages/plugin-charts/**/*'
+
+'plugin: editor':
+  - changed-files:
+    - any-glob-to-any-file: 'packages/plugin-editor/**/*'
+
+'plugin: kanban':
+  - changed-files:
+    - any-glob-to-any-file: 'packages/plugin-kanban/**/*'
+
+'plugin: markdown':
+  - changed-files:
+    - any-glob-to-any-file: 'packages/plugin-markdown/**/*'
+
+# Data adapters
+'data-adapter':
+  - changed-files:
+    - any-glob-to-any-file: 'packages/data-*/**/*'
+
+# Designer
+'designer':
+  - changed-files:
+    - any-glob-to-any-file: 'packages/designer/**/*'
+
+# Documentation
+'documentation':
+  - changed-files:
+    - any-glob-to-any-file: 
+      - 'docs/**/*'
+      - '*.md'
+      - 'packages/**/README.md'
+
+# Tests
+'tests':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.test.ts'
+      - '**/*.test.tsx'
+      - '**/*.spec.ts'
+      - '**/*.spec.tsx'
+      - '**/test/**/*'
+      - '**/tests/**/*'
+      - '**/__tests__/**/*'
+
+# Configuration
+'configuration':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '*.config.*'
+      - '.*rc'
+      - '.*rc.*'
+      - '.github/**/*'
+      - 'tsconfig*.json'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+
+# Dependencies
+'dependencies':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '**/package.json'
+
+# Examples
+'examples':
+  - changed-files:
+    - any-glob-to-any-file: 'examples/**/*'
+
+# Applications
+'apps':
+  - changed-files:
+    - any-glob-to-any-file: 'apps/**/*'
+
+# CI/CD
+'ci/cd':
+  - changed-files:
+    - any-glob-to-any-file: '.github/workflows/**/*'
+
+# Breaking changes (when certain files are modified)
+'breaking-change':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'packages/types/src/schema/**/*'
+      - 'packages/core/src/public-api.ts'
