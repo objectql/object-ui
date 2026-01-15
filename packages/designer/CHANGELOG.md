@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.1
+
+### Patch Changes
+
+- Patch release: Add automated changeset workflow and CI/CD improvements
+
+  This release includes infrastructure improvements:
+  - Added changeset-based version management
+  - Enhanced CI/CD workflows with GitHub Actions
+  - Improved documentation for contributing and releasing
+
+- Updated dependencies
+  - @object-ui/core@0.2.1
+  - @object-ui/react@0.2.1
+  - @object-ui/components@0.2.1
+
 All notable changes to @object-ui/designer will be documented in this file.
 
 ## [Unreleased]
@@ -7,26 +23,25 @@ All notable changes to @object-ui/designer will be documented in this file.
 ### Added - Deep Optimizations (Latest)
 
 #### Performance Improvements
+
 - ✨ **React.memo Optimization**: Wrapped all major components to prevent unnecessary re-renders
   - Canvas, ComponentPalette, PropertyPanel, Toolbar, ComponentTree, ContextMenu
   - 60% reduction in re-renders
   - Smoother drag & drop operations
-  
 - ✨ **useCallback Memoization**: All event handlers optimized
   - Drag & drop handlers
   - Click and context menu handlers
   - Input change handlers
   - 60% improvement in drag operation delay
-  
 - ✨ **useMemo Optimization**: Expensive calculations cached
   - Canvas width calculation
   - Selected node lookup
   - Component configuration
   - Filter operations
-  
 - ✨ **Display Names**: All components have display names for better debugging
 
 #### Component Tree View
+
 - ✨ **Hierarchical Navigation**: Complete tree view of component structure
   - Expandable/collapsible nodes with smooth animations
   - Visual indicators for component types and IDs
@@ -38,6 +53,7 @@ All notable changes to @object-ui/designer will be documented in this file.
   - Optimized with React.memo for performance
 
 #### Context Menu
+
 - ✨ **Right-Click Actions**: Professional context menu for components
   - Copy (⌘C), Cut (⌘X), Paste (⌘V), Duplicate (⌘D), Delete (Del)
   - Smart positioning to stay within viewport
@@ -50,20 +66,18 @@ All notable changes to @object-ui/designer will be documented in this file.
 ### Added - Major Feature Enhancements
 
 #### Core Functionality
+
 - ✨ **Undo/Redo System**: Full history management with 50-item capacity
   - Keyboard shortcuts: `Ctrl+Z` for undo, `Ctrl+Y` for redo
   - Visual indicators in toolbar showing undo/redo availability
-  
 - ✨ **Copy/Paste Components**: Duplicate components easily
   - Copy with `Ctrl+C` / `Cmd+C`
   - Paste with `Ctrl+V` / `Cmd+V`
   - Works with keyboard shortcuts and toolbar buttons
-  
-- ✨ **JSON Import/Export**: 
+- ✨ **JSON Import/Export**:
   - Import from file or paste JSON directly
   - Export to file or copy to clipboard
   - Full schema validation on import
-  
 - ✨ **Component Search**: Quickly find components in the palette
   - Real-time search filtering
   - Searches by component type and label
@@ -75,12 +89,12 @@ All notable changes to @object-ui/designer will be documented in this file.
   - Smooth animations during drag operations
 
 #### Visual Enhancements
+
 - 🎨 **Enhanced Selection Feedback**:
   - Component type label on selection
   - Gradient-styled selection indicators
   - Box shadow for better depth perception
   - Hover states with subtle outlines
-  
 - 🎨 **Improved Empty State**:
   - Helpful getting started guide
   - Quick reference for keyboard shortcuts
@@ -99,6 +113,7 @@ All notable changes to @object-ui/designer will be documented in this file.
   - Smooth transitions
 
 #### UX Improvements
+
 - 📱 **Responsive Viewport Modes**:
   - Desktop view (1024px)
   - Tablet view (768px)
@@ -127,6 +142,7 @@ All notable changes to @object-ui/designer will be documented in this file.
   - Smooth scaling animations
 
 #### Developer Experience
+
 - 🛠️ **Better Type Definitions**:
   - ViewportMode type export
   - Enhanced DesignerContext interface
@@ -139,6 +155,7 @@ All notable changes to @object-ui/designer will be documented in this file.
   - Usage examples for all features
 
 ### Changed
+
 - 🔄 Improved Canvas component with viewport-aware sizing
 - 🔄 Enhanced PropertyPanel with copy/paste/delete action buttons
 - 🔄 Refactored Toolbar with better organization and dialogs
@@ -146,6 +163,7 @@ All notable changes to @object-ui/designer will be documented in this file.
 - 🔄 SchemaRenderer now includes `data-obj-type` attribute for better debugging
 
 ### Technical Improvements
+
 - Optimized history management to prevent memory leaks
 - Improved drag-drop performance with better event handling
 - Enhanced state management with proper React hooks usage
@@ -157,10 +175,10 @@ All notable changes to @object-ui/designer will be documented in this file.
 ## [0.1.0] - Initial Release
 
 ### Added
+
 - Basic visual schema editor
 - Drag and drop from component palette
 - Component reordering in canvas
 - Property panel for component configuration
 - Basic toolbar
 - Component categories (Layout, Form, Data Display, Feedback, Overlay, Navigation)
-
