@@ -1,0 +1,303 @@
+{
+  "type": "div",
+  "className": "space-y-6 max-w-4xl",
+  "body": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "body": [
+        {
+          "type": "text",
+          "content": "Progress Indicators",
+          "className": "text-3xl font-bold"
+        },
+        {
+          "type": "text",
+          "content": "Visual feedback for task completion and progress",
+          "className": "text-muted-foreground"
+        }
+      ]
+    },
+    {
+      "type": "card",
+      "className": "p-6",
+      "body": {
+        "type": "div",
+        "className": "space-y-6",
+        "body": [
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Basic Progress Bar",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "progress",
+                "value": 33
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Different Progress Values",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "div",
+                "className": "space-y-3",
+                "body": [
+                  {
+                    "type": "div",
+                    "className": "space-y-2",
+                    "body": [
+                      {
+                        "type": "flex",
+                        "direction": "row",
+                        "justify": "between",
+                        "children": [
+                          {
+                            "type": "text",
+                            "content": "Uploading files",
+                            "className": "text-sm font-medium"
+                          },
+                          {
+                            "type": "text",
+                            "content": "25%",
+                            "className": "text-sm text-muted-foreground"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "progress",
+                        "value": 25
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "space-y-2",
+                    "body": [
+                      {
+                        "type": "flex",
+                        "direction": "row",
+                        "justify": "between",
+                        "children": [
+                          {
+                            "type": "text",
+                            "content": "Processing data",
+                            "className": "text-sm font-medium"
+                          },
+                          {
+                            "type": "text",
+                            "content": "50%",
+                            "className": "text-sm text-muted-foreground"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "progress",
+                        "value": 50
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "space-y-2",
+                    "body": [
+                      {
+                        "type": "flex",
+                        "direction": "row",
+                        "justify": "between",
+                        "children": [
+                          {
+                            "type": "text",
+                            "content": "Almost done",
+                            "className": "text-sm font-medium"
+                          },
+                          {
+                            "type": "text",
+                            "content": "75%",
+                            "className": "text-sm text-muted-foreground"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "progress",
+                        "value": 75
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "space-y-2",
+                    "body": [
+                      {
+                        "type": "flex",
+                        "direction": "row",
+                        "justify": "between",
+                        "children": [
+                          {
+                            "type": "text",
+                            "content": "Completed",
+                            "className": "text-sm font-medium text-green-600"
+                          },
+                          {
+                            "type": "text",
+                            "content": "100%",
+                            "className": "text-sm text-green-600"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "progress",
+                        "value": 100
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Multi-step Process",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "div",
+                "className": "space-y-6",
+                "body": [
+                  {
+                    "type": "div",
+                    "className": "space-y-3",
+                    "body": [
+                      {
+                        "type": "text",
+                        "content": "Step 1: Account Information",
+                        "className": "text-sm font-medium text-green-600"
+                      },
+                      {
+                        "type": "progress",
+                        "value": 100,
+                        "className": "h-1"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "space-y-3",
+                    "body": [
+                      {
+                        "type": "text",
+                        "content": "Step 2: Personal Details",
+                        "className": "text-sm font-medium"
+                      },
+                      {
+                        "type": "progress",
+                        "value": 60,
+                        "className": "h-1"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "space-y-3",
+                    "body": [
+                      {
+                        "type": "text",
+                        "content": "Step 3: Verification",
+                        "className": "text-sm font-medium text-muted-foreground"
+                      },
+                      {
+                        "type": "progress",
+                        "value": 0,
+                        "className": "h-1"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "card",
+      "className": "p-6",
+      "body": {
+        "type": "div",
+        "className": "space-y-4",
+        "body": [
+          {
+            "type": "text",
+            "content": "File Upload Progress",
+            "className": "text-lg font-semibold"
+          },
+          {
+            "type": "div",
+            "className": "border rounded-lg p-4 space-y-4",
+            "body": [
+              {
+                "type": "div",
+                "className": "space-y-2",
+                "body": [
+                  {
+                    "type": "flex",
+                    "direction": "row",
+                    "justify": "between",
+                    "align": "center",
+                    "children": [
+                      {
+                        "type": "div",
+                        "className": "space-y-1",
+                        "body": [
+                          {
+                            "type": "text",
+                            "content": "document.pdf",
+                            "className": "text-sm font-medium"
+                          },
+                          {
+                            "type": "text",
+                            "content": "2.4 MB of 5.8 MB",
+                            "className": "text-xs text-muted-foreground"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "content": "41%",
+                        "className": "text-sm font-mono"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "progress",
+                    "value": 41
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

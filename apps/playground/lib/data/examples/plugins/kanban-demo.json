@@ -1,0 +1,244 @@
+{
+  "type": "div",
+  "className": "p-8 space-y-8",
+  "children": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "children": [
+        {
+          "type": "text",
+          "className": "text-4xl font-bold",
+          "content": "Kanban Board Demo"
+        },
+        {
+          "type": "text",
+          "className": "text-muted-foreground text-lg",
+          "content": "Lazy-loaded drag-and-drop kanban board powered by @dnd-kit"
+        }
+      ]
+    },
+    {
+      "type": "div",
+      "className": "space-y-6",
+      "children": [
+        {
+          "type": "div",
+          "className": "space-y-4",
+          "children": [
+            {
+              "type": "text",
+              "className": "text-2xl font-semibold",
+              "content": "📋 Project Management Board"
+            },
+            {
+              "type": "kanban",
+              "className": "border rounded-lg bg-card",
+              "columns": [
+                {
+                  "id": "backlog",
+                  "title": "📝 Backlog",
+                  "cards": [
+                    {
+                      "id": "task-1",
+                      "title": "User Authentication",
+                      "description": "Implement OAuth 2.0 login flow",
+                      "badges": [
+                        {"label": "Feature", "variant": "default"},
+                        {"label": "High Priority", "variant": "destructive"}
+                      ]
+                    },
+                    {
+                      "id": "task-2",
+                      "title": "API Documentation",
+                      "description": "Write comprehensive API docs",
+                      "badges": [
+                        {"label": "Documentation", "variant": "secondary"}
+                      ]
+                    },
+                    {
+                      "id": "task-3",
+                      "title": "Performance Optimization",
+                      "description": "Optimize bundle size and lazy loading",
+                      "badges": [
+                        {"label": "Enhancement", "variant": "default"}
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "todo",
+                  "title": "📌 To Do",
+                  "cards": [
+                    {
+                      "id": "task-4",
+                      "title": "Design System Updates",
+                      "description": "Update color palette and typography",
+                      "badges": [
+                        {"label": "Design", "variant": "default"}
+                      ]
+                    },
+                    {
+                      "id": "task-5",
+                      "title": "Unit Tests",
+                      "description": "Add tests for new plugin components",
+                      "badges": [
+                        {"label": "Testing", "variant": "secondary"}
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "in-progress",
+                  "title": "🚀 In Progress",
+                  "limit": 3,
+                  "cards": [
+                    {
+                      "id": "task-6",
+                      "title": "Plugin Architecture",
+                      "description": "Implement lazy-loaded plugin system",
+                      "badges": [
+                        {"label": "In Progress", "variant": "default"},
+                        {"label": "Critical", "variant": "destructive"}
+                      ]
+                    },
+                    {
+                      "id": "task-7",
+                      "title": "Component Library",
+                      "description": "Build reusable UI components",
+                      "badges": [
+                        {"label": "Development", "variant": "default"}
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "review",
+                  "title": "👀 Review",
+                  "cards": [
+                    {
+                      "id": "task-8",
+                      "title": "Code Review PR #42",
+                      "description": "Review plugin-markdown implementation",
+                      "badges": [
+                        {"label": "Review", "variant": "secondary"}
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "done",
+                  "title": "✅ Done",
+                  "cards": [
+                    {
+                      "id": "task-9",
+                      "title": "Create Plugin Packages",
+                      "description": "Set up plugin-charts, plugin-editor, plugin-markdown, plugin-kanban",
+                      "badges": [
+                        {"label": "Completed", "variant": "outline"}
+                      ]
+                    },
+                    {
+                      "id": "task-10",
+                      "title": "Documentation Site",
+                      "description": "Launch docs.objectui.org",
+                      "badges": [
+                        {"label": "Completed", "variant": "outline"}
+                      ]
+                    },
+                    {
+                      "id": "task-11",
+                      "title": "Initial Release",
+                      "description": "Publish v0.1.0 to npm",
+                      "badges": [
+                        {"label": "Completed", "variant": "outline"},
+                        {"label": "Milestone", "variant": "default"}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "div",
+          "className": "border rounded-lg p-6 bg-muted/50",
+          "children": [
+            {
+              "type": "text",
+              "className": "text-lg font-semibold mb-2",
+              "content": "🎯 Features"
+            },
+            {
+              "type": "div",
+              "className": "grid grid-cols-2 gap-4",
+              "children": [
+                {
+                  "type": "div",
+                  "children": [
+                    {
+                      "type": "text",
+                      "className": "font-medium",
+                      "content": "✨ Drag and Drop"
+                    },
+                    {
+                      "type": "text",
+                      "className": "text-sm text-muted-foreground",
+                      "content": "Move cards between columns"
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "children": [
+                    {
+                      "type": "text",
+                      "className": "font-medium",
+                      "content": "🎨 Customizable"
+                    },
+                    {
+                      "type": "text",
+                      "className": "text-sm text-muted-foreground",
+                      "content": "Full Tailwind styling support"
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "children": [
+                    {
+                      "type": "text",
+                      "className": "font-medium",
+                      "content": "📦 Lazy Loaded"
+                    },
+                    {
+                      "type": "text",
+                      "className": "text-sm text-muted-foreground",
+                      "content": "Only loads when rendered"
+                    }
+                  ]
+                },
+                {
+                  "type": "div",
+                  "children": [
+                    {
+                      "type": "text",
+                      "className": "font-medium",
+                      "content": "♿ Accessible"
+                    },
+                    {
+                      "type": "text",
+                      "className": "text-sm text-muted-foreground",
+                      "content": "Keyboard navigation support"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

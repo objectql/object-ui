@@ -1,0 +1,99 @@
+{
+  "type": "div",
+  "className": "min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-6 md:p-8",
+  "body": [
+    {
+      "type": "div",
+      "className": "max-w-2xl mx-auto space-y-8",
+      "body": [
+        {
+          "type": "div",
+          "className": "space-y-3 text-center",
+          "body": [
+            {
+              "type": "text",
+              "content": "✨ User Registration Form",
+              "className": "text-4xl font-extrabold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent"
+            },
+            {
+              "type": "text",
+              "content": "A comprehensive form demonstrating various input types with modern styling",
+              "className": "text-gray-600 font-medium text-lg"
+            }
+          ]
+        },
+        {
+          "type": "card",
+          "className": "shadow-2xl border-0 bg-white/80 backdrop-blur-lg rounded-2xl overflow-hidden",
+          "body": {
+            "type": "div",
+            "className": "p-8 space-y-8",
+            "body": [
+              {
+                "type": "div",
+                "className": "grid gap-6 md:grid-cols-2",
+                "body": [
+                  {
+                    "type": "input",
+                    "label": "First Name",
+                    "id": "firstName",
+                    "required": true,
+                    "placeholder": "John",
+                    "className": "transition-all focus:ring-2 focus:ring-indigo-500"
+                  },
+                  {
+                    "type": "input",
+                    "label": "Last Name",
+                    "id": "lastName",
+                    "required": true,
+                    "placeholder": "Doe",
+                    "className": "transition-all focus:ring-2 focus:ring-indigo-500"
+                  }
+                ]
+              },
+              {
+                "type": "input",
+                "label": "📧 Email Address",
+                "id": "email",
+                "inputType": "email",
+                "required": true,
+                "placeholder": "john.doe@example.com",
+                "className": "transition-all focus:ring-2 focus:ring-purple-500"
+              },
+              {
+                "type": "input",
+                "label": "🔒 Password",
+                "id": "password",
+                "inputType": "password",
+                "required": true,
+                "placeholder": "••••••••",
+                "className": "transition-all focus:ring-2 focus:ring-pink-500"
+              },
+              {
+                "type": "separator",
+                "className": "my-6"
+              },
+              {
+                "type": "div",
+                "className": "flex items-center justify-end gap-3",
+                "body": [
+                  {
+                    "type": "button",
+                    "label": "Cancel",
+                    "variant": "outline",
+                    "className": "px-6 py-2.5 hover:bg-gray-100 transition-colors"
+                  },
+                  {
+                    "type": "button",
+                    "label": "✓ Create Account",
+                    "className": "px-6 py-2.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

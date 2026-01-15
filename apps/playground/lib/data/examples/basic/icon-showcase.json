@@ -1,0 +1,294 @@
+{
+  "type": "div",
+  "className": "space-y-6 max-w-4xl",
+  "body": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "body": [
+        {
+          "type": "text",
+          "content": "Icon Component Showcase",
+          "className": "text-3xl font-bold"
+        },
+        {
+          "type": "text",
+          "content": "Icons from Lucide React with various sizes and colors",
+          "className": "text-muted-foreground"
+        }
+      ]
+    },
+    {
+      "type": "card",
+      "className": "p-6",
+      "body": {
+        "type": "div",
+        "className": "space-y-6",
+        "body": [
+          {
+            "type": "div",
+            "className": "space-y-3",
+            "body": [
+              {
+                "type": "text",
+                "content": "Different Sizes",
+                "className": "text-sm font-semibold text-muted-foreground uppercase"
+              },
+              {
+                "type": "flex",
+                "direction": "row",
+                "gap": 4,
+                "align": "center",
+                "children": [
+                  {
+                    "type": "icon",
+                    "name": "Heart",
+                    "className": "w-4 h-4 text-red-500"
+                  },
+                  {
+                    "type": "icon",
+                    "name": "Heart",
+                    "className": "w-6 h-6 text-red-500"
+                  },
+                  {
+                    "type": "icon",
+                    "name": "Heart",
+                    "className": "w-8 h-8 text-red-500"
+                  },
+                  {
+                    "type": "icon",
+                    "name": "Heart",
+                    "className": "w-12 h-12 text-red-500"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-3",
+            "body": [
+              {
+                "type": "text",
+                "content": "Common Icons",
+                "className": "text-sm font-semibold text-muted-foreground uppercase"
+              },
+              {
+                "type": "grid",
+                "columns": 4,
+                "gap": 4,
+                "children": [
+                  {
+                    "type": "div",
+                    "className": "flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-slate-50 transition-colors",
+                    "body": [
+                      {
+                        "type": "icon",
+                        "name": "Home",
+                        "className": "w-8 h-8 text-blue-600"
+                      },
+                      {
+                        "type": "text",
+                        "content": "Home",
+                        "className": "text-xs text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-slate-50 transition-colors",
+                    "body": [
+                      {
+                        "type": "icon",
+                        "name": "User",
+                        "className": "w-8 h-8 text-green-600"
+                      },
+                      {
+                        "type": "text",
+                        "content": "User",
+                        "className": "text-xs text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-slate-50 transition-colors",
+                    "body": [
+                      {
+                        "type": "icon",
+                        "name": "Settings",
+                        "className": "w-8 h-8 text-purple-600"
+                      },
+                      {
+                        "type": "text",
+                        "content": "Settings",
+                        "className": "text-xs text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-slate-50 transition-colors",
+                    "body": [
+                      {
+                        "type": "icon",
+                        "name": "Mail",
+                        "className": "w-8 h-8 text-red-600"
+                      },
+                      {
+                        "type": "text",
+                        "content": "Mail",
+                        "className": "text-xs text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-slate-50 transition-colors",
+                    "body": [
+                      {
+                        "type": "icon",
+                        "name": "Bell",
+                        "className": "w-8 h-8 text-yellow-600"
+                      },
+                      {
+                        "type": "text",
+                        "content": "Bell",
+                        "className": "text-xs text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-slate-50 transition-colors",
+                    "body": [
+                      {
+                        "type": "icon",
+                        "name": "Search",
+                        "className": "w-8 h-8 text-indigo-600"
+                      },
+                      {
+                        "type": "text",
+                        "content": "Search",
+                        "className": "text-xs text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-slate-50 transition-colors",
+                    "body": [
+                      {
+                        "type": "icon",
+                        "name": "Calendar",
+                        "className": "w-8 h-8 text-orange-600"
+                      },
+                      {
+                        "type": "text",
+                        "content": "Calendar",
+                        "className": "text-xs text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "flex flex-col items-center gap-2 p-4 border rounded-lg hover:bg-slate-50 transition-colors",
+                    "body": [
+                      {
+                        "type": "icon",
+                        "name": "Download",
+                        "className": "w-8 h-8 text-teal-600"
+                      },
+                      {
+                        "type": "text",
+                        "content": "Download",
+                        "className": "text-xs text-muted-foreground"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-3",
+            "body": [
+              {
+                "type": "text",
+                "content": "Icon with Text",
+                "className": "text-sm font-semibold text-muted-foreground uppercase"
+              },
+              {
+                "type": "div",
+                "className": "space-y-2",
+                "body": [
+                  {
+                    "type": "flex",
+                    "direction": "row",
+                    "gap": 2,
+                    "align": "center",
+                    "children": [
+                      {
+                        "type": "icon",
+                        "name": "CheckCircle",
+                        "className": "w-5 h-5 text-green-600"
+                      },
+                      {
+                        "type": "text",
+                        "content": "Task completed successfully",
+                        "className": "text-sm"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "flex",
+                    "direction": "row",
+                    "gap": 2,
+                    "align": "center",
+                    "children": [
+                      {
+                        "type": "icon",
+                        "name": "AlertCircle",
+                        "className": "w-5 h-5 text-amber-600"
+                      },
+                      {
+                        "type": "text",
+                        "content": "Warning: Please review your input",
+                        "className": "text-sm"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "flex",
+                    "direction": "row",
+                    "gap": 2,
+                    "align": "center",
+                    "children": [
+                      {
+                        "type": "icon",
+                        "name": "XCircle",
+                        "className": "w-5 h-5 text-red-600"
+                      },
+                      {
+                        "type": "text",
+                        "content": "Error: Something went wrong",
+                        "className": "text-sm"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

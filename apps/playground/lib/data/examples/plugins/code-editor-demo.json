@@ -1,0 +1,52 @@
+{
+  "type": "div",
+  "className": "p-8 space-y-6",
+  "children": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "children": [
+        {
+          "type": "text",
+          "className": "text-3xl font-bold",
+          "content": "Code Editor Plugin Demo"
+        },
+        {
+          "type": "text",
+          "className": "text-muted-foreground",
+          "content": "This example demonstrates lazy-loaded Monaco Editor component"
+        }
+      ]
+    },
+    {
+      "type": "code-editor",
+      "className": "border rounded-lg overflow-hidden",
+      "value": "// Welcome to the Object UI Code Editor!\n// This component is lazy-loaded using React.lazy()\n// Monaco Editor is only downloaded when you see this component\n\nfunction fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nconsole.log('Fibonacci sequence:');\nfor (let i = 0; i < 10; i++) {\n  console.log(`F(${i}) = ${fibonacci(i)}`);\n}",
+      "language": "javascript",
+      "theme": "vs-dark",
+      "height": "400px"
+    },
+    {
+      "type": "div",
+      "className": "grid grid-cols-2 gap-4",
+      "children": [
+        {
+          "type": "code-editor",
+          "className": "border rounded-lg overflow-hidden",
+          "value": "# Python Example\ndef hello_world():\n    print('Hello from Python!')\n    \nhello_world()",
+          "language": "python",
+          "theme": "vs-dark",
+          "height": "200px"
+        },
+        {
+          "type": "code-editor",
+          "className": "border rounded-lg overflow-hidden",
+          "value": "{\n  \"name\": \"object-ui\",\n  \"version\": \"0.1.0\",\n  \"description\": \"Schema-driven UI\"\n}",
+          "language": "json",
+          "theme": "light",
+          "height": "200px"
+        }
+      ]
+    }
+  ]
+}

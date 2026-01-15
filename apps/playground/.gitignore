@@ -7,7 +7,15 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+
+# Next.js
+/.next/
+/out/
+.next
+
+# Build outputs
 dist
 dist-ssr
 *.local
@@ -22,3 +30,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+

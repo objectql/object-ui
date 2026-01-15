@@ -1,0 +1,79 @@
+{
+  "type": "div",
+  "className": "space-y-6 max-w-2xl",
+  "body": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "body": [
+        {
+          "type": "text",
+          "content": "Button Variants",
+          "className": "text-2xl font-bold"
+        },
+        {
+          "type": "text",
+          "content": "Different button styles using Shadcn variants",
+          "className": "text-muted-foreground"
+        }
+      ]
+    },
+    {
+      "type": "div",
+      "className": "space-y-4",
+      "body": [
+        {
+          "type": "div",
+          "className": "flex flex-wrap gap-2",
+          "body": [
+            {
+              "type": "button",
+              "label": "Default"
+            },
+            {
+              "type": "button",
+              "label": "Destructive",
+              "variant": "destructive"
+            },
+            {
+              "type": "button",
+              "label": "Outline",
+              "variant": "outline"
+            },
+            {
+              "type": "button",
+              "label": "Secondary",
+              "variant": "secondary"
+            },
+            {
+              "type": "button",
+              "label": "Ghost",
+              "variant": "ghost"
+            },
+            {
+              "type": "button",
+              "label": "Link",
+              "variant": "link"
+            }
+          ]
+        },
+        {
+          "type": "div",
+          "className": "space-y-2",
+          "body": [
+            {
+              "type": "text",
+              "content": "Tailwind Native: Custom Styling",
+              "className": "text-sm font-semibold"
+            },
+            {
+              "type": "button",
+              "label": "Purple Custom Button",
+              "className": "bg-purple-500 hover:bg-purple-700 text-white"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

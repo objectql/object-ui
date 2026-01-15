@@ -1,0 +1,542 @@
+{
+  "type": "div",
+  "className": "min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 p-6",
+  "body": [
+    {
+      "type": "div",
+      "className": "max-w-7xl mx-auto space-y-6",
+      "body": [
+        {
+          "type": "div",
+          "className": "flex justify-between items-center",
+          "body": [
+            {
+              "type": "div",
+              "className": "space-y-1",
+              "body": [
+                {
+                  "type": "text",
+                  "content": "E-Commerce Dashboard",
+                  "className": "text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent"
+                },
+                {
+                  "type": "text",
+                  "content": "Monitor your store performance in real-time",
+                  "className": "text-gray-600"
+                }
+              ]
+            },
+            {
+              "type": "flex",
+              "direction": "row",
+              "gap": 2,
+              "children": [
+                {
+                  "type": "button",
+                  "label": "Download Report",
+                  "variant": "outline",
+                  "className": "border-purple-200"
+                },
+                {
+                  "type": "button",
+                  "label": "View Details",
+                  "className": "bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "columns": 3,
+          "gap": 6,
+          "children": [
+            {
+              "type": "card",
+              "className": "bg-gradient-to-br from-blue-500 to-blue-600 p-6 text-white shadow-lg hover:shadow-xl transition-shadow",
+              "body": {
+                "type": "div",
+                "className": "space-y-3",
+                "body": [
+                  {
+                    "type": "flex",
+                    "direction": "row",
+                    "justify": "between",
+                    "align": "center",
+                    "children": [
+                      {
+                        "type": "text",
+                        "content": "Total Sales",
+                        "className": "text-sm font-medium text-blue-100"
+                      },
+                      {
+                        "type": "icon",
+                        "name": "TrendingUp",
+                        "className": "w-5 h-5 text-blue-100"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "content": "$124,563",
+                    "className": "text-4xl font-bold"
+                  },
+                  {
+                    "type": "text",
+                    "content": "+25% from last week",
+                    "className": "text-sm text-blue-100"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "className": "bg-gradient-to-br from-green-500 to-emerald-600 p-6 text-white shadow-lg hover:shadow-xl transition-shadow",
+              "body": {
+                "type": "div",
+                "className": "space-y-3",
+                "body": [
+                  {
+                    "type": "flex",
+                    "direction": "row",
+                    "justify": "between",
+                    "align": "center",
+                    "children": [
+                      {
+                        "type": "text",
+                        "content": "New Customers",
+                        "className": "text-sm font-medium text-green-100"
+                      },
+                      {
+                        "type": "icon",
+                        "name": "UserPlus",
+                        "className": "w-5 h-5 text-green-100"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "content": "1,429",
+                    "className": "text-4xl font-bold"
+                  },
+                  {
+                    "type": "text",
+                    "content": "+18% from last week",
+                    "className": "text-sm text-green-100"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "className": "bg-gradient-to-br from-orange-500 to-red-600 p-6 text-white shadow-lg hover:shadow-xl transition-shadow",
+              "body": {
+                "type": "div",
+                "className": "space-y-3",
+                "body": [
+                  {
+                    "type": "flex",
+                    "direction": "row",
+                    "justify": "between",
+                    "align": "center",
+                    "children": [
+                      {
+                        "type": "text",
+                        "content": "Pending Orders",
+                        "className": "text-sm font-medium text-orange-100"
+                      },
+                      {
+                        "type": "icon",
+                        "name": "Clock",
+                        "className": "w-5 h-5 text-orange-100"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "content": "89",
+                    "className": "text-4xl font-bold"
+                  },
+                  {
+                    "type": "text",
+                    "content": "Requires attention",
+                    "className": "text-sm text-orange-100"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "columns": 2,
+          "gap": 6,
+          "children": [
+            {
+              "type": "card",
+              "className": "bg-white p-6 shadow-lg rounded-xl",
+              "body": {
+                "type": "div",
+                "className": "space-y-4",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "Best Selling Products",
+                    "className": "text-xl font-bold text-gray-900"
+                  },
+                  {
+                    "type": "div",
+                    "className": "space-y-4",
+                    "body": [
+                      {
+                        "type": "flex",
+                        "direction": "row",
+                        "justify": "between",
+                        "align": "center",
+                        "children": [
+                          {
+                            "type": "flex",
+                            "direction": "row",
+                            "gap": 3,
+                            "align": "center",
+                            "children": [
+                              {
+                                "type": "div",
+                                "className": "w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg"
+                              },
+                              {
+                                "type": "div",
+                                "className": "space-y-1",
+                                "body": [
+                                  {
+                                    "type": "text",
+                                    "content": "Wireless Headphones",
+                                    "className": "font-medium text-gray-900"
+                                  },
+                                  {
+                                    "type": "text",
+                                    "content": "2,549 sold",
+                                    "className": "text-sm text-gray-500"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "type": "badge",
+                            "text": "$89.99",
+                            "className": "bg-purple-100 text-purple-700 font-semibold"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "separator"
+                      },
+                      {
+                        "type": "flex",
+                        "direction": "row",
+                        "justify": "between",
+                        "align": "center",
+                        "children": [
+                          {
+                            "type": "flex",
+                            "direction": "row",
+                            "gap": 3,
+                            "align": "center",
+                            "children": [
+                              {
+                                "type": "div",
+                                "className": "w-12 h-12 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-lg"
+                              },
+                              {
+                                "type": "div",
+                                "className": "space-y-1",
+                                "body": [
+                                  {
+                                    "type": "text",
+                                    "content": "Smart Watch Pro",
+                                    "className": "font-medium text-gray-900"
+                                  },
+                                  {
+                                    "type": "text",
+                                    "content": "1,834 sold",
+                                    "className": "text-sm text-gray-500"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "type": "badge",
+                            "text": "$299.99",
+                            "className": "bg-blue-100 text-blue-700 font-semibold"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "separator"
+                      },
+                      {
+                        "type": "flex",
+                        "direction": "row",
+                        "justify": "between",
+                        "align": "center",
+                        "children": [
+                          {
+                            "type": "flex",
+                            "direction": "row",
+                            "gap": 3,
+                            "align": "center",
+                            "children": [
+                              {
+                                "type": "div",
+                                "className": "w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-400 rounded-lg"
+                              },
+                              {
+                                "type": "div",
+                                "className": "space-y-1",
+                                "body": [
+                                  {
+                                    "type": "text",
+                                    "content": "USB-C Hub",
+                                    "className": "font-medium text-gray-900"
+                                  },
+                                  {
+                                    "type": "text",
+                                    "content": "1,203 sold",
+                                    "className": "text-sm text-gray-500"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "type": "badge",
+                            "text": "$45.99",
+                            "className": "bg-green-100 text-green-700 font-semibold"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "className": "bg-white p-6 shadow-lg rounded-xl",
+              "body": {
+                "type": "div",
+                "className": "space-y-4",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "Sales by Category",
+                    "className": "text-xl font-bold text-gray-900"
+                  },
+                  {
+                    "type": "div",
+                    "className": "space-y-3",
+                    "body": [
+                      {
+                        "type": "div",
+                        "className": "space-y-2",
+                        "body": [
+                          {
+                            "type": "flex",
+                            "direction": "row",
+                            "justify": "between",
+                            "children": [
+                              {
+                                "type": "text",
+                                "content": "Electronics",
+                                "className": "text-sm font-medium text-gray-700"
+                              },
+                              {
+                                "type": "text",
+                                "content": "45%",
+                                "className": "text-sm font-semibold text-purple-600"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "div",
+                            "className": "w-full bg-gray-200 rounded-full h-2.5",
+                            "body": [
+                              {
+                                "type": "div",
+                                "className": "bg-gradient-to-r from-purple-500 to-pink-500 h-2.5 rounded-full",
+                                "style": "width: 45%"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "className": "space-y-2",
+                        "body": [
+                          {
+                            "type": "flex",
+                            "direction": "row",
+                            "justify": "between",
+                            "children": [
+                              {
+                                "type": "text",
+                                "content": "Accessories",
+                                "className": "text-sm font-medium text-gray-700"
+                              },
+                              {
+                                "type": "text",
+                                "content": "30%",
+                                "className": "text-sm font-semibold text-blue-600"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "div",
+                            "className": "w-full bg-gray-200 rounded-full h-2.5",
+                            "body": [
+                              {
+                                "type": "div",
+                                "className": "bg-gradient-to-r from-blue-500 to-cyan-500 h-2.5 rounded-full",
+                                "style": "width: 30%"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "className": "space-y-2",
+                        "body": [
+                          {
+                            "type": "flex",
+                            "direction": "row",
+                            "justify": "between",
+                            "children": [
+                              {
+                                "type": "text",
+                                "content": "Home & Living",
+                                "className": "text-sm font-medium text-gray-700"
+                              },
+                              {
+                                "type": "text",
+                                "content": "15%",
+                                "className": "text-sm font-semibold text-green-600"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "div",
+                            "className": "w-full bg-gray-200 rounded-full h-2.5",
+                            "body": [
+                              {
+                                "type": "div",
+                                "className": "bg-gradient-to-r from-green-500 to-emerald-500 h-2.5 rounded-full",
+                                "style": "width: 15%"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "className": "space-y-2",
+                        "body": [
+                          {
+                            "type": "flex",
+                            "direction": "row",
+                            "justify": "between",
+                            "children": [
+                              {
+                                "type": "text",
+                                "content": "Others",
+                                "className": "text-sm font-medium text-gray-700"
+                              },
+                              {
+                                "type": "text",
+                                "content": "10%",
+                                "className": "text-sm font-semibold text-orange-600"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "div",
+                            "className": "w-full bg-gray-200 rounded-full h-2.5",
+                            "body": [
+                              {
+                                "type": "div",
+                                "className": "bg-gradient-to-r from-orange-500 to-red-500 h-2.5 rounded-full",
+                                "style": "width: 10%"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "card",
+          "className": "bg-white p-6 shadow-lg rounded-xl",
+          "body": {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Recent Orders",
+                "className": "text-xl font-bold text-gray-900"
+              },
+              {
+                "type": "table",
+                "columns": [
+                  {"key": "order", "header": "Order ID"},
+                  {"key": "customer", "header": "Customer"},
+                  {"key": "product", "header": "Product"},
+                  {"key": "amount", "header": "Amount"},
+                  {"key": "status", "header": "Status"}
+                ],
+                "data": [
+                  {
+                    "order": "#ORD-12345",
+                    "customer": "John Smith",
+                    "product": "Wireless Headphones",
+                    "amount": "$89.99",
+                    "status": "✓ Delivered"
+                  },
+                  {
+                    "order": "#ORD-12344",
+                    "customer": "Sarah Johnson",
+                    "product": "Smart Watch Pro",
+                    "amount": "$299.99",
+                    "status": "🚚 In Transit"
+                  },
+                  {
+                    "order": "#ORD-12343",
+                    "customer": "Mike Davis",
+                    "product": "USB-C Hub",
+                    "amount": "$45.99",
+                    "status": "📦 Processing"
+                  },
+                  {
+                    "order": "#ORD-12342",
+                    "customer": "Emily Chen",
+                    "product": "Mechanical Keyboard",
+                    "amount": "$149.99",
+                    "status": "✓ Delivered"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

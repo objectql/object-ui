@@ -1,0 +1,187 @@
+{
+  "type": "div",
+  "className": "space-y-6 max-w-4xl",
+  "body": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "body": [
+        {
+          "type": "text",
+          "content": "Toggle Components",
+          "className": "text-3xl font-bold"
+        },
+        {
+          "type": "text",
+          "content": "Toggle buttons for multiple choice selection",
+          "className": "text-muted-foreground"
+        }
+      ]
+    },
+    {
+      "type": "card",
+      "className": "p-6",
+      "body": {
+        "type": "div",
+        "className": "space-y-6",
+        "body": [
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Single Toggle",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "toggle",
+                "label": "Bold",
+                "id": "toggle-bold"
+              },
+              {
+                "type": "toggle",
+                "label": "Italic",
+                "id": "toggle-italic"
+              },
+              {
+                "type": "toggle",
+                "label": "Underline",
+                "id": "toggle-underline"
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Toggle with Icons",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "text",
+                "content": "Toggles can include icons for better visual communication",
+                "className": "text-sm text-muted-foreground"
+              },
+              {
+                "type": "flex",
+                "direction": "row",
+                "gap": 2,
+                "children": [
+                  {
+                    "type": "toggle",
+                    "label": "🔔",
+                    "id": "notifications"
+                  },
+                  {
+                    "type": "toggle",
+                    "label": "🔒",
+                    "id": "private"
+                  },
+                  {
+                    "type": "toggle",
+                    "label": "⭐",
+                    "id": "favorite"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Text Formatting",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "flex",
+                "direction": "row",
+                "gap": 2,
+                "className": "flex-wrap",
+                "children": [
+                  {
+                    "type": "toggle",
+                    "label": "B",
+                    "id": "fmt-bold",
+                    "className": "font-bold"
+                  },
+                  {
+                    "type": "toggle",
+                    "label": "I",
+                    "id": "fmt-italic",
+                    "className": "italic"
+                  },
+                  {
+                    "type": "toggle",
+                    "label": "U",
+                    "id": "fmt-underline",
+                    "className": "underline"
+                  },
+                  {
+                    "type": "toggle",
+                    "label": "S",
+                    "id": "fmt-strike",
+                    "className": "line-through"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "card",
+      "className": "p-6",
+      "body": {
+        "type": "div",
+        "className": "space-y-4",
+        "body": [
+          {
+            "type": "text",
+            "content": "View Mode Toggle",
+            "className": "text-lg font-semibold"
+          },
+          {
+            "type": "text",
+            "content": "Switch between different view modes",
+            "className": "text-sm text-muted-foreground"
+          },
+          {
+            "type": "flex",
+            "direction": "row",
+            "gap": 2,
+            "children": [
+              {
+                "type": "toggle",
+                "label": "List",
+                "id": "view-list"
+              },
+              {
+                "type": "toggle",
+                "label": "Grid",
+                "id": "view-grid"
+              },
+              {
+                "type": "toggle",
+                "label": "Card",
+                "id": "view-card"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,234 @@
+{
+  "type": "div",
+  "className": "space-y-6 max-w-4xl",
+  "body": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "body": [
+        {
+          "type": "text",
+          "content": "Form Controls",
+          "className": "text-3xl font-bold"
+        },
+        {
+          "type": "text",
+          "content": "Comprehensive showcase of all form input components",
+          "className": "text-muted-foreground"
+        }
+      ]
+    },
+    {
+      "type": "card",
+      "className": "p-6",
+      "body": {
+        "type": "div",
+        "className": "space-y-6",
+        "body": [
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Checkboxes",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "div",
+                "className": "space-y-3",
+                "body": [
+                  {
+                    "type": "checkbox",
+                    "id": "terms",
+                    "label": "Accept terms and conditions"
+                  },
+                  {
+                    "type": "checkbox",
+                    "id": "marketing",
+                    "label": "Receive marketing emails"
+                  },
+                  {
+                    "type": "checkbox",
+                    "id": "newsletter",
+                    "label": "Subscribe to newsletter",
+                    "checked": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Radio Buttons",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "radio-group",
+                "name": "plan",
+                "label": "Select your plan",
+                "options": [
+                  {
+                    "value": "free",
+                    "label": "Free - $0/month"
+                  },
+                  {
+                    "value": "pro",
+                    "label": "Pro - $9/month"
+                  },
+                  {
+                    "value": "enterprise",
+                    "label": "Enterprise - Custom pricing"
+                  }
+                ],
+                "defaultValue": "pro"
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Switch Toggle",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "div",
+                "className": "space-y-3",
+                "body": [
+                  {
+                    "type": "switch",
+                    "id": "notifications",
+                    "label": "Enable notifications"
+                  },
+                  {
+                    "type": "switch",
+                    "id": "darkmode",
+                    "label": "Dark mode",
+                    "checked": true
+                  },
+                  {
+                    "type": "switch",
+                    "id": "auto-save",
+                    "label": "Auto-save changes"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Slider",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "slider",
+                "label": "Volume",
+                "id": "volume",
+                "min": 0,
+                "max": 100,
+                "step": 1,
+                "defaultValue": 50
+              },
+              {
+                "type": "slider",
+                "label": "Brightness",
+                "id": "brightness",
+                "min": 0,
+                "max": 100,
+                "step": 5,
+                "defaultValue": 75
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Select Dropdown",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "select",
+                "label": "Country",
+                "id": "country",
+                "placeholder": "Select a country",
+                "options": [
+                  {
+                    "value": "us",
+                    "label": "United States"
+                  },
+                  {
+                    "value": "uk",
+                    "label": "United Kingdom"
+                  },
+                  {
+                    "value": "ca",
+                    "label": "Canada"
+                  },
+                  {
+                    "value": "au",
+                    "label": "Australia"
+                  }
+                ]
+              },
+              {
+                "type": "select",
+                "label": "Language",
+                "id": "language",
+                "placeholder": "Select a language",
+                "defaultValue": "en",
+                "options": [
+                  {
+                    "value": "en",
+                    "label": "English"
+                  },
+                  {
+                    "value": "es",
+                    "label": "Spanish"
+                  },
+                  {
+                    "value": "fr",
+                    "label": "French"
+                  },
+                  {
+                    "value": "de",
+                    "label": "German"
+                  },
+                  {
+                    "value": "zh",
+                    "label": "Chinese"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

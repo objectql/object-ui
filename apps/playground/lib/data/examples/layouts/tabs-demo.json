@@ -1,0 +1,97 @@
+{
+  "type": "div",
+  "className": "space-y-6",
+  "body": [
+    {
+      "type": "text",
+      "content": "Tabs Component",
+      "className": "text-2xl font-bold"
+    },
+    {
+      "type": "tabs",
+      "defaultValue": "account",
+      "className": "w-full",
+      "items": [
+        {
+          "value": "account",
+          "label": "Account",
+          "body": {
+            "type": "card",
+            "title": "Account Settings",
+            "description": "Make changes to your account here.",
+            "body": {
+              "type": "div",
+              "className": "p-6 pt-0 space-y-4",
+              "body": [
+                {
+                  "type": "input",
+                  "label": "Name",
+                  "id": "name",
+                  "value": "Pedro Duarte"
+                },
+                {
+                  "type": "input",
+                  "label": "Username",
+                  "id": "username",
+                  "value": "@peduarte"
+                },
+                {
+                  "type": "button",
+                  "label": "Save changes"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "value": "password",
+          "label": "Password",
+          "body": {
+            "type": "card",
+            "title": "Password",
+            "description": "Change your password here.",
+            "body": {
+              "type": "div",
+              "className": "p-6 pt-0 space-y-4",
+              "body": [
+                {
+                  "type": "input",
+                  "label": "Current password",
+                  "id": "current",
+                  "inputType": "password"
+                },
+                {
+                  "type": "input",
+                  "label": "New password",
+                  "id": "new",
+                  "inputType": "password"
+                },
+                {
+                  "type": "button",
+                  "label": "Update password"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "value": "notifications",
+          "label": "Notifications",
+          "body": {
+            "type": "card",
+            "title": "Notifications",
+            "description": "Configure how you receive notifications.",
+            "body": {
+              "type": "div",
+              "className": "p-6 pt-0",
+              "body": {
+                "type": "text",
+                "content": "Notification settings will be displayed here."
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

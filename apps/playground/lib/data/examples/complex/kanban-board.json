@@ -1,0 +1,88 @@
+{
+  "type": "div",
+  "className": "min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-6 md:p-8",
+  "body": [
+    {
+      "type": "div",
+      "className": "space-y-6",
+      "body": [
+        {
+          "type": "div",
+          "className": "space-y-3 backdrop-blur-sm bg-white/40 p-6 rounded-2xl border border-white/60 shadow-xl",
+          "body": [
+            {
+              "type": "text",
+              "content": "📋 Kanban Board",
+              "className": "text-4xl font-black bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent"
+            },
+            {
+              "type": "text",
+              "content": "Drag and drop kanban board for project management - similar to Trello",
+              "className": "text-gray-600 font-medium text-lg"
+            }
+          ]
+        },
+        {
+          "type": "kanban",
+          "className": "h-[600px]",
+          "columns": [
+            { "id": "todo", "title": "📝 To Do", "color": "bg-gradient-to-br from-slate-50 to-gray-100" },
+            { "id": "in-progress", "title": "⚡ In Progress", "color": "bg-gradient-to-br from-blue-50 to-cyan-100" },
+            { "id": "review", "title": "👀 Review", "color": "bg-gradient-to-br from-orange-50 to-amber-100" },
+            { "id": "done", "title": "✅ Done", "color": "bg-gradient-to-br from-green-50 to-emerald-100" }
+          ],
+          "data": [
+            { 
+              "id": 1, 
+              "title": "🔍 Research Competitors", 
+              "description": "Analyze top 3 competitors features and pricing",
+              "status": "todo",
+              "priority": "high",
+              "assignee": "John Doe"
+            },
+            { 
+              "id": 2, 
+              "title": "🎨 Design System Draft", 
+              "description": "Create initial tokens and core components",
+              "status": "in-progress",
+              "priority": "critical",
+              "assignee": "Jane Smith"
+            },
+            { 
+              "id": 3, 
+              "title": "🚀 Setup CI/CD Pipeline", 
+              "description": "Configure GitHub Actions for automated testing",
+              "status": "review",
+              "priority": "medium",
+              "assignee": "Bob Johnson"
+            },
+            { 
+              "id": 4, 
+              "title": "💬 User Interview Script", 
+              "description": "Prepare questions for user research phase",
+              "status": "todo",
+              "priority": "low",
+              "assignee": "Alice Williams"
+            },
+            { 
+              "id": 5, 
+              "title": "🗄️ Database Schema", 
+              "description": "Finalize database relationships and indexing strategy",
+              "status": "done",
+              "priority": "critical",
+              "assignee": "Charlie Brown"
+            },
+            { 
+              "id": 6, 
+              "title": "📚 API Documentation", 
+              "description": "Document all endpoints using OpenAPI spec",
+              "status": "in-progress",
+              "priority": "high",
+              "assignee": "Diana Prince"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

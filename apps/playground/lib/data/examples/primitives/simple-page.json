@@ -1,0 +1,31 @@
+{
+  "type": "div",
+  "className": "space-y-4",
+  "body": [
+    {
+      "type": "text",
+      "content": "Welcome to Object UI",
+      "className": "text-3xl font-bold"
+    },
+    {
+      "type": "text",
+      "content": "The Universal, Schema-Driven Rendering Engine",
+      "className": "text-xl text-muted-foreground"
+    },
+    {
+      "type": "div",
+      "className": "flex gap-2 mt-4",
+      "body": [
+        {
+          "type": "button",
+          "label": "Get Started"
+        },
+        {
+          "type": "button",
+          "label": "Learn More",
+          "variant": "outline"
+        }
+      ]
+    }
+  ]
+}

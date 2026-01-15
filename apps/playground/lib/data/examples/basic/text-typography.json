@@ -1,0 +1,177 @@
+{
+  "type": "div",
+  "className": "min-h-screen bg-gradient-to-br from-gray-50 via-slate-50 to-zinc-100 p-6 md:p-8",
+  "body": [
+    {
+      "type": "div",
+      "className": "max-w-4xl mx-auto space-y-8",
+      "body": [
+        {
+          "type": "div",
+          "className": "space-y-3 backdrop-blur-sm bg-white/40 p-6 rounded-2xl border border-white/60 shadow-xl",
+          "body": [
+            {
+              "type": "text",
+              "content": "🎨 Typography Showcase",
+              "className": "text-4xl font-black bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent"
+            },
+            {
+              "type": "text",
+              "content": "Demonstrating text components with various styles using Tailwind CSS classes",
+              "className": "text-gray-600 font-medium text-lg"
+            }
+          ]
+        },
+        {
+          "type": "card",
+          "className": "p-8 shadow-2xl border-0 bg-white/90 backdrop-blur-lg rounded-2xl",
+          "body": {
+            "type": "div",
+            "className": "space-y-10",
+            "body": [
+              {
+                "type": "div",
+                "className": "space-y-6 p-6 bg-gradient-to-br from-slate-50 to-gray-100 rounded-xl",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "HEADINGS",
+                    "className": "text-xs font-black text-gray-500 uppercase tracking-widest"
+                  },
+                  {
+                    "type": "text",
+                    "content": "Heading 1 - Extra Large",
+                    "className": "text-5xl font-extrabold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent"
+                  },
+                  {
+                    "type": "text",
+                    "content": "Heading 2 - Large",
+                    "className": "text-4xl font-bold text-gray-800"
+                  },
+                  {
+                    "type": "text",
+                    "content": "Heading 3 - Medium",
+                    "className": "text-3xl font-semibold text-gray-800"
+                  },
+                  {
+                    "type": "text",
+                    "content": "Heading 4 - Small",
+                    "className": "text-2xl font-medium text-gray-700"
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "className": "space-y-5 p-6 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "BODY TEXT",
+                    "className": "text-xs font-black text-blue-700 uppercase tracking-widest"
+                  },
+                  {
+                    "type": "text",
+                    "content": "This is a regular paragraph with default styling. Perfect for body content and general text. It provides a clean, readable foundation for your content.",
+                    "className": "text-base text-gray-800 leading-relaxed"
+                  },
+                  {
+                    "type": "text",
+                    "content": "This is emphasized text with bold styling for important information that needs to stand out.",
+                    "className": "text-base font-bold text-gray-900"
+                  },
+                  {
+                    "type": "text",
+                    "content": "This is muted text, typically used for secondary information or captions that support the main content.",
+                    "className": "text-sm text-gray-500 italic"
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "className": "space-y-4 p-6 bg-gradient-to-br from-purple-50 to-pink-100 rounded-xl",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "SPECIALIZED STYLES",
+                    "className": "text-xs font-black text-purple-700 uppercase tracking-widest"
+                  },
+                  {
+                    "type": "div",
+                    "className": "space-y-3",
+                    "body": [
+                      {
+                        "type": "div",
+                        "className": "p-4 bg-green-100 border-l-4 border-green-600 rounded-r-lg shadow-md",
+                        "body": [
+                          {
+                            "type": "text",
+                            "content": "✓ Success message in green - Operation completed successfully!",
+                            "className": "text-green-800 font-bold"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "className": "p-4 bg-amber-100 border-l-4 border-amber-600 rounded-r-lg shadow-md",
+                        "body": [
+                          {
+                            "type": "text",
+                            "content": "⚠ Warning message in amber - Please review this action.",
+                            "className": "text-amber-800 font-bold"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "className": "p-4 bg-red-100 border-l-4 border-red-600 rounded-r-lg shadow-md",
+                        "body": [
+                          {
+                            "type": "text",
+                            "content": "✗ Error message in red - An error has occurred.",
+                            "className": "text-red-800 font-bold"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "className": "p-4 bg-blue-100 border-l-4 border-blue-600 rounded-r-lg shadow-md",
+                        "body": [
+                          {
+                            "type": "text",
+                            "content": "ℹ Information message in blue - Here's something you should know.",
+                            "className": "text-blue-800 font-bold"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "div",
+                "className": "space-y-4 p-6 bg-gradient-to-br from-gray-100 to-slate-200 rounded-xl",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "CODE & TECHNICAL",
+                    "className": "text-xs font-black text-gray-700 uppercase tracking-widest"
+                  },
+                  {
+                    "type": "text",
+                    "content": "const greeting = 'Hello, Object UI!';",
+                    "className": "font-mono text-sm bg-gray-900 text-green-400 p-4 rounded-lg shadow-lg border border-gray-700"
+                  },
+                  {
+                    "type": "text",
+                    "content": "API Endpoint: /api/v1/users",
+                    "className": "font-mono text-sm text-indigo-700 bg-indigo-50 px-3 py-2 rounded-md inline-block border border-indigo-200"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

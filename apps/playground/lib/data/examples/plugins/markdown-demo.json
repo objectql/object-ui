@@ -1,0 +1,60 @@
+{
+  "type": "div",
+  "className": "p-8 space-y-8",
+  "children": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "children": [
+        {
+          "type": "text",
+          "className": "text-4xl font-bold",
+          "content": "Markdown Component Demo"
+        },
+        {
+          "type": "text",
+          "className": "text-muted-foreground text-lg",
+          "content": "Lazy-loaded markdown renderer with GitHub Flavored Markdown support"
+        }
+      ]
+    },
+    {
+      "type": "div",
+      "className": "grid gap-6",
+      "children": [
+        {
+          "type": "div",
+          "className": "space-y-4",
+          "children": [
+            {
+              "type": "text",
+              "className": "text-2xl font-semibold",
+              "content": "📝 Documentation Example"
+            },
+            {
+              "type": "markdown",
+              "className": "border rounded-lg p-6 bg-card",
+              "content": "# Getting Started with Object UI\n\nObject UI is a **universal, schema-driven UI engine** built on React + Tailwind + Shadcn.\n\n## Installation\n\n```bash\npnpm add @object-ui/components @object-ui/core @object-ui/react\n```\n\n## Quick Start\n\n1. Install the packages\n2. Import the components\n3. Define your schema\n4. Render with `<SchemaRenderer>`\n\n### Example Schema\n\n```json\n{\n  \"type\": \"div\",\n  \"className\": \"p-4\",\n  \"children\": [\n    {\n      \"type\": \"text\",\n      \"content\": \"Hello World\"\n    }\n  ]\n}\n```\n\n## Features\n\n- ✅ **Tailwind Native** - Full control over styling\n- ✅ **Type Safe** - TypeScript support out of the box\n- ✅ **Lazy Loading** - Automatic code splitting\n- ✅ **Plugin System** - Extend with custom components\n\n> **Note:** All plugin components are lazy-loaded by default!"
+            }
+          ]
+        },
+        {
+          "type": "div",
+          "className": "space-y-4",
+          "children": [
+            {
+              "type": "text",
+              "className": "text-2xl font-semibold",
+              "content": "📋 Advanced Markdown"
+            },
+            {
+              "type": "markdown",
+              "className": "border rounded-lg p-6 bg-card",
+              "content": "# GitHub Flavored Markdown\n\n## Tables\n\n| Package | Version | Status |\n|---------|---------|--------|\n| @object-ui/core | 0.1.0 | ✅ Active |\n| @object-ui/components | 0.1.0 | ✅ Active |\n| @object-ui/plugin-markdown | 0.1.0 | 🆕 New |\n| @object-ui/plugin-kanban | 0.1.0 | 🆕 New |\n\n## Task Lists\n\n- [x] Create plugin-markdown package\n- [x] Implement lazy loading\n- [x] Add TypeScript types\n- [x] Write documentation\n- [ ] Add more examples\n\n## Code Blocks with Syntax\n\n```typescript\nimport { ComponentRegistry } from '@object-ui/core';\nimport '@object-ui/plugin-markdown';\n\nconst schema = {\n  type: 'markdown',\n  content: '# Hello World'\n};\n```\n\n## Emphasis\n\n*Italic text* and **bold text** and ***bold italic***\n\n~~Strikethrough~~ is also supported!\n\n---\n\n> Blockquotes look great!\n> \n> They support multiple lines."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

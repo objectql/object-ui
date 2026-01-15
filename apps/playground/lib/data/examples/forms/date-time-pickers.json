@@ -1,0 +1,150 @@
+{
+  "type": "div",
+  "className": "space-y-6 max-w-4xl",
+  "body": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "body": [
+        {
+          "type": "text",
+          "content": "Date & Time Pickers",
+          "className": "text-3xl font-bold"
+        },
+        {
+          "type": "text",
+          "content": "Date picker and calendar components for temporal data",
+          "className": "text-muted-foreground"
+        }
+      ]
+    },
+    {
+      "type": "card",
+      "className": "p-6",
+      "body": {
+        "type": "div",
+        "className": "space-y-6",
+        "body": [
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Date Picker",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "date-picker",
+                "label": "Select a date",
+                "id": "event-date",
+                "placeholder": "Pick a date"
+              },
+              {
+                "type": "date-picker",
+                "label": "Birth date",
+                "id": "birth-date",
+                "placeholder": "Your birth date"
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Calendar Widget",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "text",
+                "content": "Inline calendar for date selection",
+                "className": "text-sm text-muted-foreground"
+              },
+              {
+                "type": "calendar",
+                "id": "inline-calendar"
+              }
+            ]
+          },
+          {
+            "type": "separator"
+          },
+          {
+            "type": "div",
+            "className": "space-y-4",
+            "body": [
+              {
+                "type": "text",
+                "content": "Date Range",
+                "className": "text-lg font-semibold"
+              },
+              {
+                "type": "grid",
+                "columns": 2,
+                "gap": 4,
+                "children": [
+                  {
+                    "type": "date-picker",
+                    "label": "Start Date",
+                    "id": "start-date",
+                    "placeholder": "From"
+                  },
+                  {
+                    "type": "date-picker",
+                    "label": "End Date",
+                    "id": "end-date",
+                    "placeholder": "To"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "card",
+      "className": "p-6",
+      "body": {
+        "type": "div",
+        "className": "space-y-4",
+        "body": [
+          {
+            "type": "text",
+            "content": "Common Use Cases",
+            "className": "text-lg font-semibold"
+          },
+          {
+            "type": "div",
+            "className": "space-y-3",
+            "body": [
+              {
+                "type": "date-picker",
+                "label": "Meeting Date",
+                "id": "meeting",
+                "placeholder": "Schedule a meeting"
+              },
+              {
+                "type": "date-picker",
+                "label": "Deadline",
+                "id": "deadline",
+                "placeholder": "Set deadline"
+              },
+              {
+                "type": "date-picker",
+                "label": "Appointment",
+                "id": "appointment",
+                "placeholder": "Book appointment"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

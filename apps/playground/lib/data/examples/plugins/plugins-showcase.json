@@ -1,0 +1,144 @@
+{
+  "type": "div",
+  "className": "p-8 space-y-8",
+  "children": [
+    {
+      "type": "div",
+      "className": "space-y-2",
+      "children": [
+        {
+          "type": "text",
+          "className": "text-4xl font-bold",
+          "content": "Lazy-Loaded Plugins Showcase"
+        },
+        {
+          "type": "text",
+          "className": "text-muted-foreground text-lg",
+          "content": "Demonstrating code editor, charts, markdown, and kanban with internal lazy loading via React.lazy() and Suspense"
+        }
+      ]
+    },
+    {
+      "type": "div",
+      "className": "space-y-4",
+      "children": [
+        {
+          "type": "text",
+          "className": "text-2xl font-semibold",
+          "content": "📊 Monthly Revenue Chart"
+        },
+        {
+          "type": "chart-bar",
+          "className": "border rounded-lg p-4 bg-card",
+          "data": [
+            { "name": "January", "value": 4000 },
+            { "name": "February", "value": 3000 },
+            { "name": "March", "value": 6000 },
+            { "name": "April", "value": 8000 },
+            { "name": "May", "value": 5000 },
+            { "name": "June", "value": 7000 }
+          ],
+          "dataKey": "value",
+          "xAxisKey": "name",
+          "height": 400,
+          "color": "#8884d8"
+        }
+      ]
+    },
+    {
+      "type": "div",
+      "className": "space-y-4",
+      "children": [
+        {
+          "type": "text",
+          "className": "text-2xl font-semibold",
+          "content": "💻 Code Editor - JavaScript"
+        },
+        {
+          "type": "code-editor",
+          "className": "border rounded-lg overflow-hidden",
+          "value": "// Object UI - Schema-Driven UI Framework\n// This code editor is lazy-loaded!\n\nconst greet = (name) => {\n  return `Hello, ${name}! Welcome to Object UI.`;\n};\n\nconst frameworks = ['React', 'Vue', 'Angular'];\nframeworks.forEach(framework => {\n  console.log(greet(framework));\n});\n\n// Try editing this code!",
+          "language": "javascript",
+          "theme": "vs-dark",
+          "height": "350px"
+        }
+      ]
+    },
+    {
+      "type": "div",
+      "className": "space-y-4",
+      "children": [
+        {
+          "type": "text",
+          "className": "text-2xl font-semibold",
+          "content": "📝 Markdown Renderer"
+        },
+        {
+          "type": "markdown",
+          "className": "border rounded-lg p-6 bg-card",
+          "content": "# Welcome to Object UI\n\nThis is a **markdown** component with *full* GitHub Flavored Markdown support!\n\n## Features\n\n- ✅ Headers and formatting\n- ✅ Lists and tables\n- ✅ Code blocks\n- ✅ Links and images\n- ✅ XSS protection\n\n### Code Example\n\n```javascript\nconst message = 'Hello, World!';\nconsole.log(message);\n```\n\n> This component is lazy-loaded, keeping your bundle size small!"
+        }
+      ]
+    },
+    {
+      "type": "div",
+      "className": "space-y-4",
+      "children": [
+        {
+          "type": "text",
+          "className": "text-2xl font-semibold",
+          "content": "📋 Kanban Board"
+        },
+        {
+          "type": "kanban",
+          "className": "border rounded-lg bg-card",
+          "columns": [
+            {
+              "id": "todo",
+              "title": "To Do",
+              "cards": [
+                {
+                  "id": "card-1",
+                  "title": "Setup Project",
+                  "description": "Initialize Object UI with plugins",
+                  "badges": [{"label": "Setup", "variant": "secondary"}]
+                },
+                {
+                  "id": "card-2",
+                  "title": "Design Schema",
+                  "description": "Create JSON schemas for components",
+                  "badges": [{"label": "Design", "variant": "default"}]
+                }
+              ]
+            },
+            {
+              "id": "in-progress",
+              "title": "In Progress",
+              "limit": 3,
+              "cards": [
+                {
+                  "id": "card-3",
+                  "title": "Implement Lazy Loading",
+                  "description": "Add React.lazy() and Suspense",
+                  "badges": [{"label": "Development", "variant": "default"}]
+                }
+              ]
+            },
+            {
+              "id": "done",
+              "title": "Done",
+              "cards": [
+                {
+                  "id": "card-4",
+                  "title": "Create Plugins",
+                  "description": "Build plugin-charts, plugin-editor, plugin-markdown, plugin-kanban",
+                  "badges": [{"label": "Completed", "variant": "outline"}]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
