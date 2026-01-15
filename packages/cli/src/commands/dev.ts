@@ -1,17 +1,18 @@
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { existsSync, mkdirSync } from 'fs';
-import { join, resolve, relative } from 'path';
+import { join, resolve } from 'path';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
 import { scanPagesDirectory, createTempAppWithRouting, createTempApp, parseSchemaFile, type RouteInfo } from '../utils/app-generator.js';
 
-interface ServeOptions {
+interface DevOptions {
   port: string;
   host: string;
+  open?: boolean;
 }
 
-export async function serve(schemaPath: string, options: ServeOptions) {
+export async function dev(schemaPath: string, options: DevOptions) {
   const cwd = process.cwd();
   
   // Check if pages directory exists for file-system routing
@@ -34,7 +35,7 @@ export async function serve(schemaPath: string, options: ServeOptions) {
     
     console.log(chalk.green(`✓ Found ${routes.length} route(s)`));
     routes.forEach(route => {
-      console.log(chalk.dim(`  ${route.path} → ${relative(cwd, route.filePath)}`));
+      console.log(chalk.dim(`  ${route.path} → ${route.filePath.replace(cwd, '.')}`));
     });
   } else {
     // Single schema file mode
@@ -88,7 +89,7 @@ export async function serve(schemaPath: string, options: ServeOptions) {
     server: {
       port: parseInt(options.port),
       host: options.host,
-      open: true,
+      open: options.open !== false,
     },
     plugins: [react()],
   };
@@ -103,7 +104,7 @@ export async function serve(schemaPath: string, options: ServeOptions) {
   const displayHost = host === '0.0.0.0' ? 'localhost' : host;
 
   console.log();
-  console.log(chalk.green('✓ Server started successfully!'));
+  console.log(chalk.green('✓ Development server started successfully!'));
   console.log();
   console.log(chalk.bold('  Local:   ') + chalk.cyan(`${protocol}://${displayHost}:${port}`));
   console.log();
