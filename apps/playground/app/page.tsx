@@ -126,7 +126,11 @@ export default function Home() {
                 </p>
               </button>
             );
-          })}
+          }) || (
+            <div className="col-span-full text-center py-12">
+              <p className="text-muted-foreground">No examples found in this category.</p>
+            </div>
+          )}
         </div>
       </main>
     </div>

@@ -246,7 +246,7 @@ export default function MyDesigns() {
 
                 {design.tags && design.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-4">
-                    {design.tags.map((tag, idx) => (
+                    {design.tags?.map((tag, idx) => (
                       <span
                         key={idx}
                         className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs font-medium rounded-md"

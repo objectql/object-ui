@@ -8,7 +8,6 @@ export const metadata: Metadata = {
   keywords: ['Object UI', 'Schema-Driven', 'UI Builder', 'React', 'Tailwind', 'Low-Code'],
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
 export default function RootLayout({
   children,
 }: Readonly<{

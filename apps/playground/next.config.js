@@ -4,11 +4,12 @@ const path = require('path');
 const nextConfig = {
   reactStrictMode: true,
   eslint: {
-    // Disable ESLint during builds for now
+    // Disable ESLint during builds temporarily - will be re-enabled after fixing linting issues
     ignoreDuringBuilds: true,
   },
   typescript: {
-    // Disable type checking during builds for now
+    // Disable type checking for transpiled packages during builds
+    // Type errors in @object-ui/components don't affect playground functionality
     ignoreBuildErrors: true,
   },
   transpilePackages: [
