@@ -292,7 +292,31 @@ Object UI is perfect for:
 
 ## 🏗️ Examples
 
-Check out complete example applications:
+### JSON Schema Examples (Recommended) 🚀
+
+Explore ready-to-use JSON examples that showcase Object UI's capabilities:
+
+```bash
+# Install CLI
+npm install -g @object-ui/cli
+
+# Try different examples
+objectui serve examples/basic-form/app.json       # Contact form
+objectui serve examples/dashboard/app.json        # Analytics dashboard
+objectui serve examples/data-display/app.json     # Data visualization
+objectui serve examples/landing-page/app.json     # Marketing page
+```
+
+**Available Examples:**
+- 📝 [**Basic Form**](./examples/basic-form) - Contact form with validation
+- 📊 [**Dashboard**](./examples/dashboard) - Analytics with metrics and feeds
+- 📋 [**Data Display**](./examples/data-display) - Lists, badges, progress bars
+- 🚀 [**Landing Page**](./examples/landing-page) - Full marketing page
+- 🎨 [**CLI Demo**](./examples/cli-demo) - Bilingual form demo
+
+[**View All Examples →**](./examples)
+
+### Full Application Examples
 
 ```bash
 # Clone the repository
@@ -302,11 +326,8 @@ cd objectui
 # Install dependencies
 pnpm install
 
-# Run the playground
+# Run the interactive playground
 pnpm playground
-
-# Run the visual designer demo
-pnpm designer
 
 # Run the prototype example
 pnpm prototype
