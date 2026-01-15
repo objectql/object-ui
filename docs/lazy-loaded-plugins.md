@@ -185,8 +185,8 @@ dist/ChartImpl-BJBP1UnW.js  541.17 kB │ gzip: 136.04 kB
 dist/index.umd.cjs          393.20 kB │ gzip: 118.97 kB
 ```
 
-### Playground Build Output
-When the playground imports both plugins, the chunks are preserved:
+### Application Build Output
+When an application imports both plugins, the chunks are preserved:
 ```
 dist/assets/MonacoImpl-DCiwKyYW-D65z0X-D.js     15.26 kB │ gzip:   5.25 kB
 dist/assets/ChartImpl-BJBP1UnW-DO38vX_d.js     348.10 kB │ gzip: 104.54 kB
@@ -275,9 +275,9 @@ const schema = { type: 'your-component', ... };
 
 You can verify lazy loading works by:
 
-1. **Build the playground**:
+1. **Build an application that uses the plugins**:
 ```bash
-cd apps/playground
+cd examples/prototype  # or any app that uses the plugins
 pnpm build
 ls -lh dist/assets/ | grep -E "(Monaco|Chart)"
 ```

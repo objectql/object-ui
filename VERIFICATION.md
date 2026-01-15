@@ -46,12 +46,12 @@ packages/plugin-charts/
 - `ChartImpl.tsx`: Contains `import { BarChart, ... } from 'recharts'`
 - `index.tsx`: Contains `React.lazy(() => import('./ChartImpl'))`
 
-### Playground Build Output
+### Application Build Output
 
-When the playground imports both plugins, they remain as separate chunks:
+When an application imports both plugins, they remain as separate chunks:
 
 ```
-apps/playground/dist/assets/
+dist/assets/
 ├── index-CyDHUpwF.js                (2.2 MB)  # Main bundle
 ├── MonacoImpl-DCiwKyYW-D65z0X-D.js  ( 15 KB)  # Monaco - SEPARATE
 ├── ChartImpl-BJBP1UnW-DO38vX_d.js  (340 KB)  # Recharts - SEPARATE
@@ -64,7 +64,7 @@ apps/playground/dist/assets/
 
 1. **App Startup** (Initial Load):
    ```typescript
-   // apps/playground/src/App.tsx
+   // In your application
    import '@object-ui/plugin-editor';  // Loads ~200 bytes
    import '@object-ui/plugin-charts';  // Loads ~200 bytes
    ```
@@ -152,9 +152,9 @@ $ ls -lh packages/plugin-editor/dist/
 ✅ PASS: Heavy chunk is separate from entry point
 ```
 
-### Test 2: Playground Build
+### Test 2: Application Build
 ```bash
-$ ls -lh apps/playground/dist/assets/ | grep -E "(Monaco|Chart)"
+$ ls -lh dist/assets/ | grep -E "(Monaco|Chart)"
 -rw-rw-r-- 1 runner runner  15K MonacoImpl-*.js
 -rw-rw-r-- 1 runner runner 340K ChartImpl-*.js
 ✅ PASS: Plugin chunks are separate in final build

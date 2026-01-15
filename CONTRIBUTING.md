@@ -67,9 +67,6 @@ git checkout -b feature/your-feature-name
 ### Running Development Servers
 
 ```bash
-# Run the playground (main development app)
-pnpm playground
-
 # Run the visual designer demo
 pnpm designer
 

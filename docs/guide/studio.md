@@ -1,13 +1,22 @@
-# Object UI Studio
+# Object UI Designer
 
-The **Object UI Studio** is a powerful, interactive visual editor that allows you to design and prototype user interfaces without writing code. It combines a drag-and-drop designer, live preview, and instant JSON export capabilities.
+The **Object UI Designer** is a powerful, interactive visual editor that allows you to design and prototype user interfaces without writing code. It combines a drag-and-drop designer, live preview, and instant JSON export capabilities.
 
-## 🚀 Quick Access
+## 🚀 Getting Started
 
-<div class="tip custom-block">
-  <p><strong>Try it now!</strong></p>
-  <p>Access the Studio at: <a href="https://play.objectstack.ai" target="_blank">play.objectstack.ai</a></p>
-</div>
+The designer is available as the `@object-ui/designer` package. You can use it in your own applications or run the designer demo:
+
+```bash
+# Clone the repository
+git clone https://github.com/objectql/objectui.git
+cd objectui
+
+# Install dependencies
+pnpm install
+
+# Run the designer demo
+pnpm designer
+```
 
 ## Features
 

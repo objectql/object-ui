@@ -83,8 +83,8 @@ visibleOn: "${user.role === 'admin'}"
 value: "${formatDate(createdAt, 'MMM DD')}"
 ```
 
-✅ **Playground & Docs**
-- Interactive playground to try everything
+✅ **Documentation & Examples**
+- Interactive examples to try everything
 - Complete documentation with examples
 - Video tutorials to get started
 
@@ -192,8 +192,8 @@ Making Object UI ready for your biggest projects.
 
 While we're building the future, you can already:
 
-### Try the Preview
-We have an early preview available! Check out our [Playground](https://objectui.org/playground) to see what's possible.
+### Try the Examples
+We have several examples available! Check out the `examples/` directory to see what's possible, or run the designer demo with `pnpm designer`.
 
 ### Join the Community
 - ⭐ **Star us on GitHub**: [objectql/objectui](https://github.com/objectql/objectui)
@@ -290,6 +290,6 @@ Object UI is built by developers, for developers. Thank you for your interest an
 
 *Building the future of interface development, one JSON schema at a time* 🚀
 
-**[GitHub](https://github.com/objectql/objectui)** · **[Documentation](https://objectui.org)** · **[Playground](https://objectui.org/playground)**
+**[GitHub](https://github.com/objectql/objectui)** · **[Documentation](https://objectui.org)**
 
 </div>
