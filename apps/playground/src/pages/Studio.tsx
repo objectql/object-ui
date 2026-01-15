@@ -121,16 +121,16 @@ const StudioToolbarContext = ({
           <div className="flex items-center gap-2">
             <button 
               onClick={() => navigate('/')}
-              className="p-2 -ml-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+              className="p-2 -ml-2 text-muted-foreground hover:text-primary hover:bg-muted rounded-xl transition-all"
               title="Back to Gallery"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <div className="h-6 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent mx-1"></div>
+            <div className="h-6 w-px bg-border mx-1"></div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-gray-900 tracking-tight flex items-center gap-2">
-                  <span className="bg-gradient-to-br from-indigo-600 to-purple-600 text-transparent bg-clip-text">Object Studio</span>
+                  <span className="text-primary">Object Studio</span>
                   <span className="text-gray-300">/</span>
                   <span className="text-gray-700 font-semibold">{exampleTitle}</span>
                 </span>
@@ -147,12 +147,12 @@ const StudioToolbarContext = ({
 
         {/* Center: View Mode Switcher */}
         <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
-          <div className="flex p-1 bg-gradient-to-r from-gray-100 to-slate-100 backdrop-blur-sm rounded-xl border border-gray-300 shadow-lg">
+          <div className="flex p-1 bg-muted backdrop-blur-sm rounded-xl border border-gray-300 shadow-lg">
              <button
                 onClick={() => setViewMode('design')}
                 className={`flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
                   viewMode === 'design' 
-                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-300/50' 
+                    ? 'bg-primary text-primary-foreground shadow-lg' 
                     : 'text-gray-600 hover:text-gray-900 hover:bg-white/70'
                 }`}
               >
@@ -163,7 +163,7 @@ const StudioToolbarContext = ({
                 onClick={() => setViewMode('preview')}
                 className={`flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
                   viewMode === 'preview' 
-                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-300/50' 
+                    ? 'bg-primary text-primary-foreground shadow-lg' 
                     : 'text-gray-600 hover:text-gray-900 hover:bg-white/70'
                 }`}
               >
@@ -174,7 +174,7 @@ const StudioToolbarContext = ({
                 onClick={() => setViewMode('code')}
                 className={`flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
                   viewMode === 'code' 
-                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-300/50' 
+                    ? 'bg-primary text-primary-foreground shadow-lg' 
                     : 'text-gray-600 hover:text-gray-900 hover:bg-white/70'
                 }`}
               >
@@ -191,7 +191,7 @@ const StudioToolbarContext = ({
                <button 
                  onClick={undo} 
                  disabled={!canUndo}
-                 className={`p-2 rounded-lg transition-all ${!canUndo ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-indigo-50 hover:text-indigo-600'}`}
+                 className={`p-2 rounded-lg transition-all ${!canUndo ? 'text-muted-foreground cursor-not-allowed' : 'text-foreground hover:bg-muted hover:text-primary'}`}
                  title="Undo (Cmd+Z)"
                >
                  <Undo className="w-4 h-4" />
@@ -199,7 +199,7 @@ const StudioToolbarContext = ({
                <button 
                  onClick={redo} 
                  disabled={!canRedo}
-                 className={`p-2 rounded-lg transition-all ${!canRedo ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-indigo-50 hover:text-indigo-600'}`}
+                 className={`p-2 rounded-lg transition-all ${!canRedo ? 'text-muted-foreground cursor-not-allowed' : 'text-foreground hover:bg-muted hover:text-primary'}`}
                  title="Redo (Cmd+Y)"
                >
                  <Redo className="w-4 h-4" />
@@ -207,7 +207,7 @@ const StudioToolbarContext = ({
              </div>
            )}
            
-           <div className="h-6 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent mx-2"></div>
+           <div className="h-6 w-px bg-border mx-2"></div>
 
            <button 
              onClick={onShare}
@@ -231,8 +231,8 @@ const StudioToolbarContext = ({
              onClick={handleSave}
              className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-lg ${
                saved 
-                 ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-700 hover:to-green-700 shadow-emerald-300/50' 
-                 : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-300/50'
+                 ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg' 
+                 : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg'
              }`}
            >
              {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
@@ -243,8 +243,8 @@ const StudioToolbarContext = ({
                 onClick={handleCopy}
                 className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-lg ${
                   copied 
-                    ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-700 hover:to-green-700 shadow-emerald-300/50' 
-                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-indigo-300/50'
+                    ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg' 
+                    : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg'
                 }`}
               >
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -400,14 +400,14 @@ const StudioEditor = ({ exampleId, initialJson, isUserDesign, currentDesignId }:
           </DesignerErrorBoundary>
         </div>
       ) : viewMode === 'preview' ? (
-        <div className="h-full flex flex-col bg-gradient-to-br from-slate-50 to-indigo-50 overflow-hidden absolute inset-0">
+        <div className="h-full flex flex-col bg-background overflow-hidden absolute inset-0">
           <div className="border-b px-4 py-3 bg-white/90 backdrop-blur-md flex items-center justify-center z-10 sticky top-0 shadow-sm">
             {/* Viewport Size Toggles */}
-            <div className="flex items-center gap-1.5 bg-gradient-to-r from-gray-100 to-slate-100 p-1 rounded-xl border-2 border-gray-300 shadow-lg">
+            <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl border-2 border-border shadow-lg">
               <button
                 onClick={() => setViewportSize('desktop')}
                 className={`p-2 rounded-lg transition-all duration-200 ${
-                  viewportSize === 'desktop' ? 'bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg shadow-indigo-300/50 text-white' : 'text-gray-500 hover:text-gray-900 hover:bg-white/70'
+                  viewportSize === 'desktop' ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 }`}
                 title="Desktop View"
               >
@@ -416,7 +416,7 @@ const StudioEditor = ({ exampleId, initialJson, isUserDesign, currentDesignId }:
               <button
                 onClick={() => setViewportSize('tablet')}
                 className={`p-2 rounded-lg transition-all duration-200 ${
-                  viewportSize === 'tablet' ? 'bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg shadow-indigo-300/50 text-white' : 'text-gray-500 hover:text-gray-900 hover:bg-white/70'
+                  viewportSize === 'tablet' ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 }`}
                 title="Tablet View"
               >
@@ -425,7 +425,7 @@ const StudioEditor = ({ exampleId, initialJson, isUserDesign, currentDesignId }:
               <button
                 onClick={() => setViewportSize('mobile')}
                 className={`p-2 rounded-lg transition-all duration-200 ${
-                  viewportSize === 'mobile' ? 'bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg shadow-indigo-300/50 text-white' : 'text-gray-500 hover:text-gray-900 hover:bg-white/70'
+                  viewportSize === 'mobile' ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 }`}
                 title="Mobile View"
               >
@@ -435,7 +435,7 @@ const StudioEditor = ({ exampleId, initialJson, isUserDesign, currentDesignId }:
           </div>
           
           <div 
-            className="flex-1 overflow-auto p-8 flex justify-center bg-gradient-to-br from-slate-100 via-gray-50 to-indigo-100 relative bg-dot-pattern"
+            className="flex-1 overflow-auto p-8 flex justify-center bg-muted relative bg-dot-pattern"
           >
             <div className={`${viewportStyles[viewportSize]} transition-all duration-300 ease-in-out`}>
               <div 
@@ -445,7 +445,7 @@ const StudioEditor = ({ exampleId, initialJson, isUserDesign, currentDesignId }:
                     ? 'rounded-[3rem] border-[10px] border-gray-800 shadow-2xl shadow-gray-900/50' 
                     : viewportSize === 'tablet' 
                       ? 'rounded-[2rem] border-[10px] border-gray-800 shadow-2xl shadow-gray-900/50' 
-                      : 'rounded-2xl border-2 border-gray-300 shadow-2xl'}
+                      : 'rounded-2xl border-2 border-border shadow-2xl'}
                   ${viewportSize !== 'desktop' ? 'overflow-hidden' : 'p-6'} 
                   transition-all duration-300
                 `}
@@ -466,7 +466,7 @@ const StudioEditor = ({ exampleId, initialJson, isUserDesign, currentDesignId }:
                   ) : (
                     <div className="text-center py-12 text-muted-foreground flex flex-col items-center justify-center h-full">
                       {jsonError ? (
-                        <div className="space-y-3 p-6 bg-gradient-to-br from-red-50 to-pink-50 rounded-2xl border-2 border-red-200 shadow-lg max-w-md">
+                        <div className="space-y-3 p-6 bg-destructive/10 rounded-2xl border-2 border-destructive shadow-lg max-w-md">
                           <p className="text-red-700 font-bold text-lg flex items-center gap-2 justify-center">
                             <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
                             Invalid JSON
@@ -477,8 +477,8 @@ const StudioEditor = ({ exampleId, initialJson, isUserDesign, currentDesignId }:
                         <div className="flex flex-col items-center gap-4">
                            <div className="relative">
                              {/* Dual spinner: outer uses animate-spin and inner uses animate-spin-reverse for a counter-rotating loading effect */}
-                             <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-                             <div className="absolute inset-0 w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin-reverse"></div>
+                             <div className="w-12 h-12 border-4 border-muted border-t-primary rounded-full animate-spin"></div>
+                             <div className="absolute inset-0 w-12 h-12 border-4 border-muted border-t-primary rounded-full animate-spin-reverse"></div>
                            </div>
                            <p className="text-sm font-semibold text-gray-600">Rendering your UI...</p>
                         </div>
@@ -523,10 +523,10 @@ const StudioEditor = ({ exampleId, initialJson, isUserDesign, currentDesignId }:
           </div>
 
           {/* Side Preview */}
-          <div className="w-1/2 h-full flex flex-col bg-gradient-to-br from-slate-100 via-gray-50 to-indigo-100 relative bg-dot-pattern">
+          <div className="w-1/2 h-full flex flex-col bg-muted relative bg-dot-pattern">
              <div className="flex-1 overflow-auto p-8 flex items-center justify-center">
-                <div className="w-full max-w-xl mx-auto rounded-2xl shadow-2xl bg-background border-2 border-gray-300 overflow-hidden">
-                  <div className="h-9 bg-gradient-to-b from-gray-100 to-gray-50 border-b-2 border-gray-300 flex items-center px-3 gap-2">
+                <div className="w-full max-w-xl mx-auto rounded-2xl shadow-2xl bg-background border-2 border-border overflow-hidden">
+                  <div className="h-9 bg-muted border-b-2 border-border flex items-center px-3 gap-2">
                     <div className="w-3 h-3 rounded-full bg-red-500 shadow-sm"></div>
                     <div className="w-3 h-3 rounded-full bg-yellow-500 shadow-sm"></div>
                     <div className="w-3 h-3 rounded-full bg-green-500 shadow-sm"></div>
@@ -565,7 +565,7 @@ const StudioEditor = ({ exampleId, initialJson, isUserDesign, currentDesignId }:
                   value={saveName}
                   onChange={(e) => setSaveName(e.target.value)}
                   placeholder="My Awesome Design"
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors"
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-ring focus:outline-none transition-colors"
                   autoFocus
                 />
               </div>
@@ -577,7 +577,7 @@ const StudioEditor = ({ exampleId, initialJson, isUserDesign, currentDesignId }:
                   value={saveDescription}
                   onChange={(e) => setSaveDescription(e.target.value)}
                   placeholder="A brief description of your design..."
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none resize-none h-24 transition-colors"
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-ring focus:outline-none resize-none h-24 transition-colors"
                 />
               </div>
             </div>

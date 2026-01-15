@@ -118,18 +118,18 @@ export const MyDesigns = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-20 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button 
               onClick={() => navigate('/')}
-              className="p-2 -ml-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+              className="p-2 -ml-2 text-muted-foreground hover:text-primary hover:bg-muted rounded-xl transition-all"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+            <span className="font-bold text-xl tracking-tight">
               My Designs
             </span>
           </div>
@@ -143,7 +143,7 @@ export const MyDesigns = () => {
             </button>
             <button
               onClick={() => navigate('/studio/new')}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl shadow-lg shadow-indigo-300/50 transition-all"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-lg transition-all"
             >
               <Plus className="w-4 h-4" />
               New Design
@@ -163,14 +163,14 @@ export const MyDesigns = () => {
               placeholder="Search designs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors"
+              className="w-full pl-10 pr-4 py-2 border-2 border-border rounded-xl focus:border-ring focus:outline-none transition-colors"
             />
           </div>
           <div className="flex items-center gap-2 ml-4">
             <button
               onClick={() => setViewMode('grid')}
               className={`p-2 rounded-lg transition-colors ${
-                viewMode === 'grid' ? 'bg-indigo-100 text-indigo-600' : 'text-gray-400 hover:text-gray-600'
+                viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <Grid3x3 className="w-5 h-5" />
@@ -178,7 +178,7 @@ export const MyDesigns = () => {
             <button
               onClick={() => setViewMode('list')}
               className={`p-2 rounded-lg transition-colors ${
-                viewMode === 'list' ? 'bg-indigo-100 text-indigo-600' : 'text-gray-400 hover:text-gray-600'
+                viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <List className="w-5 h-5" />
@@ -189,8 +189,8 @@ export const MyDesigns = () => {
         {/* Designs Display */}
         {filteredDesigns.length === 0 ? (
           <div className="text-center py-20">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 mb-4">
-              <FileJson className="w-10 h-10 text-indigo-600" />
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted mb-4">
+              <FileJson className="w-10 h-10 text-primary" />
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">
               {searchQuery ? 'No designs found' : 'No designs yet'}
@@ -201,7 +201,7 @@ export const MyDesigns = () => {
             {!searchQuery && (
               <button
                 onClick={() => navigate('/studio/new')}
-                className="inline-flex items-center gap-2 px-6 py-3 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl shadow-lg shadow-indigo-300/50 transition-all"
+                className="inline-flex items-center gap-2 px-6 py-3 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-lg transition-all"
               >
                 <Plus className="w-4 h-4" />
                 Create New Design
@@ -213,13 +213,13 @@ export const MyDesigns = () => {
             {filteredDesigns.map((design) => (
               <div
                 key={design.id}
-                className="group bg-white rounded-2xl border-2 border-gray-200 overflow-hidden hover:shadow-xl hover:border-indigo-400 transition-all cursor-pointer"
+                className="group bg-card rounded-2xl border-2 border-border overflow-hidden hover:shadow-xl hover:border-primary transition-all cursor-pointer"
               >
                 <div
                   onClick={() => navigate(`/studio/${design.id}`)}
                   className="p-6 border-b border-gray-100"
                 >
-                  <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors">
+                  <h3 className="text-lg font-bold mb-2 group-hover:text-primary transition-colors">
                     {design.name}
                   </h3>
                   {design.description && (
@@ -236,7 +236,7 @@ export const MyDesigns = () => {
                       {design.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-semibold"
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-muted text-muted-foreground rounded-full text-xs font-semibold"
                         >
                           <Tag className="w-3 h-3" />
                           {tag}
@@ -384,7 +384,7 @@ export const MyDesigns = () => {
                   value={importName}
                   onChange={(e) => setImportName(e.target.value)}
                   placeholder="My Imported Design"
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors"
+                  className="w-full px-4 py-2 border-2 border-border rounded-xl focus:border-ring focus:outline-none transition-colors"
                 />
               </div>
               <div>
@@ -395,7 +395,7 @@ export const MyDesigns = () => {
                   value={importJson}
                   onChange={(e) => setImportJson(e.target.value)}
                   placeholder='{"type": "page", "title": "My Page", ...}'
-                  className="w-full h-64 px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none font-mono text-sm resize-none transition-colors"
+                  className="w-full h-64 px-4 py-2 border-2 border-border rounded-xl focus:border-ring focus:outline-none font-mono text-sm resize-none transition-colors"
                 />
               </div>
             </div>
@@ -413,7 +413,7 @@ export const MyDesigns = () => {
               <button
                 onClick={handleImport}
                 disabled={!importJson.trim()}
-                className="px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl shadow-lg shadow-indigo-300/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Import
               </button>
@@ -448,7 +448,7 @@ export const MyDesigns = () => {
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 rounded-xl shadow-lg shadow-red-300/50 transition-all"
+                className="px-4 py-2 text-sm font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl shadow-lg transition-all"
               >
                 Delete Design
               </button>
