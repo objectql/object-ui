@@ -340,6 +340,39 @@ refactor: simplify expression evaluator
 - Respond to review comments promptly
 - Keep commits clean and meaningful
 
+### Automated Workflows
+
+Our repository includes several automated GitHub workflows that will run when you create a PR:
+
+#### CI Pipeline
+- **Linting**: Checks code style and quality
+- **Type Checking**: Validates TypeScript types
+- **Tests**: Runs unit and integration tests
+- **Build**: Ensures all packages build successfully
+- **Matrix Testing**: Tests on Node.js 18.x and 20.x
+
+#### Security Scans
+- **CodeQL**: Scans for security vulnerabilities in code
+- **Dependency Scanning**: Checks for known vulnerabilities in dependencies
+
+#### PR Automation
+- **Auto-labeling**: Automatically labels PRs based on changed files
+- **Bundle Size**: Reports bundle size changes in PR comments
+- **PR Checks**: Validates PR requirements and posts status
+
+#### What to Expect
+1. All checks must pass before merging
+2. Failed checks will show detailed error messages
+3. Some workflows (like auto-labeling) run automatically
+4. Review the check results and fix any issues
+
+#### Tips for Passing Checks
+- Run `pnpm lint` before committing
+- Run `pnpm test` to catch test failures early
+- Run `pnpm build` to ensure successful builds
+- Keep dependencies up to date
+- Follow TypeScript strict mode requirements
+
 ## Documentation
 
 ### Writing Documentation

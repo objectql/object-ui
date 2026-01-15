@@ -1,0 +1,56 @@
+name: Dependabot Auto-merge
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    steps:
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Check if auto-mergeable
+        id: check-update
+        run: |
+          UPDATE_TYPE="${{ steps.metadata.outputs.update-type }}"
+          if [[ "$UPDATE_TYPE" == "version-update:semver-patch" ]] || [[ "$UPDATE_TYPE" == "version-update:semver-minor" ]]; then
+            echo "auto_merge=true" >> $GITHUB_OUTPUT
+          else
+            echo "auto_merge=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Enable auto-merge for Dependabot PRs
+        if: steps.check-update.outputs.auto_merge == 'true'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Approve PR
+        if: steps.check-update.outputs.auto_merge == 'true'
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment on major updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ This is a **major version update**. Please review carefully before merging.'
+            });

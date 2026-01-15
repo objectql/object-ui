@@ -1,0 +1,87 @@
+name: Bundle Size Check
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'packages/**/*.ts'
+      - 'packages/**/*.tsx'
+      - 'packages/**/package.json'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  size-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Check bundle sizes
+        id: size-check
+        run: |
+          echo "## 📦 Bundle Size Report" > size-report.md
+          echo "" >> size-report.md
+          echo "| Package | Size | Gzipped |" >> size-report.md
+          echo "|---------|------|---------|" >> size-report.md
+          
+          for pkg in packages/*/dist; do
+            if [ -d "$pkg" ]; then
+              pkg_name=$(basename $(dirname $pkg))
+              
+              # Calculate sizes for main bundle files
+              for file in "$pkg"/*.js; do
+                if [ -f "$file" ] && [ ! -f "${file}.map" ]; then
+                  # Use portable method to get file size
+                  size=$(wc -c < "$file")
+                  size_kb=$(awk "BEGIN {printf \"%.2f\", $size/1024}")
+                  
+                  # Estimate gzipped size
+                  gzip_size=$(gzip -c "$file" | wc -c)
+                  gzip_kb=$(awk "BEGIN {printf \"%.2f\", $gzip_size/1024}")
+                  
+                  echo "| $pkg_name ($(basename $file)) | ${size_kb}KB | ${gzip_kb}KB |" >> size-report.md
+                fi
+              done
+            fi
+          done
+          
+          echo "" >> size-report.md
+          echo "### Size Limits" >> size-report.md
+          echo "- ✅ Core packages should be < 50KB gzipped" >> size-report.md
+          echo "- ✅ Component packages should be < 100KB gzipped" >> size-report.md
+          echo "- ⚠️ Plugin packages should be < 150KB gzipped" >> size-report.md
+
+      - name: Comment PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('size-report.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
