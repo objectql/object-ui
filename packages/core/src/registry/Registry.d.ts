@@ -12,13 +12,26 @@ export type ComponentInput = {
     }[];
     description?: string;
     advanced?: boolean;
+    inputType?: string;
 };
 export type ComponentMeta = {
     label?: string;
     icon?: string;
+    category?: string;
     inputs?: ComponentInput[];
     defaultProps?: Record<string, any>;
     defaultChildren?: SchemaNode[];
+    examples?: Record<string, any>;
+    isContainer?: boolean;
+    resizable?: boolean;
+    resizeConstraints?: {
+        width?: boolean;
+        height?: boolean;
+        minWidth?: number;
+        maxWidth?: number;
+        minHeight?: number;
+        maxHeight?: number;
+    };
 };
 export type ComponentConfig<T = any> = ComponentMeta & {
     type: string;

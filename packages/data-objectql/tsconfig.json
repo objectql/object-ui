@@ -4,8 +4,13 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "declaration": true,
-    "declarationDir": "./dist"
+    "declarationDir": "./dist",
+    "composite": true,
+    "noEmit": false
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"],
+  "references": [
+    { "path": "../types" }
+  ]
 }

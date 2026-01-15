@@ -21,6 +21,10 @@
 
     "baseUrl": ".",
     "paths": {
+      "@object-ui/types": ["packages/types/src"],
+      "@object-ui/types/*": ["packages/types/src/*"],
+      "@object-ui/core": ["packages/core/src"],
+      "@object-ui/core/*": ["packages/core/src/*"],
       "@object-ui/protocol": ["packages/core/src"],
       "@object-ui/protocol/*": ["packages/core/src/*"],
       "@object-ui/engine": ["packages/engine/src"],

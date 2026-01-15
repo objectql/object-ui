@@ -14,6 +14,8 @@ These examples demonstrate the new JSON project specification - pure JSON schema
 | [**dashboard**](./dashboard) | Analytics dashboard | ⭐⭐ Intermediate | Metrics, activity feeds, grids |
 | [**data-display**](./data-display) | Data visualization patterns | ⭐⭐ Intermediate | Lists, profiles, badges, progress |
 | [**landing-page**](./landing-page) | Marketing landing page | ⭐⭐⭐ Advanced | Hero sections, CTAs, full layouts |
+| [**user-management**](./user-management) | Complete CRUD interface | ⭐⭐⭐ Advanced | Full CRUD, filters, pagination, batch actions |
+| [**api-integration**](./api-integration) | API integration patterns | ⭐⭐⭐ Advanced | Data fetching, events, dynamic data |
 | [**cli-demo**](./cli-demo) | CLI demonstration | ⭐ Beginner | Bilingual form, gradient backgrounds |
 
 ### 🔧 Integration Examples

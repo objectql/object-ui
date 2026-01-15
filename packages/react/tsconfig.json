@@ -5,7 +5,12 @@
     "rootDir": "src",
     "jsx": "react-jsx",
     "noEmit": false,
-    "declaration": true
+    "declaration": true,
+    "composite": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "references": [
+    { "path": "../types" },
+    { "path": "../core" }
+  ]
 }

@@ -1,0 +1,322 @@
+{
+  "$schema": "https://objectui.org/schema/v1",
+  "type": "page",
+  "title": "User Management",
+  "description": "Complete CRUD interface for managing users",
+  "body": [
+    {
+      "type": "crud",
+      "resource": "user",
+      "api": "/api/users",
+      "title": "Users",
+      "description": "Manage system users and their permissions",
+      "columns": [
+        {
+          "name": "id",
+          "label": "ID",
+          "type": "text",
+          "width": 80,
+          "sortable": true
+        },
+        {
+          "name": "avatar",
+          "label": "Avatar",
+          "type": "image",
+          "width": 60
+        },
+        {
+          "name": "name",
+          "label": "Name",
+          "type": "text",
+          "sortable": true,
+          "searchable": true
+        },
+        {
+          "name": "email",
+          "label": "Email",
+          "type": "text",
+          "sortable": true,
+          "searchable": true
+        },
+        {
+          "name": "role",
+          "label": "Role",
+          "type": "badge",
+          "sortable": true
+        },
+        {
+          "name": "status",
+          "label": "Status",
+          "type": "badge",
+          "sortable": true
+        },
+        {
+          "name": "createdAt",
+          "label": "Created At",
+          "type": "date",
+          "format": "YYYY-MM-DD HH:mm",
+          "sortable": true
+        }
+      ],
+      "fields": [
+        {
+          "name": "name",
+          "label": "Full Name",
+          "type": "input",
+          "required": true,
+          "placeholder": "Enter full name"
+        },
+        {
+          "name": "email",
+          "label": "Email Address",
+          "type": "input",
+          "inputType": "email",
+          "required": true,
+          "placeholder": "user@example.com"
+        },
+        {
+          "name": "password",
+          "label": "Password",
+          "type": "input",
+          "inputType": "password",
+          "required": true,
+          "placeholder": "Enter password",
+          "description": "Minimum 8 characters with letters and numbers"
+        },
+        {
+          "name": "role",
+          "label": "Role",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "label": "Admin", "value": "admin" },
+            { "label": "Editor", "value": "editor" },
+            { "label": "Viewer", "value": "viewer" }
+          ]
+        },
+        {
+          "name": "status",
+          "label": "Status",
+          "type": "radio-group",
+          "required": true,
+          "defaultValue": "active",
+          "options": [
+            { "label": "Active", "value": "active" },
+            { "label": "Inactive", "value": "inactive" },
+            { "label": "Suspended", "value": "suspended" }
+          ]
+        },
+        {
+          "name": "bio",
+          "label": "Biography",
+          "type": "textarea",
+          "placeholder": "Brief description about the user",
+          "rows": 4
+        },
+        {
+          "name": "avatar",
+          "label": "Avatar",
+          "type": "file-upload",
+          "accept": "image/*",
+          "maxSize": 2097152,
+          "description": "Upload a profile picture (max 2MB)"
+        }
+      ],
+      "operations": {
+        "create": {
+          "enabled": true,
+          "label": "Add User",
+          "icon": "plus",
+          "api": "/api/users",
+          "method": "POST",
+          "successMessage": "User created successfully!"
+        },
+        "read": {
+          "enabled": true,
+          "api": "/api/users/${id}",
+          "method": "GET"
+        },
+        "update": {
+          "enabled": true,
+          "label": "Edit",
+          "icon": "edit",
+          "api": "/api/users/${id}",
+          "method": "PUT",
+          "successMessage": "User updated successfully!"
+        },
+        "delete": {
+          "enabled": true,
+          "label": "Delete",
+          "icon": "trash",
+          "api": "/api/users/${id}",
+          "method": "DELETE",
+          "confirmText": "Are you sure you want to delete this user?",
+          "successMessage": "User deleted successfully!"
+        },
+        "export": {
+          "enabled": true,
+          "label": "Export Users",
+          "icon": "download",
+          "api": "/api/users/export",
+          "method": "GET"
+        }
+      },
+      "toolbar": {
+        "showCreate": true,
+        "showRefresh": true,
+        "showExport": true,
+        "showImport": false,
+        "showFilter": true,
+        "showSearch": true,
+        "actions": [
+          {
+            "type": "action",
+            "label": "Import CSV",
+            "icon": "upload",
+            "variant": "outline"
+          },
+          {
+            "type": "action",
+            "label": "Bulk Invite",
+            "icon": "mail",
+            "variant": "outline"
+          }
+        ]
+      },
+      "filters": [
+        {
+          "name": "role",
+          "label": "Role",
+          "type": "select",
+          "operator": "equals",
+          "options": [
+            { "label": "All Roles", "value": "" },
+            { "label": "Admin", "value": "admin" },
+            { "label": "Editor", "value": "editor" },
+            { "label": "Viewer", "value": "viewer" }
+          ]
+        },
+        {
+          "name": "status",
+          "label": "Status",
+          "type": "select",
+          "operator": "equals",
+          "options": [
+            { "label": "All Status", "value": "" },
+            { "label": "Active", "value": "active" },
+            { "label": "Inactive", "value": "inactive" },
+            { "label": "Suspended", "value": "suspended" }
+          ]
+        },
+        {
+          "name": "createdAt",
+          "label": "Created Date",
+          "type": "date-range",
+          "operator": "between"
+        }
+      ],
+      "pagination": {
+        "enabled": true,
+        "pageSize": 20,
+        "pageSizeOptions": [10, 20, 50, 100],
+        "showTotal": true,
+        "showSizeChanger": true
+      },
+      "defaultSort": "createdAt",
+      "defaultSortOrder": "desc",
+      "selectable": "multiple",
+      "batchActions": [
+        {
+          "type": "action",
+          "label": "Activate Selected",
+          "icon": "check",
+          "level": "success",
+          "api": "/api/users/batch/activate",
+          "method": "POST",
+          "confirmText": "Activate ${count} selected users?",
+          "successMessage": "${count} users activated successfully!"
+        },
+        {
+          "type": "action",
+          "label": "Deactivate Selected",
+          "icon": "x",
+          "level": "warning",
+          "api": "/api/users/batch/deactivate",
+          "method": "POST",
+          "confirmText": "Deactivate ${count} selected users?",
+          "successMessage": "${count} users deactivated successfully!"
+        },
+        {
+          "type": "action",
+          "label": "Delete Selected",
+          "icon": "trash",
+          "level": "danger",
+          "api": "/api/users/batch/delete",
+          "method": "DELETE",
+          "confirmText": "Are you sure you want to delete ${count} selected users? This action cannot be undone.",
+          "successMessage": "${count} users deleted successfully!"
+        }
+      ],
+      "rowActions": [
+        {
+          "type": "action",
+          "label": "View Details",
+          "icon": "eye",
+          "variant": "ghost",
+          "redirect": "/users/${id}"
+        },
+        {
+          "type": "action",
+          "label": "Edit",
+          "icon": "edit",
+          "variant": "ghost"
+        },
+        {
+          "type": "action",
+          "label": "Reset Password",
+          "icon": "key",
+          "variant": "ghost",
+          "api": "/api/users/${id}/reset-password",
+          "method": "POST",
+          "confirmText": "Send password reset email to this user?",
+          "successMessage": "Password reset email sent!"
+        },
+        {
+          "type": "action",
+          "label": "Delete",
+          "icon": "trash",
+          "variant": "ghost",
+          "level": "danger",
+          "confirmText": "Are you sure you want to delete this user?"
+        }
+      ],
+      "mode": "table",
+      "emptyState": {
+        "type": "div",
+        "className": "text-center py-12",
+        "body": [
+          {
+            "type": "text",
+            "content": "👤",
+            "className": "text-6xl mb-4"
+          },
+          {
+            "type": "text",
+            "content": "No users found",
+            "className": "text-xl font-semibold mb-2"
+          },
+          {
+            "type": "text",
+            "content": "Get started by creating your first user",
+            "className": "text-muted-foreground mb-4"
+          },
+          {
+            "type": "button",
+            "label": "Add First User",
+            "icon": "plus"
+          }
+        ]
+      }
+    }
+  ]
+}

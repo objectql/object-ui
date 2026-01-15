@@ -36,11 +36,42 @@ export interface BaseSchema {
   id?: string;
 
   /**
+   * Human-readable name for the component.
+   * Used for form field names, labels, and debugging.
+   */
+  name?: string;
+
+  /**
+   * Display label for the component.
+   * Often used in forms, cards, and other UI elements.
+   */
+  label?: string;
+
+  /**
+   * Descriptive text providing additional context.
+   * Typically rendered as help text below the component.
+   */
+  description?: string;
+
+  /**
+   * Placeholder text for input components.
+   * Provides hints about expected input format or content.
+   */
+  placeholder?: string;
+
+  /**
    * Tailwind CSS classes to apply to the component.
    * This is the primary styling mechanism in Object UI.
    * @example 'bg-blue-500 text-white p-4 rounded-lg'
    */
   className?: string;
+
+  /**
+   * Inline CSS styles as a JavaScript object.
+   * Use sparingly - prefer className with Tailwind.
+   * @example { backgroundColor: '#fff', padding: '16px' }
+   */
+  style?: Record<string, string | number>;
 
   /**
    * Arbitrary data attached to the component.
@@ -59,6 +90,58 @@ export interface BaseSchema {
    * Some components use 'children' instead of 'body'.
    */
   children?: SchemaNode | SchemaNode[];
+
+  /**
+   * Controls whether the component is visible.
+   * When false, component is not rendered (display: none).
+   * @default true
+   */
+  visible?: boolean;
+
+  /**
+   * Expression for conditional visibility.
+   * Evaluated against the current data context.
+   * @example "${data.role === 'admin'}"
+   */
+  visibleOn?: string;
+
+  /**
+   * Controls whether the component is hidden (but still rendered).
+   * When true, component is rendered but not visible (visibility: hidden).
+   * @default false
+   */
+  hidden?: boolean;
+
+  /**
+   * Expression for conditional hiding.
+   * @example "${!data.isActive}"
+   */
+  hiddenOn?: string;
+
+  /**
+   * Controls whether the component is disabled.
+   * Applies to interactive components like buttons and inputs.
+   * @default false
+   */
+  disabled?: boolean;
+
+  /**
+   * Expression for conditional disabling.
+   * @example "${data.status === 'locked'}"
+   */
+  disabledOn?: string;
+
+  /**
+   * Test ID for automated testing.
+   * Rendered as data-testid attribute.
+   */
+  testId?: string;
+
+  /**
+   * Accessibility label for screen readers.
+   * Rendered as aria-label attribute.
+   */
+  ariaLabel?: string;
 
   /**
    * Additional properties specific to the component type.

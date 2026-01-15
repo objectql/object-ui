@@ -217,6 +217,37 @@ export type {
 } from './data';
 
 // ============================================================================
+// CRUD Components - Create, Read, Update, Delete Operations
+// ============================================================================
+export type {
+  ActionSchema,
+  CRUDOperation,
+  CRUDFilter,
+  CRUDToolbar,
+  CRUDPagination,
+  CRUDSchema,
+  DetailSchema,
+  CRUDDialogSchema,
+  CRUDComponentSchema,
+} from './crud';
+
+// ============================================================================
+// API and Events - API Integration and Event Handling
+// ============================================================================
+export type {
+  HTTPMethod,
+  APIRequest,
+  APIConfig,
+  EventHandler,
+  EventableSchema,
+  DataFetchConfig,
+  DataFetchableSchema,
+  ExpressionContext,
+  ExpressionSchema,
+  APISchema,
+} from './api';
+
+// ============================================================================
 // Union Types - Discriminated Unions for All Schemas
 // ============================================================================
 
@@ -229,6 +260,7 @@ import type { DisclosureSchema } from './disclosure';
 import type { OverlaySchema } from './overlay';
 import type { NavigationSchema } from './navigation';
 import type { ComplexSchema } from './complex';
+import type { CRUDComponentSchema } from './crud';
 
 /**
  * Union of all component schemas.
@@ -243,7 +275,8 @@ export type AnySchema =
   | DisclosureSchema
   | OverlaySchema
   | NavigationSchema
-  | ComplexSchema;
+  | ComplexSchema
+  | CRUDComponentSchema;
 
 /**
  * Utility type to extract the schema type from a type string.

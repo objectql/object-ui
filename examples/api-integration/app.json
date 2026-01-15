@@ -1,0 +1,366 @@
+{
+  "$schema": "https://objectui.org/schema/v1",
+  "type": "page",
+  "title": "API Integration Demo",
+  "description": "Demonstrating dynamic data fetching, API calls, and event handling",
+  "body": [
+    {
+      "type": "card",
+      "title": "🔄 Real-time Data Fetching",
+      "description": "Components that automatically fetch and display data from APIs",
+      "className": "mb-6",
+      "body": {
+        "type": "div",
+        "className": "p-6 space-y-4",
+        "dataSource": {
+          "api": "https://api.github.com/repos/objectstack-ai/objectui",
+          "fetchOnMount": true,
+          "pollInterval": 30000,
+          "transform": "data => ({ stars: data.stargazers_count, forks: data.forks_count, issues: data.open_issues_count })"
+        },
+        "body": [
+          {
+            "type": "div",
+            "className": "grid grid-cols-3 gap-4",
+            "body": [
+              {
+                "type": "card",
+                "className": "text-center",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "${data.stars}",
+                    "className": "text-3xl font-bold text-yellow-600"
+                  },
+                  {
+                    "type": "text",
+                    "content": "⭐ Stars",
+                    "className": "text-sm text-muted-foreground"
+                  }
+                ]
+              },
+              {
+                "type": "card",
+                "className": "text-center",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "${data.forks}",
+                    "className": "text-3xl font-bold text-blue-600"
+                  },
+                  {
+                    "type": "text",
+                    "content": "🔱 Forks",
+                    "className": "text-sm text-muted-foreground"
+                  }
+                ]
+              },
+              {
+                "type": "card",
+                "className": "text-center",
+                "body": [
+                  {
+                    "type": "text",
+                    "content": "${data.issues}",
+                    "className": "text-3xl font-bold text-red-600"
+                  },
+                  {
+                    "type": "text",
+                    "content": "🐛 Issues",
+                    "className": "text-sm text-muted-foreground"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "content": "Data updates every 30 seconds automatically",
+            "className": "text-xs text-muted-foreground text-center"
+          }
+        ]
+      }
+    },
+    {
+      "type": "card",
+      "title": "🎯 Interactive Actions",
+      "description": "Buttons with API calls and event handlers",
+      "className": "mb-6",
+      "body": {
+        "type": "div",
+        "className": "p-6 space-y-4",
+        "body": [
+          {
+            "type": "div",
+            "className": "flex gap-3",
+            "body": [
+              {
+                "type": "button",
+                "label": "API Call",
+                "icon": "zap",
+                "onClick": {
+                  "type": "api",
+                  "api": {
+                    "request": {
+                      "url": "/api/test",
+                      "method": "POST",
+                      "data": {
+                        "message": "Hello from Object UI!"
+                      }
+                    },
+                    "successMessage": "API call successful!",
+                    "errorMessage": "API call failed",
+                    "showLoading": true
+                  }
+                }
+              },
+              {
+                "type": "button",
+                "label": "Show Dialog",
+                "icon": "message-square",
+                "variant": "outline",
+                "onClick": {
+                  "type": "dialog",
+                  "dialog": {
+                    "type": "alert",
+                    "title": "Hello!",
+                    "content": "This dialog was triggered by a button click event"
+                  }
+                }
+              },
+              {
+                "type": "button",
+                "label": "Show Toast",
+                "icon": "bell",
+                "variant": "outline",
+                "onClick": {
+                  "type": "toast",
+                  "toast": {
+                    "type": "success",
+                    "message": "Toast notification triggered!",
+                    "duration": 3000
+                  }
+                }
+              },
+              {
+                "type": "button",
+                "label": "Navigate",
+                "icon": "external-link",
+                "variant": "outline",
+                "onClick": {
+                  "type": "navigation",
+                  "navigate": {
+                    "to": "/users",
+                    "type": "push"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "card",
+      "title": "📝 Form with API Submission",
+      "description": "Forms that submit data to APIs with validation",
+      "className": "mb-6",
+      "body": {
+        "type": "div",
+        "className": "p-6",
+        "body": {
+          "type": "form",
+          "fields": [
+            {
+              "name": "name",
+              "label": "Your Name",
+              "type": "input",
+              "placeholder": "Enter your name",
+              "required": true
+            },
+            {
+              "name": "email",
+              "label": "Email Address",
+              "type": "input",
+              "inputType": "email",
+              "placeholder": "your@email.com",
+              "required": true
+            },
+            {
+              "name": "message",
+              "label": "Message",
+              "type": "textarea",
+              "placeholder": "What would you like to tell us?",
+              "rows": 4,
+              "required": true
+            }
+          ],
+          "submitLabel": "Send Message",
+          "onSubmit": {
+            "type": "api",
+            "api": {
+              "request": {
+                "url": "/api/contact",
+                "method": "POST"
+              },
+              "successMessage": "Message sent successfully!",
+              "errorMessage": "Failed to send message",
+              "showLoading": true,
+              "reload": false,
+              "close": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "card",
+      "title": "🔀 Conditional Rendering",
+      "description": "Components that show/hide based on data conditions",
+      "className": "mb-6",
+      "body": {
+        "type": "div",
+        "className": "p-6 space-y-4",
+        "body": [
+          {
+            "type": "select",
+            "name": "userType",
+            "label": "User Type",
+            "options": [
+              { "label": "Select a type", "value": "" },
+              { "label": "Admin", "value": "admin" },
+              { "label": "User", "value": "user" },
+              { "label": "Guest", "value": "guest" }
+            ]
+          },
+          {
+            "type": "alert",
+            "variant": "default",
+            "title": "Admin Access",
+            "description": "You have full administrative privileges",
+            "visibleOn": "${form.userType === 'admin'}"
+          },
+          {
+            "type": "alert",
+            "variant": "default",
+            "title": "Standard User",
+            "description": "You have standard user access",
+            "visibleOn": "${form.userType === 'user'}"
+          },
+          {
+            "type": "alert",
+            "variant": "destructive",
+            "title": "Guest Access",
+            "description": "You have limited guest access",
+            "visibleOn": "${form.userType === 'guest'}"
+          },
+          {
+            "type": "button",
+            "label": "Delete Account",
+            "variant": "destructive",
+            "visibleOn": "${form.userType === 'admin'}",
+            "onClick": {
+              "type": "dialog",
+              "dialog": {
+                "type": "confirm",
+                "title": "Confirm Deletion",
+                "content": "Are you sure you want to delete this account?",
+                "actions": [
+                  {
+                    "label": "Cancel"
+                  },
+                  {
+                    "label": "Delete",
+                    "handler": {
+                      "type": "api",
+                      "api": {
+                        "request": {
+                          "url": "/api/account",
+                          "method": "DELETE"
+                        },
+                        "successMessage": "Account deleted",
+                        "close": true
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "card",
+      "title": "⚡ Event Chaining",
+      "description": "Multiple actions triggered in sequence",
+      "className": "mb-6",
+      "body": {
+        "type": "div",
+        "className": "p-6",
+        "body": {
+          "type": "button",
+          "label": "Run Multi-Step Process",
+          "icon": "play",
+          "events": [
+            {
+              "event": "click",
+              "type": "toast",
+              "toast": {
+                "type": "info",
+                "message": "Step 1: Starting process..."
+              }
+            },
+            {
+              "event": "click",
+              "type": "api",
+              "api": {
+                "request": {
+                  "url": "/api/step1",
+                  "method": "POST"
+                },
+                "showLoading": true
+              },
+              "debounce": 1000
+            },
+            {
+              "event": "click",
+              "type": "toast",
+              "toast": {
+                "type": "success",
+                "message": "Process completed successfully!"
+              },
+              "debounce": 2000
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "card",
+      "title": "💡 Expression System",
+      "description": "Dynamic values using expressions",
+      "body": {
+        "type": "div",
+        "className": "p-6 space-y-3",
+        "body": [
+          {
+            "type": "text",
+            "content": "Current time: ${new Date().toLocaleString()}",
+            "className": "text-sm"
+          },
+          {
+            "type": "text",
+            "content": "User Agent: ${navigator.userAgent}",
+            "className": "text-xs text-muted-foreground"
+          },
+          {
+            "type": "text",
+            "content": "Window Size: ${window.innerWidth}x${window.innerHeight}",
+            "className": "text-xs text-muted-foreground"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -11,6 +11,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@object-ui/types": "workspace:*",
     "lodash": "^4.17.21",
     "zod": "^3.22.4"
   },
