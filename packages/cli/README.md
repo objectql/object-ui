@@ -11,7 +11,7 @@ npm install -g @object-ui/cli
 Or use with npx:
 
 ```bash
-npx @object-ui/cli serve app.schema.json
+npx @object-ui/cli serve app.json
 ```
 
 ## Commands
@@ -39,12 +39,12 @@ objectui init . --template dashboard
 Start a development server to render your JSON schema.
 
 ```bash
-objectui serve app.schema.json
+objectui serve app.json
 objectui serve my-schema.json --port 8080
 ```
 
 **Arguments:**
-- `[schema]` - Path to JSON schema file (default: `app.schema.json`)
+- `[schema]` - Path to JSON schema file (default: `app.json`)
 
 **Options:**
 - `-p, --port <port>` - Port to run the server on (default: `3000`)
@@ -60,12 +60,12 @@ objectui serve my-schema.json --port 8080
 
 2. Start the development server:
    ```bash
-   objectui serve app.schema.json
+   objectui serve app.json
    ```
 
 3. Open http://localhost:3000 in your browser
 
-4. Edit `app.schema.json` to customize your application
+4. Edit `app.json` to customize your application
 
 ## Example Schema
 

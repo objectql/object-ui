@@ -44,18 +44,18 @@ objectui init . --template simple
 cd my-app
 
 # Start server
-objectui serve app.schema.json
+objectui serve app.json
 
 # Custom port
-objectui serve app.schema.json --port 8080
+objectui serve app.json --port 8080
 
 # Specify host
-objectui serve app.schema.json --host 0.0.0.0
+objectui serve app.json --host 0.0.0.0
 ```
 
 ### 3. Edit Schema
 
-Open the `app.schema.json` file and modify the JSON content to see real-time updates in your application.
+Open the `app.json` file and modify the JSON content to see real-time updates in your application.
 
 ## Command Reference
 
@@ -81,7 +81,7 @@ objectui init . --template simple
 Start a development server to render your JSON schema.
 
 **Arguments:**
-- `[schema]` - Path to JSON schema file (optional, default: `app.schema.json`)
+- `[schema]` - Path to JSON schema file (optional, default: `app.json`)
 
 **Options:**
 - `-p, --port <port>` - Server port (default: `3000`)
@@ -91,8 +91,8 @@ Start a development server to render your JSON schema.
 ```bash
 objectui serve
 objectui serve my-schema.json
-objectui serve app.schema.json --port 8080
-objectui serve app.schema.json --host 0.0.0.0 --port 3001
+objectui serve app.json --port 8080
+objectui serve app.json --host 0.0.0.0 --port 3001
 ```
 
 ## Schema Examples
@@ -386,7 +386,7 @@ You can also define navigation in your main schema using button click handlers:
 
 ## Layouts and Nested Routes
 
-**Note:** Layout support with `app.schema.json` and `_layout.schema.json` is planned for a future release. Currently, all routing is handled at the page level.
+**Note:** Layout support with `app.json` and `_layout.json` is planned for a future release. Currently, all routing is handled at the page level.
 
 ## FAQ
 

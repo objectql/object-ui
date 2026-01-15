@@ -21,7 +21,7 @@ const templates = {
         body: [
           {
             type: 'text',
-            content: 'This is a simple example. Edit app.schema.json to customize your application.',
+            content: 'This is a simple example. Edit app.json to customize your application.',
             className: 'text-sm text-muted-foreground',
           },
           {
@@ -378,10 +378,10 @@ export async function init(name: string, options: InitOptions) {
   }
 
   // Create schema file
-  const schemaPath = join(targetDir, 'app.schema.json');
+  const schemaPath = join(targetDir, 'app.json');
   writeFileSync(schemaPath, JSON.stringify(template, null, 2));
 
-  console.log(chalk.green('✓ Created app.schema.json'));
+  console.log(chalk.green('✓ Created app.json'));
 
   // Create README
   const readme = `# ${name}
@@ -397,14 +397,14 @@ A Object UI application built from JSON schemas.
 
 2. Start the development server:
    \`\`\`bash
-   objectui serve app.schema.json
+   objectui serve app.json
    \`\`\`
 
 3. Open your browser and visit http://localhost:3000
 
 ## Customize Your App
 
-Edit \`app.schema.json\` to customize your application. The dev server will automatically reload when you save changes.
+Edit \`app.json\` to customize your application. The dev server will automatically reload when you save changes.
 
 ## Available Templates
 
@@ -448,7 +448,7 @@ dist
   if (name !== '.') {
     console.log(chalk.cyan(`  cd ${name}`));
   }
-  console.log(chalk.cyan('  objectui serve app.schema.json'));
+  console.log(chalk.cyan('  objectui serve app.json'));
   console.log();
   console.log(chalk.dim('  The development server will start on http://localhost:3000'));
   console.log();

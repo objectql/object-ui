@@ -24,15 +24,15 @@ program
 
 program
   .command('serve')
-  .description('启动开发服务器来渲染您的JSON schema / Start a development server with your JSON schema')
-  .argument('[schema]', 'JSON schema文件路径 / Path to JSON schema file', 'app.schema.json')
-  .option('-p, --port <port>', '服务器端口 / Port to run the server on', '3000')
-  .option('-h, --host <host>', '服务器绑定主机 / Host to bind the server to', 'localhost')
+  .description('Start a development server with your JSON/YAML schema')
+  .argument('[schema]', 'Path to JSON/YAML schema file', 'app.json')
+  .option('-p, --port <port>', 'Port to run the server on', '3000')
+  .option('-h, --host <host>', 'Host to bind the server to', 'localhost')
   .action(async (schema, options) => {
     try {
       await serve(schema, options);
     } catch (error) {
-      console.error(chalk.red('错误 Error:'), error instanceof Error ? error.message : error);
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
       process.exit(1);
     }
   });

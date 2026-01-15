@@ -34,14 +34,14 @@ objectui init . --template simple
 Start development server to render JSON schema in real-time
 
 ```bash
-# 默认使用 app.schema.json / Default uses app.schema.json
+# 默认使用 app.json / Default uses app.json
 objectui serve
 
 # 指定 schema 文件 / Specify schema file
 objectui serve my-schema.json
 
 # 自定义端口 / Custom port
-objectui serve app.schema.json --port 8080
+objectui serve app.json --port 8080
 ```
 
 ### 2. 技术实现 / Technical Implementation
@@ -91,7 +91,7 @@ packages/cli/
         └── serve.ts       # serve 命令 / serve command
 
 examples/cli-demo/         # 示例应用 / Example app
-├── app.schema.json        # 演示 schema / Demo schema
+├── app.json        # 演示 schema / Demo schema
 └── README.md              # 使用说明 / Usage guide
 
 docs/CLI_GUIDE.md          # 完整文档 / Complete docs
@@ -110,7 +110,7 @@ objectui init my-dashboard
 
 # 3. 启动服务器 / Start server
 cd my-dashboard
-objectui serve app.schema.json
+objectui serve app.json
 
 # 4. 打开浏览器访问 / Open browser
 # http://localhost:3000
