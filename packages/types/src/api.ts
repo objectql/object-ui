@@ -428,7 +428,7 @@ export interface ExpressionContext {
   /**
    * Utility functions
    */
-  utils?: Record<string, Function>;
+  utils?: Record<string, (...args: any[]) => any>;
 }
 
 /**
