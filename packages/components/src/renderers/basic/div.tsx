@@ -5,7 +5,7 @@ import { renderChildren } from '../../lib/utils';
 ComponentRegistry.register('div', 
   ({ schema, className, ...props }: { schema: DivSchema; className?: string; [key: string]: any }) => (
     <div className={className} {...props}>
-      {renderChildren(schema.body)}
+      {renderChildren(schema.children || schema.body)}
     </div>
   ),
   {

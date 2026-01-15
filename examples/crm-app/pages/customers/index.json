@@ -1,0 +1,52 @@
+{
+  "type": "page",
+  "title": "Customers",
+  "body": [
+    {
+      "type": "div",
+      "className": "flex flex-col gap-6",
+      "children": [
+        {
+          "type": "div",
+          "className": "flex justify-between items-center",
+          "children": [
+             {
+               "type": "div",
+               "children": [
+                 { "type": "html", "html": "<h2 class='text-3xl font-bold'>Customers</h2>" },
+                 { "type": "html", "html": "<p class='text-muted-foreground'>Manage your customer relationships and accounts.</p>" }
+               ]
+             },
+             {
+               "type": "button",
+               "label": "Add Customer"
+             }
+          ]
+        },
+        {
+          "type": "card",
+          "className": "p-0 overflow-hidden shadow-sm",
+          "children": [
+            {
+              "type": "table",
+              "columns": [
+                { "header": "Name", "accessorKey": "name", "className": "w-[200px]" },
+                { "header": "Email", "accessorKey": "email" },
+                { "header": "Status", "accessorKey": "status" },
+                { "header": "Last Order", "accessorKey": "lastOrder" },
+                { "header": "Method", "accessorKey": "method", "className": "text-right" }
+              ],
+              "data": [
+                { "name": "Olivia Martin", "email": "olivia.martin@email.com", "status": "Active", "lastOrder": "$250.00", "method": "Credit Card" },
+                { "name": "Isabella Nguyen", "email": "isabella.nguyen@email.com", "status": "Active", "lastOrder": "$450.00", "method": "PayPal" },
+                { "name": "Michael Johnson", "email": "michael.johnson@email.com", "status": "Inactive", "lastOrder": "$150.00", "method": "Bank Transfer" },
+                { "name": "Sofia Davis", "email": "sofia.davis@email.com", "status": "Active", "lastOrder": "$1,250.00", "method": "Credit Card" },
+                { "name": "William Kim", "email": "will.kim@email.com", "status": "Active", "lastOrder": "$50.00", "method": "PayPal" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

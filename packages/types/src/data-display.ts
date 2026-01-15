@@ -562,4 +562,16 @@ export type DataDisplaySchema =
   | MarkdownSchema
   | TreeViewSchema
   | ChartSchema
-  | TimelineSchema;
+  | TimelineSchema
+  | HtmlSchema;
+
+/**
+ * Raw HTML component
+ */
+export interface HtmlSchema extends BaseSchema {
+  type: 'html';
+  /**
+   * The HTML content string
+   */
+  html: string;
+}

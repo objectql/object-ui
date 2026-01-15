@@ -1,0 +1,38 @@
+{
+  "type": "app",
+  "name": "ObjectCRM",
+  "title": "Object CRM",
+  "layout": "sidebar",
+  "menu": [
+    {
+      "label": "Home",
+      "path": "/",
+      "icon": "home"
+    },
+    {
+      "label": "Customers",
+      "path": "/customers",
+      "icon": "users"
+    },
+    {
+      "label": "Opportunities",
+      "path": "/opportunities",
+      "icon": "target"
+    },
+    {
+      "label": "Reports",
+      "path": "/reports",
+      "icon": "bar-chart"
+    }
+  ],
+  "actions": [
+    {
+      "type": "button",
+      "label": "Notifications"
+    },
+    {
+      "type": "user",
+      "label": "John Doe"
+    }
+  ]
+}

@@ -19,7 +19,7 @@ ComponentRegistry.register('card',
           {schema.description && <CardDescription>{schema.description}</CardDescription>}
         </CardHeader>
       )}
-      {schema.body && <CardContent>{renderChildren(schema.body)}</CardContent>}
+      {(schema.children || schema.body) && <CardContent>{renderChildren(schema.children || schema.body)}</CardContent>}
       {schema.footer && <CardFooter>{renderChildren(schema.footer)}</CardFooter>}
     </Card>
   ),

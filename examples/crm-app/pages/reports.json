@@ -1,0 +1,48 @@
+{
+  "type": "page",
+  "title": "Reports",
+  "body": [
+    {
+      "type": "div",
+      "className": "flex flex-col gap-6",
+      "children": [
+        {
+          "type": "div",
+          "className": "flex justify-between items-center",
+          "children": [
+            { "type": "html", "html": "<h2 class='text-3xl font-bold'>Reports</h2>" },
+            { 
+              "type": "div", 
+              "className": "flex gap-2",
+              "children": [
+                { "type": "button", "label": "Export PDF", "variant": "outline" },
+                { "type": "button", "label": "Share" }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "className": "grid-cols-2 gap-4",
+          "children": [
+            {
+               "type": "card",
+               "className": "col-span-1 p-6 h-[300px] flex items-center justify-center border-dashed bg-slate-50",
+               "children": [{ "type": "html", "html": "<span class='text-slate-400'>Sales Trend Chart Placeholder</span>" }]
+            },
+            {
+               "type": "card",
+               "className": "col-span-1 p-6 h-[300px] flex items-center justify-center border-dashed bg-slate-50",
+               "children": [{ "type": "html", "html": "<span class='text-slate-400'>User Acquisition Chart Placeholder</span>" }]
+            },
+            {
+               "type": "card",
+               "className": "col-span-2 p-6 h-[200px] flex items-center justify-center border-dashed bg-slate-50",
+               "children": [{ "type": "html", "html": "<span class='text-slate-400'>Geographic Distribution Map Placeholder</span>" }]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -40,6 +40,15 @@
  */
 
 // ============================================================================
+// Application - Global Configuration
+// ============================================================================
+export type {
+  AppSchema,
+  AppAction,
+  MenuItem as AppMenuItem
+} from './app';
+
+// ============================================================================
 // Base Types - The Foundation
 // ============================================================================
 export type {
@@ -123,6 +132,7 @@ export type {
   ChartSchema,
   TimelineEvent,
   TimelineSchema,
+  HtmlSchema,
   DataDisplaySchema,
 } from './data-display';
 
@@ -261,12 +271,14 @@ import type { OverlaySchema } from './overlay';
 import type { NavigationSchema } from './navigation';
 import type { ComplexSchema } from './complex';
 import type { CRUDComponentSchema } from './crud';
+import type { AppSchema } from './app';
 
 /**
  * Union of all component schemas.
  * Use this for generic component rendering where the type is determined at runtime.
  */
 export type AnySchema =
+  | AppSchema 
   | BaseSchema
   | LayoutSchema
   | FormComponentSchema
