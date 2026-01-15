@@ -25,7 +25,7 @@ function App() {
                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
             }`}
           >
-            Form Designer
+            Form
           </button>
           <button
             onClick={() => setMode('layout')}
@@ -35,7 +35,17 @@ function App() {
                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
             }`}
           >
-            Layout Designer
+            Layout
+          </button>
+          <button
+            onClick={() => setMode('canvas')}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              mode === 'canvas'
+                ? 'bg-amber-500 text-white shadow-lg'
+                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+            }`}
+          >
+            Canvas
           </button>
           <button
             onClick={() => setMode('general')}
@@ -45,7 +55,7 @@ function App() {
                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
             }`}
           >
-            General Designer
+            General
           </button>
         </div>
       </div>

@@ -4,6 +4,7 @@ export { Designer, DesignerContent } from './components/Designer';
 // Specialized Designers
 export { FormDesigner } from './components/FormDesigner';
 export { LayoutDesigner } from './components/LayoutDesigner';
+export { CanvasDesigner } from './components/CanvasDesigner';
 export { GeneralDesigner, GeneralDesignerContent } from './components/GeneralDesigner';
 
 // Context and Hooks
@@ -12,7 +13,7 @@ export type { DesignerContextValue, ViewportMode, ResizingState } from './contex
 export { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 // Designer Mode Types
-export type { DesignerMode, DesignerConfig, FormDesignerConfig, LayoutDesignerConfig } from './types/designer-modes';
+export type { DesignerMode, DesignerConfig, FormDesignerConfig, LayoutDesignerConfig, CanvasDesignerConfig } from './types/designer-modes';
 
 // Individual Components (for custom layouts)
 export { Canvas } from './components/Canvas';

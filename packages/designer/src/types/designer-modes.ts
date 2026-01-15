@@ -6,9 +6,10 @@
  * Available designer modes
  * - 'form': Specialized form designer with validation and field management
  * - 'layout': Page layout designer with grid/flex helpers
+ * - 'canvas': Free-form canvas designer with absolute positioning
  * - 'general': Full-featured general purpose designer
  */
-export type DesignerMode = 'form' | 'layout' | 'general';
+export type DesignerMode = 'form' | 'layout' | 'canvas' | 'general';
 
 /**
  * Configuration for specialized designers
@@ -99,4 +100,35 @@ export interface LayoutDesignerConfig extends DesignerConfig {
    * Available layout types
    */
   layoutTypes?: string[];
+}
+
+/**
+ * Canvas designer specific configuration
+ */
+export interface CanvasDesignerConfig extends DesignerConfig {
+  mode: 'canvas';
+  
+  /**
+   * Whether to enable free-form positioning
+   * @default true
+   */
+  enableFreePositioning?: boolean;
+  
+  /**
+   * Whether to show grid for alignment
+   * @default true
+   */
+  showGrid?: boolean;
+  
+  /**
+   * Grid snap size in pixels
+   * @default 10
+   */
+  gridSize?: number;
+  
+  /**
+   * Canvas background color
+   * @default '#ffffff'
+   */
+  canvasBackground?: string;
 }

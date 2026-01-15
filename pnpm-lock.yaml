@@ -103,6 +103,73 @@ importers:
         specifier: ^3.4.0
         version: 3.5.26(typescript@5.9.3)
 
+  examples/designer-modes:
+    dependencies:
+      '@object-ui/components':
+        specifier: workspace:*
+        version: link:../../packages/components
+      '@object-ui/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@object-ui/designer':
+        specifier: workspace:*
+        version: link:../../packages/designer
+      '@object-ui/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.39.1
+        version: 9.39.2
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.10.8
+      '@types/react':
+        specifier: 18.3.12
+        version: 18.3.12
+      '@types/react-dom':
+        specifier: 18.3.1
+        version: 18.3.1
+      '@vitejs/plugin-react':
+        specifier: ^5.1.2
+        version: 5.1.2(vite@5.4.21(@types/node@24.10.8))
+      autoprefixer:
+        specifier: ^10.4.23
+        version: 10.4.23(postcss@8.5.6)
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.2(jiti@1.21.7)
+      eslint-plugin-react-hooks:
+        specifier: ^7.0.1
+        version: 7.0.1(eslint@9.39.2(jiti@1.21.7))
+      eslint-plugin-react-refresh:
+        specifier: ^0.4.24
+        version: 0.4.26(eslint@9.39.2(jiti@1.21.7))
+      globals:
+        specifier: ^16.5.0
+        version: 16.5.0
+      postcss:
+        specifier: ^8.5.6
+        version: 8.5.6
+      tailwindcss:
+        specifier: ^3.4.19
+        version: 3.4.19
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.46.4
+        version: 8.53.0(eslint@9.39.2(jiti@1.21.7))(typescript@5.9.3)
+      vite:
+        specifier: ^5.0.0
+        version: 5.4.21(@types/node@24.10.8)
+
   examples/prototype:
     dependencies:
       '@object-ui/components':
@@ -7176,6 +7243,18 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-beta.27
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
+      vite: 5.4.21(@types/node@24.10.8)
+    transitivePeerDependencies:
+      - supports-color
+
+  '@vitejs/plugin-react@5.1.2(vite@5.4.21(@types/node@24.10.8))':
+    dependencies:
+      '@babel/core': 7.28.6
+      '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.28.6)
+      '@babel/plugin-transform-react-jsx-source': 7.27.1(@babel/core@7.28.6)
+      '@rolldown/pluginutils': 1.0.0-beta.53
+      '@types/babel__core': 7.20.5
+      react-refresh: 0.18.0
       vite: 5.4.21(@types/node@24.10.8)
     transitivePeerDependencies:
       - supports-color
