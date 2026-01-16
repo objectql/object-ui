@@ -8,6 +8,11 @@ import { buildApp } from './commands/build.js';
 import { start } from './commands/start.js';
 import { lint } from './commands/lint.js';
 import { test } from './commands/test.js';
+import { generate } from './commands/generate.js';
+import { doctor } from './commands/doctor.js';
+import { add } from './commands/add.js';
+import { studio } from './commands/studio.js';
+import { check } from './commands/check.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -124,6 +129,87 @@ program
   .action(async (options) => {
     try {
       await test(options);
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('generate')
+  .alias('g')
+  .description('Generate new resources (objects, pages, plugins)')
+  .argument('<type>', 'Type of resource to generate (resource/object, page, plugin)')
+  .argument('<name>', 'Name of the resource')
+  .action(async (type, name) => {
+    try {
+      await generate(type, name);
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('doctor')
+  .description('Diagnose and fix common issues')
+  .action(async () => {
+    try {
+      await doctor();
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('add')
+  .description('Add a new component renderer to your project')
+  .argument('<component>', 'Component name (e.g. Input, Grid)')
+  .action(async (component) => {
+    try {
+      await add(component);
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('studio')
+  .description('Start the visual designer')
+  .action(async () => {
+    try {
+      await studio();
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('check')
+  .description('Validate schema files')
+  .action(async () => {
+    try {
+      await check();
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('showcase')
+  .description('Start the built-in showcase example')
+  .option('-p, --port <port>', 'Port to run the server on', '3000')
+  .option('-h, --host <host>', 'Host to bind the server to', 'localhost')
+  .option('--no-open', 'Do not open browser automatically')
+  .action(async (options) => {
+    try {
+      // Locate repository root relative to this file and point to examples/showcase/app.json
+      const showcaseSchema = join(__dirname, '../../..', 'examples', 'showcase', 'app.json');
+      await dev(showcaseSchema, options);
     } catch (error) {
       console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
       process.exit(1);

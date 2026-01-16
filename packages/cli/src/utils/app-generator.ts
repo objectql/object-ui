@@ -283,20 +283,86 @@ export default {
   plugins: [],
 };`;
 
-  writeFileSync(join(tmpDir, 'tailwind.config.js'), tailwindConfig);
+  const cwd = process.cwd();
+  const isMonorepo = existsSync(join(cwd, 'pnpm-workspace.yaml'));
+
+  // Define Tailwind Content Paths
+  const contentPaths = ["'./index.html'", "'./src/**/*.{js,ts,jsx,tsx}'"];
+  if (isMonorepo) {
+     contentPaths.push("'../../packages/components/src/**/*.{ts,tsx}'");
+     contentPaths.push("'../../packages/plugin-*/src/**/*.{ts,tsx}'"); 
+  }
+
+  // Create tailwind.config.js
+  const finalTailwindConfig = `/** @type {import('tailwindcss').Config} */
+export default {
+  darkMode: ['class'],
+  content: [${contentPaths.join(', ')}],
+  theme: {
+    extend: {
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+      colors: {
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        chart: {
+          1: 'hsl(var(--chart-1))',
+          2: 'hsl(var(--chart-2))',
+          3: 'hsl(var(--chart-3))',
+          4: 'hsl(var(--chart-4))',
+          5: 'hsl(var(--chart-5))',
+        },
+      },
+    },
+  },
+  plugins: [],
+};`;
+
+  writeFileSync(join(tmpDir, 'tailwind.config.js'), finalTailwindConfig);
 
   // Create postcss.config.js
-  const postcssConfig = `export default {
+  const finalPostcssConfig = `export default {
   plugins: {
     tailwindcss: {},
     autoprefixer: {},
   },
 };`;
   
-  writeFileSync(join(tmpDir, 'postcss.config.js'), postcssConfig);
-
-  const cwd = process.cwd();
-  const isMonorepo = existsSync(join(cwd, 'pnpm-workspace.yaml'));
+  writeFileSync(join(tmpDir, 'postcss.config.js'), finalPostcssConfig);
 
   // Create package.json
   const baseDependencies = {
@@ -353,14 +419,14 @@ export default {
   writeFileSync(join(tmpDir, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2));
 }
 
-export function createTempAppWithRouting(tmpDir: string, routes: RouteInfo[]) {
+export function createTempAppWithRouting(tmpDir: string, routes: RouteInfo[], appConfig?: unknown) {
   // Create index.html
   const html = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Object UI App</title>
+    <title>${(appConfig as any)?.title || 'Object UI App'}</title>
   </head>
   <body>
     <div id="root"></div>
@@ -412,18 +478,98 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
   writeFileSync(join(srcDir, 'main.tsx'), mainTsx);
 
+  // Generate Layout Code if appConfig is present
+  let layoutImport = '';
+  let layoutWrapperStart = '';
+  let layoutWrapperEnd = '';
+  
+  if (appConfig) {
+      // Very basic Layout implementation for now
+      // Logic: If appConfig is present, current version assumes it's just a config object, 
+      // but we need a Layout component that renders navigation.
+      // Since we don't have a Layout component in @object-ui/components yet, we generate a simple one.
+
+      const layoutCode = `
+import { Link, useLocation } from 'react-router-dom';
+import { cn } from '@object-ui/components/lib/utils'; // Try to use from components lib if available or generated utils
+
+const AppLayout = ({ app, children }) => {
+  const location = useLocation();
+  const menu = app.menu || [];
+
+  return (
+    <div className="flex h-screen bg-background">
+      {/* Sidebar */}
+      <aside className="w-64 border-r bg-muted/30 flex flex-col">
+        <div className="h-14 flex items-center px-6 font-bold border-b">
+          {app.title || 'App'}
+        </div>
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          {menu.map((item, idx) => (
+            <div key={idx}>
+              {item.path ? (
+                <Link 
+                  to={item.path} 
+                  className={cn(
+                    "flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-muted hover:text-foreground transition-colors",
+                    location.pathname === item.path ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-muted-foreground"
+                  )}
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <div className="px-2 py-2 text-sm font-semibold text-foreground/70 mt-4 mb-1">
+                  {item.label}
+                </div>
+              )}
+              {/* Simple nested support */}
+              {item.children?.map((child, cIdx) => (
+                 <Link 
+                  key={cIdx}
+                  to={child.path} 
+                  className={cn(
+                    "flex items-center pl-6 pr-2 py-1.5 text-sm rounded-md hover:bg-muted hover:text-foreground transition-colors",
+                    location.pathname === child.path ? "text-primary font-medium" : "text-muted-foreground"
+                  )}
+                >
+                  {child.label}
+                </Link>
+              ))}
+            </div>
+          ))}
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto">
+        {children}
+      </main>
+    </div>
+  );
+};
+`;
+      writeFileSync(join(srcDir, 'Layout.tsx'), layoutCode);
+      
+      layoutImport = `import AppLayout from './Layout';\nconst appConfig = ${JSON.stringify(appConfig)};`;
+      layoutWrapperStart = `<AppLayout app={appConfig}>`;
+      layoutWrapperEnd = `</AppLayout>`;
+  }
+
   // Create App.tsx with routing
   const appTsx = `import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { SchemaRenderer } from '@object-ui/react';
 import '@object-ui/components';
 ${schemaImports.join('\n')}
+${layoutImport}
 
 function App() {
   return (
     <BrowserRouter>
+      ${layoutWrapperStart}
       <Routes>
 ${routeComponents.join('\n')}
       </Routes>
+      ${layoutWrapperEnd}
     </BrowserRouter>
   );
 }
