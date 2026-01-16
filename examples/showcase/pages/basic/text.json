@@ -1,28 +1,110 @@
 {
   "type": "page",
-  "title": "Text Component",
+  "title": "Text - Object UI",
   "body": [
     {
       "type": "div",
-      "className": "space-y-6",
+      "className": "space-y-6 container mx-auto py-6 max-w-4xl",
       "children": [
         {
-          "type": "text",
-          "value": "Text",
-          "className": "text-3xl font-bold tracking-tight"
-        },
-        {
-          "type": "text",
-          "value": "Examples of the Text component.",
-          "className": "text-muted-foreground"
-        },
-        {
-          "type": "card",
-          "className": "p-6",
+          "type": "div",
+          "className": "space-y-2",
           "children": [
             {
               "type": "text",
-              "value": "TODO: detailed examples for text"
+              "value": "Text",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Typography components.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Headings",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "div",
+                "className": "space-y-4",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Heading 1",
+                    "className": "text-4xl font-extrabold lg:text-5xl"
+                  },
+                  {
+                    "type": "text",
+                    "value": "Heading 2",
+                    "className": "text-3xl font-semibold border-b pb-2"
+                  },
+                  {
+                    "type": "text",
+                    "value": "Heading 3",
+                    "className": "text-2xl font-semibold"
+                  },
+                  {
+                    "type": "text",
+                    "value": "Heading 4",
+                    "className": "text-xl font-semibold"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Paragraphs",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "div",
+                "className": "space-y-4",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Leading: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+                    "className": "text-xl text-muted-foreground"
+                  },
+                  {
+                    "type": "text",
+                    "value": "Regular: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+                    "className": "leading-7"
+                  },
+                  {
+                    "type": "text",
+                    "value": "Small: Lorem ipsum dolor sit amet.",
+                    "className": "text-sm font-medium leading-none"
+                  },
+                  {
+                    "type": "text",
+                    "value": "Muted: Lorem ipsum dolor sit amet.",
+                    "className": "text-sm text-muted-foreground"
+                  }
+                ]
+              }
             }
           ]
         }

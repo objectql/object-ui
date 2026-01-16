@@ -1,28 +1,57 @@
 {
   "type": "page",
-  "title": "Slider Component",
+  "title": "Slider - Object UI",
   "body": [
     {
       "type": "div",
-      "className": "space-y-6",
+      "className": "space-y-6 container mx-auto py-6 max-w-4xl",
       "children": [
         {
-          "type": "text",
-          "value": "Slider",
-          "className": "text-3xl font-bold tracking-tight"
-        },
-        {
-          "type": "text",
-          "value": "Examples of the Slider component.",
-          "className": "text-muted-foreground"
-        },
-        {
-          "type": "card",
-          "className": "p-6",
+          "type": "div",
+          "className": "space-y-2",
           "children": [
             {
               "type": "text",
-              "value": "TODO: detailed examples for slider"
+              "value": "Slider",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Range selection.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Volume",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "div",
+                "className": "w-full max-w-sm space-y-4",
+                "children": [
+                  {
+                    "type": "slider",
+                    "defaultValue": [
+                      50
+                    ],
+                    "max": 100,
+                    "step": 1
+                  }
+                ]
+              }
             }
           ]
         }

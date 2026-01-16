@@ -1,28 +1,59 @@
 {
   "type": "page",
-  "title": "Checkbox Component",
+  "title": "Checkbox - Object UI",
   "body": [
     {
       "type": "div",
-      "className": "space-y-6",
+      "className": "space-y-6 container mx-auto py-6 max-w-4xl",
       "children": [
         {
-          "type": "text",
-          "value": "Checkbox",
-          "className": "text-3xl font-bold tracking-tight"
-        },
-        {
-          "type": "text",
-          "value": "Examples of the Checkbox component.",
-          "className": "text-muted-foreground"
-        },
-        {
-          "type": "card",
-          "className": "p-6",
+          "type": "div",
+          "className": "space-y-2",
           "children": [
             {
               "type": "text",
-              "value": "TODO: detailed examples for checkbox"
+              "value": "Checkbox",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Toggle selection.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Basic Checkbox",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "div",
+                "className": "flex items-center space-x-2",
+                "children": [
+                  {
+                    "type": "checkbox",
+                    "id": "terms"
+                  },
+                  {
+                    "type": "label",
+                    "htmlFor": "terms",
+                    "value": "Accept terms and conditions",
+                    "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  }
+                ]
+              }
             }
           ]
         }

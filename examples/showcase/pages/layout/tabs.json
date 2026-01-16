@@ -1,28 +1,114 @@
 {
   "type": "page",
-  "title": "Tabs Component",
+  "title": "Tabs - Object UI",
   "body": [
     {
       "type": "div",
-      "className": "space-y-6",
+      "className": "space-y-6 container mx-auto py-6 max-w-4xl",
       "children": [
         {
-          "type": "text",
-          "value": "Tabs",
-          "className": "text-3xl font-bold tracking-tight"
-        },
-        {
-          "type": "text",
-          "value": "Examples of the Tabs component.",
-          "className": "text-muted-foreground"
-        },
-        {
-          "type": "card",
-          "className": "p-6",
+          "type": "div",
+          "className": "space-y-2",
           "children": [
             {
               "type": "text",
-              "value": "TODO: detailed examples for tabs"
+              "value": "Tabs",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Switch between views.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Account Settings",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "tabs",
+                "defaultValue": "account",
+                "className": "w-[400px]",
+                "items": [
+                  {
+                    "label": "Account",
+                    "value": "account",
+                    "content": {
+                      "type": "card",
+                      "title": "Account",
+                      "description": "Make changes to your account here.",
+                      "children": [
+                        {
+                          "type": "div",
+                          "className": "space-y-4 pt-4",
+                          "children": [
+                            {
+                              "type": "input",
+                              "label": "Name",
+                              "defaultValue": "Pedro Duarte"
+                            },
+                            {
+                              "type": "input",
+                              "label": "Username",
+                              "defaultValue": "@peduarte"
+                            }
+                          ]
+                        }
+                      ],
+                      "footer": [
+                        {
+                          "type": "button",
+                          "label": "Save changes"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "label": "Password",
+                    "value": "password",
+                    "content": {
+                      "type": "card",
+                      "title": "Password",
+                      "description": "Change your password here.",
+                      "children": [
+                        {
+                          "type": "div",
+                          "className": "space-y-4 pt-4",
+                          "children": [
+                            {
+                              "type": "password",
+                              "label": "Current Password"
+                            },
+                            {
+                              "type": "password",
+                              "label": "New Password"
+                            }
+                          ]
+                        }
+                      ],
+                      "footer": [
+                        {
+                          "type": "button",
+                          "label": "Save password"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
             }
           ]
         }

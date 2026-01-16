@@ -1,28 +1,69 @@
 {
   "type": "page",
-  "title": "Image Component",
+  "title": "Image - Object UI",
   "body": [
     {
       "type": "div",
-      "className": "space-y-6",
+      "className": "space-y-6 container mx-auto py-6 max-w-4xl",
       "children": [
         {
-          "type": "text",
-          "value": "Image",
-          "className": "text-3xl font-bold tracking-tight"
-        },
-        {
-          "type": "text",
-          "value": "Examples of the Image component.",
-          "className": "text-muted-foreground"
-        },
-        {
-          "type": "card",
-          "className": "p-6",
+          "type": "div",
+          "className": "space-y-2",
           "children": [
             {
               "type": "text",
-              "value": "TODO: detailed examples for image"
+              "value": "Image",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Display images.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Responsive Image",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "image",
+                "src": "https://images.unsplash.com/photo-1579353977828-2a4eab540b9a?w=800&q=80",
+                "alt": "Example",
+                "className": "rounded-lg object-cover h-64 w-full"
+              }
+            }
+          ]
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Avatar Style",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "image",
+                "src": "https://github.com/shadcn.png",
+                "className": "rounded-full w-24 h-24 border-4 border-white shadow-lg"
+              }
             }
           ]
         }

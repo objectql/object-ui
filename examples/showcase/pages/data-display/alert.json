@@ -1,28 +1,62 @@
 {
   "type": "page",
-  "title": "Alert Component",
+  "title": "Alert - Object UI",
   "body": [
     {
       "type": "div",
-      "className": "space-y-6",
+      "className": "space-y-6 container mx-auto py-6 max-w-4xl",
       "children": [
         {
-          "type": "text",
-          "value": "Alert",
-          "className": "text-3xl font-bold tracking-tight"
-        },
-        {
-          "type": "text",
-          "value": "Examples of the Alert component.",
-          "className": "text-muted-foreground"
-        },
-        {
-          "type": "card",
-          "className": "p-6",
+          "type": "div",
+          "className": "space-y-2",
           "children": [
             {
               "type": "text",
-              "value": "TODO: detailed examples for alert"
+              "value": "Alert",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Important messages.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Examples",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "div",
+                "className": "space-y-4 w-full max-w-md",
+                "children": [
+                  {
+                    "type": "alert",
+                    "icon": "terminal",
+                    "title": "Heads up!",
+                    "description": "You can add components to your app using the cli."
+                  },
+                  {
+                    "type": "alert",
+                    "variant": "destructive",
+                    "icon": "alert-circle",
+                    "title": "Error",
+                    "description": "Your session has expired. Please log in again."
+                  }
+                ]
+              }
             }
           ]
         }

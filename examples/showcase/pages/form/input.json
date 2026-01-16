@@ -1,43 +1,99 @@
 {
   "type": "page",
-  "title": "Input Component",
+  "title": "Input - Object UI",
   "body": [
     {
       "type": "div",
-      "className": "space-y-6",
+      "className": "space-y-6 container mx-auto py-6 max-w-4xl",
       "children": [
         {
-          "type": "text",
-          "value": "Input",
-          "className": "text-3xl font-bold tracking-tight"
-        },
-        {
-          "type": "text",
-          "value": "Examples of the Input component.",
-          "className": "text-muted-foreground"
-        },
-        {
-          "type": "card",
-          "className": "p-6",
+          "type": "div",
+          "className": "space-y-2",
           "children": [
             {
-              "type": "div",
-              "className": "space-y-4 max-w-sm",
-              "children": [
-                {
-                  "type": "email",
-                  "placeholder": "Email"
-                },
-                {
-                  "type": "password",
-                  "placeholder": "Password"
-                },
-                {
-                  "type": "input",
-                  "placeholder": "Disabled",
-                  "disabled": true
-                }
-              ]
+              "type": "text",
+              "value": "Input",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Accept user input.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Types",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "div",
+                "className": "space-y-4 max-w-sm w-full",
+                "children": [
+                  {
+                    "type": "email",
+                    "label": "Email",
+                    "placeholder": "m@example.com"
+                  },
+                  {
+                    "type": "password",
+                    "label": "Password"
+                  },
+                  {
+                    "type": "input",
+                    "label": "With Helper",
+                    "description": "This is your public display name."
+                  },
+                  {
+                    "type": "input",
+                    "label": "Disabled",
+                    "disabled": true,
+                    "value": "Can't touch this"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "With Button",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "div",
+                "className": "flex w-full max-w-sm items-center space-x-2",
+                "children": [
+                  {
+                    "type": "input",
+                    "placeholder": "Email",
+                    "className": "flex-1"
+                  },
+                  {
+                    "type": "button",
+                    "label": "Subscribe"
+                  }
+                ]
+              }
             }
           ]
         }

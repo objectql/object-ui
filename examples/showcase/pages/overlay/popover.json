@@ -1,28 +1,113 @@
 {
   "type": "page",
-  "title": "Popover Component",
+  "title": "Popover - Object UI",
   "body": [
     {
       "type": "div",
-      "className": "space-y-6",
+      "className": "space-y-6 container mx-auto py-6 max-w-4xl",
       "children": [
         {
-          "type": "text",
-          "value": "Popover",
-          "className": "text-3xl font-bold tracking-tight"
-        },
-        {
-          "type": "text",
-          "value": "Examples of the Popover component.",
-          "className": "text-muted-foreground"
-        },
-        {
-          "type": "card",
-          "className": "p-6",
+          "type": "div",
+          "className": "space-y-2",
           "children": [
             {
               "type": "text",
-              "value": "TODO: detailed examples for popover"
+              "value": "Popover",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Floating content.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Settings",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "popover",
+                "trigger": [
+                  {
+                    "type": "button",
+                    "label": "Open Popover",
+                    "variant": "outline"
+                  }
+                ],
+                "content": [
+                  {
+                    "type": "div",
+                    "className": "grid gap-4",
+                    "children": [
+                      {
+                        "type": "div",
+                        "className": "space-y-2",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Dimensions",
+                            "className": "font-medium leading-none"
+                          },
+                          {
+                            "type": "text",
+                            "value": "Set the dimensions for the layer.",
+                            "className": "text-sm text-muted-foreground"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "className": "grid gap-2",
+                        "children": [
+                          {
+                            "type": "div",
+                            "className": "grid grid-cols-3 items-center gap-4",
+                            "children": [
+                              {
+                                "type": "label",
+                                "value": "Width"
+                              },
+                              {
+                                "type": "input",
+                                "value": "100%",
+                                "className": "col-span-2 h-8"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "div",
+                            "className": "grid grid-cols-3 items-center gap-4",
+                            "children": [
+                              {
+                                "type": "label",
+                                "value": "Height"
+                              },
+                              {
+                                "type": "input",
+                                "value": "25px",
+                                "className": "col-span-2 h-8"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
             }
           ]
         }

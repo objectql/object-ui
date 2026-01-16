@@ -1,28 +1,69 @@
 {
   "type": "page",
-  "title": "Accordion Component",
+  "title": "Accordion - Object UI",
   "body": [
     {
       "type": "div",
-      "className": "space-y-6",
+      "className": "space-y-6 container mx-auto py-6 max-w-4xl",
       "children": [
         {
-          "type": "text",
-          "value": "Accordion",
-          "className": "text-3xl font-bold tracking-tight"
-        },
-        {
-          "type": "text",
-          "value": "Examples of the Accordion component.",
-          "className": "text-muted-foreground"
-        },
-        {
-          "type": "card",
-          "className": "p-6",
+          "type": "div",
+          "className": "space-y-2",
           "children": [
             {
               "type": "text",
-              "value": "TODO: detailed examples for accordion"
+              "value": "Accordion",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Vertically stacked set of interactive headings.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "FAQ",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "div",
+                "className": "w-full max-w-md",
+                "children": [
+                  {
+                    "type": "accordion",
+                    "items": [
+                      {
+                        "value": "item-1",
+                        "trigger": "Is it accessible?",
+                        "content": "Yes. It adheres to the WAI-ARIA design pattern."
+                      },
+                      {
+                        "value": "item-2",
+                        "trigger": "Is it styled?",
+                        "content": "Yes. It comes with default styles that matches the other components' aesthetic."
+                      },
+                      {
+                        "value": "item-3",
+                        "trigger": "Is it animated?",
+                        "content": "Yes. It's animated by default, but you can disable it if you prefer."
+                      }
+                    ]
+                  }
+                ]
+              }
             }
           ]
         }

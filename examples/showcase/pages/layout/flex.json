@@ -1,28 +1,121 @@
 {
   "type": "page",
-  "title": "Flex Component",
+  "title": "Flex - Object UI",
   "body": [
     {
       "type": "div",
-      "className": "space-y-6",
+      "className": "space-y-6 container mx-auto py-6 max-w-4xl",
       "children": [
         {
-          "type": "text",
-          "value": "Flex",
-          "className": "text-3xl font-bold tracking-tight"
-        },
-        {
-          "type": "text",
-          "value": "Examples of the Flex component.",
-          "className": "text-muted-foreground"
-        },
-        {
-          "type": "card",
-          "className": "p-6",
+          "type": "div",
+          "className": "space-y-2",
           "children": [
             {
               "type": "text",
-              "value": "TODO: detailed examples for flex"
+              "value": "Flex",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "One-dimensional layout.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Flex Row",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "flex",
+                "className": "gap-4",
+                "children": [
+                  {
+                    "type": "div",
+                    "className": "w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded flex items-center justify-center",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "1"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "w-16 h-16 bg-blue-200 dark:bg-blue-800 rounded flex items-center justify-center",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "2"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "w-16 h-16 bg-blue-300 dark:bg-blue-700 rounded flex items-center justify-center",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "3"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Flex Column",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "flex",
+                "direction": "column",
+                "className": "gap-2 w-full",
+                "children": [
+                  {
+                    "type": "div",
+                    "className": "p-4 bg-muted rounded",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Item 1"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "div",
+                    "className": "p-4 bg-muted rounded",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Item 2"
+                      }
+                    ]
+                  }
+                ]
+              }
             }
           ]
         }

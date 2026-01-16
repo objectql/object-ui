@@ -1,28 +1,102 @@
 {
   "type": "page",
-  "title": "Sheet Component",
+  "title": "Sheet - Object UI",
   "body": [
     {
       "type": "div",
-      "className": "space-y-6",
+      "className": "space-y-6 container mx-auto py-6 max-w-4xl",
       "children": [
         {
-          "type": "text",
-          "value": "Sheet",
-          "className": "text-3xl font-bold tracking-tight"
-        },
-        {
-          "type": "text",
-          "value": "Examples of the Sheet component.",
-          "className": "text-muted-foreground"
-        },
-        {
-          "type": "card",
-          "className": "p-6",
+          "type": "div",
+          "className": "space-y-2",
           "children": [
             {
               "type": "text",
-              "value": "TODO: detailed examples for sheet"
+              "value": "Sheet",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Side drawer.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Right Sheet",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "sheet",
+                "side": "right",
+                "trigger": [
+                  {
+                    "type": "button",
+                    "label": "Open Sheet",
+                    "variant": "outline"
+                  }
+                ],
+                "title": "Edit Profile",
+                "description": "Make changes to your profile here. Click save when you're done.",
+                "content": [
+                  {
+                    "type": "div",
+                    "className": "py-4 gap-4 grid",
+                    "children": [
+                      {
+                        "type": "div",
+                        "className": "grid grid-cols-4 items-center gap-4",
+                        "children": [
+                          {
+                            "type": "label",
+                            "value": "Name",
+                            "className": "text-right"
+                          },
+                          {
+                            "type": "input",
+                            "value": "Pedro Duarte",
+                            "className": "col-span-3"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "div",
+                        "className": "grid grid-cols-4 items-center gap-4",
+                        "children": [
+                          {
+                            "type": "label",
+                            "value": "Username",
+                            "className": "text-right"
+                          },
+                          {
+                            "type": "input",
+                            "value": "@peduarte",
+                            "className": "col-span-3"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "footer": [
+                  {
+                    "type": "button",
+                    "label": "Save changes"
+                  }
+                ]
+              }
             }
           ]
         }

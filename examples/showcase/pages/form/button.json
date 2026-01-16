@@ -1,59 +1,159 @@
 {
   "type": "page",
-  "title": "Button Component",
+  "title": "Button - Object UI",
   "body": [
     {
       "type": "div",
-      "className": "space-y-6",
+      "className": "space-y-6 container mx-auto py-6 max-w-4xl",
       "children": [
         {
-          "type": "text",
-          "value": "Button",
-          "className": "text-3xl font-bold tracking-tight"
-        },
-        {
-          "type": "text",
-          "value": "Examples of the Button component.",
-          "className": "text-muted-foreground"
-        },
-        {
-          "type": "card",
-          "className": "p-6",
+          "type": "div",
+          "className": "space-y-2",
           "children": [
             {
-              "type": "div",
-              "className": "flex gap-4 flex-wrap",
-              "children": [
-                {
-                  "type": "button",
-                  "label": "Default"
-                },
-                {
-                  "type": "button",
-                  "label": "Secondary",
-                  "variant": "secondary"
-                },
-                {
-                  "type": "button",
-                  "label": "Destructive",
-                  "variant": "destructive"
-                },
-                {
-                  "type": "button",
-                  "label": "Outline",
-                  "variant": "outline"
-                },
-                {
-                  "type": "button",
-                  "label": "Ghost",
-                  "variant": "ghost"
-                },
-                {
-                  "type": "button",
-                  "label": "Link",
-                  "variant": "link"
-                }
-              ]
+              "type": "text",
+              "value": "Button",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Trigger actions.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Variants",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "div",
+                "className": "flex flex-wrap gap-4",
+                "children": [
+                  {
+                    "type": "button",
+                    "label": "Default"
+                  },
+                  {
+                    "type": "button",
+                    "label": "Secondary",
+                    "variant": "secondary"
+                  },
+                  {
+                    "type": "button",
+                    "label": "Destructive",
+                    "variant": "destructive"
+                  },
+                  {
+                    "type": "button",
+                    "label": "Outline",
+                    "variant": "outline"
+                  },
+                  {
+                    "type": "button",
+                    "label": "Ghost",
+                    "variant": "ghost"
+                  },
+                  {
+                    "type": "button",
+                    "label": "Link",
+                    "variant": "link"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "Sizes",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "div",
+                "className": "flex items-center gap-4",
+                "children": [
+                  {
+                    "type": "button",
+                    "label": "Default",
+                    "size": "default"
+                  },
+                  {
+                    "type": "button",
+                    "label": "Small",
+                    "size": "sm"
+                  },
+                  {
+                    "type": "button",
+                    "label": "Large",
+                    "size": "lg"
+                  },
+                  {
+                    "type": "button",
+                    "size": "icon",
+                    "icon": "chevron-right"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "div",
+          "className": "grid gap-4",
+          "children": [
+            {
+              "type": "text",
+              "value": "With Icon",
+              "className": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            },
+            {
+              "type": "card",
+              "className": "p-6 flex items-center justify-center min-h-[150px] bg-background/50 border shadow-sm",
+              "children": {
+                "type": "div",
+                "className": "flex items-center gap-4",
+                "children": [
+                  {
+                    "type": "button",
+                    "label": "Email",
+                    "icon": "mail",
+                    "className": "gap-2"
+                  },
+                  {
+                    "type": "button",
+                    "label": "Loading",
+                    "disabled": true,
+                    "children": [
+                      {
+                        "type": "icon",
+                        "name": "loader-2",
+                        "className": "mr-2 h-4 w-4 animate-spin"
+                      },
+                      "Please wait"
+                    ]
+                  }
+                ]
+              }
             }
           ]
         }
