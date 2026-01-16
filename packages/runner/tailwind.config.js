@@ -4,6 +4,7 @@ export default {
   content: [
     "./index.html",
     "./src/**/*.{ts,tsx}",
+    
     // ⚠️ 核心配置:
     // 指向 Monorepo 中的包源码，确保 Tailwind 能提取出 Object UI 组件内的 className
     "../../packages/components/src/**/*.{ts,tsx}",

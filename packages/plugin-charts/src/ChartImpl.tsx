@@ -19,11 +19,11 @@ export default function ChartImpl({
   xAxisKey = 'name',
   height = 400,
   className = '',
-  // Default to Cyan-500 for the tech feel
-  color = '#06b6d4',
+  // Default to standard primary color
+  color = 'hsl(var(--primary))',
 }: ChartImplProps) {
   return (
-    <div className={`p-4 rounded-xl border border-slate-800 bg-slate-950/40 backdrop-blur-sm shadow-xl ${className}`}>
+    <div className={`p-4 rounded-xl border border-border bg-card/40 backdrop-blur-sm shadow-lg shadow-background/5 ${className}`}>
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
           <defs>
@@ -43,30 +43,30 @@ export default function ChartImpl({
               </feMerge>
             </filter>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
           <XAxis 
             dataKey={xAxisKey} 
-            tick={{ fill: '#94a3b8', fontSize: 12, fontFamily: 'monospace' }} 
+            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: 'monospace' }} 
             tickLine={false}
-            axisLine={{ stroke: '#334155' }}
+            axisLine={{ stroke: 'hsl(var(--border))' }}
             dy={10}
           />
           <YAxis 
-            tick={{ fill: '#94a3b8', fontSize: 12, fontFamily: 'monospace' }} 
+            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: 'monospace' }} 
             tickLine={false}
             axisLine={false}
           />
           <Tooltip 
-            cursor={{ fill: '#1e293b', opacity: 0.4 }}
+            cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }}
             contentStyle={{ 
-              backgroundColor: '#020617', 
-              borderColor: '#1e293b', 
-              color: '#f8fafc',
+              backgroundColor: 'hsl(var(--popover))', 
+              borderColor: 'hsl(var(--border))', 
+              color: 'hsl(var(--popover-foreground))',
               borderRadius: '8px',
               fontFamily: 'monospace',
-              boxShadow: '0 0 20px rgba(6, 182, 212, 0.15)'
+              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
             }}
-            itemStyle={{ color: '#22d3ee' }}
+            itemStyle={{ color: 'hsl(var(--primary))' }}
           />
           <Legend wrapperStyle={{ paddingTop: '20px', fontFamily: 'monospace' }} />
           <Bar 

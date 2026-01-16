@@ -107,19 +107,19 @@ ComponentRegistry.register('tree-view',
 
     return (
       <div className={cn(
-          'relative border border-slate-800/60 rounded-lg p-3 bg-slate-950/40 backdrop-blur-md overflow-hidden',
-          'shadow-[0_0_20px_-10px_rgba(6,182,212,0.15)]',
+          'relative border border-border/60 rounded-lg p-3 bg-card/40 backdrop-blur-md overflow-hidden',
+          'shadow-lg shadow-primary/5',
           className
         )} 
         {...props}
       >
         {/* Background Grid */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border)/0.1)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.1)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
 
         {schema.title && (
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-cyan-900/30 relative z-10">
-            <CircuitBoard className="w-4 h-4 text-cyan-500" />
-            <h3 className="text-xs font-bold font-mono uppercase tracking-widest text-cyan-400">{schema.title}</h3>
+          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-primary/20 relative z-10">
+            <CircuitBoard className="w-4 h-4 text-primary" />
+            <h3 className="text-xs font-bold font-mono uppercase tracking-widest text-primary">{schema.title}</h3>
           </div>
         )}
         <div className="space-y-1 relative z-10">

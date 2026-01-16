@@ -127,27 +127,27 @@ ComponentRegistry.register('file-upload',
               {files.map((file, index) => (
                 <div
                   key={index}
-                  className="relative group/file overflow-hidden flex items-center justify-between p-3 border border-slate-800 bg-slate-900/80 rounded-sm text-sm transition-all hover:border-cyan-500/30 hover:shadow-[0_0_15px_-5px_rgba(6,182,212,0.3)] animate-in slide-in-from-bottom-2 fade-in"
+                  className="relative group/file overflow-hidden flex items-center justify-between p-3 border border-border bg-card/80 rounded-sm text-sm transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10 animate-in slide-in-from-bottom-2 fade-in"
                 >
-                  <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-cyan-500/50 group-hover/file:bg-cyan-400 group-hover/file:shadow-[0_0_8px_cyan]" />
+                  <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-primary/50 group-hover/file:bg-primary group-hover/file:shadow-[0_0_8px_hsl(var(--primary))]" />
                   
                   <div className="flex items-center gap-3 z-10">
-                    <CheckCircle2 className="w-4 h-4 text-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)] rounded-full" />
-                    <span className="truncate max-w-[200px] text-slate-300 group-hover/file:text-cyan-100 font-mono text-xs">{file.name}</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 rounded-full" />
+                    <span className="truncate max-w-[200px] text-muted-foreground group-hover/file:text-foreground font-mono text-xs transition-colors">{file.name}</span>
                   </div>
                   
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-6 w-6 p-0 hover:bg-red-950/50 hover:text-red-400 hover:shadow-[0_0_10px_red]"
+                    className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
                     onClick={() => handleRemoveFile(index)}
                   >
                     <X className="h-3 w-3" />
                   </Button>
 
-                  {/* Scanning Effect */}
-                  <div className="absolute inset-0 bg-linear-to-r from-transparent via-cyan-500/5 to-transparent -translate-x-full group-hover/file:animate-[shimmer_1s_infinite] pointer-events-none" />
+                  {/* Scanning Effect - Fixed gradient syntax */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent -translate-x-full group-hover/file:animate-[shimmer_1s_infinite] pointer-events-none" />
                 </div>
               ))}
             </div>
