@@ -6,17 +6,29 @@
       "type": "grid",
       "columns": { "xs": 1, "sm": 2, "lg": 4 },
       "gap": 4,
-      "className": "mb-6",
+      "className": "mb-4",
       "children": [
         {
           "type": "card",
           "children": [
             {
-              "type": "statistic",
-              "label": "Total Revenue",
-              "value": "$45,231.89",
-              "trend": "up",
-              "description": "+20.1% from last month"
+              "type": "flex",
+              "justify": "between",
+              "align": "start",
+              "children": [
+                {
+                  "type": "statistic",
+                  "label": "Total Revenue",
+                  "value": "$45,231.89",
+                  "trend": "up",
+                  "description": "+20.1% from last month"
+                },
+                {
+                   "type": "icon",
+                   "name": "DollarSign",
+                   "className": "h-4 w-4 text-muted-foreground"
+                }
+              ]
             }
           ]
         },
@@ -24,11 +36,23 @@
           "type": "card",
           "children": [
             {
-              "type": "statistic",
-              "label": "Active Customers",
-              "value": "2,350",
-              "trend": "up",
-              "description": "+180 new customers"
+              "type": "flex",
+              "justify": "between",
+              "align": "start",
+              "children": [
+                {
+                  "type": "statistic",
+                  "label": "Subscriptions",
+                  "value": "+2350",
+                  "trend": "up",
+                  "description": "+180.1% from last month"
+                },
+                {
+                   "type": "icon",
+                   "name": "Users",
+                   "className": "h-4 w-4 text-muted-foreground"
+                }
+              ]
             }
           ]
         },
@@ -36,11 +60,23 @@
           "type": "card",
           "children": [
             {
-              "type": "statistic",
-              "label": "Sales Pipeline",
-              "value": "12",
-              "trend": "neutral",
-              "description": "Opportunities in progress"
+              "type": "flex",
+              "justify": "between",
+              "align": "start",
+              "children": [
+                {
+                  "type": "statistic",
+                  "label": "Sales",
+                  "value": "+12,234",
+                  "trend": "up",
+                  "description": "+19% from last month"
+                },
+                {
+                   "type": "icon",
+                   "name": "CreditCard",
+                   "className": "h-4 w-4 text-muted-foreground"
+                }
+              ]
             }
           ]
         },
@@ -48,11 +84,23 @@
           "type": "card",
           "children": [
             {
-              "type": "statistic",
-              "label": "Win Rate",
-              "value": "48%",
-              "trend": "down",
-              "description": "-2% from last month"
+              "type": "flex",
+              "justify": "between",
+              "align": "start",
+              "children": [
+                {
+                  "type": "statistic",
+                  "label": "Active Now",
+                  "value": "+573",
+                  "trend": "up",
+                  "description": "+201 since last hour"
+                },
+                {
+                   "type": "icon",
+                   "name": "Activity",
+                   "className": "h-4 w-4 text-muted-foreground"
+                }
+              ]
             }
           ]
         }
@@ -65,7 +113,7 @@
       "children": [
         {
           "type": "card",
-          "title": "Revenue Overview",
+          "title": "Overview",
           "className": "col-span-1 lg:col-span-4",
           "children": [
             {
@@ -73,55 +121,111 @@
               "chartType": "bar",
               "height": 350,
               "data": [
-                 { "name": "Jan", "total": 1200 },
-                 { "name": "Feb", "total": 2100 },
-                 { "name": "Mar", "total": 1800 },
-                 { "name": "Apr", "total": 2400 },
-                 { "name": "May", "total": 3100 },
-                 { "name": "Jun", "total": 4200 }
+                 { "name": "Jan", "total": 2000 },
+                 { "name": "Feb", "total": 4500 },
+                 { "name": "Mar", "total": 3000 },
+                 { "name": "Apr", "total": 1500 },
+                 { "name": "May", "total": 5000 },
+                 { "name": "Jun", "total": 3800 },
+                 { "name": "Jul", "total": 4200 },
+                 { "name": "Aug", "total": 4800 },
+                 { "name": "Sep", "total": 2100 },
+                 { "name": "Oct", "total": 1900 },
+                 { "name": "Nov", "total": 3200 },
+                 { "name": "Dec", "total": 4700 }
               ],
               "categories": ["total"],
               "index": "name",
-              "colors": ["blue"]
+              "colors": ["stone-900"]
             }
           ]
         },
         {
           "type": "card",
           "title": "Recent Sales",
+          "description": "You made 265 sales this month.",
           "className": "col-span-1 lg:col-span-3",
           "children": [
             {
-              "type": "list",
-              "items": [
-                { "name": "Alice Smith", "amount": "$1,999.00", "email": "alice@example.com" },
-                { "name": "Bob Jones", "amount": "$39.00", "email": "bob@example.com" },
-                { "name": "Charlie Brown", "amount": "$299.00", "email": "charlie@example.com" },
-                { "name": "Diana Prince", "amount": "$99.00", "email": "diana@example.com" },
-                { "name": "Evan Wright", "amount": "$150.00", "email": "evan@example.com" }
-              ],
-              "renderItem": {
-                "type": "flex",
-                "justify": "between",
-                "className": "py-4 border-b last:border-0",
-                "children": [
-                  {
-                    "type": "flex",
-                    "className": "gap-4",
-                    "children": [
-                      { "type": "avatar", "fallback": "U", "className": "h-9 w-9" },
-                      {
-                        "type": "div",
-                        "children": [
-                          { "type": "text", "value": "${name}", "className": "text-sm font-medium" },
-                          { "type": "text", "value": "${email}", "className": "text-xs text-muted-foreground" }
-                        ]
-                      }
-                    ]
-                  },
-                  { "type": "text", "value": "${amount}", "className": "text-sm font-medium" }
-                ]
-              }
+              "type": "div",
+              "className": "space-y-8",
+              "children": [
+                {
+                   "type": "flex", 
+                   "align": "center",
+                   "children": [
+                      { "type": "avatar", "fallback": "OM", "src": "https://ui.shadcn.com/avatars/01.png", "className": "h-9 w-9" },
+                      { 
+                          "type": "div", "className": "ml-4 space-y-1", 
+                          "children": [
+                              { "type": "text", "value": "Olivia Martin", "className": "text-sm font-medium leading-none" },
+                              { "type": "text", "value": "olivia.martin@email.com", "className": "text-sm text-muted-foreground" }
+                          ]
+                      },
+                      { "type": "div", "className": "ml-auto font-medium", "children": [{ "type": "text", "value": "+$1,999.00" }] }
+                   ]
+                },
+                {
+                   "type": "flex", 
+                   "align": "center",
+                   "children": [
+                      { "type": "avatar", "fallback": "JL", "src": "https://ui.shadcn.com/avatars/02.png", "className": "h-9 w-9" },
+                      { 
+                          "type": "div", "className": "ml-4 space-y-1", 
+                          "children": [
+                              { "type": "text", "value": "Jackson Lee", "className": "text-sm font-medium leading-none" },
+                              { "type": "text", "value": "jackson.lee@email.com", "className": "text-sm text-muted-foreground" }
+                          ]
+                      },
+                      { "type": "div", "className": "ml-auto font-medium", "children": [{ "type": "text", "value": "+$39.00" }] }
+                   ]
+                },
+                {
+                   "type": "flex", 
+                   "align": "center",
+                   "children": [
+                      { "type": "avatar", "fallback": "IN", "src": "https://ui.shadcn.com/avatars/03.png", "className": "h-9 w-9" },
+                      { 
+                          "type": "div", "className": "ml-4 space-y-1", 
+                          "children": [
+                              { "type": "text", "value": "Isabella Nguyen", "className": "text-sm font-medium leading-none" },
+                              { "type": "text", "value": "isabella.nguyen@email.com", "className": "text-sm text-muted-foreground" }
+                          ]
+                      },
+                      { "type": "div", "className": "ml-auto font-medium", "children": [{ "type": "text", "value": "+$299.00" }] }
+                   ]
+                },
+                {
+                   "type": "flex", 
+                   "align": "center",
+                   "children": [
+                      { "type": "avatar", "fallback": "WK", "src": "https://ui.shadcn.com/avatars/04.png", "className": "h-9 w-9" },
+                      { 
+                          "type": "div", "className": "ml-4 space-y-1", 
+                          "children": [
+                              { "type": "text", "value": "William Kim", "className": "text-sm font-medium leading-none" },
+                              { "type": "text", "value": "will@email.com", "className": "text-sm text-muted-foreground" }
+                          ]
+                      },
+                      { "type": "div", "className": "ml-auto font-medium", "children": [{ "type": "text", "value": "+$99.00" }] }
+                   ]
+                },
+                {
+                   "type": "flex", 
+                   "align": "center",
+                   "children": [
+                      { "type": "avatar", "fallback": "SD", "src": "https://ui.shadcn.com/avatars/05.png", "className": "h-9 w-9" },
+                      { 
+                          "type": "div", "className": "ml-4 space-y-1", 
+                          "children": [
+                              { "type": "text", "value": "Sofia Davis", "className": "text-sm font-medium leading-none" },
+                              { "type": "text", "value": "sofia.davis@email.com", "className": "text-sm text-muted-foreground" }
+                          ]
+                      },
+                      { "type": "div", "className": "ml-auto font-medium", "children": [{ "type": "text", "value": "+$39.00" }] }
+                   ]
+                }
+              ]
             }
           ]
         }

@@ -3,102 +3,165 @@
   "title": "Customer Detail",
   "body": [
     {
-      "type": "tabs",
-      "defaultValue": "overview",
-      "items": [
-        {
-          "label": "Overview",
-          "value": "overview",
-          "content": {
-            "type": "grid",
-            "columns": 12,
-            "gap": 6,
+      "type": "flex",
+      "justify": "between",
+      "align": "start",
+      "className": "mb-6",
+      "children": [
+         {
+            "type": "div",
             "children": [
-              {
-                "type": "card",
-                "title": "Company Profile",
-                "className": "col-span-12 md:col-span-4",
-                "children": [
-                  {
-                    "type": "flex",
-                    "direction": "col",
-                    "align": "center",
-                    "className": "pb-6 border-b mb-6",
-                    "children": [
-                       { "type": "avatar", "fallback": "AC", "size": "xl", "className": "mb-4" },
-                       { "type": "text", "value": "Acme Corp", "variant": "h3" },
-                       { "type": "text", "value": "Technology • San Francisco", "variant": "muted" }
-                    ]
-                  },
-                  {
-                    "type": "flex",
-                    "direction": "col",
-                    "gap": 4,
-                    "children": [
-                       { "type": "button", "label": "Edit Profile", "variant": "outline", "className": "w-full" },
-                       { "type": "button", "label": "Contact", "className": "w-full" }
-                    ]
-                  }
-                ]
-              },
-              {
-                "type": "card",
-                "title": "Details",
-                "className": "col-span-12 md:col-span-8",
-                 "children": [
-                    {
-                      "type": "form",
-                      "mode": "read",
-                      "layout": "vertical",
-                      "defaultValues": {
-                        "name": "Acme Corp",
-                        "industry": "technology",
-                        "employees": "500-1000",
-                        "revenue": "10M+",
-                        "website": "https://acme.com",
-                        "phone": "+1 (555) 0123",
-                        "description": "Leading provider of road runner catching equipment."
-                      },
-                      "body": [
-                        {
-                          "type": "grid",
-                          "columns": 2,
-                          "gap": 6,
-                          "children": [
-                            { "type": "input", "name": "name", "label": "Company Name" },
-                            { "type": "select", "name": "industry", "label": "Industry", "options": [{"label":"Tech","value":"technology"}] },
-                            { "type": "select", "name": "employees", "label": "Employees", "options": [{"label":"500-1000","value":"500-1000"}] },
-                            { "type": "input", "name": "revenue", "label": "Annual Revenue" },
-                            { "type": "input", "name": "website", "label": "Website" },
-                            { "type": "input", "name": "phone", "label": "Phone" },
-                            { "type": "textarea", "name": "description", "label": "Description", "colSpan": 2, "rows": 3 }
-                          ]
-                        }
-                      ]
-                    }
-                 ]
-              }
+                 { "type": "text", "value": "Customer Details", "className": "text-2xl font-bold tracking-tight" },
+                 { "type": "text", "value": "View and edit customer information.", "className": "text-muted-foreground" }
             ]
-          }
-        },
-        {
-          "label": "Activity",
-          "value": "activity",
-          "content": {
+         },
+         {
+             "type": "div",
+             "className": "flex gap-2",
+             "children": [
+                { "type": "button", "label": "Delete", "variant": "destructive", "size": "sm" },
+                { "type": "button", "label": "Edit Profile", "variant": "default", "size": "sm" }
+             ]
+         }
+      ]
+    },
+    {
+      "type": "grid",
+      "columns": 12,
+      "gap": 6,
+      "children": [
+         {
             "type": "card",
-            "title": "Timeline",
+            "className": "col-span-12 md:col-span-4 lg:col-span-3",
             "children": [
-              {
-                "type": "timeline",
-                "items": [
-                  { "title": "Contract Signed", "time": "2 hours ago", "description": "Annual enterprise license agreement signed." },
-                  { "title": "Meeting with CEO", "time": "Yesterday", "description": "Discussed Q4 roadmap." },
-                  { "title": "Ticket Resolved", "time": "3 days ago", "description": "Support ticket #10234 fixed." }
-                ]
-              }
+               {
+                  "type": "flex",
+                  "direction": "col",
+                  "align": "center",
+                  "className": "py-6 gap-4",
+                  "children": [
+                      { "type": "avatar", "fallback": "AC", "className": "h-24 w-24 text-2xl" },
+                      { 
+                          "type": "div", 
+                          "className": "text-center",
+                          "children": [
+                              { "type": "text", "value": "Acme Corp", "className": "text-xl font-bold" },
+                              { "type": "text", "value": "Enterprise Plan", "className": "text-sm text-muted-foreground" }
+                          ]
+                      },
+                      {
+                          "type": "badge",
+                          "label": "Active",
+                          "variant": "default",
+                          "className": "px-4"
+                      }
+                  ]
+               },
+               { "type": "separator", "className": "my-4" },
+               {
+                  "type": "div",
+                  "className": "space-y-4",
+                  "children": [
+                      { 
+                          "type": "div", 
+                          "className": "flex justify-between text-sm",
+                          "children": [
+                              { "type": "text", "value": "Signed Up", "className": "text-muted-foreground" },
+                              { "type": "text", "value": "Jan 12, 2023", "className": "font-medium" }
+                          ]
+                      },
+                      { 
+                          "type": "div", 
+                          "className": "flex justify-between text-sm",
+                          "children": [
+                              { "type": "text", "value": "Total Spent", "className": "text-muted-foreground" },
+                              { "type": "text", "value": "$5,231.00", "className": "font-medium" }
+                          ]
+                      },
+                      { 
+                          "type": "div", 
+                          "className": "flex justify-between text-sm",
+                          "children": [
+                              { "type": "text", "value": "Manager", "className": "text-muted-foreground" },
+                              { "type": "text", "value": "John Doe", "className": "font-medium" }
+                          ]
+                      }
+                  ]
+               }
             ]
-          }
-        }
+         },
+         {
+            "type": "div",
+            "className": "col-span-12 md:col-span-8 lg:col-span-9",
+            "children": [
+               {
+                  "type": "tabs",
+                  "defaultValue": "overview",
+                  "items": [
+                     {
+                        "label": "Overview",
+                        "value": "overview",
+                        "content": {
+                            "type": "card",
+                            "title": "Account Information",
+                            "description": "General details about the company.",
+                            "children": [
+                                {
+                                  "type": "form",
+                                  "mode": "read",
+                                  "layout": "vertical",
+                                  "defaultValues": {
+                                    "name": "Acme Corp",
+                                    "industry": "Technology",
+                                    "employees": "500-1000",
+                                    "revenue": "$10M - $50M",
+                                    "email": "billing@acme.com",
+                                    "phone": "+1 (555) 0123-4567",
+                                    "address": "123 Innovation Blvd, San Francisco, CA 94103"
+                                  },
+                                  "body": [
+                                    {
+                                      "type": "grid",
+                                      "columns": 2,
+                                      "gap": 6,
+                                      "children": [
+                                        { "type": "input", "name": "name", "label": "Company Name" },
+                                        { "type": "input", "name": "industry", "label": "Industry" },
+                                        { "type": "input", "name": "email", "label": "Billing Email" },
+                                        { "type": "input", "name": "phone", "label": "Phone Number" },
+                                        { "type": "input", "name": "revenue", "label": "Annual Revenue" },
+                                        { "type": "input", "name": "employees", "label": "Company Size" },
+                                        { "type": "textarea", "name": "address", "label": "Billing Address", "colSpan": 2, "rows": 2 }
+                                      ]
+                                    }
+                                  ]
+                                }
+                            ]
+                        }
+                     },
+                     {
+                        "label": "Activity",
+                        "value": "activity",
+                        "content": {
+                            "type": "card",
+                            "title": "Recent Activity",
+                            "description": "History of interactions and changes.",
+                            "children": [
+                                {
+                                    "type": "timeline",
+                                    "items": [
+                                      { "title": "Invoice Paid", "time": "2 hours ago", "description": "Invoice #INV-2023-001 for $5,000.00 was paid." },
+                                      { "title": "Ticket Created", "time": "Yesterday", "description": "Support request #1234: 'API Rate limit reached'." },
+                                      { "title": "Plan Upgraded", "time": "1 week ago", "description": "Upgraded from Team to Enterprise plan." }
+                                    ]
+                                }
+                            ]
+                        }
+                     }
+                  ]
+               }
+            ]
+         }
       ]
     }
   ]

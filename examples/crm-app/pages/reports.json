@@ -3,6 +3,35 @@
   "title": "Reports",
   "body": [
     {
+      "type": "flex",
+      "justify": "between",
+      "align": "center",
+      "className": "mb-8",
+      "children": [
+         {
+            "type": "div",
+            "children": [
+                 { "type": "text", "value": "Analytics", "className": "text-2xl font-bold tracking-tight" },
+                 { "type": "text", "value": "Overview of your business performance.", "className": "text-muted-foreground" }
+            ]
+         },
+         {
+             "type": "div",
+             "className": "flex gap-2",
+             "children": [
+                { 
+                    "type": "button", 
+                    "label": "Jan 20, 2023 - Feb 09, 2023", 
+                    "variant": "outline", 
+                    "icon": "Calendar",
+                    "className": "w-[260px] justify-start text-left font-normal"
+                },
+                { "type": "button", "label": "Download", "variant": "default", "icon": "Download" }
+             ]
+         }
+      ]
+    },
+    {
       "type": "grid",
       "columns": 2,
       "gap": 6,
@@ -10,25 +39,37 @@
         {
            "type": "card",
            "title": "Sales Trend",
+           "description": "Daily sales performance over time.",
            "children": [{ 
              "type": "chart", 
              "chartType": "area", 
-             "data": [{"month":"Jan","sales":4000},{"month":"Feb","sales":3000},{"month":"Mar","sales":5000}], 
-             "categories": ["sales"], 
-             "index": "month",
+             "height": 300,
+             "data": [
+                 {"date":"Jan 22","Revenue":2500},
+                 {"date":"Jan 23","Revenue":3800},
+                 {"date":"Jan 24","Revenue":2900},
+                 {"date":"Jan 25","Revenue":4200},
+                 {"date":"Jan 26","Revenue":3500},
+                 {"date":"Jan 27","Revenue":5100},
+                 {"date":"Jan 28","Revenue":4800}
+             ], 
+             "categories": ["Revenue"], 
+             "index": "date",
              "colors": ["indigo"]
            }]
         },
         {
            "type": "card",
            "title": "Lead Source",
+           "description": "Distribution of acquisition channels.",
            "children": [{ 
              "type": "chart", 
              "chartType": "pie", 
-             "data": [{"source":"Web","val":40},{"source":"Referral","val":30},{"source":"Ads","val":30}], 
+             "height": 300,
+             "data": [{"source":"Organic Search","val":45},{"source":"Direct","val":25},{"source":"Referral","val":20},{"source":"Ads","val":10}], 
              "category": "source", 
              "value": "val",
-             "colors": ["red", "blue", "green"],
+             "colors": ["slate", "indigo", "violet", "pink"],
              "donut": true
            }]
         }

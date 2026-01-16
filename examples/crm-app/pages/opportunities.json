@@ -5,44 +5,59 @@
     {
       "type": "kanban",
       "columns": [
-        { "id": "new", "title": "New Lead", "color": "bg-gray-100" },
+        { "id": "new", "title": "New Lead", "color": "bg-slate-50" },
         { "id": "contacted", "title": "Contacted", "color": "bg-blue-50" },
-        { "id": "proposal", "title": "Proposal Sent", "color": "bg-yellow-50" },
-        { "id": "won", "title": "Closed Won", "color": "bg-green-50" }
+        { "id": "proposal", "title": "Proposal Sent", "color": "bg-amber-50" },
+        { "id": "negotiation", "title": "Negotiation", "color": "bg-orange-50" },
+        { "id": "won", "title": "Closed Won", "color": "bg-emerald-50" }
       ],
       "data": [
-        { "id": "1", "title": "Big Tech Deal", "description": "$50,000 - Acme Corp", "status": "proposal", "priority": "high", "assignees": ["JD"] },
-        { "id": "2", "title": "Small Startup", "description": "$5,000 - StartX", "status": "new", "priority": "low", "assignees": ["AS"] },
-        { "id": "3", "title": "Gov Contract", "description": "$120,000 - State Dept", "status": "contacted", "priority": "critical", "assignees": ["JD", "AS"] },
-        { "id": "4", "title": "Enterprise License", "description": "$85,000 - Globex", "status": "won", "priority": "medium", "assignees": ["AS"] }
+        { "id": "1", "title": "Acme Corp Expansion", "description": "$50,000 • SaaS", "status": "proposal", "priority": "High", "assignees": ["OM"], "date": "Oct 24" },
+        { "id": "2", "title": "StartX Seed Round", "description": "$5,000 • Consulting", "status": "new", "priority": "Low", "assignees": ["JL"], "date": "Oct 25" },
+        { "id": "3", "title": "Department of State", "description": "$120,000 • License", "status": "negotiation", "priority": "Critical", "assignees": ["IN", "WK"], "date": "Oct 20" },
+        { "id": "4", "title": "Globex Enterprise", "description": "$85,000 • Enterprise", "status": "won", "priority": "Medium", "assignees": ["SD"], "date": "Oct 15" },
+        { "id": "5", "title": "Initech Upgrade", "description": "$14,000 • Maintenance", "status": "new", "priority": "Medium", "assignees": ["OM"], "date": "Oct 26" },
+        { "id": "6", "title": "Umbrella Corp Security", "description": "$250,000 • Security", "status": "contacted", "priority": "High", "assignees": ["WK"], "date": "Oct 28" },
+        { "id": "7", "title": "Cyberdyne AI", "description": "$1,000,000 • R&D", "status": "proposal", "priority": "Critical", "assignees": ["IN"], "date": "Nov 01" },
+        { "id": "8", "title": "Massive Dynamic", "description": "$75,000 • Research", "status": "won", "priority": "Low", "assignees": ["JL"], "date": "Sep 30" }
       ],
       "groupBy": "status",
       "cardTemplate": {
         "type": "card",
-        "className": "mb-2 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing",
+        "className": "mb-3 shadow-none border bg-card text-card-foreground hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing",
         "children": [
             {
                 "type": "flex",
                 "justify": "between",
                 "align": "start",
-                "className": "mb-2",
+                "className": "mb-2 gap-2",
                 "children": [
-                    { "type": "text", "value": "${title}", "className": "font-medium leading-none" },
+                    { "type": "text", "value": "${title}", "className": "font-semibold leading-tight text-sm" },
                     { 
                         "type": "badge", 
                         "label": "${priority}", 
-                        "variant": "outline",
-                        "className": "text-xs px-1 py-0 h-5" 
+                        "variant": "secondary",
+                        "className": "text-[10px] px-1.5 py-0 h-5 font-normal" 
                     }
                 ]
             },
-            { "type": "text", "value": "${description}", "className": "text-sm text-muted-foreground mb-3" },
+            { "type": "text", "value": "${description}", "className": "text-xs text-muted-foreground mb-4 block" },
             {
                 "type": "flex",
-                "justify": "end",
-                "gap": 1,
+                "justify": "between",
+                "align": "center",
                 "children": [
-                     { "type": "avatar", "fallback": "JD", "size": "sm", "className": "h-6 w-6 text-[10px]" }
+                     {
+                        "type": "flex",
+                        "align": "center",
+                        "gap": 1,
+                        "className": "text-muted-foreground",
+                        "children": [
+                            { "type": "icon", "name": "Calendar", "className": "h-3 w-3" },
+                            { "type": "text", "value": "${date}", "className": "text-xs" }
+                        ]
+                     },
+                     { "type": "avatar", "fallback": "U", "size": "sm", "className": "h-5 w-5 text-[9px]" }
                 ]
             }
         ]

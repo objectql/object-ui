@@ -2,37 +2,42 @@
   "type": "app",
   "name": "ObjectCRM",
   "title": "Object CRM",
+  "description": "Modern customer relationship management.",
+  "logo": "Command",
   "layout": "sidebar",
   "menu": [
     {
-      "label": "Home",
+      "label": "Dashboard",
       "path": "/",
-      "icon": "home"
+      "icon": "LayoutDashboard"
     },
     {
       "label": "Customers",
       "path": "/customers",
-      "icon": "users"
+      "icon": "Users"
     },
     {
       "label": "Opportunities",
       "path": "/opportunities",
-      "icon": "target"
+      "icon": "Trophy"
     },
     {
       "label": "Reports",
       "path": "/reports",
-      "icon": "bar-chart"
+      "icon": "BarChart3"
     }
   ],
   "actions": [
     {
       "type": "button",
-      "label": "Notifications"
+      "variant": "ghost",
+      "size": "icon",
+      "icon": "Bell"
     },
     {
       "type": "user",
-      "label": "John Doe"
+      "label": "John Doe",
+      "avatar": "https://ui.shadcn.com/avatars/01.png"
     }
   ]
 }

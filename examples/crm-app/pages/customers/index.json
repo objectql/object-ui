@@ -3,8 +3,28 @@
   "title": "Customers",
   "body": [
     {
+      "type": "flex",
+      "justify": "between",
+      "align": "start",
+      "className": "mb-8 space-y-2",
+      "children": [
+        {
+          "type": "div",
+          "children": [
+            { "type": "text", "value": "Customers", "className": "text-2xl font-bold tracking-tight" },
+            { "type": "text", "value": "Manage your customers and view their subscription details.", "className": "text-muted-foreground" }
+          ]
+        },
+        {
+          "type": "button",
+          "label": "New Customer",
+          "icon": "Plus"
+        }
+      ]
+    },
+    {
       "type": "card",
-      "className": "p-0",
+      "className": "p-0 overflow-hidden",
       "children": [
         {
           "type": "data-table",
@@ -16,36 +36,81 @@
               "children": [
                 {
                   "type": "div",
-                  "className": "flex gap-2",
+                  "className": "flex flex-1 items-center gap-2",
                   "children": [
-                     { "type": "input", "placeholder": "Filter customers...", "className": "w-[250px]" }
+                     { 
+                        "type": "input", 
+                        "placeholder": "Filter customers...", 
+                        "className": "w-[150px] lg:w-[250px] h-8"
+                     },
+                     {
+                        "type": "button",
+                        "label": "Status",
+                        "variant": "outline",
+                        "size": "sm",
+                        "className": "h-8 border-dashed",
+                        "icon": "PlusCircle"
+                     }
                   ]
                 },
                 {
                   "type": "div",
                   "className": "flex gap-2",
                   "children": [
-                    { "type": "button", "label": "Export", "variant": "outline", "size": "sm", "icon": "download" },
-                    { "type": "button", "label": "New Customer", "size": "sm", "icon": "plus" }
+                    { "type": "button", "label": "View", "variant": "outline", "size": "sm", "icon": "Settings2", "className": "h-8 lg:flex" }
                   ]
                 }
               ]
             }
           ],
           "columns": [
-            { "header": "Name", "accessorKey": "name", "sortable": true, "width": 200, "fixed": "left" },
-            { "header": "Status", "accessorKey": "status", "type": "badge", "width": 100 },
-            { "header": "Email", "accessorKey": "email", "width": 200 },
-            { "header": "Amount", "accessorKey": "amount", "type": "currency", "align": "right", "width": 150 },
-            { "header": "Created At", "accessorKey": "createdAt", "type": "date", "width": 150 },
-            { "header": "Actions", "accessorKey": "actions", "type": "action", "width": 80, "fixed": "right" }
+            { 
+               "header": "Customer", 
+               "accessorKey": "name", 
+               "sortable": true, 
+               "width": 200, 
+               "fixed": "left",
+               "cell": {
+                   "type": "flex",
+                   "align": "center",
+                   "gap": 2,
+                   "children": [
+                       { "type": "avatar", "fallback": "${name[0]}", "className": "h-8 w-8" },
+                       { "type": "text", "value": "${name}", "className": "font-medium" }
+                   ]
+               }
+            },
+            { "header": "Email", "accessorKey": "email", "width": 200, "className": "text-muted-foreground" },
+            { 
+               "header": "Status", 
+               "accessorKey": "status", 
+               "type": "badge", 
+               "width": 100,
+               "variantMap": { "active": "default", "inactive": "secondary", "suspended": "destructive" }
+            },
+            { "header": "Plan", "accessorKey": "plan", "width": 120 },
+            { "header": "Spent", "accessorKey": "amount", "type": "currency", "align": "right", "width": 100 },
+            { 
+               "header": "Actions", 
+               "accessorKey": "actions", 
+               "type": "action", 
+               "width": 50, 
+               "fixed": "right",
+               "actions": [
+                   { "label": "Edit", "icon": "Pencil" },
+                   { "label": "Delete", "icon": "Trash", "className": "text-red-600" }
+               ]
+            }
           ],
           "data": [
-            { "id": "1", "name": "Acme Corp", "status": "active", "email": "contact@acme.com", "amount": 5000, "createdAt": "2023-01-15" },
-            { "id": "2", "name": "Globex Inc", "status": "inactive", "email": "info@globex.com", "amount": 1200, "createdAt": "2023-02-10" },
-            { "id": "3", "name": "Soylent Corp", "status": "active", "email": "sales@soylent.com", "amount": 8500, "createdAt": "2023-03-05" },
-            { "id": "4", "name": "Initech", "status": "active", "email": "pr@initech.com", "amount": 3400, "createdAt": "2023-04-20" },
-            { "id": "5", "name": "Umbrella Corp", "status": "active", "email": "secure@umbrella.com", "amount": 9900, "createdAt": "2023-05-12" }
+            { "id": "1", "name": "Acme Corp", "status": "active", "email": "billing@acme.com", "plan": "Enterprise", "amount": 5000 },
+            { "id": "2", "name": "Globex Inc", "status": "inactive", "email": "support@globex.com", "plan": "Startup", "amount": 1200 },
+            { "id": "3", "name": "Soylent Corp", "status": "active", "email": "sales@soylent.com", "plan": "Enterprise", "amount": 8500 },
+            { "id": "4", "name": "Initech", "status": "suspended", "email": "pr@initech.com", "plan": "Team", "amount": 3400 },
+            { "id": "5", "name": "Umbrella Corp", "status": "active", "email": "secure@umbrella.com", "plan": "Enterprise", "amount": 9900 },
+            { "id": "6", "name": "Stark Ind", "status": "active", "email": "tony@stark.com", "plan": "Custom", "amount": 150000 },
+            { "id": "7", "name": "Wayne Ent", "status": "active", "email": "bruce@wayne.com", "plan": "Custom", "amount": 250000 },
+            { "id": "8", "name": "Cyberdyne", "status": "inactive", "email": "ops@cyberdyne.com", "plan": "Team", "amount": 2300 }
           ],
           "pagination": true,
           "pageSize": 10,

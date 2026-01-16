@@ -23,12 +23,12 @@ ComponentRegistry.register('text',
                 style={style}
                 {...rest}
             >
-                {schema.content}
+                {schema.content || schema.value}
             </span>
         );
     }
 
-    return <>{schema.content}</>;
+    return <>{schema.content || schema.value}</>;
   },
   {
     label: 'Text',
