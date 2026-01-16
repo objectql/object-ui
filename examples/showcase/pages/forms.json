@@ -1,0 +1,96 @@
+{
+  "type": "page",
+  "title": "Form Components",
+  "body": [
+    {
+      "type": "text",
+      "value": "Form Components",
+      "className": "text-3xl font-bold tracking-tight mb-6"
+    },
+    {
+       "type": "grid",
+       "columns": 1,
+       "lgColumns": 2,
+       "gap": 6,
+       "children": [
+         {
+           "type": "card",
+           "title": "Complete Form Example",
+           "description": "Schema-driven form with validation and various field types.",
+           "children": [
+             {
+               "type": "form",
+               "layout": "vertical",
+               "submitLabel": "Save Changes",
+               "showCancel": true,
+               "fields": [
+                 { "name": "username", "label": "Username", "type": "input", "required": true, "placeholder": "jdoe" },
+                 { "name": "email", "label": "Email", "type": "input", "inputType": "email", "required": true, "placeholder": "john@example.com" },
+                 { "name": "role", "label": "Role", "type": "select", "options": [{ "label": "Admin", "value": "admin"}, {"label": "User", "value": "user"}, {"label": "Guest", "value": "guest"}] },
+                 { "name": "bio", "label": "Bio", "type": "textarea", "placeholder": "Tell us about yourself" },
+                 { "name": "notifications", "label": "Enable Notifications", "type": "switch" },
+                 { "name": "terms", "label": "I agree to terms", "type": "checkbox" }
+               ]
+             }
+           ]
+         },
+         {
+           "type": "stack",
+           "gap": 6,
+           "children": [
+              {
+                "type": "card",
+                "title": "Button Variants",
+                "children": [
+                   {
+                     "type": "flex",
+                     "wrap": true,
+                     "gap": 2,
+                     "children": [
+                       { "type": "button", "label": "Default", "variant": "default" },
+                       { "type": "button", "label": "Secondary", "variant": "secondary" },
+                       { "type": "button", "label": "Outline", "variant": "outline" },
+                       { "type": "button", "label": "Ghost", "variant": "ghost" },
+                       { "type": "button", "label": "Destructive", "variant": "destructive" },
+                       { "type": "button", "label": "Link", "variant": "link" }
+                     ]
+                   }
+                ]
+              },
+              {
+                "type": "card",
+                "title": "Selections",
+                "children": [
+                   { "type": "div", "className": "space-y-4", "children": [
+                      { 
+                         "type": "radio-group", 
+                         "id": "r1",
+                         "defaultValue": "opt1",
+                         "options": [
+                           { "label": "Option 1", "value": "opt1" },
+                           { "label": "Option 2", "value": "opt2" }
+                         ]
+                      },
+                      { "type": "separator" },
+                      { "type": "toggle-group", "groupType": "single", "items": [{ "label": "A", "value": "a"}, { "label": "B", "value": "b"}, { "label": "C", "value": "c" }] },
+                      { "type": "separator" },
+                      { "type": "slider", "defaultValue": [33], "max": 100, "step": 1 }
+                   ]}
+                ]
+              },
+               {
+                "type": "card",
+                "title": "Date & Time",
+                "children": [
+                   { "type": "div", "className": "space-y-4", "children": [
+                      { "type": "date-picker", "label": "Pick a date", "id": "dp1" },
+                      { "type": "calendar", "mode": "single", "className": "border rounded-md w-fit mx-auto" }
+                   ]}
+                ]
+              }
+           ]
+         }
+       ]
+    }
+  ]
+}

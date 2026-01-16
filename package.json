@@ -17,6 +17,7 @@
     "dev": "pnpm --filter @object-ui/runner dev",
     "dev:dashboard": "node scripts/start-app.mjs examples/dashboard",
     "dev:crm": "node scripts/start-app.mjs examples/crm-app",
+    "dev:showcase": "node scripts/start-app.mjs examples/showcase",
     "start:app": "node scripts/start-app.mjs",
     "start": "pnpm dev",
     "build": "pnpm --filter './packages/*' -r build && pnpm --filter './examples/*' -r build",

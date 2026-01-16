@@ -1,0 +1,121 @@
+{
+  "type": "page",
+  "title": "Overlay Components",
+  "body": [
+    {
+      "type": "text",
+      "value": "Overlay Components",
+      "className": "text-3xl font-bold tracking-tight mb-6"
+    },
+    {
+      "type": "grid",
+      "columns": 1, 
+      "mdColumns": 2, 
+      "lgColumns": 3,
+      "gap": 6,
+      "children": [
+        {
+          "type": "card",
+          "title": "Dialog",
+          "children": [
+            {
+               "type": "dialog",
+               "trigger": [{ "type": "button", "label": "Open Dialog" }],
+               "title": "Edit Profile",
+               "description": "Make changes to your profile here.",
+               "content": [
+                  { 
+                    "type": "form", 
+                    "submitLabel": "Save",
+                    "fields": [
+                       { "name": "name", "label": "Name", "type": "input", "defaultValue": "Pedro Duarte" },
+                       { "name": "username", "label": "Username", "type": "input", "defaultValue": "@peduarte" }
+                    ]
+                  }
+               ]
+            }
+          ]
+        },
+        {
+          "type": "card",
+          "title": "Sheet",
+          "children": [
+            {
+               "type": "sheet",
+               "side": "right",
+               "trigger": [{ "type": "button", "label": "Open Sheet" }],
+               "title": "Edit Profile",
+               "description": "Make changes to your profile here.",
+               "content": [
+                  { 
+                    "type": "form", 
+                    "submitLabel": "Save",
+                    "fields": [
+                       { "name": "name", "label": "Name", "type": "input", "defaultValue": "Pedro Duarte" },
+                       { "name": "username", "label": "Username", "type": "input", "defaultValue": "@peduarte" }
+                    ]
+                  }
+               ],
+               "footer": [{ "type": "button", "label": "Close", "variant": "outline" }]
+            }
+          ]
+        },
+        {
+          "type": "card",
+          "title": "Drawer",
+          "children": [
+            {
+               "type": "drawer",
+               "trigger": [{ "type": "button", "label": "Open Drawer" }],
+               "title": "Move Goal",
+               "description": "Set your daily activity goal.",
+               "content": [{ "type": "text", "value": "Content goes here..." }],
+               "footer": [{ "type": "button", "label": "Submit" }, { "type": "button", "variant": "outline", "label": "Cancel" }]
+            }
+          ]
+        },
+        {
+          "type": "card",
+          "title": "Initial Popover",
+          "children": [
+             {
+               "type": "popover",
+               "trigger": [{ "type": "button", "label": "Open Popover", "variant": "outline" }],
+               "content": [{ "type": "div", "className": "p-4", "body": "Place content for the popover here." }]
+             }
+          ]
+        },
+        {
+          "type": "card",
+          "title": "Tooltip",
+          "children": [
+             {
+               "type": "tooltip",
+               "content": "Add to library",
+               "trigger": [{ "type": "button", "label": "Hover me", "variant": "outline" }]
+             }
+          ]
+        },
+        {
+           "type": "card",
+           "title": "Hover Card",
+           "children": [
+              {
+                "type": "hover-card",
+                "trigger": [{ "type": "button", "variant": "link", "label": "@nextjs" }],
+                "content": [{ "type": "div", "className": "p-4 w-80", "children": [
+                    { "type": "flex", "gap": 4, "children": [
+                        { "type": "avatar", "fallback": "VC", "src": "https://github.com/vercel.png" },
+                        { "type": "div", "children": [
+                            { "type": "text", "value": "Vercel", "className": "font-semibold" },
+                            { "type": "text", "value": "The React Framework for the Web", "className": "text-sm" }
+                        ]}
+                    ]}
+                ]}]
+              }
+           ]
+        }
+      ]
+    } 
+  ]
+}

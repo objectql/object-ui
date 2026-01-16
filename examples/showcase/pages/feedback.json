@@ -1,0 +1,70 @@
+{
+  "type": "page",
+  "title": "Feedback Components",
+  "body": [
+    {
+      "type": "text",
+      "value": "Feedback Indicators",
+      "className": "text-3xl font-bold tracking-tight mb-6"
+    },
+    {
+      "type": "div",
+      "className": "space-y-6",
+      "children": [
+        {
+          "type": "card",
+          "title": "Alerts",
+          "children": [
+            { "type": "stack", "gap": 4, "children": [
+               {
+                 "type": "alert",
+                 "title": "Heads up!",
+                 "description": "You can add components to your app using the cli.",
+                 "variant": "default"
+               },
+               {
+                 "type": "alert",
+                 "title": "Error",
+                 "description": "Your session has expired. Please log in again.",
+                 "variant": "destructive"
+               }
+            ]}
+          ]
+        },
+        {
+          "type": "card",
+          "title": "Progress & Loading",
+          "children": [
+            { "type": "stack", "gap": 8, "children": [
+               { "type": "div", "children": [
+                  { "type": "text", "value": "Progress Bar", "className": "mb-2 text-sm font-medium" },
+                  { "type": "progress", "value": 33 }
+               ]},
+               { "type": "div", "children": [
+                  { "type": "text", "value": "Skeleton Loading", "className": "mb-2 text-sm font-medium" },
+                   { "type": "flex", "align": "center", "gap": 4, "children": [
+                      { "type": "skeleton", "width": "48px", "height": "48px", "className": "rounded-full" },
+                      { "type": "stack", "gap": 2, "children": [
+                         { "type": "skeleton", "width": "200px", "height": "20px" },
+                         { "type": "skeleton", "width": "150px", "height": "20px" }
+                      ]}
+                   ]}
+               ]},
+               { "type": "div", "children": [
+                  { "type": "text", "value": "Spinner", "className": "mb-2 text-sm font-medium" },
+                  { "type": "loading", "size": "md" }
+               ]}
+            ]}
+          ]
+        },
+        {
+          "type": "card",
+          "title": "Toaster (Global Notification)",
+          "children": [
+             { "type": "text", "value": "Toasters are usually global. Trigger them via actions or events." }
+          ]
+        }
+      ]
+    }
+  ]
+}

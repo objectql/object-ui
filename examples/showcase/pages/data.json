@@ -1,0 +1,112 @@
+{
+  "type": "page",
+  "title": "Data Display",
+  "body": [
+     {
+      "type": "text",
+      "value": "Data Components",
+      "className": "text-3xl font-bold tracking-tight mb-6"
+    },
+    {
+      "type": "tabs",
+      "defaultValue": "table",
+      "items": [
+        {
+          "label": "Tables & Lists",
+          "value": "table",
+          "body": [
+             {
+               "type": "card",
+               "title": "Data Table",
+               "className": "mb-6",
+               "children": [
+                 {
+                   "type": "table",
+                   "caption": "A list of recent invoices.",
+                   "columns": [
+                     { "header": "Invoice", "accessorKey": "invoice" },
+                     { "header": "Status", "accessorKey": "status" },
+                     { "header": "Method", "accessorKey": "method" },
+                     { "header": "Amount", "accessorKey": "amount", "className": "text-right" }
+                   ],
+                   "data": [
+                     { "invoice": "INV001", "status": "Paid", "method": "Credit Card", "amount": "$250.00" },
+                     { "invoice": "INV002", "status": "Pending", "method": "PayPal", "amount": "$150.00" },
+                     { "invoice": "INV003", "status": "Unpaid", "method": "Bank Transfer", "amount": "$350.00" }
+                   ]
+                 }
+               ]
+             },
+             {
+               "type": "grid",
+               "columns": 1, 
+               "mdColumns": 2,
+               "gap": 6,
+               "children": [
+                  {
+                    "type": "card",
+                    "title": "List Component",
+                    "children": [
+                       {
+                         "type": "list",
+                         "className": "space-y-2",
+                         "items": [
+                            "Implement authentication",
+                            "Design database schema",
+                            "Build API endpoints"
+                         ]
+                       }
+                    ]
+                  },
+                  {
+                    "type": "card",
+                    "title": "Tree View",
+                    "children": [
+                       {
+                         "type": "tree-view",
+                         "nodes": [
+                           { "id": "1", "label": "src", "icon": "folder", "children": [
+                              { "id": "1-1", "label": "components", "icon": "folder" },
+                              { "id": "1-2", "label": "App.tsx", "icon": "file" }
+                           ]},
+                           { "id": "2", "label": "package.json", "icon": "file" }
+                         ]
+                       }
+                    ]
+                  }
+               ]
+             }
+          ]
+        },
+        {
+           "label": "Visualizations",
+           "value": "vis",
+           "body": [
+              {
+                "type": "card",
+                "title": "Calendar View",
+                "className": "mb-6",
+                "children": [
+                   {
+                     "type": "calendar-view",
+                     "view": "month",
+                     "className": "border rounded-md p-4 min-h-[500px]",
+                     "data": [
+                       { "id": 1, "title": "Launch", "start": "2023-10-01", "color": "blue" }
+                     ]
+                   }
+                ]
+              },
+               {
+                "type": "card",
+                "title": "Timeline",
+                "children": [
+                   { "type": "text", "value": "Timeline component placeholder" }
+                ]
+              }
+           ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,121 @@
+{
+  "type": "page",
+  "title": "Basic & Layout Components",
+  "body": [
+    {
+      "type": "text",
+      "value": "Basic & Layout Components",
+      "className": "text-3xl font-bold tracking-tight mb-6"
+    },
+    {
+      "type": "tabs",
+      "defaultValue": "basic",
+      "items": [
+        {
+          "label": "Basic Elements",
+          "value": "basic",
+          "body": [
+             {
+               "type": "grid",
+               "columns": 1,
+               "mdColumns": 2, 
+               "gap": 6,
+               "children": [
+                 {
+                   "type": "card",
+                   "title": "Typography & Text",
+                   "children": [
+                     { "type": "div", "className": "space-y-4", "children": [
+                        { "type": "text", "value": "This is a standard text component." },
+                        { "type": "text", "value": "This is bold text.", "className": "font-bold" },
+                        { "type": "text", "value": "This is red text.", "className": "text-red-500" },
+                        { "type": "text", "value": "This is a large heading.", "className": "text-2xl" },
+                        { "type": "separator" },
+                        { "type": "html", "html": "<p>This is <strong>HTML</strong> content rendered safely.</p>" }
+                     ]}
+                   ]
+                 },
+                 {
+                   "type": "card",
+                   "title": "Icons & Images",
+                   "children": [
+                     { "type": "div", "className": "space-y-4", "children": [
+                        { "type": "flex", "align": "center", "gap": 4, "children": [
+                           { "type": "icon", "name": "User", "className": "h-6 w-6" },
+                           { "type": "icon", "name": "Settings", "className": "h-6 w-6 text-blue-500" },
+                           { "type": "icon", "name": "Bell", "className": "h-6 w-6 text-red-500" },
+                           { "type": "icon", "name": "CheckCircle", "className": "h-6 w-6 text-green-500" }
+                        ]},
+                        { "type": "separator" },
+                        { "type": "image", "src": "https://ui.shadcn.com/avatars/03.png", "className": "h-16 w-16 rounded-full border", "alt": "Avatar Example" },
+                        { "type": "badge", "label": "Badge Component" }
+                     ]}
+                   ]
+                 }
+               ]
+             }
+          ]
+        },
+        {
+           "label": "Layout Containers",
+           "value": "layout",
+           "body": [
+              {
+                "type": "stack",
+                "gap": 6,
+                "children": [
+                   {
+                     "type": "card",
+                     "title": "Grid Layout (4 columns)",
+                     "children": [
+                        {
+                          "type": "grid",
+                          "columns": 4,
+                          "gap": 4,
+                          "children": [
+                             { "type": "div", "className": "p-4 bg-muted text-center rounded", "body": "Col 1" },
+                             { "type": "div", "className": "p-4 bg-muted text-center rounded", "body": "Col 2" },
+                             { "type": "div", "className": "p-4 bg-muted text-center rounded", "body": "Col 3" },
+                             { "type": "div", "className": "p-4 bg-muted text-center rounded", "body": "Col 4" }
+                          ]
+                        }
+                     ]
+                   },
+                   {
+                     "type": "card",
+                     "title": "Flex Layout",
+                     "children": [
+                        {
+                          "type": "flex",
+                          "justify": "between",
+                          "align": "center",
+                          "className": "bg-muted/20 p-4 rounded border",
+                          "children": [
+                             { "type": "text", "value": "Flex Item Left" },
+                             { "type": "button", "label": "Flex Item This Right" }
+                          ]
+                        }
+                     ]
+                   },
+                   {
+                     "type": "card",
+                     "title": "Container",
+                     "children": [
+                        {
+                           "type": "container",
+                           "maxWidth": "sm",
+                           "className": "bg-muted/50 py-4 border border-dashed text-center",
+                           "children": [
+                              { "type": "text", "value": "This is a centered 'sm' container." }
+                           ]
+                        }
+                     ]
+                   }
+                ]
+              }
+           ]
+        }
+      ]
+    }
+  ]
+}

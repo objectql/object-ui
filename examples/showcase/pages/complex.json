@@ -1,0 +1,82 @@
+{
+  "type": "page",
+  "title": "Complex Components",
+  "body": [
+    {
+      "type": "text",
+      "value": "Complex Components",
+      "className": "text-3xl font-bold tracking-tight mb-6"
+    },
+    {
+      "type": "grid",
+      "columns": 1, 
+      "lgColumns": 2, 
+      "gap": 6, 
+      "children": [
+        {
+          "type": "card",
+          "title": "Carousel",
+          "children": [
+             {
+               "type": "carousel",
+               "className": "w-full max-w-xs mx-auto",
+               "items": [
+                 { "type": "div", "className": "p-6 bg-slate-100 rounded flex items-center justify-center font-bold h-32", "body": "Slide 1" },
+                 { "type": "div", "className": "p-6 bg-slate-200 rounded flex items-center justify-center font-bold h-32", "body": "Slide 2" },
+                 { "type": "div", "className": "p-6 bg-slate-300 rounded flex items-center justify-center font-bold h-32", "body": "Slide 3" }
+               ]
+             }
+          ]
+        },
+        {
+           "type": "card",
+           "title": "Filter Builder",
+           "children": [
+              {
+                "type": "filter-builder",
+                "name": "my_filter",
+                "fields": [
+                  { "label": "Name", "value": "name", "type": "text" },
+                  { "label": "Status", "value": "status", "type": "select", "options": [{"label":"Active","value":"active"}] }
+                ]
+              }
+           ]
+        }
+      ]
+    },
+    {
+       "type": "div",
+       "className": "mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6",
+       "children": [
+          {
+            "type": "card",
+            "title": "Chatbot",
+            "children": [
+               {
+                 "type": "chatbot",
+                 "maxHeight": "300px",
+                 "messages": [
+                   { "role": "assistant", "content": "Hello! I am a schema-driven chatbot." }
+                 ]
+               }
+            ]
+          },
+          {
+            "type": "card",
+            "title": "Resizable Panels",
+            "children": [
+               {
+                 "type": "resizable",
+                 "direction": "horizontal",
+                 "className": "min-h-[300px] border rounded",
+                 "panels": [
+                   { "defaultSize": 30, "content": [{ "type": "div", "className": "h-full bg-muted/20 p-4 font-semibold", "body": "Sidebar" }] },
+                   { "defaultSize": 70, "content": [{ "type": "div", "className": "h-full p-4", "body": "Main Content" }] }
+                 ]
+               }
+            ]
+          }
+       ]
+    }
+  ]
+}

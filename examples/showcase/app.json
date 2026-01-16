@@ -1,0 +1,64 @@
+{
+  "type": "app",
+  "name": "ObjectShowcase",
+  "title": "Component Showcase",
+  "logo": "Component",
+  "layout": "sidebar",
+  "menu": [
+    {
+      "label": "Dashboard",
+      "path": "/",
+      "icon": "LayoutDashboard"
+    },
+    {
+      "label": "Basic & Layout",
+      "path": "/basic",
+      "icon": "Box"
+    },
+    {
+      "label": "Forms",
+      "path": "/forms",
+      "icon": "FormInput"
+    },
+    {
+      "label": "Data Display",
+      "path": "/data",
+      "icon": "Table"
+    },
+    {
+      "label": "Feedback",
+      "path": "/feedback",
+      "icon": "Bell"
+    },
+    {
+      "label": "Overlays",
+      "path": "/overlays",
+      "icon": "Layers"
+    },
+    {
+      "label": "Complex",
+      "path": "/complex",
+      "icon": "Cpu"
+    }
+  ],
+  "actions": [
+    {
+      "type": "button",
+      "variant": "ghost",
+      "size": "icon",
+      "icon": "Bell"
+    },
+    {
+      "type": "user",
+      "label": "Developer",
+      "description": "dev@objectui.org",
+      "avatar": "https://ui.shadcn.com/avatars/04.png",
+      "items": [
+        { "type": "item", "label": "Profile", "shortcut": "⇧⌘P" },
+        { "type": "item", "label": "Settings", "shortcut": "⌘S" },
+        { "type": "separator" },
+        { "type": "item", "label": "Log out" }
+      ]
+    }
+  ]
+}
