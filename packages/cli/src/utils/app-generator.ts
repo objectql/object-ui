@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync } from 'fs';
 import { join } from 'path';
 import chalk from 'chalk';
 import * as yaml from 'js-yaml';
@@ -295,27 +295,35 @@ export default {
   
   writeFileSync(join(tmpDir, 'postcss.config.js'), postcssConfig);
 
+  const cwd = process.cwd();
+  const isMonorepo = existsSync(join(cwd, 'pnpm-workspace.yaml'));
+
   // Create package.json
+  const baseDependencies = {
+    react: '^18.3.1',
+    'react-dom': '^18.3.1',
+    '@object-ui/react': '^0.1.0',
+    '@object-ui/components': '^0.1.0',
+  };
+
+  const baseDevDependencies = {
+    '@types/react': '^18.3.12',
+    '@types/react-dom': '^18.3.1',
+    '@vitejs/plugin-react': '^4.2.1',
+    autoprefixer: '^10.4.23',
+    postcss: '^8.5.6',
+    tailwindcss: '^3.4.19',
+    typescript: '~5.7.3',
+    vite: '^5.0.0',
+  };
+
   const packageJson = {
     name: 'objectui-temp-app',
     private: true,
     type: 'module',
-    dependencies: {
-      react: '^18.3.1',
-      'react-dom': '^18.3.1',
-      '@object-ui/react': '^0.1.0',
-      '@object-ui/components': '^0.1.0',
-    },
-    devDependencies: {
-      '@types/react': '^18.3.12',
-      '@types/react-dom': '^18.3.1',
-      '@vitejs/plugin-react': '^4.2.1',
-      autoprefixer: '^10.4.23',
-      postcss: '^8.5.6',
-      tailwindcss: '^3.4.19',
-      typescript: '~5.7.3',
-      vite: '^5.0.0',
-    },
+    // In monorepo, we use root node_modules, so we don't need dependencies here
+    dependencies: isMonorepo ? {} : baseDependencies,
+    devDependencies: isMonorepo ? {} : baseDevDependencies,
   };
 
   writeFileSync(join(tmpDir, 'package.json'), JSON.stringify(packageJson, null, 2));

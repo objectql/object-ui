@@ -68,16 +68,22 @@ export async function dev(schemaPath: string, options: DevOptions) {
   }
 
   // Install dependencies
-  console.log(chalk.blue('📦 Installing dependencies...'));
-  console.log(chalk.dim('  This may take a moment on first run...'));
-  try {
-    execSync('npm install --silent --prefer-offline', { 
-      cwd: tmpDir, 
-      stdio: 'inherit',
-    });
-    console.log(chalk.green('✓ Dependencies installed'));
-  } catch {
-    throw new Error('Failed to install dependencies. Please check your internet connection and try again.');
+  const isMonorepo = existsSync(join(cwd, 'pnpm-workspace.yaml'));
+  
+  if (isMonorepo) {
+    console.log(chalk.blue('📦 Detected monorepo - using root node_modules'));
+  } else {
+    console.log(chalk.blue('📦 Installing dependencies...'));
+    console.log(chalk.dim('  This may take a moment on first run...'));
+    try {
+      execSync('npm install --silent --prefer-offline', { 
+        cwd: tmpDir, 
+        stdio: 'inherit',
+      });
+      console.log(chalk.green('✓ Dependencies installed'));
+    } catch {
+      throw new Error('Failed to install dependencies. Please check your internet connection and try again.');
+    }
   }
 
   console.log(chalk.green('✓ Schema loaded successfully'));
