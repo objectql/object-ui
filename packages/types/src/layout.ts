@@ -430,3 +430,18 @@ export type LayoutSchema =
   | ScrollAreaSchema
   | ResizableSchema
   | PageSchema;
+
+/**
+ * Page container component
+ */
+export interface PageSchema extends BaseSchema {
+  type: 'page';
+  /**
+   * Page title
+   */
+  title?: string;
+  /**
+   * Child components
+   */
+  children?: SchemaNode | SchemaNode[];
+}

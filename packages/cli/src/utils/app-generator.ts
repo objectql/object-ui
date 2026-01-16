@@ -287,10 +287,13 @@ export default {
   const isMonorepo = existsSync(join(cwd, 'pnpm-workspace.yaml'));
 
   // Define Tailwind Content Paths
-  const contentPaths = ["'./index.html'", "'./src/**/*.{js,ts,jsx,tsx}'"];
+  // Include JSON files specifically
+  const contentPaths = ["'./index.html'", "'./src/**/*.{js,ts,jsx,tsx,json}'"];
   if (isMonorepo) {
-     contentPaths.push("'../../packages/components/src/**/*.{ts,tsx}'");
-     contentPaths.push("'../../packages/plugin-*/src/**/*.{ts,tsx}'"); 
+     const componentsPath = join(cwd, 'packages/components/src/**/*.{ts,tsx}');
+     const pluginsPath = join(cwd, 'packages/plugin-*/src/**/*.{ts,tsx}');
+     contentPaths.push(`'${componentsPath}'`);
+     contentPaths.push(`'${pluginsPath}'`); 
   }
 
   // Create tailwind.config.js
@@ -491,7 +494,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
       const layoutCode = `
 import { Link, useLocation } from 'react-router-dom';
-import { cn } from '@object-ui/components/lib/utils'; // Try to use from components lib if available or generated utils
+import { cn } from '@object-ui/components'; 
 
 const AppLayout = ({ app, children }) => {
   const location = useLocation();
@@ -547,6 +550,8 @@ const AppLayout = ({ app, children }) => {
     </div>
   );
 };
+
+export default AppLayout;
 `;
       writeFileSync(join(srcDir, 'Layout.tsx'), layoutCode);
       
@@ -651,11 +656,24 @@ export default App;`;
 
   writeFileSync(join(srcDir, 'index.css'), indexCss);
 
+  const cwd = process.cwd();
+  const isMonorepo = existsSync(join(cwd, 'pnpm-workspace.yaml'));
+
+  // Define Tailwind Content Paths
+  // Include JSON files specifically
+  const contentPaths = ["'./index.html'", "'./src/**/*.{js,ts,jsx,tsx,json}'"];
+  if (isMonorepo) {
+     const componentsPath = join(cwd, 'packages/components/src/**/*.{ts,tsx}');
+     const pluginsPath = join(cwd, 'packages/plugin-*/src/**/*.{ts,tsx}');
+     contentPaths.push(`'${componentsPath}'`);
+     contentPaths.push(`'${pluginsPath}'`); 
+  }
+
   // Create tailwind.config.js
   const tailwindConfig = `/** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ['class'],
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  content: [${contentPaths.join(', ')}],
   theme: {
     extend: {
       borderRadius: {
