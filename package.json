@@ -14,7 +14,8 @@
     "docs"
   ],
   "scripts": {
-    "dev": "pnpm --filter @object-ui/runner dev",
+    "dev": "node scripts/start-app.mjs examples/showcase",
+    "runner": "pnpm --filter @object-ui/runner dev",
     "dev:dashboard": "node scripts/start-app.mjs examples/dashboard",
     "dev:crm": "node scripts/start-app.mjs examples/crm-app",
     "dev:showcase": "node scripts/start-app.mjs examples/showcase",
