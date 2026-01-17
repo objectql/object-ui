@@ -1,0 +1,283 @@
+/**
+ * @object-ui/types - ObjectQL Component Schemas
+ * 
+ * Type definitions for ObjectQL-specific components.
+ * These schemas enable building ObjectQL-aware interfaces directly from object metadata.
+ * 
+ * @module objectql
+ * @packageDocumentation
+ */
+
+import type { BaseSchema } from './base';
+import type { TableColumn } from './data-display';
+import type { FormField } from './form';
+
+/**
+ * ObjectTable Schema
+ * A specialized table component that automatically fetches and displays data from ObjectQL objects.
+ * It reads the object schema from ObjectQL and generates columns automatically.
+ */
+export interface ObjectTableSchema extends BaseSchema {
+  type: 'object-table';
+  
+  /**
+   * ObjectQL object name (e.g., 'users', 'accounts', 'contacts')
+   */
+  objectName: string;
+  
+  /**
+   * Optional title for the table
+   */
+  title?: string;
+  
+  /**
+   * Optional description
+   */
+  description?: string;
+  
+  /**
+   * Field names to display as columns
+   * If not specified, uses all visible fields from object schema
+   */
+  fields?: string[];
+  
+  /**
+   * Custom column configurations
+   * Overrides auto-generated columns for specific fields
+   */
+  columns?: TableColumn[];
+  
+  /**
+   * Enable/disable built-in operations
+   */
+  operations?: {
+    /**
+     * Enable create operation
+     * @default true
+     */
+    create?: boolean;
+    
+    /**
+     * Enable read/view operation
+     * @default true
+     */
+    read?: boolean;
+    
+    /**
+     * Enable update operation
+     * @default true
+     */
+    update?: boolean;
+    
+    /**
+     * Enable delete operation
+     * @default true
+     */
+    delete?: boolean;
+    
+    /**
+     * Enable export operation
+     * @default false
+     */
+    export?: boolean;
+    
+    /**
+     * Enable import operation
+     * @default false
+     */
+    import?: boolean;
+  };
+  
+  /**
+   * Default filters to apply
+   */
+  defaultFilters?: Record<string, any>;
+  
+  /**
+   * Default sort configuration
+   */
+  defaultSort?: {
+    field: string;
+    order: 'asc' | 'desc';
+  };
+  
+  /**
+   * Page size
+   * @default 10
+   */
+  pageSize?: number;
+  
+  /**
+   * Enable row selection
+   * @default false
+   */
+  selectable?: boolean | 'single' | 'multiple';
+  
+  /**
+   * Show search box
+   * @default true
+   */
+  showSearch?: boolean;
+  
+  /**
+   * Show filters
+   * @default true
+   */
+  showFilters?: boolean;
+  
+  /**
+   * Show pagination
+   * @default true
+   */
+  showPagination?: boolean;
+  
+  /**
+   * Custom row actions
+   */
+  rowActions?: string[];
+  
+  /**
+   * Custom batch actions
+   */
+  batchActions?: string[];
+  
+  /**
+   * Custom CSS class
+   */
+  className?: string;
+}
+
+/**
+ * ObjectForm Schema
+ * A smart form component that generates forms from ObjectQL object schemas.
+ * It automatically creates form fields based on object metadata.
+ */
+export interface ObjectFormSchema extends BaseSchema {
+  type: 'object-form';
+  
+  /**
+   * ObjectQL object name (e.g., 'users', 'accounts', 'contacts')
+   */
+  objectName: string;
+  
+  /**
+   * Form mode
+   */
+  mode: 'create' | 'edit' | 'view';
+  
+  /**
+   * Record ID (required for edit/view modes)
+   */
+  recordId?: string | number;
+  
+  /**
+   * Optional title for the form
+   */
+  title?: string;
+  
+  /**
+   * Optional description
+   */
+  description?: string;
+  
+  /**
+   * Field names to include in the form
+   * If not specified, uses all editable fields from object schema
+   */
+  fields?: string[];
+  
+  /**
+   * Custom field configurations
+   * Overrides auto-generated fields for specific fields
+   */
+  customFields?: FormField[];
+  
+  /**
+   * Field groups for organized layout
+   */
+  groups?: Array<{
+    title?: string;
+    description?: string;
+    fields: string[];
+    collapsible?: boolean;
+    defaultCollapsed?: boolean;
+  }>;
+  
+  /**
+   * Form layout
+   * @default 'vertical'
+   */
+  layout?: 'vertical' | 'horizontal' | 'inline' | 'grid';
+  
+  /**
+   * Grid columns (for grid layout)
+   * @default 2
+   */
+  columns?: number;
+  
+  /**
+   * Show submit button
+   * @default true
+   */
+  showSubmit?: boolean;
+  
+  /**
+   * Submit button text
+   */
+  submitText?: string;
+  
+  /**
+   * Show cancel button
+   * @default true
+   */
+  showCancel?: boolean;
+  
+  /**
+   * Cancel button text
+   */
+  cancelText?: string;
+  
+  /**
+   * Show reset button
+   * @default false
+   */
+  showReset?: boolean;
+  
+  /**
+   * Initial values (for create mode)
+   */
+  initialValues?: Record<string, any>;
+  
+  /**
+   * Callback on successful submission
+   */
+  onSuccess?: (data: any) => void | Promise<void>;
+  
+  /**
+   * Callback on error
+   */
+  onError?: (error: Error) => void;
+  
+  /**
+   * Callback on cancel
+   */
+  onCancel?: () => void;
+  
+  /**
+   * Read-only mode
+   * @default false
+   */
+  readOnly?: boolean;
+  
+  /**
+   * Custom CSS class
+   */
+  className?: string;
+}
+
+/**
+ * Union type of all ObjectQL component schemas
+ */
+export type ObjectQLComponentSchema =
+  | ObjectTableSchema
+  | ObjectFormSchema;

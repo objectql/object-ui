@@ -244,6 +244,15 @@ export type {
 } from './crud';
 
 // ============================================================================
+// ObjectQL Components - ObjectQL-specific components
+// ============================================================================
+export type {
+  ObjectTableSchema,
+  ObjectFormSchema,
+  ObjectQLComponentSchema,
+} from './objectql';
+
+// ============================================================================
 // API and Events - API Integration and Event Handling
 // ============================================================================
 export type {
@@ -273,6 +282,7 @@ import type { OverlaySchema } from './overlay';
 import type { NavigationSchema } from './navigation';
 import type { ComplexSchema } from './complex';
 import type { CRUDComponentSchema } from './crud';
+import type { ObjectQLComponentSchema } from './objectql';
 import type { AppSchema } from './app';
 
 /**
@@ -290,7 +300,8 @@ export type AnySchema =
   | OverlaySchema
   | NavigationSchema
   | ComplexSchema
-  | CRUDComponentSchema;
+  | CRUDComponentSchema
+  | ObjectQLComponentSchema;
 
 /**
  * Utility type to extract the schema type from a type string.

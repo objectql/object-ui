@@ -366,6 +366,27 @@ export class ObjectQLDataSource<T = any> implements DataSource<T> {
   }
   
   /**
+   * Get object schema from ObjectQL
+   * 
+   * @param objectName - Object name
+   * @returns Promise resolving to the object schema
+   */
+  async getObjectSchema(objectName: string): Promise<any> {
+    try {
+      // Use the ObjectQL SDK to fetch object metadata
+      const response = await this.client.getObjectMetadata(objectName);
+      return response;
+    } catch (err: any) {
+      throw {
+        message: err.message || 'Failed to fetch object schema',
+        code: err.code,
+        status: err.status,
+        data: err,
+      } as APIError;
+    }
+  }
+  
+  /**
    * Execute a bulk operation
    * 
    * @param resource - Object name
