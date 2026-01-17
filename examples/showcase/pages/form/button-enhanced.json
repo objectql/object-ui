@@ -1,0 +1,526 @@
+{
+  "type": "page",
+  "title": "Button - Object UI Showcase",
+  "body": [
+    {
+      "type": "div",
+      "className": "container mx-auto py-8 px-4 max-w-5xl",
+      "children": [
+        {
+          "type": "div",
+          "className": "space-y-2 mb-8",
+          "children": [
+            {
+              "type": "text",
+              "value": "Button",
+              "className": "text-4xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Displays a button or a component that looks like a button.",
+              "className": "text-xl text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-8"
+        },
+        {
+          "type": "div",
+          "className": "space-y-8",
+          "children": [
+            {
+              "type": "div",
+              "className": "space-y-4",
+              "children": [
+                {
+                  "type": "text",
+                  "value": "Installation",
+                  "className": "text-2xl font-semibold tracking-tight"
+                },
+                {
+                  "type": "div",
+                  "className": "rounded-lg border bg-card p-4",
+                  "children": [
+                    {
+                      "type": "div",
+                      "className": "flex items-center justify-between mb-2",
+                      "children": [
+                        {
+                          "type": "text",
+                          "value": "npm",
+                          "className": "text-sm font-medium"
+                        },
+                        {
+                          "type": "button",
+                          "label": "Copy",
+                          "variant": "ghost",
+                          "size": "sm",
+                          "icon": "copy",
+                          "className": "h-7 text-xs"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "value": "npm install @object-ui/components",
+                      "className": "font-mono text-sm"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "className": "space-y-4",
+              "children": [
+                {
+                  "type": "text",
+                  "value": "Usage",
+                  "className": "text-2xl font-semibold tracking-tight"
+                },
+                {
+                  "type": "text",
+                  "value": "Use buttons to trigger actions and events. Choose the appropriate variant based on the action's importance and context.",
+                  "className": "text-muted-foreground leading-7"
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "className": "space-y-6",
+              "children": [
+                {
+                  "type": "text",
+                  "value": "Examples",
+                  "className": "text-2xl font-semibold tracking-tight"
+                },
+                {
+                  "type": "div",
+                  "className": "space-y-6",
+                  "children": [
+                    {
+                      "type": "div",
+                      "className": "space-y-4",
+                      "children": [
+                        {
+                          "type": "div",
+                          "className": "flex items-center justify-between",
+                          "children": [
+                            {
+                              "type": "text",
+                              "value": "Primary",
+                              "className": "text-lg font-semibold"
+                            },
+                            {
+                              "type": "button",
+                              "label": "Copy Code",
+                              "variant": "ghost",
+                              "size": "sm",
+                              "icon": "copy"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "value": "The default button style for primary actions.",
+                          "className": "text-sm text-muted-foreground"
+                        },
+                        {
+                          "type": "card",
+                          "className": "flex items-center justify-center p-8 min-h-[120px] bg-muted/50",
+                          "children": {
+                            "type": "button",
+                            "label": "Button",
+                            "variant": "default"
+                          }
+                        },
+                        {
+                          "type": "div",
+                          "className": "rounded-lg border bg-card",
+                          "children": [
+                            {
+                              "type": "div",
+                              "className": "flex items-center justify-between border-b px-4 py-2",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "value": "schema.json",
+                                  "className": "text-sm font-mono"
+                                },
+                                {
+                                  "type": "button",
+                                  "label": "Copy",
+                                  "variant": "ghost",
+                                  "size": "sm",
+                                  "icon": "copy",
+                                  "className": "h-7"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "div",
+                              "className": "p-4",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "value": "{\n  \"type\": \"button\",\n  \"label\": \"Button\",\n  \"variant\": \"default\"\n}",
+                                  "className": "font-mono text-sm text-foreground whitespace-pre"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "div",
+                      "className": "space-y-4",
+                      "children": [
+                        {
+                          "type": "div",
+                          "className": "flex items-center justify-between",
+                          "children": [
+                            {
+                              "type": "text",
+                              "value": "Secondary",
+                              "className": "text-lg font-semibold"
+                            },
+                            {
+                              "type": "button",
+                              "label": "Copy Code",
+                              "variant": "ghost",
+                              "size": "sm",
+                              "icon": "copy"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "value": "Use for secondary or less prominent actions.",
+                          "className": "text-sm text-muted-foreground"
+                        },
+                        {
+                          "type": "card",
+                          "className": "flex items-center justify-center p-8 min-h-[120px] bg-muted/50",
+                          "children": {
+                            "type": "button",
+                            "label": "Secondary",
+                            "variant": "secondary"
+                          }
+                        },
+                        {
+                          "type": "div",
+                          "className": "rounded-lg border bg-card",
+                          "children": [
+                            {
+                              "type": "div",
+                              "className": "flex items-center justify-between border-b px-4 py-2",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "value": "schema.json",
+                                  "className": "text-sm font-mono"
+                                },
+                                {
+                                  "type": "button",
+                                  "label": "Copy",
+                                  "variant": "ghost",
+                                  "size": "sm",
+                                  "icon": "copy",
+                                  "className": "h-7"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "div",
+                              "className": "p-4",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "value": "{\n  \"type\": \"button\",\n  \"label\": \"Secondary\",\n  \"variant\": \"secondary\"\n}",
+                                  "className": "font-mono text-sm text-foreground whitespace-pre"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "div",
+                      "className": "space-y-4",
+                      "children": [
+                        {
+                          "type": "div",
+                          "className": "flex items-center justify-between",
+                          "children": [
+                            {
+                              "type": "text",
+                              "value": "Destructive",
+                              "className": "text-lg font-semibold"
+                            },
+                            {
+                              "type": "button",
+                              "label": "Copy Code",
+                              "variant": "ghost",
+                              "size": "sm",
+                              "icon": "copy"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "value": "Use for destructive actions like delete, remove, or reset.",
+                          "className": "text-sm text-muted-foreground"
+                        },
+                        {
+                          "type": "card",
+                          "className": "flex items-center justify-center p-8 min-h-[120px] bg-muted/50",
+                          "children": {
+                            "type": "button",
+                            "label": "Delete",
+                            "variant": "destructive"
+                          }
+                        },
+                        {
+                          "type": "div",
+                          "className": "rounded-lg border bg-card",
+                          "children": [
+                            {
+                              "type": "div",
+                              "className": "flex items-center justify-between border-b px-4 py-2",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "value": "schema.json",
+                                  "className": "text-sm font-mono"
+                                },
+                                {
+                                  "type": "button",
+                                  "label": "Copy",
+                                  "variant": "ghost",
+                                  "size": "sm",
+                                  "icon": "copy",
+                                  "className": "h-7"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "div",
+                              "className": "p-4",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "value": "{\n  \"type\": \"button\",\n  \"label\": \"Delete\",\n  \"variant\": \"destructive\"\n}",
+                                  "className": "font-mono text-sm text-foreground whitespace-pre"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "div",
+                      "className": "space-y-4",
+                      "children": [
+                        {
+                          "type": "div",
+                          "className": "flex items-center justify-between",
+                          "children": [
+                            {
+                              "type": "text",
+                              "value": "With Icon",
+                              "className": "text-lg font-semibold"
+                            },
+                            {
+                              "type": "button",
+                              "label": "Copy Code",
+                              "variant": "ghost",
+                              "size": "sm",
+                              "icon": "copy"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "value": "Add icons to buttons to provide visual context.",
+                          "className": "text-sm text-muted-foreground"
+                        },
+                        {
+                          "type": "card",
+                          "className": "flex items-center justify-center p-8 min-h-[120px] bg-muted/50",
+                          "children": {
+                            "type": "button",
+                            "label": "Send Email",
+                            "icon": "mail"
+                          }
+                        },
+                        {
+                          "type": "div",
+                          "className": "rounded-lg border bg-card",
+                          "children": [
+                            {
+                              "type": "div",
+                              "className": "flex items-center justify-between border-b px-4 py-2",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "value": "schema.json",
+                                  "className": "text-sm font-mono"
+                                },
+                                {
+                                  "type": "button",
+                                  "label": "Copy",
+                                  "variant": "ghost",
+                                  "size": "sm",
+                                  "icon": "copy",
+                                  "className": "h-7"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "div",
+                              "className": "p-4",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "value": "{\n  \"type\": \"button\",\n  \"label\": \"Send Email\",\n  \"icon\": \"mail\"\n}",
+                                  "className": "font-mono text-sm text-foreground whitespace-pre"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "div",
+              "className": "space-y-4",
+              "children": [
+                {
+                  "type": "text",
+                  "value": "Props",
+                  "className": "text-2xl font-semibold tracking-tight"
+                },
+                {
+                  "type": "div",
+                  "className": "rounded-lg border",
+                  "children": [
+                    {
+                      "type": "table",
+                      "className": "w-full",
+                      "columns": [
+                        {
+                          "key": "prop",
+                          "title": "Prop",
+                          "className": "font-mono text-sm"
+                        },
+                        {
+                          "key": "type",
+                          "title": "Type",
+                          "className": "font-mono text-sm"
+                        },
+                        {
+                          "key": "default",
+                          "title": "Default"
+                        },
+                        {
+                          "key": "description",
+                          "title": "Description"
+                        }
+                      ],
+                      "data": [
+                        {
+                          "prop": "label",
+                          "type": "string",
+                          "default": "-",
+                          "description": "Button text content"
+                        },
+                        {
+                          "prop": "variant",
+                          "type": "string",
+                          "default": "default",
+                          "description": "Visual style: default, secondary, destructive, outline, ghost, link"
+                        },
+                        {
+                          "prop": "size",
+                          "type": "string",
+                          "default": "default",
+                          "description": "Button size: default, sm, lg, icon"
+                        },
+                        {
+                          "prop": "icon",
+                          "type": "string",
+                          "default": "-",
+                          "description": "Lucide icon name to display"
+                        },
+                        {
+                          "prop": "disabled",
+                          "type": "boolean",
+                          "default": "false",
+                          "description": "Disable button interactions"
+                        },
+                        {
+                          "prop": "className",
+                          "type": "string",
+                          "default": "-",
+                          "description": "Additional Tailwind CSS classes"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "separator",
+              "className": "my-8"
+            },
+            {
+              "type": "div",
+              "className": "space-y-4",
+              "children": [
+                {
+                  "type": "text",
+                  "value": "Related Components",
+                  "className": "text-2xl font-semibold tracking-tight"
+                },
+                {
+                  "type": "div",
+                  "className": "flex flex-wrap gap-2",
+                  "children": [
+                    {
+                      "type": "button",
+                      "label": "Toggle",
+                      "variant": "outline",
+                      "size": "sm"
+                    },
+                    {
+                      "type": "button",
+                      "label": "Switch",
+                      "variant": "outline",
+                      "size": "sm"
+                    },
+                    {
+                      "type": "button",
+                      "label": "Checkbox",
+                      "variant": "outline",
+                      "size": "sm"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -42,7 +42,8 @@ export default defineConfig({
           text: 'Try & Explore',
           items: [
             { text: 'Showcase', link: '/guide/showcase' },
-            { text: 'Try It Online', link: '/guide/try-it-online' }
+            { text: 'Try It Online', link: '/guide/try-it-online' },
+            { text: 'Interactive Documentation', link: '/guide/interactive-showcase' }
           ]
         },
         {
