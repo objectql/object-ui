@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/cli",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "CLI tool for Object UI - Build applications from JSON schemas",
   "type": "module",
   "bin": {

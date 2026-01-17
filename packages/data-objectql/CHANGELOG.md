@@ -1,5 +1,17 @@
 # @object-ui/data-objectql
 
+## 0.2.2
+
+### Patch Changes
+
+- 99cf828: Fixed changeset configuration and infrastructure improvements
+  - Fixed changeset config by removing non-existent @apps/\* pattern
+  - Enhanced CI/CD workflows with GitHub Actions
+  - Improved documentation for contributing and releasing
+
+- Updated dependencies [99cf828]
+  - @object-ui/types@0.2.2
+
 ## 0.2.1
 
 ### Patch Changes

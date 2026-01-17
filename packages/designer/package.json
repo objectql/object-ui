@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/designer",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "license": "MIT",
   "description": "The Tool. A drag-and-drop visual editor to generate Object UI schemas.",

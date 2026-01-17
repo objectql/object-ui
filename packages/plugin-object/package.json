@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-object",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "ObjectQL plugin for Object UI - Object Table and Object Form components",
   "type": "module",
   "main": "./dist/index.js",

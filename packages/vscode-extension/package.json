@@ -2,7 +2,7 @@
   "name": "object-ui",
   "displayName": "Object UI",
   "description": "VSCode extension for Object UI - Schema-driven UI development with IntelliSense, validation, and live preview",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "objectui",
   "icon": "icon.svg",
   "engines": {
