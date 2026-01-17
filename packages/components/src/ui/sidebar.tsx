@@ -253,15 +253,15 @@ function Sidebar({
   )
 }
 
-function SidebarTrigger({
-  className,
-  onClick,
-  ...props
-}: React.ComponentProps<typeof Button>) {
+const SidebarTrigger = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentProps<typeof Button>
+>(({ className, onClick, ...props }, ref) => {
   const { toggleSidebar } = useSidebar()
 
   return (
     <Button
+      ref={ref}
       data-sidebar="trigger"
       data-slot="sidebar-trigger"
       variant="ghost"
@@ -277,7 +277,8 @@ function SidebarTrigger({
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )
-}
+})
+SidebarTrigger.displayName = "SidebarTrigger"
 
 function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
   const { toggleSidebar } = useSidebar()
@@ -495,7 +496,14 @@ const sidebarMenuButtonVariants = cva(
   }
 )
 
-function SidebarMenuButton({
+const SidebarMenuButton = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentProps<"button"> & {
+    asChild?: boolean
+    isActive?: boolean
+    tooltip?: string | React.ComponentProps<typeof TooltipContent>
+  } & VariantProps<typeof sidebarMenuButtonVariants>
+>(({
   asChild = false,
   isActive = false,
   variant = "default",
@@ -503,16 +511,13 @@ function SidebarMenuButton({
   tooltip,
   className,
   ...props
-}: React.ComponentProps<"button"> & {
-  asChild?: boolean
-  isActive?: boolean
-  tooltip?: string | React.ComponentProps<typeof TooltipContent>
-} & VariantProps<typeof sidebarMenuButtonVariants>) {
+}, ref) => {
   const Comp = asChild ? Slot : "button"
   const { isMobile, state } = useSidebar()
 
   const button = (
     <Comp
+      ref={ref}
       data-slot="sidebar-menu-button"
       data-sidebar="menu-button"
       data-size={size}
@@ -543,7 +548,8 @@ function SidebarMenuButton({
       />
     </Tooltip>
   )
-}
+})
+SidebarMenuButton.displayName = "SidebarMenuButton"
 
 function SidebarMenuAction({
   className,
