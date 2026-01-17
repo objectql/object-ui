@@ -17,8 +17,8 @@ export async function dev(schemaPath: string, options: DevOptions) {
   const cwd = process.cwd();
   
   // Resolve the actual project root and schema file
-  let projectRoot = cwd;
-  let targetSchemaPath = schemaPath;
+  let _projectRoot = cwd;
+  const targetSchemaPath = schemaPath;
   let hasPagesDir = false;
   let pagesDir = '';
   let appConfig: unknown = null;
@@ -33,7 +33,7 @@ export async function dev(schemaPath: string, options: DevOptions) {
 
     if (existsSync(potentialPagesDir)) {
       console.log(chalk.blue(`📂 Detected project structure at ${fileDir}`));
-      projectRoot = fileDir;
+      _projectRoot = fileDir;
       hasPagesDir = true;
       pagesDir = potentialPagesDir;
       
@@ -41,7 +41,7 @@ export async function dev(schemaPath: string, options: DevOptions) {
       try {
         appConfig = parseSchemaFile(absoluteSchemaPath);
         console.log(chalk.blue('⚙️  Loaded App Config from app.json'));
-      } catch (e) {
+      } catch (_e) {
         console.warn('Failed to parse app config');
       }
     }
@@ -170,7 +170,7 @@ export async function dev(schemaPath: string, options: DevOptions) {
       // We might get the cjs entry, but for aliasing usually fine. 
       // Better yet, if we can find the package root, but require.resolve gives file.
       // Let's just use what require.resolve gives.
-      // @ts-ignore
+      // @ts-expect-error - lucidePath is dynamically resolved
       viteConfig.resolve.alias['lucide-react'] = lucidePath;
     } catch (e) {
       console.warn('⚠️ Could not resolve lucide-react automatically:', e);
@@ -192,7 +192,7 @@ export async function dev(schemaPath: string, options: DevOptions) {
           ],
         },
       };
-    } catch (e) {
+    } catch (_e) {
       console.warn(chalk.yellow('⚠️ Failed to load PostCSS plugins from root node_modules. Styles might not work correctly.'));
     }
   }

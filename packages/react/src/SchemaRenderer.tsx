@@ -1,12 +1,11 @@
 import React, { forwardRef } from 'react';
 import { SchemaNode, ComponentRegistry } from '@object-ui/core';
 
-export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<string, any>>(({ schema, ...props }, ref) => {
+export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<string, any>>(({ schema, ...props }, _ref) => {
   if (!schema) return null;
   // If schema is just a string, render it as text
   if (typeof schema === 'string') return <>{schema}</>;
   
-  // eslint-disable-next-line
   const Component = ComponentRegistry.get(schema.type);
 
   if (!Component) {
@@ -18,13 +17,14 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     );
   }
 
+  // Note: We don't forward the ref to the Component because components in the registry
+  // may not support refs. The SchemaRenderer itself can still receive refs for its own use.
   return React.createElement(Component, {
     schema,
     ...(schema.props || {}),
     className: schema.className,
     'data-obj-id': schema.id,
     'data-obj-type': schema.type,
-    ref,
     ...props
   });
 });
