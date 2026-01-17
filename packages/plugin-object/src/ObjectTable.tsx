@@ -108,7 +108,9 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
           column.cell = (value: any) => {
             if (!value) return '-';
             if (Array.isArray(value)) {
-              return `${value.length} ${field.type}(s)`;
+              const count = value.length;
+              const fileType = field.type === 'image' ? 'image' : 'file';
+              return count === 1 ? `1 ${fileType}` : `${count} ${fileType}s`;
             }
             return value.name || value.original_name || 'File';
           };
@@ -116,8 +118,8 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
           // For relationship fields, display the name property if available
           column.cell = (value: any) => {
             if (!value) return '-';
-            if (typeof value === 'object') {
-              return value.name || value.label || value._id || String(value);
+            if (typeof value === 'object' && value !== null) {
+              return value.name || value.label || value._id || JSON.stringify(value);
             }
             return String(value);
           };

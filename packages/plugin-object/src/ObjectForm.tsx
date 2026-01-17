@@ -149,7 +149,10 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
           formField.accept = field.accept?.join(',');
           // Add validation hints for file size and dimensions
           if (field.max_size) {
-            formField.description = (formField.description || '') + ` (Max size: ${formatFileSize(field.max_size)})`;
+            const sizeHint = `Max size: ${formatFileSize(field.max_size)}`;
+            formField.description = formField.description 
+              ? `${formField.description} (${sizeHint})` 
+              : sizeHint;
           }
         }
 
@@ -347,10 +350,18 @@ function mapFieldTypeToFormType(fieldType: string): string {
 
 /**
  * Formats file size in bytes to human-readable string
- * @param bytes - File size in bytes
+ * @param bytes - File size in bytes (must be non-negative)
  * @returns Formatted string (e.g., "5 MB", "1.5 GB")
  */
 function formatFileSize(bytes: number): string {
+  if (bytes < 0 || !Number.isFinite(bytes)) {
+    return '0 B';
+  }
+  
+  if (bytes === 0) {
+    return '0 B';
+  }
+  
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let size = bytes;
   let unitIndex = 0;
