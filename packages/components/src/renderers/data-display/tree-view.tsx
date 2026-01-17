@@ -27,57 +27,49 @@ const TreeNodeComponent = ({
 
   return (
     <div className="relative">
-       {/* Connecting line for siblings (visual aid, tricky to do perfectly without depth context, so we focus on the left border of the container) */}
-       
       <div
         className={cn(
-          'group flex items-center py-1.5 px-2 rounded-sm cursor-pointer transition-all duration-200 border border-transparent',
-          'hover:bg-cyan-950/30 hover:border-cyan-500/20 hover:shadow-[inset_0_0_10px_-5px_cyan]',
-          isOpen && hasChildren && 'bg-slate-900/40' // Active parent state
+          'group flex items-center py-1.5 px-2 rounded-sm cursor-pointer transition-colors',
+          'hover:bg-accent hover:text-accent-foreground',
+          isOpen && hasChildren && 'bg-accent/50' 
         )}
         onClick={handleClick}
       >
-        {/* Indentation adjustment triggered by parent's padding/margin, not calculated prop here to allow CSS lines */}
-        
         {hasChildren ? (
           <button
             onClick={handleToggle}
-            className="mr-2 p-0.5 h-5 w-5 flex items-center justify-center rounded-sm hover:bg-cyan-500/20 text-cyan-600 transition-colors"
+            className="mr-2 p-0.5 h-5 w-5 flex items-center justify-center rounded-sm hover:bg-muted text-muted-foreground transition-colors"
           >
             {isOpen ? (
-              <ChevronDown className="h-4 w-4 drop-shadow-[0_0_5px_cyan]" />
+              <ChevronDown className="h-4 w-4" />
             ) : (
               <ChevronRight className="h-4 w-4" />
             )}
           </button>
         ) : (
           <span className="mr-2 w-5 flex justify-center">
-             <div className="w-1 h-1 rounded-full bg-slate-700/50 group-hover:bg-cyan-500/50" />
+             <div className="w-1 h-1 rounded-full bg-muted-foreground/50" />
           </span>
         )}
         
         {node.icon === 'folder' || hasChildren ? (
           isOpen ? 
-            <FolderOpen className="h-4 w-4 mr-2 text-cyan-400 drop-shadow-[0_0_5px_rgba(6,182,212,0.5)]" /> : 
-            <Folder className="h-4 w-4 mr-2 text-cyan-600 group-hover:text-cyan-400 transition-colors" />
+            <FolderOpen className="h-4 w-4 mr-2 text-primary" /> : 
+            <Folder className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-primary transition-colors" />
         ) : (
-          <File className="h-4 w-4 mr-2 text-slate-500 group-hover:text-cyan-200 transition-colors" />
+          <File className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-primary transition-colors" />
         )}
         
         <span className={cn(
-            "text-sm font-mono tracking-wide transition-colors",
-            isOpen ? "text-cyan-100 font-bold shadow-cyan-500/20" : "text-slate-400 group-hover:text-cyan-300"
+            "text-sm transition-colors",
+            isOpen ? "font-medium text-foreground" : "text-muted-foreground group-hover:text-foreground"
         )}>
             {node.label}
         </span>
       </div>
 
-      {/* Children Container with Circuit Line */}
       {hasChildren && isOpen && (
-        <div className="relative ml-[11px] pl-3 border-l border-cyan-800/40 animate-in slide-in-from-left-2 fade-in duration-200">
-           {/* Decorative little bulb at the junction */}
-           <div className="absolute top-0 -left-[1px] -translate-x-1/2 w-1.5 h-1.5 bg-cyan-700/50 rounded-full" />
-           
+        <div className="relative ml-[11px] pl-3 border-l border-border animate-in slide-in-from-left-2 fade-in duration-200">
           {node.children!.map((child) => (
             <TreeNodeComponent
               key={child.id}
@@ -85,9 +77,6 @@ const TreeNodeComponent = ({
               onNodeClick={onNodeClick}
             />
           ))}
-          
-           {/* Decorative end cap */}
-           <div className="absolute bottom-0 -left-[1px] -translate-x-1/2 w-1 h-1 bg-cyan-800/50 rounded-full" />
         </div>
       )}
     </div>
@@ -104,23 +93,18 @@ ComponentRegistry.register('tree-view',
 
     return (
       <div className={cn(
-          'relative border border-border/60 rounded-lg p-3 bg-card/40 backdrop-blur-md overflow-hidden',
-          'shadow-lg shadow-primary/5',
+          'relative border rounded-lg p-3 bg-card text-card-foreground',
           className
         )} 
         {...props}
       >
-        {/* Background Grid */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border)/0.1)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.1)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
-
         {schema.title && (
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-primary/20 relative z-10">
-            <CircuitBoard className="w-4 h-4 text-primary" />
-            <h3 className="text-xs font-bold font-mono uppercase tracking-widest text-primary">{schema.title}</h3>
+          <div className="flex items-center gap-2 mb-3 pb-2 border-b">
+            <h3 className="text-sm font-semibold">{schema.title}</h3>
           </div>
         )}
-        <div className="space-y-1 relative z-10">
-          {schema.nodes?.map((node: TreeNode) => (
+        <div className="space-y-1">
+          {(schema.nodes || schema.data)?.map((node: TreeNode) => (
             <TreeNodeComponent
               key={node.id}
               node={node}
