@@ -13,9 +13,38 @@
 [![React](https://img.shields.io/badge/React-18+-61dafb.svg)](https://reactjs.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.0+-38bdf8.svg)](https://tailwindcss.com/)
 
-[**Documentation**](https://www.objectui.org) | [**Quick Start**](#quick-start) | [**Examples**](#examples)
+[**Documentation**](https://www.objectui.org) | [**Quick Start**](#quick-start) | [**🎨 Showcase**](#-try-the-showcase) | [**Examples**](#examples)
 
 </div>
+
+## 🎨 Try the Showcase
+
+**Explore all components interactively!** The Object UI Showcase demonstrates every component, layout pattern, and feature in an interactive demo.
+
+```bash
+# Clone the repository
+git clone https://github.com/objectql/objectui.git
+cd objectui
+
+# Install and build
+pnpm install && pnpm build
+
+# Run the showcase
+pnpm showcase
+```
+
+**Opens at:** `http://localhost:3000`
+
+**What's included:**
+- ✨ 60+ component examples across 8 categories
+- 📱 Responsive layouts (mobile, tablet, desktop)
+- 🎨 Light/Dark theme support
+- 🔍 Live schema inspection
+- 📋 Copy-paste ready JSON examples
+
+[**📖 Complete Showcase Guide →**](./docs/guide/showcase.md)
+
+---
 
 ## 🚀 Just JSON
 

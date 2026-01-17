@@ -14,6 +14,7 @@ export default defineConfig({
     
     nav: [
       { text: 'Guide', link: '/guide/introduction' },
+      { text: 'Showcase', link: '/guide/showcase' },
       { text: 'Components', link: '/components/' },
       { 
         text: 'Reference',
@@ -35,6 +36,13 @@ export default defineConfig({
             { text: 'Quick Start', link: '/guide/quick-start' },
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Visual Studio', link: '/guide/studio' }
+          ]
+        },
+        {
+          text: 'Try & Explore',
+          items: [
+            { text: 'Showcase', link: '/guide/showcase' },
+            { text: 'Try It Online', link: '/guide/try-it-online' }
           ]
         },
         {
@@ -164,6 +172,15 @@ export default defineConfig({
             { text: 'Plugin: Charts', link: '/plugins/plugin-charts' },
             { text: 'Plugin: Kanban', link: '/plugins/plugin-kanban' },
             { text: 'Plugin: Markdown', link: '/plugins/plugin-markdown' }
+          ]
+        }
+      ],
+      
+      '/deployment/': [
+        {
+          text: 'Deployment Guides',
+          items: [
+            { text: 'Showcase Deployment', link: '/deployment/showcase-deployment' }
           ]
         }
       ]
