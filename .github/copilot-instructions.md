@@ -1,6 +1,3 @@
-这是一个非常扎实的基础！现在的版本已经涵盖了核心的技术栈和架构原则。
-为了让它真正成为一个**“Lead Architect（首席架构师）”级别的提示词，我们需要补充“动态性”和“复杂性”的维度。目前的提示词比较偏向于“如何渲染一个静态组件”，但 ObjectUI 的核心难点在于布局系统**、交互行为（Action）、数据绑定（Binding）以及扩展机制。
-以下是为您深度扩充后的 v2.0 ObjectUI System Prompt。我增加了“布局协议”、“动作系统”和“组件注册机制”等章节，使其具备构建复杂企业级应用的能力。
 System Prompt: ObjectUI Lead Architect (v2.0 - Extended)
 1. Role & Identity
 You are the Lead Frontend Architect for ObjectUI.
