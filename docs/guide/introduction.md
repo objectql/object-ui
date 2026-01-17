@@ -188,7 +188,7 @@ Ready to get started?
 ## Getting Help
 
 - 📖 [Documentation](/) - You're reading it!
-- ⭐ [GitHub](https://github.com/objectql/objectui) - Star us and report issues
+- ⭐ [GitHub](https://github.com/objectstack-ai/objectui) - Star us and report issues
 - 📧 [Email](mailto:hello@objectui.org) - Get in touch
 
 Let's build something amazing! 🚀

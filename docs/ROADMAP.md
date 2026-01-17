@@ -196,7 +196,7 @@ While we're building the future, you can already:
 We have several examples available! Check out the `examples/` directory to see what's possible, or run the designer demo with `pnpm designer`.
 
 ### Join the Community
-- ⭐ **Star us on GitHub**: [objectql/objectui](https://github.com/objectql/objectui)
+- ⭐ **Star us on GitHub**: [objectstack-ai/objectui](https://github.com/objectstack-ai/objectui)
 - 📧 **Email us**: hello@objectui.org
 
 ### Shape the Future
@@ -282,7 +282,7 @@ Object UI is built by developers, for developers. Thank you for your interest an
 
 **Questions?** Email us at hello@objectui.org
 
-**Want to contribute?** Open an issue or pull request on [GitHub](https://github.com/objectql/objectui)
+**Want to contribute?** Open an issue or pull request on [GitHub](https://github.com/objectstack-ai/objectui)
 
 ---
 
@@ -290,6 +290,6 @@ Object UI is built by developers, for developers. Thank you for your interest an
 
 *Building the future of interface development, one JSON schema at a time* 🚀
 
-**[GitHub](https://github.com/objectql/objectui)** · **[Documentation](https://objectui.org)**
+**[GitHub](https://github.com/objectstack-ai/objectui)** · **[Documentation](https://objectui.org)**
 
 </div>

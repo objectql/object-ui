@@ -41,7 +41,7 @@ Since this package is not yet published to NPM, here is how to play with the sou
 1.  **Clone & Install**
 
     ```bash
-    git clone https://github.com/objectql/objectui.git
+    git clone https://github.com/objectstack-ai/objectui.git
     cd objectui
     pnpm install
     # Build the core engine
@@ -360,7 +360,7 @@ objectui serve examples/landing-page/app.json     # Marketing page
 
 ```bash
 # Clone the repository
-git clone https://github.com/objectql/objectui.git
+git clone https://github.com/objectstack-ai/objectui.git
 cd objectui
 
 # Install dependencies
@@ -397,7 +397,7 @@ We welcome contributions! Please read our [Contributing Guide](./CONTRIBUTING.md
 
 ```bash
 # Clone the repository
-git clone https://github.com/objectql/objectui.git
+git clone https://github.com/objectstack-ai/objectui.git
 cd objectui
 
 # Install dependencies
@@ -419,10 +419,10 @@ Object UI is [MIT licensed](./LICENSE).
 
 ## 🌟 Community & Support
 
-- ⭐ [Star on GitHub](https://github.com/objectql/objectui) - Show your support!
+- ⭐ [Star on GitHub](https://github.com/objectstack-ai/objectui) - Show your support!
 - 📖 [Documentation](https://www.objectui.org) - Comprehensive guides and API reference
-- 💬 [GitHub Discussions](https://github.com/objectql/objectui/discussions) - Ask questions and share ideas
-- 🐛 [Report Issues](https://github.com/objectql/objectui/issues) - Found a bug? Let us know
+- 💬 [GitHub Discussions](https://github.com/objectstack-ai/objectui/discussions) - Ask questions and share ideas
+- 🐛 [Report Issues](https://github.com/objectstack-ai/objectui/issues) - Found a bug? Let us know
 - 📧 [Email Us](mailto:hello@objectui.org) - Get in touch
 
 ## 🙏 Acknowledgments
@@ -439,6 +439,6 @@ Object UI is inspired by and builds upon ideas from:
 
 **Built with ❤️ by the [ObjectQL Team](https://github.com/objectql)**
 
-[Website](https://www.objectui.org) · [Documentation](https://www.objectui.org) · [GitHub](https://github.com/objectql/objectui)
+[Website](https://www.objectui.org) · [Documentation](https://www.objectui.org) · [GitHub](https://github.com/objectstack-ai/objectui)
 
 </div>

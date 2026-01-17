@@ -2,6 +2,16 @@
   "name": "@object-ui/core",
   "version": "0.3.0",
   "license": "MIT",
+  "description": "Core logic, types, and validation for Object UI. Zero React dependencies.",
+  "homepage": "https://www.objectui.org",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/objectstack-ai/objectui.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/objectstack-ai/objectui/issues"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

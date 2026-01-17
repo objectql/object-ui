@@ -135,5 +135,5 @@ const value = scope.get('user.name') // 'John'
 ## API Reference
 
 For detailed API documentation, see:
-- [GitHub Repository](https://github.com/objectql/objectui/tree/main/packages/core)
-- [TypeScript Definitions](https://github.com/objectql/objectui/blob/main/packages/core/src/index.ts)
+- [GitHub Repository](https://github.com/objectstack-ai/objectui/tree/main/packages/core)
+- [TypeScript Definitions](https://github.com/objectstack-ai/objectui/blob/main/packages/core/src/index.ts)

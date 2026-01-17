@@ -3,6 +3,16 @@
   "version": "0.3.0",
   "type": "module",
   "license": "MIT",
+  "description": "Standard UI component library for Object UI, built with Shadcn UI + Tailwind CSS",
+  "homepage": "https://www.objectui.org",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/objectstack-ai/objectui.git",
+    "directory": "packages/components"
+  },
+  "bugs": {
+    "url": "https://github.com/objectstack-ai/objectui/issues"
+  },
   "main": "dist/index.umd.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",

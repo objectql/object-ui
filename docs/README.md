@@ -285,8 +285,8 @@ Before committing documentation changes:
 ## Need Help?
 
 - 📖 [VitePress Documentation](https://vitepress.dev/)
-- 💬 [GitHub Discussions](https://github.com/objectql/objectui/discussions)
-- 🐛 [Report Issues](https://github.com/objectql/objectui/issues)
+- 💬 [GitHub Discussions](https://github.com/objectstack-ai/objectui/discussions)
+- 🐛 [Report Issues](https://github.com/objectstack-ai/objectui/issues)
 
 ## Contributing
 

@@ -3,6 +3,15 @@
   "version": "0.3.0",
   "description": "CLI tool for Object UI - Build applications from JSON schemas",
   "type": "module",
+  "homepage": "https://www.objectui.org",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/objectstack-ai/objectui.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/objectstack-ai/objectui/issues"
+  },
   "bin": {
     "objectui": "./dist/cli.js"
   },

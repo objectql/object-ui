@@ -468,17 +468,8 @@ Automatically refetch data at regular intervals:
 9. **Optimize Polling** - Use reasonable polling intervals
 10. **Secure APIs** - Always use HTTPS and authentication
 
-## Examples
-
-See these examples for complete implementations:
-
-- [User Management](../../examples/user-management) - Full CRUD with API integration
-- [API Integration Demo](../../examples/api-integration) - Various API patterns
-- [Dashboard](../../examples/dashboard) - Real-time data fetching
-
 ## Related Documentation
 
-- [CRUD Protocol](./crud.md)
-- [Event Handling](./events.md)
-- [Expression System](./expressions.md)
-- [Data Sources](../integration/data-sources.md)
+- [Protocol Specifications](../protocol/overview.md)
+- [Data Sources](./objectql.md)
+- [Component Library](../api/components.md)

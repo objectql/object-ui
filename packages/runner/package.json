@@ -4,6 +4,15 @@
   "version": "0.3.0",
   "description": "Universal Object UI Application Runner",
   "type": "module",
+  "homepage": "https://www.objectui.org",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/objectstack-ai/objectui.git",
+    "directory": "packages/runner"
+  },
+  "bugs": {
+    "url": "https://github.com/objectstack-ai/objectui/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

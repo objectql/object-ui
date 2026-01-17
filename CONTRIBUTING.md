@@ -35,7 +35,7 @@ Thank you for your interest in contributing to Object UI! This document provides
    ```
 3. Add upstream remote:
    ```bash
-   git remote add upstream https://github.com/objectql/objectui.git
+   git remote add upstream https://github.com/objectstack-ai/objectui.git
    ```
 
 ## Development Setup

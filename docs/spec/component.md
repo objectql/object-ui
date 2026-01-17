@@ -786,10 +786,9 @@ ai_context:
 
 ## 18. Related Specifications
 
-- [Pages](./page.md) - Using components in pages
-- [Metadata Standard](./metadata-standard.md) - Overall metadata system
-- [Objects & Fields](./object.md) - Data models used by components
-- [Actions](./action.md) - Component actions and handlers
+- [Protocol Overview](../protocol/overview.md) - Overall protocol system
+- [Component Library](./component-library.md) - Built-in components reference
+- [Architecture](./architecture.md) - System architecture
 
 ## 19. Migration Guide
 

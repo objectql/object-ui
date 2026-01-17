@@ -146,4 +146,4 @@ interface DesignerContextValue {
 
 ## Examples
 
-See [examples/designer-demo](https://github.com/objectql/objectui/tree/main/examples/designer-demo) for a complete working example.
+See [examples/designer-demo](https://github.com/objectstack-ai/objectui/tree/main/examples/designer-demo) for a complete working example.

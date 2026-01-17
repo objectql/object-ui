@@ -3,7 +3,16 @@
   "version": "0.3.0",
   "type": "module",
   "license": "MIT",
-  "description": "The Tool. A drag-and-drop visual editor to generate Object UI schemas.",
+  "description": "A drag-and-drop visual editor to generate Object UI schemas.",
+  "homepage": "https://www.objectui.org",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/objectstack-ai/objectui.git",
+    "directory": "packages/designer"
+  },
+  "bugs": {
+    "url": "https://github.com/objectstack-ai/objectui/issues"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

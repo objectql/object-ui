@@ -213,5 +213,5 @@ No breaking changes. Existing code continues to work:
 ## Support
 
 For issues or questions:
-- GitHub Issues: [objectui/issues](https://github.com/objectstack-ai/objectui/issues)
+- GitHub Issues: [objectstack-ai/objectui/issues](https://github.com/objectstack-ai/objectui/issues)
 - Documentation: [objectui.org/docs](https://www.objectui.org)
