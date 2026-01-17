@@ -128,18 +128,54 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
         };
 
         // Add field-specific properties
-        if (field.type === 'select' || field.type === 'lookup') {
+        if (field.type === 'select' || field.type === 'lookup' || field.type === 'master_detail') {
           formField.options = field.options || [];
+          formField.multiple = field.multiple;
         }
 
-        if (field.type === 'number' || field.type === 'currency') {
+        if (field.type === 'number' || field.type === 'currency' || field.type === 'percent') {
           formField.min = field.min;
           formField.max = field.max;
           formField.step = field.precision ? Math.pow(10, -field.precision) : undefined;
         }
 
-        if (field.type === 'text' || field.type === 'textarea') {
-          formField.maxLength = field.maxLength;
+        if (field.type === 'text' || field.type === 'textarea' || field.type === 'markdown' || field.type === 'html') {
+          formField.maxLength = field.max_length;
+          formField.minLength = field.min_length;
+        }
+
+        if (field.type === 'file' || field.type === 'image') {
+          formField.multiple = field.multiple;
+          formField.accept = field.accept?.join(',');
+          // Add validation hints for file size and dimensions
+          if (field.max_size) {
+            formField.description = (formField.description || '') + ` (Max size: ${formatFileSize(field.max_size)})`;
+          }
+        }
+
+        if (field.type === 'email') {
+          formField.inputType = 'email';
+        }
+
+        if (field.type === 'phone') {
+          formField.inputType = 'tel';
+        }
+
+        if (field.type === 'url') {
+          formField.inputType = 'url';
+        }
+
+        if (field.type === 'password') {
+          formField.inputType = 'password';
+        }
+
+        if (field.type === 'time') {
+          formField.inputType = 'time';
+        }
+
+        // Read-only fields for computed types
+        if (field.type === 'formula' || field.type === 'summary' || field.type === 'auto_number') {
+          formField.disabled = true;
         }
 
         generatedFields.push(formField);
@@ -245,6 +281,12 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
  * `select`). If a field type is not explicitly mapped, the function falls
  * back to the generic `"input"` type.
  *
+ * Updated to support all field types from @objectql/types v3.0.1:
+ * text, textarea, markdown, html, select, date, datetime, time, number,
+ * currency, percent, boolean, email, phone, url, image, file, location,
+ * lookup, master_detail, password, formula, summary, auto_number, object,
+ * vector, grid
+ *
  * @param fieldType - The ObjectQL field type identifier to convert
  * (for example: `"text"`, `"number"`, `"date"`, `"lookup"`).
  * @returns The normalized form field type string used in the form schema
@@ -252,22 +294,71 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
  */
 function mapFieldTypeToFormType(fieldType: string): string {
   const typeMap: Record<string, string> = {
+    // Text-based fields
     text: 'input',
     textarea: 'textarea',
+    markdown: 'textarea', // Markdown editor (fallback to textarea)
+    html: 'textarea', // Rich text editor (fallback to textarea)
+    
+    // Numeric fields
     number: 'input',
     currency: 'input',
     percent: 'input',
+    
+    // Date/Time fields
     date: 'date-picker',
     datetime: 'date-picker',
+    time: 'input', // Time picker (fallback to input with type="time")
+    
+    // Boolean
     boolean: 'switch',
+    
+    // Selection fields
     select: 'select',
-    email: 'input',
-    url: 'input',
-    password: 'input',
     lookup: 'select',
     master_detail: 'select',
-    fileupload: 'file-upload',
+    
+    // Contact fields
+    email: 'input',
+    phone: 'input',
+    url: 'input',
+    
+    // File fields
+    file: 'file-upload',
+    image: 'file-upload',
+    
+    // Special fields
+    password: 'input',
+    location: 'input', // Location/map field (fallback to input)
+    
+    // Auto-generated/computed fields (typically read-only)
+    formula: 'input',
+    summary: 'input',
+    auto_number: 'input',
+    
+    // Complex data types
+    object: 'input', // JSON object (fallback to input)
+    vector: 'input', // Vector/embedding data (fallback to input)
+    grid: 'input', // Grid/table data (fallback to input)
   };
 
   return typeMap[fieldType] || 'input';
+}
+
+/**
+ * Formats file size in bytes to human-readable string
+ * @param bytes - File size in bytes
+ * @returns Formatted string (e.g., "5 MB", "1.5 GB")
+ */
+function formatFileSize(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = bytes;
+  let unitIndex = 0;
+  
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+  
+  return `${size.toFixed(unitIndex > 0 ? 1 : 0)} ${units[unitIndex]}`;
 }
