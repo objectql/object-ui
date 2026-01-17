@@ -29,7 +29,10 @@ const dataSource = new ObjectQLDataSource({
 function UsersTable() {
   return (
     <ObjectTable 
-      objectName="users"
+      schema={{
+        type: 'object-table',
+        objectName: 'users'
+      }}
       dataSource={dataSource}
     />
   );
@@ -50,10 +53,13 @@ const dataSource = new ObjectQLDataSource({
 function UserForm() {
   return (
     <ObjectForm 
-      objectName="users"
+      schema={{
+        type: 'object-form',
+        objectName: 'users',
+        mode: 'create',
+        onSuccess: (data) => console.log('Created:', data)
+      }}
       dataSource={dataSource}
-      mode="create"
-      onSuccess={(data) => console.log('Created:', data)}
     />
   );
 }

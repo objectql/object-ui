@@ -209,10 +209,14 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
   }
 
   // Convert to FormSchema
+  // Note: FormSchema currently only supports 'vertical' and 'horizontal' layouts
+  // Map 'grid' and 'inline' to 'vertical' as fallback
   const formSchema: FormSchema = {
     type: 'form',
     fields: formFields,
-    layout: schema.layout === 'grid' || schema.layout === 'inline' ? 'vertical' : schema.layout || 'vertical',
+    layout: (schema.layout === 'vertical' || schema.layout === 'horizontal') 
+      ? schema.layout 
+      : 'vertical',
     columns: schema.columns,
     submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
     cancelLabel: schema.cancelText,
