@@ -1,0 +1,187 @@
+{
+  "type": "page",
+  "title": "Object Table - ObjectQL Components",
+  "body": [
+    {
+      "type": "div",
+      "className": "space-y-6 container mx-auto py-6 max-w-6xl",
+      "children": [
+        {
+          "type": "div",
+          "className": "space-y-2",
+          "children": [
+            {
+              "type": "text",
+              "value": "Object Table",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Auto-generates tables from ObjectQL object schemas. Fetches metadata and data automatically.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "space-y-6",
+          "children": [
+            {
+              "type": "card",
+              "title": "Basic Object Table",
+              "description": "ObjectTable automatically fetches object schema and generates columns from field definitions.",
+              "children": {
+                "type": "div",
+                "className": "space-y-4",
+                "children": [
+                  {
+                    "type": "alert",
+                    "variant": "default",
+                    "title": "Demo Mode",
+                    "description": "This is a simulated example. In production, ObjectTable would connect to an ObjectQL backend and fetch real object metadata and data.",
+                    "className": "mb-4"
+                  },
+                  {
+                    "type": "div",
+                    "className": "p-4 bg-muted/50 rounded-lg font-mono text-sm",
+                    "children": {
+                      "type": "text",
+                      "value": "const dataSource = new ObjectQLDataSource({\n  baseUrl: 'https://api.example.com',\n  token: 'your-auth-token'\n});\n\n<ObjectTable \n  schema={{\n    type: 'object-table',\n    objectName: 'contacts'\n  }}\n  dataSource={dataSource}\n/>",
+                      "className": "whitespace-pre"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "value": "Example Output:",
+                    "className": "text-sm font-semibold mt-4"
+                  },
+                  {
+                    "type": "data-table",
+                    "columns": [
+                      {
+                        "accessorKey": "name",
+                        "header": "Name"
+                      },
+                      {
+                        "accessorKey": "email",
+                        "header": "Email"
+                      },
+                      {
+                        "accessorKey": "company",
+                        "header": "Company"
+                      },
+                      {
+                        "accessorKey": "status",
+                        "header": "Status"
+                      }
+                    ],
+                    "data": [
+                      {
+                        "id": "1",
+                        "name": "Alice Johnson",
+                        "email": "alice@example.com",
+                        "company": "Acme Corp",
+                        "status": "Active"
+                      },
+                      {
+                        "id": "2",
+                        "name": "Bob Smith",
+                        "email": "bob@techstart.io",
+                        "company": "TechStart",
+                        "status": "Active"
+                      },
+                      {
+                        "id": "3",
+                        "name": "Carol White",
+                        "email": "carol@innovate.com",
+                        "company": "Innovate Inc",
+                        "status": "Inactive"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "title": "Custom Column Configuration",
+              "description": "Override auto-generated columns with custom configurations.",
+              "children": {
+                "type": "div",
+                "className": "space-y-4",
+                "children": [
+                  {
+                    "type": "div",
+                    "className": "p-4 bg-muted/50 rounded-lg font-mono text-sm",
+                    "children": {
+                      "type": "text",
+                      "value": "<ObjectTable \n  schema={{\n    type: 'object-table',\n    objectName: 'users',\n    fields: ['name', 'email', 'created_at'],\n    columns: [\n      { accessorKey: 'name', header: 'Full Name' },\n      { accessorKey: 'email', header: 'Email Address' },\n      { accessorKey: 'created_at', header: 'Joined' }\n    ]\n  }}\n  dataSource={dataSource}\n/>",
+                      "className": "whitespace-pre"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "value": "Example Output:",
+                    "className": "text-sm font-semibold mt-4"
+                  },
+                  {
+                    "type": "data-table",
+                    "columns": [
+                      {
+                        "accessorKey": "name",
+                        "header": "Full Name"
+                      },
+                      {
+                        "accessorKey": "email",
+                        "header": "Email Address"
+                      },
+                      {
+                        "accessorKey": "created_at",
+                        "header": "Joined"
+                      }
+                    ],
+                    "data": [
+                      {
+                        "id": "1",
+                        "name": "John Doe",
+                        "email": "john@example.com",
+                        "created_at": "2024-01-15"
+                      },
+                      {
+                        "id": "2",
+                        "name": "Jane Smith",
+                        "email": "jane@example.com",
+                        "created_at": "2024-02-20"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "title": "Features",
+              "children": {
+                "type": "list",
+                "items": [
+                  "Auto-fetches object metadata from ObjectQL using MetadataApiClient",
+                  "Auto-generates columns based on field definitions",
+                  "Supports custom column configurations and overrides",
+                  "Fetches data automatically with pagination support",
+                  "Includes loading and error states",
+                  "Integrates seamlessly with ObjectQLDataSource",
+                  "Full TypeScript support with ObjectTableSchema"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "icon": "Table"
+}

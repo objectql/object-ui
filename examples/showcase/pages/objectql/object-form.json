@@ -1,0 +1,214 @@
+{
+  "type": "page",
+  "title": "Object Form - ObjectQL Components",
+  "body": [
+    {
+      "type": "div",
+      "className": "space-y-6 container mx-auto py-6 max-w-6xl",
+      "children": [
+        {
+          "type": "div",
+          "className": "space-y-2",
+          "children": [
+            {
+              "type": "text",
+              "value": "Object Form",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "Auto-generates forms from ObjectQL object schemas. Supports create, edit, and view modes with automatic field generation and validation.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "space-y-6",
+          "children": [
+            {
+              "type": "card",
+              "title": "Create Mode",
+              "description": "ObjectForm in create mode - generates form fields from object schema for creating new records.",
+              "children": {
+                "type": "div",
+                "className": "space-y-4",
+                "children": [
+                  {
+                    "type": "alert",
+                    "variant": "default",
+                    "title": "Demo Mode",
+                    "description": "This is a simulated example. In production, ObjectForm would connect to an ObjectQL backend, fetch object metadata, and submit data to the API.",
+                    "className": "mb-4"
+                  },
+                  {
+                    "type": "div",
+                    "className": "p-4 bg-muted/50 rounded-lg font-mono text-sm",
+                    "children": {
+                      "type": "text",
+                      "value": "const dataSource = new ObjectQLDataSource({\n  baseUrl: 'https://api.example.com',\n  token: 'your-auth-token'\n});\n\n<ObjectForm \n  schema={{\n    type: 'object-form',\n    objectName: 'contacts',\n    mode: 'create',\n    onSuccess: (data) => console.log('Created:', data)\n  }}\n  dataSource={dataSource}\n/>",
+                      "className": "whitespace-pre"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "value": "Example Output:",
+                    "className": "text-sm font-semibold mt-4"
+                  },
+                  {
+                    "type": "form",
+                    "layout": "vertical",
+                    "submitLabel": "Create Contact",
+                    "showCancel": true,
+                    "fields": [
+                      {
+                        "name": "name",
+                        "label": "Full Name",
+                        "type": "input",
+                        "required": true,
+                        "placeholder": "John Doe"
+                      },
+                      {
+                        "name": "email",
+                        "label": "Email",
+                        "type": "input",
+                        "inputType": "email",
+                        "required": true,
+                        "placeholder": "john@example.com"
+                      },
+                      {
+                        "name": "company",
+                        "label": "Company",
+                        "type": "input",
+                        "placeholder": "Acme Corp"
+                      },
+                      {
+                        "name": "status",
+                        "label": "Status",
+                        "type": "select",
+                        "options": [
+                          { "label": "Active", "value": "active" },
+                          { "label": "Inactive", "value": "inactive" }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "title": "Edit Mode",
+              "description": "ObjectForm in edit mode - fetches existing record data and allows updates.",
+              "children": {
+                "type": "div",
+                "className": "space-y-4",
+                "children": [
+                  {
+                    "type": "div",
+                    "className": "p-4 bg-muted/50 rounded-lg font-mono text-sm",
+                    "children": {
+                      "type": "text",
+                      "value": "<ObjectForm \n  schema={{\n    type: 'object-form',\n    objectName: 'contacts',\n    mode: 'edit',\n    recordId: '12345',\n    onSuccess: (data) => console.log('Updated:', data)\n  }}\n  dataSource={dataSource}\n/>",
+                      "className": "whitespace-pre"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "value": "Example Output:",
+                    "className": "text-sm font-semibold mt-4"
+                  },
+                  {
+                    "type": "form",
+                    "layout": "vertical",
+                    "submitLabel": "Update Contact",
+                    "showCancel": true,
+                    "defaultValues": {
+                      "name": "Alice Johnson",
+                      "email": "alice@example.com",
+                      "company": "Tech Innovators",
+                      "status": "active"
+                    },
+                    "fields": [
+                      {
+                        "name": "name",
+                        "label": "Full Name",
+                        "type": "input",
+                        "required": true
+                      },
+                      {
+                        "name": "email",
+                        "label": "Email",
+                        "type": "input",
+                        "inputType": "email",
+                        "required": true
+                      },
+                      {
+                        "name": "company",
+                        "label": "Company",
+                        "type": "input"
+                      },
+                      {
+                        "name": "status",
+                        "label": "Status",
+                        "type": "select",
+                        "options": [
+                          { "label": "Active", "value": "active" },
+                          { "label": "Inactive", "value": "inactive" }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "title": "Custom Field Configuration",
+              "description": "Specify which fields to include and override auto-generated configurations.",
+              "children": {
+                "type": "div",
+                "className": "space-y-4",
+                "children": [
+                  {
+                    "type": "div",
+                    "className": "p-4 bg-muted/50 rounded-lg font-mono text-sm",
+                    "children": {
+                      "type": "text",
+                      "value": "<ObjectForm \n  schema={{\n    type: 'object-form',\n    objectName: 'users',\n    mode: 'create',\n    fields: ['username', 'email', 'role'],\n    customFields: [\n      {\n        name: 'username',\n        label: 'Username',\n        placeholder: 'Choose a unique username'\n      }\n    ]\n  }}\n  dataSource={dataSource}\n/>",
+                      "className": "whitespace-pre"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "title": "Features",
+              "children": {
+                "type": "list",
+                "items": [
+                  "Auto-fetches object metadata from ObjectQL using MetadataApiClient",
+                  "Auto-generates form fields based on field definitions",
+                  "Supports create, edit, and view modes",
+                  "Fetches existing record data in edit/view modes",
+                  "Handles form validation based on field schema",
+                  "Submits data to ObjectQL backend automatically",
+                  "Supports custom field configurations and overrides",
+                  "Includes loading and error states",
+                  "Full TypeScript support with ObjectFormSchema",
+                  "Callback support for success and error handling"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "icon": "FileEdit"
+}

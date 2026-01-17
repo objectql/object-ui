@@ -116,6 +116,14 @@
         { "label": "Scroll Area", "path": "/complex/scroll-area", "icon": "Scroll" },
         { "label": "Chatbot", "path": "/complex/chatbot", "icon": "Bot" }
       ]
+    },
+    {
+      "label": "ObjectQL",
+      "icon": "Database",
+      "children": [
+        { "label": "Object Table", "path": "/objectql/object-table", "icon": "Table" },
+        { "label": "Object Form", "path": "/objectql/object-form", "icon": "FileEdit" }
+      ]
     }
   ],
   "actions": [
