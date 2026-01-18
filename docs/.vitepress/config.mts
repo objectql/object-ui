@@ -49,8 +49,8 @@ export default defineConfig({
         {
           text: 'Development',
           items: [
-            { text: 'Quick Start for Developers', link: '/QUICK_START_DEV' },
-            { text: 'Development Plan', link: '/DEVELOPMENT_PLAN' },
+            { text: 'Quick Start for Developers', link: '/quick-start-dev' },
+            { text: 'Development Plan', link: '/development-plan' },
             { text: 'Contributing Guide', link: '/CONTRIBUTING' }
           ]
         },

@@ -19,7 +19,7 @@ This PR delivers comprehensive development planning and documentation to guide t
 ## 📦 What Was Created
 
 ### 1. Development Plan
-**File**: `docs/DEVELOPMENT_PLAN.md` (21KB)
+**File**: `docs/development-plan.md` (21KB)
 
 Complete Q1-Q2 2026 development roadmap including:
 - Current project status
@@ -32,7 +32,7 @@ Complete Q1-Q2 2026 development roadmap including:
 - Success metrics
 
 ### 2. Quick Start for Developers
-**File**: `docs/QUICK_START_DEV.md` (4.2KB)
+**File**: `docs/quick-start-dev.md` (4.2KB)
 
 Fast-track guide for new developers featuring:
 - 5-minute setup instructions
@@ -42,7 +42,7 @@ Fast-track guide for new developers featuring:
 - Links to detailed documentation
 
 ### 3. Project Status Summary
-**File**: `docs/PROJECT_STATUS.md` (11KB)
+**File**: `docs/project-status.md` (11KB)
 
 Current state of the ObjectUI project including:
 - Executive summary
@@ -78,8 +78,8 @@ Added new "Development" section to sidebar:
 {
   text: 'Development',
   items: [
-    { text: 'Quick Start for Developers', link: '/QUICK_START_DEV' },
-    { text: 'Development Plan', link: '/DEVELOPMENT_PLAN' },
+    { text: 'Quick Start for Developers', link: '/quick-start-dev' },
+    { text: 'Development Plan', link: '/development-plan' },
     { text: 'Contributing Guide', link: '/CONTRIBUTING' }
   ]
 }
@@ -149,10 +149,10 @@ Added "For Developers" quick links section with all new documentation.
 
 ```
 docs/
-├── DEVELOPMENT_PLAN.md         # Development plan (NEW)
-├── QUICK_START_DEV.md          # Developer quick start (NEW)
-├── PROJECT_STATUS.md           # Project status summary (NEW)
-├── PR_DOCUMENTATION_SUMMARY.md # This PR summary (NEW)
+├── development-plan.md         # Development plan (NEW)
+├── quick-start-dev.md          # Developer quick start (NEW)
+├── project-status.md           # Project status summary (NEW)
+├── pr-documentation-summary.md # This PR summary (NEW)
 ├── ROADMAP.md                  # Product roadmap (existing)
 ├── CONTRIBUTING.md             # Contributing guide (existing)
 ├── guide/                      # User guides
@@ -253,7 +253,7 @@ docs/
 
 ### Short Term (Next 2 Weeks)
 1. ⏳ Complete Phase 1 (Core Enhancement)
-2. ⏳ Update progress in PROJECT_STATUS.md
+2. ⏳ Update progress in project-status.md
 3. ⏳ Collect feedback from contributors
 4. ⏳ Refine timeline based on progress
 
@@ -343,8 +343,8 @@ Focus on making contribution easy:
 
 ### Living Documents
 These documents will be updated:
-- **Weekly**: PROJECT_STATUS.md (progress tracking)
-- **Bi-weekly**: DEVELOPMENT_PLAN.md (timeline adjustments)
+- **Weekly**: project-status.md (progress tracking)
+- **Bi-weekly**: development-plan.md (timeline adjustments)
 - **Monthly**: ROADMAP.md (strategic updates)
 
 ---
@@ -381,6 +381,6 @@ Special thanks to:
 
 **Let's build ObjectUI v1.0.0 together!** 🚀
 
-[View Development Plan](./DEVELOPMENT_PLAN.md) | [Quick Start](./QUICK_START_DEV.md) | [Project Status](./PROJECT_STATUS.md)
+[View Development Plan](./development-plan.md) | [Quick Start](./quick-start-dev.md) | [Project Status](./project-status.md)
 
 </div>

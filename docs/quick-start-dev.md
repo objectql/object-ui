@@ -195,7 +195,7 @@ objectui/
 ### Documentation
 - [Architecture](./spec/architecture.md) - System design overview
 - [Contributing Guide](../CONTRIBUTING.md) - Detailed contribution guide
-- [Development Plan](./DEVELOPMENT_PLAN.md) - Roadmap and priorities
+- [Development Plan](./development-plan.md) - Roadmap and priorities
 
 ### Communication
 - **GitHub Issues** - Bug reports and features
@@ -208,7 +208,7 @@ objectui/
 
 1. ✅ **Explore the Showcase** - See what's possible
 2. ✅ **Read the Architecture** - Understand the design
-3. ✅ **Pick a Task** - Check [Development Plan](./DEVELOPMENT_PLAN.md)
+3. ✅ **Pick a Task** - Check [Development Plan](./development-plan.md)
 4. ✅ **Make Your First PR** - Start contributing!
 
 ---

@@ -294,9 +294,9 @@ plugins/* (depends: components, react)
 ## 🎓 Resources for New Contributors
 
 ### Getting Started
-1. **[Quick Start for Developers](./docs/QUICK_START_DEV.md)** - 5-minute setup
-2. **[Contributing Guide](./CONTRIBUTING.md)** - How to contribute
-3. **[Development Plan](./docs/DEVELOPMENT_PLAN.md)** - Current priorities
+1. **[Quick Start for Developers](./quick-start-dev.md)** - 5-minute setup
+2. **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute
+3. **[Development Plan](./development-plan.md)** - Current priorities
 
 ### Technical Docs
 4. **[Architecture](./docs/spec/architecture.md)** - System design
@@ -320,7 +320,7 @@ We need help in these areas:
 - Add test cases
 
 ### ✨ Feature Development
-- Pick tasks from [Development Plan](./docs/DEVELOPMENT_PLAN.md)
+- Pick tasks from [Development Plan](./development-plan.md)
 - Build new components
 - Enhance existing features
 
@@ -402,6 +402,6 @@ We need help in these areas:
 
 **Let's build the future of Schema-Driven UI together!** 🚀
 
-[View Development Plan](./docs/DEVELOPMENT_PLAN.md) | [Quick Start](./docs/QUICK_START_DEV.md) | [Contributing](./CONTRIBUTING.md)
+[View Development Plan](./development-plan.md) | [Quick Start](./quick-start-dev.md) | [Contributing](../CONTRIBUTING.md)
 
 </div>

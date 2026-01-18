@@ -424,8 +424,8 @@ We welcome contributions! Please read our [Contributing Guide](./CONTRIBUTING.md
 
 ### For Developers
 
-- 📖 [Quick Start for Developers](./docs/QUICK_START_DEV.md) - Get started in 5 minutes
-- 📋 [Development Plan](./docs/DEVELOPMENT_PLAN.md) - Current priorities and roadmap
+- 📖 [Quick Start for Developers](./docs/quick-start-dev.md) - Get started in 5 minutes
+- 📋 [Development Plan](./docs/development-plan.md) - Current priorities and roadmap
 
 ### Development Setup
 

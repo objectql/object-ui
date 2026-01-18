@@ -13,8 +13,8 @@ This directory contains the VitePress documentation site for Object UI.
 - 🗺️ [Roadmap](./ROADMAP.md)
 
 ### For Developers
-- ⚡ [Quick Start for Developers](./QUICK_START_DEV.md) - Get started in 5 minutes
-- 📋 [Development Plan](./DEVELOPMENT_PLAN.md) - Q1-Q2 2026 priorities and roadmap
+- ⚡ [Quick Start for Developers](./quick-start-dev.md) - Get started in 5 minutes
+- 📋 [Development Plan](./development-plan.md) - Q1-Q2 2026 priorities and roadmap
 - 🤝 [Contributing Guide](../CONTRIBUTING.md) - How to contribute
 - 📚 [Best Practices](./BEST_PRACTICES.md) - Code quality guidelines
 
