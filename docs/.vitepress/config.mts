@@ -47,6 +47,15 @@ export default defineConfig({
           ]
         },
         {
+          text: 'Development',
+          items: [
+            { text: 'Quick Start for Developers', link: '/QUICK_START_DEV' },
+            { text: 'Development Plan', link: '/DEVELOPMENT_PLAN' },
+            { text: '开发计划 (中文)', link: '/DEVELOPMENT_PLAN_CN' },
+            { text: 'Contributing Guide', link: '/CONTRIBUTING' }
+          ]
+        },
+        {
           text: 'Core Concepts',
           items: [
             { text: 'Schema Rendering', link: '/guide/schema-rendering' },

@@ -422,6 +422,12 @@ See our [detailed roadmap](./docs/ROADMAP.md) for upcoming features and release 
 
 We welcome contributions! Please read our [Contributing Guide](./CONTRIBUTING.md) for details.
 
+### For Developers
+
+- 📖 [Quick Start for Developers](./docs/QUICK_START_DEV.md) - Get started in 5 minutes
+- 📋 [Development Plan](./docs/DEVELOPMENT_PLAN.md) - Current priorities and roadmap
+- 🌏 [开发计划 (中文)](./docs/DEVELOPMENT_PLAN_CN.md) - Chinese version
+
 ### Development Setup
 
 ```bash
@@ -432,11 +438,14 @@ cd objectui
 # Install dependencies
 pnpm install
 
-# Run tests
-pnpm test
-
 # Build all packages
 pnpm build
+
+# Run the showcase
+pnpm showcase
+
+# Run tests
+pnpm test
 
 # Run documentation site
 pnpm docs:dev
