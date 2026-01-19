@@ -76,9 +76,6 @@
     "url": "https://github.com/objectstack-ai/objectui.git",
     "directory": "packages/types"
   },
-  "dependencies": {
-    "@objectstack/spec": "^0.1.1"
-  },
   "devDependencies": {
     "typescript": "^5.9.3"
   }
