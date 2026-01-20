@@ -65,13 +65,13 @@ export default function HomePage() {
         "value": "\${stats.users}"
       },
       {
-        "type": "card", 
+        "type": "card",
         "title": "Revenue",
         "value": "\${stats.revenue}"
       },
       {
         "type": "card",
-        "title": "Orders", 
+        "title": "Orders",
         "value": "\${stats.orders}"
       }
     ]
