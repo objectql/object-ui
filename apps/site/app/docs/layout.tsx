@@ -5,7 +5,22 @@ import { Logo } from '../components/Logo';
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
-    <DocsLayout tree={source.pageTree} nav={{ title: <Logo /> }}>
+    <DocsLayout 
+      tree={source.pageTree} 
+      nav={{ title: <Logo />, url: '/' }}
+      links={[
+        {
+          text: 'Documentation',
+          url: '/docs',
+          active: 'nested-url',
+        },
+        {
+          text: 'Blog',
+          url: '/blog',
+          active: 'nested-url',
+        },
+      ]}
+    >
       {children}
     </DocsLayout>
   );
