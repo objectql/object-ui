@@ -1,10 +1,3 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Fix for docs sidebar height - ensure it extends to full viewport */
-aside[role="complementary"],
-[role="complementary"] {
-  inset-block-end: 0 !important;
-  height: 100vh !important;
-}
