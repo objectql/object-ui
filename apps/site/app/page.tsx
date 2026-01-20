@@ -5,7 +5,6 @@ export default function HomePage() {
     <main className="min-h-screen">
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-        <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] dark:bg-grid-slate-700/25"></div>
         <div className="relative mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
             <div className="mb-8 inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
@@ -230,8 +229,8 @@ export default function HomePage() {
               { icon: "📄", title: "CMS", desc: "Content management systems" },
               { icon: "🔧", title: "Internal Tools", desc: "Business applications" },
               { icon: "🎨", title: "Prototypes", desc: "Rapid UI prototyping" }
-            ].map((useCase, index) => (
-              <div key={index} className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+            ].map((useCase) => (
+              <div key={useCase.title} className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
                 <div className="text-4xl mb-3">{useCase.icon}</div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
                   {useCase.title}
@@ -282,8 +281,8 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
           <p className="text-center text-sm text-gray-600 dark:text-gray-400">
             Built with ❤️ by the{' '}
-            <a href="https://github.com/objectql" className="font-medium hover:text-gray-900 dark:hover:text-white">
-              ObjectQL Team
+            <a href="https://github.com/objectstack-ai" className="font-medium hover:text-gray-900 dark:hover:text-white">
+              ObjectStack Team
             </a>
           </p>
         </div>
