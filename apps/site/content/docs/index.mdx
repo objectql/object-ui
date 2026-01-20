@@ -1,0 +1,52 @@
+---
+title: Introduction
+description: Welcome to Object UI - A Universal, Schema-Driven UI Engine
+---
+
+# Introduction
+
+**Object UI** is a Universal, Schema-Driven UI Engine built on React, Tailwind CSS, and Shadcn UI. It allows you to build enterprise-grade interfaces from JSON schema definitions.
+
+## Key Features
+
+- 🚀 **Schema-Driven**: Define your entire UI using JSON schemas
+- 🎨 **Beautiful by Default**: Built on Tailwind CSS and Shadcn UI
+- 🔌 **Plugin Architecture**: Extensible through a powerful plugin system
+- 📱 **Responsive**: Mobile-first design approach
+- ♿ **Accessible**: WCAG 2.1 AA compliant
+- 🌗 **Theme Support**: Light and dark mode out of the box
+
+## Quick Start
+
+```bash
+# Install dependencies
+pnpm install @object-ui/react @object-ui/components
+
+# Start building with JSON
+import { ObjectUIRenderer } from '@object-ui/react';
+
+const schema = {
+  type: 'Container',
+  children: [
+    { type: 'Text', props: { value: 'Hello World' } }
+  ]
+};
+
+<ObjectUIRenderer schema={schema} />
+```
+
+## Architecture
+
+Object UI follows a multi-package architecture:
+
+- **@object-ui/types**: Core type definitions and protocols
+- **@object-ui/core**: Schema registry and validation engine
+- **@object-ui/react**: React runtime and renderer
+- **@object-ui/components**: UI component library
+- **@object-ui/designer**: Visual schema designer
+
+## Next Steps
+
+- [Quick Start Guide](/docs/quick-start)
+- [Installation](/docs/installation)
+- [Component Reference](/docs/components)

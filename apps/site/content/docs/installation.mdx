@@ -1,0 +1,87 @@
+---
+title: Installation
+description: How to install and set up Object UI in your project
+---
+
+# Installation
+
+## Prerequisites
+
+- Node.js 18 or higher
+- pnpm 9 or higher (recommended)
+
+## Package Installation
+
+Object UI is distributed as multiple packages. Install the ones you need:
+
+### Core Packages
+
+```bash
+# Essential packages
+pnpm add @object-ui/react @object-ui/components
+
+# Optional: If you need type definitions
+pnpm add -D @object-ui/types
+```
+
+### Plugin Packages
+
+```bash
+# Charts support
+pnpm add @object-ui/plugin-charts
+
+# Kanban board
+pnpm add @object-ui/plugin-kanban
+
+# Rich text editor
+pnpm add @object-ui/plugin-editor
+
+# Markdown renderer
+pnpm add @object-ui/plugin-markdown
+```
+
+## Setup
+
+### 1. Configure Tailwind CSS
+
+Add Object UI to your Tailwind config:
+
+```js
+// tailwind.config.js
+module.exports = {
+  content: [
+    './src/**/*.{js,ts,jsx,tsx}',
+    './node_modules/@object-ui/**/*.{js,ts,jsx,tsx}',
+  ],
+  // ... rest of config
+};
+```
+
+### 2. Import Styles
+
+```tsx
+// app/layout.tsx or main entry file
+import '@object-ui/components/styles.css';
+```
+
+### 3. Start Using
+
+```tsx
+import { ObjectUIRenderer } from '@object-ui/react';
+
+const schema = { /* your schema */ };
+
+export default function App() {
+  return <ObjectUIRenderer schema={schema} />;
+}
+```
+
+## Verify Installation
+
+Run your development server and check that everything works:
+
+```bash
+pnpm dev
+```
+
+You should see your Object UI components rendering correctly!

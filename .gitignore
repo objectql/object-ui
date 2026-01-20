@@ -43,3 +43,8 @@ docs/.vitepress/cache
 
 # Object UI CLI temporary files
 .objectui-tmp
+
+# Fumadocs
+apps/site/.next
+apps/site/.map.ts
+apps/site/.source
