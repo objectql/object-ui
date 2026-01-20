@@ -10,10 +10,10 @@ hero:
   actions:
     - theme: brand
       text: Read the Spec
-      link: /protocol/overview
+      link: /reference/protocol/overview
     - theme: alt
       text: View Component Gallery
-      link: /components/
+      link: /reference/components/
 
 features:
   - title: 🎨 The Stack You Love
