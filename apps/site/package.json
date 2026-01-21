@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "prebuild": "pnpm --filter @object-ui/types --filter @object-ui/core --filter @object-ui/react --filter @object-ui/components build",
     "build": "next build",
     "start": "next start",
     "lint": "eslint ."
