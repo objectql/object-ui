@@ -208,7 +208,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
 
   // Build form schema
   const buildFormSchema = (): ObjectFormSchema => {
-    const recordId = selectedRecord ? (selectedRecord._id || selectedRecord.id) : undefined;
+    const recordId = selectedRecord ? (selectedRecord._id || selectedRecord.id) as string | number | undefined : undefined;
     
     return {
       type: 'object-form',
@@ -239,7 +239,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   const getFormTitle = (): string => {
     if (schema.form?.title) return schema.form.title;
     
-    const objectLabel = objectSchema?.label || schema.objectName;
+    const objectLabel = (objectSchema?.label as string) || schema.objectName;
     
     switch (formMode) {
       case 'create':

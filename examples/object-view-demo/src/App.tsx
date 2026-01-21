@@ -48,10 +48,10 @@ const createMockDataSource = (): ObjectQLDataSource => {
       await new Promise((resolve) => setTimeout(resolve, 300));
       const newRecord = {
         _id: String(Date.now()),
-        ...record,
         createdAt: new Date().toISOString().split('T')[0],
+        ...record,
       };
-      data.push(newRecord);
+      data.push(newRecord as typeof mockUsers[0]);
       return newRecord;
     },
 
