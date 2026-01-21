@@ -1,0 +1,255 @@
+{
+  "type": "page",
+  "title": "Complete CRUD Example - ObjectQL Components",
+  "body": [
+    {
+      "type": "div",
+      "className": "space-y-6 container mx-auto py-6 max-w-7xl",
+      "children": [
+        {
+          "type": "div",
+          "className": "space-y-2",
+          "children": [
+            {
+              "type": "text",
+              "value": "Complete CRUD Example",
+              "className": "text-3xl font-bold tracking-tight"
+            },
+            {
+              "type": "text",
+              "value": "A comprehensive example showing ObjectTable with ObjectForm for complete Create, Read, Update, Delete operations. Features include field-level permissions, validation, batch operations, and optimistic updates.",
+              "className": "text-lg text-muted-foreground"
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "className": "my-6"
+        },
+        {
+          "type": "div",
+          "className": "space-y-6",
+          "children": [
+            {
+              "type": "card",
+              "title": "ObjectTable with CRUD Operations",
+              "description": "Automatically generates table columns from object schema with row actions for edit and delete.",
+              "children": {
+                "type": "div",
+                "className": "space-y-4",
+                "children": [
+                  {
+                    "type": "alert",
+                    "variant": "default",
+                    "title": "New Features",
+                    "description": "✅ Field-level permissions • ✅ Optimistic updates • ✅ Delete confirmation • ✅ Batch operations • ✅ Row actions",
+                    "className": "mb-4"
+                  },
+                  {
+                    "type": "div",
+                    "className": "p-4 bg-muted/50 rounded-lg font-mono text-sm",
+                    "children": {
+                      "type": "text",
+                      "value": "// Initialize ObjectQL Data Source\nconst dataSource = new ObjectQLDataSource({\n  baseUrl: 'https://api.example.com',\n  token: 'your-auth-token'\n});\n\n// ObjectTable with CRUD operations\n<ObjectTable\n  schema={{\n    type: 'object-table',\n    objectName: 'users',\n    title: 'Users Management',\n    fields: ['name', 'email', 'status', 'role'],\n    operations: {\n      create: true,\n      read: true,\n      update: true,\n      delete: true\n    },\n    selectable: 'multiple',\n    defaultSort: { field: 'name', order: 'asc' }\n  }}\n  dataSource={dataSource}\n  onEdit={(record) => openEditForm(record)}\n  onDelete={(record) => console.log('Deleted:', record)}\n  onBulkDelete={(records) => console.log('Bulk delete:', records)}\n/>",
+                      "className": "whitespace-pre"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "value": "Example Table Output (with row actions):",
+                    "className": "text-sm font-semibold mt-4"
+                  },
+                  {
+                    "type": "table",
+                    "caption": "Users Management",
+                    "selectable": "multiple",
+                    "columns": [
+                      { "header": "Name", "accessorKey": "name" },
+                      { "header": "Email", "accessorKey": "email" },
+                      { "header": "Status", "accessorKey": "status", "type": "text" },
+                      { "header": "Role", "accessorKey": "role" },
+                      { 
+                        "header": "Actions", 
+                        "accessorKey": "_actions",
+                        "cell": {
+                          "type": "button-group",
+                          "buttons": [
+                            { "label": "Edit", "variant": "ghost", "size": "sm" },
+                            { "label": "Delete", "variant": "ghost", "size": "sm" }
+                          ]
+                        }
+                      }
+                    ],
+                    "data": [
+                      { "_id": "1", "name": "John Doe", "email": "john@example.com", "status": "Active", "role": "Admin" },
+                      { "_id": "2", "name": "Jane Smith", "email": "jane@example.com", "status": "Active", "role": "User" },
+                      { "_id": "3", "name": "Bob Johnson", "email": "bob@example.com", "status": "Inactive", "role": "User" }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "title": "ObjectForm with Validation",
+              "description": "Auto-generates form fields with validation rules from object metadata.",
+              "children": {
+                "type": "div",
+                "className": "space-y-4",
+                "children": [
+                  {
+                    "type": "div",
+                    "className": "p-4 bg-muted/50 rounded-lg font-mono text-sm",
+                    "children": {
+                      "type": "text",
+                      "value": "// ObjectForm with metadata-driven validation\n<ObjectForm\n  schema={{\n    type: 'object-form',\n    objectName: 'users',\n    mode: 'create',\n    fields: ['name', 'email', 'status', 'role'],\n    onSuccess: (data) => {\n      console.log('User created:', data);\n      refreshTable();\n    }\n  }}\n  dataSource={dataSource}\n/>\n\n// Validation rules from metadata:\n// - name: required, minLength: 2, maxLength: 100\n// - email: required, pattern: email format\n// - status: select from options\n// - role: select with field dependencies",
+                      "className": "whitespace-pre"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "value": "Example Form Output (with validation):",
+                    "className": "text-sm font-semibold mt-4"
+                  },
+                  {
+                    "type": "form",
+                    "layout": "vertical",
+                    "submitLabel": "Create User",
+                    "showCancel": true,
+                    "fields": [
+                      {
+                        "name": "name",
+                        "label": "Full Name",
+                        "type": "input",
+                        "required": true,
+                        "placeholder": "Enter full name",
+                        "description": "Min 2 characters, max 100 characters"
+                      },
+                      {
+                        "name": "email",
+                        "label": "Email Address",
+                        "type": "input",
+                        "inputType": "email",
+                        "required": true,
+                        "placeholder": "user@example.com",
+                        "description": "Must be a valid email address"
+                      },
+                      {
+                        "name": "status",
+                        "label": "Status",
+                        "type": "select",
+                        "required": true,
+                        "options": [
+                          { "label": "Active", "value": "active" },
+                          { "label": "Inactive", "value": "inactive" }
+                        ]
+                      },
+                      {
+                        "name": "role",
+                        "label": "Role",
+                        "type": "select",
+                        "required": true,
+                        "options": [
+                          { "label": "Admin", "value": "admin" },
+                          { "label": "User", "value": "user" },
+                          { "label": "Guest", "value": "guest" }
+                        ],
+                        "description": "User role determines permissions"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "title": "Field-Level Permissions",
+              "description": "Fields are automatically hidden based on user permissions from metadata.",
+              "children": {
+                "type": "div",
+                "className": "space-y-4",
+                "children": [
+                  {
+                    "type": "div",
+                    "className": "p-4 bg-muted/50 rounded-lg font-mono text-sm",
+                    "children": {
+                      "type": "text",
+                      "value": "// Object metadata with field permissions\n{\n  fields: {\n    name: {\n      type: 'text',\n      label: 'Name',\n      permissions: { read: true, write: true }\n    },\n    email: {\n      type: 'email',\n      label: 'Email',\n      permissions: { read: true, write: true }\n    },\n    salary: {\n      type: 'currency',\n      label: 'Salary',\n      permissions: { \n        read: false,  // Hidden in table\n        write: false  // Hidden in form\n      }\n    }\n  }\n}\n\n// Result: salary field is automatically excluded\n// from both ObjectTable and ObjectForm",
+                      "className": "whitespace-pre"
+                    }
+                  },
+                  {
+                    "type": "alert",
+                    "variant": "default",
+                    "title": "Automatic Permission Handling",
+                    "description": "Fields without read permission are hidden from tables. Fields without write permission are excluded from create/edit forms."
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "title": "Batch Operations",
+              "description": "Select multiple rows for bulk operations like delete.",
+              "children": {
+                "type": "div",
+                "className": "space-y-4",
+                "children": [
+                  {
+                    "type": "div",
+                    "className": "p-4 bg-muted/50 rounded-lg font-mono text-sm",
+                    "children": {
+                      "type": "text",
+                      "value": "// Enable batch operations\n<ObjectTable\n  schema={{\n    type: 'object-table',\n    objectName: 'users',\n    selectable: 'multiple',  // Enable row selection\n  }}\n  dataSource={dataSource}\n  onBulkDelete={(records) => {\n    // Confirm with user\n    // Delete records with optimistic update\n    // Show success message\n  }}\n/>\n\n// UI automatically shows:\n// - Checkboxes for row selection\n// - Toolbar with \"Delete Selected\" button\n// - Confirmation dialog before deletion",
+                      "className": "whitespace-pre"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "title": "Optimistic Updates",
+              "description": "Delete operations update UI immediately for better user experience.",
+              "children": {
+                "type": "div",
+                "className": "space-y-4",
+                "children": [
+                  {
+                    "type": "div",
+                    "className": "p-4 bg-muted/50 rounded-lg font-mono text-sm",
+                    "children": {
+                      "type": "text",
+                      "value": "// Delete with optimistic update\n1. User clicks delete\n2. Show confirmation dialog\n3. Remove row from UI immediately\n4. Call API in background\n5. On error: revert and show error message\n6. On success: operation complete\n\n// Benefits:\n// - Instant feedback to user\n// - No loading spinner needed\n// - Better perceived performance\n// - Automatic error recovery",
+                      "className": "whitespace-pre"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "card",
+              "title": "Conditional Field Visibility",
+              "description": "Form fields can be shown/hidden based on other field values.",
+              "children": {
+                "type": "div",
+                "className": "space-y-4",
+                "children": [
+                  {
+                    "type": "div",
+                    "className": "p-4 bg-muted/50 rounded-lg font-mono text-sm",
+                    "children": {
+                      "type": "text",
+                      "value": "// Field metadata with conditional visibility\n{\n  type: {\n    type: 'select',\n    label: 'Account Type',\n    options: ['personal', 'business']\n  },\n  company_name: {\n    type: 'text',\n    label: 'Company Name',\n    visible_on: {\n      field: 'type',\n      operator: '=',\n      value: 'business'\n    }\n  },\n  tax_id: {\n    type: 'text',\n    label: 'Tax ID',\n    visible_on: {\n      and: [\n        { field: 'type', operator: '=', value: 'business' },\n        { field: 'country', operator: 'in', value: ['US', 'CA'] }\n      ]\n    }\n  }\n}",
+                      "className": "whitespace-pre"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
