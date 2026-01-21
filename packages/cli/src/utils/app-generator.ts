@@ -148,6 +148,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   // Create App.tsx
   const appTsx = `import { SchemaRenderer } from '@object-ui/react';
 import '@object-ui/components';
+import '@object-ui/plugin-charts';
+import '@object-ui/plugin-editor';
+import '@object-ui/plugin-kanban';
+import '@object-ui/plugin-markdown';
 
 const schema = ${JSON.stringify(schema, null, 2)};
 
@@ -770,6 +774,10 @@ export default AppLayout;
   const appTsx = `import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { SchemaRenderer } from '@object-ui/react';
 import '@object-ui/components';
+import '@object-ui/plugin-charts';
+import '@object-ui/plugin-editor';
+import '@object-ui/plugin-kanban';
+import '@object-ui/plugin-markdown';
 ${schemaImports.join('\n')}
 ${layoutImport}
 
