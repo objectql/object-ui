@@ -159,9 +159,9 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
       options.select = params.$select;
     }
 
-    // Filtering - convert object to simple map
+    // Filtering - convert to ObjectStack FilterNode AST format
     if (params.$filter) {
-      options.filters = params.$filter;
+      options.filters = this.convertFiltersToAST(params.$filter);
     }
 
     // Sorting - convert to ObjectStack format
@@ -182,6 +182,87 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
     }
 
     return options;
+  }
+
+  /**
+   * Convert object-based filters to ObjectStack FilterNode AST format.
+   * Converts MongoDB-like operators to ObjectStack filter expressions.
+   * 
+   * @param filter - Object-based filter with optional operators
+   * @returns FilterNode AST array or simple object for flat key-value filters
+   * 
+   * @example
+   * // Simple filter
+   * { status: 'active' } => { status: 'active' }
+   * 
+   * // Complex filter with operators
+   * { age: { $gte: 18 } } => ['age', '>=', 18]
+   * 
+   * // Multiple conditions
+   * { age: { $gte: 18, $lte: 65 }, status: 'active' } 
+   * => ['and', ['age', '>=', 18], ['age', '<=', 65], ['status', '=', 'active']]
+   */
+  private convertFiltersToAST(filter: Record<string, any>): any {
+    const conditions: any[] = [];
+    
+    for (const [field, value] of Object.entries(filter)) {
+      if (value === null || value === undefined) continue;
+      
+      // Check if value is a complex operator object
+      if (typeof value === 'object' && !Array.isArray(value)) {
+        // Handle operator-based filters
+        for (const [operator, operatorValue] of Object.entries(value)) {
+          const astOperator = this.convertOperatorToAST(operator);
+          if (astOperator) {
+            if (operator === '$in' || operator === '$notin') {
+              // For 'in' and 'notin', value should be an array
+              conditions.push([field, astOperator, operatorValue]);
+            } else if (operator === '$between') {
+              // For 'between', value should be an array [min, max]
+              conditions.push([field, astOperator, operatorValue]);
+            } else {
+              conditions.push([field, astOperator, operatorValue]);
+            }
+          }
+        }
+      } else {
+        // Simple equality filter
+        conditions.push([field, '=', value]);
+      }
+    }
+    
+    // If only one condition, return it directly
+    if (conditions.length === 0) {
+      return filter; // Return original if no conditions
+    } else if (conditions.length === 1) {
+      return conditions[0];
+    } else {
+      // Multiple conditions: combine with 'and'
+      return ['and', ...conditions];
+    }
+  }
+
+  /**
+   * Map MongoDB-like operators to ObjectStack filter operators.
+   */
+  private convertOperatorToAST(operator: string): string | null {
+    const operatorMap: Record<string, string> = {
+      '$eq': '=',
+      '$ne': '!=',
+      '$gt': '>',
+      '$gte': '>=',
+      '$lt': '<',
+      '$lte': '<=',
+      '$in': 'in',
+      '$nin': 'notin',
+      '$notin': 'notin',
+      '$regex': 'contains',  // Simplified regex to contains
+      '$contains': 'contains',
+      '$startswith': 'startswith',
+      '$between': 'between',
+    };
+    
+    return operatorMap[operator] || null;
   }
 
   /**
