@@ -1,0 +1,217 @@
+---
+title: "Button"
+description: "Trigger actions and events with customizable button styles"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+# Button
+
+The Button component triggers actions when clicked. It supports multiple variants, sizes, and states.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'button',
+    label: 'Click Me'
+  }}
+  title="Simple Button"
+/>
+
+## Variants
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'button',
+      label: 'Default',
+      variant: 'default'
+    }}
+    title="Default"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'button',
+      label: 'Destructive',
+      variant: 'destructive'
+    }}
+    title="Destructive"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'button',
+      label: 'Outline',
+      variant: 'outline'
+    }}
+    title="Outline"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'button',
+      label: 'Secondary',
+      variant: 'secondary'
+    }}
+    title="Secondary"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'button',
+      label: 'Ghost',
+      variant: 'ghost'
+    }}
+    title="Ghost"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'button',
+      label: 'Link',
+      variant: 'link'
+    }}
+    title="Link"
+  />
+</DemoGrid>
+
+## Sizes
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'flex',
+      gap: 2,
+      align: 'center',
+      children: [
+        { type: 'button', label: 'Small', size: 'sm' },
+        { type: 'button', label: 'Default', size: 'default' },
+        { type: 'button', label: 'Large', size: 'lg' }
+      ]
+    }}
+    title="Button Sizes"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'flex',
+      gap: 2,
+      align: 'center',
+      children: [
+        { type: 'button', label: '🎯', size: 'icon' }
+      ]
+    }}
+    title="Icon Button"
+  />
+</DemoGrid>
+
+## With Icons
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'button',
+      label: 'Send Email',
+      icon: 'mail',
+      variant: 'default'
+    }}
+    title="Button with Icon"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'button',
+      label: 'Download',
+      icon: 'download',
+      iconPosition: 'right',
+      variant: 'outline'
+    }}
+    title="Icon on Right"
+  />
+</DemoGrid>
+
+## States
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'button',
+      label: 'Disabled',
+      disabled: true
+    }}
+    title="Disabled State"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'button',
+      label: 'Loading',
+      loading: true
+    }}
+    title="Loading State"
+  />
+</DemoGrid>
+
+## Schema
+
+```typescript
+interface ButtonSchema {
+  type: 'button';
+  label: string;                    // Button text
+  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
+  size?: 'sm' | 'default' | 'lg' | 'icon';
+  
+  // Icons
+  icon?: string;                    // Lucide icon name
+  iconPosition?: 'left' | 'right'; // Icon placement
+  
+  // States
+  disabled?: boolean;
+  loading?: boolean;
+  
+  // Actions
+  onClick?: string | ActionConfig;  // Action on click
+  href?: string;                    // Link URL (renders as link)
+  
+  // Styling
+  className?: string;
+  fullWidth?: boolean;
+}
+```
+
+## Examples
+
+### Action Buttons
+
+<ComponentDemo
+  schema={{
+    type: 'flex',
+    gap: 3,
+    children: [
+      { 
+        type: 'button', 
+        label: 'Save', 
+        variant: 'default',
+        icon: 'save'
+      },
+      { 
+        type: 'button', 
+        label: 'Cancel', 
+        variant: 'outline'
+      },
+      { 
+        type: 'button', 
+        label: 'Delete', 
+        variant: 'destructive',
+        icon: 'trash'
+      }
+    ]
+  }}
+  title="Common Action Buttons"
+/>
+
+### Full Width
+
+<ComponentDemo
+  schema={{
+    type: 'button',
+    label: 'Full Width Button',
+    fullWidth: true,
+    variant: 'default'
+  }}
+  title="Full Width Button"
+/>

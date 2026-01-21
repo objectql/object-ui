@@ -10,9 +10,14 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@object-ui/components": "workspace:*",
+    "@object-ui/core": "workspace:*",
+    "@object-ui/react": "workspace:*",
+    "@object-ui/types": "workspace:*",
     "fumadocs-core": "^16.4.7",
     "fumadocs-mdx": "^14.2.6",
     "fumadocs-ui": "^16.4.7",
+    "lucide-react": "^0.468.0",
     "next": "^16.1.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",

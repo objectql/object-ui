@@ -1,0 +1,136 @@
+---
+title: "Text"
+description: "Display text with standardized typography styles"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+# Text
+
+The Text component displays text content with predefined typography variants.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'text',
+    content: 'Hello, World!'
+  }}
+  title="Simple Text"
+  description="Basic text without any styling"
+/>
+
+## Variants
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'text',
+      content: 'Heading 1',
+      variant: 'h1'
+    }}
+    title="Heading 1"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'text',
+      content: 'Heading 2',
+      variant: 'h2'
+    }}
+    title="Heading 2"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'text',
+      content: 'Heading 3',
+      variant: 'h3'
+    }}
+    title="Heading 3"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'text',
+      content: 'Paragraph text',
+      variant: 'p'
+    }}
+    title="Paragraph"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'text',
+      content: 'Lead text for introductions',
+      variant: 'lead'
+    }}
+    title="Lead"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'text',
+      content: 'Large text',
+      variant: 'large'
+    }}
+    title="Large"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'text',
+      content: 'Small text',
+      variant: 'small'
+    }}
+    title="Small"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'text',
+      content: 'Muted text',
+      variant: 'muted'
+    }}
+    title="Muted"
+  />
+</DemoGrid>
+
+## Schema
+
+```typescript
+interface TextSchema {
+  type: 'text';
+  content: string;           // Text content to display
+  value?: string;            // Alias for content
+  variant?: 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'lead' | 'large' | 'small' | 'muted';
+  align?: 'left' | 'center' | 'right' | 'justify';
+  color?: string;            // Tailwind color class
+  className?: string;        // Additional CSS classes
+}
+```
+
+## Examples
+
+### Colored Text
+
+<ComponentDemo
+  schema={{
+    type: 'flex',
+    gap: 4,
+    children: [
+      { type: 'text', content: 'Primary Text', color: 'text-primary' },
+      { type: 'text', content: 'Destructive Text', color: 'text-destructive' },
+      { type: 'text', content: 'Muted Text', color: 'text-muted-foreground' }
+    ]
+  }}
+  title="Text with Colors"
+/>
+
+### Text Alignment
+
+<ComponentDemo
+  schema={{
+    type: 'stack',
+    gap: 4,
+    children: [
+      { type: 'text', content: 'Left aligned text', align: 'left' },
+      { type: 'text', content: 'Center aligned text', align: 'center' },
+      { type: 'text', content: 'Right aligned text', align: 'right' }
+    ]
+  }}
+  title="Text Alignment"
+/>
