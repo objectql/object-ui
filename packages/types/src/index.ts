@@ -258,6 +258,7 @@ export type {
 export type {
   ObjectTableSchema,
   ObjectFormSchema,
+  ObjectViewSchema,
   ObjectQLComponentSchema,
 } from './objectql';
 

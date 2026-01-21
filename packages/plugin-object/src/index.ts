@@ -22,9 +22,13 @@ export type { ObjectTableProps } from './ObjectTable';
 export { ObjectForm } from './ObjectForm';
 export type { ObjectFormProps } from './ObjectForm';
 
+export { ObjectView } from './ObjectView';
+export type { ObjectViewProps } from './ObjectView';
+
 // Re-export related types from @object-ui/types
 export type {
   ObjectTableSchema,
   ObjectFormSchema,
+  ObjectViewSchema,
   ObjectQLComponentSchema,
 } from '@object-ui/types';

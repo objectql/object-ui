@@ -302,8 +302,98 @@ export interface ObjectFormSchema extends BaseSchema {
 }
 
 /**
+ * ObjectView Schema
+ * A complete object management interface combining ObjectTable and ObjectForm.
+ * Provides list view with search, filters, and integrated create/edit dialogs.
+ */
+export interface ObjectViewSchema extends BaseSchema {
+  type: 'object-view';
+  
+  /**
+   * ObjectQL object name (e.g., 'users', 'accounts', 'contacts')
+   */
+  objectName: string;
+  
+  /**
+   * Optional title for the view
+   */
+  title?: string;
+  
+  /**
+   * Optional description
+   */
+  description?: string;
+  
+  /**
+   * Layout mode for create/edit operations
+   * - drawer: Side drawer (default, recommended for forms)
+   * - modal: Center modal dialog
+   * - page: Navigate to separate page (requires onNavigate handler)
+   * @default 'drawer'
+   */
+  layout?: 'drawer' | 'modal' | 'page';
+  
+  /**
+   * Table configuration
+   * Inherits from ObjectTableSchema
+   */
+  table?: Partial<Omit<ObjectTableSchema, 'type' | 'objectName'>>;
+  
+  /**
+   * Form configuration
+   * Inherits from ObjectFormSchema
+   */
+  form?: Partial<Omit<ObjectFormSchema, 'type' | 'objectName' | 'mode'>>;
+  
+  /**
+   * Show search box
+   * @default true
+   */
+  showSearch?: boolean;
+  
+  /**
+   * Show filters
+   * @default true
+   */
+  showFilters?: boolean;
+  
+  /**
+   * Show create button
+   * @default true
+   */
+  showCreate?: boolean;
+  
+  /**
+   * Show refresh button
+   * @default true
+   */
+  showRefresh?: boolean;
+  
+  /**
+   * Enable/disable built-in operations
+   */
+  operations?: {
+    create?: boolean;
+    read?: boolean;
+    update?: boolean;
+    delete?: boolean;
+  };
+  
+  /**
+   * Callback when navigating to detail page (page layout mode)
+   */
+  onNavigate?: (recordId: string | number, mode: 'view' | 'edit') => void;
+  
+  /**
+   * Custom CSS class
+   */
+  className?: string;
+}
+
+/**
  * Union type of all ObjectQL component schemas
  */
 export type ObjectQLComponentSchema =
   | ObjectTableSchema
-  | ObjectFormSchema;
+  | ObjectFormSchema
+  | ObjectViewSchema;
