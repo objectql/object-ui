@@ -123,7 +123,7 @@ The **ObjectStackAdapter** is now fully operational, providing:
 | Calendar View | `calendar-view` | ✅ Stable | 🔄 Partial | 🟡 Medium | Needs event management integration |
 | Carousel | `carousel` | ✅ Stable | ✅ Ready | 🟢 Complete | Image/content carousel |
 | Chatbot | `chatbot` | ✅ Stable | 🔄 Partial | 🟡 Medium | Needs AI/messaging integration |
-| Filter Builder | `filter-builder` | ✅ Stable | 🔴 High | 🔴 Critical | **KEY**: Convert UI filters to ObjectStack FilterNode AST |
+| Filter Builder | `filter-builder` | ✅ Stable | 🔄 Partial | 🔴 Critical | **KEY**: Convert UI filters to ObjectStack FilterNode AST |
 | Resizable | `resizable` | ✅ Stable | ✅ Ready | 🟢 Complete | Resizable panels |
 | Scroll Area | `scroll-area` | ✅ Stable | ✅ Ready | 🟢 Complete | Custom scrollbars |
 | Timeline | `timeline` | ✅ Stable | ✅ Ready | 🟢 Complete | Event timeline |
@@ -237,8 +237,8 @@ The **ObjectStackAdapter** is now fully operational, providing:
 
 | Component | Type | Status | ObjectStack Integration | Priority |
 |-----------|------|--------|-------------------------|----------|
-| Object Table | `object-table` | 🔄 Beta | 🔴 High | 🔴 Critical |
-| Object Form | `object-form` | 🔄 Beta | 🔴 High | 🔴 Critical |
+| Object Table | `object-table` | 🔄 Beta | 🔄 Partial | 🔴 Critical |
+| Object Form | `object-form` | 🔄 Beta | 🔄 Partial | 🔴 Critical |
 
 **ObjectStack Priority**:
 - 🔴 **Critical**: These are THE flagship components for ObjectStack integration

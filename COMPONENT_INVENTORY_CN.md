@@ -123,7 +123,7 @@ ObjectUI 已成功集成 **ObjectStack Client** (`@objectstack/client@^0.1.1`) �
 | Calendar View | `calendar-view` | ✅ 稳定 | 🔄 部分 | 🟡 中 | 需要事件管理集成 |
 | Carousel | `carousel` | ✅ 稳定 | ✅ 就绪 | 🟢 完成 | 图片/内容轮播 |
 | Chatbot | `chatbot` | ✅ 稳定 | 🔄 部分 | 🟡 中 | 需要 AI/消息集成 |
-| Filter Builder | `filter-builder` | ✅ 稳定 | 🔴 高 | 🔴 关键 | **关键**: 将 UI 过滤器转换为 ObjectStack FilterNode AST |
+| Filter Builder | `filter-builder` | ✅ 稳定 | 🔄 部分 | 🔴 关键 | **关键**: 将 UI 过滤器转换为 ObjectStack FilterNode AST |
 | Resizable | `resizable` | ✅ 稳定 | ✅ 就绪 | 🟢 完成 | 可调整大小的面板 |
 | Scroll Area | `scroll-area` | ✅ 稳定 | ✅ 就绪 | 🟢 完成 | 自定义滚动条 |
 | Timeline | `timeline` | ✅ 稳定 | ✅ 就绪 | 🟢 完成 | 事件时间线 |
@@ -237,8 +237,8 @@ ObjectUI 已成功集成 **ObjectStack Client** (`@objectstack/client@^0.1.1`) �
 
 | 组件 | 类型 | 状态 | ObjectStack 集成 | 优先级 |
 |------|------|------|------------------|--------|
-| Object Table | `object-table` | 🔄 Beta | 🔴 高 | 🔴 关键 |
-| Object Form | `object-form` | 🔄 Beta | 🔴 高 | 🔴 关键 |
+| Object Table | `object-table` | 🔄 Beta | 🔄 部分 | 🔴 关键 |
+| Object Form | `object-form` | 🔄 Beta | 🔄 部分 | 🔴 关键 |
 
 **ObjectStack 优先级**:
 - 🔴 **关键**: 这些是 ObjectStack 集成的旗舰组件
