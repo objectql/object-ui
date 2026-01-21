@@ -125,11 +125,12 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
     switch (operation) {
       case 'create':
         return this.client.data.createMany<T>(resource, data);
-      case 'delete':
+      case 'delete': {
         const ids = data.map(item => (item as any).id).filter(Boolean);
         await this.client.data.deleteMany(resource, ids);
         return [];
-      case 'update':
+      }
+      case 'update': {
         // For update, we need to handle each record individually
         // or use the batch update if all records get the same changes
         const results = await Promise.all(
@@ -138,6 +139,7 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
           )
         );
         return results;
+      }
       default:
         throw new Error(`Unsupported bulk operation: ${operation}`);
     }
