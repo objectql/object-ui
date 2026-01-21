@@ -31,11 +31,13 @@ export default defineConfig({
       fileName: 'index',
     },
     rollupOptions: {
-      external: ['react', 'react-dom'],
+      external: ['react', 'react-dom', '@object-ui/core', '@object-ui/react', '@object-ui/types'],
       output: {
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
+          '@object-ui/core': 'ObjectUICore',
+          '@object-ui/react': 'ObjectUIReact',
         },
       },
     },

@@ -16,6 +16,7 @@
   "main": "dist/index.umd.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "sideEffects": true,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
