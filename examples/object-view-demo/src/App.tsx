@@ -26,7 +26,7 @@ const createMockDataSource = (): ObjectQLDataSource => {
 
   return {
     // Find all records
-    find: async (objectName: string, params?: any) => {
+    find: async (objectName: string, params?: Record<string, unknown>) => {
       console.log('find:', objectName, params);
       await new Promise((resolve) => setTimeout(resolve, 300)); // Simulate network delay
       return {
@@ -43,7 +43,7 @@ const createMockDataSource = (): ObjectQLDataSource => {
     },
 
     // Create a new record
-    create: async (objectName: string, record: any) => {
+    create: async (objectName: string, record: Record<string, unknown>) => {
       console.log('create:', objectName, record);
       await new Promise((resolve) => setTimeout(resolve, 300));
       const newRecord = {
@@ -56,7 +56,7 @@ const createMockDataSource = (): ObjectQLDataSource => {
     },
 
     // Update an existing record
-    update: async (objectName: string, id: string | number, record: any) => {
+    update: async (objectName: string, id: string | number, record: Record<string, unknown>) => {
       console.log('update:', objectName, id, record);
       await new Promise((resolve) => setTimeout(resolve, 300));
       const index = data.findIndex((item) => item._id === id);
@@ -80,7 +80,7 @@ const createMockDataSource = (): ObjectQLDataSource => {
     },
 
     // Bulk operations
-    bulk: async (objectName: string, operation: string, records: any[]) => {
+    bulk: async (objectName: string, operation: string, records: Record<string, unknown>[]) => {
       console.log('bulk:', objectName, operation, records);
       await new Promise((resolve) => setTimeout(resolve, 400));
       if (operation === 'delete') {

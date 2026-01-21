@@ -13,7 +13,7 @@
  * Provides list view with integrated search, filters, and create/edit operations.
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import type { ObjectViewSchema, ObjectTableSchema, ObjectFormSchema } from '@object-ui/types';
 import type { ObjectQLDataSource } from '@object-ui/data-objectql';
 import { ObjectTable } from './ObjectTable';
@@ -29,7 +29,6 @@ import {
   DrawerHeader,
   DrawerTitle,
   DrawerDescription,
-  DrawerClose,
   Button,
   Input,
 } from '@object-ui/components';
@@ -78,14 +77,13 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   dataSource,
   className,
 }) => {
-  const [objectSchema, setObjectSchema] = useState<any>(null);
+  const [objectSchema, setObjectSchema] = useState<Record<string, unknown> | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>('create');
-  const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [selectedRecord, setSelectedRecord] = useState<Record<string, unknown> | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const tableKey = useRef(0);
 
   // Fetch object schema from ObjectQL
   useEffect(() => {
@@ -126,10 +124,10 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   }, [layout, schema]);
 
   // Handle edit action
-  const handleEdit = useCallback((record: any) => {
+  const handleEdit = useCallback((record: Record<string, unknown>) => {
     if (layout === 'page' && schema.onNavigate) {
       const recordId = record._id || record.id;
-      schema.onNavigate(recordId, 'edit');
+      schema.onNavigate(recordId as string | number, 'edit');
     } else {
       setFormMode('edit');
       setSelectedRecord(record);
@@ -138,10 +136,10 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   }, [layout, schema]);
 
   // Handle view action
-  const handleView = useCallback((record: any) => {
+  const handleView = useCallback((record: Record<string, unknown>) => {
     if (layout === 'page' && schema.onNavigate) {
       const recordId = record._id || record.id;
-      schema.onNavigate(recordId, 'view');
+      schema.onNavigate(recordId as string | number, 'view');
     } else {
       setFormMode('view');
       setSelectedRecord(record);
@@ -150,22 +148,22 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   }, [layout, schema]);
 
   // Handle row click
-  const handleRowClick = useCallback((record: any) => {
+  const handleRowClick = useCallback((record: Record<string, unknown>) => {
     if (operations.read !== false) {
       handleView(record);
     }
   }, [operations.read, handleView]);
 
   // Handle delete action
-  const handleDelete = useCallback((_record: any) => {
+  const handleDelete = useCallback((_record: Record<string, unknown>) => {
     // Trigger table refresh after delete
-    tableKey.current += 1;
+    setRefreshKey(prev => prev + 1);
   }, []);
 
   // Handle bulk delete action
-  const handleBulkDelete = useCallback((_records: any[]) => {
+  const handleBulkDelete = useCallback((_records: Record<string, unknown>[]) => {
     // Trigger table refresh after bulk delete
-    tableKey.current += 1;
+    setRefreshKey(prev => prev + 1);
   }, []);
 
   // Handle form submission
@@ -175,7 +173,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     setSelectedRecord(null);
     
     // Trigger table refresh
-    tableKey.current += 1;
     setRefreshKey(prev => prev + 1);
   }, []);
 
@@ -187,7 +184,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
-    tableKey.current += 1;
     setRefreshKey(prev => prev + 1);
   }, []);
 
@@ -397,7 +393,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       
       {/* Table */}
       <ObjectTable
-        key={`${tableKey.current}-${refreshKey}`}
+        key={refreshKey}
         schema={tableSchema}
         dataSource={dataSource}
         onRowClick={handleRowClick}
