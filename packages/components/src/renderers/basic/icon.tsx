@@ -21,6 +21,11 @@ function toPascalCase(str: string): string {
     .join('');
 }
 
+// Map of renamed icons in lucide-react (from old name to new name)
+const iconNameMap: Record<string, string> = {
+  'Home': 'House', // "Home" was renamed to "House" in lucide-react's icons object
+};
+
 const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?: string; [key: string]: any }>(
   ({ schema, className, ...props }, ref) => {
     // Extract designer-related props
@@ -33,10 +38,12 @@ const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?:
     
     // Convert icon name to PascalCase for Lucide lookup
     const iconName = toPascalCase(schema.name);
-    const Icon = (icons as any)[iconName];
+    // Apply icon name mapping for renamed icons
+    const mappedIconName = iconNameMap[iconName] || iconName;
+    const Icon = (icons as any)[mappedIconName];
     
     if (!Icon) {
-      console.warn(`Icon "${schema.name}" (lookup: "${iconName}") not found in lucide-react`);
+      console.warn(`Icon "${schema.name}" (lookup: "${iconName}"${mappedIconName !== iconName ? ` -> "${mappedIconName}"` : ''}) not found in lucide-react`);
       return null;
     }
     
