@@ -425,7 +425,7 @@ We welcome contributions! Please read our [Contributing Guide](./CONTRIBUTING.md
 ### For Developers
 
 - 📖 [Quick Start for Developers](./docs/quick-start-dev.md) - Get started in 5 minutes
-- 📋 [Development Plan](./docs/development-plan.md) - Current priorities and roadmap
+- 📋 [Development Plan](./docs/community/contributing/development-plan.md) - Current priorities and roadmap
 - 📊 [Component Inventory](./COMPONENT_INVENTORY.md) - Complete component list and ObjectStack integration plan ([中文版](./COMPONENT_INVENTORY_CN.md))
 
 ### Development Setup

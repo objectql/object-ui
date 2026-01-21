@@ -23,7 +23,7 @@
 ObjectUI has successfully integrated the **ObjectStack Client** (`@objectstack/client@^0.1.1`) and **ObjectStack Spec** (`@objectstack/spec@^0.1.2`), establishing a solid foundation for universal, protocol-driven UI components.
 
 ### Current Status
-- **Total Components**: 60+ components across 9 categories
+- **Total Components**: 75+ components across 14 packages (9 core categories + 5 plugins)
 - **Core Packages**: 13+ packages (stable architecture)
 - **Plugin System**: 5 plugin packages (charts, editor, kanban, markdown, object)
 - **ObjectStack Integration**: ✅ Completed (DataSource adapter fully functional)

@@ -23,7 +23,7 @@
 ObjectUI 已成功集成 **ObjectStack Client** (`@objectstack/client@^0.1.1`) 和 **ObjectStack Spec** (`@objectstack/spec@^0.1.2`)，为通用的、协议驱动的 UI 组件奠定了坚实的基础。
 
 ### 当前状态
-- **组件总数**: 60+ 个组件，分布在 9 个类别
+- **组件总数**: 75+ 个组件，分布在 14 个包中（9 个核心类别 + 5 个插件）
 - **核心包**: 13+ 个包（架构稳定）
 - **插件系统**: 5 个插件包（图表、编辑器、看板、Markdown、对象）
 - **ObjectStack 集成**: ✅ 已完成（DataSource 适配器功能完善）
