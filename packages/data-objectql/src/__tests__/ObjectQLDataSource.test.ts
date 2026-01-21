@@ -74,7 +74,7 @@ describe('ObjectQLDataSource', () => {
       expect(url).toContain('select=name');
     });
     
-    it('should convert MongoDB-like operators in filters', async () => {
+    it('should convert MongoDB-like operators in filters to AST format', async () => {
       const mockData = { value: [], count: 0 };
       
       (global.fetch as any).mockResolvedValueOnce({
@@ -92,10 +92,32 @@ describe('ObjectQLDataSource', () => {
       const fetchCall = (global.fetch as any).mock.calls[0];
       const url = fetchCall[0];
       
-      // Verify the filter parameters are present in the URL
-      // ObjectStack client flattens filters into query params
-      expect(url).toContain('age=');
-      expect(url).toContain('status=');
+      // Verify the filter is converted to AST format and JSON stringified
+      // The new ObjectStack filter rules require complex filters to be in AST format:
+      // ['and', ['age', '>=', 18], ['age', '<=', 65], ['status', 'in', ['active', 'pending']]]
+      expect(url).toContain('filters=');
+      // Verify it's JSON stringified (contains encoded brackets)
+      expect(url).toMatch(/filters=%5B/); // %5B is the URL-encoded '['
+    });
+
+    it('should convert simple filters to AST format', async () => {
+      const mockData = { value: [], count: 0 };
+      
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockData,
+      });
+      
+      await dataSource.find('contacts', {
+        $filter: { status: 'active' }
+      });
+      
+      const fetchCall = (global.fetch as any).mock.calls[0];
+      const url = fetchCall[0];
+      
+      // Simple filters are also converted to AST format: ['status', '=', 'active']
+      expect(url).toContain('filters=');
+      expect(url).toMatch(/filters=%5B/); // %5B is the URL-encoded '['
     });
     
     it('should include authentication token in headers', async () => {

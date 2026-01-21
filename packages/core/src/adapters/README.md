@@ -52,7 +52,7 @@ const adapter = new ObjectStackAdapter({
 // Manually connect (optional, auto-connects on first request)
 await adapter.connect();
 
-// Query with filters
+// Query with filters (MongoDB-like operators)
 const result = await adapter.find('tasks', {
   $filter: { 
     status: 'active',
@@ -68,6 +68,45 @@ const client = adapter.getClient();
 const metadata = await client.meta.getObject('task');
 ```
 
+### Filter Conversion
+
+The adapter automatically converts MongoDB-like filter operators to **ObjectStack FilterNode AST format**. This ensures compatibility with the latest ObjectStack Protocol (v0.1.2+).
+
+#### Supported Filter Operators
+
+| MongoDB Operator | ObjectStack Operator | Example |
+|------------------|---------------------|---------|
+| `$eq` or simple value | `=` | `{ status: 'active' }` → `['status', '=', 'active']` |
+| `$ne` | `!=` | `{ status: { $ne: 'archived' } }` → `['status', '!=', 'archived']` |
+| `$gt` | `>` | `{ age: { $gt: 18 } }` → `['age', '>', 18]` |
+| `$gte` | `>=` | `{ age: { $gte: 18 } }` → `['age', '>=', 18]` |
+| `$lt` | `<` | `{ age: { $lt: 65 } }` → `['age', '<', 65]` |
+| `$lte` | `<=` | `{ age: { $lte: 65 } }` → `['age', '<=', 65]` |
+| `$in` | `in` | `{ status: { $in: ['active', 'pending'] } }` → `['status', 'in', ['active', 'pending']]` |
+| `$nin` / `$notin` | `notin` | `{ status: { $nin: ['archived'] } }` → `['status', 'notin', ['archived']]` |
+| `$contains` / `$regex` | `contains` | `{ name: { $contains: 'John' } }` → `['name', 'contains', 'John']` |
+| `$startswith` | `startswith` | `{ email: { $startswith: 'admin' } }` → `['email', 'startswith', 'admin']` |
+| `$between` | `between` | `{ age: { $between: [18, 65] } }` → `['age', 'between', [18, 65]]` |
+
+#### Complex Filter Examples
+
+**Multiple conditions** are combined with `'and'`:
+
+```typescript
+// Input
+$filter: {
+  age: { $gte: 18, $lte: 65 },
+  status: 'active'
+}
+
+// Converted to AST
+['and', 
+  ['age', '>=', 18],
+  ['age', '<=', 65],
+  ['status', '=', 'active']
+]
+```
+
 ### Query Parameter Mapping
 
 The adapter automatically converts ObjectUI query parameters (OData-style) to ObjectStack protocol:
@@ -75,7 +114,7 @@ The adapter automatically converts ObjectUI query parameters (OData-style) to Ob
 | ObjectUI ($) | ObjectStack | Description |
 |--------------|-------------|-------------|
 | `$select` | `select` | Field selection |
-| `$filter` | `filters` | Filter conditions |
+| `$filter` | `filters` (AST) | Filter conditions (converted to FilterNode AST) |
 | `$orderby` | `sort` | Sort order |
 | `$skip` | `skip` | Pagination offset |
 | `$top` | `top` | Limit records |

@@ -32,6 +32,8 @@ import type {
   QueryOptions
 } from '@objectstack/client';
 
+import { convertFiltersToAST } from './utils/filter-converter';
+
 /**
  * ObjectQL-specific query parameters.
  * Extends the standard QueryParams with ObjectQL-specific features.
@@ -151,9 +153,9 @@ export class ObjectQLDataSource<T = any> implements DataSource<T> {
       queryOptions.select = params.$select;
     }
     
-    // Convert $filter to filters
+    // Convert $filter to ObjectStack FilterNode AST format
     if (params.$filter) {
-      queryOptions.filters = params.$filter;
+      queryOptions.filters = convertFiltersToAST(params.$filter);
     }
     
     // Convert $orderby to sort
@@ -177,8 +179,7 @@ export class ObjectQLDataSource<T = any> implements DataSource<T> {
     }
     
     return queryOptions;
-  }
-  
+  }  
   /**
    * Fetch multiple records from ObjectQL
    * 

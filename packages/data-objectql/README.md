@@ -313,16 +313,37 @@ const dataSource = new ObjectQLDataSource({
 
 ### Complex Filters
 
+The adapter automatically converts MongoDB-like filter operators to **ObjectStack FilterNode AST format** for compatibility with ObjectStack Protocol v0.1.2+.
+
 ```typescript
 const result = await dataSource.find('contacts', {
   $filter: {
-    name: { $regex: '^John' },
-    age: { $gte: 18, $lte: 65 },
-    status: { $in: ['active', 'pending'] },
-    'account.type': 'enterprise'
+    name: { $regex: '^John' },           // → ['name', 'contains', '^John']
+    age: { $gte: 18, $lte: 65 },        // → ['and', ['age', '>=', 18], ['age', '<=', 65]]
+    status: { $in: ['active', 'pending'] }, // → ['status', 'in', ['active', 'pending']]
+    'account.type': 'enterprise'        // → ['account.type', '=', 'enterprise']
   }
 });
 ```
+
+#### Supported Filter Operators
+
+| MongoDB Operator | ObjectStack AST | Description |
+|------------------|-----------------|-------------|
+| Simple value | `['field', '=', value]` | Equality |
+| `$eq` | `['field', '=', value]` | Equals |
+| `$ne` | `['field', '!=', value]` | Not equals |
+| `$gt` | `['field', '>', value]` | Greater than |
+| `$gte` | `['field', '>=', value]` | Greater or equal |
+| `$lt` | `['field', '<', value]` | Less than |
+| `$lte` | `['field', '<=', value]` | Less or equal |
+| `$in` | `['field', 'in', array]` | In array |
+| `$nin` / `$notin` | `['field', 'notin', array]` | Not in array |
+| `$contains` / `$regex` | `['field', 'contains', value]` | Contains substring |
+| `$startswith` | `['field', 'startswith', value]` | Starts with |
+| `$between` | `['field', 'between', [min, max]]` | Between values |
+
+**Note:** All complex filters are automatically converted to ObjectStack FilterNode AST format and JSON-stringified when sent to the server.
 
 ### Field Selection with Relations
 
@@ -412,12 +433,18 @@ If you're upgrading from a previous version that used `@objectql/sdk`:
 2. The configuration interface remains compatible - no code changes required!
    The adapter now uses the ObjectStack Protocol client under the hood.
 
-3. Filter formats support the standard ObjectStack query format:
+3. **Filter conversion to AST format (ObjectStack Protocol v0.1.2+):**
+   - All filters are now automatically converted to FilterNode AST format
+   - Simple filters: `{ status: 'active' }` → `['status', '=', 'active']`
+   - Complex filters: `{ age: { $gte: 18 } }` → `['age', '>=', 18]`
+   - Multiple conditions are combined with `'and'` logic
+   - This ensures compatibility with the latest ObjectStack Protocol requirements
+   
    ```typescript
-   // Object format (converted to ObjectStack query internally)
+   // Your existing filter code continues to work
    $filter: { status: 'active', age: 18 }
    
-   // Complex filters with operators
+   // Complex filters with operators are also supported
    $filter: { 
      age: { $gte: 18, $lte: 65 },
      status: { $in: ['active', 'pending'] }

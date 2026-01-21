@@ -5,16 +5,6 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-
-/**
- * @object-ui/core - Schema Validation
- *
- * Runtime validation utilities for Object UI schemas.
- * These utilities help ensure schemas are valid before rendering.
- *
- * @module validation
- * @packageDocumentation
- */
 /**
  * Validation rules for base schema
  */

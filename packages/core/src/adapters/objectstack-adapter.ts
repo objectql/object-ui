@@ -8,6 +8,7 @@
 
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
 import type { DataSource, QueryParams, QueryResult } from '@object-ui/types';
+import { convertFiltersToAST } from '../utils/filter-converter';
 
 /**
  * ObjectStack Data Source Adapter
@@ -159,9 +160,9 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
       options.select = params.$select;
     }
 
-    // Filtering - convert object to simple map
+    // Filtering - convert to ObjectStack FilterNode AST format
     if (params.$filter) {
-      options.filters = params.$filter;
+      options.filters = convertFiltersToAST(params.$filter);
     }
 
     // Sorting - convert to ObjectStack format
