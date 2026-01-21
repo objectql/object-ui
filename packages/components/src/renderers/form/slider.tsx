@@ -20,9 +20,16 @@ ComponentRegistry.register('slider',
         ...sliderProps 
     } = props;
 
+    // Ensure defaultValue is an array for backward compatibility
+    const defaultValue = Array.isArray(schema.defaultValue) 
+      ? schema.defaultValue 
+      : schema.defaultValue !== undefined 
+        ? [schema.defaultValue] 
+        : undefined;
+
     return (
     <Slider 
-      defaultValue={schema.defaultValue} 
+      defaultValue={defaultValue} 
       max={schema.max} 
       min={schema.min}
       step={schema.step}
