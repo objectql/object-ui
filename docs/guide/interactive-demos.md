@@ -195,22 +195,22 @@ Each component page uses our new **InteractiveDemo** component:
 
 For complete API documentation including all props, events, and advanced usage:
 
-- **[Component Registry](/docs/concepts/component-registry)** - All available component types
-- **[Schema Rendering](/docs/concepts/schema-rendering)** - How the rendering engine works
-- **[Plugin System](/docs/concepts/plugins)** - Creating custom plugins
+- **[Component Registry](/concepts/component-registry)** - All available component types
+- **[Schema Rendering](/concepts/schema-rendering)** - How the rendering engine works
+- **[Plugin System](/concepts/plugins)** - Creating custom plugins
 
 ## 🎨 Design Resources
 
-- **[Tailwind Integration](/docs/guide/components#styling)** - Using Tailwind classes
-- **[Theming](/docs/guide/components#theming)** - Light/dark mode support
-- **[Accessibility](/docs/guide/components#accessibility)** - WCAG 2.1 compliance
+- **[Tailwind Integration](/guide/components#styling)** - Using Tailwind classes
+- **[Theming](/guide/components#theming)** - Light/dark mode support
+- **[Accessibility](/guide/components#accessibility)** - WCAG 2.1 compliance
 
 ## 🔗 Next Steps
 
-- **[Quick Start Guide](/docs/guide/quick-start)** - Get up and running in 5 minutes
-- **[Try It Online](/docs/guide/try-it-online)** - Online playground
+- **[Quick Start Guide](/guide/quick-start)** - Get up and running in 5 minutes
+- **[Try It Online](/guide/try-it-online)** - Online playground
 - **[GitHub Repository](https://github.com/objectstack-ai/objectui)** - Star the project
 
 ---
 
-**Have questions?** Check out our [Getting Started Guide](/docs/guide/quick-start) or visit the [GitHub Discussions](https://github.com/objectstack-ai/objectui/discussions).
+**Have questions?** Check out our [Getting Started Guide](/guide/quick-start) or visit the [GitHub Discussions](https://github.com/objectstack-ai/objectui/discussions).

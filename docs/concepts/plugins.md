@@ -372,7 +372,7 @@ export function registerComponents() {
 
 - [Component Registry](./component-registry.md) - Understanding the registry
 - [Schema Rendering](./schema-rendering.md) - How schemas become UI
-- [Lazy-Loaded Plugins Architecture](/docs/lazy-loaded-plugins.md) - Deep dive
+- [Lazy-Loaded Plugins Architecture](./lazy-loading.md) - Deep dive
 - [Creating Components](/spec/component-package.md) - Component development
 
 ## Next Steps
