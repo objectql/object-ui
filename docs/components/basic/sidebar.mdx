@@ -1,0 +1,109 @@
+---
+title: "Sidebar"
+description: "Collapsible navigation sidebar"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Sidebar component provides a collapsible navigation sidebar for applications.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'sidebar',
+    items: [
+      { label: 'Dashboard', icon: 'home', href: '/' },
+      { label: 'Projects', icon: 'folder', href: '/projects' },
+      { label: 'Team', icon: 'users', href: '/team' },
+      { label: 'Settings', icon: 'settings', href: '/settings' }
+    ]
+  }}
+  title="Basic Sidebar"
+/>
+
+## With Groups
+
+<ComponentDemo
+  schema={{
+    type: 'sidebar',
+    groups: [
+      {
+        title: 'Main',
+        items: [
+          { label: 'Dashboard', icon: 'home', href: '/' },
+          { label: 'Analytics', icon: 'bar-chart', href: '/analytics' }
+        ]
+      },
+      {
+        title: 'Management',
+        items: [
+          { label: 'Projects', icon: 'folder', href: '/projects' },
+          { label: 'Team', icon: 'users', href: '/team' }
+        ]
+      }
+    ]
+  }}
+  title="Grouped Sidebar"
+/>
+
+## Collapsible
+
+<ComponentDemo
+  schema={{
+    type: 'sidebar',
+    collapsible: true,
+    defaultCollapsed: false,
+    items: [
+      { label: 'Home', icon: 'home', href: '/' },
+      { label: 'Files', icon: 'folder', href: '/files' },
+      { label: 'Settings', icon: 'settings', href: '/settings' }
+    ]
+  }}
+  title="Collapsible Sidebar"
+/>
+
+## Schema
+
+```typescript
+interface SidebarItem {
+  label: string;
+  icon?: string;
+  href?: string;
+  active?: boolean;
+  badge?: string | number;
+}
+
+interface SidebarGroup {
+  title?: string;
+  items: SidebarItem[];
+}
+
+interface SidebarSchema {
+  type: 'sidebar';
+  items?: SidebarItem[];          // Flat list of items
+  groups?: SidebarGroup[];        // Grouped items
+  collapsible?: boolean;          // Allow collapse
+  defaultCollapsed?: boolean;     // Initial state
+  
+  // Styling
+  className?: string;
+}
+```
+
+## Examples
+
+### With Badges
+
+<ComponentDemo
+  schema={{
+    type: 'sidebar',
+    items: [
+      { label: 'Inbox', icon: 'inbox', href: '/inbox', badge: 12 },
+      { label: 'Drafts', icon: 'file-text', href: '/drafts', badge: 3 },
+      { label: 'Sent', icon: 'send', href: '/sent' },
+      { label: 'Trash', icon: 'trash', href: '/trash' }
+    ]
+  }}
+  title="Sidebar with Badges"
+/>

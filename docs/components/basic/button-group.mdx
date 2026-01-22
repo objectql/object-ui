@@ -1,0 +1,128 @@
+---
+title: "Button Group"
+description: "Group multiple buttons together with shared styling"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Button Group component groups multiple buttons together with consistent styling.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'button-group',
+    buttons: [
+      { label: 'Left', value: 'left' },
+      { label: 'Center', value: 'center' },
+      { label: 'Right', value: 'right' }
+    ]
+  }}
+  title="Basic Button Group"
+/>
+
+## Variants
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'button-group',
+      variant: 'outline',
+      buttons: [
+        { label: 'Day', value: 'day' },
+        { label: 'Week', value: 'week' },
+        { label: 'Month', value: 'month' }
+      ]
+    }}
+    title="Outline Variant"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'button-group',
+      variant: 'default',
+      buttons: [
+        { label: 'Grid', value: 'grid', icon: 'grid' },
+        { label: 'List', value: 'list', icon: 'list' }
+      ]
+    }}
+    title="With Icons"
+  />
+</DemoGrid>
+
+## Selection Mode
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'button-group',
+      selectionMode: 'single',
+      value: 'option2',
+      buttons: [
+        { label: 'Option 1', value: 'option1' },
+        { label: 'Option 2', value: 'option2' },
+        { label: 'Option 3', value: 'option3' }
+      ]
+    }}
+    title="Single Selection"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'button-group',
+      selectionMode: 'multiple',
+      value: ['bold', 'italic'],
+      buttons: [
+        { label: 'Bold', value: 'bold', icon: 'bold' },
+        { label: 'Italic', value: 'italic', icon: 'italic' },
+        { label: 'Underline', value: 'underline', icon: 'underline' }
+      ]
+    }}
+    title="Multiple Selection"
+  />
+</DemoGrid>
+
+## Schema
+
+```typescript
+interface ButtonGroupButton {
+  label?: string;
+  value: string;
+  icon?: string;
+  disabled?: boolean;
+}
+
+interface ButtonGroupSchema {
+  type: 'button-group';
+  buttons: ButtonGroupButton[];   // Button definitions
+  value?: string | string[];      // Selected value(s)
+  selectionMode?: 'single' | 'multiple' | 'none';
+  variant?: 'default' | 'outline' | 'ghost';
+  size?: 'sm' | 'default' | 'lg';
+  
+  // Events
+  onValueChange?: string | ActionConfig;
+  
+  // States
+  disabled?: boolean;
+  
+  // Styling
+  className?: string;
+}
+```
+
+## Examples
+
+### Toolbar Actions
+
+<ComponentDemo
+  schema={{
+    type: 'button-group',
+    variant: 'outline',
+    size: 'sm',
+    buttons: [
+      { icon: 'copy', value: 'copy' },
+      { icon: 'scissors', value: 'cut' },
+      { icon: 'clipboard', value: 'paste' }
+    ]
+  }}
+  title="Icon Toolbar"
+/>

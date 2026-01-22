@@ -1,0 +1,143 @@
+---
+title: "Form"
+description: "Form container with validation and submission handling"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Form component provides a complete form solution with validation and submission handling.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'form',
+    fields: [
+      {
+        name: 'email',
+        label: 'Email',
+        type: 'input',
+        inputType: 'email',
+        placeholder: 'Enter your email',
+        required: true
+      },
+      {
+        name: 'password',
+        label: 'Password',
+        type: 'input',
+        inputType: 'password',
+        placeholder: 'Enter your password',
+        required: true
+      }
+    ],
+    submitButton: {
+      label: 'Sign In'
+    }
+  }}
+  title="Login Form"
+/>
+
+## With Validation
+
+<ComponentDemo
+  schema={{
+    type: 'form',
+    fields: [
+      {
+        name: 'username',
+        label: 'Username',
+        type: 'input',
+        placeholder: 'Choose a username',
+        required: true,
+        minLength: 3,
+        maxLength: 20
+      },
+      {
+        name: 'email',
+        label: 'Email',
+        type: 'input',
+        inputType: 'email',
+        required: true,
+        pattern: '^[^@]+@[^@]+\\.[^@]+$'
+      },
+      {
+        name: 'age',
+        label: 'Age',
+        type: 'input',
+        inputType: 'number',
+        min: 18,
+        max: 120
+      }
+    ],
+    submitButton: {
+      label: 'Register'
+    }
+  }}
+  title="Registration Form"
+/>
+
+## Schema
+
+```typescript
+interface FormField {
+  name: string;
+  label?: string;
+  type: 'input' | 'textarea' | 'select' | 'checkbox' | 'radio-group' | 'date-picker';
+  placeholder?: string;
+  required?: boolean;
+  disabled?: boolean;
+  
+  // Validation
+  minLength?: number;
+  maxLength?: number;
+  min?: number;
+  max?: number;
+  pattern?: string;
+  
+  // Options (for select, radio-group)
+  options?: Array<{ value: string; label: string }>;
+  
+  // Default value
+  defaultValue?: any;
+}
+
+interface FormSchema {
+  type: 'form';
+  fields: FormField[];            // Form fields
+  submitButton?: {
+    label: string;
+    variant?: string;
+  };
+  
+  // Events
+  onSubmit?: string | ActionConfig;
+  
+  // Layout
+  columns?: number;               // Grid layout
+  
+  // Styling
+  className?: string;
+}
+```
+
+## Examples
+
+### Multi-column Form
+
+<ComponentDemo
+  schema={{
+    type: 'form',
+    columns: 2,
+    fields: [
+      { name: 'firstName', label: 'First Name', type: 'input', required: true },
+      { name: 'lastName', label: 'Last Name', type: 'input', required: true },
+      { name: 'email', label: 'Email', type: 'input', inputType: 'email', required: true },
+      { name: 'phone', label: 'Phone', type: 'input', inputType: 'tel' },
+      { name: 'address', label: 'Address', type: 'textarea', columnSpan: 2 }
+    ],
+    submitButton: {
+      label: 'Submit'
+    }
+  }}
+  title="Contact Form"
+/>
