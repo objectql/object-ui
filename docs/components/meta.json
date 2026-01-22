@@ -1,0 +1,79 @@
+{
+  "title": "Components",
+  "pages": [
+    "index",
+    "---",
+    {
+      "title": "Basic",
+      "pages": [
+        "basic/text",
+        "basic/icon",
+        "basic/image",
+        "basic/separator",
+        "basic/html"
+      ]
+    },
+    {
+      "title": "Form",
+      "pages": [
+        "form/button",
+        "form/input",
+        "form/select",
+        "form/checkbox",
+        "form/switch",
+        "form/textarea",
+        "form/slider"
+      ]
+    },
+    {
+      "title": "Layout",
+      "pages": [
+        "layout/container",
+        "layout/card",
+        "layout/grid",
+        "layout/flex",
+        "layout/stack",
+        "layout/tabs"
+      ]
+    },
+    {
+      "title": "Data Display",
+      "pages": [
+        "data-display/badge",
+        "data-display/avatar",
+        "data-display/alert",
+        "data-display/list"
+      ]
+    },
+    {
+      "title": "Feedback",
+      "pages": [
+        "feedback/loading",
+        "feedback/progress",
+        "feedback/skeleton"
+      ]
+    },
+    {
+      "title": "Overlay",
+      "pages": [
+        "overlay/dialog",
+        "overlay/drawer",
+        "overlay/tooltip",
+        "overlay/popover"
+      ]
+    },
+    {
+      "title": "Disclosure",
+      "pages": [
+        "disclosure/accordion",
+        "disclosure/collapsible"
+      ]
+    },
+    {
+      "title": "Complex",
+      "pages": [
+        "complex/table"
+      ]
+    }
+  ]
+}

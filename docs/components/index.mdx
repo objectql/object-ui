@@ -1,0 +1,210 @@
+---
+title: "Component Gallery"
+description: "Explore all ObjectUI components organized by category"
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card';
+
+# Component Gallery
+
+ObjectUI provides a comprehensive set of components built on React, Tailwind CSS, and Shadcn UI. All components are defined through JSON schemas and rendered with pixel-perfect quality.
+
+## Quick Navigation
+
+Browse components by category to find what you need:
+
+<Cards>
+  <Card
+    title="Basic Components"
+    description="Essential building blocks: Text, Icon, Image, Separator, HTML"
+    href="/components/basic"
+  />
+  <Card
+    title="Form Components"
+    description="Interactive inputs: Button, Input, Select, Checkbox, Switch, Textarea, Slider"
+    href="/components/form"
+  />
+  <Card
+    title="Layout Components"
+    description="Structure your UI: Container, Card, Grid, Flex, Stack, Tabs"
+    href="/components/layout"
+  />
+  <Card
+    title="Data Display"
+    description="Show information: Badge, Avatar, Alert, List"
+    href="/components/data-display"
+  />
+  <Card
+    title="Feedback Components"
+    description="User feedback: Loading, Progress, Skeleton"
+    href="/components/feedback"
+  />
+  <Card
+    title="Overlay Components"
+    description="Floating elements: Dialog, Drawer, Tooltip, Popover"
+    href="/components/overlay"
+  />
+  <Card
+    title="Disclosure Components"
+    description="Show/hide content: Accordion, Collapsible"
+    href="/components/disclosure"
+  />
+  <Card
+    title="Complex Components"
+    description="Advanced patterns: Table (with sorting, filtering, pagination)"
+    href="/components/complex"
+  />
+</Cards>
+
+## Component Categories
+
+### Basic Components
+
+The foundation of your UI. These are simple, single-purpose components:
+
+- **[Text](/components/basic/text)** - Display text with typography control
+- **[Icon](/components/basic/icon)** - Render icons from Lucide React
+- **[Image](/components/basic/image)** - Display images with lazy loading
+- **[Separator](/components/basic/separator)** - Visual divider between content
+- **[HTML](/components/basic/html)** - Render raw HTML content
+
+### Form Components
+
+Interactive elements for user input:
+
+- **[Button](/components/form/button)** - Trigger actions with multiple variants
+- **[Input](/components/form/input)** - Text input with validation
+- **[Select](/components/form/select)** - Dropdown selection
+- **[Checkbox](/components/form/checkbox)** - Boolean selection
+- **[Switch](/components/form/switch)** - Toggle switch
+- **[Textarea](/components/form/textarea)** - Multi-line text input
+- **[Slider](/components/form/slider)** - Numeric range selection
+
+### Layout Components
+
+Structure and organize your interface:
+
+- **[Container](/components/layout/container)** - Responsive container with max-width
+- **[Card](/components/layout/card)** - Content card with header and footer
+- **[Grid](/components/layout/grid)** - CSS Grid layout
+- **[Flex](/components/layout/flex)** - Flexbox layout
+- **[Stack](/components/layout/stack)** - Vertical or horizontal stack
+- **[Tabs](/components/layout/tabs)** - Tabbed interface
+
+### Data Display
+
+Present data to users:
+
+- **[Badge](/components/data-display/badge)** - Small status indicators
+- **[Avatar](/components/data-display/avatar)** - User profile images
+- **[Alert](/components/data-display/alert)** - Contextual messages
+- **[List](/components/data-display/list)** - Ordered or unordered lists
+
+### Feedback Components
+
+Provide visual feedback:
+
+- **[Loading](/components/feedback/loading)** - Loading spinner
+- **[Progress](/components/feedback/progress)** - Progress bar
+- **[Skeleton](/components/feedback/skeleton)** - Loading placeholder
+
+### Overlay Components
+
+Floating UI elements:
+
+- **[Dialog](/components/overlay/dialog)** - Modal dialog
+- **[Drawer](/components/overlay/drawer)** - Slide-out drawer
+- **[Tooltip](/components/overlay/tooltip)** - Hover tooltips
+- **[Popover](/components/overlay/popover)** - Floating popover
+
+### Disclosure Components
+
+Expandable content:
+
+- **[Accordion](/components/disclosure/accordion)** - Expandable sections
+- **[Collapsible](/components/disclosure/collapsible)** - Toggle content visibility
+
+### Complex Components
+
+Advanced, feature-rich components:
+
+- **[Table](/components/complex/table)** - Data table with sorting, filtering, and pagination
+
+## Usage Pattern
+
+All ObjectUI components follow the same schema-based pattern:
+
+```json
+{
+  "type": "component-name",
+  "className": "tailwind-classes",
+  "props": {
+    // Component-specific properties
+  }
+}
+```
+
+### Example: Button
+
+```json
+{
+  "type": "button",
+  "label": "Click Me",
+  "variant": "default",
+  "size": "md",
+  "className": "mt-4"
+}
+```
+
+### Example: Card with Form
+
+```json
+{
+  "type": "card",
+  "title": "User Profile",
+  "className": "max-w-md",
+  "body": {
+    "type": "form",
+    "fields": [
+      {
+        "type": "input",
+        "name": "name",
+        "label": "Full Name"
+      },
+      {
+        "type": "input",
+        "name": "email",
+        "label": "Email",
+        "inputType": "email"
+      }
+    ]
+  }
+}
+```
+
+## Features
+
+All ObjectUI components share these characteristics:
+
+- ✅ **Schema-Driven** - Define with JSON, not code
+- ✅ **Tailwind CSS** - Use utility classes directly in schemas
+- ✅ **Accessible** - WCAG 2.1 AA compliant
+- ✅ **Responsive** - Mobile-first design
+- ✅ **Themeable** - Light/dark mode support
+- ✅ **Type-Safe** - Full TypeScript support
+- ✅ **Performant** - Lazy-loaded and tree-shakable
+
+## Next Steps
+
+- **[Quick Start Guide](/guide/quick-start)** - Build your first ObjectUI app
+- **[Schema Rendering](/concepts/schema-rendering)** - Learn how the engine works
+- **[Component Registry](/concepts/component-registry)** - Register custom components
+- **[Expressions](/concepts/expressions)** - Dynamic values with expressions
+
+## Need Help?
+
+Can't find what you're looking for? Check out:
+
+- [Concepts](/concepts) - Core concepts and architecture
+- [Reference](/reference) - API documentation and protocol specs
+- [GitHub](https://github.com/objectstack-ai/objectui) - Report issues or contribute

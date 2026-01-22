@@ -1,13 +1,15 @@
 {
-  "title": "Guide",
+  "title": "Getting Started",
   "pages": [
     "index",
-    "installation",
     "quick-start",
+    "installation",
     "interactive-demos",
+    "try-it-online",
+    "---",
     "studio",
     "cli",
-    "try-it-online",
+    "---",
     "components",
     "interactive-showcase",
     "showcase"
