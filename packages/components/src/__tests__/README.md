@@ -24,7 +24,7 @@ Tests for form components:
 - Button, Input, Textarea, Select, Checkbox, Switch
 - Radio Group, Slider, Label, Email, Password
 
-**Coverage:** 49 tests
+**Coverage:** 32 tests
 
 ### `layout-data-renderers.test.tsx`
 Tests for layout and data display components:
@@ -38,14 +38,14 @@ Tests for feedback and overlay components:
 - Feedback: Loading, Spinner, Progress, Skeleton, Empty, Toast
 - Overlay: Dialog, Alert Dialog, Sheet, Drawer, Popover, Tooltip, Dropdown Menu, Context Menu, Hover Card, Menubar
 
-**Coverage:** 23 tests
+**Coverage:** 35 tests
 
 ### `complex-disclosure-renderers.test.tsx`
 Tests for complex and disclosure components:
 - Disclosure: Accordion, Collapsible, Toggle Group
 - Complex: Timeline, Data Table, Chatbot, Carousel, Scroll Area, Resizable, Filter Builder, Calendar View, Table
 
-**Coverage:** 23 tests
+**Coverage:** 31 tests
 
 ## Running Tests
 

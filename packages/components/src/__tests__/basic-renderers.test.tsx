@@ -7,13 +7,10 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { screen } from '@testing-library/react';
-import { ComponentRegistry } from '@object-ui/core';
 import {
   renderComponent,
   validateComponentRegistration,
   getAllDisplayIssues,
-  checkAccessibility,
   checkDOMStructure,
 } from './test-utils';
 
@@ -67,7 +64,6 @@ describe('Basic Renderers - Display Issue Detection', () => {
     });
 
     it('should render with designer props correctly', () => {
-      const Component = ComponentRegistry.get('text');
       const { container } = renderComponent(
         { type: 'text', content: 'Designer Test' },
       );

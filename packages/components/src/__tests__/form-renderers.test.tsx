@@ -8,13 +8,10 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { ComponentRegistry } from '@object-ui/core';
 import {
   renderComponent,
   validateComponentRegistration,
   getAllDisplayIssues,
-  checkAccessibility,
 } from './test-utils';
 
 // Import renderers to ensure registration

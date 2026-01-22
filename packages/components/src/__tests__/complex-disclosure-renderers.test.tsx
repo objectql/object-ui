@@ -11,7 +11,6 @@ import { ComponentRegistry } from '@object-ui/core';
 import {
   renderComponent,
   validateComponentRegistration,
-  getAllDisplayIssues,
   checkDOMStructure,
 } from './test-utils';
 
@@ -86,7 +85,7 @@ describe('Disclosure Renderers - Display Issue Detection', () => {
     it('should render toggle group with items', () => {
       const { container } = renderComponent({
         type: 'toggle-group',
-        type_mode: 'single',
+        selectionType: 'single',
         items: [
           { value: 'bold', label: 'Bold' },
           { value: 'italic', label: 'Italic' },

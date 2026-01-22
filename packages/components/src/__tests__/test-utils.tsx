@@ -50,7 +50,12 @@ export function checkAccessibility(element: HTMLElement): {
 
   // Check for form inputs without labels
   if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT') {
-    const hasLabel = hasAriaLabel || element.hasAttribute('id');
+    const id = element.getAttribute('id');
+    const doc = element.ownerDocument || document;
+    const hasAssociatedLabel =
+      !!element.closest('label') ||
+      (!!id && !!doc.querySelector(`label[for="${id}"]`));
+    const hasLabel = hasAriaLabel || hasAssociatedLabel;
     if (!hasLabel) {
       issues.push('Form element missing label association');
     }
@@ -61,30 +66,6 @@ export function checkAccessibility(element: HTMLElement): {
     hasAriaLabel,
     hasAriaDescribedBy,
     issues,
-  };
-}
-
-/**
- * Check if element has proper styling classes
- */
-export function checkStyling(element: HTMLElement): {
-  hasClasses: boolean;
-  hasTailwindClasses: boolean;
-  hasInlineStyles: boolean;
-  classes: string[];
-} {
-  const classes = Array.from(element.classList);
-  const hasClasses = classes.length > 0;
-  const hasTailwindClasses = classes.some(cls => 
-    /^(text-|bg-|border-|p-|m-|flex|grid|rounded|shadow|hover:|focus:)/.test(cls)
-  );
-  const hasInlineStyles = element.hasAttribute('style') && element.getAttribute('style') !== '';
-
-  return {
-    hasClasses,
-    hasTailwindClasses,
-    hasInlineStyles,
-    classes,
   };
 }
 
@@ -135,34 +116,6 @@ export function checkDOMStructure(container: HTMLElement): {
 }
 
 /**
- * Check if component handles conditional rendering correctly
- */
-export function checkConditionalRendering(
-  baseProps: any,
-  conditionalProp: string,
-  conditionalValue: any
-): {
-  baseRender: ReturnType<typeof render>;
-  conditionalRender: ReturnType<typeof render>;
-  isDifferent: boolean;
-} {
-  const schema = { type: 'div', ...baseProps };
-  const conditionalSchema = { ...schema, [conditionalProp]: conditionalValue };
-
-  const baseRender = renderComponent(schema);
-  const conditionalRender = renderComponent(conditionalSchema);
-
-  const isDifferent = 
-    baseRender.container.innerHTML !== conditionalRender.container.innerHTML;
-
-  return {
-    baseRender,
-    conditionalRender,
-    isDifferent,
-  };
-}
-
-/**
  * Validate component registration
  */
 export function validateComponentRegistration(componentType: string): {
@@ -172,7 +125,7 @@ export function validateComponentRegistration(componentType: string): {
   hasLabel: boolean;
   hasInputs: boolean;
   hasDefaultProps: boolean;
-  config: any;
+  config: ReturnType<typeof ComponentRegistry.getConfig>;
 } {
   const isRegistered = ComponentRegistry.has(componentType);
   const renderer = ComponentRegistry.get(componentType);
@@ -214,8 +167,12 @@ export function getAllDisplayIssues(container: HTMLElement): string[] {
       // This is a simplified check - in React, keys are not in the DOM
       // but we can check for duplicate content which might indicate missing keys
       const contents = Array.from(items).map(item => item.textContent);
-      const duplicates = contents.filter((item, index) => contents.indexOf(item) !== index);
-      if (duplicates.length > 0) {
+      const contentCounts = new Map<string, number>();
+      contents.forEach(content => {
+        contentCounts.set(content || '', (contentCounts.get(content || '') || 0) + 1);
+      });
+      const hasDuplicates = Array.from(contentCounts.values()).some(count => count > 1);
+      if (hasDuplicates) {
         issues.push(`Potential duplicate list items detected`);
       }
     }
