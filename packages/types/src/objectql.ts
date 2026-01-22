@@ -56,6 +56,13 @@ export interface ObjectTableSchema extends BaseSchema {
   columns?: TableColumn[];
   
   /**
+   * Inline data for static/demo tables
+   * When provided, the table will use this data instead of fetching from a data source.
+   * Useful for documentation examples and prototyping.
+   */
+  data?: any[];
+  
+  /**
    * Enable/disable built-in operations
    */
   operations?: {
