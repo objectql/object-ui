@@ -6,6 +6,9 @@ import type { SchemaNode } from '@object-ui/core';
 import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
 import { CodeBlock, Pre } from 'fumadocs-ui/components/codeblock';
 
+// Re-export SchemaNode type for use in MDX files
+export type { SchemaNode } from '@object-ui/core';
+
 interface InteractiveDemoProps {
   schema: SchemaNode;
   title?: string;

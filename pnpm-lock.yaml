@@ -111,6 +111,18 @@ importers:
       '@object-ui/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@object-ui/plugin-charts':
+        specifier: workspace:*
+        version: link:../../packages/plugin-charts
+      '@object-ui/plugin-editor':
+        specifier: workspace:*
+        version: link:../../packages/plugin-editor
+      '@object-ui/plugin-kanban':
+        specifier: workspace:*
+        version: link:../../packages/plugin-kanban
+      '@object-ui/plugin-markdown':
+        specifier: workspace:*
+        version: link:../../packages/plugin-markdown
       '@object-ui/react':
         specifier: workspace:*
         version: link:../../packages/react
