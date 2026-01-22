@@ -26,8 +26,9 @@ export interface ObjectFormProps {
   
   /**
    * ObjectQL data source
+   * Optional when using inline field definitions (customFields or fields array with field objects)
    */
-  dataSource: ObjectQLDataSource;
+  dataSource?: ObjectQLDataSource;
   
   /**
    * Additional CSS class
@@ -63,10 +64,24 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Fetch object schema from ObjectQL
+  // Check if using inline fields (fields defined as objects, not just names)
+  const hasInlineFields = schema.customFields && schema.customFields.length > 0;
+
+  // Initialize with inline data if provided
+  useEffect(() => {
+    if (hasInlineFields) {
+      setInitialData(schema.initialData || schema.initialValues || {});
+      setLoading(false);
+    }
+  }, [hasInlineFields, schema.initialData, schema.initialValues]);
+
+  // Fetch object schema from ObjectQL (skip if using inline fields)
   useEffect(() => {
     const fetchObjectSchema = async () => {
       try {
+        if (!dataSource) {
+          throw new Error('DataSource is required when using ObjectQL schema fetching (inline fields not provided)');
+        }
         const schemaData = await dataSource.getObjectSchema(schema.objectName);
         setObjectSchema(schemaData);
       } catch (err) {
@@ -75,16 +90,34 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
       }
     };
 
-    if (schema.objectName && dataSource) {
+    // Skip fetching if we have inline fields
+    if (hasInlineFields) {
+      // Use a minimal schema for inline fields
+      setObjectSchema({
+        name: schema.objectName,
+        fields: {} as Record<string, any>,
+      });
+    } else if (schema.objectName && dataSource) {
       fetchObjectSchema();
     }
-  }, [schema.objectName, dataSource]);
+  }, [schema.objectName, dataSource, hasInlineFields]);
 
-  // Fetch initial data for edit/view modes
+  // Fetch initial data for edit/view modes (skip if using inline data)
   useEffect(() => {
     const fetchInitialData = async () => {
       if (!schema.recordId || schema.mode === 'create') {
-        setInitialData(schema.initialValues || {});
+        setInitialData(schema.initialData || schema.initialValues || {});
+        return;
+      }
+
+      // Skip fetching if using inline data
+      if (hasInlineFields) {
+        return;
+      }
+
+      if (!dataSource) {
+        setError(new Error('DataSource is required for fetching record data (inline data not provided)'));
+        setLoading(false);
         return;
       }
 
@@ -100,13 +133,20 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
       }
     };
 
-    if (objectSchema) {
+    if (objectSchema && !hasInlineFields) {
       fetchInitialData();
     }
-  }, [schema.objectName, schema.recordId, schema.mode, schema.initialValues, dataSource, objectSchema]);
+  }, [schema.objectName, schema.recordId, schema.mode, schema.initialValues, schema.initialData, dataSource, objectSchema, hasInlineFields]);
 
-  // Generate form fields from object schema
+  // Generate form fields from object schema or inline fields
   useEffect(() => {
+    // For inline fields, use them directly
+    if (hasInlineFields && schema.customFields) {
+      setFormFields(schema.customFields);
+      setLoading(false);
+      return;
+    }
+
     if (!objectSchema) return;
 
     const generatedFields: FormField[] = [];
@@ -207,10 +247,22 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
 
     setFormFields(generatedFields);
     setLoading(false);
-  }, [objectSchema, schema.fields, schema.customFields, schema.readOnly, schema.mode]);
+  }, [objectSchema, schema.fields, schema.customFields, schema.readOnly, schema.mode, hasInlineFields]);
 
   // Handle form submission
   const handleSubmit = useCallback(async (formData: any) => {
+    // For inline fields without a dataSource, just call the success callback
+    if (hasInlineFields && !dataSource) {
+      if (schema.onSuccess) {
+        await schema.onSuccess(formData);
+      }
+      return formData;
+    }
+
+    if (!dataSource) {
+      throw new Error('DataSource is required for form submission (inline mode not configured)');
+    }
+
     try {
       let result;
       
@@ -238,7 +290,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
       
       throw err;
     }
-  }, [schema, dataSource]);
+  }, [schema, dataSource, hasInlineFields]);
 
   // Handle form cancellation
   const handleCancel = useCallback(() => {

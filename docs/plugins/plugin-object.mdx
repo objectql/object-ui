@@ -23,10 +23,10 @@ The Object plugin provides seamless integration with ObjectQL backends through s
     type: "object-table",
     objectName: "users",
     columns: [
-      { key: "name", label: "Name" },
-      { key: "email", label: "Email" },
-      { key: "role", label: "Role" },
-      { key: "status", label: "Status" }
+      { header: "Name", accessorKey: "name" },
+      { header: "Email", accessorKey: "email" },
+      { header: "Role", accessorKey: "role" },
+      { header: "Status", accessorKey: "status" }
     ],
     data: [
       { id: 1, name: "Alice Johnson", email: "alice@example.com", role: "Admin", status: "Active" },
@@ -45,7 +45,8 @@ The Object plugin provides seamless integration with ObjectQL backends through s
   schema={{
     type: "object-form",
     objectName: "user",
-    fields: [
+    mode: "create",
+    customFields: [
       { 
         name: "name", 
         label: "Full Name", 
@@ -75,7 +76,7 @@ The Object plugin provides seamless integration with ObjectQL backends through s
         defaultValue: "Active"
       }
     ],
-    submitLabel: "Create User"
+    submitText: "Create User"
   }}
   title="ObjectForm Component"
   description="Smart form with validation and schema integration"

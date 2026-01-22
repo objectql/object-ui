@@ -26,8 +26,9 @@ export interface ObjectTableProps {
   
   /**
    * ObjectQL data source
+   * Optional when inline data is provided in schema
    */
-  dataSource: ObjectQLDataSource;
+  dataSource?: ObjectQLDataSource;
   
   /**
    * Additional CSS class
@@ -90,10 +91,24 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
   const [columns, setColumns] = useState<TableColumn[]>([]);
   const [selectedRows, setSelectedRows] = useState<any[]>([]);
 
-  // Fetch object schema from ObjectQL
+  // Check if using inline data
+  const hasInlineData = Boolean(schema.data);
+
+  // Initialize with inline data if provided
+  useEffect(() => {
+    if (hasInlineData && schema.data) {
+      setData(schema.data);
+      setLoading(false);
+    }
+  }, [hasInlineData, schema.data]);
+
+  // Fetch object schema from ObjectQL (skip if using inline data)
   useEffect(() => {
     const fetchObjectSchema = async () => {
       try {
+        if (!dataSource) {
+          throw new Error('DataSource is required when using ObjectQL schema fetching (inline data not provided)');
+        }
         const schemaData = await dataSource.getObjectSchema(schema.objectName);
         setObjectSchema(schemaData);
       } catch (err) {
@@ -102,13 +117,43 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
       }
     };
 
-    if (schema.objectName && dataSource) {
+    // Skip fetching schema if we have inline data and custom columns
+    if (hasInlineData && schema.columns) {
+      // Use a minimal schema for inline data with type safety
+      setObjectSchema({
+        name: schema.objectName,
+        fields: {} as Record<string, any>,
+      });
+    } else if (schema.objectName && !hasInlineData && dataSource) {
       fetchObjectSchema();
     }
-  }, [schema.objectName, dataSource]);
+  }, [schema.objectName, schema.columns, dataSource, hasInlineData]);
 
-  // Generate columns from object schema
+  // Generate columns from object schema or inline data
   useEffect(() => {
+    // For inline data with custom columns, use the custom columns directly
+    if (hasInlineData && schema.columns) {
+      setColumns(schema.columns);
+      return;
+    }
+
+    // For inline data without custom columns, auto-generate from first data row
+    if (hasInlineData && schema.data && schema.data.length > 0) {
+      const generatedColumns: TableColumn[] = [];
+      const firstRow = schema.data[0];
+      const fieldsToShow = schema.fields || Object.keys(firstRow);
+      
+      fieldsToShow.forEach((fieldName) => {
+        generatedColumns.push({
+          header: fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' '),
+          accessorKey: fieldName,
+        });
+      });
+      
+      setColumns(generatedColumns);
+      return;
+    }
+
     if (!objectSchema) return;
 
     const generatedColumns: TableColumn[] = [];
@@ -215,11 +260,19 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
     }
 
     setColumns(generatedColumns);
-  }, [objectSchema, schema.fields, schema.columns, schema.operations, onEdit, onDelete]);
+  }, [objectSchema, schema.fields, schema.columns, schema.operations, schema.data, hasInlineData, onEdit, onDelete]);
 
-  // Fetch data from ObjectQL
+  // Fetch data from ObjectQL (skip if using inline data)
   const fetchData = useCallback(async () => {
+    // Don't fetch if using inline data
+    if (hasInlineData) return;
+    
     if (!schema.objectName) return;
+    if (!dataSource) {
+      setError(new Error('DataSource is required for remote data fetching (inline data not provided)'));
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -248,7 +301,7 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [schema, dataSource]);
+  }, [schema, dataSource, hasInlineData]);
 
   useEffect(() => {
     if (columns.length > 0) {
@@ -287,18 +340,22 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
         (item._id || item.id) !== recordId
       ));
 
-      // Call backend delete
-      await dataSource.delete(schema.objectName, recordId);
+      // Call backend delete only if we have a dataSource
+      if (!hasInlineData && dataSource) {
+        await dataSource.delete(schema.objectName, recordId);
+      }
 
       // Notify parent
       onDelete(record);
     } catch (err) {
       console.error('Failed to delete record:', err);
       // Revert optimistic update on error
-      await fetchData();
+      if (!hasInlineData) {
+        await fetchData();
+      }
       alert('Failed to delete record. Please try again.');
     }
-  }, [schema.objectName, dataSource, onDelete, fetchData]);
+  }, [schema.objectName, dataSource, hasInlineData, onDelete, fetchData]);
 
   // Handle bulk delete action
   const handleBulkDelete = useCallback(async (records: any[]) => {
@@ -319,8 +376,10 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
         !recordIds.includes(item._id || item.id)
       ));
 
-      // Call backend bulk delete
-      await dataSource.bulk(schema.objectName, 'delete', records);
+      // Call backend bulk delete only if we have a dataSource
+      if (!hasInlineData && dataSource) {
+        await dataSource.bulk(schema.objectName, 'delete', records);
+      }
 
       // Notify parent
       onBulkDelete(records);
@@ -330,10 +389,12 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
     } catch (err) {
       console.error('Failed to delete records:', err);
       // Revert optimistic update on error
-      await fetchData();
+      if (!hasInlineData) {
+        await fetchData();
+      }
       alert('Failed to delete records. Please try again.');
     }
-  }, [schema.objectName, dataSource, onBulkDelete, fetchData]);
+  }, [schema.objectName, dataSource, hasInlineData, onBulkDelete, fetchData]);
 
   // Handle row selection
   const handleRowSelect = useCallback((rows: any[]) => {

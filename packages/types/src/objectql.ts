@@ -56,6 +56,13 @@ export interface ObjectTableSchema extends BaseSchema {
   columns?: TableColumn[];
   
   /**
+   * Inline data for static/demo tables
+   * When provided, the table will use this data instead of fetching from a data source.
+   * Useful for documentation examples and prototyping.
+   */
+  data?: any[];
+  
+  /**
    * Enable/disable built-in operations
    */
   operations?: {
@@ -196,9 +203,17 @@ export interface ObjectFormSchema extends BaseSchema {
   
   /**
    * Custom field configurations
-   * Overrides auto-generated fields for specific fields
+   * Overrides auto-generated fields for specific fields.
+   * When used with inline field definitions (without dataSource), this becomes the primary field source.
    */
   customFields?: FormField[];
+  
+  /**
+   * Inline initial data for demo/static forms
+   * When provided along with customFields (or inline field definitions), the form can work without a data source.
+   * Useful for documentation examples and prototyping.
+   */
+  initialData?: Record<string, any>;
   
   /**
    * Field groups for organized layout
