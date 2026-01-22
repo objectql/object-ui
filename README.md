@@ -318,36 +318,57 @@ class MyCustomDataSource implements DataSource {
 
 ## 📚 Documentation
 
+Visit [**objectui.org**](https://www.objectui.org) for complete documentation.
+
 ### Getting Started
-- [Introduction](./docs/guide/introduction.md) - Learn what Object UI is and why it exists
 - [Quick Start](./docs/guide/quick-start.md) - Build your first app in 5 minutes
 - [Installation](./docs/guide/installation.md) - Detailed setup instructions
-- [Visual Studio](./docs/guide/studio.md) - Use the drag-and-drop designer
+- [Showcase](./docs/guide/showcase.md) - Interactive component gallery
+- [CLI Guide](./docs/guide/cli/getting-started.md) - Using the ObjectUI CLI
+- [Visual Studio](./docs/guide/studio.md) - Drag-and-drop designer
 
 ### Core Concepts
-- [Schema Rendering](./docs/spec/schema-rendering.md) - Understand the rendering system
-- [Architecture](./docs/spec/architecture.md) - Technical architecture overview
-- [Component System](./docs/spec/component.md) - How components work
+- [Schema Rendering](./docs/concepts/schema-rendering.md) - How the rendering system works
+- [Expressions](./docs/concepts/expressions.md) - Dynamic values and conditions
+- [Data Sources](./docs/concepts/data-source.md) - Connecting to APIs
+- [Component Registry](./docs/concepts/component-registry.md) - Registering custom components
+- [Plugins](./docs/concepts/plugins.md) - Extending ObjectUI
 
-### Data Integration
-- [ObjectQL Integration](./docs/integration/objectql.md) - Connect to ObjectQL backends
-- [Custom Data Sources](./packages/types/examples/rest-data-source.ts) - Build your own adapters
-
-### Protocol Specifications
-- [Protocol Overview](./docs/protocol/overview.md) - Complete protocol reference
-- [Form Protocol](./docs/protocol/form.md) - Form schema specification
-- [View Protocol](./docs/protocol/view.md) - Data view specifications
-- [Page Protocol](./docs/protocol/page.md) - Page layout specifications
+### Components & Plugins
+- [Component Library](./docs/components/) - Browse all available components
+- [Charts Plugin](./docs/plugins/plugin-charts.mdx) - Chart components
+- [Kanban Plugin](./docs/plugins/plugin-kanban.mdx) - Kanban boards
 
 ### API Reference
-- [Core API](./docs/api/core.md) - `@object-ui/core` API reference
-- [React API](./docs/api/react.md) - `@object-ui/react` API reference
-- [Components API](./docs/api/components.md) - Component library reference
-- [Designer API](./docs/api/designer.md) - Visual designer API
+- [Core API](./docs/reference/api/core.md) - `@object-ui/core` API
+- [React API](./docs/reference/api/react.md) - `@object-ui/react` API
+- [Components API](./docs/reference/api/components.md) - Component library API
+- [Designer API](./docs/reference/api/designer.md) - Visual designer API
 
-### Advanced
-- [Lazy-Loaded Plugins](./docs/lazy-loaded-plugins.md) - Plugin architecture
-- [Component Packages](./docs/spec/component-package.md) - Creating custom components
+### Protocol Specifications
+- [Protocol Overview](./docs/reference/protocol/overview.md) - Complete protocol reference
+- [Page Protocol](./docs/reference/protocol/page.md) - Page schema specification
+- [Form Protocol](./docs/reference/protocol/form.md) - Form schema specification
+- [View Protocol](./docs/reference/protocol/view.md) - Data view specifications
+- [CRUD Protocol](./docs/reference/protocol/crud.md) - CRUD operations
+
+### Architecture & Advanced
+- [Architecture](./docs/architecture/architecture.md) - System architecture overview
+- [Project Structure](./docs/architecture/project-structure.md) - Code organization
+- [Component System](./docs/architecture/component.md) - How components work
+- [Rendering Specification](./docs/architecture/rendering-specification.md) - Technical rendering spec
+
+### Ecosystem & Integration
+- [ObjectQL Integration](./docs/ecosystem/objectql.md) - Connect to ObjectQL backends
+- [API Integration](./docs/ecosystem/api.md) - REST API integration
+- [Deployment](./docs/ecosystem/deployment/showcase-deployment.md) - Deploy to production
+
+### Support & Resources
+- [FAQ](./docs/faq.md) - Frequently asked questions
+- [Troubleshooting](./docs/troubleshooting/index.md) - Common issues and solutions
+- [Security](./docs/security.md) - Security best practices
+- [Migration Guide](./docs/migration/from-objectstack.md) - Migrating from ObjectStack
+- [Examples](./docs/examples.md) - Learn from real-world examples
 
 ## 🎯 What Can You Build?
 
@@ -405,7 +426,7 @@ pnpm designer
 
 ## 🛣️ Roadmap
 
-See our [detailed roadmap](./docs/ROADMAP.md) for upcoming features and release timeline.
+See our [detailed roadmap](./docs/community/roadmap.md) for upcoming features and release timeline.
 
 **Q1 2026** (Available March 2026):
 - ✅ Core schema rendering
@@ -425,8 +446,9 @@ We welcome contributions! Please read our [Contributing Guide](./CONTRIBUTING.md
 
 ### For Developers
 
-- 📖 [Quick Start for Developers](./docs/quick-start-dev.md) - Get started in 5 minutes
-- 📋 [Development Plan](./docs/development-plan.md) - Current priorities and roadmap
+- 📖 [Contributing Guide](./CONTRIBUTING.md) - How to contribute to the project
+- 🏗️ [Architecture](./docs/architecture/architecture.md) - Technical architecture
+- 📚 [Best Practices](./docs/community/best-practices.md) - Code quality guidelines
 
 ### Development Setup
 
