@@ -41,7 +41,7 @@ describe('Feedback Renderers - Display Issue Detection', () => {
     it('should support loading message', () => {
       const { container } = renderComponent({
         type: 'loading',
-        message: 'Loading data...',
+        text: 'Loading data...',
       });
 
       expect(container.textContent).toContain('Loading');
@@ -263,9 +263,10 @@ describe('Overlay Renderers - Display Issue Detection', () => {
       const { container } = renderComponent({
         type: 'tooltip',
         content: 'Helpful tip',
-        body: [{ type: 'button', label: 'Hover me' }],
+        trigger: [{ type: 'button', label: 'Hover me' }],
       });
 
+      // Tooltip renders with trigger
       expect(container.textContent).toContain('Hover me');
     });
   });
