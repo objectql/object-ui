@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { SchemaRenderer } from '@object-ui/react';
 import type { SchemaNode } from '@object-ui/core';
 import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
@@ -8,6 +8,16 @@ import { CodeBlock, Pre } from 'fumadocs-ui/components/codeblock';
 
 // Re-export SchemaNode type for use in MDX files
 export type { SchemaNode } from '@object-ui/core';
+
+// Load plugins promise that we can await
+const pluginsLoading = typeof window !== 'undefined' 
+  ? Promise.all([
+      import('@object-ui/plugin-editor'),
+      import('@object-ui/plugin-charts'),
+      import('@object-ui/plugin-kanban'),
+      import('@object-ui/plugin-markdown'),
+    ])
+  : Promise.resolve([]);
 
 interface InteractiveDemoProps {
   schema: SchemaNode;
@@ -29,6 +39,15 @@ export function InteractiveDemo({
   description,
   examples 
 }: InteractiveDemoProps) {
+  const [pluginsLoaded, setPluginsLoaded] = useState(false);
+
+  useEffect(() => {
+    // Wait for plugins to load before rendering
+    pluginsLoading.then(() => {
+      setPluginsLoaded(true);
+    });
+  }, []);
+
   // If examples are provided, show a multi-example view
   if (examples && examples.length > 0) {
     return (
@@ -41,23 +60,27 @@ export function InteractiveDemo({
         )}
         <Tabs items={['Preview', 'Code']} defaultIndex={0}>
           <Tab value="Preview">
-            <div className="space-y-6">
-              {examples.map((example, index) => (
-                <div key={index} className="border rounded-lg overflow-hidden">
-                  {example.label && (
-                    <div className="border-b bg-muted px-4 py-2">
-                      <p className="text-sm font-medium">{example.label}</p>
-                      {example.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{example.description}</p>
-                      )}
+            {!pluginsLoaded ? (
+              <div className="p-6 text-center text-muted-foreground">Loading plugins...</div>
+            ) : (
+              <div className="space-y-6">
+                {examples.map((example, index) => (
+                  <div key={index} className="border rounded-lg overflow-hidden">
+                    {example.label && (
+                      <div className="border-b bg-muted px-4 py-2">
+                        <p className="text-sm font-medium">{example.label}</p>
+                        {example.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{example.description}</p>
+                        )}
+                      </div>
+                    )}
+                    <div className="p-6 bg-background">
+                      <SchemaRenderer schema={example.schema} />
                     </div>
-                  )}
-                  <div className="p-6 bg-background">
-                    <SchemaRenderer schema={example.schema} />
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Tab>
           <Tab value="Code">
             <div className="space-y-4">
@@ -92,7 +115,11 @@ export function InteractiveDemo({
       <Tabs items={['Preview', 'Code']} defaultIndex={0}>
         <Tab value="Preview">
           <div className="border rounded-lg p-6 bg-background">
-            <SchemaRenderer schema={schema} />
+            {!pluginsLoaded ? (
+              <div className="text-center text-muted-foreground">Loading plugins...</div>
+            ) : (
+              <SchemaRenderer schema={schema} />
+            )}
           </div>
         </Tab>
         <Tab value="Code">
