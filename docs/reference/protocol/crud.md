@@ -497,5 +497,5 @@ See [examples/user-management](../../examples/user-management) for a complete wo
 
 - [Action Schema](./action.md)
 - [Detail Schema](./detail.md)
-- [API Integration](/docs/ecosystem/api)
+- [API Integration](/ecosystem/api.md)
 - [Event Handling](./events.md)

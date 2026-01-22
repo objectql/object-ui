@@ -459,10 +459,10 @@ export { RatingComponent }
 
 - [Expression System](./expressions.md) - Learn about dynamic expressions
 - [Schema Rendering](./schema-rendering.md) - Understand the rendering engine
-- [Creating Custom Components](/docs/architecture/component-package) - Deep dive into component creation
+- [Creating Custom Components](/spec/component-package.md) - Deep dive into component creation
 
 ## Related Documentation
 
-- [Core API](/docs/reference/api/core) - Component registry API
-- [React API](/docs/reference/api/react) - React integration
-- [Component Specification](/docs/architecture/component) - Component metadata spec
+- [Core API](/api/core) - Component registry API
+- [React API](/api/react) - React integration
+- [Component Specification](/spec/component.md) - Component metadata spec

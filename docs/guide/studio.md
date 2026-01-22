@@ -189,10 +189,10 @@ It is **not** designed for:
 
 ## What's Next?
 
-- [Read the full guide](/docs/guide)
-- [Explore the API reference](/docs/reference/api/react)
-- [Check out component specifications](/docs/reference/protocol/overview)
-- [View the project roadmap](https://github.com/objectstack-ai/objectui)
+- [Read the full guide](/docs/guide/introduction)
+- [Explore the API reference](/docs/api/react)
+- [Check out component specifications](/docs/protocol/overview)
+- [View the project roadmap](/ROADMAP)
 
 ## Feedback
 

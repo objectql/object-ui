@@ -213,7 +213,7 @@ Use relative links for internal documentation:
 
 ```markdown
 See [Schema Rendering](./schema-rendering.md) for details.
-See [Protocol Overview](/docs/reference/protocol/overview) for specs.
+See [Protocol Overview](/protocol/overview) for specs.
 ```
 
 ### Front Matter

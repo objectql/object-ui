@@ -19,7 +19,7 @@ node scripts/validate-docs-links.mjs
 
 **What it checks**:
 - ✅ Links point to existing files and routes
-- ✅ Links use correct path structure with `/docs/` prefix
+- ✅ Links do NOT incorrectly include `/docs/` prefix
 - ✅ Provides suggestions for fixing common issues
 
 **Exit codes**:
@@ -35,24 +35,24 @@ When adding internal links in documentation, follow these patterns:
 ### ✅ Correct
 
 ```markdown
-[Quick Start](/docs/guide/quick-start)
-[Components](/docs/components)
-[API Reference](/docs/reference/api/core)
-[Protocol](/docs/reference/protocol/overview)
-[Architecture](/docs/architecture/component)
+[Quick Start](/guide/quick-start)
+[Components](/components)
+[API Reference](/reference/api/core)
+[Protocol](/reference/protocol/overview)
+[Architecture](/architecture/component)
 ```
 
 ### ❌ Incorrect
 
 ```markdown
-[Quick Start](/guide/quick-start)       <!-- ❌ Missing /docs/ prefix -->
-[API](/api/core)                        <!-- ❌ Should be /docs/reference/api/core -->
-[Spec](/spec/component)                 <!-- ❌ Should be /docs/architecture/component -->
+[Quick Start](/docs/guide/quick-start)  <!-- ❌ Don't include /docs/ prefix -->
+[API](/api/core)                        <!-- ❌ Should be /reference/api/core -->
+[Spec](/spec/component)                 <!-- ❌ Should be /architecture/component -->
 ```
 
 ## Why These Conventions?
 
-Fumadocs is configured with `baseUrl: '/docs'`, which means all documentation pages are served under the `/docs` route. Internal links must include the `/docs/` prefix to match the actual URL structure where the pages are accessible.
+Fumadocs is configured with `baseUrl: '/docs'`, which automatically prepends `/docs` to all internal links at runtime. If you include `/docs/` in your markdown links, the final URL will be `/docs/docs/...` (double prefix), causing 404 errors.
 
 ## See Also
 

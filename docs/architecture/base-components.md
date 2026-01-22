@@ -14,7 +14,7 @@ This specification defines the metadata structure for ObjectQL's built-in platfo
 - Enable marketplace distribution
 
 **Scope:** This document covers the complete metadata specification for all platform base components, including data display, data entry, layout, navigation, and visualization components.
-For the low-level UI component library (Button, Input, Dialog, etc.), please refer to the [Component Library Reference](/docs/architecture/component-library).
+For the low-level UI component library (Button, Input, Dialog, etc.), please refer to the [Component Library Reference](component-library.md).
 
 ## 2. Base Component Categories
 

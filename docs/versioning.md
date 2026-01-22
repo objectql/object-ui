@@ -67,7 +67,7 @@ All packages in the ObjectUI monorepo are versioned together:
 
 ## Changelog
 
-All changes are documented in [CHANGELOG.md](https://github.com/objectstack-ai/objectui/blob/main/CHANGELOG.md) following [Keep a Changelog](https://keepachangelog.com/) format.
+All changes are documented in [CHANGELOG.md](/CHANGELOG.md) following [Keep a Changelog](https://keepachangelog.com/) format.
 
 ### Changelog Categories
 
@@ -226,7 +226,7 @@ Features marked as "experimental" may change without notice:
 
 ### Where to Find Release Notes
 
-- [CHANGELOG.md](https://github.com/objectstack-ai/objectui/blob/main/CHANGELOG.md) - Detailed changes
+- [CHANGELOG.md](/CHANGELOG.md) - Detailed changes
 - [GitHub Releases](https://github.com/objectstack-ai/objectui/releases) - Release highlights
 - [Blog](https://blog.objectui.org) - Feature announcements
 - [Twitter](https://twitter.com/objectui) - Quick updates

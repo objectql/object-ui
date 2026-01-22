@@ -61,8 +61,8 @@ jobs:
             const message = `⚠️ **Documentation Links Validation Found Issues**\n\n` +
               `The validation tool found broken links in the documentation. Run \`pnpm validate:links\` locally to see details.\n\n` +
               `Common issues:\n` +
-              `- Missing \`/docs/\` prefix (internal links should use \`/docs/...\`)\n` +
-              `- Incorrect paths (e.g., \`/api/core\` should be \`/docs/reference/api/core\`, \`/spec/\` should be \`/docs/architecture/\`)\n` +
+              `- Incorrectly including \`/docs/\` prefix (fumadocs adds this automatically, so links should NOT include it)\n` +
+              `- Incorrect paths (e.g., \`/api/core\` should be \`/reference/api/core\`, \`/spec/\` should be \`/architecture/\`)\n` +
               `- Links to non-existent files or routes\n\n` +
               `ℹ️ This is informational only and does not fail the build. Fix these issues in a follow-up PR if needed.`;
             github.rest.issues.createComment({

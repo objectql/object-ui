@@ -10,13 +10,13 @@ The protocol is organized into several core types, each representing a different
 
 ### Core Types
 
-- **[Object](/docs/reference/protocol/object)** 📝 Planned - Data models and CRUD operations
-- **[View](/docs/reference/protocol/view)** ✅ Implemented - Data visualization (list, table, kanban, etc.)
-- **[Page](/docs/reference/protocol/page)** 🚧 Partial - Page layouts and structure
-- **[Form](/docs/reference/protocol/form)** ✅ Implemented - Form definitions and validation
-- **[Menu](/docs/reference/protocol/menu)** 🚧 Partial - Navigation menus and breadcrumbs
-- **[App](/docs/reference/protocol/app)** 📝 Planned - Application configuration
-- **[Report](/docs/reference/protocol/report)** 📝 Planned - Reports and analytics
+- **[Object](/protocol/object)** 📝 Planned - Data models and CRUD operations
+- **[View](/protocol/view)** ✅ Implemented - Data visualization (list, table, kanban, etc.)
+- **[Page](/protocol/page)** 🚧 Partial - Page layouts and structure
+- **[Form](/protocol/form)** ✅ Implemented - Form definitions and validation
+- **[Menu](/protocol/menu)** 🚧 Partial - Navigation menus and breadcrumbs
+- **[App](/protocol/app)** 📝 Planned - Application configuration
+- **[Report](/protocol/report)** 📝 Planned - Reports and analytics
 
 ## Design Principles
 
@@ -256,9 +256,9 @@ Help us improve the protocol:
 
 ## Next Steps
 
-- [Object Protocol](/docs/reference/protocol/object) - Learn about data models
-- [View Protocol](/docs/reference/protocol/view) - Understand data visualization
-- [Page Protocol](/docs/reference/protocol/page) - Master page layouts
+- [Object Protocol](/protocol/object) - Learn about data models
+- [View Protocol](/protocol/view) - Understand data visualization
+- [Page Protocol](/protocol/page) - Master page layouts
 
 ---
 

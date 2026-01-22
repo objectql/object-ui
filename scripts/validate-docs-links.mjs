@@ -107,31 +107,32 @@ function validateLink(link) {
   // Extract the path (remove anchors and query strings)
   let linkPath = url.split('#')[0].split('?')[0];
   
-  // Normalize path - fumadocs internal links should start with /docs/
+  // Normalize path
   if (!linkPath.startsWith('/')) {
     linkPath = '/' + linkPath;
   }
   
-  // For fumadocs, internal documentation links should include /docs/ prefix
-  // since baseUrl: '/docs' defines the route prefix, not a substitution
-  let routePath = linkPath;
+  // IMPORTANT: In fumadocs, internal links should NOT include the baseUrl prefix
+  // The baseUrl ('/docs') is automatically prepended by fumadocs at runtime
+  // So links should be like: /guide/quick-start (not /docs/guide/quick-start)
+  
+  // Check if link incorrectly includes /docs/ prefix
   if (linkPath.startsWith('/docs/')) {
-    // Remove /docs/ prefix to check against available routes
-    routePath = linkPath.substring(5) || '/';
-  } else if (linkPath !== '/' && !linkPath.startsWith('/docs')) {
-    // Links that don't start with /docs/ might be missing the prefix
-    WARNINGS.push({
+    ERRORS.push({
       file: filePath,
       line,
       link: url,
-      message: `Link might be missing /docs/ prefix. Internal links should use /docs/... to match the route structure.`
+      text,
+      error: 'Link incorrectly includes /docs/ prefix. Fumadocs automatically adds the baseUrl, so links should not include it.',
+      suggestion: url.replace('/docs/', '/')
     });
+    return;
   }
   
   // Remove trailing slash for comparison
-  const normalizedPath = routePath.replace(/\/$/, '') || '/';
+  const normalizedPath = linkPath.replace(/\/$/, '') || '/';
   
-  // Check if route exists (after removing /docs/ prefix)
+  // Check if route exists
   if (!VALID_ROUTES.has(normalizedPath) && normalizedPath !== '' && normalizedPath !== '/') {
     ERRORS.push({
       file: filePath,
@@ -160,20 +161,20 @@ function findSimilarRoute(route) {
       const validLastPart = validParts[validParts.length - 1];
       
       if (lastPart === validLastPart) {
-        return `Did you mean: /docs${validRoute}?`;
+        return `Did you mean: ${validRoute}?`;
       }
     }
   }
   
   // Check for common patterns
   if (route.startsWith('/api/')) {
-    return 'API docs are under /docs/reference/api/';
+    return 'API docs are under /reference/api/';
   }
   if (route.startsWith('/spec/')) {
-    return 'Spec docs are under /docs/architecture/';
+    return 'Spec docs are under /architecture/';
   }
   if (route.startsWith('/protocol/')) {
-    return 'Protocol docs are under /docs/reference/protocol/';
+    return 'Protocol docs are under /reference/protocol/';
   }
   
   return null;

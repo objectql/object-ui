@@ -486,7 +486,7 @@ The ObjectQL Studio provides a visual interface for:
 - [Application Configuration](./application.md)
 - [Form Specification](./form.md)
 - [View Specification](./view.md)
-- [Component Library](/docs/components)
+- [Component Library](/guide/components.md)
 
 ### 1.5 JSON Logic & Expressions
 
@@ -496,4 +496,4 @@ The schema supports expression evaluation for dynamic behavior, using a syntax s
 - **Ternary**: `${isAdmin ? 'Show' : 'Hide'}`
 - **Filters**: `${value | date: 'YYYY-MM-DD'}`
 
-See [Schema Rendering Specification](/docs/concepts/schema-rendering) for deeper details on the rendering engine.
+See [Schema Rendering Specification](/community/architecture/specs/schema-rendering.md) for deeper details on the rendering engine.

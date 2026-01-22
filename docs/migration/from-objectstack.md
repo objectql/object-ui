@@ -148,7 +148,7 @@ The integration follows this hierarchy:
 
 If you encounter any issues:
 
-1. Check the [adapter README](https://github.com/objectstack-ai/objectui/tree/main/packages/core/src/adapters)
+1. Check the [adapter README](packages/core/src/adapters/README.md)
 2. Review the [ObjectStack spec](https://github.com/objectstack-ai/spec)
 3. Open an issue on GitHub
 
