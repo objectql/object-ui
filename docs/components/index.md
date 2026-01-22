@@ -11,28 +11,28 @@ ObjectUI provides a comprehensive set of components built on React, Tailwind CSS
 
 Browse components by category to find what you need:
 
-### [Basic Components](/components/basic/text)
+### [Basic Components](/docs/components/basic/text)
 Essential building blocks: Text, Icon, Image, Separator, HTML
 
-### [Form Components](/components/form/button)
+### [Form Components](/docs/components/form/button)
 Interactive inputs: Button, Input, Select, Checkbox, Switch, Textarea, Slider
 
-### [Layout Components](/components/layout/container)
+### [Layout Components](/docs/components/layout/container)
 Structure your UI: Container, Card, Grid, Flex, Stack, Tabs
 
-### [Data Display](/components/data-display/badge)
+### [Data Display](/docs/components/data-display/badge)
 Show information: Badge, Avatar, Alert, List
 
-### [Feedback Components](/components/feedback/loading)
+### [Feedback Components](/docs/components/feedback/loading)
 User feedback: Loading, Progress, Skeleton
 
-### [Overlay Components](/components/overlay/dialog)
+### [Overlay Components](/docs/components/overlay/dialog)
 Floating elements: Dialog, Drawer, Tooltip, Popover
 
-### [Disclosure Components](/components/disclosure/accordion)
+### [Disclosure Components](/docs/components/disclosure/accordion)
 Show/hide content: Accordion, Collapsible
 
-### [Complex Components](/components/complex/table)
+### [Complex Components](/docs/components/complex/table)
 Advanced patterns: Table (with sorting, filtering, pagination)
 
 ## Component Categories
@@ -41,73 +41,73 @@ Advanced patterns: Table (with sorting, filtering, pagination)
 
 The foundation of your UI. These are simple, single-purpose components:
 
-- **[Text](/components/basic/text)** - Display text with typography control
-- **[Icon](/components/basic/icon)** - Render icons from Lucide React
-- **[Image](/components/basic/image)** - Display images with lazy loading
-- **[Separator](/components/basic/separator)** - Visual divider between content
-- **[HTML](/components/basic/html)** - Render raw HTML content
+- **[Text](/docs/components/basic/text)** - Display text with typography control
+- **[Icon](/docs/components/basic/icon)** - Render icons from Lucide React
+- **[Image](/docs/components/basic/image)** - Display images with lazy loading
+- **[Separator](/docs/components/basic/separator)** - Visual divider between content
+- **[HTML](/docs/components/basic/html)** - Render raw HTML content
 
 ### Form Components
 
 Interactive elements for user input:
 
-- **[Button](/components/form/button)** - Trigger actions with multiple variants
-- **[Input](/components/form/input)** - Text input with validation
-- **[Select](/components/form/select)** - Dropdown selection
-- **[Checkbox](/components/form/checkbox)** - Boolean selection
-- **[Switch](/components/form/switch)** - Toggle switch
-- **[Textarea](/components/form/textarea)** - Multi-line text input
-- **[Slider](/components/form/slider)** - Numeric range selection
+- **[Button](/docs/components/form/button)** - Trigger actions with multiple variants
+- **[Input](/docs/components/form/input)** - Text input with validation
+- **[Select](/docs/components/form/select)** - Dropdown selection
+- **[Checkbox](/docs/components/form/checkbox)** - Boolean selection
+- **[Switch](/docs/components/form/switch)** - Toggle switch
+- **[Textarea](/docs/components/form/textarea)** - Multi-line text input
+- **[Slider](/docs/components/form/slider)** - Numeric range selection
 
 ### Layout Components
 
 Structure and organize your interface:
 
-- **[Container](/components/layout/container)** - Responsive container with max-width
-- **[Card](/components/layout/card)** - Content card with header and footer
-- **[Grid](/components/layout/grid)** - CSS Grid layout
-- **[Flex](/components/layout/flex)** - Flexbox layout
-- **[Stack](/components/layout/stack)** - Vertical or horizontal stack
-- **[Tabs](/components/layout/tabs)** - Tabbed interface
+- **[Container](/docs/components/layout/container)** - Responsive container with max-width
+- **[Card](/docs/components/layout/card)** - Content card with header and footer
+- **[Grid](/docs/components/layout/grid)** - CSS Grid layout
+- **[Flex](/docs/components/layout/flex)** - Flexbox layout
+- **[Stack](/docs/components/layout/stack)** - Vertical or horizontal stack
+- **[Tabs](/docs/components/layout/tabs)** - Tabbed interface
 
 ### Data Display
 
 Present data to users:
 
-- **[Badge](/components/data-display/badge)** - Small status indicators
-- **[Avatar](/components/data-display/avatar)** - User profile images
-- **[Alert](/components/data-display/alert)** - Contextual messages
-- **[List](/components/data-display/list)** - Ordered or unordered lists
+- **[Badge](/docs/components/data-display/badge)** - Small status indicators
+- **[Avatar](/docs/components/data-display/avatar)** - User profile images
+- **[Alert](/docs/components/data-display/alert)** - Contextual messages
+- **[List](/docs/components/data-display/list)** - Ordered or unordered lists
 
 ### Feedback Components
 
 Provide visual feedback:
 
-- **[Loading](/components/feedback/loading)** - Loading spinner
-- **[Progress](/components/feedback/progress)** - Progress bar
-- **[Skeleton](/components/feedback/skeleton)** - Loading placeholder
+- **[Loading](/docs/components/feedback/loading)** - Loading spinner
+- **[Progress](/docs/components/feedback/progress)** - Progress bar
+- **[Skeleton](/docs/components/feedback/skeleton)** - Loading placeholder
 
 ### Overlay Components
 
 Floating UI elements:
 
-- **[Dialog](/components/overlay/dialog)** - Modal dialog
-- **[Drawer](/components/overlay/drawer)** - Slide-out drawer
-- **[Tooltip](/components/overlay/tooltip)** - Hover tooltips
-- **[Popover](/components/overlay/popover)** - Floating popover
+- **[Dialog](/docs/components/overlay/dialog)** - Modal dialog
+- **[Drawer](/docs/components/overlay/drawer)** - Slide-out drawer
+- **[Tooltip](/docs/components/overlay/tooltip)** - Hover tooltips
+- **[Popover](/docs/components/overlay/popover)** - Floating popover
 
 ### Disclosure Components
 
 Expandable content:
 
-- **[Accordion](/components/disclosure/accordion)** - Expandable sections
-- **[Collapsible](/components/disclosure/collapsible)** - Toggle content visibility
+- **[Accordion](/docs/components/disclosure/accordion)** - Expandable sections
+- **[Collapsible](/docs/components/disclosure/collapsible)** - Toggle content visibility
 
 ### Complex Components
 
 Advanced, feature-rich components:
 
-- **[Table](/components/complex/table)** - Data table with sorting, filtering, and pagination
+- **[Table](/docs/components/complex/table)** - Data table with sorting, filtering, and pagination
 
 ## Usage Pattern
 
@@ -175,15 +175,15 @@ All ObjectUI components share these characteristics:
 
 ## Next Steps
 
-- **[Quick Start Guide](/guide/quick-start)** - Build your first ObjectUI app
-- **[Schema Rendering](/concepts/schema-rendering)** - Learn how the engine works
-- **[Component Registry](/concepts/component-registry)** - Register custom components
-- **[Expressions](/concepts/expressions)** - Dynamic values with expressions
+- **[Quick Start Guide](/docs/guide/quick-start)** - Build your first ObjectUI app
+- **[Schema Rendering](/docs/concepts/schema-rendering)** - Learn how the engine works
+- **[Component Registry](/docs/concepts/component-registry)** - Register custom components
+- **[Expressions](/docs/concepts/expressions)** - Dynamic values with expressions
 
 ## Need Help?
 
 Can't find what you're looking for? Check out:
 
-- [Concepts](/concepts) - Core concepts and architecture
-- [Advanced](/reference) - API documentation and protocol specs
+- [Concepts](/docs/concepts) - Core concepts and architecture
+- [Advanced](/docs/reference) - API documentation and protocol specs
 - [GitHub](https://github.com/objectstack-ai/objectui) - Report issues or contribute

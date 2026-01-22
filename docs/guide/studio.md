@@ -189,9 +189,9 @@ It is **not** designed for:
 
 ## What's Next?
 
-- [Read the full guide](/guide/introduction)
-- [Explore the API reference](/api/react)
-- [Check out component specifications](/protocol/overview)
+- [Read the full guide](/docs/guide/introduction)
+- [Explore the API reference](/docs/api/react)
+- [Check out component specifications](/docs/protocol/overview)
 - [View the project roadmap](/ROADMAP)
 
 ## Feedback

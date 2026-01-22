@@ -11,26 +11,26 @@ ObjectUI plugins are lazy-loaded component packages that extend the framework wi
 
 Browse available plugins:
 
-### [Charts Plugin](/plugins/plugin-charts)
+### [Charts Plugin](/docs/plugins/plugin-charts)
 Data visualization with Recharts - Bar, Line, Area, and Pie charts
 
-### [Editor Plugin](/plugins/plugin-editor)
+### [Editor Plugin](/docs/plugins/plugin-editor)
 Code editor powered by Monaco Editor (VS Code's editor)
 
-### [Kanban Plugin](/plugins/plugin-kanban)
+### [Kanban Plugin](/docs/plugins/plugin-kanban)
 Kanban board with drag-and-drop functionality
 
-### [Markdown Plugin](/plugins/plugin-markdown)
+### [Markdown Plugin](/docs/plugins/plugin-markdown)
 Markdown renderer with GitHub Flavored Markdown support
 
-### [Object Plugin](/plugins/plugin-object)
+### [Object Plugin](/docs/plugins/plugin-object)
 Advanced object data management and visualization
 
 ## Official Plugins
 
 ### Charts Plugin
 
-**[@object-ui/plugin-charts](/plugins/plugin-charts)** - Data visualization components powered by Recharts.
+**[@object-ui/plugin-charts](/docs/plugins/plugin-charts)** - Data visualization components powered by Recharts.
 
 - Bar, line, area, and pie charts
 - Responsive design
@@ -41,13 +41,13 @@ Advanced object data management and visualization
 npm install @object-ui/plugin-charts
 ```
 
-[Read full documentation →](/plugins/plugin-charts)
+[Read full documentation →](/docs/plugins/plugin-charts)
 
 ---
 
 ### Editor Plugin
 
-**[@object-ui/plugin-editor](/plugins/plugin-editor)** - Code editor component powered by Monaco Editor (VS Code's editor).
+**[@object-ui/plugin-editor](/docs/plugins/plugin-editor)** - Code editor component powered by Monaco Editor (VS Code's editor).
 
 - Syntax highlighting for 100+ languages
 - IntelliSense and code completion
@@ -58,13 +58,13 @@ npm install @object-ui/plugin-charts
 npm install @object-ui/plugin-editor
 ```
 
-[Read full documentation →](/plugins/plugin-editor)
+[Read full documentation →](/docs/plugins/plugin-editor)
 
 ---
 
 ### Kanban Plugin
 
-**[@object-ui/plugin-kanban](/plugins/plugin-kanban)** - Kanban board component with drag-and-drop powered by @dnd-kit.
+**[@object-ui/plugin-kanban](/docs/plugins/plugin-kanban)** - Kanban board component with drag-and-drop powered by @dnd-kit.
 
 - Drag and drop cards between columns
 - Column limits (WIP limits)
@@ -75,13 +75,13 @@ npm install @object-ui/plugin-editor
 npm install @object-ui/plugin-kanban
 ```
 
-[Read full documentation →](/plugins/plugin-kanban)
+[Read full documentation →](/docs/plugins/plugin-kanban)
 
 ---
 
 ### Markdown Plugin
 
-**[@object-ui/plugin-markdown](/plugins/plugin-markdown)** - Markdown renderer with GitHub Flavored Markdown support.
+**[@object-ui/plugin-markdown](/docs/plugins/plugin-markdown)** - Markdown renderer with GitHub Flavored Markdown support.
 
 - GitHub Flavored Markdown
 - XSS protection
@@ -92,13 +92,13 @@ npm install @object-ui/plugin-kanban
 npm install @object-ui/plugin-markdown
 ```
 
-[Read full documentation →](/plugins/plugin-markdown)
+[Read full documentation →](/docs/plugins/plugin-markdown)
 
 ---
 
 ### Object Plugin
 
-**[@object-ui/plugin-object](/plugins/plugin-object)** - Advanced object data management and visualization.
+**[@object-ui/plugin-object](/docs/plugins/plugin-object)** - Advanced object data management and visualization.
 
 - Object data rendering
 - Complex data structures support
@@ -108,7 +108,7 @@ npm install @object-ui/plugin-markdown
 npm install @object-ui/plugin-object
 ```
 
-[Read full documentation →](/plugins/plugin-object)
+[Read full documentation →](/docs/plugins/plugin-object)
 
 ---
 
@@ -230,15 +230,15 @@ All ObjectUI plugins share these characteristics:
 
 ## Next Steps
 
-- **[Plugin Concepts](/concepts/plugins)** - Learn how plugins work in detail
-- **[Quick Start Guide](/guide/quick-start)** - Build your first ObjectUI app
-- **[Component Gallery](/components)** - Explore core components
-- **[Schema Rendering](/concepts/schema-rendering)** - Learn how the engine works
+- **[Plugin Concepts](/docs/concepts/plugins)** - Learn how plugins work in detail
+- **[Quick Start Guide](/docs/guide/quick-start)** - Build your first ObjectUI app
+- **[Component Gallery](/docs/components)** - Explore core components
+- **[Schema Rendering](/docs/concepts/schema-rendering)** - Learn how the engine works
 
 ## Need Help?
 
 Can't find what you're looking for? Check out:
 
-- [Concepts](/concepts) - Core concepts and architecture
-- [Advanced](/reference) - API documentation and protocol specs
+- [Concepts](/docs/concepts) - Core concepts and architecture
+- [Advanced](/docs/reference) - API documentation and protocol specs
 - [GitHub](https://github.com/objectstack-ai/objectui) - Report issues or contribute
