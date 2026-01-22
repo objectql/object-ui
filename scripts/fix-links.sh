@@ -3,9 +3,11 @@
 
 set -e
 
-DOCS_DIR="/home/runner/work/objectui/objectui/docs"
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOCS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/docs"
 
-echo "Fixing broken documentation links..."
+echo "Fixing broken documentation links in: $DOCS_DIR"
 
 # Fix /docs/ prefix (fumadocs baseUrl is already /docs, so links should not include it)
 find "$DOCS_DIR" -type f \( -name "*.md" -o -name "*.mdx" \) -exec sed -i 's|](/docs/plugins/|](/plugins/|g' {} +

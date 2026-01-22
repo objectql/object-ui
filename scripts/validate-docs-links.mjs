@@ -63,17 +63,21 @@ function scanDirectory(dir, baseRoute = '') {
 function extractLinks(content, filePath) {
   const links = [];
   
-  // Match markdown links: [text](url)
-  const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  // Match markdown inline links: [text](url)
+  const inlineLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
   let match;
   
-  while ((match = linkRegex.exec(content)) !== null) {
+  while ((match = inlineLinkRegex.exec(content)) !== null) {
     const text = match[1];
     const url = match[2];
     const line = content.substring(0, match.index).split('\n').length;
     
     links.push({ text, url, line, filePath });
   }
+  
+  // Note: Reference-style links ([text][ref]) are not commonly used in this codebase
+  // and are typically resolved at build time by the documentation framework.
+  // If needed in the future, add support here.
   
   return links;
 }

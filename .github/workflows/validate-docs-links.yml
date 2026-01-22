@@ -31,6 +31,9 @@ jobs:
         with:
           node-version: '20.x'
 
+      # Note: The validation script uses only Node.js built-in modules
+      # (fs, path, url) and requires no external dependencies
+
       - name: Validate documentation links
         id: validate
         run: |
