@@ -1,0 +1,217 @@
+---
+title: "Scroll Area"
+description: "Customizable scrollable container with styled scrollbars"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Scroll Area component provides a scrollable container with styled scrollbars that match your design system.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'scroll-area',
+    height: '200px',
+    className: 'rounded-md border p-4',
+    content: [
+      { 
+        type: 'div',
+        children: [
+          { type: 'text', content: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.' }
+        ]
+      }
+    ]
+  }}
+  title="Vertical Scroll"
+/>
+
+## Horizontal Scroll
+
+<ComponentDemo
+  schema={{
+    type: 'scroll-area',
+    width: '100%',
+    height: '150px',
+    orientation: 'horizontal',
+    className: 'rounded-md border',
+    content: [
+      {
+        type: 'flex',
+        gap: 4,
+        className: 'p-4',
+        children: Array.from({ length: 10 }, (_, i) => ({
+          type: 'div',
+          className: 'w-40 h-32 bg-slate-200 rounded flex-shrink-0 flex items-center justify-center',
+          children: [{ type: 'text', content: `Item ${i + 1}` }]
+        }))
+      }
+    ]
+  }}
+  title="Horizontal Scroll"
+/>
+
+## Custom Heights
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'scroll-area',
+      height: '150px',
+      className: 'rounded-md border p-4',
+      content: [
+        {
+          type: 'div',
+          className: 'space-y-2',
+          children: Array.from({ length: 20 }, (_, i) => ({
+            type: 'text',
+            content: `Line ${i + 1}`,
+            className: 'block'
+          }))
+        }
+      ]
+    }}
+    title="Short (150px)"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'scroll-area',
+      height: '300px',
+      className: 'rounded-md border p-4',
+      content: [
+        {
+          type: 'div',
+          className: 'space-y-2',
+          children: Array.from({ length: 30 }, (_, i) => ({
+            type: 'text',
+            content: `Line ${i + 1}`,
+            className: 'block'
+          }))
+        }
+      ]
+    }}
+    title="Tall (300px)"
+  />
+</DemoGrid>
+
+## Schema
+
+```typescript
+interface ScrollAreaSchema {
+  type: 'scroll-area';
+  
+  // Dimensions
+  height?: string;                      // Container height (e.g., '200px', '50vh')
+  width?: string;                       // Container width (default: '100%')
+  
+  // Configuration
+  orientation?: 'vertical' | 'horizontal' | 'both';  // Scroll direction (default: 'vertical')
+  
+  // Content
+  content?: SchemaNode | SchemaNode[];  // Scrollable content
+  children?: SchemaNode | SchemaNode[]; // Alternative content prop
+  
+  // Styling
+  className?: string;                   // Tailwind CSS classes
+  
+  // Base properties
+  id?: string;
+  visible?: boolean | string;
+  testId?: string;
+}
+```
+
+## Examples
+
+### Message List
+
+<ComponentDemo
+  schema={{
+    type: 'scroll-area',
+    height: '300px',
+    className: 'rounded-md border',
+    content: [
+      {
+        type: 'div',
+        className: 'p-4 space-y-3',
+        children: Array.from({ length: 15 }, (_, i) => ({
+          type: 'div',
+          className: 'flex gap-3 p-3 rounded-lg bg-slate-50 hover:bg-slate-100',
+          children: [
+            {
+              type: 'div',
+              className: 'w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold flex-shrink-0',
+              children: [{ type: 'text', content: String.fromCharCode(65 + (i % 26)) }]
+            },
+            {
+              type: 'div',
+              className: 'flex-1',
+              children: [
+                { type: 'text', content: `User ${i + 1}`, className: 'font-semibold block' },
+                { type: 'text', content: 'This is a sample message...', className: 'text-sm text-muted-foreground block' }
+              ]
+            }
+          ]
+        }))
+      }
+    ]
+  }}
+  title="Chat Messages"
+/>
+
+### File List
+
+<ComponentDemo
+  schema={{
+    type: 'scroll-area',
+    height: '250px',
+    className: 'rounded-md border',
+    content: [
+      {
+        type: 'div',
+        className: 'divide-y',
+        children: Array.from({ length: 20 }, (_, i) => ({
+          type: 'div',
+          className: 'p-3 hover:bg-slate-50 cursor-pointer flex items-center gap-3',
+          children: [
+            { type: 'text', content: '📄', className: 'text-2xl' },
+            {
+              type: 'div',
+              children: [
+                { type: 'text', content: `document_${i + 1}.pdf`, className: 'block font-medium' },
+                { type: 'text', content: `${Math.floor(Math.random() * 500)}KB`, className: 'text-xs text-muted-foreground block' }
+              ]
+            }
+          ]
+        }))
+      }
+    ]
+  }}
+  title="Document Browser"
+/>
+
+### Code Block
+
+<ComponentDemo
+  schema={{
+    type: 'scroll-area',
+    height: '200px',
+    width: '100%',
+    orientation: 'both',
+    className: 'rounded-md border bg-slate-950 text-slate-50',
+    content: [
+      {
+        type: 'div',
+        className: 'p-4 font-mono text-sm',
+        children: [
+          { 
+            type: 'text', 
+            content: `function example() {\n  const data = { name: 'ObjectUI', version: '1.0.0', features: ['components', 'layouts', 'forms'] };\n  return data.features.map(f => f.toUpperCase());\n}\n\nconst result = example();`,
+            className: 'whitespace-pre block'
+          }
+        ]
+      }
+    ]
+  }}
+  title="Code Preview"
+/>

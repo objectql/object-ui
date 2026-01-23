@@ -1,0 +1,133 @@
+---
+title: "Div"
+description: "Generic container element for grouping and laying out content"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Div component is a versatile container element that wraps content and provides structure. It's the basic building block for creating layouts and organizing components.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'div',
+    className: 'p-4 border rounded',
+    children: [
+      { type: 'text', content: 'This is content inside a div' }
+    ]
+  }}
+  title="Simple Div"
+/>
+
+## With Multiple Children
+
+<ComponentDemo
+  schema={{
+    type: 'div',
+    className: 'p-6 border rounded-lg bg-slate-50 space-y-3',
+    children: [
+      { type: 'text', content: 'First child', className: 'font-semibold' },
+      { type: 'text', content: 'Second child', className: 'text-muted-foreground' },
+      { type: 'text', content: 'Third child', className: 'text-sm' }
+    ]
+  }}
+  title="Multiple Children"
+/>
+
+## Layout Examples
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'div',
+      className: 'flex gap-4 p-4 border rounded',
+      children: [
+        { type: 'div', className: 'w-20 h-20 bg-blue-500 rounded' },
+        { type: 'div', className: 'w-20 h-20 bg-green-500 rounded' },
+        { type: 'div', className: 'w-20 h-20 bg-purple-500 rounded' }
+      ]
+    }}
+    title="Flex Container"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'div',
+      className: 'grid grid-cols-2 gap-4 p-4 border rounded',
+      children: [
+        { type: 'div', className: 'h-20 bg-red-500 rounded' },
+        { type: 'div', className: 'h-20 bg-yellow-500 rounded' },
+        { type: 'div', className: 'h-20 bg-pink-500 rounded' },
+        { type: 'div', className: 'h-20 bg-indigo-500 rounded' }
+      ]
+    }}
+    title="Grid Container"
+  />
+</DemoGrid>
+
+## Schema
+
+```typescript
+interface DivSchema {
+  type: 'div';
+  
+  // Content
+  children?: SchemaNode | SchemaNode[];  // Child components
+  body?: SchemaNode[];                    // Alternative content prop
+  
+  // Styling
+  className?: string;                     // Tailwind CSS classes
+  
+  // Base properties
+  id?: string;
+  visible?: boolean | string;
+  testId?: string;
+}
+```
+
+## Examples
+
+### Card Layout
+
+<ComponentDemo
+  schema={{
+    type: 'div',
+    className: 'max-w-sm rounded-lg border bg-card text-card-foreground shadow-sm',
+    children: [
+      {
+        type: 'div',
+        className: 'p-6 space-y-2',
+        children: [
+          { type: 'text', content: 'Card Title', className: 'text-2xl font-semibold' },
+          { type: 'text', content: 'Card description goes here. This is a basic card layout using div containers.', className: 'text-sm text-muted-foreground' }
+        ]
+      }
+    ]
+  }}
+  title="Custom Card"
+/>
+
+### Nested Containers
+
+<ComponentDemo
+  schema={{
+    type: 'div',
+    className: 'p-6 border-2 border-dashed border-blue-300 rounded-lg',
+    children: [
+      {
+        type: 'div',
+        className: 'p-4 border-2 border-dashed border-green-300 rounded',
+        children: [
+          {
+            type: 'div',
+            className: 'p-3 border-2 border-dashed border-purple-300 rounded text-center',
+            children: [
+              { type: 'text', content: 'Nested Content', className: 'font-mono text-sm' }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+  title="Nested Divs"
+/>

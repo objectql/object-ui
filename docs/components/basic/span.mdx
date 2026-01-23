@@ -1,0 +1,146 @@
+---
+title: "Span"
+description: "Inline container for styling and wrapping inline text content"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Span component is an inline container used for wrapping and styling portions of text without breaking the flow of content.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'text',
+    content: 'This is regular text with ',
+    children: [
+      { type: 'span', className: 'font-bold text-blue-600', body: [{ type: 'text', content: 'highlighted' }] },
+      { type: 'text', content: ' content inside.' }
+    ]
+  }}
+  title="Simple Span"
+/>
+
+## Text Styling
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'div',
+      children: [
+        { 
+          type: 'span', 
+          className: 'px-2 py-1 bg-blue-100 text-blue-800 rounded font-semibold',
+          body: [{ type: 'text', content: 'Badge Style' }]
+        }
+      ]
+    }}
+    title="Badge"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'div',
+      children: [
+        { 
+          type: 'span', 
+          className: 'px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full text-sm font-medium',
+          body: [{ type: 'text', content: 'Gradient Tag' }]
+        }
+      ]
+    }}
+    title="Gradient"
+  />
+</DemoGrid>
+
+## Inline Elements
+
+<ComponentDemo
+  schema={{
+    type: 'div',
+    className: 'p-4 border rounded',
+    children: [
+      { type: 'text', content: 'Price: ' },
+      {
+        type: 'span',
+        className: 'text-2xl font-bold text-green-600',
+        body: [{ type: 'text', content: '$99.99' }]
+      },
+      { type: 'text', content: ' ' },
+      {
+        type: 'span',
+        className: 'text-sm line-through text-muted-foreground',
+        body: [{ type: 'text', content: '$149.99' }]
+      }
+    ]
+  }}
+  title="Price Display"
+/>
+
+## Schema
+
+```typescript
+interface SpanSchema {
+  type: 'span';
+  
+  // Content
+  value?: string;                        // Text content
+  children?: SchemaNode | SchemaNode[];  // Child components
+  body?: SchemaNode | SchemaNode[];      // Alternative content prop
+  
+  // Styling
+  className?: string;                    // Tailwind CSS classes
+  
+  // Base properties
+  id?: string;
+  visible?: boolean | string;
+  testId?: string;
+}
+```
+
+## Examples
+
+### Status Indicators
+
+<ComponentDemo
+  schema={{
+    type: 'flex',
+    gap: 2,
+    children: [
+      { 
+        type: 'span', 
+        className: 'px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full',
+        body: [{ type: 'text', content: '● Active' }]
+      },
+      { 
+        type: 'span', 
+        className: 'px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full',
+        body: [{ type: 'text', content: '● Pending' }]
+      },
+      { 
+        type: 'span', 
+        className: 'px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full',
+        body: [{ type: 'text', content: '● Inactive' }]
+      }
+    ]
+  }}
+  title="Status Tags"
+/>
+
+### Text Emphasis
+
+<ComponentDemo
+  schema={{
+    type: 'div',
+    className: 'p-4 border rounded',
+    children: [
+      { type: 'text', content: 'The ' },
+      { type: 'span', className: 'font-bold', body: [{ type: 'text', content: 'quick' }] },
+      { type: 'text', content: ' brown fox ' },
+      { type: 'span', className: 'italic text-purple-600', body: [{ type: 'text', content: 'jumps' }] },
+      { type: 'text', content: ' over the ' },
+      { type: 'span', className: 'underline decoration-wavy', body: [{ type: 'text', content: 'lazy' }] },
+      { type: 'text', content: ' dog.' }
+    ]
+  }}
+  title="Mixed Styling"
+/>

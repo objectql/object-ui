@@ -1,0 +1,145 @@
+---
+title: "Header Bar"
+description: "Application header with sidebar trigger and breadcrumb navigation"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Header Bar component provides a standard application header with sidebar trigger button and breadcrumb navigation.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'header-bar',
+    crumbs: [
+      { label: 'Home', href: '#' },
+      { label: 'Current Page' }
+    ]
+  }}
+  title="Simple Header"
+/>
+
+## With Multiple Breadcrumbs
+
+<ComponentDemo
+  schema={{
+    type: 'header-bar',
+    crumbs: [
+      { label: 'Dashboard', href: '#' },
+      { label: 'Products', href: '#' },
+      { label: 'Electronics', href: '#' },
+      { label: 'Laptops' }
+    ]
+  }}
+  title="Deep Navigation"
+/>
+
+## Schema
+
+```typescript
+interface Breadcrumb {
+  label: string;                         // Breadcrumb text
+  href?: string;                         // Link URL (optional for last item)
+}
+
+interface HeaderBarSchema {
+  type: 'header-bar';
+  
+  // Breadcrumbs
+  crumbs?: Breadcrumb[];                 // Breadcrumb items
+  
+  // Styling
+  className?: string;                    // Tailwind CSS classes
+  
+  // Base properties
+  id?: string;
+  visible?: boolean | string;
+  testId?: string;
+}
+```
+
+## Examples
+
+### Application Header
+
+<ComponentDemo
+  schema={{
+    type: 'header-bar',
+    crumbs: [
+      { label: 'Projects', href: '#' },
+      { label: 'Web App' }
+    ]
+  }}
+  title="App Navigation"
+/>
+
+### Settings Navigation
+
+<ComponentDemo
+  schema={{
+    type: 'header-bar',
+    crumbs: [
+      { label: 'Settings', href: '#' },
+      { label: 'Account', href: '#' },
+      { label: 'Profile' }
+    ]
+  }}
+  title="Settings Path"
+/>
+
+### Admin Panel
+
+<ComponentDemo
+  schema={{
+    type: 'header-bar',
+    crumbs: [
+      { label: 'Admin', href: '#' },
+      { label: 'Users', href: '#' },
+      { label: 'Edit User', href: '#' },
+      { label: 'John Doe' }
+    ]
+  }}
+  title="Admin Breadcrumbs"
+/>
+
+## Usage Notes
+
+- The Header Bar component includes a sidebar trigger button that works with the Sidebar component
+- The last breadcrumb item is typically rendered as plain text (current page)
+- All other breadcrumb items should have an `href` to enable navigation
+- The component has a fixed height of 64px (`h-16`)
+- Includes a vertical separator between the sidebar trigger and breadcrumbs
+
+## Integration
+
+This component is designed to work with the sidebar layout pattern:
+
+```typescript
+{
+  type: 'div',
+  children: [
+    { type: 'sidebar', /* sidebar config */ },
+    {
+      type: 'div',
+      className: 'flex-1',
+      children: [
+        { 
+          type: 'header-bar',
+          crumbs: [
+            { label: 'Home', href: '#' },
+            { label: 'Current' }
+          ]
+        },
+        {
+          type: 'main',
+          className: 'p-6',
+          children: [
+            // Main content
+          ]
+        }
+      ]
+    }
+  ]
+}
+```

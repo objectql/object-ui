@@ -1,0 +1,187 @@
+---
+title: "Toggle"
+description: "Two-state button for toggling options on and off"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Toggle component is a button that can be toggled between on and off states, useful for settings and preferences.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'toggle',
+    label: 'Toggle'
+  }}
+  title="Simple Toggle"
+/>
+
+## Variants
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'toggle',
+      label: 'Default',
+      variant: 'default'
+    }}
+    title="Default"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'toggle',
+      label: 'Outline',
+      variant: 'outline'
+    }}
+    title="Outline"
+  />
+</DemoGrid>
+
+## Sizes
+
+<ComponentDemo
+  schema={{
+    type: 'flex',
+    gap: 2,
+    align: 'center',
+    children: [
+      { type: 'toggle', label: 'Small', size: 'sm' },
+      { type: 'toggle', label: 'Default', size: 'default' },
+      { type: 'toggle', label: 'Large', size: 'lg' }
+    ]
+  }}
+  title="Toggle Sizes"
+/>
+
+## States
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'toggle',
+      label: 'Pressed',
+      pressed: true
+    }}
+    title="Pressed State"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'toggle',
+      label: 'Disabled',
+      disabled: true
+    }}
+    title="Disabled State"
+  />
+</DemoGrid>
+
+## Schema
+
+```typescript
+interface ToggleSchema {
+  type: 'toggle';
+  
+  // Content
+  label?: string;                       // Toggle label text
+  children?: SchemaNode | SchemaNode[]; // Alternative content
+  
+  // State
+  defaultPressed?: boolean;             // Default pressed state
+  pressed?: boolean;                    // Controlled pressed state
+  disabled?: boolean;                   // Whether toggle is disabled
+  
+  // Appearance
+  variant?: 'default' | 'outline';      // Toggle variant (default: 'default')
+  size?: 'default' | 'sm' | 'lg';       // Toggle size (default: 'default')
+  
+  // Events
+  onChange?: (pressed: boolean) => void; // Change handler
+  
+  // Accessibility
+  ariaLabel?: string;                   // Accessible label
+  
+  // Styling
+  className?: string;                   // Tailwind CSS classes
+  
+  // Base properties
+  id?: string;
+  visible?: boolean | string;
+  testId?: string;
+}
+```
+
+## Examples
+
+### With Icons
+
+<ComponentDemo
+  schema={{
+    type: 'flex',
+    gap: 2,
+    children: [
+      { type: 'toggle', label: '🔔 Notifications', variant: 'outline' },
+      { type: 'toggle', label: '🌙 Dark Mode', variant: 'outline' },
+      { type: 'toggle', label: '🔊 Sound', variant: 'outline' }
+    ]
+  }}
+  title="Settings Toggles"
+/>
+
+### In a Settings Panel
+
+<ComponentDemo
+  schema={{
+    type: 'div',
+    className: 'max-w-md p-6 border rounded-lg space-y-4',
+    children: [
+      { type: 'text', content: 'Preferences', className: 'text-lg font-semibold mb-4' },
+      {
+        type: 'flex',
+        justify: 'between',
+        align: 'center',
+        className: 'py-2',
+        children: [
+          { type: 'text', content: 'Email notifications', className: 'text-sm' },
+          { type: 'toggle', ariaLabel: 'Email notifications' }
+        ]
+      },
+      {
+        type: 'flex',
+        justify: 'between',
+        align: 'center',
+        className: 'py-2',
+        children: [
+          { type: 'text', content: 'Push notifications', className: 'text-sm' },
+          { type: 'toggle', ariaLabel: 'Push notifications', pressed: true }
+        ]
+      },
+      {
+        type: 'flex',
+        justify: 'between',
+        align: 'center',
+        className: 'py-2',
+        children: [
+          { type: 'text', content: 'SMS notifications', className: 'text-sm' },
+          { type: 'toggle', ariaLabel: 'SMS notifications' }
+        ]
+      }
+    ]
+  }}
+  title="Settings Example"
+/>
+
+### Toolbar Toggles
+
+<ComponentDemo
+  schema={{
+    type: 'flex',
+    gap: 1,
+    className: 'p-2 bg-muted rounded-lg',
+    children: [
+      { type: 'toggle', label: 'B', size: 'sm', variant: 'outline', ariaLabel: 'Bold' },
+      { type: 'toggle', label: 'I', size: 'sm', variant: 'outline', ariaLabel: 'Italic' },
+      { type: 'toggle', label: 'U', size: 'sm', variant: 'outline', ariaLabel: 'Underline' }
+    ]
+  }}
+  title="Text Formatting"
+/>

@@ -1,0 +1,107 @@
+---
+title: "Calendar"
+description: "Date selection component with single, multiple, and range modes"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Calendar component allows users to select dates in various modes including single date, multiple dates, or date ranges.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'calendar',
+    mode: 'single',
+    className: 'rounded-md border'
+  }}
+  title="Simple Calendar"
+/>
+
+## Selection Modes
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'calendar',
+      mode: 'single',
+      className: 'rounded-md border'
+    }}
+    title="Single Date"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'calendar',
+      mode: 'range',
+      className: 'rounded-md border'
+    }}
+    title="Date Range"
+  />
+</DemoGrid>
+
+## Multiple Selection
+
+<ComponentDemo
+  schema={{
+    type: 'calendar',
+    mode: 'multiple',
+    className: 'rounded-md border shadow-sm'
+  }}
+  title="Multiple Dates"
+/>
+
+## Schema
+
+```typescript
+interface CalendarSchema {
+  type: 'calendar';
+  
+  // Selection
+  mode?: 'single' | 'multiple' | 'range';  // Selection mode (default: 'single')
+  defaultValue?: Date | Date[];             // Default selected date(s)
+  value?: Date | Date[];                    // Controlled selected date(s)
+  
+  // Constraints
+  minDate?: Date | string;                  // Minimum selectable date
+  maxDate?: Date | string;                  // Maximum selectable date
+  disabled?: boolean;                       // Whether calendar is disabled
+  
+  // Events
+  onChange?: (date: Date | Date[] | undefined) => void;  // Date change handler
+  
+  // Styling
+  className?: string;                       // Tailwind CSS classes
+  
+  // Base properties
+  id?: string;
+  visible?: boolean | string;
+  testId?: string;
+}
+```
+
+## Examples
+
+### In a Form
+
+<ComponentDemo
+  schema={{
+    type: 'div',
+    className: 'max-w-sm space-y-4 p-4 border rounded-lg',
+    children: [
+      { type: 'label', label: 'Select a date', className: 'text-sm font-medium' },
+      { type: 'calendar', mode: 'single', className: 'rounded-md border' }
+    ]
+  }}
+  title="Form Integration"
+/>
+
+### With Custom Styling
+
+<ComponentDemo
+  schema={{
+    type: 'calendar',
+    mode: 'single',
+    className: 'rounded-xl border-2 shadow-lg'
+  }}
+  title="Custom Style"
+/>

@@ -9,6 +9,8 @@
     "button-group",
     "pagination",
     "navigation-menu",
-    "sidebar"
+    "sidebar",
+    "div",
+    "span"
   ]
 }

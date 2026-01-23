@@ -6,9 +6,8 @@
     "alert",
     "list",
     "breadcrumb",
-    "calendar",
-    "carousel",
     "kbd",
-    "timeline"
+    "statistic",
+    "tree-view"
   ]
 }

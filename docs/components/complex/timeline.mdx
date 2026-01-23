@@ -1,0 +1,265 @@
+---
+title: "Timeline"
+description: "Display events in chronological order with vertical, horizontal, or Gantt chart layouts"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Timeline component visualizes events in chronological order, supporting multiple layout variants including vertical lists, horizontal sequences, and Gantt-style project timelines.
+
+## Basic Usage (Vertical)
+
+<ComponentDemo
+  schema={{
+    type: 'timeline',
+    variant: 'vertical',
+    items: [
+      {
+        time: '2024-01-15',
+        title: 'Project Started',
+        description: 'Initial project kickoff meeting'
+      },
+      {
+        time: '2024-02-01',
+        title: 'Design Phase',
+        description: 'UI/UX design completed'
+      },
+      {
+        time: '2024-03-15',
+        title: 'Development',
+        description: 'Core features implemented'
+      },
+      {
+        time: '2024-04-01',
+        title: 'Launch',
+        description: 'Product successfully launched'
+      }
+    ]
+  }}
+  title="Vertical Timeline"
+/>
+
+## Horizontal Layout
+
+<ComponentDemo
+  schema={{
+    type: 'timeline',
+    variant: 'horizontal',
+    items: [
+      {
+        time: '2024-01',
+        title: 'Q1',
+        description: 'Planning'
+      },
+      {
+        time: '2024-04',
+        title: 'Q2',
+        description: 'Development'
+      },
+      {
+        time: '2024-07',
+        title: 'Q3',
+        description: 'Testing'
+      },
+      {
+        time: '2024-10',
+        title: 'Q4',
+        description: 'Launch'
+      }
+    ]
+  }}
+  title="Horizontal Timeline"
+/>
+
+## With Icons
+
+<ComponentDemo
+  schema={{
+    type: 'timeline',
+    variant: 'vertical',
+    items: [
+      {
+        time: '2024-01-15 09:00',
+        title: 'Account Created',
+        description: 'User registered successfully',
+        icon: '✓',
+        variant: 'success'
+      },
+      {
+        time: '2024-01-15 10:30',
+        title: 'Profile Updated',
+        description: 'Added profile information',
+        icon: '✎',
+        variant: 'default'
+      },
+      {
+        time: '2024-01-15 14:45',
+        title: 'First Purchase',
+        description: 'Completed first transaction',
+        icon: '💰',
+        variant: 'success'
+      }
+    ]
+  }}
+  title="Activity Timeline"
+/>
+
+## Schema
+
+```typescript
+interface TimelineItem {
+  time?: string;                         // Item timestamp/date
+  title?: string;                        // Item title
+  description?: string;                  // Item description
+  content?: SchemaNode | SchemaNode[];   // Additional content
+  icon?: string;                         // Icon or emoji
+  variant?: 'default' | 'success' | 'warning' | 'error';  // Marker variant
+  className?: string;                    // Item CSS classes
+}
+
+interface TimelineSchema {
+  type: 'timeline';
+  
+  // Layout
+  variant?: 'vertical' | 'horizontal' | 'gantt';  // Timeline layout (default: 'vertical')
+  
+  // Items
+  items: TimelineItem[];                 // Timeline items
+  
+  // Date formatting
+  dateFormat?: 'short' | 'long' | string; // Date display format (default: 'short')
+  
+  // Gantt-specific (when variant='gantt')
+  minDate?: string;                      // Gantt chart start date
+  maxDate?: string;                      // Gantt chart end date
+  timeScale?: 'day' | 'week' | 'month';  // Gantt time scale
+  
+  // Events
+  onItemClick?: (item: any) => void;    // Item click handler
+  
+  // Styling
+  className?: string;                    // Tailwind CSS classes
+  
+  // Base properties
+  id?: string;
+  visible?: boolean | string;
+  testId?: string;
+}
+```
+
+## Examples
+
+### Order History
+
+<ComponentDemo
+  schema={{
+    type: 'timeline',
+    variant: 'vertical',
+    dateFormat: 'long',
+    items: [
+      {
+        time: '2024-01-20',
+        title: 'Order Delivered',
+        description: 'Package delivered to your address',
+        variant: 'success',
+        icon: '✓'
+      },
+      {
+        time: '2024-01-19',
+        title: 'Out for Delivery',
+        description: 'Package is on the way',
+        variant: 'default',
+        icon: '🚚'
+      },
+      {
+        time: '2024-01-18',
+        title: 'Processing',
+        description: 'Order is being processed',
+        variant: 'default',
+        icon: '📦'
+      },
+      {
+        time: '2024-01-17',
+        title: 'Order Placed',
+        description: 'Order confirmed and payment received',
+        variant: 'success',
+        icon: '✓'
+      }
+    ]
+  }}
+  title="Shipping Status"
+/>
+
+### Project Milestones
+
+<ComponentDemo
+  schema={{
+    type: 'timeline',
+    variant: 'vertical',
+    items: [
+      {
+        time: '2024-01',
+        title: 'Project Kickoff',
+        description: 'Team assembled, goals defined',
+        variant: 'success'
+      },
+      {
+        time: '2024-02',
+        title: 'Requirements Gathering',
+        description: 'Stakeholder interviews completed',
+        variant: 'success'
+      },
+      {
+        time: '2024-03',
+        title: 'Design Phase',
+        description: 'Currently in progress...',
+        variant: 'default'
+      },
+      {
+        time: '2024-04',
+        title: 'Development',
+        description: 'Planned start date',
+        variant: 'default'
+      },
+      {
+        time: '2024-06',
+        title: 'Launch',
+        description: 'Target release date',
+        variant: 'default'
+      }
+    ]
+  }}
+  title="Project Roadmap"
+/>
+
+### Changelog
+
+<ComponentDemo
+  schema={{
+    type: 'timeline',
+    variant: 'vertical',
+    items: [
+      {
+        time: '2024-01-15',
+        title: 'Version 2.1.0',
+        description: 'Added dark mode support and new components'
+      },
+      {
+        time: '2024-01-01',
+        title: 'Version 2.0.0',
+        description: 'Major update with breaking changes'
+      },
+      {
+        time: '2023-12-15',
+        title: 'Version 1.5.0',
+        description: 'Performance improvements and bug fixes'
+      },
+      {
+        time: '2023-12-01',
+        title: 'Version 1.0.0',
+        description: 'Initial stable release'
+      }
+    ]
+  }}
+  title="Release History"
+/>

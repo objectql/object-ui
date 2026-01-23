@@ -1,0 +1,199 @@
+---
+title: "Data Table"
+description: "Enterprise-grade data table with sorting, filtering, pagination, and row actions"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Data Table component provides comprehensive table functionality inspired by Airtable, including multi-column sorting, search, pagination, row selection, and export capabilities.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'data-table',
+    columns: [
+      { header: 'ID', accessorKey: 'id', width: '80px' },
+      { header: 'Name', accessorKey: 'name' },
+      { header: 'Email', accessorKey: 'email' },
+      { header: 'Status', accessorKey: 'status' }
+    ],
+    data: [
+      { id: 1, name: 'John Doe', email: 'john@example.com', status: 'Active' },
+      { id: 2, name: 'Jane Smith', email: 'jane@example.com', status: 'Active' },
+      { id: 3, name: 'Bob Johnson', email: 'bob@example.com', status: 'Inactive' }
+    ]
+  }}
+  title="Simple Table"
+/>
+
+## With All Features
+
+<ComponentDemo
+  schema={{
+    type: 'data-table',
+    pagination: true,
+    searchable: true,
+    selectable: true,
+    sortable: true,
+    exportable: true,
+    rowActions: true,
+    pageSize: 5,
+    columns: [
+      { header: 'ID', accessorKey: 'id', width: '60px' },
+      { header: 'Name', accessorKey: 'name' },
+      { header: 'Role', accessorKey: 'role' },
+      { header: 'Department', accessorKey: 'department' },
+      { header: 'Status', accessorKey: 'status' }
+    ],
+    data: [
+      { id: 1, name: 'Alice Brown', role: 'Manager', department: 'Sales', status: 'Active' },
+      { id: 2, name: 'Bob Wilson', role: 'Developer', department: 'Engineering', status: 'Active' },
+      { id: 3, name: 'Carol Davis', role: 'Designer', department: 'Design', status: 'Active' },
+      { id: 4, name: 'David Lee', role: 'Developer', department: 'Engineering', status: 'Inactive' },
+      { id: 5, name: 'Eve Martinez', role: 'Manager', department: 'Marketing', status: 'Active' },
+      { id: 6, name: 'Frank Taylor', role: 'Analyst', department: 'Finance', status: 'Active' },
+      { id: 7, name: 'Grace Chen', role: 'Designer', department: 'Design', status: 'Active' },
+      { id: 8, name: 'Henry Kim', role: 'Developer', department: 'Engineering', status: 'Inactive' }
+    ]
+  }}
+  title="Full Featured Table"
+/>
+
+## Schema
+
+```typescript
+interface TableColumn {
+  header: string;                        // Column header text
+  accessorKey: string;                   // Data property key
+  width?: string;                        // Column width (e.g., '100px', '20%')
+  sortable?: boolean;                    // Enable sorting for this column
+}
+
+interface DataTableSchema {
+  type: 'data-table';
+  
+  // Structure
+  columns: TableColumn[];                // Column definitions
+  data: Record<string, any>[];          // Table data
+  caption?: string;                      // Table caption
+  
+  // Features
+  pagination?: boolean;                  // Enable pagination (default: true)
+  pageSize?: number;                     // Items per page (default: 10)
+  searchable?: boolean;                  // Enable search (default: true)
+  selectable?: boolean;                  // Enable row selection (default: false)
+  sortable?: boolean;                    // Enable sorting (default: true)
+  exportable?: boolean;                  // Enable CSV export (default: false)
+  rowActions?: boolean;                  // Show edit/delete buttons (default: false)
+  
+  // Advanced features
+  resizableColumns?: boolean;            // Allow column resizing (default: true)
+  reorderableColumns?: boolean;          // Allow column reordering (default: true)
+  
+  // Styling
+  className?: string;                    // Tailwind CSS classes
+  
+  // Base properties
+  id?: string;
+  visible?: boolean | string;
+  testId?: string;
+}
+```
+
+## Examples
+
+### Product Inventory
+
+<ComponentDemo
+  schema={{
+    type: 'data-table',
+    caption: 'Product Inventory',
+    pagination: true,
+    searchable: true,
+    sortable: true,
+    pageSize: 5,
+    columns: [
+      { header: 'SKU', accessorKey: 'sku', width: '100px' },
+      { header: 'Product', accessorKey: 'name' },
+      { header: 'Category', accessorKey: 'category' },
+      { header: 'Stock', accessorKey: 'stock', width: '80px' },
+      { header: 'Price', accessorKey: 'price', width: '100px' }
+    ],
+    data: [
+      { sku: 'PRD-001', name: 'Laptop Pro', category: 'Electronics', stock: 45, price: '$1,299' },
+      { sku: 'PRD-002', name: 'Wireless Mouse', category: 'Accessories', stock: 120, price: '$29' },
+      { sku: 'PRD-003', name: 'USB-C Cable', category: 'Accessories', stock: 200, price: '$15' },
+      { sku: 'PRD-004', name: 'Monitor 27"', category: 'Electronics', stock: 30, price: '$399' },
+      { sku: 'PRD-005', name: 'Keyboard', category: 'Accessories', stock: 80, price: '$79' },
+      { sku: 'PRD-006', name: 'Webcam HD', category: 'Electronics', stock: 50, price: '$99' }
+    ]
+  }}
+  title="Inventory Management"
+/>
+
+### User Management
+
+<ComponentDemo
+  schema={{
+    type: 'data-table',
+    pagination: true,
+    searchable: true,
+    selectable: true,
+    rowActions: true,
+    pageSize: 4,
+    columns: [
+      { header: 'User', accessorKey: 'name' },
+      { header: 'Email', accessorKey: 'email' },
+      { header: 'Role', accessorKey: 'role', width: '120px' },
+      { header: 'Last Login', accessorKey: 'lastLogin' }
+    ],
+    data: [
+      { name: 'John Doe', email: 'john@company.com', role: 'Admin', lastLogin: '2024-01-20' },
+      { name: 'Jane Smith', email: 'jane@company.com', role: 'Editor', lastLogin: '2024-01-19' },
+      { name: 'Bob Wilson', email: 'bob@company.com', role: 'Viewer', lastLogin: '2024-01-18' },
+      { name: 'Alice Brown', email: 'alice@company.com', role: 'Editor', lastLogin: '2024-01-17' },
+      { name: 'Charlie Davis', email: 'charlie@company.com', role: 'Admin', lastLogin: '2024-01-16' }
+    ]
+  }}
+  title="User Table"
+/>
+
+### Sales Report
+
+<ComponentDemo
+  schema={{
+    type: 'data-table',
+    caption: 'Q1 Sales Report',
+    pagination: false,
+    searchable: false,
+    sortable: true,
+    exportable: true,
+    columns: [
+      { header: 'Month', accessorKey: 'month' },
+      { header: 'Revenue', accessorKey: 'revenue' },
+      { header: 'Orders', accessorKey: 'orders' },
+      { header: 'Avg Order', accessorKey: 'avgOrder' },
+      { header: 'Growth', accessorKey: 'growth' }
+    ],
+    data: [
+      { month: 'January', revenue: '$124,500', orders: '842', avgOrder: '$148', growth: '+12%' },
+      { month: 'February', revenue: '$135,200', orders: '923', avgOrder: '$147', growth: '+8.6%' },
+      { month: 'March', revenue: '$148,900', orders: '1,015', avgOrder: '$147', growth: '+10.1%' }
+    ]
+  }}
+  title="Sales Data"
+/>
+
+## Features
+
+The Data Table component provides:
+
+- **Sorting**: Click column headers to sort (ascending/descending/none)
+- **Search**: Real-time search across all columns
+- **Pagination**: Navigate through large datasets
+- **Selection**: Select multiple rows with checkboxes
+- **Export**: Download table data as CSV
+- **Row Actions**: Built-in edit and delete buttons
+- **Resizable Columns**: Drag column borders to resize
+- **Column Reordering**: Drag columns to reorder

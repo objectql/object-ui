@@ -1,0 +1,206 @@
+---
+title: "Tree View"
+description: "Hierarchical tree structure for displaying nested data"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Tree View component displays hierarchical data in an expandable tree structure, perfect for file explorers, organizational charts, and nested navigation.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'tree-view',
+    title: 'File Explorer',
+    nodes: [
+      {
+        id: '1',
+        label: 'Documents',
+        icon: 'folder',
+        children: [
+          { id: '1-1', label: 'Resume.pdf', icon: 'file' },
+          { id: '1-2', label: 'Cover Letter.docx', icon: 'file' }
+        ]
+      },
+      {
+        id: '2',
+        label: 'Photos',
+        icon: 'folder',
+        children: [
+          { id: '2-1', label: 'Vacation.jpg', icon: 'file' },
+          { id: '2-2', label: 'Family.jpg', icon: 'file' }
+        ]
+      },
+      { id: '3', label: 'README.md', icon: 'file' }
+    ]
+  }}
+  title="File Tree"
+/>
+
+## Nested Structure
+
+<ComponentDemo
+  schema={{
+    type: 'tree-view',
+    title: 'Project Structure',
+    nodes: [
+      {
+        id: 'src',
+        label: 'src',
+        icon: 'folder',
+        children: [
+          {
+            id: 'components',
+            label: 'components',
+            icon: 'folder',
+            children: [
+              { id: 'button', label: 'Button.tsx', icon: 'file' },
+              { id: 'input', label: 'Input.tsx', icon: 'file' }
+            ]
+          },
+          {
+            id: 'utils',
+            label: 'utils',
+            icon: 'folder',
+            children: [
+              { id: 'helpers', label: 'helpers.ts', icon: 'file' }
+            ]
+          },
+          { id: 'index', label: 'index.ts', icon: 'file' }
+        ]
+      },
+      {
+        id: 'public',
+        label: 'public',
+        icon: 'folder',
+        children: [
+          { id: 'logo', label: 'logo.svg', icon: 'file' }
+        ]
+      },
+      { id: 'package', label: 'package.json', icon: 'file' }
+    ]
+  }}
+  title="Deep Nesting"
+/>
+
+## Schema
+
+```typescript
+interface TreeNode {
+  id: string;                           // Unique node identifier
+  label: string;                        // Node label text
+  icon?: string;                        // Icon name ('folder' or 'file')
+  children?: TreeNode[];                // Child nodes
+  data?: any;                           // Additional node data
+}
+
+interface TreeViewSchema {
+  type: 'tree-view';
+  
+  // Data
+  data?: TreeNode[];                    // Tree data (alias for nodes)
+  nodes?: TreeNode[];                   // Tree nodes
+  title?: string;                       // Tree title
+  
+  // Selection
+  defaultExpandedIds?: string[];        // Default expanded node IDs
+  defaultSelectedIds?: string[];        // Default selected node IDs
+  expandedIds?: string[];               // Controlled expanded node IDs
+  selectedIds?: string[];               // Controlled selected node IDs
+  multiSelect?: boolean;                // Enable multi-selection (default: false)
+  
+  // Appearance
+  showLines?: boolean;                  // Show connecting lines (default: true)
+  
+  // Events
+  onSelectChange?: (selectedIds: string[]) => void;  // Selection change handler
+  onExpandChange?: (expandedIds: string[]) => void;  // Expand change handler
+  onNodeClick?: (node: TreeNode) => void;            // Node click handler
+  
+  // Styling
+  className?: string;                   // Tailwind CSS classes
+  
+  // Base properties
+  id?: string;
+  visible?: boolean | string;
+  testId?: string;
+}
+```
+
+## Examples
+
+### Organization Chart
+
+<ComponentDemo
+  schema={{
+    type: 'tree-view',
+    title: 'Organization',
+    nodes: [
+      {
+        id: 'ceo',
+        label: 'CEO',
+        children: [
+          {
+            id: 'cto',
+            label: 'CTO',
+            children: [
+              { id: 'dev1', label: 'Lead Developer' },
+              { id: 'dev2', label: 'Senior Developer' }
+            ]
+          },
+          {
+            id: 'cmo',
+            label: 'CMO',
+            children: [
+              { id: 'marketing1', label: 'Marketing Manager' },
+              { id: 'marketing2', label: 'Content Lead' }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+  title="Org Chart"
+/>
+
+### Navigation Menu
+
+<ComponentDemo
+  schema={{
+    type: 'tree-view',
+    title: 'Navigation',
+    nodes: [
+      {
+        id: 'dashboard',
+        label: 'Dashboard',
+        icon: 'folder'
+      },
+      {
+        id: 'products',
+        label: 'Products',
+        icon: 'folder',
+        children: [
+          { id: 'all-products', label: 'All Products', icon: 'file' },
+          { id: 'categories', label: 'Categories', icon: 'file' },
+          { id: 'inventory', label: 'Inventory', icon: 'file' }
+        ]
+      },
+      {
+        id: 'orders',
+        label: 'Orders',
+        icon: 'folder',
+        children: [
+          { id: 'pending', label: 'Pending', icon: 'file' },
+          { id: 'completed', label: 'Completed', icon: 'file' }
+        ]
+      },
+      {
+        id: 'settings',
+        label: 'Settings',
+        icon: 'folder'
+      }
+    ]
+  }}
+  title="Sidebar Navigation"
+/>

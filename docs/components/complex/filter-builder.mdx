@@ -1,0 +1,218 @@
+---
+title: "Filter Builder"
+description: "Visual query builder for constructing complex filter conditions"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Filter Builder component provides a visual interface for creating complex filter queries with support for nested conditions and multiple operators.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'filter-builder',
+    name: 'filters',
+    label: 'Build Filter',
+    fields: [
+      { value: 'name', label: 'Name', type: 'text' },
+      { value: 'email', label: 'Email', type: 'text' },
+      { value: 'age', label: 'Age', type: 'number' },
+      { value: 'status', label: 'Status', type: 'text' }
+    ],
+    value: {
+      id: 'root',
+      logic: 'and',
+      conditions: []
+    }
+  }}
+  title="Empty Filter Builder"
+/>
+
+## With Initial Conditions
+
+<ComponentDemo
+  schema={{
+    type: 'filter-builder',
+    name: 'userFilters',
+    label: 'User Filters',
+    fields: [
+      { value: 'name', label: 'Name', type: 'text' },
+      { value: 'email', label: 'Email', type: 'text' },
+      { value: 'age', label: 'Age', type: 'number' },
+      { value: 'department', label: 'Department', type: 'text' },
+      { value: 'salary', label: 'Salary', type: 'number' }
+    ],
+    value: {
+      id: 'root',
+      logic: 'and',
+      conditions: [
+        { id: '1', field: 'age', operator: 'gt', value: '25' },
+        { id: '2', field: 'department', operator: 'eq', value: 'Engineering' }
+      ]
+    }
+  }}
+  title="With Conditions"
+/>
+
+## Schema
+
+```typescript
+interface FilterField {
+  value: string;                         // Field identifier
+  label: string;                         // Display label
+  type?: 'text' | 'number' | 'date' | 'boolean';  // Field type
+}
+
+interface FilterCondition {
+  id: string;                            // Condition identifier
+  field: string;                         // Field to filter on
+  operator: string;                      // Comparison operator
+  value: any;                            // Filter value
+}
+
+interface FilterGroup {
+  id: string;                            // Group identifier
+  logic: 'and' | 'or';                  // Logic operator (AND/OR)
+  conditions: (FilterCondition | FilterGroup)[];  // Conditions or nested groups
+}
+
+interface FilterBuilderSchema {
+  type: 'filter-builder';
+  
+  // Required
+  name: string;                          // Field name for form submission
+  fields: FilterField[];                 // Available fields for filtering
+  
+  // Configuration
+  label?: string;                        // Component label
+  value?: FilterGroup;                   // Initial/controlled filter value
+  allowGroups?: boolean;                 // Allow nested groups (default: true)
+  maxDepth?: number;                     // Maximum nesting depth (default: 3)
+  
+  // Events
+  onChange?: (filter: FilterGroup) => void;  // Change handler
+  
+  // Styling
+  className?: string;                    // Tailwind CSS classes
+  wrapperClass?: string;                 // Wrapper container classes
+  
+  // Base properties
+  id?: string;
+  visible?: boolean | string;
+  testId?: string;
+}
+```
+
+## Examples
+
+### Product Filters
+
+<ComponentDemo
+  schema={{
+    type: 'filter-builder',
+    name: 'productFilters',
+    label: 'Product Search Filters',
+    fields: [
+      { value: 'name', label: 'Product Name', type: 'text' },
+      { value: 'category', label: 'Category', type: 'text' },
+      { value: 'price', label: 'Price', type: 'number' },
+      { value: 'stock', label: 'Stock Quantity', type: 'number' },
+      { value: 'rating', label: 'Rating', type: 'number' }
+    ],
+    value: {
+      id: 'root',
+      logic: 'and',
+      conditions: [
+        { id: '1', field: 'category', operator: 'eq', value: 'Electronics' },
+        { id: '2', field: 'price', operator: 'lt', value: '1000' },
+        { id: '3', field: 'stock', operator: 'gt', value: '0' }
+      ]
+    }
+  }}
+  title="Product Search"
+/>
+
+### User Query Builder
+
+<ComponentDemo
+  schema={{
+    type: 'filter-builder',
+    name: 'userQuery',
+    label: 'Find Users',
+    fields: [
+      { value: 'firstName', label: 'First Name', type: 'text' },
+      { value: 'lastName', label: 'Last Name', type: 'text' },
+      { value: 'email', label: 'Email', type: 'text' },
+      { value: 'role', label: 'Role', type: 'text' },
+      { value: 'active', label: 'Active', type: 'boolean' },
+      { value: 'createdAt', label: 'Created Date', type: 'date' }
+    ],
+    value: {
+      id: 'root',
+      logic: 'and',
+      conditions: []
+    }
+  }}
+  title="User Filters"
+/>
+
+### Advanced Query
+
+<ComponentDemo
+  schema={{
+    type: 'div',
+    className: 'space-y-4 p-6 border rounded-lg max-w-3xl',
+    children: [
+      { type: 'text', content: 'Advanced Search', className: 'text-xl font-bold' },
+      { type: 'text', content: 'Build complex queries with multiple conditions', className: 'text-sm text-muted-foreground mb-4' },
+      {
+        type: 'filter-builder',
+        name: 'advancedFilters',
+        fields: [
+          { value: 'title', label: 'Title', type: 'text' },
+          { value: 'author', label: 'Author', type: 'text' },
+          { value: 'publishDate', label: 'Publish Date', type: 'date' },
+          { value: 'views', label: 'Views', type: 'number' },
+          { value: 'likes', label: 'Likes', type: 'number' },
+          { value: 'published', label: 'Published', type: 'boolean' }
+        ],
+        value: {
+          id: 'root',
+          logic: 'and',
+          conditions: [
+            { id: '1', field: 'published', operator: 'eq', value: 'true' },
+            { id: '2', field: 'views', operator: 'gt', value: '1000' }
+          ]
+        }
+      },
+      {
+        type: 'flex',
+        gap: 2,
+        className: 'mt-4',
+        children: [
+          { type: 'button', label: 'Apply Filters', variant: 'default' },
+          { type: 'button', label: 'Clear', variant: 'outline' }
+        ]
+      }
+    ]
+  }}
+  title="Search Interface"
+/>
+
+## Supported Operators
+
+The Filter Builder supports various comparison operators based on field type:
+
+- **Text fields**: equals, not equals, contains, starts with, ends with
+- **Number fields**: equals, not equals, greater than, less than, between
+- **Date fields**: equals, before, after, between
+- **Boolean fields**: is true, is false
+
+## Use Cases
+
+- **Search interfaces**: Build advanced search forms
+- **Data filtering**: Filter large datasets in tables
+- **Report generation**: Create custom report criteria
+- **Query builders**: Visual SQL/NoSQL query construction
+- **Access control**: Define permission rules

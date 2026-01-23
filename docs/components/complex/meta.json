@@ -1,6 +1,14 @@
 {
   "title": "Complex",
   "pages": [
-    "table"
+    "table",
+    "data-table",
+    "calendar-view",
+    "timeline",
+    "carousel",
+    "scroll-area",
+    "resizable",
+    "filter-builder",
+    "chatbot"
   ]
 }

@@ -1,0 +1,125 @@
+---
+title: "Toaster"
+description: "Container for displaying toast notifications"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Toaster component provides a container for toast notifications. It should be placed once at the root level of your application to enable toast functionality.
+
+## Basic Usage
+
+The Toaster component is typically added to your app's layout and doesn't require configuration:
+
+<ComponentDemo
+  schema={{
+    type: 'toaster'
+  }}
+  title="Default Toaster"
+/>
+
+## Providers
+
+ObjectUI supports two toast providers:
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'toaster',
+      provider: 'default'
+    }}
+    title="Default Provider"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'toaster',
+      provider: 'sonner'
+    }}
+    title="Sonner Provider"
+  />
+</DemoGrid>
+
+## Schema
+
+```typescript
+interface ToasterSchema {
+  type: 'toaster';
+  
+  // Configuration
+  provider?: 'default' | 'sonner';      // Toast provider (default: 'default')
+  position?: 'top-left' | 'top-center' | 'top-right' | 
+             'bottom-left' | 'bottom-center' | 'bottom-right';  // Toast position
+  limit?: number;                        // Maximum number of toasts (default: 5)
+  
+  // Styling
+  className?: string;                    // Tailwind CSS classes
+  
+  // Base properties
+  id?: string;
+  visible?: boolean | string;
+  testId?: string;
+}
+```
+
+## Examples
+
+### In App Layout
+
+```typescript
+{
+  type: 'div',
+  className: 'min-h-screen',
+  children: [
+    // Your app content
+    { type: 'page', title: 'Dashboard', body: [...] },
+    
+    // Toaster at root level
+    { type: 'toaster', provider: 'sonner' }
+  ]
+}
+```
+
+### Usage with Toast Actions
+
+The Toaster component works in conjunction with Toast components to display notifications. Once the Toaster is mounted, you can trigger toasts programmatically or via Toast components:
+
+<ComponentDemo
+  schema={{
+    type: 'div',
+    className: 'space-y-4',
+    children: [
+      {
+        type: 'button',
+        label: 'Show Toast',
+        onClick: 'toast("Hello from ObjectUI!")'
+      },
+      { type: 'toaster', provider: 'sonner' }
+    ]
+  }}
+  title="With Toast Trigger"
+/>
+
+### Configuration
+
+<ComponentDemo
+  schema={{
+    type: 'div',
+    children: [
+      {
+        type: 'toaster',
+        provider: 'sonner',
+        position: 'top-right',
+        limit: 3
+      }
+    ]
+  }}
+  title="Custom Position & Limit"
+/>
+
+## Notes
+
+- Place the Toaster component once in your app's root layout
+- The `default` provider uses the standard Shadcn/UI toast system
+- The `sonner` provider uses Sonner for more advanced toast features
+- Toast notifications are triggered separately using toast functions or Toast components
+- The Toaster manages the positioning and lifecycle of all toasts

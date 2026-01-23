@@ -1,0 +1,248 @@
+---
+title: "Semantic"
+description: "Semantic HTML5 elements for structured content (header, nav, main, aside, section, article, footer)"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+Semantic components provide HTML5 semantic elements that give meaning to the structure of web content, improving accessibility and SEO.
+
+## Available Elements
+
+ObjectUI provides semantic wrappers for these HTML5 elements:
+- `header` - Page or section header
+- `nav` - Navigation section
+- `main` - Main content area
+- `aside` - Sidebar or complementary content
+- `section` - Thematic grouping of content
+- `article` - Self-contained content
+- `footer` - Page or section footer
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'main',
+    className: 'p-6 border rounded',
+    children: [
+      { type: 'text', content: 'This is the main content area' }
+    ]
+  }}
+  title="Main Element"
+/>
+
+## Header
+
+<ComponentDemo
+  schema={{
+    type: 'header',
+    className: 'p-4 border-b bg-slate-50',
+    children: [
+      {
+        type: 'flex',
+        justify: 'between',
+        align: 'center',
+        children: [
+          { type: 'text', content: 'Site Title', className: 'text-xl font-bold' },
+          { type: 'text', content: 'Navigation', className: 'text-sm text-muted-foreground' }
+        ]
+      }
+    ]
+  }}
+  title="Header"
+/>
+
+## Navigation
+
+<ComponentDemo
+  schema={{
+    type: 'nav',
+    className: 'p-4 border rounded bg-slate-50',
+    children: [
+      {
+        type: 'flex',
+        gap: 4,
+        children: [
+          { type: 'text', content: 'Home', className: 'font-medium cursor-pointer hover:text-primary' },
+          { type: 'text', content: 'About', className: 'font-medium cursor-pointer hover:text-primary' },
+          { type: 'text', content: 'Contact', className: 'font-medium cursor-pointer hover:text-primary' }
+        ]
+      }
+    ]
+  }}
+  title="Navigation"
+/>
+
+## Section and Article
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'section',
+      className: 'p-6 border rounded',
+      children: [
+        { type: 'text', content: 'Section Title', className: 'text-lg font-semibold mb-2' },
+        { type: 'text', content: 'A thematic grouping of content' }
+      ]
+    }}
+    title="Section"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'article',
+      className: 'p-6 border rounded',
+      children: [
+        { type: 'text', content: 'Article Title', className: 'text-lg font-semibold mb-2' },
+        { type: 'text', content: 'Self-contained content piece' }
+      ]
+    }}
+    title="Article"
+  />
+</DemoGrid>
+
+## Aside and Footer
+
+<DemoGrid>
+  <ComponentDemo
+    schema={{
+      type: 'aside',
+      className: 'p-4 border rounded bg-slate-50',
+      children: [
+        { type: 'text', content: 'Sidebar Content', className: 'font-semibold mb-2' },
+        { type: 'text', content: 'Complementary information', className: 'text-sm' }
+      ]
+    }}
+    title="Aside"
+  />
+  <ComponentDemo
+    schema={{
+      type: 'footer',
+      className: 'p-4 border-t bg-slate-50 text-center',
+      children: [
+        { type: 'text', content: '© 2024 Company Name', className: 'text-sm text-muted-foreground' }
+      ]
+    }}
+    title="Footer"
+  />
+</DemoGrid>
+
+## Schema
+
+```typescript
+// All semantic elements share the same schema structure
+interface SemanticSchema {
+  type: 'header' | 'nav' | 'main' | 'aside' | 'section' | 'article' | 'footer';
+  
+  // Content
+  children?: SchemaNode | SchemaNode[];  // Child components
+  body?: SchemaNode[];                    // Alternative content prop
+  
+  // Styling
+  className?: string;                     // Tailwind CSS classes
+  
+  // Base properties
+  id?: string;
+  visible?: boolean | string;
+  testId?: string;
+}
+```
+
+## Examples
+
+### Page Layout
+
+<ComponentDemo
+  schema={{
+    type: 'div',
+    className: 'max-w-4xl border rounded-lg overflow-hidden',
+    children: [
+      {
+        type: 'header',
+        className: 'p-4 bg-slate-900 text-white',
+        children: [
+          { type: 'text', content: 'My Website', className: 'text-xl font-bold' }
+        ]
+      },
+      {
+        type: 'nav',
+        className: 'p-3 bg-slate-100 border-b',
+        children: [
+          {
+            type: 'flex',
+            gap: 4,
+            children: [
+              { type: 'text', content: 'Home' },
+              { type: 'text', content: 'About' },
+              { type: 'text', content: 'Services' },
+              { type: 'text', content: 'Contact' }
+            ]
+          }
+        ]
+      },
+      {
+        type: 'main',
+        className: 'p-6',
+        children: [
+          {
+            type: 'article',
+            className: 'mb-6 pb-6 border-b',
+            children: [
+              { type: 'text', content: 'Article Title', className: 'text-2xl font-bold mb-2' },
+              { type: 'text', content: 'Article content goes here...', className: 'text-muted-foreground' }
+            ]
+          },
+          {
+            type: 'section',
+            children: [
+              { type: 'text', content: 'Related Content', className: 'text-xl font-semibold mb-2' },
+              { type: 'text', content: 'More information...', className: 'text-muted-foreground' }
+            ]
+          }
+        ]
+      },
+      {
+        type: 'footer',
+        className: 'p-4 bg-slate-100 text-center',
+        children: [
+          { type: 'text', content: '© 2024 All rights reserved', className: 'text-sm text-muted-foreground' }
+        ]
+      }
+    ]
+  }}
+  title="Complete Layout"
+/>
+
+### Blog Post
+
+<ComponentDemo
+  schema={{
+    type: 'article',
+    className: 'max-w-2xl p-6 border rounded-lg',
+    children: [
+      {
+        type: 'header',
+        className: 'mb-6',
+        children: [
+          { type: 'text', content: 'Understanding Semantic HTML', className: 'text-3xl font-bold mb-2' },
+          { type: 'text', content: 'Published on January 15, 2024', className: 'text-sm text-muted-foreground' }
+        ]
+      },
+      {
+        type: 'section',
+        className: 'mb-6',
+        children: [
+          { type: 'text', content: 'Introduction', className: 'text-xl font-semibold mb-2' },
+          { type: 'text', content: 'Semantic HTML provides meaning to the structure of web content...', className: 'leading-relaxed' }
+        ]
+      },
+      {
+        type: 'footer',
+        className: 'pt-6 border-t',
+        children: [
+          { type: 'text', content: 'Written by John Doe', className: 'text-sm text-muted-foreground' }
+        ]
+      }
+    ]
+  }}
+  title="Blog Article"
+/>

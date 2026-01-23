@@ -1,0 +1,208 @@
+---
+title: "Carousel"
+description: "Slideshow component for cycling through content"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Carousel component displays content in a slideshow format with navigation controls.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'carousel',
+    orientation: 'horizontal',
+    showArrows: true,
+    className: 'w-full max-w-xs',
+    items: [
+      [{ type: 'div', className: 'p-8 border rounded bg-blue-50', children: [{ type: 'text', content: 'Slide 1' }] }],
+      [{ type: 'div', className: 'p-8 border rounded bg-green-50', children: [{ type: 'text', content: 'Slide 2' }] }],
+      [{ type: 'div', className: 'p-8 border rounded bg-purple-50', children: [{ type: 'text', content: 'Slide 3' }] }]
+    ]
+  }}
+  title="Simple Carousel"
+/>
+
+## Without Arrows
+
+<ComponentDemo
+  schema={{
+    type: 'carousel',
+    orientation: 'horizontal',
+    showArrows: false,
+    className: 'w-full max-w-md',
+    items: [
+      [{ type: 'div', className: 'p-12 border rounded bg-gradient-to-r from-pink-500 to-purple-500 text-white text-center', children: [{ type: 'text', content: '1' }] }],
+      [{ type: 'div', className: 'p-12 border rounded bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-center', children: [{ type: 'text', content: '2' }] }],
+      [{ type: 'div', className: 'p-12 border rounded bg-gradient-to-r from-orange-500 to-red-500 text-white text-center', children: [{ type: 'text', content: '3' }] }]
+    ]
+  }}
+  title="No Arrows"
+/>
+
+## Schema
+
+```typescript
+interface CarouselSchema {
+  type: 'carousel';
+  
+  // Configuration
+  orientation?: 'horizontal' | 'vertical';  // Carousel direction (default: 'horizontal')
+  showArrows?: boolean;                     // Show navigation arrows (default: true)
+  
+  // Items
+  items: SchemaNode[][];                    // Array of slides (each slide is an array of components)
+  
+  // Options
+  opts?: {
+    loop?: boolean;                         // Enable infinite loop
+    align?: 'start' | 'center' | 'end';    // Slide alignment
+  };
+  
+  // Styling
+  className?: string;                       // Container CSS classes
+  itemClassName?: string;                   // Individual slide CSS classes
+  
+  // Base properties
+  id?: string;
+  visible?: boolean | string;
+  testId?: string;
+}
+```
+
+## Examples
+
+### Image Gallery
+
+<ComponentDemo
+  schema={{
+    type: 'carousel',
+    orientation: 'horizontal',
+    showArrows: true,
+    className: 'w-full max-w-lg',
+    itemClassName: 'basis-full',
+    items: [
+      [
+        {
+          type: 'div',
+          className: 'aspect-video bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center text-white text-2xl font-bold',
+          children: [{ type: 'text', content: 'Photo 1' }]
+        }
+      ],
+      [
+        {
+          type: 'div',
+          className: 'aspect-video bg-gradient-to-br from-purple-400 to-purple-600 rounded-lg flex items-center justify-center text-white text-2xl font-bold',
+          children: [{ type: 'text', content: 'Photo 2' }]
+        }
+      ],
+      [
+        {
+          type: 'div',
+          className: 'aspect-video bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center text-white text-2xl font-bold',
+          children: [{ type: 'text', content: 'Photo 3' }]
+        }
+      ],
+      [
+        {
+          type: 'div',
+          className: 'aspect-video bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center text-white text-2xl font-bold',
+          children: [{ type: 'text', content: 'Photo 4' }]
+        }
+      ]
+    ]
+  }}
+  title="Photo Gallery"
+/>
+
+### Product Showcase
+
+<ComponentDemo
+  schema={{
+    type: 'carousel',
+    orientation: 'horizontal',
+    showArrows: true,
+    className: 'w-full max-w-sm',
+    items: [
+      [
+        {
+          type: 'card',
+          className: 'p-6',
+          children: [
+            { type: 'text', content: 'Product 1', className: 'text-xl font-bold mb-2' },
+            { type: 'text', content: 'Amazing features and quality', className: 'text-muted-foreground mb-4' },
+            { type: 'text', content: '$99.99', className: 'text-2xl font-bold text-green-600' }
+          ]
+        }
+      ],
+      [
+        {
+          type: 'card',
+          className: 'p-6',
+          children: [
+            { type: 'text', content: 'Product 2', className: 'text-xl font-bold mb-2' },
+            { type: 'text', content: 'Premium quality guarantee', className: 'text-muted-foreground mb-4' },
+            { type: 'text', content: '$149.99', className: 'text-2xl font-bold text-green-600' }
+          ]
+        }
+      ],
+      [
+        {
+          type: 'card',
+          className: 'p-6',
+          children: [
+            { type: 'text', content: 'Product 3', className: 'text-xl font-bold mb-2' },
+            { type: 'text', content: 'Best value for money', className: 'text-muted-foreground mb-4' },
+            { type: 'text', content: '$79.99', className: 'text-2xl font-bold text-green-600' }
+          ]
+        }
+      ]
+    ]
+  }}
+  title="Products"
+/>
+
+### Testimonials
+
+<ComponentDemo
+  schema={{
+    type: 'carousel',
+    orientation: 'horizontal',
+    showArrows: true,
+    className: 'w-full max-w-2xl',
+    items: [
+      [
+        {
+          type: 'div',
+          className: 'p-8 bg-slate-50 rounded-lg text-center',
+          children: [
+            { type: 'text', content: '"This product changed my life!"', className: 'text-xl italic mb-4 block' },
+            { type: 'text', content: '— Sarah Johnson', className: 'font-semibold' }
+          ]
+        }
+      ],
+      [
+        {
+          type: 'div',
+          className: 'p-8 bg-slate-50 rounded-lg text-center',
+          children: [
+            { type: 'text', content: '"Absolutely fantastic experience."', className: 'text-xl italic mb-4 block' },
+            { type: 'text', content: '— Mike Chen', className: 'font-semibold' }
+          ]
+        }
+      ],
+      [
+        {
+          type: 'div',
+          className: 'p-8 bg-slate-50 rounded-lg text-center',
+          children: [
+            { type: 'text', content: '"Highly recommended to everyone!"', className: 'text-xl italic mb-4 block' },
+            { type: 'text', content: '— Emma Davis', className: 'font-semibold' }
+          ]
+        }
+      ]
+    ]
+  }}
+  title="Customer Reviews"
+/>
