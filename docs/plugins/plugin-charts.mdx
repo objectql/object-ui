@@ -30,8 +30,8 @@ npm install @object-ui/plugin-charts
     height: 300,
     color: "#8884d8"
   }}
-  title="Bar Chart"
-  description="Display data as vertical bars"
+  title="Simple Bar Chart"
+  description="Simple bar chart with basic API - type: 'bar-chart'"
 />
 
 <InteractiveDemo
@@ -56,8 +56,8 @@ npm install @object-ui/plugin-charts
       expenses: { label: "Expenses", color: "#82ca9d" }
     }
   }}
-  title="Multi-Line Chart"
-  description="Compare multiple metrics over time"
+  title="Advanced Line Chart"
+  description="Advanced chart with multiple series - type: 'chart', chartType: 'line'"
 />
 
 <InteractiveDemo
@@ -85,6 +85,11 @@ npm install @object-ui/plugin-charts
 />
 
 ## Usage
+
+The plugin provides two chart APIs:
+
+1. **Simple Bar Chart** (`bar-chart`) - Simplified API for basic bar charts
+2. **Advanced Charts** (`chart`) - Full-featured API supporting multiple chart types (bar, line, area) and multiple data series
 
 ### Basic Usage
 
@@ -140,7 +145,11 @@ const schema = {
 
 ## Chart Types
 
-### Bar Chart
+The plugin provides two different chart components:
+
+### Simple Bar Chart (bar-chart)
+
+For basic single-series bar charts, use the simplified `bar-chart` type:
 
 ```tsx
 const schema = {
@@ -157,7 +166,34 @@ const schema = {
 }
 ```
 
-### Line Chart
+### Advanced Charts (chart)
+
+For multi-series charts or line/area charts, use the advanced `chart` type with the `chartType` property:
+
+##### Bar Chart
+
+```tsx
+const schema = {
+  type: 'chart',
+  chartType: 'bar',
+  data: [
+    { month: 'Jan', sales: 400, target: 350 },
+    { month: 'Feb', sales: 300, target: 400 },
+    { month: 'Mar', sales: 600, target: 550 }
+  ],
+  xAxisKey: 'month',
+  series: [
+    { dataKey: 'sales' },
+    { dataKey: 'target' }
+  ],
+  config: {
+    sales: { label: 'Sales', color: '#3b82f6' },
+    target: { label: 'Target', color: '#10b981' }
+  }
+}
+```
+
+##### Line Chart
 
 ```tsx
 const schema = {
@@ -178,7 +214,7 @@ const schema = {
 }
 ```
 
-### Area Chart
+#### Area Chart
 
 ```tsx
 const schema = {
