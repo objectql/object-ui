@@ -1,62 +1,62 @@
-# ObjectUI vs Shadcn: 组件对照表
+# ObjectUI vs Shadcn: Component Mapping Guide
 
-**快速参考**: 了解ObjectUI渲染器与Shadcn UI组件的关系
-
----
-
-## 概念区分
-
-### Shadcn UI组件
-- 📦 **纯UI组件库**
-- 🎨 基于Radix UI + Tailwind CSS
-- 💻 需要编写React代码
-- 🔧 通过Props控制
-
-### ObjectUI渲染器
-- 🔄 **Schema解释器**
-- 📋 基于JSON配置驱动
-- 🚀 零代码即可使用
-- 🔗 自动数据绑定和验证
+**Quick Reference**: Understanding the relationship between ObjectUI Renderer and Shadcn UI components
 
 ---
 
-## 一对一映射关系
+## Conceptual Distinction
 
-| Shadcn UI | ObjectUI渲染器 | 增强功能 |
+### Shadcn UI Components
+- 📦 **Pure UI Component Library**
+- 🎨 Built on Radix UI + Tailwind CSS
+- 💻 Requires writing React code
+- 🔧 Controlled via Props
+
+### ObjectUI Renderer
+- 🔄 **Schema Interpreter**
+- 📋 JSON configuration-driven
+- 🚀 Zero-code usage
+- 🔗 Automatic data binding and validation
+
+---
+
+## One-to-One Mapping
+
+| Shadcn UI | ObjectUI Renderer | Enhanced Features |
 |-----------|---------------|---------|
-| `<Input />` | `{ type: "input" }` | ✅ 表达式, ✅ 验证, ✅ 数据绑定 |
-| `<Button />` | `{ type: "button" }` | ✅ 动作映射, ✅ 加载状态 |
-| `<Select />` | `{ type: "select" }` | ✅ 动态选项, ✅ 远程搜索 |
-| `<Dialog />` | `{ type: "dialog" }` | ✅ 条件显示, ✅ 表单集成 |
-| `<Table />` | `{ type: "table" }` | ✅ 基础表格渲染 |
-| `<Card />` | `{ type: "card" }` | ✅ 动态内容, ✅ 操作按钮 |
-| `<Form />` | `{ type: "form" }` | ✅ 验证引擎, ✅ 提交处理 |
-| `<Tabs />` | `{ type: "tabs" }` | ✅ 动态标签, ✅ 懒加载 |
-| `<Badge />` | `{ type: "badge" }` | ✅ 状态映射, ✅ 颜色规则 |
-| `<Alert />` | `{ type: "alert" }` | ✅ 条件显示, ✅ 自动关闭 |
+| `<Input />` | `{ type: "input" }` | ✅ Expressions, ✅ Validation, ✅ Data Binding |
+| `<Button />` | `{ type: "button" }` | ✅ Action Mapping, ✅ Loading States |
+| `<Select />` | `{ type: "select" }` | ✅ Dynamic Options, ✅ Remote Search |
+| `<Dialog />` | `{ type: "dialog" }` | ✅ Conditional Display, ✅ Form Integration |
+| `<Table />` | `{ type: "table" }` | ✅ Basic Table Rendering |
+| `<Card />` | `{ type: "card" }` | ✅ Dynamic Content, ✅ Action Buttons |
+| `<Form />` | `{ type: "form" }` | ✅ Validation Engine, ✅ Submit Handling |
+| `<Tabs />` | `{ type: "tabs" }` | ✅ Dynamic Tabs, ✅ Lazy Loading |
+| `<Badge />` | `{ type: "badge" }` | ✅ Status Mapping, ✅ Color Rules |
+| `<Alert />` | `{ type: "alert" }` | ✅ Conditional Display, ✅ Auto-dismiss |
 
 ---
 
-## ObjectUI独有组件
+## ObjectUI Exclusive Components
 
-这些组件没有直接对应的Shadcn组件，是ObjectUI的高级业务组件：
+These components have no direct Shadcn counterparts and are advanced business components unique to ObjectUI:
 
-| 组件 | 类型 | 用途 |
+| Component | Type | Purpose |
 |------|------|------|
-| **data-table** | 复杂组件 | 带排序/过滤/分页的高级表格 |
-| **timeline** | 复杂组件 | 时间线/甘特图 |
-| **filter-builder** | 复杂组件 | 可视化查询构建器 |
-| **chatbot** | 复杂组件 | 对话机器人界面 |
-| **tree-view** | 数据展示 | 树形结构 |
-| **statistic** | 数据展示 | 统计数值卡片 |
+| **data-table** | Complex Component | Advanced table with sorting/filtering/pagination |
+| **timeline** | Complex Component | Timeline/Gantt chart |
+| **filter-builder** | Complex Component | Visual query builder |
+| **chatbot** | Complex Component | Chatbot interface |
+| **tree-view** | Data Display | Tree structure |
+| **statistic** | Data Display | Statistical metric cards |
 
 ---
 
-## 使用场景对比
+## Usage Comparison
 
-### 场景1: 简单表单
+### Scenario 1: Simple Form
 
-#### Shadcn方式 (React代码)
+#### Shadcn Approach (React Code)
 ```tsx
 import { Input } from '@/ui/input';
 import { Button } from '@/ui/button';
@@ -92,7 +92,7 @@ function LoginForm() {
 }
 ```
 
-#### ObjectUI方式 (JSON Schema)
+#### ObjectUI Approach (JSON Schema)
 ```json
 {
   "type": "form",
@@ -123,9 +123,9 @@ function LoginForm() {
 }
 ```
 
-### 场景2: 数据表格
+### Scenario 2: Data Table
 
-#### Shadcn方式
+#### Shadcn Approach
 ```tsx
 import { Table } from '@/ui/table';
 
@@ -162,7 +162,7 @@ function UserTable() {
 }
 ```
 
-#### ObjectUI方式
+#### ObjectUI Approach
 ```json
 {
   "type": "data-table",
@@ -187,26 +187,26 @@ function UserTable() {
 
 ---
 
-## 选择指南
+## Selection Guide
 
-### 使用Shadcn UI（直接使用原生组件）
-✅ 需要高度定制化的交互逻辑  
-✅ 组件行为复杂，难以用Schema表达  
-✅ 性能极致优化（避免Schema解析开销）  
-✅ 已有大量React组件代码  
+### Use Shadcn UI (Direct Native Components)
+✅ Highly customized interaction logic required  
+✅ Complex component behavior difficult to express in Schema  
+✅ Performance-critical optimization (avoid Schema parsing overhead)  
+✅ Existing large React component codebase  
 
-### 使用ObjectUI渲染器（推荐）
-✅ 快速构建数据管理界面  
-✅ 配置驱动，易于维护  
-✅ 需要动态UI（从服务端获取配置）  
-✅ 低代码/无代码平台  
-✅ 需要AI生成UI  
+### Use ObjectUI Renderer (Recommended)
+✅ Rapidly build data management interfaces  
+✅ Configuration-driven, easy to maintain  
+✅ Dynamic UI required (fetch configuration from server)  
+✅ Low-code/No-code platforms  
+✅ AI-generated UI  
 
 ---
 
-## 混合使用
+## Hybrid Approach
 
-ObjectUI支持在Schema中嵌入自定义React组件：
+ObjectUI supports embedding custom React components within Schema:
 
 ```json
 {
@@ -214,7 +214,7 @@ ObjectUI支持在Schema中嵌入自定义React组件：
   "body": [
     {
       "type": "card",
-      "title": "用户统计",
+      "title": "User Statistics",
       "body": {
         "type": "custom",
         "component": "CustomChart",
@@ -232,7 +232,7 @@ ObjectUI支持在Schema中嵌入自定义React组件：
 ```
 
 ```tsx
-// 注册自定义组件
+// Register custom component
 import { registerRenderer } from '@object-ui/react';
 import CustomChart from './CustomChart';
 
@@ -244,29 +244,29 @@ registerRenderer('custom', ({ schema }) => {
 
 ---
 
-## 常见问题
+## Frequently Asked Questions
 
-### Q: ObjectUI渲染器性能如何？
-A: 相比直接使用Shadcn有轻微开销（<10%），但通过虚拟化和缓存优化，在实际应用中差异不明显。
+### Q: How is ObjectUI Renderer performance?
+A: Compared to using Shadcn directly, there is a slight overhead (<10%), but with virtualization and caching optimizations, the difference is negligible in real-world applications.
 
-### Q: 可以覆盖ObjectUI渲染器的样式吗？
-A: 可以！通过`className`属性传入Tailwind类名即可覆盖。
+### Q: Can I override ObjectUI Renderer styles?
+A: Yes! You can override styles by passing Tailwind class names via the `className` property.
 
-### Q: 如何扩展ObjectUI不支持的组件？
-A: 使用`registerRenderer`注册自定义渲染器，或使用`type: "custom"`嵌入React组件。
+### Q: How do I extend components not supported by ObjectUI?
+A: Use `registerRenderer` to register custom renderers, or use `type: "custom"` to embed React components.
 
-### Q: ObjectUI渲染器支持TypeScript吗？
-A: 完全支持！所有Schema都有完整的TypeScript类型定义。
-
----
-
-## 更多资源
-
-- 📚 [组件API文档](./components/)
-- 🎨 [Storybook示例](https://storybook.objectui.org)
-- 🔧 [自定义渲染器指南](./guide/custom-renderers.md)
-- 💡 [最佳实践](./community/best-practices.md)
+### Q: Does ObjectUI Renderer support TypeScript?
+A: Full support! All Schemas have complete TypeScript type definitions.
 
 ---
 
-*最后更新: 2026-01-23*
+## Additional Resources
+
+- 📚 [Component API Documentation](./components/)
+- 🎨 [Storybook Examples](https://storybook.objectui.org)
+- 🔧 [Custom Renderer Guide](./guide/custom-renderers.md)
+- 💡 [Best Practices](./community/best-practices.md)
+
+---
+
+*Last Updated: 2026-01-23*

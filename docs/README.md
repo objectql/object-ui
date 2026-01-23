@@ -21,9 +21,9 @@ This directory contains the VitePress documentation site for Object UI.
 - 📚 [Best Practices](./BEST_PRACTICES.md) - Code quality guidelines
 
 ### Component Evaluation & Planning
-- 📊 [Component Evaluation (中文)](./OBJECTSTACK_COMPONENT_EVALUATION.md) - Complete Chinese evaluation report
+- 📊 [Component Evaluation (English)](./OBJECTSTACK_COMPONENT_EVALUATION.md) - Complete evaluation report
 - 📊 [Component Evaluation (English)](./OBJECTSTACK_COMPONENT_EVALUATION_EN.md) - Executive summary in English
-- 🗺️ [2026 Roadmap (中文)](./DEVELOPMENT_ROADMAP_2026.md) - Detailed 2026 development roadmap
+- 🗺️ [2026 Roadmap (English)](./DEVELOPMENT_ROADMAP_2026.md) - Detailed 2026 development roadmap
 - 📋 [Component Mapping Guide](./COMPONENT_MAPPING_GUIDE.md) - ObjectUI vs Shadcn comparison
 - 🏷️ [Component Naming Conventions](./COMPONENT_NAMING_CONVENTIONS.md) - Naming rules and guidelines
 - 📑 [Evaluation Index](./EVALUATION_INDEX.md) - Quick navigation to all evaluation docs
