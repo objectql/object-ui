@@ -1,16 +1,17 @@
 # @object-ui/plugin-object
 
-ObjectQL plugin for Object UI, providing seamless integration with ObjectQL backends through auto-generated components.
+ObjectStack plugin for Object UI, providing seamless integration with ObjectStack backends through auto-generated components.
 
 ## Features
 
-- **ObjectTable**: A specialized table component that automatically fetches and displays data from ObjectQL objects
-- **ObjectForm**: A smart form component that generates forms from ObjectQL object schemas
+- **ObjectTable**: A specialized table component that automatically fetches and displays data from ObjectStack objects
+- **ObjectForm**: A smart form component that generates forms from ObjectStack object schemas
+- **ObjectView**: A complete object management interface combining table and form components
 
 ## Installation
 
 ```bash
-npm install @object-ui/plugin-object @object-ui/data-objectql
+npm install @object-ui/plugin-object @object-ui/core
 ```
 
 ## Usage
@@ -19,9 +20,9 @@ npm install @object-ui/plugin-object @object-ui/data-objectql
 
 ```tsx
 import { ObjectTable } from '@object-ui/plugin-object';
-import { ObjectQLDataSource } from '@object-ui/data-objectql';
+import { createObjectStackAdapter } from '@object-ui/core';
 
-const dataSource = new ObjectQLDataSource({
+const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.example.com',
   token: 'your-auth-token'
 });
@@ -43,9 +44,9 @@ function UsersTable() {
 
 ```tsx
 import { ObjectForm } from '@object-ui/plugin-object';
-import { ObjectQLDataSource } from '@object-ui/data-objectql';
+import { createObjectStackAdapter } from '@object-ui/core';
 
-const dataSource = new ObjectQLDataSource({
+const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.example.com',
   token: 'your-auth-token'
 });
@@ -65,9 +66,35 @@ function UserForm() {
 }
 ```
 
+### ObjectView
+
+```tsx
+import { ObjectView } from '@object-ui/plugin-object';
+import { createObjectStackAdapter } from '@object-ui/core';
+
+const dataSource = createObjectStackAdapter({
+  baseUrl: 'https://api.example.com',
+  token: 'your-auth-token'
+});
+
+function UsersView() {
+  return (
+    <ObjectView 
+      schema={{
+        type: 'object-view',
+        objectName: 'users',
+        showSearch: true,
+        showFilters: true
+      }}
+      dataSource={dataSource}
+    />
+  );
+}
+```
+
 ## Schema Integration
 
-Both components automatically integrate with ObjectQL's schema system to:
+All components automatically integrate with ObjectStack's schema system to:
 - Display appropriate field types
 - Apply field-level permissions
 - Validate data according to schema rules

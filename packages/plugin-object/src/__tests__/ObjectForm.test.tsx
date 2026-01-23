@@ -10,8 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ObjectForm } from '../ObjectForm';
-import type { ObjectFormSchema } from '@object-ui/types';
-import type { ObjectQLDataSource } from '@object-ui/data-objectql';
+import type { ObjectFormSchema, DataSource } from '@object-ui/types';
 
 // Mock SchemaRenderer
 vi.mock('@object-ui/react', () => ({
@@ -32,7 +31,7 @@ vi.mock('@object-ui/react', () => ({
 }));
 
 describe('ObjectForm', () => {
-  let mockDataSource: ObjectQLDataSource;
+  let mockDataSource: DataSource;
   let mockSchema: ObjectFormSchema;
 
   beforeEach(() => {

@@ -10,8 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ObjectView } from '../ObjectView';
-import type { ObjectViewSchema } from '@object-ui/types';
-import type { ObjectQLDataSource } from '@object-ui/data-objectql';
+import type { ObjectViewSchema, DataSource } from '@object-ui/types';
 
 // Mock child components
 vi.mock('../ObjectTable', () => ({
@@ -87,7 +86,7 @@ vi.mock('@object-ui/components/ui/input', () => ({
 }));
 
 describe('ObjectView', () => {
-  let mockDataSource: ObjectQLDataSource;
+  let mockDataSource: DataSource;
   let mockSchema: ObjectViewSchema;
 
   beforeEach(() => {

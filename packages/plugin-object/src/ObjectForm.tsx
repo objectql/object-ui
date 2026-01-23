@@ -14,8 +14,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import type { ObjectFormSchema, FormField, FormSchema } from '@object-ui/types';
-import type { ObjectQLDataSource } from '@object-ui/data-objectql';
+import type { ObjectFormSchema, FormField, FormSchema, DataSource } from '@object-ui/types';
 import { SchemaRenderer } from '@object-ui/react';
 
 export interface ObjectFormProps {
@@ -25,10 +24,10 @@ export interface ObjectFormProps {
   schema: ObjectFormSchema;
   
   /**
-   * ObjectQL data source
+   * Data source (ObjectQL or ObjectStack adapter)
    * Optional when using inline field definitions (customFields or fields array with field objects)
    */
-  dataSource?: ObjectQLDataSource;
+  dataSource?: DataSource;
   
   /**
    * Additional CSS class
@@ -50,7 +49,7 @@ export interface ObjectFormProps {
  *     mode: 'create',
  *     fields: ['name', 'email', 'status']
  *   }}
- *   dataSource={objectQLDataSource}
+ *   dataSource={dataSource}
  * />
  * ```
  */
@@ -75,7 +74,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
     }
   }, [hasInlineFields, schema.initialData, schema.initialValues]);
 
-  // Fetch object schema from ObjectQL (skip if using inline fields)
+  // Fetch object schema from ObjectQL/ObjectStack (skip if using inline fields)
   useEffect(() => {
     const fetchObjectSchema = async () => {
       try {

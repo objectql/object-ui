@@ -10,17 +10,16 @@ The following packages now have ObjectStack dependencies:
 
 - `@object-ui/types` → depends on `@objectstack/spec@^0.3.0`
 - `@object-ui/core` → depends on `@objectstack/client@^0.3.0` and `@objectstack/spec@^0.3.0`
-- `@object-ui/data-objectql` → depends on `@objectstack/client@^0.3.0`
 
-### 2. New Data Source Adapter
+### 2. ObjectStack Adapter
 
-A new `ObjectStackAdapter` is now available for seamless integration with ObjectStack Protocol servers.
+The `ObjectStackAdapter` in `@object-ui/core` provides seamless integration with ObjectStack Protocol servers.
 
 ## For Users
 
 ### Using the ObjectStack Adapter
 
-If you want to connect to an ObjectStack backend:
+To connect to an ObjectStack backend:
 
 ```typescript
 import { createObjectStackAdapter } from '@object-ui/core';
@@ -153,7 +152,6 @@ If you encounter any issues:
 |---------|---------|------------------|-------------------|
 | @object-ui/types | 0.3.0+ | ^0.3.0 | - |
 | @object-ui/core | 0.3.0+ | ^0.3.0 | ^0.3.0 |
-| @object-ui/data-objectql | 0.3.0+ | - | ^0.3.0 |
 
 ## Next Steps
 

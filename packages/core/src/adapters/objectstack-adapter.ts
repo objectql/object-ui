@@ -186,6 +186,24 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
   }
 
   /**
+   * Get object schema/metadata from ObjectStack.
+   * 
+   * @param objectName - Object name
+   * @returns Promise resolving to the object schema
+   */
+  async getObjectSchema(objectName: string): Promise<any> {
+    await this.connect();
+    
+    try {
+      const schema = await this.client.meta.getObject(objectName);
+      return schema;
+    } catch (error) {
+      console.error(`Failed to fetch schema for ${objectName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Get access to the underlying ObjectStack client for advanced operations.
    */
   getClient(): ObjectStackClient {

@@ -14,8 +14,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import type { ObjectTableSchema, TableColumn, TableSchema } from '@object-ui/types';
-import type { ObjectQLDataSource } from '@object-ui/data-objectql';
+import type { ObjectTableSchema, TableColumn, TableSchema, DataSource } from '@object-ui/types';
 import { SchemaRenderer } from '@object-ui/react';
 
 export interface ObjectTableProps {
@@ -25,10 +24,10 @@ export interface ObjectTableProps {
   schema: ObjectTableSchema;
   
   /**
-   * ObjectQL data source
+   * Data source (ObjectQL or ObjectStack adapter)
    * Optional when inline data is provided in schema
    */
-  dataSource?: ObjectQLDataSource;
+  dataSource?: DataSource;
   
   /**
    * Additional CSS class
@@ -70,7 +69,7 @@ export interface ObjectTableProps {
  *     fields: ['name', 'email', 'status'],
  *     operations: { create: true, update: true, delete: true }
  *   }}
- *   dataSource={objectQLDataSource}
+ *   dataSource={dataSource}
  *   onEdit={(record) => console.log('Edit', record)}
  *   onDelete={(record) => console.log('Delete', record)}
  * />
@@ -102,7 +101,7 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
     }
   }, [hasInlineData, schema.data]);
 
-  // Fetch object schema from ObjectQL (skip if using inline data)
+  // Fetch object schema from ObjectQL/ObjectStack (skip if using inline data)
   useEffect(() => {
     const fetchObjectSchema = async () => {
       try {
@@ -376,8 +375,8 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
         !recordIds.includes(item._id || item.id)
       ));
 
-      // Call backend bulk delete only if we have a dataSource
-      if (!hasInlineData && dataSource) {
+      // Call backend bulk delete only if we have a dataSource and it supports bulk operations
+      if (!hasInlineData && dataSource && dataSource.bulk) {
         await dataSource.bulk(schema.objectName, 'delete', records);
       }
 
