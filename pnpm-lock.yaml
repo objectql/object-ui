@@ -105,6 +105,9 @@ importers:
 
   apps/site:
     dependencies:
+      '@monaco-editor/react':
+        specifier: ^4.6.0
+        version: 4.7.0(monaco-editor@0.55.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@object-ui/components':
         specifier: workspace:*
         version: link:../../packages/components

@@ -16,5 +16,20 @@ export function baseOptions(): BaseLayoutProps {
       </div>
     ),
     },
+    links: [
+      {
+        text: 'Documentation',
+        url: '/docs',
+      },
+      {
+        text: 'Playground',
+        url: '/playground',
+      },
+      {
+        text: 'GitHub',
+        url: 'https://github.com/objectstack-ai/objectui',
+        external: true,
+      },
+    ],
   };
 }
