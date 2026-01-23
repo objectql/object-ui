@@ -4,58 +4,45 @@ import React, { useState, useEffect } from 'react';
 import { SchemaRenderer } from '@object-ui/react';
 import type { SchemaNode } from '@object-ui/core';
 import dynamic from 'next/dynamic';
+import { ObjectUIProvider } from '@/app/components/ObjectUIProvider';
 
 // Dynamically import Monaco Editor to avoid SSR issues
 const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
-// Load plugins
-const pluginsLoading = typeof window !== 'undefined' 
-  ? Promise.all([
-      import('@object-ui/plugin-editor'),
-      import('@object-ui/plugin-charts'),
-      import('@object-ui/plugin-kanban'),
-      import('@object-ui/plugin-markdown'),
-      import('@object-ui/plugin-object'),
-    ])
-  : Promise.resolve([]);
-
 // Default example schema
 const DEFAULT_SCHEMA = {
-  type: "container",
+  type: "div",
   className: "space-y-4",
   children: [
     {
-      type: "heading",
-      level: 2,
-      children: "Welcome to ObjectUI Playground"
+      type: "text",
+      content: "Welcome to ObjectUI Playground",
+      className: "text-2xl font-bold"
     },
     {
       type: "text",
-      children: "Edit the JSON schema on the left to see live updates here."
+      content: "Edit the JSON schema on the left to see live updates here."
     },
     {
       type: "card",
       className: "p-6",
-      children: {
-        type: "container",
-        className: "space-y-4",
-        children: [
-          {
-            type: "heading",
-            level: 3,
-            children: "Quick Example"
-          },
-          {
-            type: "text",
-            children: "Try changing the text or adding new components!"
-          },
-          {
-            type: "button",
-            variant: "default",
-            children: "Click me"
-          }
-        ]
-      }
+      children: [
+        {
+          type: "text",
+          content: "Quick Example",
+          className: "text-xl font-semibold mb-2"
+        },
+        {
+          type: "text",
+          content: "Try changing the text or adding new components!",
+          className: "mb-4"
+        },
+        {
+          type: "button",
+          variant: "default",
+          label: "Click me"
+        }
+      ]
     }
   ]
 };
@@ -64,13 +51,13 @@ const DEFAULT_SCHEMA = {
 const EXAMPLE_SCHEMAS = {
   basic: DEFAULT_SCHEMA,
   form: {
-    type: "container",
+    type: "div",
     className: "space-y-4 max-w-md",
     children: [
       {
-        type: "heading",
-        level: 2,
-        children: "Contact Form"
+        type: "text",
+        content: "Contact Form",
+        className: "text-2xl font-bold mb-4"
       },
       {
         type: "input",
@@ -80,7 +67,7 @@ const EXAMPLE_SCHEMAS = {
       {
         type: "input",
         name: "email",
-        type: "email",
+        inputType: "email",
         placeholder: "your@email.com"
       },
       {
@@ -92,18 +79,18 @@ const EXAMPLE_SCHEMAS = {
       {
         type: "button",
         variant: "default",
-        children: "Submit"
+        label: "Submit"
       }
     ]
   },
   dashboard: {
-    type: "container",
+    type: "div",
     className: "space-y-6",
     children: [
       {
-        type: "heading",
-        level: 1,
-        children: "Dashboard"
+        type: "text",
+        content: "Dashboard",
+        className: "text-3xl font-bold"
       },
       {
         type: "grid",
@@ -113,82 +100,70 @@ const EXAMPLE_SCHEMAS = {
           {
             type: "card",
             className: "p-6",
-            children: {
-              type: "container",
-              className: "space-y-2",
-              children: [
-                {
-                  type: "text",
-                  className: "text-sm text-muted-foreground",
-                  children: "Total Users"
-                },
-                {
-                  type: "heading",
-                  level: 2,
-                  children: "1,234"
-                }
-              ]
-            }
+            children: [
+              {
+                type: "text",
+                content: "Total Users",
+                className: "text-sm text-muted-foreground"
+              },
+              {
+                type: "text",
+                content: "1,234",
+                className: "text-2xl font-bold mt-2"
+              }
+            ]
           },
           {
             type: "card",
             className: "p-6",
-            children: {
-              type: "container",
-              className: "space-y-2",
-              children: [
-                {
-                  type: "text",
-                  className: "text-sm text-muted-foreground",
-                  children: "Revenue"
-                },
-                {
-                  type: "heading",
-                  level: 2,
-                  children: "$12,345"
-                }
-              ]
-            }
+            children: [
+              {
+                type: "text",
+                content: "Revenue",
+                className: "text-sm text-muted-foreground"
+              },
+              {
+                type: "text",
+                content: "$12,345",
+                className: "text-2xl font-bold mt-2"
+              }
+            ]
           },
           {
             type: "card",
             className: "p-6",
-            children: {
-              type: "container",
-              className: "space-y-2",
-              children: [
-                {
-                  type: "text",
-                  className: "text-sm text-muted-foreground",
-                  children: "Active Projects"
-                },
-                {
-                  type: "heading",
-                  level: 2,
-                  children: "42"
-                }
-              ]
-            }
+            children: [
+              {
+                type: "text",
+                content: "Active Projects",
+                className: "text-sm text-muted-foreground"
+              },
+              {
+                type: "text",
+                content: "42",
+                className: "text-2xl font-bold mt-2"
+              }
+            ]
           }
         ]
       }
     ]
   },
   list: {
-    type: "container",
+    type: "div",
     className: "space-y-4 max-w-2xl",
     children: [
       {
-        type: "heading",
-        level: 2,
-        children: "Task List"
+        type: "text",
+        content: "Task List",
+        className: "text-2xl font-bold mb-4"
       },
       {
         type: "card",
         className: "divide-y",
         children: [
           {
-            type: "container",
+            type: "div",
             className: "p-4 flex items-center gap-3",
             children: [
               {
@@ -197,12 +172,12 @@ const EXAMPLE_SCHEMAS = {
               },
               {
                 type: "text",
-                children: "Complete documentation"
+                content: "Complete documentation"
               }
             ]
           },
           {
-            type: "container",
+            type: "div",
             className: "p-4 flex items-center gap-3",
             children: [
               {
@@ -211,12 +186,12 @@ const EXAMPLE_SCHEMAS = {
               },
               {
                 type: "text",
-                children: "Review pull requests"
+                content: "Review pull requests"
               }
             ]
           },
           {
-            type: "container",
+            type: "div",
             className: "p-4 flex items-center gap-3",
             children: [
               {
@@ -225,7 +200,7 @@ const EXAMPLE_SCHEMAS = {
               },
               {
                 type: "text",
-                children: "Deploy to production"
+                content: "Deploy to production"
               }
             ]
           }
@@ -239,15 +214,7 @@ export default function PlaygroundPage() {
   const [schema, setSchema] = useState<SchemaNode>(DEFAULT_SCHEMA);
   const [editorValue, setEditorValue] = useState(JSON.stringify(DEFAULT_SCHEMA, null, 2));
   const [error, setError] = useState<string | null>(null);
-  const [pluginsLoaded, setPluginsLoaded] = useState(false);
   const [selectedExample, setSelectedExample] = useState<keyof typeof EXAMPLE_SCHEMAS>('basic');
-
-  useEffect(() => {
-    // Wait for plugins to load before rendering
-    pluginsLoading.then(() => {
-      setPluginsLoaded(true);
-    });
-  }, []);
 
   const handleEditorChange = (value: string | undefined) => {
     if (!value) return;
@@ -272,7 +239,8 @@ export default function PlaygroundPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-fd-background">
+    <ObjectUIProvider>
+      <div className="flex flex-col h-screen bg-fd-background">
       {/* Header */}
       <div className="border-b border-fd-border bg-fd-card">
         <div className="container mx-auto px-4 py-4">
@@ -340,11 +308,7 @@ export default function PlaygroundPage() {
             <h2 className="text-sm font-semibold text-fd-foreground">Live Preview</h2>
           </div>
           <div className="flex-1 overflow-auto p-6">
-            {!pluginsLoaded ? (
-              <div className="flex items-center justify-center h-full text-fd-muted-foreground">
-                Loading plugins...
-              </div>
-            ) : error ? (
+            {error ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center space-y-2">
                   <div className="text-4xl">⚠️</div>
@@ -359,6 +323,7 @@ export default function PlaygroundPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </ObjectUIProvider>
   );
 }
