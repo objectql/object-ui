@@ -1,54 +1,54 @@
-# ObjectUI组件命名规范
+# ObjectUI Component Naming Conventions
 
-**版本**: v1.0  
-**最后更新**: 2026年1月23日
-
----
-
-## 概述
-
-ObjectUI采用三层架构，每层有不同的组件命名约定。本文档明确定义各层组件的命名规则，避免混淆。
+**Version**: v1.0  
+**Last Updated**: January 23, 2026
 
 ---
 
-## 架构回顾
+## Overview
+
+ObjectUI adopts a three-layer architecture, with each layer having different component naming conventions. This document clearly defines the naming rules for components at each layer to avoid confusion.
+
+---
+
+## Architecture Review
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │  Layer 3: ObjectUI Renderers (Schema-Driven)       │
 │  - 76 components                                   │
-│  - 路径: packages/components/src/renderers/       │
-│  - 示例: InputRenderer, DataTableRenderer          │
+│  - Path: packages/components/src/renderers/        │
+│  - Examples: InputRenderer, DataTableRenderer      │
 └─────────────────────────────────────────────────────┘
-                        ↓ 使用
+                        ↓ uses
 ┌─────────────────────────────────────────────────────┐
 │  Layer 2: Shadcn UI Components (Design System)     │
 │  - 60 components                                   │
-│  - 路径: packages/components/src/ui/               │
-│  - 示例: Input, Button, Table                      │
+│  - Path: packages/components/src/ui/               │
+│  - Examples: Input, Button, Table                  │
 └─────────────────────────────────────────────────────┘
-                        ↓ 基于
+                        ↓ based on
 ┌─────────────────────────────────────────────────────┐
 │  Layer 1: Radix UI Primitives (Accessibility)      │
 │  - Headless components                             │
-│  - 外部依赖: @radix-ui/*                            │
+│  - External dependency: @radix-ui/*                │
 └─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 命名规则
+## Naming Rules
 
 ### Layer 1: Radix UI Primitives
 
-**命名规则**: 由Radix UI定义，不受ObjectUI控制
+**Naming Rules**: Defined by Radix UI, not controlled by ObjectUI
 
-**示例**:
+**Examples**:
 - `@radix-ui/react-dialog`
 - `@radix-ui/react-dropdown-menu`
 - `@radix-ui/react-select`
 
-**使用方式**:
+**Usage**:
 ```tsx
 import * as Dialog from '@radix-ui/react-dialog';
 ```
@@ -57,25 +57,25 @@ import * as Dialog from '@radix-ui/react-dialog';
 
 ### Layer 2: Shadcn UI Components
 
-**命名规则**: 
-- ✅ 使用小写kebab-case文件名
-- ✅ 导出PascalCase组件名
-- ✅ 文件名与组件功能直接对应
-- ✅ 保持简洁，单一职责
+**Naming Rules**: 
+- ✅ Use lowercase kebab-case file names
+- ✅ Export PascalCase component names
+- ✅ File names directly correspond to component functionality
+- ✅ Keep concise, single responsibility
 
-**文件位置**: `packages/components/src/ui/`
+**File Location**: `packages/components/src/ui/`
 
-**命名模式**:
+**Naming Pattern**:
 
-| 文件名 | 导出组件 | 说明 |
+| File Name | Exported Component | Description |
 |--------|----------|------|
-| `button.tsx` | `Button` | 基础按钮 |
-| `input.tsx` | `Input` | 基础输入框 |
-| `table.tsx` | `Table`, `TableHeader`, `TableBody`, ... | 表格原语 |
-| `dialog.tsx` | `Dialog`, `DialogContent`, ... | 对话框原语 |
-| `select.tsx` | `Select`, `SelectTrigger`, ... | 选择器原语 |
+| `button.tsx` | `Button` | Basic button |
+| `input.tsx` | `Input` | Basic input field |
+| `table.tsx` | `Table`, `TableHeader`, `TableBody`, ... | Table primitives |
+| `dialog.tsx` | `Dialog`, `DialogContent`, ... | Dialog primitives |
+| `select.tsx` | `Select`, `SelectTrigger`, ... | Select primitives |
 
-**示例**:
+**Example**:
 ```tsx
 // packages/components/src/ui/button.tsx
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -90,7 +90,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button";
 ```
 
-**使用方式**:
+**Usage**:
 ```tsx
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
@@ -101,30 +101,30 @@ import { Table, TableHeader, TableBody } from '@/ui/table';
 
 ### Layer 3: ObjectUI Renderers
 
-**命名规则**:
+**Naming Rules**:
 
-#### 3.1 基础渲染器（对应Shadcn组件）
+#### 3.1 Basic Renderers (Corresponding to Shadcn Components)
 
-**规则**: 
-- ✅ 文件名与对应的Shadcn组件相同
-- ✅ 通过import路径区分（`renderers/` vs `ui/`）
-- ✅ 渲染器名称添加`Renderer`后缀（实现中）
+**Rules**: 
+- ✅ File name matches the corresponding Shadcn component
+- ✅ Distinguish by import path (`renderers/` vs `ui/`)
+- ✅ Renderer names add `Renderer` suffix (in implementation)
 
-**文件位置**: `packages/components/src/renderers/{category}/`
+**File Location**: `packages/components/src/renderers/{category}/`
 
-**示例**:
+**Examples**:
 
-| Shadcn组件 | ObjectUI渲染器 | 说明 |
+| Shadcn Component | ObjectUI Renderer | Description |
 |-----------|---------------|------|
-| `ui/button.tsx` | `renderers/form/button.tsx` | 按钮渲染器 |
-| `ui/input.tsx` | `renderers/form/input.tsx` | 输入框渲染器 |
-| `ui/table.tsx` | `renderers/complex/table.tsx` | 简单表格渲染器 |
-| `ui/dialog.tsx` | `renderers/overlay/dialog.tsx` | 对话框渲染器 |
+| `ui/button.tsx` | `renderers/form/button.tsx` | Button renderer |
+| `ui/input.tsx` | `renderers/form/input.tsx` | Input renderer |
+| `ui/table.tsx` | `renderers/complex/table.tsx` | Simple table renderer |
+| `ui/dialog.tsx` | `renderers/overlay/dialog.tsx` | Dialog renderer |
 
-**代码示例**:
+**Code Example**:
 ```tsx
 // packages/components/src/renderers/form/button.tsx
-import { Button } from '@/ui/button'; // Shadcn组件
+import { Button } from '@/ui/button'; // Shadcn component
 
 export function ButtonRenderer({ schema }: RendererProps<ButtonSchema>) {
   const handleClick = useAction(schema.onClick);
@@ -140,90 +140,90 @@ export function ButtonRenderer({ schema }: RendererProps<ButtonSchema>) {
   );
 }
 
-// 注册到ComponentRegistry
+// Register to ComponentRegistry
 ComponentRegistry.register('button', ButtonRenderer);
 ```
 
-**Schema使用**:
+**Schema Usage**:
 ```json
 {
   "type": "button",
-  "label": "提交",
+  "label": "Submit",
   "variant": "default",
   "onClick": "handleSubmit"
 }
 ```
 
-#### 3.2 高级/组合渲染器
+#### 3.2 Advanced/Composite Renderers
 
-**规则**: 
-- ✅ 使用描述性名称，体现功能
-- ✅ 添加功能前缀（`data-`, `object-`, `filter-`等）
-- ✅ 避免与Shadcn组件重名
+**Rules**: 
+- ✅ Use descriptive names that reflect functionality
+- ✅ Add functional prefixes (`data-`, `object-`, `filter-`, etc.)
+- ✅ Avoid naming conflicts with Shadcn components
 
-**示例**:
+**Examples**:
 
-| 组件 | 说明 | 基于 |
+| Component | Description | Based On |
 |------|------|------|
-| `data-table.tsx` | 企业级数据表（排序/过滤/分页） | `table` + 业务逻辑 |
-| `filter-builder.tsx` | 可视化筛选器构建器 | `select` + `input` + 逻辑 |
-| `file-upload.tsx` | 文件上传组件 | `input` + 上传逻辑 |
+| `data-table.tsx` | Enterprise data table (sorting/filtering/pagination) | `table` + business logic |
+| `filter-builder.tsx` | Visual filter builder | `select` + `input` + logic |
+| `file-upload.tsx` | File upload component | `input` + upload logic |
 
-**命名建议**:
+**Naming Recommendations**:
 
-| 前缀 | 用途 | 示例 |
+| Prefix | Purpose | Examples |
 |------|------|------|
-| `data-` | 数据驱动的高级组件 | `data-table`, `data-grid` |
-| `object-` | Object协议相关组件 | `object-form`, `object-list`, `object-view` |
-| `filter-` | 筛选相关 | `filter-builder`, `filter-panel` |
-| 无前缀 | 基础渲染器 | `button`, `input`, `form` |
+| `data-` | Data-driven advanced components | `data-table`, `data-grid` |
+| `object-` | Object Protocol related components | `object-form`, `object-list`, `object-view` |
+| `filter-` | Filter related | `filter-builder`, `filter-panel` |
+| No prefix | Basic renderers | `button`, `input`, `form` |
 
-**为什么使用 `object-` 而不是 `os-`?**
+**Why Use `object-` Instead of `os-`?**
 
-经过综合评估（语义清晰度、现有模式一致性、行业最佳实践、可读性、文档友好度、国际化），强烈推荐使用 `object-` 前缀：
+After comprehensive evaluation (semantic clarity, consistency with existing patterns, industry best practices, readability, documentation friendliness, internationalization), we strongly recommend using the `object-` prefix:
 
-- ✅ **语义清晰**: `object-form` 比 `os-form` 更易理解（理解度: 95% vs 20%）
-- ✅ **模式一致**: 符合现有 `data-`, `filter-` 等全词前缀模式
-- ✅ **行业惯例**: Web Components、React库均使用全词而非缩写
-- ✅ **搜索友好**: "object-form" 搜索结果准确，"os-form" 被 Operating System 结果淹没
-- ✅ **国际化**: `object` 是通用技术术语，各语言理解度高
-- ❌ **os- 的问题**: 缩写歧义（Operating System?）、不符合Web规范、文档困难
+- ✅ **Semantic Clarity**: `object-form` is more understandable than `os-form` (comprehension: 95% vs 20%)
+- ✅ **Pattern Consistency**: Aligns with existing full-word prefixes like `data-`, `filter-`
+- ✅ **Industry Practice**: Web Components and React libraries use full words rather than abbreviations
+- ✅ **Search Friendly**: "object-form" search results are precise, "os-form" gets buried in Operating System results
+- ✅ **Internationalization**: `object` is a universal technical term with high comprehension across languages
+- ❌ **Problems with os-**: Abbreviation ambiguity (Operating System?), doesn't follow Web standards, documentation difficulties
 
-#### 3.3 基础元素渲染器
+#### 3.3 Basic Element Renderers
 
-**规则**: 
-- ✅ 使用HTML元素名
-- ✅ 这些组件在Shadcn UI中不存在
+**Rules**: 
+- ✅ Use HTML element names
+- ✅ These components do not exist in Shadcn UI
 
-**示例**:
+**Examples**:
 
-| 组件 | 说明 |
+| Component | Description |
 |------|------|
-| `div.tsx` | 通用容器 |
-| `span.tsx` | 内联容器 |
-| `text.tsx` | 文本渲染 |
-| `image.tsx` | 图片渲染 |
-| `html.tsx` | 原生HTML注入 |
+| `div.tsx` | Generic container |
+| `span.tsx` | Inline container |
+| `text.tsx` | Text rendering |
+| `image.tsx` | Image rendering |
+| `html.tsx` | Native HTML injection |
 
 ---
 
-### Layer 3.5: 插件组件
+### Layer 3.5: Plugin Components
 
-**命名规则**:
-- ✅ 独立npm包，使用`@object-ui/plugin-{name}`格式
-- ✅ 组件名称使用功能描述
-- ✅ 避免与核心组件重名
+**Naming Rules**:
+- ✅ Independent npm packages, use `@object-ui/plugin-{name}` format
+- ✅ Component names use functional descriptions
+- ✅ Avoid conflicts with core components
 
-**示例**:
+**Examples**:
 
-| 包名 | 组件 | 说明 |
+| Package Name | Component | Description |
 |------|------|------|
-| `@object-ui/plugin-kanban` | `kanban` | 看板组件 |
-| `@object-ui/plugin-charts` | `chart`, `bar-chart`, `line-chart` | 图表组件 |
-| `@object-ui/plugin-editor` | `rich-text-editor` | 富文本编辑器 |
-| `@object-ui/plugin-markdown` | `markdown-editor`, `markdown-viewer` | Markdown编辑器 |
+| `@object-ui/plugin-kanban` | `kanban` | Kanban component |
+| `@object-ui/plugin-charts` | `chart`, `bar-chart`, `line-chart` | Chart components |
+| `@object-ui/plugin-editor` | `rich-text-editor` | Rich text editor |
+| `@object-ui/plugin-markdown` | `markdown-editor`, `markdown-viewer` | Markdown editor |
 
-**使用方式**:
+**Usage**:
 ```bash
 pnpm add @object-ui/plugin-kanban
 ```
@@ -244,233 +244,233 @@ registerKanbanRenderers();
 
 ---
 
-## 命名冲突处理
+## Handling Naming Conflicts
 
-### 情况1: Shadcn组件 vs ObjectUI渲染器同名
+### Case 1: Shadcn Component vs ObjectUI Renderer with Same Name
 
-**问题**: `table` 既存在于`ui/`也存在于`renderers/`
+**Problem**: `table` exists in both `ui/` and `renderers/`
 
-**解决方案**: 通过import路径区分
+**Solution**: Distinguish by import path
 
 ```tsx
-// ✅ 正确：导入Shadcn组件
+// ✅ Correct: Import Shadcn component
 import { Table } from '@/ui/table';
 
-// ✅ 正确：导入ObjectUI渲染器（通常通过ComponentRegistry）
+// ✅ Correct: Import ObjectUI renderer (typically via ComponentRegistry)
 import { ComponentRegistry } from '@object-ui/core';
 const TableRenderer = ComponentRegistry.get('table');
 
-// ✅ 正确：在渲染器中使用Shadcn组件
+// ✅ Correct: Use Shadcn component in renderer
 import { Table } from '@/ui/table'; // Shadcn
 export function TableRenderer({ schema }) {
-  return <Table>...</Table>; // 使用Shadcn的Table
+  return <Table>...</Table>; // Using Shadcn's Table
 }
 ```
 
-### 情况2: 新增高级组件
+### Case 2: Adding Advanced Components
 
-**规则**: 如果组件提供超出基础UI的功能，使用描述性名称
+**Rule**: If a component provides functionality beyond basic UI, use descriptive names
 
-**示例**:
+**Examples**:
 
 ```tsx
-// ❌ 不推荐：与Shadcn的table冲突，功能不明确
-renderers/complex/table.tsx  (已存在，用于简单表格)
+// ❌ Not recommended: Conflicts with Shadcn's table, unclear functionality
+renderers/complex/table.tsx  (already exists, for simple tables)
 
-// ✅ 推荐：功能明确，不冲突
-renderers/complex/data-table.tsx  (企业级数据表)
+// ✅ Recommended: Clear functionality, no conflicts
+renderers/complex/data-table.tsx  (enterprise data table)
 
-// ✅ 推荐：未来的Object协议组件
-renderers/object/object-form.tsx  (从Object定义生成表单)
-renderers/object/object-list.tsx  (从Object定义生成列表)
-renderers/object/object-detail.tsx  (从Object定义生成详情页)
+// ✅ Recommended: Future Object Protocol components
+renderers/object/object-form.tsx  (generate form from Object definition)
+renderers/object/object-list.tsx  (generate list from Object definition)
+renderers/object/object-detail.tsx  (generate detail page from Object definition)
 ```
 
-### 情况3: 插件组件命名
+### Case 3: Plugin Component Naming
 
-**规则**: 使用独特的、功能描述性的名称
+**Rule**: Use unique, functionally descriptive names
 
 ```tsx
-// ✅ 正确：插件组件有独特名称
+// ✅ Correct: Plugin components have unique names
 @object-ui/plugin-kanban → type: "kanban"
 @object-ui/plugin-charts → type: "chart", "bar-chart", "line-chart"
 
-// ❌ 避免：与核心组件重名
-@object-ui/plugin-xxx → type: "button"  // 不要与核心button重名
+// ❌ Avoid: Conflicts with core components
+@object-ui/plugin-xxx → type: "button"  // Don't duplicate core component names
 ```
 
 ---
 
-## Schema中的type命名
+## Schema Type Naming
 
-### 基本规则
+### Basic Rules
 
-**type值必须与ComponentRegistry中注册的名称完全一致**
+**The type value must exactly match the name registered in ComponentRegistry**
 
 ```tsx
-// 注册
+// Registration
 ComponentRegistry.register('button', ButtonRenderer);
 ComponentRegistry.register('data-table', DataTableRenderer);
 
-// Schema中使用
+// Usage in Schema
 {
-  "type": "button",      // ✅ 正确
-  "type": "data-table"   // ✅ 正确
+  "type": "button",      // ✅ Correct
+  "type": "data-table"   // ✅ Correct
 }
 ```
 
-### 命名约定
+### Naming Conventions
 
-| Schema type | 对应组件 | 说明 |
+| Schema type | Corresponding Component | Description |
 |------------|----------|------|
-| `"button"` | `renderers/form/button.tsx` | 基础按钮 |
-| `"input"` | `renderers/form/input.tsx` | 基础输入 |
-| `"table"` | `renderers/complex/table.tsx` | 简单表格 |
-| `"data-table"` | `renderers/complex/data-table.tsx` | 高级数据表 |
-| `"form"` | `renderers/form/form.tsx` | 表单 |
-| `"object-form"` | `renderers/object/object-form.tsx` | 对象表单（规划中） |
-| `"kanban"` | `@object-ui/plugin-kanban` | 看板（插件） |
+| `"button"` | `renderers/form/button.tsx` | Basic button |
+| `"input"` | `renderers/form/input.tsx` | Basic input |
+| `"table"` | `renderers/complex/table.tsx` | Simple table |
+| `"data-table"` | `renderers/complex/data-table.tsx` | Advanced data table |
+| `"form"` | `renderers/form/form.tsx` | Form |
+| `"object-form"` | `renderers/object/object-form.tsx` | Object form (planned) |
+| `"kanban"` | `@object-ui/plugin-kanban` | Kanban (plugin) |
 
 ---
 
-## 未来命名规划
+## Future Naming Plans
 
-### Object协议组件（Q2 2026）
+### Object Protocol Components (Q2 2026)
 
-| 组件名 | type | 说明 |
+| Component Name | type | Description |
 |--------|------|------|
-| `object-form` | `"object-form"` | 从Object定义自动生成表单 |
-| `object-list` | `"object-list"` | 从Object定义自动生成列表 |
-| `object-detail` | `"object-detail"` | 从Object定义自动生成详情页 |
-| `object-view` | `"object-view"` | 通用Object视图容器 |
-| `object-field` | `"object-field"` | 动态字段渲染器 |
-| `object-relationship` | `"object-relationship"` | 关系字段选择器 |
+| `object-form` | `"object-form"` | Auto-generate form from Object definition |
+| `object-list` | `"object-list"` | Auto-generate list from Object definition |
+| `object-detail` | `"object-detail"` | Auto-generate detail page from Object definition |
+| `object-view` | `"object-view"` | Generic Object View container |
+| `object-field` | `"object-field"` | Dynamic field renderer |
+| `object-relationship` | `"object-relationship"` | Relationship field selector |
 
-**命名原则**: 所有Object协议组件统一使用 `object-` 前缀，保持与现有 `data-`, `filter-` 等前缀模式的一致性。
+**Naming Principle**: All Object Protocol components uniformly use the `object-` prefix, maintaining consistency with existing prefix patterns like `data-`, `filter-`.
 
-### 移动端组件（Q3 2026）
+### Mobile Components (Q3 2026)
 
-| 组件名 | type | 说明 |
+| Component Name | type | Description |
 |--------|------|------|
-| `mobile-nav` | `"mobile-nav"` | 移动端导航 |
-| `mobile-table` | `"mobile-table"` | 移动端表格（卡片模式） |
-| `bottom-sheet` | `"bottom-sheet"` | 底部抽屉 |
-| `pull-to-refresh` | `"pull-to-refresh"` | 下拉刷新 |
+| `mobile-nav` | `"mobile-nav"` | Mobile navigation |
+| `mobile-table` | `"mobile-table"` | Mobile table (card mode) |
+| `bottom-sheet` | `"bottom-sheet"` | Bottom drawer |
+| `pull-to-refresh` | `"pull-to-refresh"` | Pull to refresh |
 
-**命名原则**: 添加`mobile-`前缀，与桌面版区分
-
----
-
-## 检查清单
-
-开发新组件时，请检查：
-
-### Shadcn UI组件（src/ui/）
-- [ ] 文件名使用kebab-case
-- [ ] 导出PascalCase组件名
-- [ ] 只包含UI逻辑，无业务逻辑
-- [ ] 基于Radix UI primitives
-- [ ] 使用Tailwind CSS和cva
-
-### ObjectUI渲染器（src/renderers/）
-- [ ] 确认是否与Shadcn组件同名（如是，通过路径区分）
-- [ ] 高级功能使用描述性名称（`data-`, `object-`等前缀）
-- [ ] 在ComponentRegistry中正确注册
-- [ ] Schema type值与注册名称一致
-- [ ] 实现RendererProps接口
-- [ ] 包含完整的TypeScript类型
-
-### 插件组件（plugin packages）
-- [ ] 使用`@object-ui/plugin-{name}`包名
-- [ ] 组件名称独特，不与核心组件冲突
-- [ ] 提供注册函数（如`registerKanbanRenderers()`）
-- [ ] 独立的npm包
+**Naming Principle**: Add `mobile-` prefix to distinguish from desktop versions
 
 ---
 
-## 示例汇总
+## Checklist
 
-### 正确的命名示例
+When developing new components, please check:
+
+### Shadcn UI Components (src/ui/)
+- [ ] File names use kebab-case
+- [ ] Export PascalCase component names
+- [ ] Contain only UI logic, no business logic
+- [ ] Based on Radix UI primitives
+- [ ] Use Tailwind CSS and cva
+
+### ObjectUI Renderers (src/renderers/)
+- [ ] Confirm whether it has the same name as a Shadcn component (if yes, distinguish by path)
+- [ ] Advanced functionality uses descriptive names (`data-`, `object-`, etc. prefixes)
+- [ ] Properly registered in ComponentRegistry
+- [ ] Schema type value matches registration name
+- [ ] Implements RendererProps interface
+- [ ] Contains complete TypeScript types
+
+### Plugin Components (plugin packages)
+- [ ] Use `@object-ui/plugin-{name}` package name
+- [ ] Component name is unique, doesn't conflict with core components
+- [ ] Provides registration function (e.g., `registerKanbanRenderers()`)
+- [ ] Independent npm package
+
+---
+
+## Example Summary
+
+### Correct Naming Examples
 
 ```tsx
-// ✅ Shadcn UI组件
+// ✅ Shadcn UI Component
 packages/components/src/ui/button.tsx
 export const Button = ...
 
-// ✅ ObjectUI基础渲染器（同名，路径区分）
+// ✅ ObjectUI Basic Renderer (same name, distinguished by path)
 packages/components/src/renderers/form/button.tsx
 import { Button } from '@/ui/button';
 export function ButtonRenderer({ schema }) { ... }
 
-// ✅ ObjectUI高级渲染器（描述性名称）
+// ✅ ObjectUI Advanced Renderer (descriptive name)
 packages/components/src/renderers/complex/data-table.tsx
 export function DataTableRenderer({ schema }) { ... }
 
-// ✅ Object协议组件（前缀区分）
+// ✅ Object Protocol Component (distinguished by prefix)
 packages/components/src/renderers/object/object-form.tsx
 export function ObjectFormRenderer({ schema }) { ... }
 
-// ✅ 插件组件（独立包）
+// ✅ Plugin Component (independent package)
 packages/plugin-kanban/src/kanban.tsx
 export function KanbanRenderer({ schema }) { ... }
 ```
 
-### 错误的命名示例
+### Incorrect Naming Examples
 
 ```tsx
-// ❌ Shadcn组件使用PascalCase文件名
-packages/components/src/ui/Button.tsx  // 应该是button.tsx
+// ❌ Shadcn component using PascalCase file name
+packages/components/src/ui/Button.tsx  // Should be button.tsx
 
-// ❌ 渲染器与Shadcn组件同名但功能不同，应使用描述性名称
+// ❌ Renderer with same name as Shadcn component but different functionality, should use descriptive name
 packages/components/src/renderers/complex/table.tsx
-// 如果提供高级功能，应命名为data-table.tsx
+// If providing advanced functionality, should be named data-table.tsx
 
-// ❌ 插件组件名称与核心组件冲突
-@object-ui/plugin-xxx → type: "button"  // 不要重复核心组件名
+// ❌ Plugin component name conflicts with core component
+@object-ui/plugin-xxx → type: "button"  // Don't duplicate core component names
 
-// ❌ type值与注册名称不一致
+// ❌ type value doesn't match registration name
 ComponentRegistry.register('data-table', ...);
-{ "type": "dataTable" }  // 应该是"data-table"
+{ "type": "dataTable" }  // Should be "data-table"
 ```
 
 ---
 
-## 常见问题
+## FAQ
 
-### Q1: 为什么允许Shadcn和渲染器同名？
+### Q1: Why allow Shadcn and renderers to have the same name?
 
-A: 这是设计决策。渲染器是对Shadcn组件的Schema驱动包装，同名体现了这种对应关系。通过import路径可以清晰区分：
-- `@/ui/button` → Shadcn组件
-- `ComponentRegistry.get('button')` → ObjectUI渲染器
+A: This is a design decision. Renderers are Schema-driven wrappers for Shadcn components, and the same name reflects this correspondence. They can be clearly distinguished by import paths:
+- `@/ui/button` → Shadcn component
+- `ComponentRegistry.get('button')` → ObjectUI renderer
 
-### Q2: 什么时候应该使用新名称而不是与Shadcn同名？
+### Q2: When should you use a new name instead of matching the Shadcn name?
 
-A: 当组件提供了超出基础UI的显著功能时。例如：
-- `table` → 简单表格
-- `data-table` → 企业级表格（排序/过滤/分页/导出等）
+A: When a component provides significant functionality beyond basic UI. For example:
+- `table` → Simple table
+- `data-table` → Enterprise table (sorting/filtering/pagination/export, etc.)
 
-### Q3: 插件组件如何命名？
+### Q3: How to name plugin components?
 
-A: 插件组件应该：
-1. 使用独特的、功能描述性的名称
-2. 不与核心组件重名
-3. 使用`@object-ui/plugin-{name}`包名格式
+A: Plugin components should:
+1. Use unique, functionally descriptive names
+2. Not conflict with core component names
+3. Use `@object-ui/plugin-{name}` package name format
 
-### Q4: Object协议组件为什么使用`object-`前缀？
+### Q4: Why do Object Protocol components use the `object-` prefix?
 
-A: 为了明确表示这些组件是Object协议的实现，与基础渲染器区分。例如：
-- `form` → 通用表单渲染器
-- `object-form` → 从Object定义自动生成的表单
-
----
-
-## 相关文档
-
-- [组件架构概览](./OBJECTSTACK_COMPONENT_EVALUATION.md#1-组件架构概览)
-- [组件对照表](./COMPONENT_MAPPING_GUIDE.md)
-- [开发路线图](./DEVELOPMENT_ROADMAP_2026.md)
+A: To clearly indicate that these components are implementations of the Object Protocol, distinguishing them from basic renderers. For example:
+- `form` → Generic form renderer
+- `object-form` → Form auto-generated from Object definition
 
 ---
 
-**维护者**: ObjectUI核心团队  
-**反馈**: https://github.com/objectstack-ai/objectui/issues
+## Related Documentation
+
+- [Component Architecture Overview](./OBJECTSTACK_COMPONENT_EVALUATION.md#1-component-architecture-overview)
+- [Component Mapping Guide](./COMPONENT_MAPPING_GUIDE.md)
+- [Development Roadmap](./DEVELOPMENT_ROADMAP_2026.md)
+
+---
+
+**Maintainers**: ObjectUI Core Team  
+**Feedback**: https://github.com/objectstack-ai/objectui/issues

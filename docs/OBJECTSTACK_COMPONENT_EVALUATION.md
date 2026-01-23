@@ -1,303 +1,309 @@
-# ObjectStack协议前端组件评估报告
+# ObjectStack Protocol Frontend Component Evaluation Report
 
-**文档版本**: v1.0  
-**创建日期**: 2026年1月23日  
-**状态**: 📋 评估完成
-
----
-
-## 📋 执行摘要
-
-本文档全面评估了ObjectUI项目中为支持ObjectStack协议所需实现的前端组件清单，明确区分了ObjectUI渲染器组件与基础Shadcn UI组件的关系，并制定了详细的开发计划。
-
-### 关键发现
-
-- ✅ **平台基础组件**: 已实现76个渲染器，涵盖8大类别（通用UI组件）
-- 📝 **对象组件**: 规划10个核心组件（Q2 2026），基于Object定义自动生成UI
-- ✅ **集成60个Shadcn UI基础组件**作为底层原语
-- 🚧 **协议支持程度**: View (100%), Form (100%), Object (0%, Q2规划)
-- 📊 **组件覆盖率**: 平台基础组件100%，对象组件0%
-- 🎯 **代码质量**: 平均每个渲染器80-150行，保持精简
-
-### 双组件系统架构
-
-ObjectUI采用**两套独立但互补的组件系统**：
-
-#### 1. 平台基础组件（Platform Basic Components）
-- **定位**: 通用UI组件，适合灵活自定义场景
-- **数据源**: 任意API、静态数据、手动定义Schema
-- **优势**: 高度灵活、完全可控、学习成本低
-- **示例**: `data-table`, `form`, `list`, `card`
-- **当前状态**: 76个组件 ✅
-
-#### 2. 对象组件（Object Components）
-- **定位**: 基于ObjectStack Object定义自动生成UI
-- **数据源**: Object定义（.object.yml文件）驱动
-- **优势**: 零配置CRUD、自动关系处理、类型安全、维护性强
-- **示例**: `object-table`, `object-form`, `object-list`
-- **当前状态**: 0个组件，Q2 2026规划 📝
+**Document Version**: v1.0  
+**Creation Date**: January 23, 2026  
+**Status**: 📋 Evaluation Complete
 
 ---
 
-## 1. 组件架构概览
+## 📋 Executive Summary
 
-### 1.1 三层架构模型
+This document comprehensively evaluates the frontend component checklist required to support the ObjectStack Protocol in the ObjectUI project, clearly distinguishes the relationship between ObjectUI Renderer components and base Shadcn UI components, and formulates a detailed development plan.
 
-ObjectUI采用清晰的三层组件架构：
+### Key Findings
+
+- ✅ **Platform Basic Components**: 76 renderers implemented, covering 8 major categories (general UI components)
+- 📝 **Object Components**: 10 core components planned (Q2 2026), automatically generating UI from Object definitions
+- ✅ **Integrated 60 Shadcn UI base components** as underlying Primitives
+- 🚧 **Protocol Support**: View (100%), Form (100%), Object (0%, Q2 planned)
+- 📊 **Component Coverage**: Platform Basic Components 100%, Object Components 0%
+- 🎯 **Code Quality**: Average 80-150 lines per Renderer, maintaining conciseness
+
+### Dual Component System Architecture
+
+ObjectUI adopts **two independent but complementary component systems**:
+
+#### 1. Platform Basic Components
+- **Positioning**: General UI components, suitable for flexible customization scenarios
+- **Data Source**: Any API, static data, manually defined Schema
+- **Advantages**: Highly flexible, fully controllable, low learning curve
+- **Examples**: `data-table`, `form`, `list`, `card`
+- **Current Status**: 76 components ✅
+
+#### 2. Object Components
+- **Positioning**: Automatically generate UI from ObjectStack Object definitions
+- **Data Source**: Driven by Object definitions (.object.yml files)
+- **Advantages**: Zero-config CRUD, automatic relationship handling, type safety, strong maintainability
+- **Examples**: `object-table`, `object-form`, `object-list`
+- **Current Status**: 0 components, Q2 2026 planned 📝
+
+---
+
+## 1. Component Architecture Overview
+
+### 1.1 Three-Layer Architecture Model
+
+ObjectUI adopts a clear three-layer component architecture:
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │  Layer 3: ObjectUI Renderers (Schema-Driven)       │
 │  - 76 components in @object-ui/components          │
-│  - 业务逻辑包装，支持表达式、数据绑定、验证        │
-│  - 示例: InputRenderer, FormRenderer, CRUDRenderer  │
+│  - Business logic wrapper, supports expressions,   │
+│    data binding, validation                        │
+│  - Examples: InputRenderer, FormRenderer,          │
+│    CRUDRenderer                                    │
 └─────────────────────────────────────────────────────┘
-                        ↓ 使用
+                        ↓ uses
 ┌─────────────────────────────────────────────────────┐
 │  Layer 2: Shadcn UI Components (Design System)     │
 │  - 60 components in packages/components/src/ui     │
-│  - Radix UI + Tailwind CSS封装                     │
-│  - 示例: Input, Button, Dialog, Table              │
+│  - Radix UI + Tailwind CSS wrapper                │
+│  - Examples: Input, Button, Dialog, Table         │
 └─────────────────────────────────────────────────────┘
-                        ↓ 基于
+                        ↓ based on
 ┌─────────────────────────────────────────────────────┐
 │  Layer 1: Radix UI Primitives (Accessibility)      │
-│  - 无样式可访问组件基础                             │
-│  - 键盘导航、焦点管理、ARIA属性                     │
+│  - Unstyled accessible component foundation        │
+│  - Keyboard navigation, focus management,          │
+│    ARIA attributes                                 │
 └─────────────────────────────────────────────────────┘
 ```
 
-### 1.2 组件关系说明
+### 1.2 Component Relationship Explanation
 
-| 层级 | 职责 | 示例 | 依赖 |
+| Layer | Responsibility | Examples | Dependencies |
 |------|------|------|------|
-| **ObjectUI Renderers** | 实现ObjectStack协议，处理Schema | `InputRenderer`, `TableRenderer` | Shadcn UI + @object-ui/react |
-| **Shadcn UI** | 提供一致的设计系统和样式 | `<Input />`, `<Table />` | Radix UI + Tailwind |
-| **Radix UI** | 提供无障碍访问的底层交互 | `<Primitive.Input />` | React |
+| **ObjectUI Renderers** | Implement ObjectStack Protocol, handle Schema | `InputRenderer`, `TableRenderer` | Shadcn UI + @object-ui/react |
+| **Shadcn UI** | Provide consistent design system and styling | `<Input />`, `<Table />` | Radix UI + Tailwind |
+| **Radix UI** | Provide accessible underlying interactions | `<Primitive.Input />` | React |
 
-**关键区别**:
-- **Shadcn组件** = 纯UI展示，接受props控制
-- **ObjectUI渲染器** = Schema解释器，连接数据源，处理业务逻辑
+**Key Differences**:
+- **Shadcn Components** = Pure UI presentation, controlled by props
+- **ObjectUI Renderers** = Schema interpreters, connect data sources, handle business logic
 
-### 1.3 双组件系统架构
+### 1.3 Dual Component System Architecture
 
-**重要**: ObjectUI包含**两套独立但互补的组件系统**：
+**Important**: ObjectUI contains **two independent but complementary component systems**:
 
-#### 系统A: 平台基础组件（76个，已实现）
+#### System A: Platform Basic Components (76, implemented)
 
-**特征**:
-- 通用UI组件，不依赖Object定义
-- Schema手动定义（columns, fields等）
-- 高度灵活，适合自定义场景
-- 数据源：任意API、静态数据
+**Characteristics**:
+- General UI components, independent of Object definitions
+- Schema manually defined (columns, fields, etc.)
+- Highly flexible, suitable for customization scenarios
+- Data source: Any API, static data
 
-**示例**:
+**Example**:
 ```json
 {
   "type": "data-table",
   "api": "/api/users",
   "columns": [
     { "name": "id", "label": "ID" },
-    { "name": "name", "label": "姓名" },
-    { "name": "email", "label": "邮箱" }
+    { "name": "name", "label": "Name" },
+    { "name": "email", "label": "Email" }
   ]
 }
 ```
 
-**组件列表**: `data-table`, `form`, `list`, `card`, `button`等（本文档第2章详述）
+**Component List**: `data-table`, `form`, `list`, `card`, `button`, etc. (detailed in Chapter 2)
 
-#### 系统B: 对象组件（10个，Q2 2026规划）
+#### System B: Object Components (10, Q2 2026 planned)
 
-**特征**:
-- 基于ObjectStack Object定义自动生成UI
-- 零配置CRUD（从Object.fields自动生成）
-- 智能处理关系字段（lookup/master-detail）
-- 数据源：Object定义 + ObjectQL
+**Characteristics**:
+- Automatically generate UI from ObjectStack Object definitions
+- Zero-config CRUD (automatically generated from Object.fields)
+- Intelligently handle relationship fields (lookup/master-detail)
+- Data source: Object definitions + ObjectQL
 
-**示例**:
+**Example**:
 ```json
 {
   "type": "object-table",
   "object": "user"
-  // 自动从user.object.yml生成所有列、验证、关系字段处理
+  // Automatically generated from user.object.yml:
+  // - All column definitions
+  // - Validation rules
+  // - Relationship field handling
 }
 ```
 
-**组件列表**: `object-table`, `object-form`, `object-list`等（本文档第5.2章详述）
+**Component List**: `object-table`, `object-form`, `object-list`, etc. (detailed in Chapter 5.2)
 
-#### 对比总结
+#### Comparison Summary
 
-| 维度 | 平台基础组件 | 对象组件 |
+| Dimension | Platform Basic Components | Object Components |
 |------|------------|---------|
-| **数据源** | 任意API/数据 | Object定义 |
-| **Schema** | 手动定义 | 自动生成 |
-| **灵活性** | 高（完全自定义） | 中（约束于Object） |
-| **开发速度** | 中（需手动配置） | 快（零配置） |
-| **维护性** | Schema需同步维护 | Object改变UI自动更新 |
-| **适用场景** | 自定义仪表盘、复杂交互 | 标准CRUD、快速原型 |
+| **Data Source** | Any API/data | Object definitions |
+| **Schema** | Manually defined | Auto-generated |
+| **Flexibility** | High (fully customizable) | Medium (constrained by Object) |
+| **Development Speed** | Medium (requires manual config) | Fast (zero-config) |
+| **Maintainability** | Schema needs sync maintenance | UI auto-updates when Object changes |
+| **Use Cases** | Custom dashboards, complex interactions | Standard CRUD, rapid prototyping |
 
 ---
 
-## 2. 平台基础组件清单（已实现）
+## 2. Platform Basic Components Inventory (Implemented)
 
-**说明**: 以下76个组件为通用UI组件，不依赖Object定义，适合灵活自定义场景。
+**Note**: The following 76 components are general UI components, independent of Object definitions, suitable for flexible customization scenarios.
 
-### 2.1 按类别分类 (76个)
+### 2.1 Classification by Category (76 components)
 
-#### 📦 基础组件 (Basic) - 10个
-基础HTML元素的Schema包装。
+#### 📦 Basic Components (Basic) - 10
+Schema wrappers for basic HTML elements.
 
-| 组件 | 代码行数 | 状态 | 对应Shadcn | 说明 |
+| Component | Lines of Code | Status | Shadcn Equivalent | Description |
 |------|----------|------|------------|------|
-| `text` | 50 | ✅ | - | 文本渲染，支持表达式 |
-| `image` | 45 | ✅ | - | 图片加载，懒加载 |
-| `icon` | 88 | ✅ | - | Lucide图标库集成 |
-| `div` | 49 | ✅ | - | 通用容器 |
-| `span` | 52 | ✅ | - | 内联容器 |
-| `separator` | 56 | ✅ | Separator | 分隔线 |
-| `html` | 42 | ✅ | - | 原生HTML注入 |
-| `button-group` | 78 | ✅ | ButtonGroup | 按钮组 |
-| `pagination` | 82 | ✅ | Pagination | 分页控件 |
-| `navigation-menu` | 80 | ✅ | NavigationMenu | 导航菜单 |
+| `text` | 50 | ✅ | - | Text rendering, supports expressions |
+| `image` | 45 | ✅ | - | Image loading, lazy loading |
+| `icon` | 88 | ✅ | - | Lucide icon library integration |
+| `div` | 49 | ✅ | - | General container |
+| `span` | 52 | ✅ | - | Inline container |
+| `separator` | 56 | ✅ | Separator | Divider |
+| `html` | 42 | ✅ | - | Raw HTML injection |
+| `button-group` | 78 | ✅ | ButtonGroup | Button group |
+| `pagination` | 82 | ✅ | Pagination | Pagination control |
+| `navigation-menu` | 80 | ✅ | NavigationMenu | Navigation menu |
 
-#### 📝 表单组件 (Form) - 17个
-用户输入和数据收集的核心组件。
+#### 📝 Form Components (Form) - 17
+Core components for user input and data collection.
 
-| 组件 | 代码行数 | 状态 | 对应Shadcn | ObjectStack协议支持 |
+| Component | Lines of Code | Status | Shadcn Equivalent | ObjectStack Protocol Support |
 |------|----------|------|------------|-------------------|
-| `form` | 425 | ✅ | Form | 完整表单验证引擎 |
-| `input` | 118 | ✅ | Input | text/email/password等 |
-| `textarea` | 53 | ✅ | Textarea | 多行文本 |
-| `select` | 74 | ✅ | Select | 下拉选择 |
-| `checkbox` | 49 | ✅ | Checkbox | 复选框 |
-| `radio-group` | 62 | ✅ | RadioGroup | 单选按钮组 |
-| `switch` | 47 | ✅ | Switch | 开关切换 |
-| `slider` | 60 | ✅ | Slider | 滑块输入 |
-| `button` | 69 | ✅ | Button | 按钮和提交 |
-| `date-picker` | 83 | ✅ | DatePicker | 日期选择器 |
-| `calendar` | 33 | ✅ | Calendar | 日历组件 |
-| `combobox` | 47 | ✅ | Combobox | 组合框/自动完成 |
-| `command` | 57 | ✅ | Command | 命令面板 |
-| `file-upload` | 183 | ✅ | - | 文件上传 |
-| `input-otp` | 50 | ✅ | InputOTP | OTP输入 |
-| `label` | 44 | ✅ | Label | 表单标签 |
-| `toggle` | 84 | ✅ | Toggle | 切换按钮 |
+| `form` | 425 | ✅ | Form | Complete form validation engine |
+| `input` | 118 | ✅ | Input | text/email/password, etc. |
+| `textarea` | 53 | ✅ | Textarea | Multi-line text |
+| `select` | 74 | ✅ | Select | Dropdown selection |
+| `checkbox` | 49 | ✅ | Checkbox | Checkbox |
+| `radio-group` | 62 | ✅ | RadioGroup | Radio button group |
+| `switch` | 47 | ✅ | Switch | Toggle switch |
+| `slider` | 60 | ✅ | Slider | Slider input |
+| `button` | 69 | ✅ | Button | Button and submit |
+| `date-picker` | 83 | ✅ | DatePicker | Date picker |
+| `calendar` | 33 | ✅ | Calendar | Calendar component |
+| `combobox` | 47 | ✅ | Combobox | Combobox/autocomplete |
+| `command` | 57 | ✅ | Command | Command palette |
+| `file-upload` | 183 | ✅ | - | File upload |
+| `input-otp` | 50 | ✅ | InputOTP | OTP input |
+| `label` | 44 | ✅ | Label | Form label |
+| `toggle` | 84 | ✅ | Toggle | Toggle button |
 
-**表单协议支持**:
-- ✅ 字段验证 (required, pattern, custom)
-- ✅ 错误提示和样式
-- ✅ 条件显示 (visibleOn)
-- ✅ 动态默认值
-- ✅ 联动更新
+**Form Protocol Support**:
+- ✅ Field validation (required, pattern, custom)
+- ✅ Error messages and styling
+- ✅ Conditional display (visibleOn)
+- ✅ Dynamic default values
+- ✅ Linked updates
 
-#### 📊 数据展示 (Data Display) - 8个
-结构化数据的可视化展示。
+#### 📊 Data Display Components (Data Display) - 8
+Visualization of structured data.
 
-| 组件 | 代码行数 | 状态 | 对应Shadcn | ObjectStack协议支持 |
+| Component | Lines of Code | Status | Shadcn Equivalent | ObjectStack Protocol Support |
 |------|----------|------|------------|-------------------|
-| `list` | 103 | ✅ | - | 列表渲染，支持嵌套 |
-| `badge` | 54 | ✅ | Badge | 标签/状态指示 |
-| `avatar` | 37 | ✅ | Avatar | 用户头像 |
-| `alert` | 45 | ✅ | Alert | 警告提示 |
-| `breadcrumb` | 59 | ✅ | Breadcrumb | 面包屑导航 |
-| `statistic` | 79 | ✅ | - | 统计数值展示 |
-| `kbd` | 49 | ✅ | Kbd | 键盘快捷键 |
-| `tree-view` | 169 | ✅ | - | 树形结构 |
+| `list` | 103 | ✅ | - | List rendering, supports nesting |
+| `badge` | 54 | ✅ | Badge | Tag/status indicator |
+| `avatar` | 37 | ✅ | Avatar | User avatar |
+| `alert` | 45 | ✅ | Alert | Warning alert |
+| `breadcrumb` | 59 | ✅ | Breadcrumb | Breadcrumb navigation |
+| `statistic` | 79 | ✅ | - | Statistical value display |
+| `kbd` | 49 | ✅ | Kbd | Keyboard shortcut |
+| `tree-view` | 169 | ✅ | - | Tree structure |
 
-#### 🎛️ 布局组件 (Layout) - 9个
-空间组织和响应式布局。
+#### 🎛️ Layout Components (Layout) - 9
+Space organization and responsive layout.
 
-| 组件 | 代码行数 | 状态 | 对应Shadcn | 特性 |
+| Component | Lines of Code | Status | Shadcn Equivalent | Features |
 |------|----------|------|------------|------|
-| `page` | 90 | ✅ | - | 页面容器，标题/面包屑 |
-| `container` | 121 | ✅ | - | 响应式容器 |
-| `grid` | 163 | ✅ | - | CSS Grid布局 |
-| `flex` | 131 | ✅ | - | Flexbox布局 |
-| `stack` | 131 | ✅ | - | 垂直/水平堆叠 |
-| `card` | 77 | ✅ | Card | 卡片容器 |
-| `tabs` | 71 | ✅ | Tabs | 标签页 |
-| `aspect-ratio` | 50 | ✅ | AspectRatio | 宽高比容器 |
-| `semantic` | 47 | ✅ | - | 语义化HTML元素 |
+| `page` | 90 | ✅ | - | Page container, title/breadcrumb |
+| `container` | 121 | ✅ | - | Responsive container |
+| `grid` | 163 | ✅ | - | CSS Grid layout |
+| `flex` | 131 | ✅ | - | Flexbox layout |
+| `stack` | 131 | ✅ | - | Vertical/horizontal stacking |
+| `card` | 77 | ✅ | Card | Card container |
+| `tabs` | 71 | ✅ | Tabs | Tab pages |
+| `aspect-ratio` | 50 | ✅ | AspectRatio | Aspect ratio container |
+| `semantic` | 47 | ✅ | - | Semantic HTML elements |
 
-**响应式支持**:
+**Responsive Support**:
 ```typescript
-// 支持断点配置
+// Supports breakpoint configuration
 columns: { sm: 1, md: 2, lg: 3, xl: 4 }
 ```
 
-#### 🔔 反馈组件 (Feedback) - 8个
-用户操作的视觉反馈。
+#### 🔔 Feedback Components (Feedback) - 8
+Visual feedback for user actions.
 
-| 组件 | 代码行数 | 状态 | 对应Shadcn | 用途 |
+| Component | Lines of Code | Status | Shadcn Equivalent | Purpose |
 |------|----------|------|------------|------|
-| `loading` | 77 | ✅ | - | 加载状态 |
-| `spinner` | 54 | ✅ | Spinner | 旋转加载器 |
-| `skeleton` | 30 | ✅ | Skeleton | 骨架屏 |
-| `progress` | 28 | ✅ | Progress | 进度条 |
-| `toast` | 53 | ✅ | Toast | 通知提示 |
-| `toaster` | 34 | ✅ | Toaster | Toast容器 |
-| `sonner` | 55 | ✅ | Sonner | 高级通知 |
-| `empty` | 48 | ✅ | Empty | 空状态 |
+| `loading` | 77 | ✅ | - | Loading state |
+| `spinner` | 54 | ✅ | Spinner | Spinning loader |
+| `skeleton` | 30 | ✅ | Skeleton | Skeleton screen |
+| `progress` | 28 | ✅ | Progress | Progress bar |
+| `toast` | 53 | ✅ | Toast | Notification toast |
+| `toaster` | 34 | ✅ | Toaster | Toast container |
+| `sonner` | 55 | ✅ | Sonner | Advanced notifications |
+| `empty` | 48 | ✅ | Empty | Empty state |
 
-#### 🪟 浮层组件 (Overlay) - 10个
-模态框、弹出层和悬浮提示。
+#### 🪟 Overlay Components (Overlay) - 10
+Modal dialogs, overlays, and tooltips.
 
-| 组件 | 代码行数 | 状态 | 对应Shadcn | 特性 |
+| Component | Lines of Code | Status | Shadcn Equivalent | Features |
 |------|----------|------|------------|------|
-| `dialog` | 76 | ✅ | Dialog | 对话框 |
-| `sheet` | 76 | ✅ | Sheet | 侧边抽屉 |
-| `drawer` | 76 | ✅ | Drawer | 抽屉 |
-| `alert-dialog` | 71 | ✅ | AlertDialog | 警告对话框 |
-| `popover` | 55 | ✅ | Popover | 弹出框 |
-| `tooltip` | 66 | ✅ | Tooltip | 提示气泡 |
-| `dropdown-menu` | 98 | ✅ | DropdownMenu | 下拉菜单 |
-| `context-menu` | 99 | ✅ | ContextMenu | 右键菜单 |
-| `menubar` | 75 | ✅ | Menubar | 菜单栏 |
-| `hover-card` | 54 | ✅ | HoverCard | 悬停卡片 |
+| `dialog` | 76 | ✅ | Dialog | Dialog |
+| `sheet` | 76 | ✅ | Sheet | Side drawer |
+| `drawer` | 76 | ✅ | Drawer | Drawer |
+| `alert-dialog` | 71 | ✅ | AlertDialog | Alert dialog |
+| `popover` | 55 | ✅ | Popover | Popover |
+| `tooltip` | 66 | ✅ | Tooltip | Tooltip bubble |
+| `dropdown-menu` | 98 | ✅ | DropdownMenu | Dropdown menu |
+| `context-menu` | 99 | ✅ | ContextMenu | Context menu |
+| `menubar` | 75 | ✅ | Menubar | Menu bar |
+| `hover-card` | 54 | ✅ | HoverCard | Hover card |
 
-#### 📂 折叠组件 (Disclosure) - 3个
-内容展开/折叠控制。
+#### 📂 Disclosure Components (Disclosure) - 3
+Content expand/collapse control.
 
-| 组件 | 代码行数 | 状态 | 对应Shadcn |
+| Component | Lines of Code | Status | Shadcn Equivalent |
 |------|----------|------|------------|
 | `accordion` | 68 | ✅ | Accordion |
 | `collapsible` | 52 | ✅ | Collapsible |
 | `toggle-group` | 77 | ✅ | ToggleGroup |
 
-#### 🔧 复杂组件 (Complex) - 9个
-高级业务组件。
+#### 🔧 Complex Components (Complex) - 9
+Advanced business components.
 
-| 组件 | 代码行数 | 状态 | 对应Shadcn | ObjectStack协议 |
+| Component | Lines of Code | Status | Shadcn Equivalent | ObjectStack Protocol |
 |------|----------|------|------------|----------------|
-| `table` | 94 | ✅ | Table | 基础表格 |
-| `data-table` | 665 | ✅ | - | 高级数据表（排序/过滤/分页） |
-| `calendar-view` | 227 | ✅ | CalendarView | 日历视图 |
-| `timeline` | 474 | ✅ | Timeline | 时间线/甘特图 |
-| `carousel` | 68 | ✅ | Carousel | 轮播图 |
-| `scroll-area` | 40 | ✅ | ScrollArea | 滚动区域 |
-| `resizable` | 62 | ✅ | Resizable | 可调整大小容器 |
-| `filter-builder` | 76 | ✅ | FilterBuilder | 筛选器构建器 |
-| `chatbot` | 193 | ✅ | Chatbot | 对话机器人 |
+| `table` | 94 | ✅ | Table | Basic table |
+| `data-table` | 665 | ✅ | - | Advanced data table (sorting/filtering/pagination) |
+| `calendar-view` | 227 | ✅ | CalendarView | Calendar view |
+| `timeline` | 474 | ✅ | Timeline | Timeline/Gantt chart |
+| `carousel` | 68 | ✅ | Carousel | Carousel |
+| `scroll-area` | 40 | ✅ | ScrollArea | Scroll area |
+| `resizable` | 62 | ✅ | Resizable | Resizable container |
+| `filter-builder` | 76 | ✅ | FilterBuilder | Filter builder |
+| `chatbot` | 193 | ✅ | Chatbot | Chatbot |
 
-#### 🧭 导航组件 (Navigation) - 2个
+#### 🧭 Navigation Components (Navigation) - 2
 
-| 组件 | 代码行数 | 状态 | 对应Shadcn |
+| Component | Lines of Code | Status | Shadcn Equivalent |
 |------|----------|------|------------|
 | `header-bar` | 58 | ✅ | - |
 | `sidebar` | 197 | ✅ | Sidebar |
 
-### 2.2 Shadcn UI基础组件 (60个)
+### 2.2 Shadcn UI Base Components (60)
 
-ObjectUI使用Shadcn UI作为设计系统基础，提供一致的视觉风格和交互模式。
+ObjectUI uses Shadcn UI as the design system foundation, providing consistent visual style and interaction patterns.
 
-**核心特性**:
-- ✅ Radix UI无障碍访问
-- ✅ Tailwind CSS样式系统
-- ✅ class-variance-authority (cva) 变体管理
-- ✅ 深色模式支持
-- ✅ 完整TypeScript类型定义
+**Core Features**:
+- ✅ Radix UI Accessibility
+- ✅ Tailwind CSS styling system
+- ✅ class-variance-authority (cva) variant management
+- ✅ Dark mode support
+- ✅ Complete TypeScript type definitions
 
-**完整列表** (packages/components/src/ui):
+**Complete List** (packages/components/src/ui):
 ```
 accordion, alert, alert-dialog, aspect-ratio, avatar, badge, breadcrumb,
 button, button-group, calendar, calendar-view, card, carousel, chatbot,
@@ -312,79 +318,79 @@ toggle-group, tooltip
 
 ---
 
-## 3. ObjectStack协议支持矩阵
+## 3. ObjectStack Protocol Support Matrix
 
-### 3.1 协议类型实现状态
+### 3.1 Protocol Type Implementation Status
 
-**注意**: CRUD不是独立的ObjectStack协议类型，而是ObjectUI提供的便捷组件，组合了View和Form协议的功能来简化数据管理界面的构建。
+**Note**: CRUD is not an independent ObjectStack Protocol type, but a Convenience Component provided by ObjectUI that combines View and Form Protocol functionality to simplify data management interface construction.
 
-| 协议类型 | 状态 | 完成度 | 核心组件 | 说明 |
+| Protocol Type | Status | Completion | Core Components | Description |
 |----------|------|--------|----------|------|
-| **View** | ✅ 已实现 | 100% | list, table, data-table, kanban, calendar, timeline, card, grid | 全部8种视图类型已实现 |
-| **Form** | ✅ 已实现 | 100% | form + 17个表单控件 | 完整验证引擎 |
-| **Page** | 🚧 部分实现 | 70% | page, container, grid, tabs | 缺少路由集成 |
-| **Menu** | 🚧 部分实现 | 60% | navigation-menu, sidebar, breadcrumb | 缺少权限控制 |
-| **Object** | 📝 已规划 | 0% | - | Q2 2026规划（包含CRUD操作） |
-| **App** | 📝 已规划 | 0% | - | Q2 2026规划 |
-| **Report** | 📝 已规划 | 0% | - | Q3 2026规划 |
+| **View** | ✅ Implemented | 100% | list, table, data-table, kanban, calendar, timeline, card, grid | All 8 view types implemented |
+| **Form** | ✅ Implemented | 100% | form + 17 form controls | Complete validation engine |
+| **Page** | 🚧 Partially implemented | 70% | page, container, grid, tabs | Missing routing integration |
+| **Menu** | 🚧 Partially implemented | 60% | navigation-menu, sidebar, breadcrumb | Missing permission control |
+| **Object** | 📝 Planned | 0% | - | Q2 2026 planned (includes CRUD operations) |
+| **App** | 📝 Planned | 0% | - | Q2 2026 planned |
+| **Report** | 📝 Planned | 0% | - | Q3 2026 planned |
 
-### 3.1.1 ObjectUI扩展组件
+### 3.1.1 ObjectUI Extension Components
 
-ObjectUI在标准协议之外提供了额外的便捷组件：
+ObjectUI provides additional Convenience Components beyond standard Protocol:
 
-| 组件类型 | 状态 | 完成度 | 核心组件 | 说明 |
+| Component Type | Status | Completion | Core Components | Description |
 |----------|------|--------|----------|------|
-| **CRUD组件** | 🚧 部分实现 | 80% | data-table, form, dialog | 组合View+Form的便捷组件，缺少批量操作 |
+| **CRUD Components** | 🚧 Partially implemented | 80% | data-table, form, dialog | Convenience Components combining View+Form, missing batch operations |
 
-### 3.2 View协议详细支持
+### 3.2 View Protocol Detailed Support
 
-| 视图类型 | 组件 | 状态 | 功能 |
+| View Type | Component | Status | Features |
 |----------|------|------|------|
-| **list** | `data-table` | ✅ | 排序、过滤、分页、搜索、列自定义 |
-| **grid** | `data-table` + inline-edit | ✅ | 所有list功能 + 单元格编辑 |
-| **kanban** | `@object-ui/plugin-kanban` | ✅ | 拖拽、分组、泳道、WIP限制 |
-| **calendar** | `calendar-view` | ✅ | 月/周/日视图、事件拖拽、时间段选择 |
-| **timeline** | `timeline` | ✅ | 甘特图、里程碑、依赖关系 |
-| **card** | `card` + `grid` | ✅ | 响应式卡片布局 |
-| **detail** | `page` + `form` | ✅ | 只读详情页 |
-| **form** | `form` | ✅ | 多步骤、条件字段、动态验证 |
+| **list** | `data-table` | ✅ | Sorting, filtering, pagination, search, column customization |
+| **grid** | `data-table` + inline-edit | ✅ | All list features + cell editing |
+| **kanban** | `@object-ui/plugin-kanban` | ✅ | Drag-and-drop, grouping, swimlanes, WIP limits |
+| **calendar** | `calendar-view` | ✅ | Month/week/day views, event dragging, time slot selection |
+| **timeline** | `timeline` | ✅ | Gantt chart, milestones, dependencies |
+| **card** | `card` + `grid` | ✅ | Responsive card layout |
+| **detail** | `page` + `form` | ✅ | Read-only detail page |
+| **form** | `form` | ✅ | Multi-step, conditional fields, dynamic validation |
 
-### 3.3 CRUD组件功能支持
+### 3.3 CRUD Component Feature Support
 
-**说明**: CRUD组件是ObjectUI提供的扩展组件（非标准ObjectStack协议），用于简化数据管理界面开发。它组合了View协议（data-table）和Form协议（form）的功能。
+**Note**: CRUD Components are extension components provided by ObjectUI (not standard ObjectStack Protocol), used to simplify data management interface development. They combine View Protocol (data-table) and Form Protocol (form) functionality.
 
-| 功能 | 状态 | 实现组件 | 说明 |
+| Feature | Status | Implementation Component | Description |
 |------|------|----------|------|
-| **列表查询** | ✅ | data-table (View协议) | 支持分页、排序、过滤 |
-| **详情查看** | ✅ | dialog + form (Form协议) | 弹窗或页面模式 |
-| **新建记录** | ✅ | dialog + form (Form协议) | 表单验证 |
-| **编辑记录** | ✅ | dialog + form (Form协议) | 字段级权限 |
-| **删除记录** | ✅ | alert-dialog | 确认对话框 |
-| **批量操作** | ⚠️ 部分 | data-table | 仅支持批量选择，缺批量编辑/删除 |
-| **导出数据** | ❌ | - | 规划中 |
-| **导入数据** | ❌ | - | 规划中 |
-| **高级筛选** | ✅ | filter-builder | 可视化筛选器 |
-| **列自定义** | ✅ | data-table | 显示/隐藏、排序、宽度 |
+| **List Query** | ✅ | data-table (View Protocol) | Supports pagination, sorting, filtering |
+| **Detail View** | ✅ | dialog + form (Form Protocol) | Modal or page mode |
+| **Create Record** | ✅ | dialog + form (Form Protocol) | Form validation |
+| **Edit Record** | ✅ | dialog + form (Form Protocol) | Field-level permissions |
+| **Delete Record** | ✅ | alert-dialog | Confirmation dialog |
+| **Batch Operations** | ⚠️ Partial | data-table | Only batch selection supported, missing batch edit/delete |
+| **Export Data** | ❌ | - | Planned |
+| **Import Data** | ❌ | - | Planned |
+| **Advanced Filtering** | ✅ | filter-builder | Visual filter builder |
+| **Column Customization** | ✅ | data-table | Show/hide, sort, width |
 
 ---
 
-## 4. 组件与Shadcn的区别
+## 4. Component vs Shadcn Differences
 
-### 4.1 核心区别
+### 4.1 Core Differences
 
-| 维度 | Shadcn UI组件 | ObjectUI渲染器 |
+| Dimension | Shadcn UI Components | ObjectUI Renderers |
 |------|---------------|----------------|
-| **输入** | React Props (TypeScript) | JSON Schema |
-| **控制** | 开发者编写JSX代码 | 服务端/配置文件定义 |
-| **状态管理** | 外部传入 (受控组件) | 内置 (useDataContext) |
-| **验证** | 无内置 | 内置Zod验证引擎 |
-| **表达式** | 不支持 | 支持 `${expression}` |
-| **数据绑定** | 手动实现 | 自动双向绑定 |
-| **可扩展性** | 代码级 (fork/customize) | Schema级 (JSON配置) |
+| **Input** | React Props (TypeScript) | JSON Schema |
+| **Control** | Developers write JSX code | Server/config file definitions |
+| **State Management** | Externally passed (controlled component) | Built-in (useDataContext) |
+| **Validation** | No built-in | Built-in Zod validation engine |
+| **Expressions** | Not supported | Supports `${expression}` |
+| **Data Binding** | Manual implementation | Automatic two-way binding |
+| **Extensibility** | Code-level (fork/customize) | Schema-level (JSON configuration) |
 
-### 4.2 代码对比示例
+### 4.2 Code Comparison Example
 
-#### 使用Shadcn UI (传统React方式)
+#### Using Shadcn UI (Traditional React Approach)
 ```tsx
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
@@ -397,7 +403,7 @@ function UserForm() {
     const value = e.target.value;
     setEmail(value);
     
-    // 手动验证
+    // Manual validation
     if (!value.includes('@')) {
       setError('Invalid email');
     } else {
@@ -421,7 +427,7 @@ function UserForm() {
 }
 ```
 
-#### 使用ObjectUI渲染器 (Schema驱动)
+#### Using ObjectUI Renderer (Schema-Driven)
 ```json
 {
   "type": "form",
@@ -441,15 +447,15 @@ function UserForm() {
 }
 ```
 
-**优势**:
-- ✅ 零JavaScript代码
-- ✅ 自动验证和错误提示
-- ✅ 可通过API动态下发
-- ✅ 易于AI生成和修改
+**Advantages**:
+- ✅ Zero JavaScript code
+- ✅ Automatic validation and error messages
+- ✅ Can be delivered dynamically via API
+- ✅ Easy for AI generation and modification
 
-### 4.3 渲染器包装模式
+### 4.3 Renderer Wrapper Pattern
 
-ObjectUI渲染器遵循一致的包装模式：
+ObjectUI Renderers follow a consistent wrapper pattern:
 
 ```tsx
 // packages/components/src/renderers/form/input.tsx
@@ -459,21 +465,21 @@ import { useDataContext, useExpression } from '@object-ui/react';
 export function InputRenderer({ schema }: RendererProps<InputSchema>) {
   const { data, setData, errors } = useDataContext();
   
-  // 1. 数据绑定
+  // 1. Data binding
   const value = data[schema.name] || schema.defaultValue || '';
   
-  // 2. 表达式计算
+  // 2. Expression evaluation
   const visible = useExpression(schema.visibleOn, data, true);
   const disabled = useExpression(schema.disabledOn, data, false);
   
-  // 3. 事件处理
+  // 3. Event handling
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setData(schema.name, e.target.value);
   };
   
   if (!visible) return null;
   
-  // 4. 渲染Shadcn组件
+  // 4. Render Shadcn component
   return (
     <div className={schema.className}>
       {schema.label && <Label>{schema.label}</Label>}
@@ -491,396 +497,396 @@ export function InputRenderer({ schema }: RendererProps<InputSchema>) {
 }
 ```
 
-**包装层职责**:
-1. Schema解析
-2. 数据上下文集成
-3. 表达式引擎
-4. 验证和错误处理
-5. 条件渲染逻辑
-6. 事件映射
+**Wrapper Layer Responsibilities**:
+1. Schema parsing
+2. Data context integration
+3. Expression engine
+4. Validation and error handling
+5. Conditional rendering logic
+6. Event mapping
 
 ---
 
-## 5. 组件缺口分析
+## 5. Component Gap Analysis
 
-### 5.1 高优先级缺失组件
+### 5.1 High Priority Missing Components
 
-#### CRUD操作增强
+#### CRUD Operation Enhancement
 
-**注意**: 以下组件用于增强ObjectUI的CRUD便捷组件功能。真正的CRUD操作支持将在Q2 2026通过Object协议实现。
+**Note**: The following components enhance ObjectUI's CRUD Convenience Components. True CRUD operation support will be implemented in Q2 2026 through the Object Protocol.
 
-| 组件 | 优先级 | 用途 | 工作量 |
+| Component | Priority | Purpose | Effort |
 |------|--------|------|--------|
-| **Bulk Edit Dialog** | 🔴 高 | 批量编辑多条记录 | 3天 |
-| **Export Wizard** | 🔴 高 | 导出CSV/Excel/JSON | 2天 |
-| **Import Wizard** | 🟡 中 | 导入数据并映射字段 | 4天 |
-| **Inline Edit Cell** | 🟡 中 | 表格单元格直接编辑 | 2天 |
+| **Bulk Edit Dialog** | 🔴 High | Batch edit multiple records | 3 days |
+| **Export Wizard** | �� High | Export CSV/Excel/JSON | 2 days |
+| **Import Wizard** | 🟡 Medium | Import data and map fields | 4 days |
+| **Inline Edit Cell** | 🟡 Medium | Direct table cell editing | 2 days |
 
-#### 高级表单组件
+#### Advanced Form Components
 
-| 组件 | 优先级 | 用途 | 工作量 |
+| Component | Priority | Purpose | Effort |
 |------|--------|------|--------|
-| **Rich Text Editor** | 🔴 高 | Markdown/HTML编辑器 | 已有plugin-editor |
-| **Code Editor** | 🟡 中 | 代码输入 (Monaco/CodeMirror) | 5天 |
-| **Color Picker** | 🟢 低 | 颜色选择器 | 1天 |
-| **Tags Input** | 🔴 高 | 标签输入（多值） | 2天 |
-| **Rating** | 🟢 低 | 星级评分 | 1天 |
-| **Transfer** | 🟡 中 | 穿梭框 (左右选择) | 3天 |
+| **Rich Text Editor** | 🔴 High | Markdown/HTML editor | Already has plugin-editor |
+| **Code Editor** | 🟡 Medium | Code input (Monaco/CodeMirror) | 5 days |
+| **Color Picker** | 🟢 Low | Color picker | 1 day |
+| **Tags Input** | 🔴 High | Tag input (multi-value) | 2 days |
+| **Rating** | 🟢 Low | Star rating | 1 day |
+| **Transfer** | 🟡 Medium | Transfer (left-right selection) | 3 days |
 
-#### 数据可视化
+#### Data Visualization
 
-| 组件 | 优先级 | 用途 | 工作量 |
+| Component | Priority | Purpose | Effort |
 |------|--------|------|--------|
-| **Chart** | ✅ 已有 | 图表组件 | @object-ui/plugin-charts |
-| **Gauge** | 🟡 中 | 仪表盘 | 2天 |
-| **Funnel** | 🟢 低 | 漏斗图 | 2天 |
-| **Heatmap** | 🟢 低 | 热力图 | 3天 |
+| **Chart** | ✅ Available | Chart component | @object-ui/plugin-charts |
+| **Gauge** | 🟡 Medium | Gauge dashboard | 2 days |
+| **Funnel** | 🟢 Low | Funnel chart | 2 days |
+| **Heatmap** | 🟢 Low | Heatmap | 3 days |
 
-#### 布局和导航
+#### Layout and Navigation
 
-| 组件 | 优先级 | 用途 | 工作量 |
+| Component | Priority | Purpose | Effort |
 |------|--------|------|--------|
-| **Stepper** | 🔴 高 | 多步骤向导 | 2天 |
-| **Tour/Walkthrough** | 🟡 中 | 产品引导 | 3天 |
-| **Affix** | 🟢 低 | 固定定位 | 1天 |
-| **BackTop** | 🟢 低 | 回到顶部 | 0.5天 |
+| **Stepper** | 🔴 High | Multi-step wizard | 2 days |
+| **Tour/Walkthrough** | 🟡 Medium | Product tour | 3 days |
+| **Affix** | 🟢 Low | Fixed positioning | 1 day |
+| **BackTop** | 🟢 Low | Back to top | 0.5 days |
 
-### 5.2 对象组件需求（Q2 2026新增）
+### 5.2 Object Component Requirements (Q2 2026 New)
 
-**说明**: 对象组件是全新的组件系统，基于ObjectStack Object协议，从Object定义自动生成UI。
+**Note**: Object Components are a completely new component system based on the ObjectStack Object Protocol, automatically generating UI from Object definitions.
 
-#### 核心对象组件（6个）
+#### Core Object Components (6)
 
-| 组件名 | Schema type | 说明 | 对应平台组件 |
+| Component Name | Schema type | Description | Corresponding Platform Component |
 |--------|------------|------|--------------|
-| **ObjectTable** | `object-table` | 从Object定义自动生成数据表 | `data-table` |
-| **ObjectForm** | `object-form` | 从Object定义自动生成表单 | `form` |
-| **ObjectDetail** | `object-detail` | 从Object定义自动生成详情页 | `page` + `form` (readonly) |
-| **ObjectList** | `object-list` | 从Object定义自动生成列表 | `list` |
-| **ObjectCard** | `object-card` | 从Object定义自动生成卡片 | `card` |
-| **ObjectView** | `object-view` | 通用Object视图容器 | - |
+| **ObjectTable** | `object-table` | Auto-generate data table from Object definition | `data-table` |
+| **ObjectForm** | `object-form` | Auto-generate form from Object definition | `form` |
+| **ObjectDetail** | `object-detail` | Auto-generate detail page from Object definition | `page` + `form` (readonly) |
+| **ObjectList** | `object-list` | Auto-generate list from Object definition | `list` |
+| **ObjectCard** | `object-card` | Auto-generate card from Object definition | `card` |
+| **ObjectView** | `object-view` | General Object view container | - |
 
-**工作量**: 6个组件 × 3周 = 18周（Q2 2026）
+**Effort**: 6 components × 3 weeks = 18 weeks (Q2 2026)
 
-#### 辅助对象组件（4个）
+#### Supporting Object Components (4)
 
-| 组件名 | Schema type | 说明 |
+| Component Name | Schema type | Description |
 |--------|------------|------|
-| **ObjectField** | `object-field` | 字段渲染器（根据Object字段类型自动选择组件） |
-| **ObjectRelationship** | `object-relationship` | 关系字段选择器（lookup/master-detail智能处理） |
-| **ObjectActions** | `object-actions` | 对象操作按钮组（基于Object.actions生成） |
-| **ObjectFilter** | `object-filter` | 对象筛选器（基于Object.fields生成） |
+| **ObjectField** | `object-field` | Field Renderer (auto-select component based on Object field type) |
+| **ObjectRelationship** | `object-relationship` | Relationship field selector (intelligent lookup/master-detail handling) |
+| **ObjectActions** | `object-actions` | Object action button group (generated from Object.actions) |
+| **ObjectFilter** | `object-filter` | Object filter (generated from Object.fields) |
 
-**工作量**: 4个组件 × 2周 = 8周（Q2 2026）
+**Effort**: 4 components × 2 weeks = 8 weeks (Q2 2026)
 
-#### 对象组件 vs 平台组件示例
+#### Object Components vs Platform Components Example
 
-**场景**: 显示用户列表
+**Scenario**: Display user list
 
 ```json
-// 方式1：平台基础组件（灵活但需手动配置）
+// Method 1: Platform Basic Components (flexible but requires manual config)
 {
   "type": "data-table",
   "api": "/api/users",
   "columns": [
     { "name": "id", "label": "ID", "type": "text" },
-    { "name": "name", "label": "姓名", "type": "text", "sortable": true },
-    { "name": "email", "label": "邮箱", "type": "text" },
-    { "name": "department_id", "label": "部门ID", "type": "text" }
+    { "name": "name", "label": "Name", "type": "text", "sortable": true },
+    { "name": "email", "label": "Email", "type": "text" },
+    { "name": "department_id", "label": "Department ID", "type": "text" }
   ]
 }
 
-// 方式2：对象组件（自动但需Object定义）
+// Method 2: Object Components (automatic but requires Object definition)
 {
   "type": "object-table",
   "object": "user"
-  // 自动从user.object.yml生成：
-  // - 所有字段列
-  // - lookup字段显示关联对象的displayField（如department.name而不是ID）
-  // - 字段验证规则
-  // - 字段级权限控制
+  // Automatically generated from user.object.yml:
+  // - All field columns
+  // - Lookup fields display related object's displayField (e.g., department.name instead of ID)
+  // - Field validation rules
+  // - Field-level permission control
 }
 ```
 
-#### 其他ObjectStack协议组件
+#### Other ObjectStack Protocol Components
 
-| 组件 | 协议 | 优先级 | 说明 |
+| Component | Protocol | Priority | Description |
 |------|------|--------|------|
-| **AppLauncher** | App | 🟡 中 | 应用启动器 |
-| **GlobalSearch** | App | 🔴 高 | 全局搜索 |
-| **ReportViewer** | Report | 🟢 低 | 报表查看器 |
+| **AppLauncher** | App | 🟡 Medium | Application launcher |
+| **GlobalSearch** | App | 🔴 High | Global search |
+| **ReportViewer** | Report | 🟢 Low | Report viewer |
 
-### 5.3 移动端组件
+### 5.3 Mobile Components
 
-当前所有组件都是响应式的，但需专门的移动端优化：
+All components are currently responsive, but require specialized mobile optimization:
 
-| 组件 | 优先级 | 说明 |
+| Component | Priority | Description |
 |------|--------|------|
-| **Mobile Nav** | 🔴 高 | 移动端导航栏 |
-| **Mobile Table** | 🔴 高 | 移动端表格（卡片模式） |
-| **Pull to Refresh** | 🟡 中 | 下拉刷新 |
-| **Swipe Actions** | 🟡 中 | 滑动操作 |
+| **Mobile Nav** | 🔴 High | Mobile navigation bar |
+| **Mobile Table** | 🔴 High | Mobile table (card mode) |
+| **Pull to Refresh** | 🟡 Medium | Pull to refresh |
+| **Swipe Actions** | 🟡 Medium | Swipe actions |
 
 ---
 
-## 6. 开发计划
+## 6. Development Plan
 
-### 6.1 Q1 2026 (1-3月) - 完善核心 ✅ 部分完成
+### 6.1 Q1 2026 (Jan-Mar) - Core Enhancement ✅ Partially Complete
 
-**目标**: 完善View和Form协议支持，增强CRUD便捷组件
+**Goal**: Enhance View and Form Protocol support, strengthen CRUD Convenience Components
 
-| 任务 | 时间 | 责任人 | 状态 |
+| Task | Time | Owner | Status |
 |------|------|--------|------|
-| 批量操作组件 (Bulk Edit) | 2周 | TBD | 📝 待开始 |
-| 标签输入组件 (Tags Input) | 1周 | TBD | 📝 待开始 |
-| 多步骤表单 (Stepper) | 1周 | TBD | 📝 待开始 |
-| 导出向导 (Export Wizard) | 1周 | TBD | 📝 待开始 |
-| 单元格内联编辑 | 1周 | TBD | 📝 待开始 |
-| 组件文档完善 | 2周 | TBD | 🚧 进行中 |
+| Batch operation components (Bulk Edit) | 2 weeks | TBD | 📝 To start |
+| Tag input component (Tags Input) | 1 week | TBD | 📝 To start |
+| Multi-step form (Stepper) | 1 week | TBD | 📝 To start |
+| Export wizard (Export Wizard) | 1 week | TBD | 📝 To start |
+| Inline cell editing | 1 week | TBD | 📝 To start |
+| Component documentation | 2 weeks | TBD | 🚧 In progress |
 
-**交付物**:
-- ✅ CRUD便捷组件功能达到100%
-- ✅ 表单组件覆盖常见业务场景
-- ✅ Storybook文档覆盖所有组件
+**Deliverables**:
+- ✅ CRUD Convenience Components functionality at 100%
+- ✅ Form components cover common business scenarios
+- ✅ Storybook documentation covers all components
 
-### 6.2 Q2 2026 (4-6月) - Object协议实现
+### 6.2 Q2 2026 (Apr-Jun) - Object Protocol Implementation
 
-**目标**: 实现ObjectStack Object协议核心组件（对象组件系统）
+**Goal**: Implement ObjectStack Object Protocol core components (Object Component System)
 
-| 任务 | 时间 | 类型 | 依赖 |
+| Task | Time | Type | Dependencies |
 |------|------|------|------|
-| Object Schema解析器 | 2周 | 基础设施 | @object-ui/core |
-| **ObjectTable** | 3周 | 对象组件 | Object Schema |
-| **ObjectForm** | 3周 | 对象组件 | Object Schema |
-| **ObjectDetail** | 2周 | 对象组件 | Object Schema |
-| **ObjectList** | 2周 | 对象组件 | Object Schema |
-| **ObjectCard** | 2周 | 对象组件 | Object Schema |
-| **ObjectView** | 2周 | 对象组件 | Object Schema |
-| **ObjectField** | 2周 | 对象组件 | Object Schema |
-| **ObjectRelationship** | 2周 | 对象组件 | Object Schema |
-| **ObjectActions** | 1周 | 对象组件 | Object Schema |
-| **ObjectFilter** | 1周 | 对象组件 | Object Schema |
-| 平台组件补齐 | 4周 | 平台组件 | - |
+| Object Schema parser | 2 weeks | Infrastructure | @object-ui/core |
+| **ObjectTable** | 3 weeks | Object Components | Object Schema |
+| **ObjectForm** | 3 weeks | Object Components | Object Schema |
+| **ObjectDetail** | 2 weeks | Object Components | Object Schema |
+| **ObjectList** | 2 weeks | Object Components | Object Schema |
+| **ObjectCard** | 2 weeks | Object Components | Object Schema |
+| **ObjectView** | 2 weeks | Object Components | Object Schema |
+| **ObjectField** | 2 weeks | Object Components | Object Schema |
+| **ObjectRelationship** | 2 weeks | Object Components | Object Schema |
+| **ObjectActions** | 1 week | Object Components | Object Schema |
+| **ObjectFilter** | 1 week | Object Components | Object Schema |
+| Platform component completion | 4 weeks | Platform Components | - |
 
-**里程碑**:
-- ✅ 对象组件系统：10个核心组件
-- ✅ 支持从Object定义自动生成UI（零配置CRUD）
-- ✅ 支持lookup和master-detail关系字段
-- ✅ 支持所有ObjectQL字段类型
-- ✅ 平台基础组件：84个（+8个补齐）
+**Milestones**:
+- ✅ Object Component System: 10 core components
+- ✅ Support auto-generating UI from Object definitions (zero-config CRUD)
+- ✅ Support lookup and master-detail relationship fields
+- ✅ Support all ObjectQL field types
+- ✅ Platform Basic Components: 84 components (+8 additions)
 
-**组件数量**:
-- 平台基础组件：76 → 84个
-- 对象组件：0 → 10个
-- **总计：76 → 94个**
+**Component Count**:
+- Platform Basic Components: 76 → 84
+- Object Components: 0 → 10
+- **Total: 76 → 94**
 
-### 6.3 Q3 2026 (7-9月) - 高级特性
+### 6.3 Q3 2026 (Jul-Sep) - Advanced Features
 
-**目标**: 移动端优化和高级数据可视化
+**Goal**: Mobile optimization and advanced data visualization
 
-| 任务 | 时间 |
+| Task | Time |
 |------|------|
-| 移动端组件套件 | 4周 |
-| Report协议实现 | 3周 |
-| 产品引导 (Tour) | 2周 |
-| 穿梭框 (Transfer) | 1周 |
-| 颜色选择器 | 1周 |
-| 星级评分 | 1周 |
+| Mobile component suite | 4 weeks |
+| Report Protocol implementation | 3 weeks |
+| Product tour (Tour) | 2 weeks |
+| Transfer (Transfer) | 1 week |
+| Color picker | 1 week |
+| Star rating | 1 week |
 
-### 6.4 Q4 2026 (10-12月) - 生态系统
+### 6.4 Q4 2026 (Oct-Dec) - Ecosystem
 
-**目标**: 完善开发工具和插件系统
+**Goal**: Enhance development tools and plugin system
 
-| 任务 | 时间 | 说明 |
+| Task | Time | Description |
 |------|------|------|
-| VSCode扩展增强 | 4周 | 对象组件智能提示 |
-| Schema可视化设计器 | 6周 | 支持平台组件+对象组件 |
-| 主题编辑器 | 2周 | 统一主题系统 |
-| 组件市场 | 4周 | 社区组件分享 |
-| AI Schema生成 | 持续 | AI辅助生成Schema和Object |
+| VSCode extension enhancement | 4 weeks | Object component IntelliSense |
+| Schema visual designer | 6 weeks | Supports Platform Components + Object Components |
+| Theme editor | 2 weeks | Unified theme system |
+| Component marketplace | 4 weeks | Community component sharing |
+| AI Schema generation | Ongoing | AI-assisted Schema and Object generation |
 
-**组件数量**:
-- 平台基础组件：~100个
-- 对象组件：~20个
-- **总计：~120个**
-
----
-
-## 7. 技术债务和优化建议
-
-### 7.1 代码质量
-
-**当前状态**: ✅ 优秀
-- 平均组件80-150行，保持精简
-- 一致的架构模式
-- 完整的TypeScript类型
-
-**建议**:
-1. ✅ 增加单元测试覆盖率 (当前~60%，目标85%)
-2. ✅ 添加E2E测试 (Playwright)
-3. ✅ 性能基准测试
-4. ✅ 无障碍访问审计
-
-### 7.2 性能优化
-
-**当前瓶颈**:
-- `data-table` 大数据量 (>1000行) 渲染慢
-- 复杂表单 (>50字段) 初始化慢
-- Schema深度嵌套 (>10层) 解析慢
-
-**优化计划**:
-1. **虚拟滚动**: 为data-table添加虚拟列表
-2. **懒加载**: 表单字段按需渲染
-3. **Schema缓存**: 编译后的Schema缓存
-4. **Web Workers**: 移动Expression计算到Worker
-
-**预期收益**:
-- 大表格渲染时间: 2000ms → 200ms
-- 复杂表单初始化: 1000ms → 100ms
-- 内存占用: -40%
-
-### 7.3 文档和开发体验
-
-**当前问题**:
-- Schema示例不够丰富
-- 组件API参考不完整
-- 缺少交互式Playground
-
-**改进计划**:
-1. ✅ 完善Storybook所有组件
-2. ✅ 增加Schema模板库
-3. ✅ 构建在线Playground
-4. ✅ 视频教程系列
+**Component Count**:
+- Platform Basic Components: ~100
+- Object Components: ~20
+- **Total: ~120**
 
 ---
 
-## 8. 竞品对比
+## 7. Technical Debt and Optimization Recommendations
 
-### 8.1 vs Amis (百度)
+### 7.1 Code Quality
 
-| 维度 | ObjectUI | Amis |
+**Current Status**: ✅ Excellent
+- Average 80-150 lines per component, maintaining conciseness
+- Consistent architectural patterns
+- Complete TypeScript types
+
+**Recommendations**:
+1. ✅ Increase unit test coverage (currently ~60%, target 85%)
+2. ✅ Add E2E tests (Playwright)
+3. ✅ Performance benchmarking
+4. ✅ Accessibility audit
+
+### 7.2 Performance Optimization
+
+**Current Bottlenecks**:
+- `data-table` large datasets (>1000 rows) slow rendering
+- Complex forms (>50 fields) slow initialization
+- Schema deep nesting (>10 levels) slow parsing
+
+**Optimization Plan**:
+1. **Virtual Scrolling**: Add virtual list for data-table
+2. **Lazy Loading**: Render form fields on demand
+3. **Schema Caching**: Cache compiled Schema
+4. **Web Workers**: Move Expression computation to Workers
+
+**Expected Benefits**:
+- Large table rendering time: 2000ms → 200ms
+- Complex form initialization: 1000ms → 100ms
+- Memory usage: -40%
+
+### 7.3 Documentation and Developer Experience
+
+**Current Issues**:
+- Insufficient Schema examples
+- Incomplete component API reference
+- Missing interactive Playground
+
+**Improvement Plan**:
+1. ✅ Complete Storybook for all components
+2. ✅ Add Schema template library
+3. ✅ Build online Playground
+4. ✅ Video tutorial series
+
+---
+
+## 8. Competitive Analysis
+
+### 8.1 vs Amis (Baidu)
+
+| Dimension | ObjectUI | Amis |
 |------|----------|------|
-| 设计系统 | Shadcn/Tailwind | 自定义 |
-| Bundle大小 | 50KB | 300KB+ |
-| TypeScript | 完整 | 部分 |
+| Design System | Shadcn/Tailwind | Custom |
+| Bundle Size | 50KB | 300KB+ |
+| TypeScript | Complete | Partial |
 | Tree-shaking | ✅ | ❌ |
-| 组件数量 | 76 | 100+ |
-| 学习曲线 | 低 (熟悉React) | 中 |
-| 定制性 | 高 (Tailwind) | 中 |
+| Component Count | 76 | 100+ |
+| Learning Curve | Low (familiar with React) | Medium |
+| Customizability | High (Tailwind) | Medium |
 
-**ObjectUI优势**:
-- ✅ 更小的包体积
-- ✅ 更好的TypeScript支持
-- ✅ Tailwind生态集成
-- ✅ 现代设计语言
+**ObjectUI Advantages**:
+- ✅ Smaller bundle size
+- ✅ Better TypeScript support
+- ✅ Tailwind ecosystem integration
+- ✅ Modern design language
 
-**Amis优势**:
-- ✅ 更多开箱即用组件
-- ✅ 更成熟的生态
-- ✅ 中文文档更完善
+**Amis Advantages**:
+- ✅ More out-of-the-box components
+- ✅ More mature ecosystem
+- ✅ Better Chinese documentation
 
-### 8.2 vs Formily (阿里)
+### 8.2 vs Formily (Alibaba)
 
-| 维度 | ObjectUI | Formily |
+| Dimension | ObjectUI | Formily |
 |------|----------|---------|
-| 定位 | 全栈UI | 专注表单 |
-| 协议范围 | 广 (Page/View/CRUD) | 窄 (Form) |
-| 后端集成 | ObjectStack | 任意 |
-| 复杂度 | 简单 | 复杂 |
+| Positioning | Full-stack UI | Form-focused |
+| Protocol Scope | Wide (Page/View/CRUD) | Narrow (Form) |
+| Backend Integration | ObjectStack | Any |
+| Complexity | Simple | Complex |
 
-**ObjectUI优势**:
-- ✅ 统一协议 (不只是表单)
-- ✅ 更简单的API
-- ✅ 开箱即用的UI
+**ObjectUI Advantages**:
+- ✅ Unified Protocol (not just forms)
+- ✅ Simpler API
+- ✅ Ready-to-use UI
 
-**Formily优势**:
-- ✅ 极其强大的表单逻辑
-- ✅ 更细粒度的控制
-
----
-
-## 9. 总结和建议
-
-### 9.1 当前优势
-
-1. **架构清晰**: 三层分离，职责明确
-2. **质量优秀**: 精简代码，TypeScript覆盖
-3. **协议完整**: Form和View协议100%实现
-4. **生态健康**: Shadcn/Tailwind成熟生态
-
-### 9.2 关键挑战
-
-1. **组件数量**: 相比Amis (100+)，ObjectUI (76) 仍有差距
-2. **Object协议**: 核心协议尚未实现
-3. **移动端**: 缺少专门的移动端组件
-4. **文档**: 中文文档和示例需加强
-
-### 9.3 战略建议
-
-#### 短期 (Q1-Q2 2026)
-1. **聚焦Object协议**: 这是与其他低代码平台的核心差异
-2. **补齐高频组件**: Tags Input, Stepper, Bulk Edit等
-3. **完善文档**: 每个组件至少3个实际示例
-
-#### 中期 (Q3-Q4 2026)
-1. **移动端优化**: 响应式不等于移动端友好
-2. **性能优化**: 虚拟滚动、懒加载等
-3. **开发工具**: 设计器、主题编辑器
-
-#### 长期 (2027+)
-1. **AI集成**: Schema自动生成、智能补全
-2. **组件市场**: 社区贡献组件
-3. **多端渲染**: 支持小程序、桌面端
-
-### 9.4 成功指标
-
-**Q2 2026目标**:
-- ✅ 平台基础组件: 84个
-- ✅ 对象组件: 10个（**总计94个**）
-- ✅ Object协议实现度80%
-- ✅ 性能基准: data-table 1000行 < 500ms
-- ✅ 测试覆盖率 > 75%
-- ✅ NPM周下载量 > 1000
-
-**Q4 2026目标**:
-- ✅ 平台基础组件: ~100个
-- ✅ 对象组件: ~20个（**总计~120个**）
-- ✅ 所有核心协议100%实现
-- ✅ 移动端组件套件完整
-- ✅ VSCode扩展DAU > 500
-- ✅ NPM周下载量 > 5000
+**Formily Advantages**:
+- ✅ Extremely powerful form logic
+- ✅ Finer-grained control
 
 ---
 
-## 附录
+## 9. Summary and Recommendations
 
-### A. 组件优先级矩阵
+### 9.1 Current Strengths
 
-基于业务价值和实现成本的优先级排序：
+1. **Clear Architecture**: Three-layer separation, clear responsibilities
+2. **Excellent Quality**: Concise code, TypeScript coverage
+3. **Complete Protocol**: Form and View Protocol 100% implementation
+4. **Healthy Ecosystem**: Mature Shadcn/Tailwind ecosystem
+
+### 9.2 Key Challenges
+
+1. **Component Count**: Compared to Amis (100+), ObjectUI (76) still has a gap
+2. **Object Protocol**: Core Protocol not yet implemented
+3. **Mobile**: Missing dedicated mobile components
+4. **Documentation**: Chinese documentation and examples need strengthening
+
+### 9.3 Strategic Recommendations
+
+#### Short-term (Q1-Q2 2026)
+1. **Focus on Object Protocol**: This is the core differentiator from other low-code platforms
+2. **Fill high-frequency components**: Tags Input, Stepper, Bulk Edit, etc.
+3. **Improve documentation**: At least 3 real examples for each component
+
+#### Mid-term (Q3-Q4 2026)
+1. **Mobile optimization**: Responsive doesn't equal mobile-friendly
+2. **Performance optimization**: Virtual scrolling, lazy loading, etc.
+3. **Development tools**: Designer, theme editor
+
+#### Long-term (2027+)
+1. **AI integration**: Auto Schema generation, smart completion
+2. **Component marketplace**: Community-contributed components
+3. **Multi-platform rendering**: Support mini-programs, desktop
+
+### 9.4 Success Metrics
+
+**Q2 2026 Goals**:
+- ✅ Platform Basic Components: 84
+- ✅ Object Components: 10 (**Total 94**)
+- ✅ Object Protocol implementation 80%
+- ✅ Performance benchmark: data-table 1000 rows < 500ms
+- ✅ Test coverage > 75%
+- ✅ NPM weekly downloads > 1000
+
+**Q4 2026 Goals**:
+- ✅ Platform Basic Components: ~100
+- ✅ Object Components: ~20 (**Total ~120**)
+- ✅ All core Protocols 100% implemented
+- ✅ Complete mobile component suite
+- ✅ VSCode extension DAU > 500
+- ✅ NPM weekly downloads > 5000
+
+---
+
+## Appendix
+
+### A. Component Priority Matrix
+
+Priority ranking based on business value and implementation cost:
 
 ```
-高价值 + 低成本 (立即实施):
+High Value + Low Cost (Immediate):
 - Tags Input
 - Bulk Edit Dialog
 - Export Wizard
 - Stepper
 
-高价值 + 高成本 (分阶段):
-- Object协议组件
-- 移动端套件
+High Value + High Cost (Phased):
+- Object Protocol components
+- Mobile suite
 - Code Editor
 
-低价值 + 低成本 (填补空白):
+Low Value + Low Cost (Fill gaps):
 - Color Picker
 - Rating
 - BackTop
 
-低价值 + 高成本 (延后):
+Low Value + High Cost (Defer):
 - Heatmap
 - Tour/Walkthrough
 ```
 
-### B. 参考资源
+### B. Reference Resources
 
 - [ObjectStack Protocol Spec](https://github.com/objectstack-ai/spec)
 - [Shadcn UI Components](https://ui.shadcn.com/)
@@ -888,14 +894,14 @@ export function InputRenderer({ schema }: RendererProps<InputSchema>) {
 - [Amis Documentation](https://aisuda.bce.baidu.com/amis)
 - [Formily Documentation](https://formilyjs.org/)
 
-### C. 更新日志
+### C. Changelog
 
-| 版本 | 日期 | 更新内容 |
+| Version | Date | Changes |
 |------|------|----------|
-| v1.0 | 2026-01-23 | 初始版本，完整评估 |
+| v1.0 | 2026-01-23 | Initial version, complete evaluation |
 
 ---
 
-**文档维护**: 每季度更新一次，反映最新实现进度。  
-**反馈渠道**: GitHub Issues / Discussions  
-**联系方式**: hello@objectui.org
+**Document Maintenance**: Updated quarterly to reflect latest implementation progress.  
+**Feedback Channel**: GitHub Issues / Discussions  
+**Contact**: hello@objectui.org

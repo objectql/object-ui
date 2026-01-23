@@ -1,66 +1,66 @@
-# ObjectUI 2026开发路线图
+# ObjectUI 2026 Development Roadmap
 
-**版本**: v1.0  
-**最后更新**: 2026年1月23日  
-**状态**: 📋 规划中
-
----
-
-## 总览
-
-本路线图详细规划了ObjectUI在2026年的开发计划，重点聚焦于完善ObjectStack协议支持、提升开发者体验和生态系统建设。
-
-### 年度目标
-
-- 🎯 **组件覆盖**: 从76个增至120+个组件
-- 🎯 **协议完整性**: Object/App/Report协议100%实现
-- 🎯 **性能提升**: 关键场景性能提升3-5倍
-- 🎯 **社区建设**: NPM周下载量突破5000
-- 🎯 **移动端**: 完整的移动端组件套件
+**Version**: v1.0  
+**Last Updated**: January 23, 2026  
+**Status**: 📋 Planning
 
 ---
 
-## Q1 2026: 核心功能完善 (1-3月)
+## Overview
 
-### 主题: View & Form协议完善，CRUD便捷组件增强
+This roadmap details ObjectUI's development plan for 2026, with a focus on improving ObjectStack Protocol support, enhancing developer experience, and building the ecosystem.
 
-**里程碑**: CRUD便捷组件达到企业级标准
+### Annual Goals
 
-**说明**: CRUD组件是ObjectUI的扩展组件（非ObjectStack标准协议），用于简化数据管理界面开发。
+- 🎯 **Component Coverage**: From 76 to 120+ components
+- 🎯 **Protocol Completeness**: 100% implementation of Object/App/Report Protocols
+- 🎯 **Performance Improvement**: 3-5x performance boost in key scenarios
+- 🎯 **Community Building**: 5000+ weekly NPM downloads
+- 🎯 **Mobile**: Complete mobile component suite
 
-### 新增组件 (8个)
+---
 
-| 组件 | 优先级 | 工作量 | 负责人 | 状态 |
+## Q1 2026: Core Feature Enhancement (Jan-Mar)
+
+### Theme: View & Form Protocol Enhancement, CRUD Convenience Components Strengthening
+
+**Milestone**: CRUD Convenience Components reach enterprise-grade standards
+
+**Note**: CRUD components are ObjectUI extension components (not part of ObjectStack standard protocol), designed to simplify data management interface development.
+
+### New Components (8)
+
+| Component | Priority | Effort | Owner | Status |
 |------|--------|--------|--------|------|
-| **BulkEditDialog** | P0 | 3天 | TBD | 📝 待开始 |
-| **TagsInput** | P0 | 2天 | TBD | 📝 待开始 |
-| **Stepper** | P0 | 2天 | TBD | 📝 待开始 |
-| **ExportWizard** | P0 | 2天 | TBD | 📝 待开始 |
-| **InlineEditCell** | P1 | 2天 | TBD | 📝 待开始 |
-| **ColorPicker** | P2 | 1天 | TBD | 📝 待开始 |
-| **Rating** | P2 | 1天 | TBD | 📝 待开始 |
-| **BackTop** | P2 | 0.5天 | TBD | 📝 待开始 |
+| **BulkEditDialog** | P0 | 3 days | TBD | 📝 Pending |
+| **TagsInput** | P0 | 2 days | TBD | 📝 Pending |
+| **Stepper** | P0 | 2 days | TBD | 📝 Pending |
+| **ExportWizard** | P0 | 2 days | TBD | 📝 Pending |
+| **InlineEditCell** | P1 | 2 days | TBD | 📝 Pending |
+| **ColorPicker** | P2 | 1 day | TBD | 📝 Pending |
+| **Rating** | P2 | 1 day | TBD | 📝 Pending |
+| **BackTop** | P2 | 0.5 days | TBD | 📝 Pending |
 
-#### 详细说明
+#### Detailed Specifications
 
-##### BulkEditDialog - 批量编辑对话框
-**用途**: 允许用户一次性编辑多条记录的相同字段
+##### BulkEditDialog - Bulk Edit Dialog
+**Purpose**: Allow users to edit the same fields across multiple records at once
 
-**Schema示例**:
+**Schema Example**:
 ```json
 {
   "type": "bulk-edit-dialog",
-  "title": "批量编辑用户",
+  "title": "Bulk Edit Users",
   "fields": [
     {
       "name": "status",
-      "label": "状态",
+      "label": "Status",
       "type": "select",
       "options": ["active", "inactive", "pending"]
     },
     {
       "name": "role",
-      "label": "角色",
+      "label": "Role",
       "type": "select",
       "options": ["user", "admin", "manager"]
     }
@@ -72,22 +72,22 @@
 }
 ```
 
-**技术要点**:
-- 使用Dialog + Form组合
-- 支持部分字段更新（只更新填写的字段）
-- 显示影响的记录数
-- 进度显示（批量操作可能耗时）
+**Technical Points**:
+- Uses Dialog + Form combination
+- Supports partial field updates (only updates filled fields)
+- Displays affected record count
+- Progress indicator (bulk operations may be time-consuming)
 
-##### TagsInput - 标签输入组件
-**用途**: 多值输入，支持自动完成和创建新标签
+##### TagsInput - Tags Input Component
+**Purpose**: Multi-value input with autocomplete and new tag creation support
 
-**Schema示例**:
+**Schema Example**:
 ```json
 {
   "type": "tags-input",
   "name": "skills",
-  "label": "技能标签",
-  "placeholder": "输入技能...",
+  "label": "Skill Tags",
+  "placeholder": "Enter skills...",
   "suggestions": ["React", "TypeScript", "Node.js"],
   "allowCreate": true,
   "maxTags": 10,
@@ -98,34 +98,34 @@
 }
 ```
 
-**技术要点**:
-- 基于Combobox扩展
-- 支持拖拽排序
-- 键盘导航 (Backspace删除最后一个)
-- 自定义标签样式
+**Technical Points**:
+- Extended from Combobox
+- Supports drag-and-drop sorting
+- Keyboard navigation (Backspace deletes last tag)
+- Custom tag styling
 
-##### Stepper - 步骤条组件
-**用途**: 多步骤流程引导（如向导、订单流程）
+##### Stepper - Step Progress Component
+**Purpose**: Multi-step process guidance (e.g., wizards, order flows)
 
-**Schema示例**:
+**Schema Example**:
 ```json
 {
   "type": "stepper",
   "current": 1,
   "steps": [
     {
-      "title": "基本信息",
-      "description": "填写用户基本资料",
+      "title": "Basic Information",
+      "description": "Fill in user profile",
       "icon": "User"
     },
     {
-      "title": "联系方式",
-      "description": "添加联系信息",
+      "title": "Contact Details",
+      "description": "Add contact information",
       "icon": "Phone"
     },
     {
-      "title": "完成",
-      "description": "确认并提交",
+      "title": "Complete",
+      "description": "Confirm and submit",
       "icon": "CheckCircle"
     }
   ],
@@ -134,102 +134,102 @@
 }
 ```
 
-**技术要点**:
-- 水平/垂直布局
-- 支持点击跳转（可配置）
-- 步骤状态：wait/process/finish/error
-- 响应式（移动端竖向）
+**Technical Points**:
+- Horizontal/vertical layout
+- Supports click navigation (configurable)
+- Step states: wait/process/finish/error
+- Responsive (vertical on mobile)
 
-### 性能优化
+### Performance Optimization
 
-| 项目 | 当前 | 目标 | 方案 |
+| Item | Current | Target | Approach |
 |------|------|------|------|
-| data-table 1000行渲染 | 2000ms | 200ms | 虚拟滚动 (react-window) |
-| 复杂表单初始化 (50字段) | 1000ms | 100ms | 懒加载字段 |
-| Schema解析 | - | 缓存 | Memoization + LRU缓存 |
-| 包体积 | 50KB | 40KB | Tree-shaking优化 |
+| data-table 1000 rows render | 2000ms | 200ms | Virtual scrolling (react-window) |
+| Complex form initialization (50 fields) | 1000ms | 100ms | Lazy load fields |
+| Schema parsing | - | Cached | Memoization + LRU cache |
+| Bundle size | 50KB | 40KB | Tree-shaking optimization |
 
-**虚拟滚动实现计划**:
+**Virtual Scrolling Implementation Plan**:
 ```typescript
-// Week 1: 研究和方案设计
-// Week 2: 实现data-table虚拟滚动
-// Week 3: 测试和优化
-// Week 4: 文档和示例
+// Week 1: Research and solution design
+// Week 2: Implement data-table virtual scrolling
+// Week 3: Testing and optimization
+// Week 4: Documentation and examples
 
-// 目标API:
+// Target API:
 {
   "type": "data-table",
-  "virtual": true,  // 启用虚拟滚动
-  "rowHeight": 48,  // 固定行高
-  "overscan": 5     // 预渲染行数
+  "virtual": true,  // Enable virtual scrolling
+  "rowHeight": 48,  // Fixed row height
+  "overscan": 5     // Pre-render row count
 }
 ```
 
-### 文档和测试
+### Documentation and Testing
 
-**目标**:
-- ✅ Storybook覆盖所有76个组件
-- ✅ 单元测试覆盖率从60%提升至75%
-- ✅ 每个组件至少3个实际示例
-- ✅ 性能基准测试套件
+**Goals**:
+- ✅ Storybook coverage for all 76 components
+- ✅ Unit test coverage from 60% to 75%
+- ✅ At least 3 practical examples per component
+- ✅ Performance benchmark test suite
 
-**交付物**:
-- 📚 组件API参考文档 (自动生成)
-- 📚 最佳实践指南
-- 📚 常见问题解答
-- 📹 视频教程系列 (5个)
+**Deliverables**:
+- 📚 Component API reference documentation (auto-generated)
+- 📚 Best practices guide
+- 📚 FAQ
+- 📹 Video tutorial series (5 videos)
 
-### Sprint分解
+### Sprint Breakdown
 
-#### Sprint 1 (Week 1-2): 批量操作
-- BulkEditDialog组件
-- data-table批量选择优化
-- 批量删除确认对话框
+#### Sprint 1 (Week 1-2): Bulk Operations
+- BulkEditDialog component
+- data-table bulk selection optimization
+- Bulk delete confirmation dialog
 
-#### Sprint 2 (Week 3-4): 高级表单
-- TagsInput组件
-- ColorPicker组件
-- Rating组件
+#### Sprint 2 (Week 3-4): Advanced Forms
+- TagsInput component
+- ColorPicker component
+- Rating component
 
-#### Sprint 3 (Week 5-6): 导航和导出
-- Stepper组件
-- ExportWizard组件
-- BackTop组件
+#### Sprint 3 (Week 5-6): Navigation and Export
+- Stepper component
+- ExportWizard component
+- BackTop component
 
-#### Sprint 4 (Week 7-8): 性能和文档
-- 虚拟滚动实现
-- Storybook文档完善
-- 单元测试补齐
+#### Sprint 4 (Week 7-8): Performance and Documentation
+- Virtual scrolling implementation
+- Storybook documentation improvement
+- Unit test coverage completion
 
-#### Sprint 5 (Week 9-12): 优化和发布
-- 性能基准测试
-- 文档翻译 (英文)
-- v1.5.0发布
+#### Sprint 5 (Week 9-12): Optimization and Release
+- Performance benchmarking
+- Documentation translation (English)
+- v1.5.0 release
 
 ---
 
-## Q2 2026: Object协议实现 (4-6月)
+## Q2 2026: Object Protocol Implementation (Apr-Jun)
 
-### 主题: ObjectStack协议核心
+### Theme: ObjectStack Protocol Core
 
-**里程碑**: 支持从Object定义自动生成完整CRUD界面
+**Milestone**: Support automatic generation of complete CRUD interfaces from Object definitions
 
-### 核心组件 (6个)
+### Core Components (6)
 
-| 组件 | 工作量 | 说明 |
+| Component | Effort | Description |
 |------|--------|------|
-| **ObjectForm** | 3周 | 基于Object定义自动生成表单 |
-| **ObjectList** | 3周 | 基于Object定义自动生成列表 |
-| **FieldRenderer** | 2周 | 字段类型动态渲染器 |
-| **RelationshipPicker** | 2周 | 关系字段选择器 |
-| **RecordLink** | 1周 | 记录链接和导航 |
-| **CodeEditor** | 1周 | 代码编辑器 (Monaco) |
+| **ObjectForm** | 3 weeks | Auto-generate forms from Object definitions |
+| **ObjectList** | 3 weeks | Auto-generate lists from Object definitions |
+| **FieldRenderer** | 2 weeks | Dynamic Field type Renderer |
+| **RelationshipPicker** | 2 weeks | Relationship Field selector |
+| **RecordLink** | 1 week | Record linking and navigation |
+| **CodeEditor** | 1 week | Code editor (Monaco) |
 
-#### ObjectForm - 对象表单生成器
+#### ObjectForm - Object Form Generator
 
-**核心能力**:
+**Core Capabilities**:
 ```typescript
-// 输入: Object定义
+// Input: Object definition
 const objectDef = {
   name: "contact",
   fields: {
@@ -241,56 +241,56 @@ const objectDef = {
   }
 };
 
-// 输出: 完整表单Schema
+// Output: Complete Form Schema
 const formSchema = generateFormFromObject(objectDef);
 
-// 渲染
+// Render
 <SchemaRenderer schema={formSchema} />
 ```
 
-**自动功能**:
-- ✅ 字段类型到组件的映射
-- ✅ 验证规则生成
-- ✅ 布局优化 (单列/双列/分组)
-- ✅ 关系字段处理
-- ✅ 依赖字段联动
+**Automatic Features**:
+- ✅ Field type to component mapping
+- ✅ Validation rule generation
+- ✅ Layout optimization (single/double column/grouped)
+- ✅ Relationship Field handling
+- ✅ Dependent Field interactions
 
-#### FieldRenderer - 字段类型渲染器
+#### FieldRenderer - Field Type Renderer
 
-支持ObjectQL所有字段类型：
+Supports all ObjectQL Field types:
 
-| ObjectQL类型 | 渲染组件 | 说明 |
+| ObjectQL Type | Render Component | Description |
 |-------------|----------|------|
-| `text` | Input | 单行文本 |
-| `textarea` | Textarea | 多行文本 |
-| `number` | Input (type=number) | 数字 |
-| `boolean` | Switch | 布尔值 |
-| `select` | Select | 单选下拉 |
-| `multiselect` | Multi-Select | 多选下拉 |
-| `date` | DatePicker | 日期 |
-| `datetime` | DateTimePicker | 日期时间 |
-| `email` | Input (type=email) | 邮箱 |
-| `phone` | Input (type=tel) | 电话 |
-| `url` | Input (type=url) | 网址 |
-| `lookup` | RelationshipPicker | 查找关系 |
-| `master-detail` | RelationshipPicker | 主从关系 |
-| `formula` | StaticText | 公式字段 (只读) |
-| `autonumber` | StaticText | 自动编号 (只读) |
-| `currency` | Input (formatted) | 货币 |
-| `percent` | Input (%) | 百分比 |
-| `code` | CodeEditor | 代码 |
+| `text` | Input | Single-line text |
+| `textarea` | Textarea | Multi-line text |
+| `number` | Input (type=number) | Number |
+| `boolean` | Switch | Boolean |
+| `select` | Select | Single select dropdown |
+| `multiselect` | Multi-Select | Multi-select dropdown |
+| `date` | DatePicker | Date |
+| `datetime` | DateTimePicker | Date time |
+| `email` | Input (type=email) | Email |
+| `phone` | Input (type=tel) | Phone |
+| `url` | Input (type=url) | URL |
+| `lookup` | RelationshipPicker | Lookup relationship |
+| `master-detail` | RelationshipPicker | Master-detail relationship |
+| `formula` | StaticText | Formula Field (read-only) |
+| `autonumber` | StaticText | Auto-number (read-only) |
+| `currency` | Input (formatted) | Currency |
+| `percent` | Input (%) | Percentage |
+| `code` | CodeEditor | Code |
 | `markdown` | RichTextEditor | Markdown |
-| `file` | FileUpload | 文件上传 |
-| `image` | ImageUpload | 图片上传 |
+| `file` | FileUpload | File upload |
+| `image` | ImageUpload | Image upload |
 
-#### RelationshipPicker - 关系选择器
+#### RelationshipPicker - Relationship Selector
 
-**Lookup关系示例**:
+**Lookup Relationship Example**:
 ```json
 {
   "type": "object-relationship",
   "name": "account_id",
-  "label": "所属账户",
+  "label": "Account",
   "relationshipType": "lookup",
   "reference": "account",
   "displayField": "name",
@@ -302,33 +302,33 @@ const formSchema = generateFormFromObject(objectDef);
 }
 ```
 
-**功能**:
-- 🔍 智能搜索
-- 📋 下拉列表模式
-- 🗂️ 对话框选择模式
-- ➕ 快速创建新记录
-- 👁️ 预览关联记录
-- 🔗 跳转到关联记录
+**Features**:
+- 🔍 Smart search
+- 📋 Dropdown list mode
+- 🗂️ Dialog selection mode
+- ➕ Quick create new record
+- 👁️ Preview related record
+- 🔗 Navigate to related record
 
-### ObjectQL集成深化
+### ObjectQL Integration Enhancement
 
-#### 数据源适配器增强
+#### Data Source Adapter Enhancement
 
 ```typescript
 // packages/core/src/adapters/objectstack-adapter.ts
 
 export class ObjectStackAdapter implements DataSource {
-  // 新增方法
+  // New methods
   async getObjectMetadata(objectName: string): Promise<ObjectMetadata> {
-    // 获取Object定义
+    // Get Object definition
   }
   
   async getFieldMetadata(objectName: string, fieldName: string): Promise<FieldMetadata> {
-    // 获取字段定义
+    // Get Field definition
   }
   
   async validateRecord(objectName: string, data: any): Promise<ValidationResult> {
-    // 服务端验证
+    // Server-side validation
   }
   
   async getRelatedRecords(
@@ -336,12 +336,12 @@ export class ObjectStackAdapter implements DataSource {
     recordId: string,
     relationshipName: string
   ): Promise<RelatedRecords> {
-    // 获取关联记录
+    // Get related records
   }
 }
 ```
 
-### 类型系统扩展
+### Type System Extension
 
 ```typescript
 // packages/types/src/object.ts
@@ -361,402 +361,402 @@ export interface FieldSchema {
   required?: boolean;
   unique?: boolean;
   defaultValue?: any;
-  // 关系字段
+  // Relationship fields
   reference?: string;
   relationshipType?: 'lookup' | 'master-detail' | 'many-to-many';
-  // 选项字段
+  // Option fields
   options?: Array<{ label: string; value: any }>;
-  // 验证
+  // Validation
   min?: number;
   max?: number;
   pattern?: string;
-  // UI提示
+  // UI hints
   helpText?: string;
   placeholder?: string;
 }
 ```
 
-### Sprint分解
+### Sprint Breakdown
 
-#### Sprint 6 (Week 13-14): Object Schema解析
-- Object类型定义
-- Schema解析器
-- 字段类型映射
+#### Sprint 6 (Week 13-14): Object Schema Parsing
+- Object type definition
+- Schema parser
+- Field type mapping
 
 #### Sprint 7 (Week 15-17): ObjectForm
-- 表单自动生成
-- 验证规则映射
-- 布局优化算法
+- Form auto-generation
+- Validation rule mapping
+- Layout optimization algorithm
 
 #### Sprint 8 (Week 18-20): ObjectList
-- 列表自动生成
-- 列定义映射
-- 排序/过滤集成
+- List auto-generation
+- Column definition mapping
+- Sort/filter integration
 
-#### Sprint 9 (Week 21-22): 关系字段
-- RelationshipPicker组件
-- Lookup/Master-Detail支持
-- RecordLink组件
+#### Sprint 9 (Week 21-22): Relationship Fields
+- RelationshipPicker component
+- Lookup/Master-Detail support
+- RecordLink component
 
-#### Sprint 10 (Week 23-24): 完善和测试
-- CodeEditor集成
-- 端到端测试
-- 文档和示例
+#### Sprint 10 (Week 23-24): Enhancement and Testing
+- CodeEditor integration
+- End-to-end testing
+- Documentation and examples
 
 ---
 
-## Q3 2026: 移动端和高级特性 (7-9月)
+## Q3 2026: Mobile and Advanced Features (Jul-Sep)
 
-### 主题: 移动优先 + 数据可视化
+### Theme: Mobile-First + Data Visualization
 
-**里程碑**: 完整的移动端体验
+**Milestone**: Complete mobile experience
 
-### 移动端组件套件 (10个)
+### Mobile Component Suite (10)
 
-| 组件 | 工作量 | 说明 |
+| Component | Effort | Description |
 |------|--------|------|
-| **MobileNav** | 1周 | 移动端导航栏 |
-| **MobileTable** | 2周 | 移动端表格 (卡片模式) |
-| **MobileForm** | 1周 | 移动端表单优化 |
-| **BottomSheet** | 1周 | 底部抽屉 |
-| **SwipeActions** | 1周 | 滑动操作 |
-| **PullToRefresh** | 1周 | 下拉刷新 |
-| **ActionSheet** | 1周 | 操作面板 |
-| **FloatingActionButton** | 0.5周 | 浮动操作按钮 |
-| **Searchbar** | 1周 | 搜索栏 |
-| **InfiniteScroll** | 1周 | 无限滚动 |
+| **MobileNav** | 1 week | Mobile navigation bar |
+| **MobileTable** | 2 weeks | Mobile table (card mode) |
+| **MobileForm** | 1 week | Mobile Form optimization |
+| **BottomSheet** | 1 week | Bottom drawer |
+| **SwipeActions** | 1 week | Swipe actions |
+| **PullToRefresh** | 1 week | Pull to refresh |
+| **ActionSheet** | 1 week | Action panel |
+| **FloatingActionButton** | 0.5 weeks | Floating action button |
+| **Searchbar** | 1 week | Search bar |
+| **InfiniteScroll** | 1 week | Infinite scroll |
 
-#### 移动端设计原则
+#### Mobile Design Principles
 
-**触控优先**:
-- ✅ 最小触摸目标: 44x44px
-- ✅ 手势支持: 滑动、长按、双击
-- ✅ 视觉反馈: Ripple效果
+**Touch-First**:
+- ✅ Minimum touch target: 44x44px
+- ✅ Gesture support: swipe, long press, double tap
+- ✅ Visual feedback: Ripple effect
 
-**响应式布局**:
+**Responsive Layout**:
 ```typescript
-// 断点策略
+// Breakpoint strategy
 const breakpoints = {
-  sm: 640,   // 手机
-  md: 768,   // 平板竖屏
-  lg: 1024,  // 平板横屏
-  xl: 1280   // 桌面
+  sm: 640,   // Mobile
+  md: 768,   // Tablet portrait
+  lg: 1024,  // Tablet landscape
+  xl: 1280   // Desktop
 };
 
-// 自适应组件
+// Adaptive component
 <Grid 
   columns={{ sm: 1, md: 2, lg: 3, xl: 4 }}
   gap={{ sm: 2, md: 4, lg: 6 }}
 />
 ```
 
-**性能优化**:
-- ✅ 懒加载图片
-- ✅ 虚拟列表
-- ✅ 防抖/节流
-- ✅ 离线缓存
+**Performance Optimization**:
+- ✅ Lazy load images
+- ✅ Virtual lists
+- ✅ Debounce/throttle
+- ✅ Offline caching
 
-### Report协议实现
+### Report Protocol Implementation
 
-| 组件 | 工作量 | 说明 |
+| Component | Effort | Description |
 |------|--------|------|
-| **ReportViewer** | 2周 | 报表查看器 |
-| **ReportBuilder** | 3周 | 可视化报表构建器 |
-| **Gauge** | 1周 | 仪表盘 |
-| **Funnel** | 1周 | 漏斗图 |
+| **ReportViewer** | 2 weeks | Report viewer |
+| **ReportBuilder** | 3 weeks | Visual report builder |
+| **Gauge** | 1 week | Gauge chart |
+| **Funnel** | 1 week | Funnel chart |
 
-### 其他高级组件
+### Other Advanced Components
 
-| 组件 | 工作量 | 优先级 |
+| Component | Effort | Priority |
 |------|--------|--------|
-| **Tour/Walkthrough** | 2周 | P1 |
-| **Transfer** | 1周 | P1 |
-| **ImportWizard** | 2周 | P0 |
-| **Affix** | 1周 | P2 |
+| **Tour/Walkthrough** | 2 weeks | P1 |
+| **Transfer** | 1 week | P1 |
+| **ImportWizard** | 2 weeks | P0 |
+| **Affix** | 1 week | P2 |
 
 ---
 
-## Q4 2026: 生态系统建设 (10-12月)
+## Q4 2026: Ecosystem Building (Oct-Dec)
 
-### 主题: 开发者工具 + 社区
+### Theme: Developer Tools + Community
 
-**里程碑**: 开发者体验一流
+**Milestone**: World-class developer experience
 
-### 开发者工具
+### Developer Tools
 
-#### VSCode扩展增强
+#### VSCode Extension Enhancement
 
-**新功能**:
-- ✅ Schema自动补全（基于已注册组件）
-- ✅ 实时预览（侧边栏）
-- ✅ 语法高亮和验证
-- ✅ Schema片段库
-- ✅ 重构工具（重命名、提取组件）
-- ✅ 性能分析（Schema复杂度）
+**New Features**:
+- ✅ Schema auto-completion (based on registered components)
+- ✅ Real-time preview (sidebar)
+- ✅ Syntax highlighting and validation
+- ✅ Schema snippet library
+- ✅ Refactoring tools (rename, extract component)
+- ✅ Performance analysis (Schema complexity)
 
-**工作量**: 4周
+**Effort**: 4 weeks
 
-#### Schema可视化设计器
+#### Schema Visual Designer
 
-**核心功能**:
+**Core Features**:
 ```
 ┌─────────────────────────────────────────────────┐
-│  组件面板    │    画布区域    │   属性编辑器    │
-│             │                │                 │
-│  [搜索框]    │   ┌─────────┐ │  Component:     │
-│             │   │  Header │ │  Button         │
-│  Layout     │   └─────────┘ │                 │
-│  - Grid     │                │  Label: *       │
-│  - Flex     │   ┌─────────┐ │  [保存]         │
-│  - Card     │   │  Form   │ │                 │
-│             │   │  ├Input  │ │  onClick:       │
-│  Form       │   │  ├Select │ │  [编辑动作]     │
-│  - Input    │   │  └Button │ │                 │
-│  - Select   │   └─────────┘ │  className:     │
-│  ...        │                │  [编辑样式]     │
-│             │                │                 │
+│  Component Panel │    Canvas    │ Property Editor │
+│                  │              │                 │
+│  [Search]        │   ┌────────┐ │  Component:     │
+│                  │   │ Header │ │  Button         │
+│  Layout          │   └────────┘ │                 │
+│  - Grid          │              │  Label: *       │
+│  - Flex          │   ┌────────┐ │  [Save]         │
+│  - Card          │   │  Form  │ │                 │
+│                  │   │  ├Input │ │  onClick:       │
+│  Form            │   │  ├Select│ │  [Edit Action]  │
+│  - Input         │   │  └Button│ │                 │
+│  - Select        │   └────────┘ │  className:     │
+│  ...             │              │  [Edit Style]   │
+│                  │              │                 │
 └─────────────────────────────────────────────────┘
 ```
 
-**技术栈**:
-- React DnD / dnd-kit (拖拽)
-- Monaco Editor (代码编辑)
-- @object-ui/react (预览)
+**Tech Stack**:
+- React DnD / dnd-kit (drag-and-drop)
+- Monaco Editor (code editing)
+- @object-ui/react (preview)
 
-**工作量**: 6周
+**Effort**: 6 weeks
 
-#### 主题编辑器
+#### Theme Editor
 
-**功能**:
-- ✅ Tailwind配置可视化编辑
-- ✅ 颜色系统定制
-- ✅ 组件样式覆盖
-- ✅ 实时预览
-- ✅ 导出主题JSON
+**Features**:
+- ✅ Visual Tailwind config editing
+- ✅ Color system customization
+- ✅ Component style overrides
+- ✅ Real-time preview
+- ✅ Export theme JSON
 
-**工作量**: 2周
+**Effort**: 2 weeks
 
-### 组件市场
+### Component Marketplace
 
-**目标**: 社区贡献的组件生态
+**Goal**: Community-contributed component ecosystem
 
-**平台功能**:
-- 📦 组件发布和版本管理
-- 🔍 搜索和分类
-- ⭐ 评分和评论
-- 📝 文档和示例
-- 🔒 安全审计
+**Platform Features**:
+- 📦 Component publishing and version management
+- 🔍 Search and categorization
+- ⭐ Ratings and reviews
+- 📝 Documentation and examples
+- 🔒 Security audit
 
-**工作量**: 4周
+**Effort**: 4 weeks
 
-### AI集成
+### AI Integration
 
-#### Schema自动生成
+#### Schema Auto-Generation
 
-**场景1: 从描述生成**
+**Scenario 1: Generate from Description**
 ```
-用户输入: "创建一个用户注册表单，包含姓名、邮箱、密码和确认密码"
+User Input: "Create a user registration form with name, email, password, and confirm password"
 
-AI输出:
+AI Output:
 {
   "type": "form",
-  "title": "用户注册",
+  "title": "User Registration",
   "fields": [
-    { "name": "name", "label": "姓名", "type": "input", "required": true },
-    { "name": "email", "label": "邮箱", "type": "input", "inputType": "email", "required": true },
-    { "name": "password", "label": "密码", "type": "input", "inputType": "password", "required": true },
-    { "name": "confirmPassword", "label": "确认密码", "type": "input", "inputType": "password", "required": true }
+    { "name": "name", "label": "Name", "type": "input", "required": true },
+    { "name": "email", "label": "Email", "type": "input", "inputType": "email", "required": true },
+    { "name": "password", "label": "Password", "type": "input", "inputType": "password", "required": true },
+    { "name": "confirmPassword", "label": "Confirm Password", "type": "input", "inputType": "password", "required": true }
   ]
 }
 ```
 
-**场景2: 从截图生成**
+**Scenario 2: Generate from Screenshot**
 ```
-上传UI截图 → 视觉识别 → 生成Schema → 人工微调
+Upload UI screenshot → Visual recognition → Generate Schema → Manual refinement
 ```
 
-**技术方案**:
+**Technical Approach**:
 - GPT-4 Vision API
-- 自定义训练数据集
-- Schema验证和优化
+- Custom training dataset
+- Schema validation and optimization
 
-**工作量**: 持续迭代
+**Effort**: Continuous iteration
 
 ---
 
-## 性能目标
+## Performance Goals
 
-### 当前基准 (v1.4)
+### Current Baseline (v1.4)
 
-| 指标 | 数值 |
+| Metric | Value |
 |------|------|
-| 包体积 (gzip) | 50KB |
-| 首屏加载 | 1.2s |
-| data-table (1000行) | 2000ms |
-| 复杂表单 (50字段) | 1000ms |
-| 内存占用 (大表格) | 120MB |
+| Bundle size (gzip) | 50KB |
+| First screen load | 1.2s |
+| data-table (1000 rows) | 2000ms |
+| Complex Form (50 fields) | 1000ms |
+| Memory usage (large table) | 120MB |
 
-### 2026年末目标
+### End of 2026 Goals
 
-| 指标 | 目标 | 改进 |
+| Metric | Target | Improvement |
 |------|------|------|
-| 包体积 (gzip) | 40KB | -20% |
-| 首屏加载 | 0.8s | -33% |
-| data-table (1000行) | 200ms | -90% |
-| 复杂表单 (50字段) | 100ms | -90% |
-| 内存占用 (大表格) | 60MB | -50% |
+| Bundle size (gzip) | 40KB | -20% |
+| First screen load | 0.8s | -33% |
+| data-table (1000 rows) | 200ms | -90% |
+| Complex Form (50 fields) | 100ms | -90% |
+| Memory usage (large table) | 60MB | -50% |
 
-### 优化策略
+### Optimization Strategies
 
-1. **代码分割**:
-   - 按组件懒加载
-   - 插件按需加载
-   - 路由级分割
+1. **Code Splitting**:
+   - Lazy load by component
+   - On-demand plugin loading
+   - Route-level splitting
 
-2. **虚拟化**:
-   - data-table虚拟滚动
-   - 大表单虚拟渲染
-   - 虚拟树形结构
+2. **Virtualization**:
+   - data-table virtual scrolling
+   - Large Form virtual rendering
+   - Virtual tree structure
 
-3. **缓存**:
-   - Schema编译缓存
-   - 组件实例复用
-   - 计算结果memoization
+3. **Caching**:
+   - Schema compilation cache
+   - Component instance reuse
+   - Computation result memoization
 
 4. **Worker**:
-   - Expression计算移到Worker
-   - 大数据过滤/排序
-   - Schema验证
+   - Move Expression computation to Worker
+   - Large data filtering/sorting
+   - Schema validation
 
 ---
 
-## 质量目标
+## Quality Goals
 
-### 测试覆盖率
+### Test Coverage
 
-| 包 | 当前 | Q2目标 | Q4目标 |
+| Package | Current | Q2 Goal | Q4 Goal |
 |----|------|--------|--------|
 | @object-ui/types | 90% | 95% | 95% |
 | @object-ui/core | 75% | 85% | 90% |
 | @object-ui/react | 60% | 75% | 85% |
 | @object-ui/components | 50% | 70% | 85% |
-| **整体** | **60%** | **75%** | **85%** |
+| **Overall** | **60%** | **75%** | **85%** |
 
-### 文档覆盖率
+### Documentation Coverage
 
-- ✅ 每个组件有完整API文档
-- ✅ 每个组件有至少3个实际示例
-- ✅ 所有协议有详细规范文档
-- ✅ 50+篇最佳实践文章
-- ✅ 20+个视频教程
+- ✅ Complete API documentation for every component
+- ✅ At least 3 practical examples per component
+- ✅ Detailed specification docs for all protocols
+- ✅ 50+ best practice articles
+- ✅ 20+ video tutorials
 
-### 无障碍访问
+### Accessibility
 
-- ✅ WCAG 2.1 AA级合规
-- ✅ 键盘导航100%支持
-- ✅ 屏幕阅读器友好
-- ✅ 高对比度模式
-- ✅ 焦点管理优化
+- ✅ WCAG 2.1 AA compliance
+- ✅ 100% keyboard navigation support
+- ✅ Screen reader friendly
+- ✅ High contrast mode
+- ✅ Focus management optimization
 
 ---
 
-## 社区建设
+## Community Building
 
-### 增长目标
+### Growth Goals
 
-| 指标 | 当前 | Q2 | Q4 |
+| Metric | Current | Q2 | Q4 |
 |------|------|----|----|
 | GitHub Stars | 500 | 1000 | 2500 |
-| NPM周下载 | 200 | 1000 | 5000 |
-| Discord成员 | 50 | 200 | 500 |
-| 贡献者 | 5 | 15 | 30 |
-| 社区组件 | 0 | 5 | 20 |
+| Weekly NPM Downloads | 200 | 1000 | 5000 |
+| Discord Members | 50 | 200 | 500 |
+| Contributors | 5 | 15 | 30 |
+| Community Components | 0 | 5 | 20 |
 
-### 社区活动
+### Community Activities
 
 **Q1-Q2**:
-- 📝 每周博客文章
-- 📹 每月视频教程
-- 💬 每周社区问答
+- 📝 Weekly blog posts
+- 📹 Monthly video tutorials
+- 💬 Weekly community Q&A
 
 **Q3-Q4**:
-- 🎓 线上训练营
-- 🏆 组件大赛
-- 🎤 技术分享会
-- 📚 电子书出版
+- 🎓 Online training camp
+- 🏆 Component competition
+- 🎤 Tech talks
+- 📚 eBook publishing
 
 ---
 
-## 风险和应对
+## Risks and Mitigation
 
-### 技术风险
+### Technical Risks
 
-| 风险 | 概率 | 影响 | 应对措施 |
+| Risk | Probability | Impact | Mitigation |
 |------|------|------|----------|
-| 性能优化难度超预期 | 中 | 高 | 提前POC，留足缓冲时间 |
-| Object协议复杂度高 | 高 | 高 | 分阶段实施，先MVP |
-| 移动端兼容性问题 | 中 | 中 | 早期设备测试 |
-| AI集成效果不佳 | 低 | 中 | 降级为辅助工具 |
+| Performance optimization harder than expected | Medium | High | Early POC, sufficient buffer time |
+| Object Protocol complexity high | High | High | Phased implementation, MVP first |
+| Mobile compatibility issues | Medium | Medium | Early device testing |
+| AI integration effects poor | Low | Medium | Downgrade to auxiliary tool |
 
-### 资源风险
+### Resource Risks
 
-| 风险 | 概率 | 影响 | 应对措施 |
+| Risk | Probability | Impact | Mitigation |
 |------|------|------|----------|
-| 人力不足 | 中 | 高 | 开源社区贡献 |
-| 文档编写滞后 | 高 | 中 | 自动化文档生成 |
-| 测试覆盖不足 | 中 | 中 | CI强制覆盖率 |
+| Insufficient manpower | Medium | High | Open source community contributions |
+| Documentation writing lag | High | Medium | Automated documentation generation |
+| Insufficient test coverage | Medium | Medium | CI mandatory coverage |
 
-### 市场风险
+### Market Risks
 
-| 风险 | 概率 | 影响 | 应对措施 |
+| Risk | Probability | Impact | Mitigation |
 |------|------|------|----------|
-| 竞品功能超越 | 中 | 高 | 保持技术领先 |
-| 用户采用率低 | 低 | 高 | 降低学习成本 |
-| 生态建设慢 | 中 | 中 | 激励计划 |
+| Competitor features surpass | Medium | High | Maintain technical leadership |
+| Low user adoption | Low | High | Lower learning curve |
+| Slow ecosystem building | Medium | Medium | Incentive programs |
 
 ---
 
-## 成功指标
+## Success Metrics
 
-### Q2 2026检查点
+### Q2 2026 Checkpoint
 
-- ✅ 组件数量: 90+
-- ✅ CRUD便捷组件: 100%
-- ✅ Object协议: 80%
-- ✅ 测试覆盖率: 75%
-- ✅ NPM周下载: 1000+
-- ✅ 性能提升: 3x
+- ✅ Component count: 90+
+- ✅ CRUD Convenience Components: 100%
+- ✅ Object Protocol: 80%
+- ✅ Test coverage: 75%
+- ✅ Weekly NPM downloads: 1000+
+- ✅ Performance improvement: 3x
 
-### Q4 2026检查点
+### Q4 2026 Checkpoint
 
-- ✅ 组件数量: 120+
-- ✅ 所有核心协议: 100%
-- ✅ 移动端套件: 完整
-- ✅ 测试覆盖率: 85%
-- ✅ NPM周下载: 5000+
-- ✅ 性能提升: 5x
-- ✅ 社区组件: 20+
-
----
-
-## 总结
-
-2026年是ObjectUI从"可用"迈向"卓越"的关键一年：
-
-**Q1**: 补齐短板，完善CRUD
-**Q2**: 核心突破，Object协议
-**Q3**: 移动优先，用户体验
-**Q4**: 生态繁荣，开发者幸福
-
-通过这一年的努力，ObjectUI将成为：
-- ✅ ObjectStack协议的官方前端实现
-- ✅ 低代码平台的性能标杆
-- ✅ Tailwind生态的旗舰UI库
-- ✅ 开发者友好的一流工具
-
-**让我们一起构建未来的UI！** 🚀
+- ✅ Component count: 120+
+- ✅ All core protocols: 100%
+- ✅ Mobile suite: Complete
+- ✅ Test coverage: 85%
+- ✅ Weekly NPM downloads: 5000+
+- ✅ Performance improvement: 5x
+- ✅ Community components: 20+
 
 ---
 
-*本路线图是动态文档，每月更新一次。*  
-*最新版本: https://github.com/objectstack-ai/objectui/blob/main/docs/DEVELOPMENT_ROADMAP_2026.md*
+## Summary
+
+2026 is a critical year for ObjectUI to evolve from "usable" to "excellent":
+
+**Q1**: Fill gaps, enhance CRUD
+**Q2**: Core breakthrough, Object Protocol
+**Q3**: Mobile-first, user experience
+**Q4**: Ecosystem prosperity, developer happiness
+
+Through this year's efforts, ObjectUI will become:
+- ✅ Official frontend implementation of ObjectStack Protocol
+- ✅ Performance benchmark for low-code platforms
+- ✅ Flagship UI library in Tailwind ecosystem
+- ✅ World-class developer-friendly tool
+
+**Let's build the UI of the future together!** 🚀
+
+---
+
+*This roadmap is a living document, updated monthly.*  
+*Latest version: https://github.com/objectstack-ai/objectui/blob/main/docs/DEVELOPMENT_ROADMAP_2026.md*

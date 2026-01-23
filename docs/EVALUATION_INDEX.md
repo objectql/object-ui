@@ -1,19 +1,19 @@
-# ObjectStack协议组件评估文档索引
+# ObjectStack Protocol Component Evaluation Documentation Index
 
-本目录包含ObjectUI对ObjectStack协议的完整组件评估和开发规划文档。
+This directory contains the complete component evaluation and development planning documentation for ObjectUI's implementation of the ObjectStack protocol.
 
-## 📚 文档列表
+## 📚 Documentation List
 
-### 1. [ObjectStack组件评估报告 (中文)](./OBJECTSTACK_COMPONENT_EVALUATION.md)
-**完整的中文评估报告**，包含：
-- 当前组件实现清单（76个渲染器）
-- ObjectUI vs Shadcn组件关系详解
-- ObjectStack协议支持矩阵
-- 组件缺口分析
-- 技术债务和优化建议
-- 竞品对比分析
+### 1. [ObjectStack Component Evaluation Report (Chinese)](./OBJECTSTACK_COMPONENT_EVALUATION.md)
+**Complete evaluation report in Chinese**, including:
+- Current component implementation inventory (76 renderers)
+- Detailed ObjectUI vs Shadcn component relationships
+- ObjectStack protocol support matrix
+- Component gap analysis
+- Technical debt and optimization recommendations
+- Competitive analysis
 
-**适合**: 中文开发者、项目经理、架构师
+**For**: Chinese-speaking developers, project managers, architects
 
 ---
 
@@ -29,202 +29,202 @@
 
 ---
 
-### 3. [2026开发路线图](./DEVELOPMENT_ROADMAP_2026.md)
-**2026年完整开发计划**，包含：
-- 按季度划分的详细计划
-- 新组件开发清单
-- 性能优化目标
-- 质量和文档目标
-- 社区建设计划
-- 风险和应对措施
+### 3. [2026 Development Roadmap](./DEVELOPMENT_ROADMAP_2026.md)
+**Complete 2026 development plan**, including:
+- Detailed quarterly breakdown
+- New component development checklist
+- Performance optimization targets
+- Quality and documentation goals
+- Community building plans
+- Risks and mitigation strategies
 
-**适合**: 开发团队、产品经理
-
----
-
-### 4. [组件对照表](./COMPONENT_MAPPING_GUIDE.md)
-**快速参考指南**，包含：
-- Shadcn UI vs ObjectUI渲染器对照表
-- 使用场景对比示例
-- 选择指南
-- 混合使用方法
-- 常见问题解答
-
-**适合**: 所有开发者
+**For**: Development teams, product managers
 
 ---
 
-### 5. [组件命名规范](./COMPONENT_NAMING_CONVENTIONS.md)
-**命名约定和规则**，包含：
-- 三层架构命名规则
-- Shadcn UI组件命名
-- ObjectUI渲染器命名
-- 插件组件命名
-- 命名冲突处理
-- 未来组件命名规划
+### 4. [Component Mapping Guide](./COMPONENT_MAPPING_GUIDE.md)
+**Quick reference guide**, including:
+- Shadcn UI vs ObjectUI Renderer mapping table
+- Use case comparison examples
+- Selection guide
+- Hybrid usage methods
+- Frequently asked questions
 
-**适合**: 组件开发者、架构师
-
----
-
-## 🎯 快速导航
-
-### 我想了解...
-
-#### ObjectUI当前有哪些组件？
-👉 阅读 [评估报告第2章](./OBJECTSTACK_COMPONENT_EVALUATION.md#2-已实现组件清单)
-
-#### ObjectUI和Shadcn有什么区别？
-👉 阅读 [评估报告第4章](./OBJECTSTACK_COMPONENT_EVALUATION.md#4-组件与shadcn的区别) 或 [组件对照表](./COMPONENT_MAPPING_GUIDE.md)
-
-#### 还缺少哪些组件？
-👉 阅读 [评估报告第5章](./OBJECTSTACK_COMPONENT_EVALUATION.md#5-组件缺口分析)
-
-#### 2026年要开发什么？
-👉 阅读 [2026开发路线图](./DEVELOPMENT_ROADMAP_2026.md)
-
-#### ObjectStack协议支持情况？
-👉 阅读 [评估报告第3章](./OBJECTSTACK_COMPONENT_EVALUATION.md#3-objectstack协议支持矩阵)
-
-#### 如何选择使用Shadcn还是ObjectUI？
-👉 阅读 [组件对照表 - 选择指南](./COMPONENT_MAPPING_GUIDE.md#选择指南)
-
-#### 组件命名规则是什么？
-👉 阅读 [组件命名规范](./COMPONENT_NAMING_CONVENTIONS.md)
+**For**: All developers
 
 ---
 
-## 📊 关键数据
+### 5. [Component Naming Conventions](./COMPONENT_NAMING_CONVENTIONS.md)
+**Naming conventions and rules**, including:
+- Three-tier architecture naming rules
+- Shadcn UI component naming
+- ObjectUI Renderer naming
+- Plugin component naming
+- Naming conflict resolution
+- Future component naming plans
 
-### 当前状态 (2026年1月)
+**For**: Component developers, architects
 
-| 指标 | 数值 |
+---
+
+## 🎯 Quick Navigation
+
+### I want to understand...
+
+#### What components does ObjectUI currently have?
+👉 Read [Evaluation Report Chapter 2](./OBJECTSTACK_COMPONENT_EVALUATION.md#2-implemented-component-inventory)
+
+#### What's the difference between ObjectUI and Shadcn?
+👉 Read [Evaluation Report Chapter 4](./OBJECTSTACK_COMPONENT_EVALUATION.md#4-component-differences-from-shadcn) or [Component Mapping Guide](./COMPONENT_MAPPING_GUIDE.md)
+
+#### What components are still missing?
+👉 Read [Evaluation Report Chapter 5](./OBJECTSTACK_COMPONENT_EVALUATION.md#5-component-gap-analysis)
+
+#### What will be developed in 2026?
+👉 Read [2026 Development Roadmap](./DEVELOPMENT_ROADMAP_2026.md)
+
+#### What's the ObjectStack protocol support status?
+👉 Read [Evaluation Report Chapter 3](./OBJECTSTACK_COMPONENT_EVALUATION.md#3-objectstack-protocol-support-matrix)
+
+#### How do I choose between Shadcn and ObjectUI?
+👉 Read [Component Mapping Guide - Selection Guide](./COMPONENT_MAPPING_GUIDE.md#selection-guide)
+
+#### What are the component naming rules?
+👉 Read [Component Naming Conventions](./COMPONENT_NAMING_CONVENTIONS.md)
+
+---
+
+## 📊 Key Metrics
+
+### Current Status (January 2026)
+
+| Metric | Value |
 |------|------|
-| **渲染器组件** | 76个 |
-| **Shadcn UI组件** | 60个 |
-| **协议支持** | View 100%, Form 100%, Object 0% (规划中) |
-| **测试覆盖率** | 60% |
-| **包体积** | 50KB (gzip) |
+| **Renderer Components** | 76 |
+| **Shadcn UI Components** | 60 |
+| **Protocol Support** | View 100%, Form 100%, Object 0% (planned) |
+| **Test Coverage** | 60% |
+| **Bundle Size** | 50KB (gzip) |
 
-**说明**: CRUD是ObjectUI的便捷组件，非ObjectStack标准协议。真正的CRUD操作将通过Object协议实现。
+**Note**: CRUD are ObjectUI's Convenience Components, not part of the ObjectStack standard protocol. True CRUD operations will be implemented through the Object protocol.
 
-### 2026年目标
+### 2026 Targets
 
-| 指标 | Q2目标 | Q4目标 |
+| Metric | Q2 Target | Q4 Target |
 |------|--------|--------|
-| **渲染器组件** | 90+ | 120+ |
-| **协议支持** | Object 80% | 所有核心协议 100% |
-| **测试覆盖率** | 75% | 85% |
-| **包体积** | 45KB | 40KB |
-| **NPM周下载** | 1,000 | 5,000 |
+| **Renderer Components** | 90+ | 120+ |
+| **Protocol Support** | Object 80% | All core protocols 100% |
+| **Test Coverage** | 75% | 85% |
+| **Bundle Size** | 45KB | 40KB |
+| **NPM Weekly Downloads** | 1,000 | 5,000 |
 
 ---
 
-## 🚀 优先级路线图
+## 🚀 Priority Roadmap
 
-### Q1 2026 (1-3月) - ✅ 核心完善
-**重点**: View和Form协议完善，CRUD便捷组件增强
+### Q1 2026 (Jan-Mar) - ✅ Core Refinement
+**Focus**: View and Form protocol refinement, CRUD Convenience Components enhancement
 
-**新组件**:
-- BulkEditDialog (批量编辑)
-- TagsInput (标签输入)
-- Stepper (步骤条)
-- ExportWizard (导出向导)
+**New Components**:
+- BulkEditDialog (Bulk editing)
+- TagsInput (Tag input)
+- Stepper (Step indicator)
+- ExportWizard (Export wizard)
 
-**性能**:
-- data-table虚拟滚动
-- 表单懒加载
+**Performance**:
+- data-table virtual scrolling
+- Form lazy loading
 
-### Q2 2026 (4-6月) - 🎯 Object协议
-**重点**: ObjectStack核心协议
+### Q2 2026 (Apr-Jun) - 🎯 Object Protocol
+**Focus**: ObjectStack core protocol
 
-**新组件**:
-- ObjectForm (对象表单生成)
-- ObjectList (对象列表生成)
-- FieldRenderer (字段渲染器)
-- RelationshipPicker (关系选择器)
+**New Components**:
+- ObjectForm (Object form generator)
+- ObjectList (Object list generator)
+- FieldRenderer (Field renderer)
+- RelationshipPicker (Relationship picker)
 
-### Q3 2026 (7-9月) - 📱 移动端
-**重点**: 移动优化和高级特性
+### Q3 2026 (Jul-Sep) - 📱 Mobile
+**Focus**: Mobile optimization and advanced features
 
-**新组件**:
-- 10个移动端组件
-- Report协议实现
+**New Components**:
+- 10 mobile components
+- Report protocol implementation
 - Tour/Walkthrough
 
-### Q4 2026 (10-12月) - 🛠️ 生态系统
-**重点**: 开发者工具
+### Q4 2026 (Oct-Dec) - 🛠️ Ecosystem
+**Focus**: Developer tools
 
-**交付**:
-- VSCode扩展增强
-- 可视化设计器
-- 组件市场
-- AI Schema生成
-
----
-
-## 📖 使用建议
-
-### 对于新加入的开发者
-1. 先阅读 [组件对照表](./COMPONENT_MAPPING_GUIDE.md) 了解基本概念
-2. 浏览 [评估报告](./OBJECTSTACK_COMPONENT_EVALUATION.md) 了解整体架构
-3. 查看 [路线图](./DEVELOPMENT_ROADMAP_2026.md) 了解未来方向
-
-### 对于产品经理
-1. 阅读 [评估报告 - 执行摘要](./OBJECTSTACK_COMPONENT_EVALUATION.md#-执行摘要)
-2. 查看 [协议支持矩阵](./OBJECTSTACK_COMPONENT_EVALUATION.md#3-objectstack协议支持矩阵)
-3. 了解 [组件缺口](./OBJECTSTACK_COMPONENT_EVALUATION.md#5-组件缺口分析)
-
-### 对于架构师
-1. 详细阅读 [评估报告第1章](./OBJECTSTACK_COMPONENT_EVALUATION.md#1-组件架构概览) - 架构设计
-2. 查看 [评估报告第4章](./OBJECTSTACK_COMPONENT_EVALUATION.md#4-组件与shadcn的区别) - 技术细节
-3. 参考 [路线图 - 技术风险](./DEVELOPMENT_ROADMAP_2026.md#风险和应对)
+**Deliverables**:
+- VSCode extension enhancements
+- Visual designer
+- Component marketplace
+- AI Schema generation
 
 ---
 
-## 🔗 相关资源
+## 📖 Usage Guidelines
 
-### 官方文档
-- [ObjectUI官网](https://www.objectui.org)
-- [组件库文档](../components/)
-- [API参考](../reference/api/)
-- [协议规范](../reference/protocol/)
+### For New Developers
+1. Start by reading the [Component Mapping Guide](./COMPONENT_MAPPING_GUIDE.md) to understand basic concepts
+2. Browse the [Evaluation Report](./OBJECTSTACK_COMPONENT_EVALUATION.md) to understand the overall architecture
+3. Check the [Roadmap](./DEVELOPMENT_ROADMAP_2026.md) to understand future directions
 
-### 开发资源
-- [GitHub仓库](https://github.com/objectstack-ai/objectui)
-- [Storybook示例](https://storybook.objectui.org)
-- [Contributing指南](../../CONTRIBUTING.md)
+### For Product Managers
+1. Read the [Evaluation Report - Executive Summary](./OBJECTSTACK_COMPONENT_EVALUATION.md#-executive-summary)
+2. Review the [Protocol Support Matrix](./OBJECTSTACK_COMPONENT_EVALUATION.md#3-objectstack-protocol-support-matrix)
+3. Understand the [Component Gaps](./OBJECTSTACK_COMPONENT_EVALUATION.md#5-component-gap-analysis)
 
-### ObjectStack生态
-- [ObjectStack协议规范](https://github.com/objectstack-ai/spec)
-- [ObjectQL文档](../ecosystem/objectql.md)
+### For Architects
+1. Read in detail [Evaluation Report Chapter 1](./OBJECTSTACK_COMPONENT_EVALUATION.md#1-component-architecture-overview) - Architecture design
+2. Review [Evaluation Report Chapter 4](./OBJECTSTACK_COMPONENT_EVALUATION.md#4-component-differences-from-shadcn) - Technical details
+3. Reference [Roadmap - Technical Risks](./DEVELOPMENT_ROADMAP_2026.md#risks-and-mitigation)
 
 ---
 
-## 📝 文档维护
+## 🔗 Related Resources
 
-**更新频率**: 
-- 评估报告: 每季度更新
-- 路线图: 每月更新
-- 对照表: 随组件更新
+### Official Documentation
+- [ObjectUI Website](https://www.objectui.org)
+- [Component Library Documentation](../components/)
+- [API Reference](../reference/api/)
+- [Protocol Specification](../reference/protocol/)
 
-**最后更新**: 2026年1月23日
+### Development Resources
+- [GitHub Repository](https://github.com/objectstack-ai/objectui)
+- [Storybook Examples](https://storybook.objectui.org)
+- [Contributing Guide](../../CONTRIBUTING.md)
 
-**维护者**: ObjectUI核心团队
+### ObjectStack Ecosystem
+- [ObjectStack Protocol Specification](https://github.com/objectstack-ai/spec)
+- [ObjectQL Documentation](../ecosystem/objectql.md)
 
-**反馈渠道**: 
+---
+
+## 📝 Documentation Maintenance
+
+**Update Frequency**: 
+- Evaluation Report: Updated quarterly
+- Roadmap: Updated monthly
+- Mapping Guide: Updated with component changes
+
+**Last Updated**: January 23, 2026
+
+**Maintainers**: ObjectUI Core Team
+
+**Feedback Channels**: 
 - GitHub Issues: https://github.com/objectstack-ai/objectui/issues
 - GitHub Discussions: https://github.com/objectstack-ai/objectui/discussions
 - Email: hello@objectui.org
 
 ---
 
-## 📄 文档版本历史
+## 📄 Documentation Version History
 
-| 版本 | 日期 | 变更 |
+| Version | Date | Changes |
 |------|------|------|
-| v1.0 | 2026-01-23 | 初始版本，完整评估和路线图 |
+| v1.0 | 2026-01-23 | Initial version with complete evaluation and roadmap |
 
 ---
 
-**让我们一起构建ObjectUI的未来！** 🚀
+**Let's build the future of ObjectUI together!** 🚀
