@@ -30,13 +30,14 @@ npm install @object-ui/plugin-charts
     height: 300,
     color: "#8884d8"
   }}
-  title="Bar Chart"
-  description="Display data as vertical bars"
+  title="Simple Bar Chart"
+  description="Simple bar chart with basic API - type: 'bar-chart'"
 />
 
 <InteractiveDemo
   schema={{
-    type: "line-chart",
+    type: "chart",
+    chartType: "line",
     data: [
       { month: "Jan", revenue: 4000, expenses: 2400 },
       { month: "Feb", revenue: 3000, expenses: 1398 },
@@ -45,34 +46,50 @@ npm install @object-ui/plugin-charts
       { month: "May", revenue: 5000, expenses: 4800 },
       { month: "Jun", revenue: 7000, expenses: 3800 }
     ],
-    lines: [
-      { dataKey: "revenue", stroke: "#8884d8", name: "Revenue" },
-      { dataKey: "expenses", stroke: "#82ca9d", name: "Expenses" }
-    ],
     xAxisKey: "month",
-    height: 300
+    series: [
+      { dataKey: "revenue" },
+      { dataKey: "expenses" }
+    ],
+    config: {
+      revenue: { label: "Revenue", color: "#8884d8" },
+      expenses: { label: "Expenses", color: "#82ca9d" }
+    }
   }}
-  title="Multi-Line Chart"
-  description="Compare multiple metrics over time"
+  title="Advanced Line Chart"
+  description="Advanced chart with multiple series - type: 'chart', chartType: 'line'"
 />
 
 <InteractiveDemo
   schema={{
-    type: "pie-chart",
+    type: "chart",
+    chartType: "area",
     data: [
-      { name: "Desktop", value: 45, fill: "#8884d8" },
-      { name: "Mobile", value: 35, fill: "#82ca9d" },
-      { name: "Tablet", value: 20, fill: "#ffc658" }
+      { month: "Jan", users: 1200 },
+      { month: "Feb", users: 1450 },
+      { month: "Mar", users: 1680 },
+      { month: "Apr", users: 1920 },
+      { month: "May", users: 2100 },
+      { month: "Jun", users: 2350 }
     ],
-    dataKey: "value",
-    nameKey: "name",
-    height: 300
+    xAxisKey: "month",
+    series: [
+      { dataKey: "users" }
+    ],
+    config: {
+      users: { label: "Users", color: "#8884d8" }
+    }
   }}
-  title="Pie Chart"
-  description="Show proportional data distribution"
+  title="Area Chart"
+  description="Show data trends with filled areas"
 />
 
 ## Usage
+
+The plugin provides two chart APIs:
+
+1. **Simple Bar Chart** (`bar-chart`) - Simplified API for basic bar charts
+2. **Advanced Charts** (`chart`) - Full-featured API supporting multiple chart types (bar, line, area) and multiple data series
 
 ### Basic Usage
 
@@ -96,7 +113,7 @@ const schema = {
 
 ## Features
 
-- **Bar, line, area, and pie charts**
+- **Bar, line, and area charts**
 - **Responsive design**
 - **Customizable colors and styles**
 - **Lazy-loaded** (~540 KB loads only when rendered)
@@ -128,7 +145,11 @@ const schema = {
 
 ## Chart Types
 
-### Bar Chart
+The plugin provides two different chart components:
+
+### Simple Bar Chart (bar-chart)
+
+For basic single-series bar charts, use the simplified `bar-chart` type:
 
 ```tsx
 const schema = {
@@ -145,50 +166,72 @@ const schema = {
 }
 ```
 
-### Line Chart
+### Advanced Charts (chart)
+
+For multi-series charts or line/area charts, use the advanced `chart` type with the `chartType` property:
+
+##### Bar Chart
 
 ```tsx
 const schema = {
-  type: 'chart-line',
+  type: 'chart',
+  chartType: 'bar',
+  data: [
+    { month: 'Jan', sales: 400, target: 350 },
+    { month: 'Feb', sales: 300, target: 400 },
+    { month: 'Mar', sales: 600, target: 550 }
+  ],
+  xAxisKey: 'month',
+  series: [
+    { dataKey: 'sales' },
+    { dataKey: 'target' }
+  ],
+  config: {
+    sales: { label: 'Sales', color: '#3b82f6' },
+    target: { label: 'Target', color: '#10b981' }
+  }
+}
+```
+
+##### Line Chart
+
+```tsx
+const schema = {
+  type: 'chart',
+  chartType: 'line',
   data: [
     { date: '2024-01', users: 120 },
     { date: '2024-02', users: 180 },
     { date: '2024-03', users: 250 }
   ],
-  dataKey: 'users',
   xAxisKey: 'date',
-  height: 350
+  series: [
+    { dataKey: 'users' }
+  ],
+  config: {
+    users: { label: 'Users', color: '#8884d8' }
+  }
 }
 ```
 
-### Area Chart
+###### Area Chart
 
 ```tsx
 const schema = {
-  type: 'chart-area',
+  type: 'chart',
+  chartType: 'area',
   data: [
     { time: '9:00', value: 20 },
     { time: '10:00', value: 35 },
     { time: '11:00', value: 45 }
   ],
-  dataKey: 'value',
   xAxisKey: 'time',
-  color: '#10b981'
-}
-```
-
-### Pie Chart
-
-```tsx
-const schema = {
-  type: 'chart-pie',
-  data: [
-    { name: 'Desktop', value: 400 },
-    { name: 'Mobile', value: 300 },
-    { name: 'Tablet', value: 200 }
+  series: [
+    { dataKey: 'value' }
   ],
-  dataKey: 'value',
-  nameKey: 'name'
+  config: {
+    value: { label: 'Value', color: '#10b981' }
+  }
 }
 ```
 
@@ -217,16 +260,23 @@ const revenueChart = {
 
 ```tsx
 const growthChart = {
-  type: 'chart-line',
+  type: 'chart',
+  chartType: 'line',
   data: [
     { month: 'Jan', users: 1200, active: 980 },
     { month: 'Feb', users: 1450, active: 1150 },
     { month: 'Mar', users: 1680, active: 1380 },
     { month: 'Apr', users: 1920, active: 1620 }
   ],
-  dataKey: 'users',
   xAxisKey: 'month',
-  height: 350
+  series: [
+    { dataKey: 'users' },
+    { dataKey: 'active' }
+  ],
+  config: {
+    users: { label: 'Total Users', color: '#8884d8' },
+    active: { label: 'Active Users', color: '#82ca9d' }
+  }
 }
 ```
 
@@ -257,9 +307,14 @@ const schema = {
 
 ```tsx
 const schema = {
-  type: 'chart-line',
+  type: 'chart',
+  chartType: 'line',
   data: metricsData,
-  height: 500,
+  xAxisKey: 'date',
+  series: [{ dataKey: 'value' }],
+  config: {
+    value: { label: 'Metrics', color: '#8884d8' }
+  },
   className: 'h-64 sm:h-96 lg:h-[500px]'
 }
 ```
