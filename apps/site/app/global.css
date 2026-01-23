@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import '@object-ui/components/index.css';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
 
