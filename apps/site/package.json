@@ -10,6 +10,7 @@
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.6.0",
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/plugin-charts": "workspace:*",
