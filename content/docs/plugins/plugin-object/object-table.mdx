@@ -1,0 +1,183 @@
+---
+title: "ObjectTable"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+A specialized table component that automatically fetches and displays data from ObjectQL objects with sorting, filtering, and pagination.
+
+## Interactive Demo
+
+<InteractiveDemo
+  schema={{
+    type: "object-table",
+    objectName: "users",
+    columns: [
+      { header: "Name", accessorKey: "name" },
+      { header: "Email", accessorKey: "email" },
+      { header: "Role", accessorKey: "role" },
+      { header: "Status", accessorKey: "status" }
+    ],
+    data: [
+      { id: 1, name: "Alice Johnson", email: "alice@example.com", role: "Admin", status: "Active" },
+      { id: 2, name: "Bob Smith", email: "bob@example.com", role: "User", status: "Active" },
+      { id: 3, name: "Carol White", email: "carol@example.com", role: "User", status: "Inactive" }
+    ],
+    pageSize: 10,
+    searchable: true,
+    selectable: true
+  }}
+  title="ObjectTable Component"
+  description="Auto-generated table with sorting, filtering, and pagination"
+/>
+
+## Basic Usage
+
+```tsx
+import { ObjectTable } from '@object-ui/plugin-object';
+import { ObjectQLDataSource } from '@object-ui/data-objectql';
+
+const dataSource = new ObjectQLDataSource({
+  baseUrl: 'https://api.example.com',
+  token: 'your-auth-token'
+});
+
+function UsersTable() {
+  return (
+    <ObjectTable 
+      schema={{
+        type: 'object-table',
+        objectName: 'users',
+        columns: ['name', 'email', 'status', 'created_at']
+      }}
+      dataSource={dataSource}
+    />
+  );
+}
+```
+
+## JSON Schema
+
+```json
+{
+  "type": "object-table",
+  "objectName": "users",
+  "columns": ["name", "email", "status"],
+  "filters": {
+    "status": "active"
+  },
+  "pageSize": 20,
+  "sortBy": "created_at",
+  "sortOrder": "desc"
+}
+```
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `objectName` | string | Required | Name of the ObjectQL object |
+| `columns` | string[] | All fields | Columns to display |
+| `filters` | object | `{}` | Default filters to apply |
+| `pageSize` | number | `10` | Rows per page |
+| `sortBy` | string | `'id'` | Default sort field |
+| `sortOrder` | 'asc' \| 'desc' | `'asc'` | Default sort order |
+| `selectable` | boolean | `false` | Enable row selection |
+| `searchable` | boolean | `true` | Enable search bar |
+
+## Features
+
+- **Automatic Data Fetching**: Connects to ObjectQL backend and fetches data automatically
+- **Sorting**: Click column headers to sort data
+- **Filtering**: Apply filters to narrow down results
+- **Pagination**: Navigate through large datasets efficiently
+- **Search**: Full-text search across all columns
+- **Selection**: Select single or multiple rows
+- **Responsive**: Adapts to different screen sizes
+
+## Example: User Management Dashboard
+
+```json
+{
+  "type": "page",
+  "title": "User Management",
+  "body": [
+    {
+      "type": "card",
+      "title": "Users",
+      "className": "p-6",
+      "children": {
+        "type": "object-table",
+        "objectName": "users",
+        "columns": ["name", "email", "role", "status", "last_login"],
+        "searchable": true,
+        "selectable": true,
+        "actions": [
+          {
+            "type": "button",
+            "label": "New User",
+            "variant": "default",
+            "action": {
+              "type": "navigate",
+              "path": "/users/new"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+## Advanced Configuration
+
+### Custom Column Display
+
+You can customize how columns are displayed using the column configuration:
+
+```json
+{
+  "type": "object-table",
+  "objectName": "products",
+  "columns": [
+    {
+      "field": "name",
+      "header": "Product Name",
+      "width": 200
+    },
+    {
+      "field": "price",
+      "header": "Price",
+      "format": "currency"
+    },
+    {
+      "field": "status",
+      "header": "Status",
+      "badge": true
+    }
+  ]
+}
+```
+
+### Pre-filtering Data
+
+Apply default filters that users can modify:
+
+```json
+{
+  "type": "object-table",
+  "objectName": "orders",
+  "columns": ["order_number", "customer", "total", "status"],
+  "filters": {
+    "status": ["pending", "processing"],
+    "created_at": {
+      "gte": "2024-01-01"
+    }
+  }
+}
+```
+
+## Related Components
+
+- [ObjectForm](/docs/plugins/plugin-object/object-form) - Create and edit records
+- [ObjectView](/docs/plugins/plugin-object/object-view) - Complete CRUD interface

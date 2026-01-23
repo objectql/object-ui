@@ -1,0 +1,257 @@
+---
+title: "ObjectForm"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+A smart form component that generates forms from ObjectQL object schemas with automatic field generation and validation. Supports both create and edit modes.
+
+## Interactive Demo
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "user",
+    mode: "create",
+    customFields: [
+      { 
+        name: "name", 
+        label: "Full Name", 
+        type: "text", 
+        required: true,
+        placeholder: "Enter full name"
+      },
+      { 
+        name: "email", 
+        label: "Email Address", 
+        type: "email", 
+        required: true,
+        placeholder: "user@example.com"
+      },
+      { 
+        name: "role", 
+        label: "Role", 
+        type: "select",
+        options: ["Admin", "User", "Guest"],
+        required: true
+      },
+      { 
+        name: "status", 
+        label: "Status", 
+        type: "select",
+        options: ["Active", "Inactive"],
+        defaultValue: "Active"
+      }
+    ],
+    submitText: "Create User"
+  }}
+  title="ObjectForm Component"
+  description="Smart form with validation and schema integration"
+/>
+
+## Basic Usage
+
+```tsx
+import { ObjectForm } from '@object-ui/plugin-object';
+import { ObjectQLDataSource } from '@object-ui/data-objectql';
+
+const dataSource = new ObjectQLDataSource({
+  baseUrl: 'https://api.example.com',
+  token: 'your-auth-token'
+});
+
+function UserForm() {
+  return (
+    <ObjectForm 
+      schema={{
+        type: 'object-form',
+        objectName: 'users',
+        mode: 'create',
+        fields: ['name', 'email', 'role', 'status'],
+        onSuccess: { type: 'toast', message: 'User created!' }
+      }}
+      dataSource={dataSource}
+    />
+  );
+}
+```
+
+## JSON Schema (Create Mode)
+
+```json
+{
+  "type": "object-form",
+  "objectName": "contacts",
+  "mode": "create",
+  "fields": ["first_name", "last_name", "email", "phone", "company"],
+  "defaultValues": {
+    "status": "active"
+  },
+  "onSuccess": {
+    "type": "toast",
+    "message": "Contact created successfully!"
+  }
+}
+```
+
+## JSON Schema (Edit Mode)
+
+```json
+{
+  "type": "object-form",
+  "objectName": "contacts",
+  "mode": "edit",
+  "recordId": "${params.id}",
+  "fields": ["first_name", "last_name", "email", "phone", "company", "status"],
+  "onSuccess": {
+    "type": "navigate",
+    "path": "/contacts"
+  }
+}
+```
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `objectName` | string | Required | Name of the ObjectQL object |
+| `mode` | 'create' \| 'edit' | Required | Form mode |
+| `recordId` | string | - | Record ID for edit mode |
+| `fields` | string[] | All fields | Fields to display |
+| `defaultValues` | object | `{}` | Default field values |
+| `layout` | 'vertical' \| 'horizontal' | `'vertical'` | Form layout |
+| `onSuccess` | Action | - | Action on successful submit |
+| `onCancel` | Action | - | Action on cancel |
+
+## Features
+
+- **Automatic Field Generation**: Creates appropriate input fields based on field types
+- **Schema Validation**: Validates form data according to ObjectQL schema rules
+- **Create & Edit Modes**: Single component handles both new record creation and editing
+- **Default Values**: Pre-populate fields with default values
+- **Custom Actions**: Configure what happens on success or cancel
+- **Field Types Support**: Text, number, date, boolean, select, textarea, and more
+
+## Example: Contact Form
+
+```json
+{
+  "type": "page",
+  "title": "New Contact",
+  "body": [
+    {
+      "type": "card",
+      "title": "Create Contact",
+      "className": "max-w-2xl mx-auto p-6",
+      "children": {
+        "type": "object-form",
+        "objectName": "contacts",
+        "mode": "create",
+        "fields": [
+          "first_name",
+          "last_name",
+          "email",
+          "phone",
+          "company",
+          "title",
+          "status"
+        ],
+        "defaultValues": {
+          "status": "active",
+          "source": "web"
+        },
+        "layout": "vertical",
+        "onSuccess": {
+          "type": "navigate",
+          "path": "/contacts"
+        },
+        "onCancel": {
+          "type": "navigate",
+          "path": "/contacts"
+        }
+      }
+    }
+  ]
+}
+```
+
+## Advanced Configuration
+
+### Custom Field Layout
+
+Control the layout and grouping of form fields:
+
+```json
+{
+  "type": "object-form",
+  "objectName": "user",
+  "mode": "create",
+  "layout": "horizontal",
+  "fieldGroups": [
+    {
+      "title": "Personal Information",
+      "fields": ["first_name", "last_name", "email", "phone"]
+    },
+    {
+      "title": "Account Settings",
+      "fields": ["username", "role", "status"]
+    }
+  ]
+}
+```
+
+### Conditional Fields
+
+Show or hide fields based on other field values:
+
+```json
+{
+  "type": "object-form",
+  "objectName": "product",
+  "mode": "create",
+  "fields": ["name", "type", "price", "subscription_interval"],
+  "fieldVisibility": {
+    "subscription_interval": {
+      "condition": "${data.type === 'subscription'}"
+    }
+  }
+}
+```
+
+### Form Validation
+
+Add custom validation rules:
+
+```json
+{
+  "type": "object-form",
+  "objectName": "user",
+  "mode": "create",
+  "fields": ["email", "password", "confirm_password"],
+  "validation": {
+    "confirm_password": {
+      "match": "password",
+      "message": "Passwords must match"
+    }
+  }
+}
+```
+
+## Mode Comparison
+
+### Create Mode
+- Creates new records
+- Shows empty form or with default values
+- Submit button typically says "Create" or "Save"
+- No recordId required
+
+### Edit Mode
+- Updates existing records
+- Pre-fills form with current record data
+- Submit button typically says "Update" or "Save Changes"
+- Requires recordId to fetch and update the record
+
+## Related Components
+
+- [ObjectTable](/docs/plugins/plugin-object/object-table) - Display lists of data
+- [ObjectView](/docs/plugins/plugin-object/object-view) - Complete CRUD interface

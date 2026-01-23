@@ -1,0 +1,333 @@
+---
+title: "ObjectView"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+Complete CRUD view component that integrates list, detail, and edit modes in a single component. Perfect for building full-featured data management interfaces.
+
+## Interactive Demo
+
+<InteractiveDemo
+  schema={{
+    type: "stack",
+    gap: 4,
+    children: [
+      {
+        type: "text",
+        content: "Object View provides complete CRUD interface",
+        className: "text-lg font-semibold"
+      },
+      {
+        type: "card",
+        children: [
+          {
+            type: "stack",
+            gap: 2,
+            children: [
+              { type: "text", content: "User Details", className: "font-semibold" },
+              { type: "text", content: "Name: John Doe" },
+              { type: "text", content: "Email: john@example.com" },
+              { type: "text", content: "Role: Administrator" }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+  title="ObjectView Component"
+  description="Complete CRUD views with list, detail, and edit modes"
+/>
+
+## Basic Usage
+
+```tsx
+import { ObjectView } from '@object-ui/plugin-object';
+import { ObjectQLDataSource } from '@object-ui/data-objectql';
+
+const dataSource = new ObjectQLDataSource({
+  baseUrl: 'https://api.example.com',
+  token: 'your-auth-token'
+});
+
+function UsersView() {
+  return (
+    <ObjectView 
+      schema={{
+        type: 'object-view',
+        objectName: 'users',
+        view: 'list',
+        listColumns: ['name', 'email', 'role', 'status'],
+        detailFields: ['name', 'email', 'role', 'status', 'created_at', 'updated_at'],
+        editFields: ['name', 'email', 'role', 'status']
+      }}
+      dataSource={dataSource}
+    />
+  );
+}
+```
+
+## JSON Schema
+
+```json
+{
+  "type": "object-view",
+  "objectName": "products",
+  "view": "list",
+  "listColumns": ["name", "category", "price", "stock", "status"],
+  "detailFields": ["name", "description", "category", "price", "stock", "status"],
+  "editFields": ["name", "description", "category", "price", "stock", "status"],
+  "actions": [
+    {
+      "type": "button",
+      "label": "New Product",
+      "action": {
+        "type": "navigate",
+        "path": "/products/new"
+      }
+    }
+  ]
+}
+```
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `objectName` | string | Required | Name of the ObjectQL object |
+| `view` | 'list' \| 'detail' \| 'edit' | `'list'` | Current view mode |
+| `listColumns` | string[] | All fields | Columns for list view |
+| `detailFields` | string[] | All fields | Fields for detail view |
+| `editFields` | string[] | All fields | Fields for edit view |
+| `actions` | Action[] | `[]` | Custom actions |
+
+## Features
+
+- **Three View Modes**: Seamlessly switch between list, detail, and edit views
+- **Integrated Navigation**: Built-in routing between different views
+- **Unified Interface**: Consistent UI across all CRUD operations
+- **Custom Actions**: Add toolbar actions for common operations
+- **Responsive Design**: Optimized for desktop and mobile devices
+
+## View Modes
+
+### List View
+Displays a table of all records with pagination, sorting, and filtering capabilities.
+
+```json
+{
+  "type": "object-view",
+  "objectName": "users",
+  "view": "list",
+  "listColumns": ["name", "email", "role", "status"]
+}
+```
+
+### Detail View
+Shows detailed information about a single record in a read-only format.
+
+```json
+{
+  "type": "object-view",
+  "objectName": "users",
+  "view": "detail",
+  "recordId": "${params.id}",
+  "detailFields": ["name", "email", "role", "status", "created_at", "updated_at"]
+}
+```
+
+### Edit View
+Provides a form to edit an existing record.
+
+```json
+{
+  "type": "object-view",
+  "objectName": "users",
+  "view": "edit",
+  "recordId": "${params.id}",
+  "editFields": ["name", "email", "role", "status"]
+}
+```
+
+## Example: Product Catalog with CRUD
+
+```json
+{
+  "type": "page",
+  "title": "Products",
+  "body": [
+    {
+      "type": "object-view",
+      "objectName": "products",
+      "view": "list",
+      "listColumns": ["image", "name", "category", "price", "stock", "status"],
+      "detailFields": [
+        "image",
+        "name",
+        "description",
+        "category",
+        "price",
+        "cost",
+        "stock",
+        "sku",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "editFields": [
+        "image",
+        "name",
+        "description",
+        "category",
+        "price",
+        "cost",
+        "stock",
+        "sku",
+        "status"
+      ],
+      "filters": {
+        "status": "active"
+      },
+      "actions": [
+        {
+          "type": "button",
+          "label": "Add Product",
+          "icon": "Plus",
+          "action": {
+            "type": "navigate",
+            "path": "/products/new"
+          }
+        },
+        {
+          "type": "button",
+          "label": "Import",
+          "icon": "Upload",
+          "variant": "outline",
+          "action": {
+            "type": "dialog",
+            "title": "Import Products",
+            "content": "Import dialog content..."
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Advanced Configuration
+
+### Custom View Layouts
+
+Customize how each view mode displays data:
+
+```json
+{
+  "type": "object-view",
+  "objectName": "orders",
+  "view": "detail",
+  "detailLayout": {
+    "type": "tabs",
+    "tabs": [
+      {
+        "label": "Overview",
+        "fields": ["order_number", "customer", "total", "status"]
+      },
+      {
+        "label": "Items",
+        "fields": ["line_items"]
+      },
+      {
+        "label": "History",
+        "fields": ["created_at", "updated_at", "history"]
+      }
+    ]
+  }
+}
+```
+
+### Action Buttons
+
+Add custom actions to the view toolbar:
+
+```json
+{
+  "type": "object-view",
+  "objectName": "invoices",
+  "view": "detail",
+  "actions": [
+    {
+      "type": "button",
+      "label": "Send Invoice",
+      "icon": "Send",
+      "action": {
+        "type": "api",
+        "endpoint": "/api/invoices/${record.id}/send",
+        "method": "POST"
+      }
+    },
+    {
+      "type": "button",
+      "label": "Download PDF",
+      "icon": "Download",
+      "variant": "outline",
+      "action": {
+        "type": "download",
+        "url": "/api/invoices/${record.id}/pdf"
+      }
+    }
+  ]
+}
+```
+
+### View Transitions
+
+Configure how users navigate between views:
+
+```json
+{
+  "type": "object-view",
+  "objectName": "tasks",
+  "view": "list",
+  "onRowClick": {
+    "type": "navigate",
+    "path": "/tasks/${record.id}"
+  },
+  "rowActions": [
+    {
+      "label": "Edit",
+      "action": {
+        "type": "navigate",
+        "path": "/tasks/${record.id}/edit"
+      }
+    },
+    {
+      "label": "Delete",
+      "action": {
+        "type": "api",
+        "endpoint": "/api/tasks/${record.id}",
+        "method": "DELETE",
+        "confirm": "Are you sure you want to delete this task?"
+      }
+    }
+  ]
+}
+```
+
+## When to Use ObjectView
+
+ObjectView is ideal when you need:
+
+- **Complete CRUD functionality** in a single component
+- **Consistent navigation** between list, detail, and edit views
+- **Minimal configuration** for standard data management interfaces
+- **Quick prototyping** of admin panels and dashboards
+
+For more granular control, consider using individual components:
+- Use [ObjectTable](/docs/plugins/plugin-object/object-table) for list-only views
+- Use [ObjectForm](/docs/plugins/plugin-object/object-form) for create/edit-only forms
+
+## Related Components
+
+- [ObjectTable](/docs/plugins/plugin-object/object-table) - Display lists of data
+- [ObjectForm](/docs/plugins/plugin-object/object-form) - Create and edit records

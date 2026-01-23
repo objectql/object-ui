@@ -1,0 +1,8 @@
+{
+  "title": "Plugin Object",
+  "pages": [
+    "object-table",
+    "object-form",
+    "object-view"
+  ]
+}
