@@ -10,8 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ObjectTable } from '../ObjectTable';
-import type { ObjectTableSchema } from '@object-ui/types';
-import type { ObjectQLDataSource } from '@object-ui/data-objectql';
+import type { ObjectTableSchema, DataSource } from '@object-ui/types';
 
 // Mock SchemaRenderer
 vi.mock('@object-ui/react', () => ({
@@ -27,7 +26,7 @@ vi.mock('@object-ui/react', () => ({
 }));
 
 describe('ObjectTable', () => {
-  let mockDataSource: ObjectQLDataSource;
+  let mockDataSource: DataSource;
   let mockSchema: ObjectTableSchema;
 
   beforeEach(() => {

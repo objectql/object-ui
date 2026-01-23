@@ -261,16 +261,16 @@ Object UI is a modular monorepo with packages designed for specific use cases:
 |---------|-------------|------|
 | **[@object-ui/cli](./packages/cli)** | CLI tool for building apps from JSON schemas | 25KB |
 | **[@object-ui/types](./packages/types)** | TypeScript definitions and protocol specs | 10KB |
-| **[@object-ui/core](./packages/core)** | Core logic, validation, registry (Zero React) | 20KB |
+| **[@object-ui/core](./packages/core)** | Core logic, validation, registry, ObjectStack adapter | 20KB |
 | **[@object-ui/react](./packages/react)** | React bindings and `SchemaRenderer` | 15KB |
 | **[@object-ui/components](./packages/components)** | Standard UI components (Tailwind + Shadcn) | 50KB |
 | **[@object-ui/designer](./packages/designer)** | Visual drag-and-drop schema editor | 80KB |
-| **[@object-ui/data-objectql](./packages/data-objectql)** | ObjectQL API adapter for data integration | 15KB |
 | **[vscode-extension](./packages/vscode-extension)** | VSCode extension for schema development | 32KB |
 
 **Plugins** (lazy-loaded):
 - `@object-ui/plugin-charts` - Chart components (Chart.js)
 - `@object-ui/plugin-editor` - Rich text editor components
+- `@object-ui/plugin-object` - ObjectStack-aware table and form components
 
 **Developer Tools**:
 - **[VSCode Extension](./packages/vscode-extension)** - IntelliSense, live preview, validation, and snippets for Object UI schemas
@@ -279,16 +279,16 @@ Object UI is a modular monorepo with packages designed for specific use cases:
 
 Object UI is designed to work with any backend through its universal DataSource interface:
 
-### ObjectQL Integration
+### ObjectStack Integration
 
 ```bash
-npm install @object-ui/data-objectql
+npm install @object-ui/core
 ```
 
 ```typescript
-import { ObjectQLDataSource } from '@object-ui/data-objectql';
+import { createObjectStackAdapter } from '@object-ui/core';
 
-const dataSource = new ObjectQLDataSource({
+const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.example.com',
   token: 'your-auth-token'
 });
@@ -296,8 +296,6 @@ const dataSource = new ObjectQLDataSource({
 // Use with any component
 <SchemaRenderer schema={schema} dataSource={dataSource} />
 ```
-
-[**ObjectQL Integration Guide →**](./docs/integration/objectql.md)
 
 ### Custom Data Sources
 

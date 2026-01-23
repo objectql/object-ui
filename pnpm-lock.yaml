@@ -648,9 +648,6 @@ importers:
       '@object-ui/core':
         specifier: workspace:*
         version: link:../core
-      '@object-ui/data-objectql':
-        specifier: workspace:*
-        version: link:../data-objectql
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
