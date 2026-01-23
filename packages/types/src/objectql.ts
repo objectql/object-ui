@@ -163,6 +163,83 @@ export interface ObjectTableSchema extends BaseSchema {
 }
 
 /**
+ * ObjectGrid Schema
+ * Enhanced table component with Airtable-like features:
+ * - Inline cell editing
+ * - Keyboard navigation  
+ * - Column resizing
+ * - Column freezing
+ * - Advanced row selection
+ */
+export interface ObjectGridSchema extends BaseSchema {
+  type: 'object-grid';
+  
+  /**
+   * ObjectQL object name
+   */
+  objectName: string;
+  
+  /**
+   * Optional title
+   */
+  title?: string;
+  
+  /**
+   * Fields to display
+   */
+  fields?: string[];
+  
+  /**
+   * Custom column configurations
+   */
+  columns?: TableColumn[];
+  
+  /**
+   * Inline data
+   */
+  data?: any[];
+  
+  /**
+   * Enable inline editing
+   * @default false
+   */
+  editable?: boolean;
+  
+  /**
+   * Enable keyboard navigation (arrow keys, Tab, Enter)
+   * @default true
+   */
+  keyboardNavigation?: boolean;
+  
+  /**
+   * Enable column resizing
+   * @default false
+   */
+  resizableColumns?: boolean;
+  
+  /**
+   * Number of columns to freeze (left-pin)
+   * @default 0
+   */
+  frozenColumns?: number;
+  
+  /**
+   * Enable row selection
+   */
+  selectable?: boolean | 'single' | 'multiple';
+  
+  /**
+   * Page size
+   */
+  pageSize?: number;
+  
+  /**
+   * Custom CSS class
+   */
+  className?: string;
+}
+
+/**
  * ObjectForm Schema
  * A smart form component that generates forms from ObjectQL object schemas.
  * It automatically creates form fields based on object metadata.
@@ -410,5 +487,6 @@ export interface ObjectViewSchema extends BaseSchema {
  */
 export type ObjectQLComponentSchema =
   | ObjectTableSchema
+  | ObjectGridSchema
   | ObjectFormSchema
   | ObjectViewSchema;

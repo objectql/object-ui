@@ -22,6 +22,9 @@ import { ComponentRegistry } from '@object-ui/core';
 export { ObjectTable } from './ObjectTable';
 export type { ObjectTableProps } from './ObjectTable';
 
+export { ObjectGrid } from './ObjectGrid';
+export type { ObjectGridProps } from './ObjectGrid';
+
 export { ObjectForm } from './ObjectForm';
 export type { ObjectFormProps } from './ObjectForm';
 
