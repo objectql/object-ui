@@ -11,6 +11,18 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { FormRenderer } from './FormRenderer';
 import type { FormView } from '@objectstack/spec/ui';
+import type { ExtendedFormField } from './FieldFactory';
+
+// Helper type for form views with extended fields
+type ExtendedFormView = Omit<FormView, 'sections'> & {
+  sections?: Array<{
+    label?: string;
+    collapsible?: boolean;
+    collapsed?: boolean;
+    columns?: '1' | '2' | '3' | '4';
+    fields: (string | ExtendedFormField)[];
+  }>;
+};
 
 describe('FormRenderer', () => {
   it('should render a simple form with text fields', () => {
@@ -272,5 +284,316 @@ describe('FormRenderer', () => {
     const asterisk = container.querySelector('.text-red-500');
     expect(asterisk).toBeInTheDocument();
     expect(asterisk?.textContent).toContain('*');
+  });
+
+  // Test new field types
+  describe('Extended field types', () => {
+    it('should render currency field with dollar sign', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Pricing',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'price',
+                label: 'Price',
+                widget: 'currency',
+              },
+            ],
+          },
+        ],
+      };
+
+      const { container } = render(<FormRenderer schema={schema} />);
+      expect(screen.getByLabelText('Price')).toBeInTheDocument();
+      expect(container.querySelector('.absolute')?.textContent).toBe('$');
+    });
+
+    it('should render percent field with percent sign', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Metrics',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'discount',
+                label: 'Discount',
+                widget: 'percent',
+              },
+            ],
+          },
+        ],
+      };
+
+      const { container } = render(<FormRenderer schema={schema} />);
+      expect(screen.getByLabelText('Discount')).toBeInTheDocument();
+      expect(container.querySelector('.absolute')?.textContent).toBe('%');
+    });
+
+    it('should render phone field', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Contact',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'phoneNumber',
+                label: 'Phone Number',
+                widget: 'phone',
+              },
+            ],
+          },
+        ],
+      };
+
+      render(<FormRenderer schema={schema} />);
+      const input = screen.getByLabelText('Phone Number') as HTMLInputElement;
+      expect(input.type).toBe('tel');
+    });
+
+    it('should render markdown field as textarea', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Content',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'content',
+                label: 'Content',
+                widget: 'markdown',
+              },
+            ],
+          },
+        ],
+      };
+
+      render(<FormRenderer schema={schema} />);
+      const textarea = screen.getByLabelText('Content') as HTMLTextAreaElement;
+      expect(textarea.tagName).toBe('TEXTAREA');
+    });
+
+    it('should render html field as textarea', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Content',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'htmlContent',
+                label: 'HTML Content',
+                widget: 'html',
+              },
+            ],
+          },
+        ],
+      };
+
+      render(<FormRenderer schema={schema} />);
+      const textarea = screen.getByLabelText('HTML Content') as HTMLTextAreaElement;
+      expect(textarea.tagName).toBe('TEXTAREA');
+    });
+
+    it('should render file field', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Upload',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'document',
+                label: 'Document',
+                widget: 'file',
+              },
+            ],
+          },
+        ],
+      };
+
+      render(<FormRenderer schema={schema} />);
+      const input = screen.getByLabelText('Document') as HTMLInputElement;
+      expect(input.type).toBe('file');
+    });
+
+    it('should render image field', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Upload',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'avatar',
+                label: 'Avatar',
+                widget: 'image',
+              },
+            ],
+          },
+        ],
+      };
+
+      render(<FormRenderer schema={schema} />);
+      const input = screen.getByLabelText('Avatar') as HTMLInputElement;
+      expect(input.type).toBe('file');
+    });
+
+    it('should render location field with lat/lng inputs', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Location',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'coordinates',
+                label: 'Coordinates',
+                widget: 'location',
+              },
+            ],
+          },
+        ],
+      };
+
+      const { container } = render(<FormRenderer schema={schema} />);
+      const inputs = container.querySelectorAll('input[type="number"]');
+      expect(inputs.length).toBe(2);
+    });
+
+    it('should render lookup field as select', () => {
+      const schema: ExtendedFormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Relations',
+            collapsible: false,
+            collapsed: false,
+            columns: '1',
+            fields: [
+              {
+                field: 'account',
+                label: 'Account',
+                widget: 'lookup',
+                options: [
+                  { label: 'Account 1', value: '1' },
+                  { label: 'Account 2', value: '2' },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      render(<FormRenderer schema={schema as FormView} />);
+      const select = screen.getByLabelText('Account') as HTMLSelectElement;
+      expect(select.tagName).toBe('SELECT');
+    });
+
+    it('should render user field as select', () => {
+      const schema: ExtendedFormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Assignment',
+            collapsible: false,
+            collapsed: false,
+            columns: '1',
+            fields: [
+              {
+                field: 'assignedTo',
+                label: 'Assigned To',
+                widget: 'user',
+                options: [
+                  { label: 'User 1', value: 'user1' },
+                  { label: 'User 2', value: 'user2' },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      render(<FormRenderer schema={schema as FormView} />);
+      const select = screen.getByLabelText('Assigned To') as HTMLSelectElement;
+      expect(select.tagName).toBe('SELECT');
+    });
+
+    it('should render formula field as disabled input', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Computed',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'total',
+                label: 'Total',
+                widget: 'formula',
+              },
+            ],
+          },
+        ],
+      };
+
+      render(<FormRenderer schema={schema} />);
+      const input = screen.getByLabelText('Total') as HTMLInputElement;
+      expect(input.disabled).toBe(true);
+    });
+
+    it('should render object field as JSON textarea', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Data',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'metadata',
+                label: 'Metadata',
+                widget: 'object',
+              },
+            ],
+          },
+        ],
+      };
+
+      render(<FormRenderer schema={schema} />);
+      const textarea = screen.getByLabelText('Metadata') as HTMLTextAreaElement;
+      expect(textarea.tagName).toBe('TEXTAREA');
+    });
   });
 });

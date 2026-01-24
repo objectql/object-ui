@@ -147,25 +147,99 @@ interface FormField {
 
 The `FieldFactory` component supports the following widget types:
 
-- `text`, `string` - Text input
-- `email` - Email input
-- `password` - Password input
+### Text Input Types
+- `text`, `string` - Basic text input
+- `email` - Email input with validation
+- `password` - Password input (masked)
 - `url` - URL input
-- `tel` - Telephone input
+- `tel`, `phone` - Telephone/phone number input
+- `textarea` - Multi-line text input
+- `markdown` - Markdown text editor (textarea with monospace font)
+- `html` - HTML/Rich text editor (textarea with monospace font)
+
+### Numeric Input Types
 - `number`, `integer`, `float` - Number input
-- `checkbox`, `boolean` - Checkbox
-- `textarea` - Textarea
-- `select`, `dropdown` - Select dropdown (basic implementation, options support planned)
+- `currency` - Currency input with $ prefix
+- `percent` - Percentage input with % suffix
+
+### Boolean & Selection Types
+- `checkbox`, `boolean` - Checkbox input
+- `select`, `dropdown` - Select dropdown
+
+### Date & Time Types
 - `date` - Date picker
 - `datetime`, `datetime-local` - DateTime picker
 - `time` - Time picker
 
+### File Upload Types
+- `file` - File upload input
+- `image` - Image upload input (defaults to image/* mime types)
+
+### Relationship Types
+- `lookup` - Lookup/reference field (select with options)
+- `master_detail` - Master-detail relationship (select with options)
+- `user`, `owner` - User selection field (select with options)
+
+### Complex & Special Types
+- `location` - Geographic location (latitude/longitude inputs)
+- `object` - JSON object editor (textarea with JSON validation)
+- `formula` - Read-only computed field
+- `summary` - Read-only aggregation/rollup field
+- `auto_number` - Read-only auto-generated number
+- `vector` - Vector/embedding display (read-only)
+- `grid` - Sub-table/grid editor (placeholder)
+
+## Extended Field Properties
+
+Some field types support additional properties beyond the base FormField schema:
+
+```typescript
+interface ExtendedFormField extends FormField {
+  // For file/image uploads
+  multiple?: boolean;
+  accept?: string[];
+  
+  // For select/lookup/user fields
+  options?: Array<{
+    label: string;
+    value: string;
+    disabled?: boolean;
+  }>;
+}
+```
+
+Example usage with extended properties:
+
+```tsx
+{
+  field: 'avatar',
+  label: 'Profile Picture',
+  widget: 'image',
+  accept: ['image/png', 'image/jpeg'],
+  multiple: false
+}
+
+{
+  field: 'account',
+  label: 'Account',
+  widget: 'lookup',
+  options: [
+    { label: 'Account 1', value: '1' },
+    { label: 'Account 2', value: '2' }
+  ]
+}
+```
+
 ## Known Limitations
 
-### Version 0.1.0
+### Version 0.3.0
 
 - **Conditional Visibility**: The `visibleOn` and `dependsOn` properties are not yet implemented. Fields are visible by default unless explicitly marked as `hidden`.
-- **Select Options**: The select widget is a basic implementation without options support. Options will need to be passed via an extended schema or external configuration in a future version.
+- **Advanced Select Options**: While select/lookup/user fields support options via the `ExtendedFormField` interface, they don't yet support advanced features like search, async loading, or custom rendering.
+- **Rich Text Editors**: The `markdown` and `html` widgets currently use plain textareas with monospace fonts. Full WYSIWYG editors are planned for future releases.
+- **File Upload Preview**: File and image widgets support uploads but don't yet show previews or provide upload progress indicators.
+- **Location Maps**: The location widget provides lat/lng inputs but doesn't include map visualization or geocoding.
+- **Grid Editor**: The grid widget is a placeholder and doesn't yet provide spreadsheet-like editing capabilities.
 - **Validation**: Currently only basic required field validation is supported via react-hook-form. Advanced Zod schema validation is planned for future releases.
 
 These features are planned for future releases.

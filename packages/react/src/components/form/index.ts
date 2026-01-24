@@ -9,4 +9,4 @@
 export { FormRenderer } from './FormRenderer';
 export type { FormRendererProps } from './FormRenderer';
 export { FieldFactory } from './FieldFactory';
-export type { FieldFactoryProps } from './FieldFactory';
+export type { FieldFactoryProps, ExtendedFormField } from './FieldFactory';
