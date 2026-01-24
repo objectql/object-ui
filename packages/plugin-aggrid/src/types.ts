@@ -25,8 +25,6 @@ export interface AgGridCallbacks {
 export interface ExportConfig {
   enabled?: boolean;
   fileName?: string;
-  formats?: ('csv' | 'excel')[];
-  includeHeaders?: boolean;
   skipColumnHeaders?: boolean;
   allColumns?: boolean;
   onlySelected?: boolean;

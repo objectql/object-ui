@@ -131,8 +131,8 @@ export default function AgGridImpl({
         items.push({
           name: 'Auto-size All Columns',
           action: () => {
-            if (gridRef.current?.columnApi) {
-              gridRef.current.columnApi.autoSizeAllColumns();
+            if (gridRef.current?.api) {
+              gridRef.current.api.autoSizeAllColumns();
             }
           },
         });
@@ -140,8 +140,8 @@ export default function AgGridImpl({
         items.push({
           name: 'Reset Columns',
           action: () => {
-            if (gridRef.current?.columnApi) {
-              gridRef.current.columnApi.resetColumnState();
+            if (gridRef.current?.api) {
+              gridRef.current.api.resetColumnState();
             }
           },
         });
@@ -161,7 +161,15 @@ export default function AgGridImpl({
           icon: customItem.icon,
           disabled: customItem.disabled,
           action: () => {
-            console.log(`Custom action: ${customItem.action}`, params.node?.data);
+            // Trigger callback if defined
+            if (callbacks?.onCellClicked) {
+              // Invoke with the menu item action and row data
+              const syntheticEvent = {
+                ...params,
+                customAction: customItem.action,
+              } as any;
+              callbacks.onCellClicked(syntheticEvent);
+            }
           },
         });
       });

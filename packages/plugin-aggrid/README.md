@@ -143,7 +143,7 @@ const schema: AgGridSchema = {
   exportConfig?: {
     enabled?: boolean,                          // Show export button (default: false)
     fileName?: string,                          // Export filename (default: 'export.csv')
-    includeHeaders?: boolean,                   // Include column headers (default: true)
+    skipColumnHeaders?: boolean,                // Skip column headers in export (default: false)
     onlySelected?: boolean,                     // Export only selected rows (default: false)
     allColumns?: boolean                        // Export all columns (default: false)
   },
