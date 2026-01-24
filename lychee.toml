@@ -43,6 +43,5 @@ remap = [
 ]
 
 # Cache configuration
-[cache]
 # Don't use cache to ensure fresh results
-max_age = "0s"
+cache = false
