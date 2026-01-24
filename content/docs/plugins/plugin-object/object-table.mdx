@@ -1,20 +1,23 @@
 ---
 title: "ObjectTable"
-description: "Unified table component with ObjectQL integration, built on data-table foundation"
+description: "Unified table component with ObjectQL integration, aligned with @objectstack/spec view.zod"
 ---
 
 import { InteractiveDemo } from '@/app/components/InteractiveDemo';
 import { ComponentDemo } from '@/app/components/ComponentDemo';
 
-A specialized table component that automatically fetches and displays data from ObjectQL objects. Built on the data-table foundation, it combines ObjectQL schema integration with enterprise-grade table features.
+A specialized table component that automatically fetches and displays data from ObjectQL objects. Built on the data-table foundation and now **fully aligned with @objectstack/spec view.zod schema** for maximum interoperability.
 
 ## Overview
 
 ObjectTable is a unified component that supports:
 - **Traditional Table Mode**: CRUD operations with search, filters, and pagination (default)
 - **Grid Mode**: Spreadsheet-like inline editing with keyboard navigation (set `editable: true`)
+- **View.zod Compliance**: Full compatibility with @objectstack/spec ListView schema
 
 Inherits all data-table features: sorting, filtering, pagination, row selection, CSV export, column resizing, and reordering.
+
+> **✨ New in v0.3**: ObjectTable now aligns with @objectstack/spec view.zod while maintaining full backward compatibility. See the [Migration Guide](/docs/plugins/plugin-object/object-table-migration) for details.
 
 ## Interactive Demo
 
@@ -134,19 +137,116 @@ ObjectTable automatically uses specialized renderers based on field types:
 |----------|------|---------|-------------|
 | `type` | `'object-table'` | Required | Component type |
 | `objectName` | string | Required | Name of the ObjectQL object |
-| `fields` | string[] | All fields | Fields to display as columns |
-| `data` | any[] | - | Inline data (optional) |
-| `pageSize` | number | `10` | Rows per page |
-| `selectable` | boolean \| `'single'` \| `'multiple'` | `false` | Row selection mode |
+| `label` | string | - | Display label for the table (new) |
+| `data` | [ViewData](#viewdata-schema) | - | Data provider configuration (new) |
+| `columns` | string[] \| [ListColumn](#listcolumn-schema)[] | - | Column configuration (enhanced) |
+| `selection` | [SelectionConfig](#selection-config) | - | Selection configuration (new) |
+| `pagination` | [PaginationConfig](#pagination-config) | - | Pagination configuration (new) |
+| `searchableFields` | string[] | - | Fields to enable for search (new) |
+| `sort` | string \| [SortConfig](#sort-config)[] | - | Sort configuration (enhanced) |
+| `filter` | any[] | - | Filter rules (new) |
+| `resizable` | boolean | `true` | Enable column resizing |
+| `striped` | boolean | `false` | Alternating row colors (new) |
+| `bordered` | boolean | `false` | Show cell borders (new) |
 
-### Traditional Table Properties
+### Legacy Properties (Still Supported)
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `operations` | object | Enable CRUD operations |
-| `showSearch` | boolean | Show search box |
-| `showPagination` | boolean | Show pagination |
-| `defaultSort` | object | Default sorting |
+For backward compatibility, these legacy properties are still supported:
+
+| Property | Type | Replacement | Description |
+|----------|------|-------------|-------------|
+| `fields` | string[] | `columns` | Legacy field names array |
+| `staticData` | any[] | `data: { provider: 'value', items: [...] }` | Legacy inline data |
+| `selectable` | boolean \| 'single' \| 'multiple' | `selection.type` | Legacy selection mode |
+| `pageSize` | number | `pagination.pageSize` | Legacy page size |
+| `showSearch` | boolean | `searchableFields` | Legacy search toggle |
+| `showPagination` | boolean | `pagination` presence | Legacy pagination toggle |
+| `defaultSort` | object | `sort` | Legacy sort config |
+| `defaultFilters` | object | `filter` | Legacy filter config |
+| `resizableColumns` | boolean | `resizable` | Legacy resizing toggle |
+| `title` | string | `label` | Legacy table caption |
+
+See the [Migration Guide](/docs/plugins/plugin-object/object-table-migration) for details on adopting new properties.
+
+### ViewData Schema
+
+Data provider configuration with three modes:
+
+```tsx
+// Object provider (ObjectStack protocol)
+data: {
+  provider: 'object',
+  object: 'users'
+}
+
+// Value provider (inline/static data)
+data: {
+  provider: 'value',
+  items: [{ name: 'Alice' }, { name: 'Bob' }]
+}
+
+// API provider (custom endpoints)
+data: {
+  provider: 'api',
+  read: {
+    url: '/api/users',
+    method: 'GET',
+    headers: { 'Authorization': 'Bearer token' }
+  }
+}
+```
+
+### ListColumn Schema
+
+Enhanced column configuration:
+
+```tsx
+columns: [
+  {
+    field: 'name',         // Field name (required)
+    label: 'Full Name',    // Display label
+    width: 200,            // Column width in pixels
+    align: 'left',         // 'left' | 'center' | 'right'
+    sortable: true,        // Allow sorting
+    resizable: true,       // Allow resizing
+    wrap: false,           // Text wrapping
+    type: 'text',          // Renderer type hint
+    hidden: false          // Hide by default
+  }
+]
+```
+
+### Selection Config
+
+Row selection configuration:
+
+```tsx
+selection: {
+  type: 'none'      // or 'single' or 'multiple'
+}
+```
+
+### Pagination Config
+
+Pagination configuration:
+
+```tsx
+pagination: {
+  pageSize: 25,
+  pageSizeOptions: [10, 25, 50, 100]
+}
+```
+
+### Sort Config
+
+Sort configuration (array for multi-column):
+
+```tsx
+sort: [
+  { field: 'name', order: 'asc' },
+  { field: 'created_at', order: 'desc' }
+]
+```
 
 ### Grid Mode Properties
 
