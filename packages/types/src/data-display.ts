@@ -330,9 +330,12 @@ export interface DataTableSchema extends BaseSchema {
   searchable?: boolean;
   /**
    * Enable row selection
+   * - boolean: Enable/disable selection (true = multiple selection)
+   * - 'single': Single row selection
+   * - 'multiple': Multiple row selection
    * @default false
    */
-  selectable?: boolean;
+  selectable?: boolean | 'single' | 'multiple';
   /**
    * Enable column sorting
    * @default true
