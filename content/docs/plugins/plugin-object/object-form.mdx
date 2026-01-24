@@ -32,14 +32,21 @@ A smart form component that generates forms from ObjectQL object schemas with au
         name: "role", 
         label: "Role", 
         type: "select",
-        options: ["Admin", "User", "Guest"],
+        options: [
+          { label: "Admin", value: "Admin" },
+          { label: "User", value: "User" },
+          { label: "Guest", value: "Guest" }
+        ],
         required: true
       },
       { 
         name: "status", 
         label: "Status", 
         type: "select",
-        options: ["Active", "Inactive"],
+        options: [
+          { label: "Active", value: "Active" },
+          { label: "Inactive", value: "Inactive" }
+        ],
         defaultValue: "Active"
       }
     ],
@@ -120,8 +127,34 @@ function UserForm() {
 | `fields` | string[] | All fields | Fields to display |
 | `defaultValues` | object | `{}` | Default field values |
 | `layout` | 'vertical' \| 'horizontal' | `'vertical'` | Form layout |
-| `onSuccess` | Action | - | Action on successful submit |
-| `onCancel` | Action | - | Action on cancel |
+| `onSuccess` | Action \| Function | - | Action on successful submit (see below) |
+| `onCancel` | Action \| Function | - | Action on cancel |
+
+### Action Callbacks
+
+The `onSuccess` and `onCancel` properties support two formats:
+
+**JSON Schema (Action Objects):**
+```json
+{
+  "onSuccess": {
+    "type": "navigate",
+    "path": "/success-page"
+  }
+}
+```
+
+**TypeScript (Functions):**
+```tsx
+{
+  onSuccess: (data) => {
+    console.log('Form submitted:', data);
+    router.push('/success-page');
+  }
+}
+```
+
+Common action types: `navigate`, `toast`, `reload`, `close`.
 
 ## Features
 
@@ -134,108 +167,316 @@ function UserForm() {
 
 ## Example: Contact Form
 
-```json
-{
-  "type": "page",
-  "title": "New Contact",
-  "body": [
-    {
-      "type": "card",
-      "title": "Create Contact",
-      "className": "max-w-2xl mx-auto p-6",
-      "children": {
-        "type": "object-form",
-        "objectName": "contacts",
-        "mode": "create",
-        "fields": [
-          "first_name",
-          "last_name",
-          "email",
-          "phone",
-          "company",
-          "title",
-          "status"
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "contacts",
+    mode: "create",
+    title: "New Contact",
+    customFields: [
+      {
+        name: "first_name",
+        type: "text",
+        label: "First Name",
+        required: true,
+        placeholder: "John"
+      },
+      {
+        name: "last_name",
+        type: "text",
+        label: "Last Name",
+        required: true,
+        placeholder: "Doe"
+      },
+      {
+        name: "email",
+        type: "email",
+        label: "Email",
+        required: true,
+        placeholder: "john.doe@example.com"
+      },
+      {
+        name: "phone",
+        type: "phone",
+        label: "Phone",
+        placeholder: "+1 (555) 123-4567"
+      },
+      {
+        name: "company",
+        type: "text",
+        label: "Company",
+        placeholder: "Acme Inc"
+      },
+      {
+        name: "title",
+        type: "text",
+        label: "Job Title",
+        placeholder: "Sales Manager"
+      },
+      {
+        name: "status",
+        type: "select",
+        label: "Status",
+        options: [
+          { value: "active", label: "Active", color: "green" },
+          { value: "inactive", label: "Inactive", color: "gray" }
         ],
-        "defaultValues": {
-          "status": "active",
-          "source": "web"
-        },
-        "layout": "vertical",
-        "onSuccess": {
-          "type": "navigate",
-          "path": "/contacts"
-        },
-        "onCancel": {
-          "type": "navigate",
-          "path": "/contacts"
-        }
+        defaultValue: "active"
       }
-    }
-  ]
-}
-```
+    ],
+    submitText: "Create Contact",
+    showCancel: true
+  }}
+  title="Contact Form Example"
+  description="Simple contact creation form"
+/>
 
 ## Advanced Configuration
 
 ### Custom Field Layout
 
-Control the layout and grouping of form fields:
+Control the layout and grouping of form fields with groups:
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "user",
+    mode: "create",
+    title: "User Registration",
+    customFields: [
+      {
+        name: "first_name",
+        type: "text",
+        label: "First Name",
+        required: true
+      },
+      {
+        name: "last_name",
+        type: "text",
+        label: "Last Name",
+        required: true
+      },
+      {
+        name: "email",
+        type: "email",
+        label: "Email",
+        required: true
+      },
+      {
+        name: "phone",
+        type: "phone",
+        label: "Phone"
+      },
+      {
+        name: "username",
+        type: "text",
+        label: "Username",
+        required: true
+      },
+      {
+        name: "role",
+        type: "select",
+        label: "Role",
+        options: [
+          { value: "admin", label: "Admin", color: "red" },
+          { value: "user", label: "User", color: "blue" },
+          { value: "guest", label: "Guest", color: "gray" }
+        ],
+        defaultValue: "user"
+      },
+      {
+        name: "status",
+        type: "select",
+        label: "Status",
+        options: [
+          { value: "active", label: "Active", color: "green" },
+          { value: "inactive", label: "Inactive", color: "gray" }
+        ],
+        defaultValue: "active"
+      }
+    ],
+    groups: [
+      {
+        title: "Personal Information",
+        fields: ["first_name", "last_name", "email", "phone"]
+      },
+      {
+        title: "Account Settings",
+        fields: ["username", "role", "status"]
+      }
+    ],
+    submitText: "Create User"
+  }}
+  title="Grouped Form Fields"
+  description="Form with field groups for better organization"
+/>
+
+### Conditional Fields
+
+Show or hide fields based on other field values using the `visible_on` property:
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "product",
+    mode: "create",
+    title: "Product Setup",
+    customFields: [
+      {
+        name: "name",
+        type: "text",
+        label: "Product Name",
+        required: true
+      },
+      {
+        name: "type",
+        type: "select",
+        label: "Product Type",
+        options: [
+          { value: "one-time", label: "One-time Purchase", color: "blue" },
+          { value: "subscription", label: "Subscription", color: "purple" }
+        ],
+        required: true
+      },
+      {
+        name: "price",
+        type: "currency",
+        label: "Price",
+        currency: "USD",
+        required: true
+      },
+      {
+        name: "subscription_interval",
+        type: "select",
+        label: "Billing Interval",
+        options: [
+          { value: "monthly", label: "Monthly", color: "green" },
+          { value: "yearly", label: "Yearly", color: "blue" }
+        ]
+      }
+    ],
+    submitText: "Create Product"
+  }}
+  title="Conditional Field Example"
+  description="Subscription interval field would show/hide based on product type"
+/>
+
+### Form Validation
+
+Add custom validation rules at the field level using the `validate` property:
 
 ```json
 {
   "type": "object-form",
   "objectName": "user",
   "mode": "create",
-  "layout": "horizontal",
-  "fieldGroups": [
+  "customFields": [
     {
-      "title": "Personal Information",
-      "fields": ["first_name", "last_name", "email", "phone"]
+      "name": "email",
+      "type": "email",
+      "label": "Email",
+      "required": true
     },
     {
-      "title": "Account Settings",
-      "fields": ["username", "role", "status"]
+      "name": "password",
+      "type": "password",
+      "label": "Password",
+      "required": true,
+      "min_length": 8
+    },
+    {
+      "name": "confirm_password",
+      "type": "password",
+      "label": "Confirm Password",
+      "required": true
     }
   ]
 }
 ```
 
-### Conditional Fields
+## Complete Form Example with All Field Types
 
-Show or hide fields based on other field values:
+Here's a comprehensive product form with multiple field types, grouping, and validation:
 
-```json
-{
-  "type": "object-form",
-  "objectName": "product",
-  "mode": "create",
-  "fields": ["name", "type", "price", "subscription_interval"],
-  "fieldVisibility": {
-    "subscription_interval": {
-      "condition": "${data.type === 'subscription'}"
-    }
-  }
-}
-```
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "products",
+    mode: "create",
+    title: "New Product",
+    customFields: [
+      {
+        name: "productName",
+        type: "text",
+        label: "Product Name",
+        required: true,
+        max_length: 100
+      },
+      {
+        name: "description",
+        type: "textarea",
+        label: "Description",
+        rows: 3,
+        max_length: 500
+      },
+      {
+        name: "category",
+        type: "select",
+        label: "Category",
+        required: true,
+        options: [
+          { value: "electronics", label: "Electronics", color: "blue" },
+          { value: "clothing", label: "Clothing", color: "purple" },
+          { value: "food", label: "Food & Beverage", color: "green" }
+        ]
+      },
+      {
+        name: "price",
+        type: "currency",
+        label: "Price",
+        currency: "USD",
+        precision: 2,
+        required: true,
+        min: 0
+      },
+      {
+        name: "stock",
+        type: "number",
+        label: "Stock Quantity",
+        min: 0,
+        step: 1
+      },
+      {
+        name: "isActive",
+        type: "boolean",
+        label: "Active",
+        defaultValue: true
+      },
+      {
+        name: "releaseDate",
+        type: "date",
+        label: "Release Date"
+      },
+      {
+        name: "tags",
+        type: "select",
+        label: "Tags",
+        multiple: true,
+        searchable: true,
+        options: [
+          { value: "bestseller", label: "Best Seller", color: "red" },
+          { value: "new", label: "New Arrival", color: "green" },
+          { value: "sale", label: "On Sale", color: "orange" }
+        ]
+      }
+    ],
+    submitText: "Create Product",
+    showCancel: true
+  }}
+  title="Product Form Example"
+  description="Comprehensive form with multiple field types"
+/>
 
-### Form Validation
-
-Add custom validation rules:
-
-```json
-{
-  "type": "object-form",
-  "objectName": "user",
-  "mode": "create",
-  "fields": ["email", "password", "confirm_password"],
-  "validation": {
-    "confirm_password": {
-      "match": "password",
-      "message": "Passwords must match"
-    }
-  }
-}
-```
 
 ## Mode Comparison
 
@@ -253,5 +494,6 @@ Add custom validation rules:
 
 ## Related Components
 
+- [ObjectField Types](/docs/plugins/plugin-object/object-field) - Comprehensive field type reference with interactive examples
 - [ObjectTable](/docs/plugins/plugin-object/object-table) - Display lists of data
 - [ObjectView](/docs/plugins/plugin-object/object-view) - Complete CRUD interface

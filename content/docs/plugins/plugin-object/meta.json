@@ -3,6 +3,7 @@
   "pages": [
     "object-table",
     "object-form",
+    "object-field",
     "object-view"
   ]
 }

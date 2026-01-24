@@ -36,6 +36,7 @@ Each field type has two rendering modes:
 - **email** - Email with mailto links
 - **phone** - Phone with tel links
 - **url** - Web address with external icon
+- **password** - Secure password (masked)
 
 ### File & Media
 - **file** - File upload with count display
@@ -47,7 +48,7 @@ Each field type has two rendering modes:
 
 ### Computed
 - **formula** - Read-only calculated field
-- **summary** - Aggregated values
+- **summary** - Aggregated values (sum, count, avg, min, max)
 - **auto_number** - Auto-incrementing number
 
 ### User
@@ -55,7 +56,6 @@ Each field type has two rendering modes:
 - **owner** - Owner selector
 
 ### Special
-- **password** - Secure password (masked)
 - **location** - Geographic coordinates
 - **object** - JSON object data
 - **vector** - Embedding/vector data

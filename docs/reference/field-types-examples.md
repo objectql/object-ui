@@ -439,28 +439,615 @@ function CustomTable({ data }) {
 }
 ```
 
+## Additional Field Type Examples
+
+### HTML Rich Text Field
+
+```typescript
+{
+  name: 'content',
+  type: 'html',
+  label: 'Article Content',
+  max_length: 50000,
+  placeholder: 'Enter rich HTML content...'
+}
+```
+
+### Number Field
+
+```typescript
+{
+  name: 'quantity',
+  type: 'number',
+  label: 'Quantity',
+  min: 0,
+  max: 9999,
+  step: 1,
+  precision: 0,
+  required: true
+}
+```
+
+### Password Field
+
+```typescript
+{
+  name: 'password',
+  type: 'password',
+  label: 'Password',
+  required: true,
+  min_length: 8,
+  max_length: 128,
+  placeholder: 'Enter secure password'
+}
+```
+
+### Master-Detail Relationship
+
+```typescript
+{
+  name: 'parentAccount',
+  type: 'master_detail',
+  label: 'Parent Account',
+  reference_to: 'accounts',
+  reference_field: 'name',
+  searchable: true,
+  required: true
+}
+```
+
+### Summary/Rollup Field
+
+```typescript
+{
+  name: 'totalOrders',
+  type: 'summary',
+  label: 'Total Orders',
+  summary_object: 'orders',
+  summary_field: 'amount',
+  summary_type: 'sum',
+  readonly: true
+}
+```
+
+### Auto Number Field
+
+```typescript
+{
+  name: 'invoiceNumber',
+  type: 'auto_number',
+  label: 'Invoice #',
+  format: 'INV-{YYYY}-{0000}',
+  starting_number: 1,
+  readonly: true
+}
+```
+
+### Object (JSON) Field
+
+```typescript
+{
+  name: 'settings',
+  type: 'object',
+  label: 'Settings',
+  schema: {
+    theme: { type: 'string', enum: ['light', 'dark'] },
+    notifications: { type: 'boolean' },
+    language: { type: 'string' }
+  }
+}
+```
+
+### Vector (Embedding) Field
+
+```typescript
+{
+  name: 'textEmbedding',
+  type: 'vector',
+  label: 'Text Embedding',
+  dimensions: 1536,
+  readonly: true,
+  description: 'AI-generated text embedding for similarity search'
+}
+```
+
+### Grid (Sub-table) Field
+
+```typescript
+{
+  name: 'orderItems',
+  type: 'grid',
+  label: 'Order Items',
+  columns: [
+    {
+      name: 'product',
+      type: 'lookup',
+      label: 'Product',
+      reference_to: 'products',
+      required: true
+    },
+    {
+      name: 'quantity',
+      type: 'number',
+      label: 'Quantity',
+      min: 1,
+      step: 1
+    },
+    {
+      name: 'unitPrice',
+      type: 'currency',
+      label: 'Unit Price',
+      currency: 'USD',
+      readonly: true
+    },
+    {
+      name: 'total',
+      type: 'currency',
+      label: 'Total',
+      currency: 'USD',
+      formula: 'quantity * unitPrice',
+      readonly: true
+    }
+  ]
+}
+```
+
+## Advanced Form Examples
+
+### User Registration Form
+
+```typescript
+const registrationFormSchema = {
+  type: 'object-form',
+  objectName: 'users',
+  mode: 'create',
+  title: 'Create Account',
+  
+  customFields: [
+    {
+      name: 'email',
+      type: 'email',
+      label: 'Email',
+      required: true,
+      placeholder: 'you@example.com'
+    },
+    {
+      name: 'password',
+      type: 'password',
+      label: 'Password',
+      required: true,
+      min_length: 8,
+      placeholder: 'Min 8 characters'
+    },
+    {
+      name: 'confirmPassword',
+      type: 'password',
+      label: 'Confirm Password',
+      required: true,
+      placeholder: 'Re-enter password'
+    },
+    {
+      name: 'firstName',
+      type: 'text',
+      label: 'First Name',
+      required: true,
+      max_length: 50
+    },
+    {
+      name: 'lastName',
+      type: 'text',
+      label: 'Last Name',
+      required: true,
+      max_length: 50
+    },
+    {
+      name: 'phone',
+      type: 'phone',
+      label: 'Phone Number',
+      placeholder: '+1 (555) 123-4567'
+    },
+    {
+      name: 'acceptTerms',
+      type: 'boolean',
+      label: 'I accept the terms and conditions',
+      required: true
+    }
+  ],
+  
+  // Note: Field-level validation should be defined within customFields
+  // using the validate property on each FormField
+  
+  layout: 'vertical',
+  submitText: 'Sign Up',
+  // Note: In JSON schemas, onSuccess uses action objects
+  // In TypeScript, use a callback function: onSuccess: (data) => { ... }
+  onSuccess: {
+    type: 'navigate',
+    path: '/welcome'
+  }
+};
+```
+
+### Product Management Form
+
+```typescript
+const productFormSchema = {
+  type: 'object-form',
+  objectName: 'products',
+  mode: 'create',
+  title: 'New Product',
+  
+  customFields: [
+    {
+      name: 'sku',
+      type: 'auto_number',
+      label: 'SKU',
+      format: 'PRD-{0000}',
+      readonly: true
+    },
+    {
+      name: 'name',
+      type: 'text',
+      label: 'Product Name',
+      required: true,
+      max_length: 200
+    },
+    {
+      name: 'shortDescription',
+      type: 'textarea',
+      label: 'Short Description',
+      rows: 2,
+      max_length: 200
+    },
+    {
+      name: 'fullDescription',
+      type: 'html',
+      label: 'Full Description',
+      max_length: 10000
+    },
+    {
+      name: 'category',
+      type: 'lookup',
+      label: 'Category',
+      reference_to: 'categories',
+      searchable: true,
+      required: true
+    },
+    {
+      name: 'price',
+      type: 'currency',
+      label: 'Price',
+      currency: 'USD',
+      precision: 2,
+      min: 0,
+      required: true
+    },
+    {
+      name: 'comparePrice',
+      type: 'currency',
+      label: 'Compare at Price',
+      currency: 'USD',
+      precision: 2,
+      min: 0
+    },
+    {
+      name: 'costPrice',
+      type: 'currency',
+      label: 'Cost per Item',
+      currency: 'USD',
+      precision: 2,
+      min: 0
+    },
+    {
+      name: 'profitMargin',
+      type: 'formula',
+      label: 'Profit Margin %',
+      formula: '((price - costPrice) / price) * 100',
+      readonly: true
+    },
+    {
+      name: 'stock',
+      type: 'number',
+      label: 'Stock Quantity',
+      min: 0,
+      step: 1,
+      required: true
+    },
+    {
+      name: 'weight',
+      type: 'number',
+      label: 'Weight (kg)',
+      precision: 2,
+      min: 0
+    },
+    {
+      name: 'isPublished',
+      type: 'boolean',
+      label: 'Published',
+      defaultValue: false
+    },
+    {
+      name: 'isFeatured',
+      type: 'boolean',
+      label: 'Featured',
+      defaultValue: false
+    },
+    {
+      name: 'releaseDate',
+      type: 'date',
+      label: 'Release Date'
+    },
+    {
+      name: 'tags',
+      type: 'select',
+      label: 'Tags',
+      multiple: true,
+      searchable: true,
+      options: [
+        { value: 'new', label: 'New', color: 'green' },
+        { value: 'sale', label: 'Sale', color: 'red' },
+        { value: 'bestseller', label: 'Best Seller', color: 'blue' }
+      ]
+    },
+    {
+      name: 'images',
+      type: 'image',
+      label: 'Product Images',
+      multiple: true,
+      max_files: 6,
+      max_size: 5242880,
+      accept: ['image/jpeg', 'image/png', 'image/webp']
+    },
+    {
+      name: 'variants',
+      type: 'grid',
+      label: 'Product Variants',
+      columns: [
+        { 
+          name: 'size', 
+          type: 'select', 
+          label: 'Size', 
+          options: [
+            { label: 'S', value: 'S' },
+            { label: 'M', value: 'M' },
+            { label: 'L', value: 'L' },
+            { label: 'XL', value: 'XL' }
+          ]
+        },
+        { 
+          name: 'color', 
+          type: 'select', 
+          label: 'Color', 
+          options: [
+            { label: 'Red', value: 'Red' },
+            { label: 'Blue', value: 'Blue' },
+            { label: 'Green', value: 'Green' }
+          ]
+        },
+        { name: 'sku', type: 'text', label: 'SKU' },
+        { name: 'stock', type: 'number', label: 'Stock', min: 0 },
+        { name: 'price', type: 'currency', label: 'Price', currency: 'USD' }
+      ]
+    },
+    {
+      name: 'metadata',
+      type: 'object',
+      label: 'Custom Metadata'
+    }
+  ],
+  
+  groups: [
+    {
+      title: 'Basic Information',
+      fields: ['sku', 'name', 'shortDescription', 'fullDescription', 'category']
+    },
+    {
+      title: 'Pricing',
+      fields: ['price', 'comparePrice', 'costPrice', 'profitMargin']
+    },
+    {
+      title: 'Inventory',
+      fields: ['stock', 'weight']
+    },
+    {
+      title: 'Publishing',
+      fields: ['isPublished', 'isFeatured', 'releaseDate', 'tags']
+    },
+    {
+      title: 'Media',
+      fields: ['images']
+    },
+    {
+      title: 'Variants',
+      fields: ['variants'],
+      collapsible: true
+    },
+    {
+      title: 'Advanced',
+      fields: ['metadata'],
+      collapsible: true,
+      defaultCollapsed: true
+    }
+  ],
+  
+  layout: 'vertical',
+  submitText: 'Create Product',
+  showCancel: true
+};
+```
+
+### Settings Form with Conditional Fields
+
+```typescript
+const settingsFormSchema = {
+  type: 'object-form',
+  objectName: 'settings',
+  mode: 'edit',
+  recordId: 'current',
+  title: 'Account Settings',
+  
+  customFields: [
+    {
+      name: 'displayName',
+      type: 'text',
+      label: 'Display Name',
+      required: true,
+      max_length: 100
+    },
+    {
+      name: 'email',
+      type: 'email',
+      label: 'Email',
+      required: true,
+      readonly: true
+    },
+    {
+      name: 'phone',
+      type: 'phone',
+      label: 'Phone Number'
+    },
+    {
+      name: 'avatar',
+      type: 'image',
+      label: 'Profile Picture',
+      max_size: 2097152,
+      accept: ['image/jpeg', 'image/png']
+    },
+    {
+      name: 'bio',
+      type: 'textarea',
+      label: 'Bio',
+      rows: 4,
+      max_length: 500
+    },
+    {
+      name: 'website',
+      type: 'url',
+      label: 'Website'
+    },
+    {
+      name: 'location',
+      type: 'location',
+      label: 'Location'
+    },
+    {
+      name: 'emailNotifications',
+      type: 'boolean',
+      label: 'Email Notifications',
+      defaultValue: true
+    },
+    {
+      name: 'notificationEmail',
+      type: 'email',
+      label: 'Notification Email',
+      visible_on: {
+        field: 'emailNotifications',
+        operator: '=',
+        value: true
+      }
+    },
+    {
+      name: 'pushNotifications',
+      type: 'boolean',
+      label: 'Push Notifications',
+      defaultValue: false
+    },
+    {
+      name: 'language',
+      type: 'select',
+      label: 'Language',
+      options: [
+        { value: 'en', label: 'English' },
+        { value: 'es', label: 'Español' },
+        { value: 'fr', label: 'Français' },
+        { value: 'de', label: 'Deutsch' },
+        { value: 'zh', label: '中文' }
+      ],
+      defaultValue: 'en'
+    },
+    {
+      name: 'timezone',
+      type: 'select',
+      label: 'Timezone',
+      searchable: true,
+      options: [
+        { value: 'UTC', label: 'UTC' },
+        { value: 'America/New_York', label: 'Eastern Time' },
+        { value: 'America/Chicago', label: 'Central Time' },
+        { value: 'America/Denver', label: 'Mountain Time' },
+        { value: 'America/Los_Angeles', label: 'Pacific Time' }
+      ]
+    },
+    {
+      name: 'preferences',
+      type: 'object',
+      label: 'Additional Preferences',
+      schema: {
+        theme: { type: 'string', enum: ['light', 'dark', 'auto'] },
+        compactMode: { type: 'boolean' },
+        showTips: { type: 'boolean' }
+      }
+    }
+  ],
+  
+  groups: [
+    {
+      title: 'Profile',
+      fields: ['displayName', 'email', 'phone', 'avatar', 'bio', 'website', 'location']
+    },
+    {
+      title: 'Notifications',
+      fields: ['emailNotifications', 'notificationEmail', 'pushNotifications']
+    },
+    {
+      title: 'Localization',
+      fields: ['language', 'timezone']
+    },
+    {
+      title: 'Advanced',
+      fields: ['preferences'],
+      collapsible: true,
+      defaultCollapsed: true
+    }
+  ],
+  
+  layout: 'vertical',
+  submitText: 'Save Settings'
+};
+```
+
 ## Field Type Feature Matrix
 
 | Field Type | Cell View | Form Control | Sortable | Filterable | Searchable |
 |------------|-----------|--------------|----------|------------|------------|
 | text | ✓ | ✓ | ✓ | ✓ | ✓ |
 | textarea | ✓ | ✓ | ✓ | ✓ | ✓ |
+| markdown | ✓ | ✓ | ✓ | ✓ | ✓ |
+| html | ✓ | ✓ | - | - | ✓ |
 | number | ✓ | ✓ | ✓ | ✓ | ✓ |
 | currency | ✓ | ✓ | ✓ | ✓ | - |
 | percent | ✓ | ✓ | ✓ | ✓ | - |
 | boolean | ✓ | ✓ | ✓ | ✓ | - |
 | date | ✓ | ✓ | ✓ | ✓ | - |
 | datetime | ✓ | ✓ | ✓ | ✓ | - |
+| time | ✓ | ✓ | ✓ | ✓ | - |
 | select | ✓ | ✓ | ✓ | ✓ | ✓ |
 | email | ✓ | ✓ | ✓ | ✓ | ✓ |
 | phone | ✓ | ✓ | ✓ | ✓ | ✓ |
 | url | ✓ | ✓ | ✓ | ✓ | ✓ |
+| password | Masked | ✓ | - | - | - |
 | file | ✓ | ✓ | - | - | - |
 | image | ✓ | ✓ | - | - | - |
+| location | ✓ | ✓ | - | ✓ | - |
 | lookup | ✓ | ✓ | ✓ | ✓ | ✓ |
+| master_detail | ✓ | ✓ | ✓ | ✓ | ✓ |
 | formula | ✓ | Read-only | ✓ | - | - |
 | summary | ✓ | Read-only | ✓ | - | - |
+| auto_number | ✓ | Read-only | ✓ | ✓ | ✓ |
 | user | ✓ | ✓ | ✓ | ✓ | ✓ |
-| password | Masked | ✓ | - | - | - |
+| owner | ✓ | ✓ | ✓ | ✓ | ✓ |
+| object | ✓ | ✓ | - | - | - |
+| vector | ✓ | Read-only | - | - | - |
+| grid | ✓ | ✓ | - | - | - |
 
 ✓ = Supported | - = Not applicable
