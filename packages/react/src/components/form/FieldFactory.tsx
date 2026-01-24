@@ -10,6 +10,21 @@ import React from 'react';
 import { UseFormReturn } from 'react-hook-form';
 import type { FormField } from '@objectstack/spec/ui';
 
+/**
+ * Extended form field with additional properties for complex widgets
+ * These properties are not part of the standard FormField schema but may be
+ * provided by specific implementations
+ */
+export interface ExtendedFormField extends FormField {
+  multiple?: boolean;
+  accept?: string[];
+  options?: Array<{
+    label: string;
+    value: string;
+    disabled?: boolean;
+  }>;
+}
+
 export interface FieldFactoryProps {
   /**
    * Field configuration from FormFieldSchema
@@ -35,6 +50,9 @@ export const FieldFactory: React.FC<FieldFactoryProps> = ({
   disabled = false,
 }) => {
   const { register, formState: { errors } } = methods;
+  
+  // Cast to extended field for properties not in base schema
+  const extendedField = field as ExtendedFormField;
   
   // Determine the widget type
   const widgetType = field.widget || 'text';
@@ -299,8 +317,8 @@ export const FieldFactory: React.FC<FieldFactoryProps> = ({
           id={fieldName}
           type="file"
           disabled={disabled}
-          multiple={field.multiple}
-          accept={field.accept?.join(',')}
+          multiple={extendedField.multiple}
+          accept={extendedField.accept?.join(',')}
           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           {...register(fieldName, {
             required: field.required ? `${field.label || fieldName} is required` : false,
@@ -314,8 +332,8 @@ export const FieldFactory: React.FC<FieldFactoryProps> = ({
           id={fieldName}
           type="file"
           disabled={disabled}
-          multiple={field.multiple}
-          accept={field.accept?.join(',') || 'image/*'}
+          multiple={extendedField.multiple}
+          accept={extendedField.accept?.join(',') || 'image/*'}
           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           {...register(fieldName, {
             required: field.required ? `${field.label || fieldName} is required` : false,
@@ -359,14 +377,14 @@ export const FieldFactory: React.FC<FieldFactoryProps> = ({
         <select
           id={fieldName}
           disabled={disabled}
-          multiple={field.multiple}
+          multiple={extendedField.multiple}
           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
           {...register(fieldName, {
             required: field.required ? `${field.label || fieldName} is required` : false,
           })}
         >
           <option value="">{field.placeholder || 'Select an option'}</option>
-          {field.options?.map((option) => (
+          {extendedField.options?.map((option) => (
             <option key={option.value} value={option.value} disabled={option.disabled}>
               {option.label}
             </option>
@@ -380,14 +398,14 @@ export const FieldFactory: React.FC<FieldFactoryProps> = ({
         <select
           id={fieldName}
           disabled={disabled}
-          multiple={field.multiple}
+          multiple={extendedField.multiple}
           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
           {...register(fieldName, {
             required: field.required ? `${field.label || fieldName} is required` : false,
           })}
         >
           <option value="">{field.placeholder || 'Select user'}</option>
-          {field.options?.map((option) => (
+          {extendedField.options?.map((option) => (
             <option key={option.value} value={option.value} disabled={option.disabled}>
               {option.label}
             </option>

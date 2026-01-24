@@ -11,6 +11,18 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { FormRenderer } from './FormRenderer';
 import type { FormView } from '@objectstack/spec/ui';
+import type { ExtendedFormField } from './FieldFactory';
+
+// Helper type for form views with extended fields
+type ExtendedFormView = Omit<FormView, 'sections'> & {
+  sections?: Array<{
+    label?: string;
+    collapsible?: boolean;
+    collapsed?: boolean;
+    columns?: '1' | '2' | '3' | '4';
+    fields: (string | ExtendedFormField)[];
+  }>;
+};
 
 describe('FormRenderer', () => {
   it('should render a simple form with text fields', () => {
@@ -477,14 +489,14 @@ describe('FormRenderer', () => {
     });
 
     it('should render lookup field as select', () => {
-      const schema: FormView = {
+      const schema: ExtendedFormView = {
         type: 'simple',
         sections: [
           {
             label: 'Relations',
             collapsible: false,
             collapsed: false,
-            columns: 1,
+            columns: '1',
             fields: [
               {
                 field: 'account',
@@ -500,20 +512,20 @@ describe('FormRenderer', () => {
         ],
       };
 
-      render(<FormRenderer schema={schema} />);
+      render(<FormRenderer schema={schema as FormView} />);
       const select = screen.getByLabelText('Account') as HTMLSelectElement;
       expect(select.tagName).toBe('SELECT');
     });
 
     it('should render user field as select', () => {
-      const schema: FormView = {
+      const schema: ExtendedFormView = {
         type: 'simple',
         sections: [
           {
             label: 'Assignment',
             collapsible: false,
             collapsed: false,
-            columns: 1,
+            columns: '1',
             fields: [
               {
                 field: 'assignedTo',
@@ -529,7 +541,7 @@ describe('FormRenderer', () => {
         ],
       };
 
-      render(<FormRenderer schema={schema} />);
+      render(<FormRenderer schema={schema as FormView} />);
       const select = screen.getByLabelText('Assigned To') as HTMLSelectElement;
       expect(select.tagName).toBe('SELECT');
     });
