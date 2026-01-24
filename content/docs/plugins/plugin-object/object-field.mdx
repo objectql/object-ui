@@ -1,0 +1,1166 @@
+---
+title: "ObjectField Types"
+description: "Comprehensive guide to all field types supported in ObjectForm with interactive examples"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+ObjectUI supports 29 field types for building comprehensive forms. Each field type provides specialized rendering and validation for different data types.
+
+## Text Fields
+
+### Text Field
+
+Single-line text input with optional validation.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "firstName",
+        type: "text",
+        label: "First Name",
+        required: true,
+        placeholder: "Enter first name",
+        min_length: 2,
+        max_length: 50
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Text Field Example"
+  description="Basic text input with length validation"
+/>
+
+```json
+{
+  "name": "firstName",
+  "type": "text",
+  "label": "First Name",
+  "required": true,
+  "placeholder": "Enter first name",
+  "min_length": 2,
+  "max_length": 50
+}
+```
+
+### Number Field
+
+Numeric input with min/max validation.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "age",
+        type: "number",
+        label: "Age",
+        min: 0,
+        max: 150,
+        step: 1,
+        placeholder: "Enter age"
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Number Field Example"
+  description="Numeric input with range validation"
+/>
+
+```json
+{
+  "name": "age",
+  "type": "number",
+  "label": "Age",
+  "min": 0,
+  "max": 150,
+  "step": 1,
+  "placeholder": "Enter age"
+}
+```
+
+### Textarea Field
+
+Multi-line text input.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "notes",
+        type: "textarea",
+        label: "Notes",
+        rows: 4,
+        max_length: 1000,
+        placeholder: "Add your notes here..."
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Textarea Field Example"
+  description="Multi-line text input"
+/>
+
+```json
+{
+  "name": "notes",
+  "type": "textarea",
+  "label": "Notes",
+  "rows": 4,
+  "max_length": 1000,
+  "placeholder": "Add your notes here..."
+}
+```
+
+### Markdown Field
+
+Markdown-formatted text editor.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "description",
+        type: "markdown",
+        label: "Description",
+        max_length: 5000,
+        placeholder: "Enter markdown formatted text"
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Markdown Field Example"
+  description="Markdown text editor"
+/>
+
+```json
+{
+  "name": "description",
+  "type": "markdown",
+  "label": "Description",
+  "max_length": 5000,
+  "placeholder": "Enter markdown formatted text"
+}
+```
+
+### HTML Field
+
+Rich text HTML content editor.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "content",
+        type: "html",
+        label: "Content",
+        max_length: 10000,
+        placeholder: "Enter rich text content"
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="HTML Field Example"
+  description="Rich text HTML editor"
+/>
+
+```json
+{
+  "name": "content",
+  "type": "html",
+  "label": "Content",
+  "max_length": 10000,
+  "placeholder": "Enter rich text content"
+}
+```
+
+## Numeric Fields
+
+### Currency Field
+
+Monetary values with currency symbol.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "price",
+        type: "currency",
+        label: "Price",
+        currency: "USD",
+        precision: 2,
+        min: 0,
+        required: true
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Currency Field Example"
+  description="Monetary value input with USD formatting"
+/>
+
+```json
+{
+  "name": "price",
+  "type": "currency",
+  "label": "Price",
+  "currency": "USD",
+  "precision": 2,
+  "min": 0,
+  "required": true
+}
+```
+
+### Percent Field
+
+Percentage values.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "discount",
+        type: "percent",
+        label: "Discount",
+        precision: 2,
+        min: 0,
+        max: 100,
+        placeholder: "0.00"
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Percent Field Example"
+  description="Percentage input with min/max validation"
+/>
+
+```json
+{
+  "name": "discount",
+  "type": "percent",
+  "label": "Discount",
+  "precision": 2,
+  "min": 0,
+  "max": 100,
+  "placeholder": "0.00"
+}
+```
+
+## Boolean Field
+
+### Boolean (Checkbox)
+
+True/false checkbox input.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "isActive",
+        type: "boolean",
+        label: "Active Status",
+        defaultValue: true
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Boolean Field Example"
+  description="Checkbox for true/false values"
+/>
+
+```json
+{
+  "name": "isActive",
+  "type": "boolean",
+  "label": "Active Status",
+  "defaultValue": true
+}
+```
+
+## Date & Time Fields
+
+### Date Field
+
+Date picker input.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "birthDate",
+        type: "date",
+        label: "Birth Date",
+        format: "MM/DD/YYYY"
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Date Field Example"
+  description="Date picker for date selection"
+/>
+
+```json
+{
+  "name": "birthDate",
+  "type": "date",
+  "label": "Birth Date",
+  "format": "MM/DD/YYYY"
+}
+```
+
+### DateTime Field
+
+Date and time picker.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "appointmentTime",
+        type: "datetime",
+        label: "Appointment",
+        format: "MM/DD/YYYY HH:mm"
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="DateTime Field Example"
+  description="Date and time picker"
+/>
+
+```json
+{
+  "name": "appointmentTime",
+  "type": "datetime",
+  "label": "Appointment",
+  "format": "MM/DD/YYYY HH:mm"
+}
+```
+
+### Time Field
+
+Time-only picker.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "preferredContactTime",
+        type: "time",
+        label: "Preferred Time",
+        format: "HH:mm"
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Time Field Example"
+  description="Time picker for time-only selection"
+/>
+
+```json
+{
+  "name": "preferredContactTime",
+  "type": "time",
+  "label": "Preferred Time",
+  "format": "HH:mm"
+}
+```
+
+## Selection Fields
+
+### Select Field (Single)
+
+Single-select dropdown with options.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "status",
+        type: "select",
+        label: "Status",
+        required: true,
+        options: [
+          { value: "active", label: "Active", color: "green" },
+          { value: "inactive", label: "Inactive", color: "gray" },
+          { value: "pending", label: "Pending", color: "yellow" }
+        ],
+        defaultValue: "active"
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Select Field Example (Single)"
+  description="Single-select dropdown with colored badges"
+/>
+
+```json
+{
+  "name": "status",
+  "type": "select",
+  "label": "Status",
+  "required": true,
+  "options": [
+    { "value": "active", "label": "Active", "color": "green" },
+    { "value": "inactive", "label": "Inactive", "color": "gray" },
+    { "value": "pending", "label": "Pending", "color": "yellow" }
+  ],
+  "defaultValue": "active"
+}
+```
+
+### Select Field (Multiple)
+
+Multi-select dropdown.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "tags",
+        type: "select",
+        label: "Tags",
+        multiple: true,
+        searchable: true,
+        options: [
+          { value: "vip", label: "VIP", color: "red" },
+          { value: "partner", label: "Partner", color: "blue" },
+          { value: "prospect", label: "Prospect", color: "yellow" }
+        ]
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Select Field Example (Multiple)"
+  description="Multi-select dropdown with search"
+/>
+
+```json
+{
+  "name": "tags",
+  "type": "select",
+  "label": "Tags",
+  "multiple": true,
+  "searchable": true,
+  "options": [
+    { "value": "vip", "label": "VIP", "color": "red" },
+    { "value": "partner", "label": "Partner", "color": "blue" },
+    { "value": "prospect", "label": "Prospect", "color": "yellow" }
+  ]
+}
+```
+
+## Contact Fields
+
+### Email Field
+
+Email input with validation.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "email",
+        type: "email",
+        label: "Email Address",
+        required: true,
+        max_length: 255,
+        placeholder: "user@example.com"
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Email Field Example"
+  description="Email input with format validation"
+/>
+
+```json
+{
+  "name": "email",
+  "type": "email",
+  "label": "Email Address",
+  "required": true,
+  "max_length": 255,
+  "placeholder": "user@example.com"
+}
+```
+
+### Phone Field
+
+Phone number input.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "phone",
+        type: "phone",
+        label: "Phone Number",
+        format: "+1 (XXX) XXX-XXXX",
+        placeholder: "+1 (555) 123-4567"
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Phone Field Example"
+  description="Phone number input with formatting"
+/>
+
+```json
+{
+  "name": "phone",
+  "type": "phone",
+  "label": "Phone Number",
+  "format": "+1 (XXX) XXX-XXXX",
+  "placeholder": "+1 (555) 123-4567"
+}
+```
+
+### URL Field
+
+Website URL input.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "website",
+        type: "url",
+        label: "Website",
+        max_length: 500,
+        placeholder: "https://example.com"
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="URL Field Example"
+  description="URL input with format validation"
+/>
+
+```json
+{
+  "name": "website",
+  "type": "url",
+  "label": "Website",
+  "max_length": 500,
+  "placeholder": "https://example.com"
+}
+```
+
+### Password Field
+
+Secure password input.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "password",
+        type: "password",
+        label: "Password",
+        required: true,
+        min_length: 8,
+        max_length: 128,
+        placeholder: "Enter secure password"
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Password Field Example"
+  description="Masked password input with length requirements"
+/>
+
+```json
+{
+  "name": "password",
+  "type": "password",
+  "label": "Password",
+  "required": true,
+  "min_length": 8,
+  "max_length": 128,
+  "placeholder": "Enter secure password"
+}
+```
+
+## File & Media Fields
+
+### File Upload Field
+
+File upload with constraints.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "attachments",
+        type: "file",
+        label: "Attachments",
+        multiple: true,
+        max_files: 5,
+        max_size: 10485760,
+        accept: ["application/pdf", "application/msword", "text/plain"]
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="File Upload Field Example"
+  description="File upload with type and size constraints"
+/>
+
+```json
+{
+  "name": "attachments",
+  "type": "file",
+  "label": "Attachments",
+  "multiple": true,
+  "max_files": 5,
+  "max_size": 10485760,
+  "accept": ["application/pdf", "application/msword", "text/plain"]
+}
+```
+
+### Image Upload Field
+
+Image upload with preview.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "avatar",
+        type: "image",
+        label: "Profile Picture",
+        accept: ["image/jpeg", "image/png", "image/webp"],
+        max_size: 2097152,
+        max_width: 1024,
+        max_height: 1024
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Image Upload Field Example"
+  description="Image upload with dimensions and size constraints"
+/>
+
+```json
+{
+  "name": "avatar",
+  "type": "image",
+  "label": "Profile Picture",
+  "accept": ["image/jpeg", "image/png", "image/webp"],
+  "max_size": 2097152,
+  "max_width": 1024,
+  "max_height": 1024
+}
+```
+
+## Relationship Fields
+
+### Lookup Field
+
+Reference to related records.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "company",
+        type: "lookup",
+        label: "Company",
+        reference_to: "accounts",
+        reference_field: "name",
+        searchable: true,
+        required: true
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Lookup Field Example"
+  description="Foreign key reference with search"
+/>
+
+```json
+{
+  "name": "company",
+  "type": "lookup",
+  "label": "Company",
+  "reference_to": "accounts",
+  "reference_field": "name",
+  "searchable": true,
+  "required": true
+}
+```
+
+### Master-Detail Field
+
+Master-detail relationship.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "parentAccount",
+        type: "master_detail",
+        label: "Parent Account",
+        reference_to: "accounts",
+        searchable: true
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Master-Detail Field Example"
+  description="Master-detail relationship field"
+/>
+
+```json
+{
+  "name": "parentAccount",
+  "type": "master_detail",
+  "label": "Parent Account",
+  "reference_to": "accounts",
+  "searchable": true
+}
+```
+
+## User Fields
+
+### User Field
+
+User selector with avatars.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "assignedTo",
+        type: "user",
+        label: "Assigned To",
+        multiple: false
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="User Field Example"
+  description="User selector for assignment"
+/>
+
+```json
+{
+  "name": "assignedTo",
+  "type": "user",
+  "label": "Assigned To",
+  "multiple": false
+}
+```
+
+### Owner Field
+
+Record owner selector.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "owner",
+        type: "owner",
+        label: "Record Owner",
+        required: true
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Owner Field Example"
+  description="Owner field for record ownership"
+/>
+
+```json
+{
+  "name": "owner",
+  "type": "owner",
+  "label": "Record Owner",
+  "required": true
+}
+```
+
+## Location Field
+
+Geographic coordinates input.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "address",
+        type: "location",
+        label: "Address",
+        default_zoom: 15,
+        placeholder: "Enter address or coordinates"
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Location Field Example"
+  description="Geographic location picker"
+/>
+
+```json
+{
+  "name": "address",
+  "type": "location",
+  "label": "Address",
+  "default_zoom": 15,
+  "placeholder": "Enter address or coordinates"
+}
+```
+
+## Computed Fields
+
+### Formula Field
+
+Read-only calculated field.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "firstName",
+        type: "text",
+        label: "First Name",
+        placeholder: "John"
+      },
+      {
+        name: "lastName",
+        type: "text",
+        label: "Last Name",
+        placeholder: "Doe"
+      },
+      {
+        name: "fullName",
+        type: "formula",
+        label: "Full Name",
+        formula: "CONCAT(firstName, ' ', lastName)",
+        readonly: true
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Formula Field Example"
+  description="Computed field using formula"
+/>
+
+```json
+{
+  "name": "fullName",
+  "type": "formula",
+  "label": "Full Name",
+  "formula": "CONCAT(firstName, ' ', lastName)",
+  "readonly": true
+}
+```
+
+### Summary Field
+
+Aggregated values (rollup).
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "totalRevenue",
+        type: "summary",
+        label: "Total Revenue",
+        summary_object: "opportunities",
+        summary_field: "amount",
+        summary_type: "sum",
+        readonly: true
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Summary Field Example"
+  description="Aggregated rollup field"
+/>
+
+```json
+{
+  "name": "totalRevenue",
+  "type": "summary",
+  "label": "Total Revenue",
+  "summary_object": "opportunities",
+  "summary_field": "amount",
+  "summary_type": "sum",
+  "readonly": true
+}
+```
+
+### Auto Number Field
+
+Auto-incrementing number.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "ticketNumber",
+        type: "auto_number",
+        label: "Ticket #",
+        format: "TICKET-{0000}",
+        starting_number: 1,
+        readonly: true
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Auto Number Field Example"
+  description="Auto-incrementing sequence number"
+/>
+
+```json
+{
+  "name": "ticketNumber",
+  "type": "auto_number",
+  "label": "Ticket #",
+  "format": "TICKET-{0000}",
+  "starting_number": 1,
+  "readonly": true
+}
+```
+
+## Advanced Fields
+
+### Object Field
+
+JSON object data.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "metadata",
+        type: "object",
+        label: "Custom Metadata",
+        schema: {
+          source: { type: "string" },
+          campaign: { type: "string" },
+          referrer: { type: "string" }
+        }
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Object Field Example"
+  description="JSON object field for structured data"
+/>
+
+```json
+{
+  "name": "metadata",
+  "type": "object",
+  "label": "Custom Metadata",
+  "schema": {
+    "source": { "type": "string" },
+    "campaign": { "type": "string" },
+    "referrer": { "type": "string" }
+  }
+}
+```
+
+### Vector Field
+
+Embedding/vector data (read-only).
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "embedding",
+        type: "vector",
+        label: "Text Embedding",
+        dimensions: 1536,
+        readonly: true
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Vector Field Example"
+  description="Vector/embedding field for AI applications"
+/>
+
+```json
+{
+  "name": "embedding",
+  "type": "vector",
+  "label": "Text Embedding",
+  "dimensions": 1536,
+  "readonly": true
+}
+```
+
+### Grid Field
+
+Sub-table/inline grid.
+
+<InteractiveDemo
+  schema={{
+    type: "object-form",
+    objectName: "demo",
+    mode: "create",
+    customFields: [
+      {
+        name: "lineItems",
+        type: "grid",
+        label: "Line Items",
+        columns: [
+          { name: "product", type: "text", label: "Product" },
+          { name: "quantity", type: "number", label: "Qty" },
+          { name: "price", type: "currency", label: "Price" },
+          { name: "total", type: "currency", label: "Total", formula: "quantity * price" }
+        ]
+      }
+    ],
+    submitText: "Submit"
+  }}
+  title="Grid Field Example"
+  description="Sub-table for line items and nested data"
+/>
+
+```json
+{
+  "name": "lineItems",
+  "type": "grid",
+  "label": "Line Items",
+  "columns": [
+    { "name": "product", "type": "text", "label": "Product" },
+    { "name": "quantity", "type": "number", "label": "Qty" },
+    { "name": "price", "type": "currency", "label": "Price" },
+    { "name": "total", "type": "currency", "label": "Total", "formula": "quantity * price" }
+  ]
+}
+```
+
+## Field Type Summary
+
+| Field Type | Category | Description | Use Case |
+|------------|----------|-------------|----------|
+| text | Text | Single-line text | Names, titles, short text |
+| number | Numeric | Numeric values | Quantities, counts, IDs |
+| textarea | Text | Multi-line text | Notes, descriptions |
+| markdown | Text | Markdown formatted | Rich documentation |
+| html | Text | HTML content | Rich content editing |
+| currency | Numeric | Money values | Prices, amounts |
+| percent | Numeric | Percentage | Rates, ratios |
+| boolean | Boolean | True/false | Flags, toggles |
+| date | Temporal | Date only | Birth dates, deadlines |
+| datetime | Temporal | Date + time | Appointments, timestamps |
+| time | Temporal | Time only | Operating hours |
+| select | Selection | Dropdown options | Status, categories |
+| email | Contact | Email address | Contact information |
+| phone | Contact | Phone number | Contact information |
+| url | Contact | Web address | Websites, links |
+| password | Security | Masked input | Authentication |
+| file | Media | File upload | Documents, attachments |
+| image | Media | Image upload | Photos, avatars |
+| location | Spatial | GPS coordinates | Addresses, locations |
+| lookup | Relationship | Foreign key | References to other records |
+| master_detail | Relationship | Parent-child | Hierarchical data |
+| user | Identity | User reference | Assignments, ownership |
+| owner | Identity | Owner reference | Record ownership |
+| formula | Computed | Calculated | Derived values |
+| summary | Computed | Aggregation | Rollups, totals |
+| auto_number | Computed | Auto-increment | Sequential IDs |
+| object | Advanced | JSON data | Flexible structured data |
+| vector | Advanced | Embeddings | AI/ML applications |
+| grid | Advanced | Sub-table | Line items, nested lists |
+
+## Related Components
+
+- [ObjectForm](/docs/plugins/plugin-object/object-form) - Complete form component
+- [ObjectTable](/docs/plugins/plugin-object/object-table) - Display lists of data
+- [ObjectView](/docs/plugins/plugin-object/object-view) - Complete CRUD interface
