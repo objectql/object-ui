@@ -32,14 +32,21 @@ A smart form component that generates forms from ObjectQL object schemas with au
         name: "role", 
         label: "Role", 
         type: "select",
-        options: ["Admin", "User", "Guest"],
+        options: [
+          { label: "Admin", value: "Admin" },
+          { label: "User", value: "User" },
+          { label: "Guest", value: "Guest" }
+        ],
         required: true
       },
       { 
         name: "status", 
         label: "Status", 
         type: "select",
-        options: ["Active", "Inactive"],
+        options: [
+          { label: "Active", value: "Active" },
+          { label: "Inactive", value: "Inactive" }
+        ],
         defaultValue: "Active"
       }
     ],
