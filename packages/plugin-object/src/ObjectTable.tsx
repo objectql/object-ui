@@ -75,8 +75,8 @@ function normalizeColumns(
 ): ListColumn[] | string[] | undefined {
   if (!columns) return undefined;
   
-  // Already in ListColumn format
-  if (columns.length > 0 && typeof columns[0] === 'object') {
+  // Already in ListColumn format - check for null and object type
+  if (columns.length > 0 && columns[0] && typeof columns[0] === 'object') {
     return columns as ListColumn[];
   }
   
@@ -212,10 +212,17 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
         throw new Error('Object name required for data fetching');
       }
       
+      // Helper to get select fields
+      const getSelectFields = () => {
+        if (schema.fields) return schema.fields;
+        if (schema.columns && Array.isArray(schema.columns)) {
+          return schema.columns.map(c => typeof c === 'string' ? c : c.field);
+        }
+        return undefined;
+      };
+      
       const params: any = {
-        $select: schema.fields || (schema.columns && Array.isArray(schema.columns) 
-          ? schema.columns.map(c => typeof c === 'string' ? c : c.field) 
-          : undefined),
+        $select: getSelectFields(),
         $top: schema.pagination?.pageSize || schema.pageSize || 50,
       };
 

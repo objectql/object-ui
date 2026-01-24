@@ -40,8 +40,8 @@ export interface HttpRequest {
   headers?: Record<string, string>;
   /** Query parameters */
   params?: Record<string, unknown>;
-  /** Request body for POST/PUT/PATCH */
-  body?: unknown;
+  /** Request body for POST/PUT/PATCH - supports JSON objects, strings, FormData, or Blob */
+  body?: Record<string, unknown> | string | FormData | Blob;
 }
 
 /**
@@ -175,7 +175,7 @@ export interface SortConfig {
 /**
  * ObjectTable Schema
  * A specialized table component that automatically fetches and displays data from ObjectQL objects.
- * Now fully aligned with @objectstack/spec ListView schema for maximum interoperability.
+ * Now fully aligned with @objectstack/spec view.zod ListView schema for maximum interoperability.
  * 
  * Supports multiple view types:
  * - grid: Traditional table with CRUD operations, search, filters, pagination
