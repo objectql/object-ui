@@ -1,10 +1,20 @@
 ---
 title: "ObjectTable"
+description: "Unified table component with ObjectQL integration, built on data-table foundation"
 ---
 
 import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+import { ComponentDemo } from '@/app/components/ComponentDemo';
 
-A specialized table component that automatically fetches and displays data from ObjectQL objects with sorting, filtering, and pagination.
+A specialized table component that automatically fetches and displays data from ObjectQL objects. Built on the data-table foundation, it combines ObjectQL schema integration with enterprise-grade table features.
+
+## Overview
+
+ObjectTable supports two modes:
+- **Table Mode** (`type: 'object-table'`): Traditional CRUD operations with auto-generated columns
+- **Grid Mode** (`type: 'object-grid'`): Spreadsheet-like inline editing with keyboard navigation
+
+Both modes inherit all data-table features: sorting, filtering, pagination, row selection, CSV export, column resizing, and reordering.
 
 ## Interactive Demo
 
@@ -12,35 +22,31 @@ A specialized table component that automatically fetches and displays data from 
   schema={{
     type: "object-table",
     objectName: "users",
-    columns: [
-      { header: "Name", accessorKey: "name" },
-      { header: "Email", accessorKey: "email" },
-      { header: "Role", accessorKey: "role" },
-      { header: "Status", accessorKey: "status" }
-    ],
+    title: "User Management",
+    fields: ["name", "email", "role", "status"],
     data: [
       { id: 1, name: "Alice Johnson", email: "alice@example.com", role: "Admin", status: "Active" },
       { id: 2, name: "Bob Smith", email: "bob@example.com", role: "User", status: "Active" },
-      { id: 3, name: "Carol White", email: "carol@example.com", role: "User", status: "Inactive" }
+      { id: 3, name: "Carol White", email: "carol@example.com", role: "Manager", status: "Inactive" },
+      { id: 4, name: "David Brown", email: "david@example.com", role: "User", status: "Active" }
     ],
     pageSize: 10,
-    searchable: true,
-    selectable: true
+    showSearch: true,
+    selectable: "multiple",
+    operations: {
+      update: true,
+      delete: true,
+      export: true
+    }
   }}
-  title="ObjectTable Component"
-  description="Auto-generated table with sorting, filtering, and pagination"
+  title="ObjectTable - Table Mode"
+  description="Auto-generated columns with type-aware rendering and CRUD operations"
 />
 
-## Basic Usage
+## Table Mode - Basic Usage
 
 ```tsx
 import { ObjectTable } from '@object-ui/plugin-object';
-import { ObjectQLDataSource } from '@object-ui/data-objectql';
-
-const dataSource = new ObjectQLDataSource({
-  baseUrl: 'https://api.example.com',
-  token: 'your-auth-token'
-});
 
 function UsersTable() {
   return (
@@ -48,136 +54,134 @@ function UsersTable() {
       schema={{
         type: 'object-table',
         objectName: 'users',
-        columns: ['name', 'email', 'status', 'created_at']
+        fields: ['name', 'email', 'status', 'created_at'],
+        operations: {
+          create: true,
+          update: true,
+          delete: true
+        },
+        showSearch: true,
+        showPagination: true,
+        pageSize: 25
       }}
       dataSource={dataSource}
+      onEdit={(record) => console.log('Edit:', record)}
+      onDelete={(record) => console.log('Delete:', record)}
     />
   );
 }
 ```
 
-## JSON Schema
+## Grid Mode - Inline Editing
 
-```json
-{
-  "type": "object-table",
-  "objectName": "users",
-  "columns": ["name", "email", "status"],
-  "filters": {
-    "status": "active"
-  },
-  "pageSize": 20,
-  "sortBy": "created_at",
-  "sortOrder": "desc"
+```tsx
+function InventoryGrid() {
+  return (
+    <ObjectTable 
+      schema={{
+        type: 'object-grid',
+        objectName: 'inventory',
+        fields: ['sku', 'name', 'quantity', 'price', 'status'],
+        editable: true,
+        keyboardNavigation: true,
+        frozenColumns: 2,
+        resizableColumns: true
+      }}
+      dataSource={dataSource}
+      onCellChange={(row, col, value) => {
+        console.log(`Updated: Row ${row}, Column ${col}:`, value);
+      }}
+    />
+  );
 }
 ```
 
-## Properties
+## Features from data-table
+
+All ObjectTable instances automatically include:
+
+✅ **Multi-column sorting** - Click headers to sort (ascending/descending/none)  
+✅ **Real-time search** - Search across all visible columns  
+✅ **Pagination** - Navigate large datasets efficiently  
+✅ **Row selection** - Single or multiple selection with callbacks  
+✅ **CSV export** - Export filtered and sorted data  
+✅ **Column resizing** - Drag column borders to resize  
+✅ **Column reordering** - Drag column headers to reorder
+
+## Field Type Rendering
+
+ObjectTable automatically uses specialized renderers based on field types:
+
+- **Text**: text, textarea, markdown, html
+- **Numeric**: number, currency, percent
+- **Boolean**: checkmarks with color coding
+- **Date/Time**: date, datetime, time with locale formatting
+- **Selection**: select, multi-select with colored badges
+- **Contact**: email (mailto links), phone (tel links), url (external links)
+- **Files**: file, image with thumbnails
+- **Relationships**: lookup, master-detail
+- **Computed**: formula, summary (read-only)
+- **User**: user, owner with avatars
+
+## Schema Properties
+
+### Common Properties
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
+| `type` | `'object-table'` \| `'object-grid'` | Required | Component mode |
 | `objectName` | string | Required | Name of the ObjectQL object |
-| `columns` | string[] | All fields | Columns to display |
-| `filters` | object | `{}` | Default filters to apply |
+| `fields` | string[] | All fields | Fields to display as columns |
+| `data` | any[] | - | Inline data (optional) |
 | `pageSize` | number | `10` | Rows per page |
-| `sortBy` | string | `'id'` | Default sort field |
-| `sortOrder` | 'asc' \| 'desc' | `'asc'` | Default sort order |
-| `selectable` | boolean | `false` | Enable row selection |
-| `searchable` | boolean | `true` | Enable search bar |
+| `selectable` | boolean \| `'single'` \| `'multiple'` | `false` | Row selection mode |
 
-## Features
+### Table Mode Properties
 
-- **Automatic Data Fetching**: Connects to ObjectQL backend and fetches data automatically
-- **Sorting**: Click column headers to sort data
-- **Filtering**: Apply filters to narrow down results
-- **Pagination**: Navigate through large datasets efficiently
-- **Search**: Full-text search across all columns
-- **Selection**: Select single or multiple rows
-- **Responsive**: Adapts to different screen sizes
+| Property | Type | Description |
+|----------|------|-------------|
+| `operations` | object | Enable CRUD operations |
+| `showSearch` | boolean | Show search box |
+| `showPagination` | boolean | Show pagination |
+| `defaultSort` | object | Default sorting |
 
-## Example: User Management Dashboard
+### Grid Mode Properties
 
-```json
-{
-  "type": "page",
-  "title": "User Management",
-  "body": [
-    {
-      "type": "card",
-      "title": "Users",
-      "className": "p-6",
-      "children": {
-        "type": "object-table",
-        "objectName": "users",
-        "columns": ["name", "email", "role", "status", "last_login"],
-        "searchable": true,
-        "selectable": true,
-        "actions": [
-          {
-            "type": "button",
-            "label": "New User",
-            "variant": "default",
-            "action": {
-              "type": "navigate",
-              "path": "/users/new"
-            }
-          }
-        ]
-      }
-    }
-  ]
-}
+| Property | Type | Description |
+|----------|------|-------------|
+| `editable` | boolean | Enable inline cell editing |
+| `keyboardNavigation` | boolean | Arrow keys, Tab, Enter navigation |
+| `frozenColumns` | number | Number of left-pinned columns |
+| `resizableColumns` | boolean | Enable column resizing |
+
+## Keyboard Shortcuts (Grid Mode)
+
+| Shortcut | Action |
+|----------|--------|
+| `↑` `↓` `←` `→` | Navigate between cells |
+| `Tab` | Move to next cell |
+| `Shift + Tab` | Move to previous cell |
+| `Enter` | Start editing selected cell |
+| `Escape` | Cancel editing |
+
+## Migration from ObjectGrid
+
+ObjectGrid has been merged into ObjectTable:
+
+**Before:**
+```tsx
+import { ObjectGrid } from '@object-ui/plugin-object';
+<ObjectGrid schema={{ type: 'object-grid', ... }} />
 ```
 
-## Advanced Configuration
-
-### Custom Column Display
-
-You can customize how columns are displayed using the column configuration:
-
-```json
-{
-  "type": "object-table",
-  "objectName": "products",
-  "columns": [
-    {
-      "field": "name",
-      "header": "Product Name",
-      "width": 200
-    },
-    {
-      "field": "price",
-      "header": "Price",
-      "format": "currency"
-    },
-    {
-      "field": "status",
-      "header": "Status",
-      "badge": true
-    }
-  ]
-}
-```
-
-### Pre-filtering Data
-
-Apply default filters that users can modify:
-
-```json
-{
-  "type": "object-table",
-  "objectName": "orders",
-  "columns": ["order_number", "customer", "total", "status"],
-  "filters": {
-    "status": ["pending", "processing"],
-    "created_at": {
-      "gte": "2024-01-01"
-    }
-  }
-}
+**After:**
+```tsx
+import { ObjectTable } from '@object-ui/plugin-object';
+<ObjectTable schema={{ type: 'object-grid', ... }} />
 ```
 
 ## Related Components
 
 - [ObjectForm](/docs/plugins/plugin-object/object-form) - Create and edit records
 - [ObjectView](/docs/plugins/plugin-object/object-view) - Complete CRUD interface
+- [Data Table](/docs/components/complex/data-table) - Base table component

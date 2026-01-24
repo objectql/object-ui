@@ -19,7 +19,19 @@ The Object plugin provides seamless integration with ObjectQL backends through s
 The plugin provides three main components for building CRUD interfaces:
 
 ### ObjectTable
-Auto-generated tables with sorting, filtering, and pagination capabilities. Perfect for displaying lists of data from ObjectQL objects.
+
+Enterprise-grade table component with dual modes: traditional CRUD operations and spreadsheet-like inline editing. Built on data-table foundation with automatic field type rendering.
+
+**Features:**
+- Auto-generated columns from ObjectQL schema
+- 20+ specialized field renderers (currency, percent, date, select badges, etc.)
+- Multi-column sorting, search, pagination, row selection
+- CSV export, column resizing, column reordering
+- Grid mode: inline editing, keyboard navigation, frozen columns
+
+**Modes:**
+- `object-table`: Traditional table with CRUD operations
+- `object-grid`: Spreadsheet-like inline editing
 
 [Learn more about ObjectTable →](/docs/plugins/plugin-object/object-table)
 
@@ -36,6 +48,9 @@ Complete CRUD views combining list, detail, and edit modes in a single component
 ## Features
 
 - **Schema-driven**: Automatically adapts to ObjectQL metadata
+- **Type-aware rendering**: 20+ specialized field renderers (currency, percent, badges, avatars, etc.)
+- **Enterprise table**: Built on data-table with sorting, search, pagination, CSV export
+- **Dual modes**: Traditional CRUD or spreadsheet-like inline editing
 - **Type-safe**: Full TypeScript support
 - **Lazy-loaded**: Only loads when used
 - **Permissions**: Applies field-level and object-level permissions
@@ -73,17 +88,34 @@ const dataSource = new ObjectQLDataSource({
 
 ```typescript
 import type { 
-  ObjectTableSchema, 
+  ObjectTableSchema,
+  ObjectGridSchema,
   ObjectFormSchema,
   ObjectViewSchema 
 } from '@object-ui/plugin-object';
 
-// Object Table
+// Object Table (Traditional CRUD)
 const tableSchema: ObjectTableSchema = {
   type: 'object-table',
   objectName: 'users',
-  columns: ['name', 'email', 'role'],
+  fields: ['name', 'email', 'role'],
+  operations: {
+    update: true,
+    delete: true,
+    export: true
+  },
+  showSearch: true,
   pageSize: 20
+};
+
+// Object Grid (Inline Editing)
+const gridSchema: ObjectGridSchema = {
+  type: 'object-grid',
+  objectName: 'inventory',
+  fields: ['sku', 'name', 'quantity', 'price'],
+  editable: true,
+  keyboardNavigation: true,
+  frozenColumns: 1
 };
 
 // Object Form
