@@ -1,0 +1,324 @@
+---
+title: "Plugin AgGrid"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+Data grid component powered by AG Grid Community Edition with lazy loading for optimal performance.
+
+## Installation
+
+```bash
+npm install @object-ui/plugin-aggrid ag-grid-community ag-grid-react
+```
+
+Note: `ag-grid-community` and `ag-grid-react` are peer dependencies and must be installed separately.
+
+## Interactive Examples
+
+### Basic Data Grid
+
+<InteractiveDemo
+  schema={{
+    type: "aggrid",
+    rowData: [
+      { make: "Tesla", model: "Model Y", price: 64950, year: 2024 },
+      { make: "Ford", model: "F-Series", price: 33850, year: 2024 },
+      { make: "Toyota", model: "Corolla", price: 29600, year: 2024 },
+      { make: "Honda", model: "Civic", price: 27500, year: 2024 },
+      { make: "Chevrolet", model: "Silverado", price: 36800, year: 2024 }
+    ],
+    columnDefs: [
+      { field: "make", headerName: "Make", sortable: true, filter: true },
+      { field: "model", headerName: "Model", sortable: true, filter: true },
+      { field: "year", headerName: "Year", sortable: true, filter: "number" },
+      { field: "price", headerName: "Price", sortable: true, filter: "number" }
+    ],
+    height: 400
+  }}
+  title="Basic AG Grid"
+  description="Simple data grid with sorting and filtering enabled"
+/>
+
+### Pagination Enabled
+
+<InteractiveDemo
+  schema={{
+    type: "aggrid",
+    rowData: [
+      { id: 1, name: "Alice Johnson", department: "Engineering", salary: 95000, status: "Active" },
+      { id: 2, name: "Bob Smith", department: "Marketing", salary: 72000, status: "Active" },
+      { id: 3, name: "Carol Davis", department: "Sales", salary: 68000, status: "Active" },
+      { id: 4, name: "David Wilson", department: "Engineering", salary: 88000, status: "Active" },
+      { id: 5, name: "Eve Brown", department: "HR", salary: 65000, status: "Active" },
+      { id: 6, name: "Frank Miller", department: "Engineering", salary: 102000, status: "Active" },
+      { id: 7, name: "Grace Lee", department: "Marketing", salary: 75000, status: "On Leave" },
+      { id: 8, name: "Henry Clark", department: "Sales", salary: 71000, status: "Active" },
+      { id: 9, name: "Iris Taylor", department: "Engineering", salary: 91000, status: "Active" },
+      { id: 10, name: "Jack Anderson", department: "HR", salary: 67000, status: "Active" },
+      { id: 11, name: "Kelly White", department: "Marketing", salary: 73000, status: "Active" },
+      { id: 12, name: "Leo Martin", department: "Sales", salary: 69000, status: "Active" }
+    ],
+    columnDefs: [
+      { field: "id", headerName: "ID", sortable: true, filter: "number", width: 80 },
+      { field: "name", headerName: "Name", sortable: true, filter: true },
+      { field: "department", headerName: "Department", sortable: true, filter: true },
+      { field: "salary", headerName: "Salary", sortable: true, filter: "number" },
+      { field: "status", headerName: "Status", sortable: true, filter: true }
+    ],
+    pagination: true,
+    paginationPageSize: 5,
+    height: 400
+  }}
+  title="Grid with Pagination"
+  description="Data grid with pagination enabled (5 rows per page)"
+/>
+
+### Theme: Alpine
+
+<InteractiveDemo
+  schema={{
+    type: "aggrid",
+    rowData: [
+      { product: "Laptop", category: "Electronics", price: 1299, stock: 45, rating: 4.5 },
+      { product: "Desk Chair", category: "Furniture", price: 299, stock: 23, rating: 4.2 },
+      { product: "Monitor", category: "Electronics", price: 499, stock: 67, rating: 4.7 },
+      { product: "Keyboard", category: "Accessories", price: 89, stock: 120, rating: 4.3 },
+      { product: "Mouse", category: "Accessories", price: 49, stock: 150, rating: 4.4 }
+    ],
+    columnDefs: [
+      { field: "product", headerName: "Product", sortable: true, filter: true },
+      { field: "category", headerName: "Category", sortable: true, filter: true },
+      { field: "price", headerName: "Price ($)", sortable: true, filter: "number" },
+      { field: "stock", headerName: "Stock", sortable: true, filter: "number" },
+      { field: "rating", headerName: "Rating", sortable: true, filter: "number" }
+    ],
+    theme: "alpine",
+    height: 350
+  }}
+  title="Alpine Theme"
+  description="Traditional data grid appearance with Alpine theme"
+/>
+
+### Theme: Balham
+
+<InteractiveDemo
+  schema={{
+    type: "aggrid",
+    rowData: [
+      { task: "Design UI mockups", assignee: "Sarah", priority: "High", dueDate: "2024-02-01", completed: false },
+      { task: "Implement API", assignee: "Mike", priority: "High", dueDate: "2024-02-03", completed: false },
+      { task: "Write tests", assignee: "John", priority: "Medium", dueDate: "2024-02-05", completed: false },
+      { task: "Code review", assignee: "Emily", priority: "Medium", dueDate: "2024-02-07", completed: false },
+      { task: "Deploy to staging", assignee: "David", priority: "Low", dueDate: "2024-02-10", completed: false }
+    ],
+    columnDefs: [
+      { field: "task", headerName: "Task", sortable: true, filter: true },
+      { field: "assignee", headerName: "Assignee", sortable: true, filter: true },
+      { field: "priority", headerName: "Priority", sortable: true, filter: true },
+      { field: "dueDate", headerName: "Due Date", sortable: true, filter: "date" },
+      { field: "completed", headerName: "Completed", sortable: true }
+    ],
+    theme: "balham",
+    height: 350
+  }}
+  title="Balham Theme"
+  description="Professional business look with Balham theme"
+/>
+
+### Theme: Material
+
+<InteractiveDemo
+  schema={{
+    type: "aggrid",
+    rowData: [
+      { city: "New York", country: "USA", population: 8336817, area: 783.8 },
+      { city: "Tokyo", country: "Japan", population: 13960000, area: 2194 },
+      { city: "London", country: "UK", population: 8982000, area: 1572 },
+      { city: "Paris", country: "France", population: 2161000, area: 105.4 },
+      { city: "Sydney", country: "Australia", population: 5312000, area: 12368 }
+    ],
+    columnDefs: [
+      { field: "city", headerName: "City", sortable: true, filter: true },
+      { field: "country", headerName: "Country", sortable: true, filter: true },
+      { field: "population", headerName: "Population", sortable: true, filter: "number" },
+      { field: "area", headerName: "Area (km²)", sortable: true, filter: "number" }
+    ],
+    theme: "material",
+    height: 350
+  }}
+  title="Material Theme"
+  description="Google Material Design inspired theme"
+/>
+
+### Row Selection
+
+<InteractiveDemo
+  schema={{
+    type: "aggrid",
+    rowData: [
+      { id: 1, country: "United States", capital: "Washington D.C.", continent: "North America" },
+      { id: 2, country: "China", capital: "Beijing", continent: "Asia" },
+      { id: 3, country: "Brazil", capital: "Brasília", continent: "South America" },
+      { id: 4, country: "Germany", capital: "Berlin", continent: "Europe" },
+      { id: 5, country: "India", capital: "New Delhi", continent: "Asia" },
+      { id: 6, country: "Australia", capital: "Canberra", continent: "Oceania" }
+    ],
+    columnDefs: [
+      { field: "country", headerName: "Country", sortable: true, filter: true, checkboxSelection: true },
+      { field: "capital", headerName: "Capital", sortable: true, filter: true },
+      { field: "continent", headerName: "Continent", sortable: true, filter: true }
+    ],
+    rowSelection: "multiple",
+    height: 400
+  }}
+  title="Multiple Row Selection"
+  description="Enable checkbox selection for multiple rows"
+/>
+
+### Advanced Features
+
+<InteractiveDemo
+  schema={{
+    type: "aggrid",
+    rowData: [
+      { orderID: "ORD-001", customer: "Acme Corp", amount: 15750, date: "2024-01-15", status: "Delivered" },
+      { orderID: "ORD-002", customer: "TechStart Inc", amount: 8500, date: "2024-01-18", status: "Shipped" },
+      { orderID: "ORD-003", customer: "Global Solutions", amount: 22300, date: "2024-01-20", status: "Processing" },
+      { orderID: "ORD-004", customer: "Innovation Labs", amount: 12100, date: "2024-01-22", status: "Delivered" },
+      { orderID: "ORD-005", customer: "Future Systems", amount: 9800, date: "2024-01-25", status: "Shipped" },
+      { orderID: "ORD-006", customer: "Smart Devices Co", amount: 18900, date: "2024-01-27", status: "Processing" },
+      { orderID: "ORD-007", customer: "Quantum Tech", amount: 31500, date: "2024-01-29", status: "Delivered" },
+      { orderID: "ORD-008", customer: "Digital Ventures", amount: 14200, date: "2024-02-01", status: "Shipped" }
+    ],
+    columnDefs: [
+      { field: "orderID", headerName: "Order ID", sortable: true, filter: true, pinned: "left" },
+      { field: "customer", headerName: "Customer", sortable: true, filter: true },
+      { field: "amount", headerName: "Amount", sortable: true, filter: "number" },
+      { field: "date", headerName: "Date", sortable: true, filter: "date" },
+      { field: "status", headerName: "Status", sortable: true, filter: true }
+    ],
+    pagination: true,
+    paginationPageSize: 5,
+    animateRows: true,
+    height: 400
+  }}
+  title="Complete Example"
+  description="Grid with pagination, sorting, filtering, and animated rows"
+/>
+
+## Features
+
+- **Lazy Loading**: AG Grid libraries are loaded on-demand for optimal performance
+- **Zero Configuration**: Just import the package and use `type: 'aggrid'` in your schema
+- **Automatic Registration**: Components auto-register with the ComponentRegistry
+- **Full AG Grid Features**: Sorting, filtering, pagination, row selection, and more
+- **Multiple Themes**: Quartz (default), Alpine, Balham, and Material
+- **Customizable**: Full access to AG Grid's GridOptions for advanced configuration
+
+## Schema API
+
+```typescript
+{
+  type: 'aggrid',
+  rowData?: any[],                              // Grid data (required)
+  columnDefs?: ColDef[],                        // Column definitions (required)
+  pagination?: boolean,                         // Enable pagination (default: false)
+  paginationPageSize?: number,                  // Rows per page (default: 10)
+  theme?: 'quartz' | 'alpine' | 'balham' | 'material',  // Grid theme (default: 'quartz')
+  height?: number | string,                     // Grid height (default: 500)
+  rowSelection?: 'single' | 'multiple',         // Row selection mode
+  domLayout?: 'normal' | 'autoHeight' | 'print', // Layout mode
+  animateRows?: boolean,                        // Animate row changes (default: true)
+  gridOptions?: GridOptions,                    // Advanced AG Grid options
+  className?: string                            // Tailwind classes
+}
+```
+
+## Column Definition Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `field` | string | The field in the data to display |
+| `headerName` | string | The header label for the column |
+| `sortable` | boolean | Enable sorting for this column |
+| `filter` | boolean \| string | Enable filtering (`true`, `'text'`, `'number'`, `'date'`) |
+| `width` | number | Fixed column width in pixels |
+| `checkboxSelection` | boolean | Show checkbox for row selection |
+| `pinned` | 'left' \| 'right' | Pin column to left or right side |
+| `valueFormatter` | function | Custom formatter for cell values |
+| `cellRenderer` | function | Custom renderer for cell content |
+
+## Usage
+
+### Basic Setup
+
+```typescript
+// In your app entry point (e.g., App.tsx or main.tsx)
+import '@object-ui/plugin-aggrid';
+
+// Now you can use aggrid type in your schemas
+const schema = {
+  type: 'aggrid',
+  rowData: [
+    { make: 'Tesla', model: 'Model Y', price: 64950 },
+    { make: 'Ford', model: 'F-Series', price: 33850 },
+    { make: 'Toyota', model: 'Corolla', price: 29600 }
+  ],
+  columnDefs: [
+    { field: 'make', headerName: 'Make', sortable: true, filter: true },
+    { field: 'model', headerName: 'Model', sortable: true, filter: true },
+    { field: 'price', headerName: 'Price', sortable: true, filter: 'number' }
+  ],
+  pagination: true,
+  paginationPageSize: 10,
+  theme: 'quartz',
+  height: 500
+};
+```
+
+### TypeScript Support
+
+```typescript
+import type { AgGridSchema } from '@object-ui/plugin-aggrid';
+
+const schema: AgGridSchema = {
+  type: 'aggrid',
+  rowData: [...],
+  columnDefs: [...],
+  pagination: true,
+  theme: 'quartz'
+};
+```
+
+### Advanced Configuration
+
+```typescript
+const schema = {
+  type: 'aggrid',
+  rowData: [...],
+  columnDefs: [...],
+  gridOptions: {
+    suppressCellFocus: true,
+    enableCellTextSelection: true,
+    enableRangeSelection: true,
+    rowMultiSelectWithClick: true,
+    // Any AG Grid GridOptions property
+  }
+};
+```
+
+## Performance
+
+The plugin uses lazy loading to minimize bundle size impact:
+
+- **Initial load**: +0.19 KB (entry point only)
+- **On render**: +200-300 KB (AG Grid library loaded on-demand)
+
+This results in significantly faster initial page loads for applications that don't use data grids on every page.
+
+## Resources
+
+- [AG Grid Community Documentation](https://www.ag-grid.com/documentation/)
+- [Column Definitions Guide](https://www.ag-grid.com/documentation/javascript/column-definitions/)
+- [Grid Options Reference](https://www.ag-grid.com/documentation/javascript/grid-options/)

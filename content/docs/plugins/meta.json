@@ -1,6 +1,7 @@
 {
   "title": "Plugins",
   "pages": [
+    "plugin-aggrid",
     "plugin-charts",
     "plugin-editor",
     "plugin-kanban",
