@@ -55,7 +55,7 @@ exclude = [
     "file://.*/examples/landing-page",
     "file://.*/examples/cli-demo",
     "file://.*/examples/framework-react",
-    "file://.*/examples/?$",
+    "file://.*/examples/$",
     
     # Planned package directories (not yet created)
     "file://.*/packages/designer",
