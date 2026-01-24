@@ -52,6 +52,20 @@ export interface ColumnConfig {
 }
 
 /**
+ * Context menu configuration
+ */
+export interface ContextMenuConfig {
+  enabled?: boolean;
+  items?: ('copy' | 'copyWithHeaders' | 'paste' | 'separator' | 'export' | 'autoSizeAll' | 'resetColumns' | string)[];
+  customItems?: Array<{
+    name: string;
+    action: string;
+    icon?: string;
+    disabled?: boolean;
+  }>;
+}
+
+/**
  * AG Grid schema for ObjectUI
  */
 export interface AgGridSchema {
@@ -91,6 +105,9 @@ export interface AgGridSchema {
   columnConfig?: ColumnConfig;
   enableRangeSelection?: boolean;
   enableCharts?: boolean;
+  
+  // Context menu
+  contextMenu?: ContextMenuConfig;
   
   // Event callbacks
   callbacks?: AgGridCallbacks;

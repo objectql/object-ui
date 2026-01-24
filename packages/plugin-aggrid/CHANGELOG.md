@@ -10,8 +10,9 @@
 - **Status Bar**: Display aggregations (count, sum, avg, min, max) at the bottom of the grid
 - **Column Configuration**: Global column settings with `columnConfig` for resizable, sortable, and filterable columns
 - **Range Selection**: Enable Excel-like range selection with `enableRangeSelection`
-- **Enhanced TypeScript Types**: Added `AgGridCallbacks`, `ExportConfig`, `StatusBarConfig`, and `ColumnConfig` types
-- **Improved API**: Extended schema with editing, export, status bar, and column configuration
+- **Context Menu**: Customizable right-click context menu with built-in and custom actions
+- **Enhanced TypeScript Types**: Added `AgGridCallbacks`, `ExportConfig`, `StatusBarConfig`, `ColumnConfig`, and `ContextMenuConfig` types
+- **Improved API**: Extended schema with editing, export, status bar, column configuration, and context menu
 
 ## 0.3.0
 

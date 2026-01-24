@@ -13,6 +13,9 @@ A lazy-loaded data grid component for Object UI based on AG Grid Community Editi
 - **CSV Export**: Built-in data export functionality
 - **Event Callbacks**: Handle cell clicks, selection changes, and value updates
 - **Status Bar**: Display aggregations (count, sum, avg, min, max)
+- **Context Menu**: Customizable right-click menu with built-in and custom actions
+- **Column Configuration**: Global settings for resizable, sortable, and filterable columns
+- **Range Selection**: Excel-like range selection support
 - **Multiple Themes**: Support for Quartz, Alpine, Balham, and Material themes
 - **Customizable**: Full access to AG Grid's GridOptions for advanced configuration
 
@@ -75,7 +78,8 @@ import type {
   AgGridCallbacks,
   ExportConfig,
   StatusBarConfig,
-  ColumnConfig
+  ColumnConfig,
+  ContextMenuConfig
 } from '@object-ui/plugin-aggrid';
 
 const schema: AgGridSchema = {
@@ -97,6 +101,10 @@ const schema: AgGridSchema = {
     resizable: true,
     sortable: true,
     filterable: true
+  },
+  contextMenu: {
+    enabled: true,
+    items: ['copy', 'export']
   },
   callbacks: {
     onCellValueChanged: (event) => {
@@ -163,6 +171,18 @@ const schema: AgGridSchema = {
   },
   enableRangeSelection?: boolean,               // Enable Excel-like range selection (default: false)
   enableCharts?: boolean,                       // Enable integrated charts (requires Enterprise, default: false)
+  
+  // Context Menu
+  contextMenu?: {
+    enabled?: boolean,                          // Enable context menu (default: false)
+    items?: string[],                           // Menu items: 'copy', 'export', 'autoSizeAll', etc.
+    customItems?: Array<{                       // Custom menu items
+      name: string,
+      action: string,
+      icon?: string,
+      disabled?: boolean
+    }>
+  },
   
   // Advanced
   gridOptions?: GridOptions,                    // Advanced AG Grid options
@@ -316,6 +336,42 @@ const schema = {
       // Save changes to backend
       saveToBackend(event.data);
     }
+  }
+};
+```
+
+## Context Menu
+
+Add a right-click context menu with custom actions:
+
+```typescript
+const schema = {
+  type: 'aggrid',
+  rowData: [...],
+  columnDefs: [...],
+  contextMenu: {
+    enabled: true,
+    items: [
+      'copy',              // Copy selected cells
+      'copyWithHeaders',   // Copy with column headers
+      'separator',
+      'export',            // Export to CSV
+      'autoSizeAll',       // Auto-size all columns
+      'resetColumns'       // Reset column state
+    ],
+    customItems: [
+      {
+        name: 'Delete Row',
+        action: 'delete',
+        icon: '🗑️',
+        disabled: false
+      },
+      {
+        name: 'View Details',
+        action: 'view',
+        icon: '👁️'
+      }
+    ]
   }
 };
 ```

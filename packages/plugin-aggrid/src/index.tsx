@@ -19,7 +19,7 @@ import 'ag-grid-community/styles/ag-theme-balham.css';
 import 'ag-grid-community/styles/ag-theme-material.css';
 
 // Export types for external use
-export type { AgGridSchema, SimpleColumnDef, AgGridCallbacks, ExportConfig, StatusBarConfig, ColumnConfig } from './types';
+export type { AgGridSchema, SimpleColumnDef, AgGridCallbacks, ExportConfig, StatusBarConfig, ColumnConfig, ContextMenuConfig } from './types';
 
 // 🚀 Lazy load the implementation file
 // This ensures AG Grid is only loaded when the component is actually rendered
@@ -50,6 +50,7 @@ export interface AgGridRendererProps {
     columnConfig?: any;
     enableRangeSelection?: boolean;
     enableCharts?: boolean;
+    contextMenu?: any;
   };
 }
 
@@ -82,6 +83,7 @@ export const AgGridRenderer: React.FC<AgGridRendererProps> = ({ schema }) => {
         columnConfig={schema.columnConfig}
         enableRangeSelection={schema.enableRangeSelection}
         enableCharts={schema.enableCharts}
+        contextMenu={schema.contextMenu}
       />
     </Suspense>
   );
@@ -230,6 +232,13 @@ ComponentRegistry.register(
         label: 'Enable Charts',
         defaultValue: false,
         description: 'Enable integrated charting (requires AG Grid Enterprise)',
+        advanced: true
+      },
+      { 
+        name: 'contextMenu', 
+        type: 'code', 
+        label: 'Context Menu Config (JSON)',
+        description: 'Configure right-click menu: { enabled: true, items: ["copy", "export"] }',
         advanced: true
       },
       { 

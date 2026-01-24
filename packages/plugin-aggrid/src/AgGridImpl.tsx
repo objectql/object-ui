@@ -8,8 +8,8 @@
 
 import React, { useMemo, useRef, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import type { ColDef, GridOptions, GridReadyEvent, CellClickedEvent, RowClickedEvent, SelectionChangedEvent, CellValueChangedEvent, StatusPanelDef } from 'ag-grid-community';
-import type { AgGridCallbacks, ExportConfig, StatusBarConfig, ColumnConfig } from './types';
+import type { ColDef, GridOptions, GridReadyEvent, CellClickedEvent, RowClickedEvent, SelectionChangedEvent, CellValueChangedEvent, StatusPanelDef, GetContextMenuItemsParams, MenuItemDef } from 'ag-grid-community';
+import type { AgGridCallbacks, ExportConfig, StatusBarConfig, ColumnConfig, ContextMenuConfig } from './types';
 
 export interface AgGridImplProps {
   rowData?: any[];
@@ -33,6 +33,7 @@ export interface AgGridImplProps {
   columnConfig?: ColumnConfig;
   enableRangeSelection?: boolean;
   enableCharts?: boolean;
+  contextMenu?: ContextMenuConfig;
 }
 
 /**
@@ -61,6 +62,7 @@ export default function AgGridImpl({
   columnConfig,
   enableRangeSelection = false,
   enableCharts = false,
+  contextMenu,
 }: AgGridImplProps) {
   const gridRef = useRef<any>(null);
 
@@ -110,6 +112,63 @@ export default function AgGridImpl({
       callbacks.onExport(data || [], 'csv');
     }
   }, [exportConfig, callbacks, rowData]);
+
+  // Context Menu handler
+  const getContextMenuItems = useCallback((params: GetContextMenuItemsParams): (string | MenuItemDef)[] => {
+    if (!contextMenu?.enabled) return [];
+    
+    const items: (string | MenuItemDef)[] = [];
+    const defaultItems = contextMenu.items || ['copy', 'copyWithHeaders', 'separator', 'export'];
+    
+    defaultItems.forEach(item => {
+      if (item === 'export') {
+        items.push({
+          name: 'Export CSV',
+          icon: '<span>📥</span>',
+          action: () => handleExportCSV(),
+        });
+      } else if (item === 'autoSizeAll') {
+        items.push({
+          name: 'Auto-size All Columns',
+          action: () => {
+            if (gridRef.current?.columnApi) {
+              gridRef.current.columnApi.autoSizeAllColumns();
+            }
+          },
+        });
+      } else if (item === 'resetColumns') {
+        items.push({
+          name: 'Reset Columns',
+          action: () => {
+            if (gridRef.current?.columnApi) {
+              gridRef.current.columnApi.resetColumnState();
+            }
+          },
+        });
+      } else {
+        items.push(item);
+      }
+    });
+    
+    // Add custom items
+    if (contextMenu.customItems) {
+      if (items.length > 0) {
+        items.push('separator');
+      }
+      contextMenu.customItems.forEach(customItem => {
+        items.push({
+          name: customItem.name,
+          icon: customItem.icon,
+          disabled: customItem.disabled,
+          action: () => {
+            console.log(`Custom action: ${customItem.action}`, params.node?.data);
+          },
+        });
+      });
+    }
+    
+    return items;
+  }, [contextMenu, handleExportCSV]);
 
   // Event handlers
   const handleCellClicked = useCallback((event: CellClickedEvent) => {
@@ -175,6 +234,7 @@ export default function AgGridImpl({
     statusBar: statusPanels ? { statusPanels } : undefined,
     enableRangeSelection,
     enableCharts,
+    getContextMenuItems: contextMenu?.enabled ? getContextMenuItems : undefined,
     // Default options for better UX
     suppressCellFocus: !editable,
     enableCellTextSelection: true,
@@ -198,6 +258,8 @@ export default function AgGridImpl({
     statusPanels,
     enableRangeSelection,
     enableCharts,
+    contextMenu,
+    getContextMenuItems,
     editable,
     handleCellClicked,
     handleRowClicked,
