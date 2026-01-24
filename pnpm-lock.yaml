@@ -424,11 +424,11 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/client':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.3.2
+        version: 0.3.2
       '@objectstack/spec':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.3.2
+        version: 0.3.2
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -820,8 +820,8 @@ importers:
   packages/types:
     dependencies:
       '@objectstack/spec':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.3.2
+        version: 0.3.2
     devDependencies:
       typescript:
         specifier: ^5.9.3
@@ -1839,11 +1839,11 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@objectstack/client@0.3.0':
-    resolution: {integrity: sha512-bei2aNLddyCTTR6k7I0iOs+KKL+MAzxIwsc/LftRuWfEiwmGyPnlOa5c8iEatgn1kKpW3DsEvUWv37xrUAmLUA==}
+  '@objectstack/client@0.3.2':
+    resolution: {integrity: sha512-lDFQQtoGM9eIpefQaVim9WbBBAi34c/i028DpkCjv4KAdXVZAMPDBCjMTKeXYwx27roGw9vftNCRghny5wVK2A==}
 
-  '@objectstack/spec@0.3.0':
-    resolution: {integrity: sha512-Gr/dYtTMeDk+Qx0aYFiH+jX1qFRYc8k3Wc+EHuiQAWNm3AKJfVMtMdz9otRrUdkoWhLb59N3QUUx1xHgLAPk8Q==}
+  '@objectstack/spec@0.3.2':
+    resolution: {integrity: sha512-X4tmUZLz2eQ88ZqQv02NF/ObkGN8TdaT5K9A11aGRUyeFy3X3LBfC+FYxBgmcUbTIXm4W6RLYkYFvn2s/6JKHg==}
     engines: {node: '>=18.0.0'}
 
   '@orama/orama@3.1.18':
@@ -7340,11 +7340,11 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/client@0.3.0':
+  '@objectstack/client@0.3.2':
     dependencies:
-      '@objectstack/spec': 0.3.0
+      '@objectstack/spec': 0.3.2
 
-  '@objectstack/spec@0.3.0':
+  '@objectstack/spec@0.3.2':
     dependencies:
       zod: 3.25.76
 

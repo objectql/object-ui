@@ -192,7 +192,7 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
     pagination: 'showPagination' in schema ? schema.showPagination : true,
     pageSize: schema.pageSize || 10,
     searchable: 'showSearch' in schema ? schema.showSearch : true,
-    selectable: !!schema.selectable,
+    selectable: schema.selectable,
     sortable: true,
     exportable: operations?.export,
     rowActions: hasActions,

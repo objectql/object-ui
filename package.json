@@ -4,7 +4,7 @@
   "license": "MIT",
   "homepage": "https://www.objectui.org",
   "engines": {
-    "node": ">=18",
+    "node": ">=20",
     "pnpm": ">=9"
   },
   "workspaces": [

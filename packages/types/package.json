@@ -77,7 +77,7 @@
     "directory": "packages/types"
   },
   "dependencies": {
-    "@objectstack/spec": "^0.3.0"
+    "@objectstack/spec": "^0.3.2"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
+    // Removed rootDir to prevent file not under rootDir errors when importing from workspace dependencies
     "composite": true,
     "declarationMap": true
   },
