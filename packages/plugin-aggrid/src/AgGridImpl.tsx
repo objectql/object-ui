@@ -176,7 +176,7 @@ export default function AgGridImpl({
     }
     
     return items;
-  }, [contextMenu, handleExportCSV]);
+  }, [contextMenu, handleExportCSV, callbacks]);
 
   // Event handlers
   const handleCellClicked = useCallback((event: CellClickedEvent) => {
