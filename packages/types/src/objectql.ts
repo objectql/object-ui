@@ -341,6 +341,18 @@ export interface ObjectGridSchema extends BaseSchema {
   resizableColumns?: boolean;
   
   /**
+   * @deprecated Use label instead
+   * Legacy title field
+   */
+  title?: string;
+
+  /**
+   * @deprecated No direct replacement (consider using label with additional context)
+   * Legacy description field
+   */
+  description?: string;
+  
+  /**
    * Enable/disable built-in operations
    * NOTE: This is ObjectUI-specific and not part of @objectstack/spec
    */

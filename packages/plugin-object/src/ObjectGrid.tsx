@@ -258,7 +258,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [schema, dataSource, hasInlineData]);
+  }, [schema, dataSource, hasInlineData, dataConfig]);
 
   useEffect(() => {
     if (objectSchema || hasInlineData) {
@@ -269,7 +269,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   if (error) {
     return (
       <div className="p-4 border border-red-300 bg-red-50 rounded-md">
-        <h3 className="text-red-800 font-semibold">Error loading table</h3>
+        <h3 className="text-red-800 font-semibold">Error loading grid</h3>
         <p className="text-red-600 text-sm mt-1">{error.message}</p>
       </div>
     );
@@ -279,7 +279,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     return (
       <div className="p-8 text-center">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        <p className="mt-2 text-sm text-gray-600">Loading {schema.objectName}...</p>
+        <p className="mt-2 text-sm text-gray-600">Loading grid...</p>
       </div>
     );
   }

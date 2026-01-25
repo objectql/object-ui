@@ -1,0 +1,72 @@
+name: ObjectGrid
+label: Object Grid
+description: Production-grade data grid for displaying and managing object records with advanced features
+category: data_display
+version: 1.0.0
+framework: react
+
+props:
+  - name: objectName
+    type: string
+    required: true
+    description: The object API name to display data for
+  - name: columns
+    type: array
+    description: Column configurations with enhanced properties
+    schema:
+      - field: string
+      - label: string
+      - width: number
+      - align: string
+      - sortable: boolean
+  - name: data
+    type: object
+    description: Data source configuration (object/api/value providers)
+  - name: selection
+    type: object
+    description: Row selection configuration
+    schema:
+      type: string # none, single, multiple
+  - name: pagination
+    type: object
+    description: Pagination configuration
+    schema:
+      pageSize: number
+      pageSizeOptions: array
+  - name: searchableFields
+    type: array
+    description: Fields enabled for search
+  - name: sort
+    type: array
+    description: Sort configuration
+  - name: filter
+    type: array
+    description: Filter criteria
+  - name: striped
+    type: boolean
+    default: false
+    description: Alternating row colors
+  - name: bordered
+    type: boolean
+    default: false
+    description: Show cell borders
+  - name: resizable
+    type: boolean
+    default: true
+    description: Enable column resizing
+
+events:
+  - name: onRowClick
+    payload: "{ row: any, index: number }"
+  - name: onSelectionChange
+    payload: "{ selectedRows: any[] }"
+  - name: onEdit
+    payload: "{ record: any }"
+  - name: onDelete
+    payload: "{ record: any }"
+
+features:
+  remote_data: true
+  virtual_scroll: true
+  inline_edit: true
+  view_zod_aligned: true
