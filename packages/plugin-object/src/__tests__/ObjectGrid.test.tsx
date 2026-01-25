@@ -81,7 +81,7 @@ describe('ObjectGrid', () => {
 
   it('should render loading state initially', () => {
     render(<ObjectGrid schema={mockSchema} dataSource={mockDataSource} />);
-    expect(screen.getByText(/Loading users/i)).toBeInTheDocument();
+    expect(screen.getByText(/Loading grid/i)).toBeInTheDocument();
   });
 
   it('should fetch and display data', async () => {
