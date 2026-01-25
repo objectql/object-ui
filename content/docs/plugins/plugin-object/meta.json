@@ -1,7 +1,8 @@
 {
   "title": "Plugin Object",
   "pages": [
-    "object-table",
+    "object-grid",
+    "object-grid-migration",
     "object-form",
     "object-field",
     "object-view"
