@@ -13,8 +13,8 @@ import { ObjectView } from '../ObjectView';
 import type { ObjectViewSchema, DataSource } from '@object-ui/types';
 
 // Mock child components
-vi.mock('../ObjectTable', () => ({
-  ObjectTable: ({ schema, onRowClick, onEdit, onDelete }: any) => (
+vi.mock('../ObjectGrid', () => ({
+  ObjectGrid: ({ schema, onRowClick, onEdit, onDelete }: any) => (
     <div data-testid="object-grid">
       <div data-testid="table-object-name">{schema.objectName}</div>
       <button onClick={() => onRowClick?.({ _id: '1', name: 'Test' })} data-testid="row-click-btn">
