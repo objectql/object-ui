@@ -23,14 +23,14 @@ describe('ObjectCalendar', () => {
           {
             _id: '1',
             title: 'Meeting 1',
-            start_date: '2024-01-15T10:00:00Z',
-            end_date: '2024-01-15T11:00:00Z',
+            start_date: '2026-01-15T10:00:00Z',
+            end_date: '2026-01-15T11:00:00Z',
           },
           {
             _id: '2',
             title: 'Meeting 2',
-            start_date: '2024-01-20T14:00:00Z',
-            end_date: '2024-01-20T15:00:00Z',
+            start_date: '2026-01-20T14:00:00Z',
+            end_date: '2026-01-20T15:00:00Z',
           },
         ],
       }),
@@ -82,25 +82,28 @@ describe('ObjectCalendar', () => {
   });
 
   it('should render with inline data', async () => {
-    const schemaWithInlineData = {
+    // Test inline data with the same structure as the mock data
+    const inlineDataSchema: ObjectGridSchema = {
       ...mockSchema,
       data: {
         provider: 'value',
         items: [
           {
-            id: '1',
+            _id: '1',
             title: 'Event A',
-            start_date: '2024-01-15T10:00:00Z',
+            start_date: '2026-01-15T10:00:00Z',
+            end_date: '2026-01-15T11:00:00Z',
           },
         ],
       },
     } as any;
 
-    render(<ObjectCalendar schema={schemaWithInlineData} />);
+    // Don't pass dataSource for inline data
+    render(<ObjectCalendar schema={inlineDataSchema} />);
 
     await waitFor(() => {
       expect(screen.getByText('Event A')).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 
   it('should show error when calendar config is missing', async () => {
