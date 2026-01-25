@@ -29,7 +29,7 @@ ObjectTable now leverages the existing data-table component which provides:
 ```typescript
 <ObjectTable
   schema={{
-    type: 'object-table',
+    type: 'object-grid',
     objectName: 'users',
     fields: ['name', 'email', 'status'],
     operations: { create: true, update: true, delete: true },
@@ -125,7 +125,7 @@ import { ObjectTable } from '@object-ui/plugin-object';
 
 ```typescript
 {
-  type: 'object-table',
+  type: 'object-grid',
   objectName: string,
   fields?: string[],
   columns?: TableColumn[],
@@ -172,7 +172,7 @@ import { ObjectTable } from '@object-ui/plugin-object';
 ```typescript
 <ObjectTable
   schema={{
-    type: 'object-table',
+    type: 'object-grid',
     objectName: 'contacts',
     title: 'Contact Management',
     fields: [

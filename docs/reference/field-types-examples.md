@@ -274,7 +274,7 @@ Display contacts in a table with type-aware cell rendering:
 import { ObjectTable } from '@object-ui/plugin-object';
 
 const contactTableSchema = {
-  type: 'object-table',
+  type: 'object-grid',
   objectName: 'contacts',
   title: 'Contacts',
   
@@ -330,7 +330,7 @@ For demos and documentation, you can provide inline data:
 
 ```typescript
 const demoTableSchema = {
-  type: 'object-table',
+  type: 'object-grid',
   objectName: 'contacts',
   
   // Provide inline data

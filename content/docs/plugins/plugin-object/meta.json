@@ -2,7 +2,6 @@
   "title": "Plugin Object",
   "pages": [
     "object-grid",
-    "object-grid-migration",
     "object-form",
     "object-field",
     "object-view"

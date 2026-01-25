@@ -31,7 +31,7 @@ function UsersTable() {
   return (
     <ObjectTable 
       schema={{
-        type: 'object-table',
+        type: 'object-grid',
         objectName: 'users'
       }}
       dataSource={dataSource}

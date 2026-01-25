@@ -30,9 +30,9 @@ Enterprise-grade table component with unified schema supporting both traditional
 - Optional grid mode: inline editing, keyboard navigation, frozen columns (set `editable: true`)
 
 **Single unified type:**
-- `type: 'object-table'` - Supports both traditional and grid modes
+- `type: 'object-grid'` - Supports both traditional and grid modes
 
-[Learn more about ObjectTable →](/docs/plugins/plugin-object/object-table)
+[Learn more about ObjectTable →](/docs/plugins/plugin-object/object-grid)
 
 ### ObjectForm
 Smart forms with validation and schema integration. Supports both create and edit modes with automatic field generation.
@@ -94,7 +94,7 @@ import type {
 
 // Object Table (Traditional CRUD)
 const tableSchema: ObjectTableSchema = {
-  type: 'object-table',
+  type: 'object-grid',
   objectName: 'users',
   fields: ['name', 'email', 'role'],
   operations: {
@@ -108,7 +108,7 @@ const tableSchema: ObjectTableSchema = {
 
 // Object Table (Grid Mode with inline editing)
 const gridSchema: ObjectTableSchema = {
-  type: 'object-table',
+  type: 'object-grid',
   objectName: 'inventory',
   fields: ['sku', 'name', 'quantity', 'price'],
   editable: true,              // Enable grid mode
