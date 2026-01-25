@@ -47,6 +47,10 @@
     "./data": {
       "types": "./dist/data.d.ts",
       "import": "./dist/data.js"
+    },
+    "./zod": {
+      "types": "./dist/zod/index.zod.d.ts",
+      "import": "./dist/zod/index.zod.js"
     }
   },
   "files": [
@@ -77,7 +81,8 @@
     "directory": "packages/types"
   },
   "dependencies": {
-    "@objectstack/spec": "^0.3.2"
+    "@objectstack/spec": "^0.3.2",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
