@@ -10,6 +10,7 @@
     // Removed rootDir to prevent file not under rootDir errors when importing from workspace dependencies
     "noEmit": false,
     "declaration": true,
+    "declarationMap": true,
     "composite": true,
     "skipLibCheck": true
   },
