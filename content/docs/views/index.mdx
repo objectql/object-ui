@@ -16,10 +16,11 @@ The Views package provides seamless integration with ObjectQL backends through s
 
 ## Components
 
-The plugin provides three main components for building CRUD interfaces:
+The Views package provides seven comprehensive components for building data-driven interfaces:
 
-### ObjectTable
+### CRUD Components
 
+#### ObjectGrid
 Enterprise-grade table component with unified schema supporting both traditional CRUD and spreadsheet-like inline editing. Built on data-table foundation with automatic field type rendering.
 
 **Features:**
@@ -29,20 +30,63 @@ Enterprise-grade table component with unified schema supporting both traditional
 - CSV export, column resizing, column reordering
 - Optional grid mode: inline editing, keyboard navigation, frozen columns (set `editable: true`)
 
-**Single unified type:**
-- `type: 'object-grid'` - Supports both traditional and grid modes
+[Learn more about ObjectGrid →](/docs/views/object-grid)
 
-[Learn more about ObjectTable →](/docs/views/object-grid)
-
-### ObjectForm
+#### ObjectForm
 Smart forms with validation and schema integration. Supports both create and edit modes with automatic field generation.
 
 [Learn more about ObjectForm →](/docs/views/object-form)
 
-### ObjectView
+#### ObjectView
 Complete CRUD views combining list, detail, and edit modes in a single component. Ideal for building full-featured data management interfaces.
 
 [Learn more about ObjectView →](/docs/views/object-view)
+
+### Specialized Visualization Components
+
+#### ObjectKanban
+Kanban board component for visualizing workflow stages with drag-and-drop functionality. Perfect for project management and pipeline visualization.
+
+**Features:**
+- Auto-grouping by field (status, stage, etc.)
+- Drag-and-drop card movement
+- Column summaries and aggregations
+- Card customization
+
+[Learn more about ObjectKanban →](/docs/views/object-kanban)
+
+#### ObjectCalendar
+Calendar component for event and schedule management with multiple view modes (month/week/day).
+
+**Features:**
+- Multiple view modes (month, week, day)
+- Multi-day event support
+- Color coding by category
+- Date range filtering
+
+[Learn more about ObjectCalendar →](/docs/views/object-calendar)
+
+#### ObjectGantt
+Gantt chart component for project timeline visualization with task dependencies and progress tracking.
+
+**Features:**
+- Timeline visualization
+- Task dependencies
+- Progress tracking (0-100%)
+- Critical path highlighting
+
+[Learn more about ObjectGantt →](/docs/views/object-gantt)
+
+#### ObjectMap
+Interactive map component for geographic data visualization with location markers.
+
+**Features:**
+- Interactive map with markers
+- Marker clustering
+- Custom popups
+- Auto-fit to bounds
+
+[Learn more about ObjectMap →](/docs/views/object-map)
 
 ## Features
 

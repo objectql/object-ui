@@ -1,0 +1,652 @@
+---
+title: "ObjectMap"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+A specialized map visualization component that works with ObjectQL data sources. Displays records as markers on an interactive map based on location data, perfect for geographic data visualization and location-based services.
+
+## Interactive Demo
+
+<InteractiveDemo
+  schema={{
+    type: "stack",
+    gap: 4,
+    children: [
+      {
+        type: "text",
+        content: "Map View - Geographic Data Visualization",
+        className: "text-lg font-semibold"
+      },
+      {
+        type: "card",
+        children: [
+          {
+            type: "stack",
+            gap: 3,
+            children: [
+              {
+                type: "text",
+                content: "📍 Interactive Map with Location Markers",
+                className: "text-sm text-muted-foreground"
+              },
+              {
+                type: "stack",
+                gap: 2,
+                children: [
+                  {
+                    type: "card",
+                    className: "p-3 bg-blue-50 border-l-4 border-blue-500",
+                    children: [
+                      {
+                        type: "stack",
+                        gap: 1,
+                        children: [
+                          { type: "text", content: "📍 San Francisco Office", className: "font-semibold text-sm" },
+                          { type: "text", content: "37.7749° N, 122.4194° W", className: "text-xs text-muted-foreground" }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    type: "card",
+                    className: "p-3 bg-green-50 border-l-4 border-green-500",
+                    children: [
+                      {
+                        type: "stack",
+                        gap: 1,
+                        children: [
+                          { type: "text", content: "📍 New York Office", className: "font-semibold text-sm" },
+                          { type: "text", content: "40.7128° N, 74.0060° W", className: "text-xs text-muted-foreground" }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    type: "card",
+                    className: "p-3 bg-purple-50 border-l-4 border-purple-500",
+                    children: [
+                      {
+                        type: "stack",
+                        gap: 1,
+                        children: [
+                          { type: "text", content: "📍 London Office", className: "font-semibold text-sm" },
+                          { type: "text", content: "51.5074° N, 0.1278° W", className: "text-xs text-muted-foreground" }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+  title="ObjectMap Component"
+  description="Interactive map for geographic data visualization with location markers"
+/>
+
+## Basic Usage
+
+```tsx
+import { ObjectMap } from '@object-ui/views';
+import { ObjectQLDataSource } from '@object-ui/data-objectql';
+
+const dataSource = new ObjectQLDataSource({
+  baseUrl: 'https://api.example.com',
+  token: 'your-auth-token'
+});
+
+function LocationsMap() {
+  return (
+    <ObjectMap 
+      schema={{
+        type: 'object-grid',
+        objectName: 'locations',
+        filter: {
+          map: {
+            latitudeField: 'latitude',
+            longitudeField: 'longitude',
+            titleField: 'name',
+            descriptionField: 'address',
+            zoom: 10,
+            center: [37.7749, -122.4194]
+          }
+        }
+      }}
+      dataSource={dataSource}
+      onMarkerClick={(record) => console.log('Location clicked:', record)}
+    />
+  );
+}
+```
+
+## JSON Schema
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "locations",
+  "filter": {
+    "map": {
+      "latitudeField": "latitude",
+      "longitudeField": "longitude",
+      "titleField": "name",
+      "descriptionField": "address",
+      "zoom": 10,
+      "center": [37.7749, -122.4194]
+    }
+  }
+}
+```
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `schema` | ObjectGridSchema | Required | Grid schema with map configuration |
+| `dataSource` | DataSource | Optional | Data source for fetching records |
+| `className` | string | `''` | Custom CSS class |
+| `onMarkerClick` | (record) => void | - | Handler for marker click |
+| `onEdit` | (record) => void | - | Handler for edit action |
+| `onDelete` | (record) => void | - | Handler for delete action |
+
+## Map Configuration
+
+The map configuration is specified within the schema's `filter` property:
+
+```typescript
+interface MapConfig {
+  /** Field containing latitude value */
+  latitudeField?: string;
+  /** Field containing longitude value */
+  longitudeField?: string;
+  /** Field containing combined location (e.g., "lat,lng" or location object) */
+  locationField?: string;
+  /** Field to use for marker title/label */
+  titleField?: string;
+  /** Field to use for marker description */
+  descriptionField?: string;
+  /** Default zoom level (1-20) */
+  zoom?: number;
+  /** Center coordinates [lat, lng] */
+  center?: [number, number];
+}
+```
+
+## Features
+
+- **Interactive Map**: Pan, zoom, and explore geographic data
+- **Location Markers**: Display records as map pins/markers
+- **Marker Clustering**: Automatically group nearby markers (when many points)
+- **Popup/Tooltips**: Show details on marker click
+- **Flexible Location Data**: Support for lat/lng fields or location objects
+- **Custom Zoom & Center**: Control initial map view
+- **Multi-Provider Support**: Works with object/api/value data providers
+
+## Example: Store Locations
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "stores",
+  "filter": {
+    "map": {
+      "latitudeField": "latitude",
+      "longitudeField": "longitude",
+      "titleField": "store_name",
+      "descriptionField": "address",
+      "zoom": 12,
+      "center": [40.7128, -74.0060]
+    }
+  }
+}
+```
+
+This creates a map where:
+- Store locations plotted using `latitude` and `longitude` fields
+- Marker titles from `store_name`
+- Marker popups show `address`
+- Map centered on New York City with zoom level 12
+
+## Example: Delivery Routes
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "deliveries",
+  "filter": {
+    "map": {
+      "latitudeField": "delivery_lat",
+      "longitudeField": "delivery_lng",
+      "titleField": "customer_name",
+      "descriptionField": "delivery_address"
+    }
+  }
+}
+```
+
+This creates a delivery map where:
+- Delivery locations shown on map
+- Customer names as marker titles
+- Delivery addresses in popups
+
+## Example: Static Data Map
+
+```json
+{
+  "type": "object-grid",
+  "data": {
+    "provider": "value",
+    "items": [
+      {
+        "id": "1",
+        "name": "San Francisco Office",
+        "latitude": 37.7749,
+        "longitude": -122.4194,
+        "address": "123 Market St, San Francisco, CA"
+      },
+      {
+        "id": "2",
+        "name": "New York Office",
+        "latitude": 40.7128,
+        "longitude": -74.0060,
+        "address": "456 Broadway, New York, NY"
+      },
+      {
+        "id": "3",
+        "name": "London Office",
+        "latitude": 51.5074,
+        "longitude": -0.1278,
+        "address": "789 Oxford St, London, UK"
+      }
+    ]
+  },
+  "filter": {
+    "map": {
+      "latitudeField": "latitude",
+      "longitudeField": "longitude",
+      "titleField": "name",
+      "descriptionField": "address",
+      "zoom": 2,
+      "center": [20, 0]
+    }
+  }
+}
+```
+
+## Advanced Configuration
+
+### Location Field Formats
+
+The component supports multiple location data formats:
+
+**Separate Lat/Lng Fields:**
+```json
+{
+  "latitude": 37.7749,
+  "longitude": -122.4194
+}
+```
+
+**Location Object:**
+```json
+{
+  "location": {
+    "lat": 37.7749,
+    "lng": -122.4194
+  }
+}
+```
+
+**Location String:**
+```json
+{
+  "location": "37.7749,-122.4194"
+}
+```
+
+Configure using appropriate fields:
+```json
+{
+  "filter": {
+    "map": {
+      "locationField": "location",
+      "titleField": "name"
+    }
+  }
+}
+```
+
+### Marker Clustering
+
+For maps with many markers, automatic clustering groups nearby points:
+
+- Zoom out: Markers cluster into numbered groups
+- Zoom in: Clusters expand to show individual markers
+- Click cluster: Zoom to cluster bounds
+
+Clustering automatically activates when you have 50+ markers.
+
+### Custom Marker Icons
+
+Customize markers based on record data:
+
+```json
+{
+  "filter": {
+    "map": {
+      "latitudeField": "latitude",
+      "longitudeField": "longitude",
+      "titleField": "name",
+      "markerIconField": "icon_url",
+      "markerColorField": "category"
+    }
+  }
+}
+```
+
+Color coding by category:
+- Different colors for different record types
+- Visual categorization at a glance
+
+### Zoom Levels
+
+Zoom levels range from 1 (world view) to 20 (building level):
+
+- **1-3**: World/continent view
+- **4-6**: Country view
+- **7-10**: City view
+- **11-14**: Neighborhood view
+- **15-20**: Street/building view
+
+```json
+{
+  "zoom": 15,  // Street-level view
+  "center": [37.7749, -122.4194]
+}
+```
+
+### Map Bounds
+
+Auto-fit map to show all markers:
+
+```json
+{
+  "filter": {
+    "map": {
+      "latitudeField": "latitude",
+      "longitudeField": "longitude",
+      "titleField": "name",
+      "autoFit": true
+    }
+  }
+}
+```
+
+## Event Handlers
+
+### onMarkerClick
+
+Triggered when a user clicks on a marker:
+
+```tsx
+<ObjectMap
+  schema={schema}
+  onMarkerClick={(record) => {
+    // Show location details
+    showLocationDetails(record);
+  }}
+/>
+```
+
+### Custom Popup Content
+
+Customize the popup that appears on marker click:
+
+```tsx
+<ObjectMap
+  schema={schema}
+  renderPopup={(record) => (
+    <div>
+      <h3>{record.name}</h3>
+      <p>{record.address}</p>
+      <button onClick={() => navigate(record)}>
+        Get Directions
+      </button>
+    </div>
+  )}
+/>
+```
+
+## Data Providers
+
+### Object Provider
+
+Fetches locations from ObjectQL objects:
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "locations",
+  "data": {
+    "provider": "object",
+    "object": "locations"
+  },
+  "filter": {
+    "map": {
+      "latitudeField": "latitude",
+      "longitudeField": "longitude",
+      "titleField": "name"
+    }
+  }
+}
+```
+
+### API Provider
+
+Fetches locations from custom REST APIs:
+
+```json
+{
+  "type": "object-grid",
+  "data": {
+    "provider": "api",
+    "read": {
+      "url": "/api/locations",
+      "method": "GET",
+      "params": {
+        "bounds": "${mapBounds}"
+      }
+    }
+  },
+  "filter": {
+    "map": {
+      "latitudeField": "latitude",
+      "longitudeField": "longitude",
+      "titleField": "name"
+    }
+  }
+}
+```
+
+### Value Provider
+
+Uses static location data:
+
+```json
+{
+  "type": "object-grid",
+  "data": {
+    "provider": "value",
+    "items": [...]
+  },
+  "filter": {
+    "map": {
+      "latitudeField": "latitude",
+      "longitudeField": "longitude",
+      "titleField": "name"
+    }
+  }
+}
+```
+
+## Integration Examples
+
+### Real Estate Listings
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "properties",
+  "filter": {
+    "map": {
+      "latitudeField": "property_lat",
+      "longitudeField": "property_lng",
+      "titleField": "property_address",
+      "descriptionField": "property_details",
+      "markerColorField": "property_type"
+    }
+  }
+}
+```
+
+### Fleet Tracking
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "vehicles",
+  "filter": {
+    "map": {
+      "latitudeField": "current_lat",
+      "longitudeField": "current_lng",
+      "titleField": "vehicle_id",
+      "descriptionField": "driver_name",
+      "markerIconField": "vehicle_type"
+    }
+  }
+}
+```
+
+### Event Venues
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "venues",
+  "filter": {
+    "map": {
+      "latitudeField": "venue_latitude",
+      "longitudeField": "venue_longitude",
+      "titleField": "venue_name",
+      "descriptionField": "venue_address"
+    }
+  }
+}
+```
+
+### Customer Locations
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "customers",
+  "filter": {
+    "map": {
+      "locationField": "address_location",
+      "titleField": "company_name",
+      "descriptionField": "contact_info",
+      "markerColorField": "customer_tier"
+    }
+  }
+}
+```
+
+## Map Integration
+
+This component provides a basic map implementation. For production use, you can integrate with popular mapping libraries:
+
+### Mapbox Integration
+- High-quality maps with custom styling
+- Advanced features (3D, heatmaps, routing)
+- Commercial use requires API key
+
+### Leaflet Integration
+- Open-source mapping library
+- Extensive plugin ecosystem
+- Free for all uses
+
+### Google Maps Integration
+- Familiar interface for users
+- Street View integration
+- Requires Google Maps API key
+
+The component architecture supports plugging in any of these providers while maintaining the same schema-based configuration.
+
+## Performance Considerations
+
+### Large Datasets
+
+For maps with thousands of markers:
+
+1. **Enable Clustering**: Automatically groups nearby markers
+2. **Viewport Loading**: Only load markers in visible area
+3. **Pagination**: Load markers in batches as user pans
+
+```json
+{
+  "filter": {
+    "map": {
+      "latitudeField": "latitude",
+      "longitudeField": "longitude",
+      "titleField": "name",
+      "enableClustering": true,
+      "viewportLoading": true
+    }
+  },
+  "pagination": {
+    "pageSize": 1000
+  }
+}
+```
+
+### Real-time Updates
+
+For live tracking (vehicles, deliveries):
+
+```tsx
+// Poll for updates every 30 seconds
+useEffect(() => {
+  const interval = setInterval(() => {
+    dataSource.refresh();
+  }, 30000);
+  return () => clearInterval(interval);
+}, []);
+```
+
+## When to Use ObjectMap
+
+ObjectMap is ideal when you need:
+
+- **Geographic Visualization**: Display location-based data
+- **Store/Office Locator**: Show business locations
+- **Fleet Tracking**: Monitor vehicle or asset locations
+- **Territory Management**: Visualize sales regions
+- **Delivery Routes**: Plan and track deliveries
+- **Event Mapping**: Show venue locations
+
+For other visualization needs, consider:
+- Use [ObjectGrid](/docs/views/object-grid) for traditional table views
+- Use [ObjectKanban](/docs/views/object-kanban) for workflow visualization
+- Use [ObjectCalendar](/docs/views/object-calendar) for date-based data
+
+## Related Components
+
+- [ObjectGrid](/docs/views/object-grid) - Traditional table view
+- [ObjectKanban](/docs/views/object-kanban) - Kanban board view
+- [ObjectCalendar](/docs/views/object-calendar) - Calendar view
+- [ObjectGantt](/docs/views/object-gantt) - Gantt chart view
+- [ObjectView](/docs/views/object-view) - Complete CRUD interface

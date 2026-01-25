@@ -1,0 +1,567 @@
+---
+title: "ObjectGantt"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+A specialized Gantt chart component that works with ObjectQL data sources. Displays tasks with date ranges, progress tracking, and dependencies, perfect for project management and timeline visualization.
+
+## Interactive Demo
+
+<InteractiveDemo
+  schema={{
+    type: "stack",
+    gap: 4,
+    children: [
+      {
+        type: "text",
+        content: "Gantt Chart - Project Timeline Visualization",
+        className: "text-lg font-semibold"
+      },
+      {
+        type: "card",
+        children: [
+          {
+            type: "stack",
+            gap: 2,
+            children: [
+              {
+                type: "card",
+                className: "p-3 border-l-4 border-blue-500",
+                children: [
+                  {
+                    type: "stack",
+                    gap: 1,
+                    children: [
+                      { type: "text", content: "Phase 1: Planning", className: "font-semibold text-sm" },
+                      { type: "text", content: "Jan 1 - Jan 15 • 100% Complete", className: "text-xs text-muted-foreground" },
+                      {
+                        type: "progress",
+                        value: 100,
+                        className: "h-2"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                type: "card",
+                className: "p-3 border-l-4 border-green-500",
+                children: [
+                  {
+                    type: "stack",
+                    gap: 1,
+                    children: [
+                      { type: "text", content: "Phase 2: Development", className: "font-semibold text-sm" },
+                      { type: "text", content: "Jan 16 - Feb 28 • 65% Complete", className: "text-xs text-muted-foreground" },
+                      {
+                        type: "progress",
+                        value: 65,
+                        className: "h-2"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                type: "card",
+                className: "p-3 border-l-4 border-slate-300",
+                children: [
+                  {
+                    type: "stack",
+                    gap: 1,
+                    children: [
+                      { type: "text", content: "Phase 3: Testing", className: "font-semibold text-sm" },
+                      { type: "text", content: "Mar 1 - Mar 15 • 0% Complete", className: "text-xs text-muted-foreground" },
+                      {
+                        type: "progress",
+                        value: 0,
+                        className: "h-2"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+  title="ObjectGantt Component"
+  description="Gantt chart for project timeline and task dependency visualization"
+/>
+
+## Basic Usage
+
+```tsx
+import { ObjectGantt } from '@object-ui/views';
+import { ObjectQLDataSource } from '@object-ui/data-objectql';
+
+const dataSource = new ObjectQLDataSource({
+  baseUrl: 'https://api.example.com',
+  token: 'your-auth-token'
+});
+
+function ProjectGantt() {
+  return (
+    <ObjectGantt 
+      schema={{
+        type: 'object-grid',
+        objectName: 'tasks',
+        filter: {
+          gantt: {
+            startDateField: 'start_date',
+            endDateField: 'end_date',
+            titleField: 'name',
+            progressField: 'progress',
+            dependenciesField: 'dependencies'
+          }
+        }
+      }}
+      dataSource={dataSource}
+      onTaskClick={(record) => console.log('Task clicked:', record)}
+    />
+  );
+}
+```
+
+## JSON Schema
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "tasks",
+  "filter": {
+    "gantt": {
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "titleField": "name",
+      "progressField": "progress",
+      "dependenciesField": "dependencies"
+    }
+  }
+}
+```
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `schema` | ObjectGridSchema | Required | Grid schema with gantt configuration |
+| `dataSource` | DataSource | Optional | Data source for fetching records |
+| `className` | string | `''` | Custom CSS class |
+| `onTaskClick` | (record) => void | - | Handler for task bar click |
+| `onEdit` | (record) => void | - | Handler for edit action |
+| `onDelete` | (record) => void | - | Handler for delete action |
+
+## Gantt Configuration
+
+The gantt configuration is specified within the schema's `filter` property:
+
+```typescript
+interface GanttConfig {
+  /** Start date field (required) */
+  startDateField: string;
+  /** End date field (required) */
+  endDateField: string;
+  /** Title field for task display */
+  titleField: string;
+  /** Progress field (0-100) */
+  progressField?: string;
+  /** Dependencies field (array of task IDs) */
+  dependenciesField?: string;
+}
+```
+
+## Features
+
+- **Timeline Visualization**: Display tasks on a timeline
+- **Progress Tracking**: Visual progress indicators (0-100%)
+- **Task Dependencies**: Show relationships between tasks
+- **Date Range Display**: Automatic timeline scaling
+- **Auto-Scrolling**: Navigate to current date
+- **Multi-Provider Support**: Works with object/api/value data providers
+- **Interactive Bars**: Click handlers for task selection
+
+## Example: Software Development Project
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "project_tasks",
+  "filter": {
+    "gantt": {
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "titleField": "task_name",
+      "progressField": "completion_percentage",
+      "dependenciesField": "blocked_by"
+    }
+  },
+  "sort": [
+    {
+      "field": "start_date",
+      "order": "asc"
+    }
+  ]
+}
+```
+
+This creates a Gantt chart where:
+- Tasks are displayed as horizontal bars from `start_date` to `end_date`
+- Task names shown from `task_name` field
+- Progress bars indicate `completion_percentage` (0-100)
+- Dependencies shown via `blocked_by` field (array of task IDs)
+- Tasks sorted chronologically
+
+## Example: Construction Project
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "construction_phases",
+  "filter": {
+    "gantt": {
+      "startDateField": "phase_start",
+      "endDateField": "phase_end",
+      "titleField": "phase_name",
+      "progressField": "percent_complete"
+    }
+  }
+}
+```
+
+This creates a construction timeline where:
+- Phases displayed on timeline
+- Phase names and completion percentages shown
+- No dependencies (optional for simple timelines)
+
+## Example: Static Data Gantt
+
+```json
+{
+  "type": "object-grid",
+  "data": {
+    "provider": "value",
+    "items": [
+      {
+        "id": "1",
+        "name": "Planning",
+        "start_date": "2024-01-01",
+        "end_date": "2024-01-15",
+        "progress": 100,
+        "dependencies": []
+      },
+      {
+        "id": "2",
+        "name": "Development",
+        "start_date": "2024-01-16",
+        "end_date": "2024-02-28",
+        "progress": 65,
+        "dependencies": ["1"]
+      },
+      {
+        "id": "3",
+        "name": "Testing",
+        "start_date": "2024-03-01",
+        "end_date": "2024-03-15",
+        "progress": 0,
+        "dependencies": ["2"]
+      }
+    ]
+  },
+  "filter": {
+    "gantt": {
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "titleField": "name",
+      "progressField": "progress",
+      "dependenciesField": "dependencies"
+    }
+  }
+}
+```
+
+## Advanced Configuration
+
+### Progress Tracking
+
+The `progressField` should contain a numeric value between 0 and 100:
+
+```json
+{
+  "id": "1",
+  "name": "Backend Development",
+  "start_date": "2024-01-01",
+  "end_date": "2024-01-31",
+  "progress": 75
+}
+```
+
+Visual indicators:
+- **0-25%**: Red progress bar (just started)
+- **26-75%**: Yellow progress bar (in progress)
+- **76-99%**: Green progress bar (almost done)
+- **100%**: Completed (different styling)
+
+### Task Dependencies
+
+Dependencies are specified as an array of task IDs:
+
+```json
+{
+  "id": "3",
+  "name": "Deploy to Production",
+  "start_date": "2024-03-01",
+  "end_date": "2024-03-05",
+  "dependencies": ["1", "2"]
+}
+```
+
+This indicates that task "3" depends on tasks "1" and "2" being completed first.
+
+Dependency visualization:
+- Arrows connect dependent tasks
+- Visual indicators for blocked tasks
+- Highlight critical path (optional)
+
+### Milestones
+
+For milestone tasks (zero duration), use the same date for start and end:
+
+```json
+{
+  "id": "m1",
+  "name": "MVP Release",
+  "start_date": "2024-02-15",
+  "end_date": "2024-02-15",
+  "progress": 100
+}
+```
+
+Milestones appear as diamond markers on the timeline.
+
+### Task Grouping
+
+Group related tasks using hierarchical data:
+
+```json
+{
+  "id": "p1",
+  "name": "Backend Development",
+  "start_date": "2024-01-01",
+  "end_date": "2024-02-28",
+  "children": [
+    {
+      "id": "t1",
+      "name": "API Design",
+      "start_date": "2024-01-01",
+      "end_date": "2024-01-15",
+      "progress": 100
+    },
+    {
+      "id": "t2",
+      "name": "Database Schema",
+      "start_date": "2024-01-16",
+      "end_date": "2024-01-31",
+      "progress": 80
+    }
+  ]
+}
+```
+
+## Event Handlers
+
+### onTaskClick
+
+Triggered when a user clicks on a task bar:
+
+```tsx
+<ObjectGantt
+  schema={schema}
+  onTaskClick={(record) => {
+    // Show task details dialog
+    showTaskDetails(record);
+  }}
+/>
+```
+
+### onEdit
+
+Triggered when user initiates edit:
+
+```tsx
+<ObjectGantt
+  schema={schema}
+  onEdit={(record) => {
+    // Open edit dialog
+    router.push(`/tasks/${record.id}/edit`);
+  }}
+/>
+```
+
+## Timeline Scaling
+
+The Gantt chart automatically scales the timeline based on the date range of tasks:
+
+- **Days view**: For tasks spanning days or weeks
+- **Weeks view**: For tasks spanning weeks or months
+- **Months view**: For tasks spanning months or years
+
+The timeline adjusts dynamically to show the optimal level of detail.
+
+## Critical Path
+
+For project management, the critical path (longest sequence of dependent tasks) can be highlighted:
+
+- Darker or colored bars for critical tasks
+- Visual emphasis on critical dependencies
+- Automatic calculation based on dependencies
+
+## Data Providers
+
+### Object Provider
+
+Fetches tasks from ObjectQL objects:
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "tasks",
+  "data": {
+    "provider": "object",
+    "object": "tasks"
+  },
+  "filter": {
+    "gantt": {
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "titleField": "name",
+      "progressField": "progress"
+    }
+  }
+}
+```
+
+### API Provider
+
+Fetches tasks from custom REST APIs:
+
+```json
+{
+  "type": "object-grid",
+  "data": {
+    "provider": "api",
+    "read": {
+      "url": "/api/project/tasks",
+      "method": "GET"
+    }
+  },
+  "filter": {
+    "gantt": {
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "titleField": "name",
+      "progressField": "progress"
+    }
+  }
+}
+```
+
+### Value Provider
+
+Uses static task data:
+
+```json
+{
+  "type": "object-grid",
+  "data": {
+    "provider": "value",
+    "items": [...]
+  },
+  "filter": {
+    "gantt": {
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "titleField": "name",
+      "progressField": "progress"
+    }
+  }
+}
+```
+
+## Integration Examples
+
+### Product Roadmap
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "roadmap_items",
+  "filter": {
+    "gantt": {
+      "startDateField": "planned_start",
+      "endDateField": "planned_end",
+      "titleField": "feature_name",
+      "progressField": "development_progress"
+    }
+  }
+}
+```
+
+### Marketing Campaign
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "campaign_activities",
+  "filter": {
+    "gantt": {
+      "startDateField": "launch_date",
+      "endDateField": "end_date",
+      "titleField": "activity_name",
+      "progressField": "completion_rate",
+      "dependenciesField": "prerequisites"
+    }
+  }
+}
+```
+
+### Resource Allocation
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "resource_assignments",
+  "filter": {
+    "gantt": {
+      "startDateField": "allocation_start",
+      "endDateField": "allocation_end",
+      "titleField": "resource_name"
+    }
+  }
+}
+```
+
+## When to Use ObjectGantt
+
+ObjectGantt is ideal when you need:
+
+- **Project Timeline Visualization**: Display project phases and tasks
+- **Dependency Management**: Show task relationships and blockers
+- **Progress Tracking**: Monitor completion status of tasks
+- **Resource Planning**: Visualize resource allocation over time
+- **Critical Path Analysis**: Identify bottlenecks in project flow
+
+For other visualization needs, consider:
+- Use [ObjectGrid](/docs/views/object-grid) for traditional table views
+- Use [ObjectKanban](/docs/views/object-kanban) for workflow visualization
+- Use [ObjectCalendar](/docs/views/object-calendar) for event scheduling
+
+## Related Components
+
+- [ObjectGrid](/docs/views/object-grid) - Traditional table view
+- [ObjectKanban](/docs/views/object-kanban) - Kanban board view
+- [ObjectCalendar](/docs/views/object-calendar) - Calendar view
+- [ObjectView](/docs/views/object-view) - Complete CRUD interface

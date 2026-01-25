@@ -4,6 +4,10 @@
     "object-grid",
     "object-form",
     "object-field",
-    "object-view"
+    "object-view",
+    "object-kanban",
+    "object-calendar",
+    "object-gantt",
+    "object-map"
   ]
 }

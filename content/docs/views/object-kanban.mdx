@@ -1,0 +1,428 @@
+---
+title: "ObjectKanban"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+A specialized kanban board component that works with ObjectQL data sources. Auto-generates kanban columns from data based on groupByField configuration, perfect for visualizing workflow stages and managing tasks.
+
+## Interactive Demo
+
+<InteractiveDemo
+  schema={{
+    type: "stack",
+    gap: 4,
+    children: [
+      {
+        type: "text",
+        content: "Kanban Board - Visualize workflow stages",
+        className: "text-lg font-semibold"
+      },
+      {
+        type: "card",
+        children: [
+          {
+            type: "stack",
+            gap: 3,
+            children: [
+              { 
+                type: "text", 
+                content: "Todo → In Progress → Done", 
+                className: "font-semibold text-sm text-muted-foreground" 
+              },
+              {
+                type: "group",
+                gap: 2,
+                children: [
+                  {
+                    type: "card",
+                    className: "p-3 bg-slate-50",
+                    children: [
+                      {
+                        type: "stack",
+                        gap: 1,
+                        children: [
+                          { type: "text", content: "Design Homepage", className: "font-semibold text-sm" },
+                          { type: "badge", variant: "secondary", children: [{ type: "text", content: "Todo" }] }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    type: "card",
+                    className: "p-3 bg-blue-50",
+                    children: [
+                      {
+                        type: "stack",
+                        gap: 1,
+                        children: [
+                          { type: "text", content: "Implement Auth", className: "font-semibold text-sm" },
+                          { type: "badge", variant: "default", children: [{ type: "text", content: "In Progress" }] }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    type: "card",
+                    className: "p-3 bg-green-50",
+                    children: [
+                      {
+                        type: "stack",
+                        gap: 1,
+                        children: [
+                          { type: "text", content: "Setup Database", className: "font-semibold text-sm" },
+                          { type: "badge", variant: "success", children: [{ type: "text", content: "Done" }] }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+  title="ObjectKanban Component"
+  description="Kanban board for visualizing and managing workflow stages"
+/>
+
+## Basic Usage
+
+```tsx
+import { ObjectKanban } from '@object-ui/views';
+import { ObjectQLDataSource } from '@object-ui/data-objectql';
+
+const dataSource = new ObjectQLDataSource({
+  baseUrl: 'https://api.example.com',
+  token: 'your-auth-token'
+});
+
+function TasksKanban() {
+  return (
+    <ObjectKanban 
+      schema={{
+        type: 'object-grid',
+        objectName: 'tasks',
+        filter: {
+          kanban: {
+            groupByField: 'status',
+            columns: ['name', 'assignee', 'due_date'],
+            summarizeField: 'estimated_hours'
+          }
+        }
+      }}
+      dataSource={dataSource}
+      onCardClick={(record) => console.log('Card clicked:', record)}
+      onCardMove={(cardId, fromColumn, toColumn) => {
+        console.log(`Card ${cardId} moved from ${fromColumn} to ${toColumn}`);
+      }}
+    />
+  );
+}
+```
+
+## JSON Schema
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "tasks",
+  "filter": {
+    "kanban": {
+      "groupByField": "status",
+      "columns": ["name", "assignee", "priority", "due_date"],
+      "summarizeField": "estimated_hours"
+    }
+  }
+}
+```
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `schema` | ObjectGridSchema | Required | Grid schema with kanban configuration |
+| `dataSource` | DataSource | Optional | Data source for fetching records |
+| `className` | string | `''` | Custom CSS class |
+| `onCardClick` | (record) => void | - | Handler for card click events |
+| `onCardMove` | (cardId, from, to) => void | - | Handler for drag-and-drop card moves |
+| `onEdit` | (record) => void | - | Handler for edit action |
+| `onDelete` | (record) => void | - | Handler for delete action |
+
+## Kanban Configuration
+
+The kanban configuration is specified within the schema's `filter` property:
+
+```typescript
+interface KanbanConfig {
+  /** Field to group columns by (e.g., status, stage) */
+  groupByField: string;
+  /** Field to sum at top of column (e.g., amount, hours) */
+  summarizeField?: string;
+  /** Fields to display on cards */
+  columns: string[];
+}
+```
+
+## Features
+
+- **Auto-Grouping**: Automatically creates columns based on field values
+- **Drag-and-Drop**: Intuitive card movement between columns
+- **Column Summaries**: Aggregate numeric fields at column headers
+- **Card Customization**: Configure which fields appear on cards
+- **Multi-Provider Support**: Works with object/api/value data providers
+- **Real-time Updates**: Reflects data changes immediately
+
+## Example: Project Task Board
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "tasks",
+  "filter": {
+    "kanban": {
+      "groupByField": "status",
+      "columns": ["name", "assignee", "priority", "due_date", "labels"],
+      "summarizeField": "estimated_hours"
+    }
+  },
+  "sort": [
+    {
+      "field": "priority",
+      "order": "desc"
+    }
+  ]
+}
+```
+
+This creates a kanban board where:
+- Columns are grouped by task `status` (e.g., Todo, In Progress, Done)
+- Each card shows: name, assignee, priority, due_date, and labels
+- Column headers display the total `estimated_hours` for all cards in that column
+- Cards are sorted by priority (high to low)
+
+## Example: Sales Pipeline
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "opportunities",
+  "filter": {
+    "kanban": {
+      "groupByField": "stage",
+      "columns": ["name", "account", "amount", "close_date", "probability"],
+      "summarizeField": "amount"
+    }
+  },
+  "sort": [
+    {
+      "field": "close_date",
+      "order": "asc"
+    }
+  ]
+}
+```
+
+This creates a sales pipeline where:
+- Columns represent deal stages (Prospecting, Qualification, Proposal, etc.)
+- Cards show opportunity details including account and amount
+- Column headers show total deal value for each stage
+- Cards sorted by close date (earliest first)
+
+## Example: Static Data Kanban
+
+```json
+{
+  "type": "object-grid",
+  "data": {
+    "provider": "value",
+    "items": [
+      {
+        "id": "1",
+        "name": "Design Homepage",
+        "status": "todo",
+        "assignee": "Alice",
+        "priority": "high"
+      },
+      {
+        "id": "2",
+        "name": "Implement Auth",
+        "status": "in_progress",
+        "assignee": "Bob",
+        "priority": "high"
+      },
+      {
+        "id": "3",
+        "name": "Setup Database",
+        "status": "done",
+        "assignee": "Charlie",
+        "priority": "medium"
+      }
+    ]
+  },
+  "filter": {
+    "kanban": {
+      "groupByField": "status",
+      "columns": ["name", "assignee", "priority"]
+    }
+  }
+}
+```
+
+## Advanced Configuration
+
+### Custom Column Order
+
+Control the order of kanban columns by defining the field as a select with explicit options:
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "tasks",
+  "filter": {
+    "kanban": {
+      "groupByField": "status",
+      "columns": ["name", "assignee", "due_date"]
+    }
+  }
+}
+```
+
+Note: Column order is determined by the field's metadata (for select fields) or alphabetically for string fields.
+
+### Multiple Summaries
+
+While `summarizeField` supports one field, you can show multiple metrics by including them in the `columns` configuration and using field renderers.
+
+### Card Styling
+
+Cards automatically apply color coding based on field types:
+- **Priority fields**: High (red), Medium (yellow), Low (green)
+- **Status fields**: Based on status type (open, in_progress, completed)
+- **Custom fields**: Use field metadata for color configuration
+
+## Event Handlers
+
+### onCardClick
+
+Triggered when a user clicks on a card:
+
+```tsx
+<ObjectKanban
+  schema={schema}
+  onCardClick={(record) => {
+    // Navigate to detail view
+    router.push(`/tasks/${record.id}`);
+  }}
+/>
+```
+
+### onCardMove
+
+Triggered when a user drags a card to a new column:
+
+```tsx
+<ObjectKanban
+  schema={schema}
+  onCardMove={async (cardId, fromColumn, toColumn) => {
+    // Update the record's status field
+    await dataSource.update('tasks', cardId, {
+      status: toColumn
+    });
+  }}
+/>
+```
+
+## Data Providers
+
+### Object Provider
+
+Fetches data from ObjectQL objects:
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "tasks",
+  "data": {
+    "provider": "object",
+    "object": "tasks"
+  },
+  "filter": {
+    "kanban": {
+      "groupByField": "status",
+      "columns": ["name", "assignee"]
+    }
+  }
+}
+```
+
+### API Provider
+
+Fetches data from custom REST APIs:
+
+```json
+{
+  "type": "object-grid",
+  "data": {
+    "provider": "api",
+    "read": {
+      "url": "/api/tasks",
+      "method": "GET"
+    },
+    "write": {
+      "url": "/api/tasks/${id}",
+      "method": "PATCH"
+    }
+  },
+  "filter": {
+    "kanban": {
+      "groupByField": "status",
+      "columns": ["name", "assignee"]
+    }
+  }
+}
+```
+
+### Value Provider
+
+Uses static data:
+
+```json
+{
+  "type": "object-grid",
+  "data": {
+    "provider": "value",
+    "items": [...]
+  },
+  "filter": {
+    "kanban": {
+      "groupByField": "status",
+      "columns": ["name", "assignee"]
+    }
+  }
+}
+```
+
+## When to Use ObjectKanban
+
+ObjectKanban is ideal when you need:
+
+- **Visual Workflow Management**: Track items through defined stages
+- **Drag-and-Drop Interface**: Allow users to move items between states
+- **Pipeline Visualization**: Display sales, recruiting, or project pipelines
+- **Status Tracking**: Monitor progress across different phases
+- **Quick Status Updates**: Enable status changes via drag-and-drop
+
+For other visualization needs, consider:
+- Use [ObjectGrid](/docs/views/object-grid) for traditional table views
+- Use [ObjectCalendar](/docs/views/object-calendar) for date-based visualization
+- Use [ObjectGantt](/docs/views/object-gantt) for timeline/project management
+
+## Related Components
+
+- [ObjectGrid](/docs/views/object-grid) - Traditional table view
+- [ObjectCalendar](/docs/views/object-calendar) - Calendar visualization
+- [ObjectGantt](/docs/views/object-gantt) - Gantt chart view
+- [ObjectView](/docs/views/object-view) - Complete CRUD interface

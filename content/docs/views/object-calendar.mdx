@@ -1,0 +1,536 @@
+---
+title: "ObjectCalendar"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+A specialized calendar component that works with ObjectQL data sources. Displays records as calendar events based on date field configuration, perfect for scheduling, events management, and timeline visualization.
+
+## Interactive Demo
+
+<InteractiveDemo
+  schema={{
+    type: "stack",
+    gap: 4,
+    children: [
+      {
+        type: "text",
+        content: "Calendar View - Event & Schedule Management",
+        className: "text-lg font-semibold"
+      },
+      {
+        type: "card",
+        children: [
+          {
+            type: "stack",
+            gap: 3,
+            children: [
+              {
+                type: "group",
+                gap: 2,
+                children: [
+                  {
+                    type: "badge",
+                    variant: "outline",
+                    children: [{ type: "text", content: "Month View" }]
+                  },
+                  {
+                    type: "badge",
+                    variant: "outline",
+                    children: [{ type: "text", content: "Week View" }]
+                  },
+                  {
+                    type: "badge",
+                    variant: "outline",
+                    children: [{ type: "text", content: "Day View" }]
+                  }
+                ]
+              },
+              {
+                type: "stack",
+                gap: 2,
+                children: [
+                  {
+                    type: "card",
+                    className: "p-2 bg-blue-50 border-l-4 border-blue-500",
+                    children: [
+                      {
+                        type: "stack",
+                        gap: 1,
+                        children: [
+                          { type: "text", content: "Team Meeting", className: "font-semibold text-sm" },
+                          { type: "text", content: "10:00 AM - 11:00 AM", className: "text-xs text-muted-foreground" }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    type: "card",
+                    className: "p-2 bg-green-50 border-l-4 border-green-500",
+                    children: [
+                      {
+                        type: "stack",
+                        gap: 1,
+                        children: [
+                          { type: "text", content: "Product Launch", className: "font-semibold text-sm" },
+                          { type: "text", content: "2:00 PM - 5:00 PM", className: "text-xs text-muted-foreground" }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+  title="ObjectCalendar Component"
+  description="Calendar view for events, schedules, and date-based data"
+/>
+
+## Basic Usage
+
+```tsx
+import { ObjectCalendar } from '@object-ui/views';
+import { ObjectQLDataSource } from '@object-ui/data-objectql';
+
+const dataSource = new ObjectQLDataSource({
+  baseUrl: 'https://api.example.com',
+  token: 'your-auth-token'
+});
+
+function EventsCalendar() {
+  return (
+    <ObjectCalendar 
+      schema={{
+        type: 'object-grid',
+        objectName: 'events',
+        filter: {
+          calendar: {
+            startDateField: 'start_date',
+            endDateField: 'end_date',
+            titleField: 'name',
+            colorField: 'category'
+          }
+        }
+      }}
+      dataSource={dataSource}
+      onEventClick={(record) => console.log('Event clicked:', record)}
+      onDateClick={(date) => console.log('Date clicked:', date)}
+    />
+  );
+}
+```
+
+## JSON Schema
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "events",
+  "filter": {
+    "calendar": {
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "titleField": "name",
+      "colorField": "category"
+    }
+  }
+}
+```
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `schema` | ObjectGridSchema | Required | Grid schema with calendar configuration |
+| `dataSource` | DataSource | Optional | Data source for fetching records |
+| `className` | string | `''` | Custom CSS class |
+| `onEventClick` | (record) => void | - | Handler for event click |
+| `onDateClick` | (date) => void | - | Handler for date cell click |
+| `onEdit` | (record) => void | - | Handler for edit action |
+| `onDelete` | (record) => void | - | Handler for delete action |
+
+## Calendar Configuration
+
+The calendar configuration is specified within the schema's `filter` property:
+
+```typescript
+interface CalendarConfig {
+  /** Start date field (required) */
+  startDateField: string;
+  /** End date field (optional, for multi-day events) */
+  endDateField?: string;
+  /** Title field for event display */
+  titleField: string;
+  /** Field for color coding events */
+  colorField?: string;
+}
+```
+
+## Features
+
+- **Multiple View Modes**: Month, week, and day views
+- **Date Range Support**: Single-day or multi-day events
+- **Auto-Mapping**: Automatically maps records to calendar events
+- **Color Coding**: Visual categorization via color field
+- **Event Click Handling**: Interactive event interactions
+- **Date Range Filtering**: Automatically filters data by visible date range
+- **Multi-Provider Support**: Works with object/api/value data providers
+
+## Example: Team Events Calendar
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "events",
+  "filter": {
+    "calendar": {
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "titleField": "name",
+      "colorField": "event_type"
+    }
+  },
+  "sort": [
+    {
+      "field": "start_date",
+      "order": "asc"
+    }
+  ]
+}
+```
+
+This creates a calendar where:
+- Events are displayed based on `start_date` and `end_date`
+- Event titles come from the `name` field
+- Events are color-coded by `event_type` (e.g., meeting, deadline, holiday)
+- Events are sorted chronologically
+
+## Example: Project Milestones
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "milestones",
+  "filter": {
+    "calendar": {
+      "startDateField": "due_date",
+      "titleField": "milestone_name",
+      "colorField": "status"
+    }
+  }
+}
+```
+
+This creates a milestone calendar where:
+- Single-day milestones based on `due_date`
+- Milestone names displayed from `milestone_name` field
+- Color-coded by completion `status` (e.g., pending, completed, overdue)
+
+## Example: Static Data Calendar
+
+```json
+{
+  "type": "object-grid",
+  "data": {
+    "provider": "value",
+    "items": [
+      {
+        "id": "1",
+        "name": "Team Meeting",
+        "start_date": "2024-01-15T10:00:00",
+        "end_date": "2024-01-15T11:00:00",
+        "category": "meeting"
+      },
+      {
+        "id": "2",
+        "name": "Product Launch",
+        "start_date": "2024-01-20T14:00:00",
+        "end_date": "2024-01-20T17:00:00",
+        "category": "event"
+      },
+      {
+        "id": "3",
+        "name": "Annual Conference",
+        "start_date": "2024-01-25",
+        "end_date": "2024-01-27",
+        "category": "conference"
+      }
+    ]
+  },
+  "filter": {
+    "calendar": {
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "titleField": "name",
+      "colorField": "category"
+    }
+  }
+}
+```
+
+## Advanced Configuration
+
+### All-Day Events
+
+For all-day events, use date-only format (without time):
+
+```json
+{
+  "id": "1",
+  "name": "Company Holiday",
+  "start_date": "2024-01-15",
+  "end_date": "2024-01-15"
+}
+```
+
+### Multi-Day Events
+
+Events spanning multiple days automatically render across the date range:
+
+```json
+{
+  "id": "2",
+  "name": "Training Week",
+  "start_date": "2024-01-15",
+  "end_date": "2024-01-19"
+}
+```
+
+### Recurring Events
+
+For recurring events, create multiple records or use the data source to generate recurring instances:
+
+```typescript
+// Generate weekly meeting instances
+const meetings = generateRecurringEvents({
+  name: "Weekly Standup",
+  startTime: "09:00",
+  duration: 30,
+  frequency: "weekly",
+  dayOfWeek: "monday",
+  startDate: "2024-01-01",
+  endDate: "2024-12-31"
+});
+```
+
+## Event Handlers
+
+### onEventClick
+
+Triggered when a user clicks on an event:
+
+```tsx
+<ObjectCalendar
+  schema={schema}
+  onEventClick={(record) => {
+    // Navigate to event details
+    router.push(`/events/${record.id}`);
+  }}
+/>
+```
+
+### onDateClick
+
+Triggered when a user clicks on a date cell:
+
+```tsx
+<ObjectCalendar
+  schema={schema}
+  onDateClick={(date) => {
+    // Create new event on clicked date
+    router.push(`/events/new?date=${date.toISOString()}`);
+  }}
+/>
+```
+
+## View Modes
+
+The calendar supports three view modes:
+
+### Month View
+- Shows entire month with all events
+- Multi-day events span across dates
+- Default view mode
+
+### Week View
+- Shows single week with detailed time slots
+- Hourly breakdown for precise scheduling
+- Better for viewing event times
+
+### Day View
+- Shows single day with detailed timeline
+- Minute-by-minute precision
+- Best for dense schedules
+
+## Color Coding
+
+Events can be automatically color-coded based on the `colorField`:
+
+```json
+{
+  "filter": {
+    "calendar": {
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "titleField": "name",
+      "colorField": "priority"
+    }
+  }
+}
+```
+
+Color mapping:
+- Field values automatically map to colors
+- Supports custom color palettes via field metadata
+- Falls back to default colors if not specified
+
+## Data Providers
+
+### Object Provider
+
+Fetches events from ObjectQL objects:
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "events",
+  "data": {
+    "provider": "object",
+    "object": "events"
+  },
+  "filter": {
+    "calendar": {
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "titleField": "name"
+    }
+  }
+}
+```
+
+### API Provider
+
+Fetches events from custom REST APIs:
+
+```json
+{
+  "type": "object-grid",
+  "data": {
+    "provider": "api",
+    "read": {
+      "url": "/api/events",
+      "method": "GET",
+      "params": {
+        "start": "${dateRange.start}",
+        "end": "${dateRange.end}"
+      }
+    }
+  },
+  "filter": {
+    "calendar": {
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "titleField": "name"
+    }
+  }
+}
+```
+
+### Value Provider
+
+Uses static event data:
+
+```json
+{
+  "type": "object-grid",
+  "data": {
+    "provider": "value",
+    "items": [...]
+  },
+  "filter": {
+    "calendar": {
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "titleField": "name"
+    }
+  }
+}
+```
+
+## Integration Examples
+
+### Booking System
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "bookings",
+  "filter": {
+    "calendar": {
+      "startDateField": "check_in_date",
+      "endDateField": "check_out_date",
+      "titleField": "guest_name",
+      "colorField": "room_type"
+    }
+  }
+}
+```
+
+### Task Deadlines
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "tasks",
+  "filter": {
+    "calendar": {
+      "startDateField": "due_date",
+      "titleField": "task_name",
+      "colorField": "priority"
+    }
+  }
+}
+```
+
+### Employee Schedules
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "shifts",
+  "filter": {
+    "calendar": {
+      "startDateField": "shift_start",
+      "endDateField": "shift_end",
+      "titleField": "employee_name",
+      "colorField": "department"
+    }
+  }
+}
+```
+
+## When to Use ObjectCalendar
+
+ObjectCalendar is ideal when you need:
+
+- **Event Management**: Display and manage scheduled events
+- **Date-Based Visualization**: Show data in calendar context
+- **Scheduling Interface**: Create booking or scheduling systems
+- **Timeline View**: Visualize deadlines and milestones
+- **Resource Planning**: Track resource allocation over time
+
+For other visualization needs, consider:
+- Use [ObjectGrid](/docs/views/object-grid) for traditional table views
+- Use [ObjectKanban](/docs/views/object-kanban) for workflow visualization
+- Use [ObjectGantt](/docs/views/object-gantt) for project timelines
+
+## Related Components
+
+- [ObjectGrid](/docs/views/object-grid) - Traditional table view
+- [ObjectKanban](/docs/views/object-kanban) - Kanban board view
+- [ObjectGantt](/docs/views/object-gantt) - Gantt chart view
+- [ObjectView](/docs/views/object-view) - Complete CRUD interface
