@@ -17,7 +17,7 @@ const pluginsLoading = typeof window !== 'undefined'
       import('@object-ui/plugin-charts'),
       import('@object-ui/plugin-kanban'),
       import('@object-ui/plugin-markdown'),
-      import('@object-ui/plugin-object'),
+      import('@object-ui/views'),
     ])
   : Promise.resolve([]);
 

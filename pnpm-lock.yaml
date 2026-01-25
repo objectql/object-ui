@@ -129,15 +129,15 @@ importers:
       '@object-ui/plugin-markdown':
         specifier: workspace:*
         version: link:../../packages/plugin-markdown
-      '@object-ui/plugin-object':
-        specifier: workspace:*
-        version: link:../../packages/plugin-object
       '@object-ui/react':
         specifier: workspace:*
         version: link:../../packages/react
       '@object-ui/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@object-ui/views':
+        specifier: workspace:*
+        version: link:../../packages/views
       fumadocs-core:
         specifier: 16.4.8
         version: 16.4.8(@types/react@19.0.6)(algoliasearch@5.46.3)(lucide-react@0.563.0(react@19.2.3))(next@16.1.4(@babel/core@7.28.6)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-router@7.12.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(zod@4.3.5)
@@ -673,58 +673,6 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4(@types/node@25.0.10)(rollup@4.55.1)(typescript@5.9.3)(vite@7.3.1(@types/node@25.0.10)(jiti@2.6.1)(lightningcss@1.30.2))
 
-  packages/plugin-object:
-    dependencies:
-      '@object-ui/components':
-        specifier: workspace:*
-        version: link:../components
-      '@object-ui/core':
-        specifier: workspace:*
-        version: link:../core
-      '@object-ui/react':
-        specifier: workspace:*
-        version: link:../react
-      '@object-ui/types':
-        specifier: workspace:*
-        version: link:../types
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-      lucide-react:
-        specifier: ^0.562.0
-        version: 0.562.0(react@19.2.3)
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
-      tailwind-merge:
-        specifier: ^3.4.0
-        version: 3.4.0
-    devDependencies:
-      '@types/react':
-        specifier: 19.0.6
-        version: 19.0.6
-      '@types/react-dom':
-        specifier: 19.0.3
-        version: 19.0.3(@types/react@19.0.6)
-      '@vitejs/plugin-react':
-        specifier: ^4.2.1
-        version: 4.7.0(vite@7.3.1(@types/node@25.0.10)(jiti@2.6.1)(lightningcss@1.30.2))
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vite:
-        specifier: ^7.3.1
-        version: 7.3.1(@types/node@25.0.10)(jiti@2.6.1)(lightningcss@1.30.2)
-      vite-plugin-dts:
-        specifier: ^4.5.4
-        version: 4.5.4(@types/node@25.0.10)(rollup@4.55.1)(typescript@5.9.3)(vite@7.3.1(@types/node@25.0.10)(jiti@2.6.1)(lightningcss@1.30.2))
-      vitest:
-        specifier: ^4.0.17
-        version: 4.0.17(@types/node@25.0.10)(@vitest/ui@4.0.17)(happy-dom@20.3.3)(jiti@2.6.1)(jsdom@27.4.0)(lightningcss@1.30.2)
-
   packages/react:
     dependencies:
       '@object-ui/core':
@@ -832,6 +780,58 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  packages/views:
+    dependencies:
+      '@object-ui/components':
+        specifier: workspace:*
+        version: link:../components
+      '@object-ui/core':
+        specifier: workspace:*
+        version: link:../core
+      '@object-ui/react':
+        specifier: workspace:*
+        version: link:../react
+      '@object-ui/types':
+        specifier: workspace:*
+        version: link:../types
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      lucide-react:
+        specifier: ^0.562.0
+        version: 0.562.0(react@19.2.3)
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      tailwind-merge:
+        specifier: ^3.4.0
+        version: 3.4.0
+    devDependencies:
+      '@types/react':
+        specifier: 19.0.6
+        version: 19.0.6
+      '@types/react-dom':
+        specifier: 19.0.3
+        version: 19.0.3(@types/react@19.0.6)
+      '@vitejs/plugin-react':
+        specifier: ^4.2.1
+        version: 4.7.0(vite@7.3.1(@types/node@25.0.10)(jiti@2.6.1)(lightningcss@1.30.2))
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.3.1
+        version: 7.3.1(@types/node@25.0.10)(jiti@2.6.1)(lightningcss@1.30.2)
+      vite-plugin-dts:
+        specifier: ^4.5.4
+        version: 4.5.4(@types/node@25.0.10)(rollup@4.55.1)(typescript@5.9.3)(vite@7.3.1(@types/node@25.0.10)(jiti@2.6.1)(lightningcss@1.30.2))
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.10)(@vitest/ui@4.0.17)(happy-dom@20.3.3)(jiti@2.6.1)(jsdom@27.4.0)(lightningcss@1.30.2)
 
   packages/vscode-extension:
     dependencies:

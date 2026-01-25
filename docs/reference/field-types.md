@@ -63,10 +63,10 @@ Each field type has two rendering modes:
 
 ## Implementation
 
-All field renderers are exported from `@object-ui/plugin-object`:
+All field renderers are exported from `@object-ui/views`:
 
 ```typescript
-import { getCellRenderer } from '@object-ui/plugin-object';
+import { getCellRenderer } from '@object-ui/views';
 
 const renderer = getCellRenderer('currency');
 ```
@@ -74,4 +74,4 @@ const renderer = getCellRenderer('currency');
 ## See Also
 
 - [Field Type TypeScript Definitions](../../packages/types/src/field-types.ts)
-- [Field Renderers Implementation](../../packages/plugin-object/src/field-renderers.tsx)
+- [Field Renderers Implementation](../../packages/views/src/field-renderers.tsx)

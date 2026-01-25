@@ -31,7 +31,7 @@ This implementation delivers a comprehensive upgrade to ObjectUI's ObjectForm an
 
 **Testing**
 - 27 unit tests for field renderers (100% pass rate)
-- 80 total tests in plugin-object package (100% pass rate)
+- 80 total tests in views package (100% pass rate)
 - Zero TypeScript errors
 - CodeQL security scan: 0 alerts
 
@@ -144,9 +144,9 @@ interface FieldMetadata {
 
 ### New Files
 1. `packages/types/src/field-types.ts` - Field type definitions
-2. `packages/plugin-object/src/field-renderers.tsx` - Cell renderers
-3. `packages/plugin-object/src/ObjectGrid.tsx` - Grid component
-4. `packages/plugin-object/src/__tests__/field-renderers.test.tsx` - Tests
+2. `packages/views/src/field-renderers.tsx` - Cell renderers
+3. `packages/views/src/ObjectGrid.tsx` - Grid component
+4. `packages/views/src/__tests__/field-renderers.test.tsx` - Tests
 5. `docs/reference/field-types.md` - Documentation
 6. `docs/reference/field-types-examples.md` - Examples
 7. `docs/reference/objectgrid-examples.md` - Grid examples
@@ -154,8 +154,8 @@ interface FieldMetadata {
 ### Modified Files
 1. `packages/types/src/index.ts` - Export field types
 2. `packages/types/src/objectql.ts` - Add ObjectGridSchema
-3. `packages/plugin-object/src/index.tsx` - Export ObjectGrid
-4. `packages/plugin-object/src/ObjectTable.tsx` - Use field renderers
+3. `packages/views/src/index.tsx` - Export ObjectGrid
+4. `packages/views/src/ObjectTable.tsx` - Use field renderers
 
 ## What's Remaining
 
@@ -201,7 +201,7 @@ interface FieldMetadata {
 
 ### Field Renderers
 ```typescript
-import { getCellRenderer } from '@object-ui/plugin-object';
+import { getCellRenderer } from '@object-ui/views';
 
 const CurrencyRenderer = getCellRenderer('currency');
 <CurrencyRenderer 
@@ -212,7 +212,7 @@ const CurrencyRenderer = getCellRenderer('currency');
 
 ### ObjectGrid
 ```typescript
-import { ObjectGrid } from '@object-ui/plugin-object';
+import { ObjectGrid } from '@object-ui/views';
 
 <ObjectGrid
   schema={{

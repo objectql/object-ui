@@ -1,18 +1,18 @@
 ---
-title: "Plugin Object"
+title: "Views (Core Package)"
 ---
 
-ObjectQL integration plugin providing smart components for CRUD operations.
+Core Object UI views package providing smart components for CRUD operations with ObjectQL integration.
 
 ## Installation
 
 ```bash
-npm install @object-ui/plugin-object @object-ui/data-objectql
+npm install @object-ui/views @object-ui/data-objectql
 ```
 
 ## Overview
 
-The Object plugin provides seamless integration with ObjectQL backends through smart components that automatically generate UI from ObjectQL object schemas. It's the official plugin for building data-driven applications with ObjectUI.
+The Views package provides seamless integration with ObjectQL backends through smart components that automatically generate UI from ObjectQL object schemas. It's a core package for building data-driven applications with ObjectUI.
 
 ## Components
 
@@ -32,17 +32,17 @@ Enterprise-grade table component with unified schema supporting both traditional
 **Single unified type:**
 - `type: 'object-grid'` - Supports both traditional and grid modes
 
-[Learn more about ObjectTable →](/docs/plugins/plugin-object/object-grid)
+[Learn more about ObjectTable →](/docs/plugins/views/object-grid)
 
 ### ObjectForm
 Smart forms with validation and schema integration. Supports both create and edit modes with automatic field generation.
 
-[Learn more about ObjectForm →](/docs/plugins/plugin-object/object-form)
+[Learn more about ObjectForm →](/docs/plugins/views/object-form)
 
 ### ObjectView
 Complete CRUD views combining list, detail, and edit modes in a single component. Ideal for building full-featured data management interfaces.
 
-[Learn more about ObjectView →](/docs/plugins/plugin-object/object-view)
+[Learn more about ObjectView →](/docs/plugins/views/object-view)
 
 ## Features
 
@@ -90,7 +90,7 @@ import type {
   ObjectTableSchema,
   ObjectFormSchema,
   ObjectViewSchema 
-} from '@object-ui/plugin-object';
+} from '@object-ui/views';
 
 // Object Table (Traditional CRUD)
 const tableSchema: ObjectTableSchema = {
@@ -142,4 +142,4 @@ const viewSchema: ObjectViewSchema = {
 - [ObjectQL Integration](/docs/ecosystem/objectql)
 - [Data Sources](/docs/concepts/data-source)
 - [Plugin System Overview](/docs/concepts/plugins)
-- [Package README](https://github.com/objectstack-ai/objectui/tree/main/packages/plugin-object)
+- [Package README](https://github.com/objectstack-ai/objectui/tree/main/packages/views)

@@ -7,7 +7,7 @@ Comprehensive examples demonstrating all ObjectUI field types in ObjectForm and 
 This example shows all field types in a realistic CRM contact management form:
 
 ```typescript
-import { ObjectForm } from '@object-ui/plugin-object';
+import { ObjectForm } from '@object-ui/views';
 
 const contactFormSchema = {
   type: 'object-form',
@@ -271,7 +271,7 @@ const contactFormSchema = {
 Display contacts in a table with type-aware cell rendering:
 
 ```typescript
-import { ObjectTable } from '@object-ui/plugin-object';
+import { ObjectTable } from '@object-ui/views';
 
 const contactTableSchema = {
   type: 'object-grid',
@@ -391,7 +391,7 @@ import {
   getCellRenderer,
   CurrencyCellRenderer,
   UserCellRenderer 
-} from '@object-ui/plugin-object';
+} from '@object-ui/views';
 
 // Get renderer by type
 const CurrencyRenderer = getCellRenderer('currency');

@@ -208,7 +208,7 @@ Object UI is a modular monorepo with packages designed for specific use cases:
 **Plugins** (lazy-loaded):
 - `@object-ui/plugin-charts` - Chart components (Chart.js)
 - `@object-ui/plugin-editor` - Rich text editor components
-- `@object-ui/plugin-object` - ObjectStack-aware table and form components
+- `@object-ui/views` - ObjectStack-aware table and form components (core package)
 
 **Developer Tools**:
 - **[VSCode Extension](./packages/vscode-extension)** - IntelliSense, live preview, validation, and snippets for Object UI schemas

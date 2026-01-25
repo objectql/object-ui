@@ -1,6 +1,6 @@
-# @object-ui/plugin-object
+# @object-ui/views
 
-ObjectStack plugin for Object UI, providing seamless integration with ObjectStack backends through auto-generated components.
+Core Object UI views package, providing seamless integration with ObjectStack backends through auto-generated components.
 
 ## Features
 
@@ -11,7 +11,7 @@ ObjectStack plugin for Object UI, providing seamless integration with ObjectStac
 ## Installation
 
 ```bash
-npm install @object-ui/plugin-object @object-ui/core
+npm install @object-ui/views @object-ui/core
 ```
 
 ## Usage
@@ -19,7 +19,7 @@ npm install @object-ui/plugin-object @object-ui/core
 ### ObjectTable
 
 ```tsx
-import { ObjectTable } from '@object-ui/plugin-object';
+import { ObjectTable } from '@object-ui/views';
 import { createObjectStackAdapter } from '@object-ui/core';
 
 const dataSource = createObjectStackAdapter({
@@ -43,7 +43,7 @@ function UsersTable() {
 ### ObjectForm
 
 ```tsx
-import { ObjectForm } from '@object-ui/plugin-object';
+import { ObjectForm } from '@object-ui/views';
 import { createObjectStackAdapter } from '@object-ui/core';
 
 const dataSource = createObjectStackAdapter({
@@ -69,7 +69,7 @@ function UserForm() {
 ### ObjectView
 
 ```tsx
-import { ObjectView } from '@object-ui/plugin-object';
+import { ObjectView } from '@object-ui/views';
 import { createObjectStackAdapter } from '@object-ui/core';
 
 const dataSource = createObjectStackAdapter({

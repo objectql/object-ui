@@ -18,7 +18,7 @@
     "@object-ui/plugin-editor": "workspace:*",
     "@object-ui/plugin-kanban": "workspace:*",
     "@object-ui/plugin-markdown": "workspace:*",
-    "@object-ui/plugin-object": "workspace:*",
+    "@object-ui/views": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "fumadocs-core": "16.4.8",

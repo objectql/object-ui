@@ -97,7 +97,7 @@ When `type: 'object-grid'`:
 
 **Before:**
 ```typescript
-import { ObjectGrid } from '@object-ui/plugin-object';
+import { ObjectGrid } from '@object-ui/views';
 
 <ObjectGrid
   schema={{
@@ -109,7 +109,7 @@ import { ObjectGrid } from '@object-ui/plugin-object';
 
 **After:**
 ```typescript
-import { ObjectTable } from '@object-ui/plugin-object';
+import { ObjectTable } from '@object-ui/views';
 
 <ObjectTable
   schema={{
@@ -242,4 +242,4 @@ import { ObjectTable } from '@object-ui/plugin-object';
 
 - [data-table Component](../../packages/components/src/renderers/complex/data-table.tsx)
 - [Field Types Reference](./field-types.md)
-- [Field Renderers](../../packages/plugin-object/src/field-renderers.tsx)
+- [Field Renderers](../../packages/views/src/field-renderers.tsx)

@@ -6,6 +6,6 @@
     "plugin-editor",
     "plugin-kanban",
     "plugin-markdown",
-    "plugin-object"
+    "views"
   ]
 }

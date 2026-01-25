@@ -7,9 +7,9 @@
  */
 
 /**
- * @object-ui/plugin-object
+ * @object-ui/views
  * 
- * ObjectQL plugin for Object UI.
+ * Core Object UI views package.
  * Provides seamless integration with ObjectQL backends through smart components
  * that automatically generate UI from ObjectQL object schemas.
  * 

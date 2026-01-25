@@ -1,4 +1,13 @@
-# @object-ui/plugin-object
+# @object-ui/views
+
+## Unreleased
+
+### Changed
+
+- **Package Renamed**: This package was formerly known as `@object-ui/plugin-object`
+- Upgraded from plugin status to core package
+- Package name changed from `@object-ui/plugin-object` to `@object-ui/views`
+- All functionality remains the same
 
 ## 0.3.0
 

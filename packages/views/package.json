@@ -1,7 +1,7 @@
 {
-  "name": "@object-ui/plugin-object",
+  "name": "@object-ui/views",
   "version": "0.3.0",
-  "description": "ObjectQL plugin for Object UI - Object Table and Object Form components",
+  "description": "Core Object UI views - Object Table, Form, and View components",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -31,7 +31,9 @@
     "objectql",
     "object-grid",
     "object-form",
-    "plugin",
+    "object-view",
+    "core",
+    "views",
     "components",
     "typescript"
   ],
@@ -40,7 +42,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/objectstack-ai/objectui.git",
-    "directory": "packages/plugin-object"
+    "directory": "packages/views"
   },
   "dependencies": {
     "@object-ui/types": "workspace:*",
