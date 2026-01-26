@@ -272,3 +272,6 @@ export {
   TimelineGanttBar,
   TimelineGanttBarContent,
 }
+
+// Export renderer to register the component with ObjectUI
+export * from './renderer';

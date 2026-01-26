@@ -243,3 +243,6 @@ const TypingIndicator = React.forwardRef<HTMLDivElement, TypingIndicatorProps>(
 TypingIndicator.displayName = "TypingIndicator"
 
 export { Chatbot, TypingIndicator }
+
+// Export renderer to register the component with ObjectUI
+export * from './renderer';

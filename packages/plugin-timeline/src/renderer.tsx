@@ -26,8 +26,8 @@ import {
   TimelineGanttLabel,
   TimelineGanttBar,
   TimelineGanttBarContent,
-} from '../../ui';
-import { renderChildren } from '../../lib/utils';
+} from './index';
+import { renderChildren } from '@object-ui/components';
 
 // Constants
 const MILLISECONDS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
