@@ -1,0 +1,456 @@
+---
+title: "Plugin Map"
+---
+
+Map visualization component for ObjectQL data sources - displays database records as map markers based on location data.
+
+## Installation
+
+```bash
+npm install @object-ui/plugin-map
+```
+
+## Overview
+
+The `@object-ui/plugin-map` plugin provides map visualization for ObjectQL data sources. It's designed to work with object-based data providers and automatically maps record fields to map markers/pins.
+
+**Note**: This is a basic implementation suitable for simple use cases. For production applications with advanced mapping needs, consider integrating a dedicated mapping library like Mapbox, Leaflet, or Google Maps.
+
+## Features
+
+- **ObjectQL Integration**: Works seamlessly with object/api/value data providers
+- **Automatic Field Mapping**: Maps database fields to map markers
+- **Location Support**: Handle latitude/longitude or combined location fields
+- **Marker Customization**: Configurable marker titles and descriptions
+- **Marker Clustering**: Group nearby markers (when many points)
+- **Popup/Tooltip**: Show details on marker click
+- **Interactive**: Click handling for markers
+
+## Usage
+
+### Basic Usage with ObjectQL
+
+```tsx
+import '@object-ui/plugin-map'
+
+const schema = {
+  type: 'object-map',
+  objectName: 'locations',  // Your ObjectQL object
+  map: {
+    latitudeField: 'lat',
+    longitudeField: 'lng',
+    titleField: 'name',
+    descriptionField: 'address'
+  }
+}
+```
+
+### With Static Data
+
+```tsx
+const schema = {
+  type: 'object-map',
+  staticData: [
+    {
+      id: 1,
+      name: 'Office HQ',
+      lat: 37.7749,
+      lng: -122.4194,
+      address: '123 Main St, San Francisco, CA'
+    },
+    {
+      id: 2,
+      name: 'Warehouse',
+      lat: 37.8044,
+      lng: -122.2711,
+      address: '456 Oak Ave, Oakland, CA'
+    }
+  ],
+  map: {
+    latitudeField: 'lat',
+    longitudeField: 'lng',
+    titleField: 'name',
+    descriptionField: 'address'
+  }
+}
+```
+
+## Schema API
+
+```typescript
+{
+  type: 'object-map',
+  objectName?: string,              // ObjectQL object name
+  staticData?: Array<any>,          // Static data array
+  data?: ViewData,                  // Advanced data configuration
+  map?: MapConfig,                  // Map-specific configuration
+  onMarkerClick?: (record: any) => void,
+  className?: string
+}
+```
+
+### MapConfig
+
+```typescript
+{
+  latitudeField?: string,      // Field containing latitude
+  longitudeField?: string,     // Field containing longitude
+  locationField?: string,      // Field with combined location (alternative)
+  titleField?: string,         // Field to use as marker title
+  descriptionField?: string,   // Field for marker description
+  zoom?: number,               // Default zoom level (1-20)
+  center?: [number, number]    // Center coordinates [lat, lng]
+}
+```
+
+## Configuration
+
+### Field Mapping - Separate Coordinates
+
+When your data has separate latitude and longitude fields:
+
+```tsx
+{
+  type: 'object-map',
+  objectName: 'stores',
+  map: {
+    latitudeField: 'latitude',
+    longitudeField: 'longitude',
+    titleField: 'storeName',
+    descriptionField: 'storeAddress'
+  }
+}
+```
+
+### Field Mapping - Combined Location
+
+When your data has a combined location field:
+
+```tsx
+{
+  type: 'object-map',
+  objectName: 'places',
+  map: {
+    locationField: 'coordinates',  // e.g., "37.7749,-122.4194" or {lat: 37.7749, lng: -122.4194}
+    titleField: 'placeName',
+    descriptionField: 'description'
+  }
+}
+```
+
+### Zoom and Center
+
+Control the initial map view:
+
+```tsx
+{
+  type: 'object-map',
+  objectName: 'locations',
+  map: {
+    latitudeField: 'lat',
+    longitudeField: 'lng',
+    titleField: 'name',
+    zoom: 12,                    // Zoom level (1-20)
+    center: [37.7749, -122.4194] // [latitude, longitude]
+  }
+}
+```
+
+## Data Providers
+
+### Object Provider (Database)
+
+```tsx
+{
+  type: 'object-map',
+  objectName: 'retail_stores',
+  map: {
+    latitudeField: 'store_lat',
+    longitudeField: 'store_lng',
+    titleField: 'store_name',
+    descriptionField: 'store_address'
+  }
+}
+```
+
+### Value Provider (Static)
+
+```tsx
+{
+  type: 'object-map',
+  staticData: [
+    { id: 1, name: 'Location 1', lat: 37.7749, lng: -122.4194 },
+    { id: 2, name: 'Location 2', lat: 37.8044, lng: -122.2711 }
+  ],
+  map: {
+    latitudeField: 'lat',
+    longitudeField: 'lng',
+    titleField: 'name'
+  }
+}
+```
+
+### API Provider
+
+```tsx
+{
+  type: 'object-map',
+  data: {
+    provider: 'api',
+    endpoint: '/api/locations',
+    method: 'GET'
+  },
+  map: {
+    latitudeField: 'latitude',
+    longitudeField: 'longitude',
+    titleField: 'locationName'
+  }
+}
+```
+
+## Event Handling
+
+### Marker Click
+
+```tsx
+{
+  type: 'object-map',
+  objectName: 'locations',
+  map: {
+    latitudeField: 'lat',
+    longitudeField: 'lng',
+    titleField: 'name'
+  },
+  onMarkerClick: (location) => {
+    console.log('Marker clicked:', location);
+    // Show location details
+    // Navigate to location page
+    // Open directions
+  }
+}
+```
+
+## Examples
+
+### Store Locator
+
+```tsx
+const storeLocator = {
+  type: 'object-map',
+  objectName: 'retail_locations',
+  map: {
+    latitudeField: 'latitude',
+    longitudeField: 'longitude',
+    titleField: 'storeName',
+    descriptionField: 'fullAddress',
+    zoom: 10,
+    center: [37.7749, -122.4194]  // San Francisco
+  },
+  onMarkerClick: (store) => {
+    // Show store details
+    // Display hours, phone, etc.
+  }
+}
+```
+
+### Delivery Tracking
+
+```tsx
+const deliveryMap = {
+  type: 'object-map',
+  objectName: 'active_deliveries',
+  map: {
+    latitudeField: 'current_lat',
+    longitudeField: 'current_lng',
+    titleField: 'driver_name',
+    descriptionField: 'delivery_address'
+  },
+  onMarkerClick: (delivery) => {
+    // Show delivery details
+    // Contact driver
+  }
+}
+```
+
+### Real Estate Listings
+
+```tsx
+const propertyMap = {
+  type: 'object-map',
+  objectName: 'properties',
+  map: {
+    latitudeField: 'property_lat',
+    longitudeField: 'property_lng',
+    titleField: 'property_address',
+    descriptionField: 'property_details',
+    zoom: 12
+  },
+  onMarkerClick: (property) => {
+    // Show property details
+    // Display photos, price, etc.
+  }
+}
+```
+
+### Event Venues
+
+```tsx
+const venueMap = {
+  type: 'object-map',
+  staticData: [
+    {
+      id: 1,
+      venueName: 'Conference Center',
+      lat: 37.7833,
+      lng: -122.4167,
+      details: 'Capacity: 500 people'
+    },
+    {
+      id: 2,
+      venueName: 'Exhibition Hall',
+      lat: 37.7891,
+      lng: -122.3894,
+      details: 'Capacity: 1000 people'
+    },
+    {
+      id: 3,
+      venueName: 'Outdoor Amphitheater',
+      lat: 37.7694,
+      lng: -122.4862,
+      details: 'Capacity: 2000 people'
+    }
+  ],
+  map: {
+    latitudeField: 'lat',
+    longitudeField: 'lng',
+    titleField: 'venueName',
+    descriptionField: 'details',
+    zoom: 11
+  },
+  onMarkerClick: (venue) => {
+    // Show venue details
+    // Book venue
+  }
+}
+```
+
+### Field Service Map
+
+```tsx
+const serviceMap = {
+  type: 'object-map',
+  objectName: 'service_calls',
+  map: {
+    latitudeField: 'customer_latitude',
+    longitudeField: 'customer_longitude',
+    titleField: 'customer_name',
+    descriptionField: 'service_type',
+    zoom: 10
+  },
+  onMarkerClick: (serviceCall) => {
+    // Show service call details
+    // Assign technician
+    // Get directions
+  }
+}
+```
+
+## Typical Use Cases
+
+1. **Store Locator**: Display retail store locations
+2. **Fleet Tracking**: Show vehicle or delivery locations
+3. **Real Estate**: Display property listings on a map
+4. **Event Venues**: Show event or venue locations
+5. **Field Service**: Track service calls or technician locations
+6. **Customer Locations**: Visualize customer distribution
+7. **Asset Tracking**: Show location of equipment or assets
+
+## Location Data Formats
+
+### Separate Fields
+
+```tsx
+{
+  id: 1,
+  name: 'Location',
+  latitude: 37.7749,
+  longitude: -122.4194
+}
+```
+
+### Combined String
+
+```tsx
+{
+  id: 1,
+  name: 'Location',
+  coordinates: '37.7749,-122.4194'
+}
+```
+
+### Object Format
+
+```tsx
+{
+  id: 1,
+  name: 'Location',
+  location: {
+    lat: 37.7749,
+    lng: -122.4194
+  }
+}
+```
+
+## Map Controls
+
+The map typically includes:
+- **Zoom controls**: Zoom in/out buttons
+- **Pan**: Drag to move around the map
+- **Marker click**: Click markers to show details
+- **Auto-fit**: Automatically adjust view to show all markers
+
+## Integration with Full-featured Map Libraries
+
+For production applications, you may want to integrate with:
+
+- **Mapbox**: Advanced styling, 3D maps, routing
+- **Google Maps**: Street view, directions, extensive POI data
+- **Leaflet**: Open-source, lightweight, customizable
+- **OpenStreetMap**: Free, community-driven map data
+
+This plugin provides a basic implementation. For advanced features like:
+- Directions/routing
+- Street view
+- 3D buildings
+- Traffic data
+- Custom map styles
+- Advanced geocoding
+
+Consider using one of the full-featured mapping libraries above.
+
+## TypeScript Support
+
+```typescript
+import type { ObjectGridSchema, MapConfig } from '@object-ui/types'
+
+const mapConfig: MapConfig = {
+  latitudeField: 'lat',
+  longitudeField: 'lng',
+  titleField: 'name',
+  descriptionField: 'description',
+  zoom: 12,
+  center: [37.7749, -122.4194]
+}
+
+const mapSchema: ObjectGridSchema = {
+  type: 'object-map',
+  objectName: 'locations',
+  map: mapConfig
+}
+```
+
+## Related Documentation
+
+- [Plugin System Overview](/docs/concepts/plugins)
+- [Views Package](/docs/views) - ObjectQL data management
+- [Package README](https://github.com/objectstack-ai/objectui/tree/main/packages/plugin-map)
