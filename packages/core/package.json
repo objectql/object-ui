@@ -22,9 +22,9 @@
   },
   "dependencies": {
     "@object-ui/types": "workspace:*",
-    "@objectstack/client": "^0.3.2",
-    "@objectstack/spec": "^0.3.2",
-    "lodash": "^4.17.21",
+    "@objectstack/client": "^0.3.3",
+    "@objectstack/spec": "^0.3.3",
+    "lodash": "^4.17.23",
     "zod": "^3.22.4"
   },
   "devDependencies": {

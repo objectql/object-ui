@@ -424,14 +424,14 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/client':
-        specifier: ^0.3.2
-        version: 0.3.2
+        specifier: ^0.3.3
+        version: 0.3.3
       '@objectstack/spec':
-        specifier: ^0.3.2
-        version: 0.3.2
+        specifier: ^0.3.3
+        version: 0.3.3
       lodash:
-        specifier: ^4.17.21
-        version: 4.17.21
+        specifier: ^4.17.23
+        version: 4.17.23
       zod:
         specifier: ^3.22.4
         version: 3.25.76
@@ -762,8 +762,8 @@ importers:
         specifier: workspace:*
         version: link:../core
       '@objectstack/spec':
-        specifier: ^0.3.2
-        version: 0.3.2
+        specifier: ^0.3.3
+        version: 0.3.3
       react:
         specifier: 19.2.3
         version: 19.2.3
@@ -857,8 +857,8 @@ importers:
   packages/types:
     dependencies:
       '@objectstack/spec':
-        specifier: ^0.3.2
-        version: 0.3.2
+        specifier: ^0.3.3
+        version: 0.3.3
       zod:
         specifier: ^3.22.4
         version: 3.25.76
@@ -1931,11 +1931,11 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@objectstack/client@0.3.2':
-    resolution: {integrity: sha512-lDFQQtoGM9eIpefQaVim9WbBBAi34c/i028DpkCjv4KAdXVZAMPDBCjMTKeXYwx27roGw9vftNCRghny5wVK2A==}
+  '@objectstack/client@0.3.3':
+    resolution: {integrity: sha512-Fpd3IAGu/vdTFp9gv6umdFRyaW5txv/fy8kEe5i7IBiukKKU5xwgu0hKGY4eF/BTrl+a9+xWRpQ4xBhjd4WctA==}
 
-  '@objectstack/spec@0.3.2':
-    resolution: {integrity: sha512-X4tmUZLz2eQ88ZqQv02NF/ObkGN8TdaT5K9A11aGRUyeFy3X3LBfC+FYxBgmcUbTIXm4W6RLYkYFvn2s/6JKHg==}
+  '@objectstack/spec@0.3.3':
+    resolution: {integrity: sha512-GGSrRLECgYY1epLocdCkCsicerFKAKlRpluGmCqK1iVNgTgiC04zniLogYQXu5kf6UIB6mHQNBHcbr1x5DOmVQ==}
     engines: {node: '>=18.0.0'}
 
   '@orama/orama@3.1.18':
@@ -4763,8 +4763,8 @@ packages:
   lodash.startcase@4.4.0:
     resolution: {integrity: sha512-+WKqsK294HMSc2jEbNgpHpd0JfIBhp7rEV4aqXWqFr6AlXov+SlcgB1Fv01y2kGe3Gc8nMW7VA0SrGuSkRfIEg==}
 
-  lodash@4.17.21:
-    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
+  lodash@4.17.23:
+    resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
 
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
@@ -7350,7 +7350,7 @@ snapshots:
       '@rushstack/terminal': 0.19.5(@types/node@25.0.10)
       '@rushstack/ts-command-line': 5.1.5(@types/node@25.0.10)
       diff: 8.0.3
-      lodash: 4.17.21
+      lodash: 4.17.23
       minimatch: 10.0.3
       resolve: 1.22.11
       semver: 7.5.4
@@ -7369,7 +7369,7 @@ snapshots:
       '@rushstack/terminal': 0.19.5(@types/node@25.0.9)
       '@rushstack/ts-command-line': 5.1.5(@types/node@25.0.9)
       diff: 8.0.3
-      lodash: 4.17.21
+      lodash: 4.17.23
       minimatch: 10.0.3
       resolve: 1.22.11
       semver: 7.5.4
@@ -7437,11 +7437,11 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/client@0.3.2':
+  '@objectstack/client@0.3.3':
     dependencies:
-      '@objectstack/spec': 0.3.2
+      '@objectstack/spec': 0.3.3
 
-  '@objectstack/spec@0.3.2':
+  '@objectstack/spec@0.3.3':
     dependencies:
       zod: 3.25.76
 
@@ -10569,7 +10569,7 @@ snapshots:
 
   lodash.startcase@4.4.0: {}
 
-  lodash@4.17.21: {}
+  lodash@4.17.23: {}
 
   longest-streak@3.1.0: {}
 
@@ -11592,7 +11592,7 @@ snapshots:
     dependencies:
       clsx: 2.1.1
       eventemitter3: 4.0.7
-      lodash: 4.17.21
+      lodash: 4.17.23
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
       react-is: 18.3.1
