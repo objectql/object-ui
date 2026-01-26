@@ -551,8 +551,8 @@ importers:
         specifier: ^4.2.1
         version: 4.7.0(vite@7.3.1(@types/node@25.0.10)(jiti@2.6.1)(lightningcss@1.30.2))
       ag-grid-community:
-        specifier: ^32.3.4
-        version: 32.3.9
+        specifier: ^35.0.1
+        version: 35.0.1
       ag-grid-react:
         specifier: ^32.3.4
         version: 32.3.9(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -3520,8 +3520,14 @@ packages:
   ag-charts-types@10.3.9:
     resolution: {integrity: sha512-drcRiJVencliC8LnRwk4MmeQDNNBg5GzmOoLFihO3/k0CUK0VF/N+2nc7iFozwaNG0btSB9vAhYuJLjqHMtRrQ==}
 
+  ag-charts-types@13.0.1:
+    resolution: {integrity: sha512-qg9adyiAaeUaDtWZEEPF45dv55kdJTe6Ghi0EQXCS79h/7KvOd6dxhqGZjPL1zeFl/L9qEXuYgb+LkGStq4mgQ==}
+
   ag-grid-community@32.3.9:
     resolution: {integrity: sha512-l07SB0mCbGPkC1R8rQQFgBtI5+1FoXBi3RUk1+dHKV/UPeorMEFAzCokcsOhz0qwcWCPrHauUsbRa1SIxfVEJQ==}
+
+  ag-grid-community@35.0.1:
+    resolution: {integrity: sha512-fYYZdymWKsN9/tZv+R6uZRnuiWYEQr+GHl85ZrB0ixbFcE8opYK4NJI29NnMc9ShYiCBnAO9hj54IFa+FI4aDA==}
 
   ag-grid-react@32.3.9:
     resolution: {integrity: sha512-moC64CHbTOf+OSG2xCHYJdWh3MtYaVNvi5n7ro+ImS5gSFn7c5a42pjcfTmDh2sPsKD7qmBXXQ5Vr+Zwg9DhNA==}
@@ -9270,9 +9276,15 @@ snapshots:
 
   ag-charts-types@10.3.9: {}
 
+  ag-charts-types@13.0.1: {}
+
   ag-grid-community@32.3.9:
     dependencies:
       ag-charts-types: 10.3.9
+
+  ag-grid-community@35.0.1:
+    dependencies:
+      ag-charts-types: 13.0.1
 
   ag-grid-react@32.3.9(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:

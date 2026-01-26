@@ -47,7 +47,7 @@
     "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.2.1",
-    "ag-grid-community": "^32.3.4",
+    "ag-grid-community": "^35.0.1",
     "ag-grid-react": "^32.3.4",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
