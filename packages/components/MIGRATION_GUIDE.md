@@ -122,7 +122,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@object-ui/compone
 ```tsx
 import { Input } from '@object-ui/components';
 
-<div className="flex items-center rounded-md border border-input shadow-xs">
+<div className="flex items-center rounded-md border border-input shadow-sm">
   <span className="flex items-center pl-3 text-sm text-muted-foreground">$</span>
   <Input 
     placeholder="0.00" 
