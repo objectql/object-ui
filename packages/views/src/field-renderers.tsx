@@ -15,9 +15,7 @@
 
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
-import { Badge } from '@object-ui/components';
-import { Avatar, AvatarFallback } from '@object-ui/components';
-import { Button } from '@object-ui/components';
+import { Badge, Avatar, AvatarFallback, Button } from '@object-ui/components';
 import { Check, X } from 'lucide-react';
 
 /**
