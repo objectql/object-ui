@@ -11,20 +11,29 @@ ObjectUI plugins are lazy-loaded component packages that extend the framework wi
 
 Browse available plugins:
 
-### [Charts Plugin](/docs/plugins/plugin-charts)
-Data visualization with Recharts - Bar, Line, Area, and Pie charts
+### Data Visualization
 
-### [Editor Plugin](/docs/plugins/plugin-editor)
-Code editor powered by Monaco Editor (VS Code's editor)
+- **[Charts Plugin](/docs/plugins/plugin-charts)** - Bar, Line, Area, and Pie charts
+- **[Timeline Plugin](/docs/plugins/plugin-timeline)** - Vertical, horizontal, and Gantt-style timelines
+- **[Gantt Plugin](/docs/plugins/plugin-gantt)** - Project task visualization with dependencies (ObjectQL)
+- **[Calendar View Plugin](/docs/plugins/plugin-calendar-view)** - Full calendar with month/week/day views
+- **[Calendar Plugin](/docs/plugins/plugin-calendar)** - Calendar for ObjectQL data sources
+- **[Map Plugin](/docs/plugins/plugin-map)** - Location visualization with markers (ObjectQL)
 
-### [Kanban Plugin](/docs/plugins/plugin-kanban)
-Kanban board with drag-and-drop functionality
+### Content & Editing
 
-### [Markdown Plugin](/docs/plugins/plugin-markdown)
-Markdown renderer with GitHub Flavored Markdown support
+- **[Editor Plugin](/docs/plugins/plugin-editor)** - Code editor powered by Monaco Editor
+- **[Markdown Plugin](/docs/plugins/plugin-markdown)** - Markdown renderer with GFM support
+- **[Chatbot Plugin](/docs/plugins/plugin-chatbot)** - Chat interface component
 
-### [Views (Core Package)](/docs/views)
-Advanced object data management and visualization
+### Workflows & Tasks
+
+- **[Kanban Plugin](/docs/plugins/plugin-kanban)** - Kanban board with drag-and-drop
+- **[AgGrid Plugin](/docs/plugins/plugin-aggrid)** - Advanced data grid
+
+### Core Packages
+
+- **[Views (Core Package)](/docs/views)** - Advanced object data management and visualization
 
 ## Official Plugins
 
@@ -96,6 +105,125 @@ npm install @object-ui/plugin-markdown
 
 ---
 
+### AgGrid Plugin
+
+**[@object-ui/plugin-aggrid](/docs/plugins/plugin-aggrid)** - Advanced data grid powered by AG Grid Community Edition.
+
+- Sorting, filtering, and pagination
+- Row selection and editing
+- Multiple themes
+- Lazy-loaded
+
+```bash
+npm install @object-ui/plugin-aggrid ag-grid-community ag-grid-react
+```
+
+[Read full documentation →](/docs/plugins/plugin-aggrid)
+
+---
+
+### Timeline Plugin
+
+**[@object-ui/plugin-timeline](/docs/plugins/plugin-timeline)** - Timeline component with multiple layout variants.
+
+- Vertical, horizontal, and Gantt-style layouts
+- Customizable markers with icons
+- Date formatting options
+- Time scales (day/week/month)
+
+```bash
+npm install @object-ui/plugin-timeline
+```
+
+[Read full documentation →](/docs/plugins/plugin-timeline)
+
+---
+
+### Chatbot Plugin
+
+**[@object-ui/plugin-chatbot](/docs/plugins/plugin-chatbot)** - Chat interface component with message history.
+
+- User and assistant message roles
+- System messages
+- Timestamps and avatars
+- Auto-scroll and typing indicators
+
+```bash
+npm install @object-ui/plugin-chatbot
+```
+
+[Read full documentation →](/docs/plugins/plugin-chatbot)
+
+---
+
+### Calendar View Plugin
+
+**[@object-ui/plugin-calendar-view](/docs/plugins/plugin-calendar-view)** - Full-featured calendar with month, week, and day views.
+
+- Month, week, and day calendar views
+- Event display with colors
+- Navigation controls
+- All-day and timed events
+
+```bash
+npm install @object-ui/plugin-calendar-view
+```
+
+[Read full documentation →](/docs/plugins/plugin-calendar-view)
+
+---
+
+### Calendar Plugin (ObjectQL)
+
+**[@object-ui/plugin-calendar](/docs/plugins/plugin-calendar)** - Calendar visualization for ObjectQL data sources.
+
+- ObjectQL integration
+- Automatic field mapping
+- Database-driven events
+- Works with object/api/value providers
+
+```bash
+npm install @object-ui/plugin-calendar
+```
+
+[Read full documentation →](/docs/plugins/plugin-calendar)
+
+---
+
+### Gantt Plugin (ObjectQL)
+
+**[@object-ui/plugin-gantt](/docs/plugins/plugin-gantt)** - Gantt chart for ObjectQL data sources.
+
+- Project task visualization
+- Progress tracking (0-100%)
+- Task dependencies
+- ObjectQL integration
+
+```bash
+npm install @object-ui/plugin-gantt
+```
+
+[Read full documentation →](/docs/plugins/plugin-gantt)
+
+---
+
+### Map Plugin (ObjectQL)
+
+**[@object-ui/plugin-map](/docs/plugins/plugin-map)** - Map visualization for ObjectQL data sources.
+
+- Location-based markers
+- Latitude/longitude support
+- Marker customization
+- ObjectQL integration
+
+```bash
+npm install @object-ui/plugin-map
+```
+
+[Read full documentation →](/docs/plugins/plugin-map)
+
+---
+
 ### Views (Core Package)
 
 **[@object-ui/views](/docs/views)** - Core views package for advanced object data management and visualization.
@@ -142,12 +270,19 @@ export const CodeEditorRenderer = (props) => (
 
 ### Bundle Impact
 
-| Plugin | Initial Load | Lazy Load |
-|--------|-------------|-----------|
-| plugin-editor | ~0.2 KB | ~20 KB |
-| plugin-charts | ~0.2 KB | ~540 KB |
-| plugin-kanban | ~0.2 KB | ~100-150 KB |
-| plugin-markdown | ~0.2 KB | ~100-200 KB |
+| Plugin | Initial Load | Lazy Load | Description |
+|--------|-------------|-----------|-------------|
+| plugin-editor | ~0.2 KB | ~20 KB | Monaco editor |
+| plugin-charts | ~0.2 KB | ~540 KB | Recharts visualization |
+| plugin-kanban | ~0.2 KB | ~100-150 KB | Drag-and-drop board |
+| plugin-markdown | ~0.2 KB | ~100-200 KB | Markdown rendering |
+| plugin-aggrid | ~0.2 KB | ~280 KB | Data grid |
+| plugin-timeline | ~0.2 KB | ~10 KB | Timeline layouts |
+| plugin-chatbot | ~0.2 KB | ~30 KB | Chat interface |
+| plugin-calendar-view | ~0.2 KB | ~40 KB | Full calendar |
+| plugin-calendar | ~0.2 KB | ~50 KB | ObjectQL calendar |
+| plugin-gantt | ~0.2 KB | ~60 KB | ObjectQL Gantt |
+| plugin-map | ~0.2 KB | ~20 KB | ObjectQL map |
 
 Without lazy loading, all this code would be in your main bundle!
 

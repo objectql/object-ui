@@ -117,18 +117,36 @@ importers:
       '@object-ui/plugin-aggrid':
         specifier: workspace:*
         version: link:../../packages/plugin-aggrid
+      '@object-ui/plugin-calendar':
+        specifier: workspace:*
+        version: link:../../packages/plugin-calendar
+      '@object-ui/plugin-calendar-view':
+        specifier: workspace:*
+        version: link:../../packages/plugin-calendar-view
       '@object-ui/plugin-charts':
         specifier: workspace:*
         version: link:../../packages/plugin-charts
+      '@object-ui/plugin-chatbot':
+        specifier: workspace:*
+        version: link:../../packages/plugin-chatbot
       '@object-ui/plugin-editor':
         specifier: workspace:*
         version: link:../../packages/plugin-editor
+      '@object-ui/plugin-gantt':
+        specifier: workspace:*
+        version: link:../../packages/plugin-gantt
       '@object-ui/plugin-kanban':
         specifier: workspace:*
         version: link:../../packages/plugin-kanban
+      '@object-ui/plugin-map':
+        specifier: workspace:*
+        version: link:../../packages/plugin-map
       '@object-ui/plugin-markdown':
         specifier: workspace:*
         version: link:../../packages/plugin-markdown
+      '@object-ui/plugin-timeline':
+        specifier: workspace:*
+        version: link:../../packages/plugin-timeline
       '@object-ui/react':
         specifier: workspace:*
         version: link:../../packages/react

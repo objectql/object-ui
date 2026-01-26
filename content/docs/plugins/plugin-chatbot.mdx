@@ -1,0 +1,466 @@
+---
+title: "Plugin Chatbot"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+Chat interface component with message history, typing indicators, and customizable avatars.
+
+## Installation
+
+```bash
+npm install @object-ui/plugin-chatbot
+```
+
+## Interactive Examples
+
+### Basic Chatbot
+
+<InteractiveDemo
+  schema={{
+    type: "chatbot",
+    messages: [
+      {
+        id: "1",
+        role: "assistant",
+        content: "Hello! How can I help you today?"
+      }
+    ],
+    placeholder: "Type your message...",
+    showTimestamp: false,
+    autoResponse: true,
+    autoResponseText: "Thank you for your message! This is an automated response.",
+    autoResponseDelay: 1000,
+    maxHeight: "400px"
+  }}
+  title="Basic Chatbot"
+  description: "Simple chat interface with auto-response enabled"
+/>
+
+### Chatbot with Timestamps
+
+<InteractiveDemo
+  schema={{
+    type: "chatbot",
+    messages: [
+      {
+        id: "1",
+        role: "assistant",
+        content: "Welcome to our support chat!",
+        timestamp: "9:00 AM"
+      },
+      {
+        id: "2",
+        role: "user",
+        content: "I need help with my account",
+        timestamp: "9:01 AM"
+      },
+      {
+        id: "3",
+        role: "assistant",
+        content: "I'd be happy to help you with your account. What specific issue are you experiencing?",
+        timestamp: "9:01 AM"
+      }
+    ],
+    showTimestamp: true,
+    placeholder: "Ask a question...",
+    autoResponse: true,
+    autoResponseText: "I'll look into that for you right away.",
+    maxHeight: "450px"
+  }}
+  title="Chatbot with Timestamps"
+  description="Display message timestamps for each chat bubble"
+/>
+
+### Customer Support Chat
+
+<InteractiveDemo
+  schema={{
+    type: "chatbot",
+    messages: [
+      {
+        id: "system-1",
+        role: "system",
+        content: "Support chat session started"
+      },
+      {
+        id: "1",
+        role: "assistant",
+        content: "Hi! I'm Sarah from customer support. How may I assist you today?",
+        avatarFallback: "SA"
+      },
+      {
+        id: "2",
+        role: "user",
+        content: "I'm having trouble accessing my dashboard",
+        avatarFallback: "JD"
+      },
+      {
+        id: "3",
+        role: "assistant",
+        content: "I understand. Let me help you with that. Could you tell me if you're seeing any error messages?",
+        avatarFallback: "SA"
+      }
+    ],
+    placeholder: "Type your message here...",
+    userAvatarFallback: "JD",
+    assistantAvatarFallback: "SA",
+    showTimestamp: true,
+    autoResponse: true,
+    autoResponseDelay: 1500,
+    autoResponseText: "Let me check that for you...",
+    maxHeight: "500px"
+  }}
+  title="Customer Support Chat"
+  description="Professional chat interface with custom avatars and system messages"
+/>
+
+## Usage
+
+### Basic Usage
+
+```tsx
+// Import once in your app entry point
+import '@object-ui/plugin-chatbot'
+
+// Use in schemas
+const schema = {
+  type: 'chatbot',
+  messages: [
+    {
+      id: '1',
+      role: 'assistant',
+      content: 'Hello! How can I help you?'
+    }
+  ],
+  placeholder: 'Type your message...',
+  autoResponse: true
+}
+```
+
+## Features
+
+- **Message History**: Display chat messages with user and assistant roles
+- **System Messages**: Show system notifications in the chat
+- **Timestamps**: Optional timestamp display for each message
+- **Custom Avatars**: Configurable avatar images and fallback text
+- **Auto-scroll**: Automatically scroll to newest messages
+- **Typing Indicator**: Built-in typing indicator component
+- **Auto-response**: Demo mode with automatic responses
+- **Lightweight**: Pure React components with minimal dependencies
+
+## Schema API
+
+```typescript
+{
+  type: 'chatbot',
+  messages?: ChatMessage[],
+  placeholder?: string,
+  showTimestamp?: boolean,
+  disabled?: boolean,
+  userAvatarUrl?: string,
+  userAvatarFallback?: string,
+  assistantAvatarUrl?: string,
+  assistantAvatarFallback?: string,
+  maxHeight?: string,
+  autoResponse?: boolean,
+  autoResponseText?: string,
+  autoResponseDelay?: number,
+  onSend?: (content: string, messages: ChatMessage[]) => void,
+  className?: string
+}
+```
+
+### ChatMessage
+
+```typescript
+{
+  id: string,
+  role: 'user' | 'assistant' | 'system',
+  content: string,
+  timestamp?: string,
+  avatar?: string,
+  avatarFallback?: string
+}
+```
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `messages` | array | `[]` | Initial chat messages |
+| `placeholder` | string | `'Type your message...'` | Input field placeholder text |
+| `showTimestamp` | boolean | `false` | Display timestamps for messages |
+| `disabled` | boolean | `false` | Disable chat input |
+| `userAvatarUrl` | string | - | URL for user avatar image |
+| `userAvatarFallback` | string | `'You'` | Fallback text for user avatar |
+| `assistantAvatarUrl` | string | - | URL for assistant avatar image |
+| `assistantAvatarFallback` | string | `'AI'` | Fallback text for assistant avatar |
+| `maxHeight` | string | `'500px'` | Maximum chat container height |
+| `autoResponse` | boolean | `false` | Enable auto-response (demo mode) |
+| `autoResponseText` | string | - | Text for auto-response |
+| `autoResponseDelay` | number | `1000` | Delay before auto-response (ms) |
+| `onSend` | function | - | Callback when message is sent |
+| `className` | string | `''` | Additional Tailwind CSS classes |
+
+## Message Roles
+
+### User Messages
+
+Messages from the user appear on the right side with primary styling:
+
+```tsx
+{
+  id: '1',
+  role: 'user',
+  content: 'Hello!',
+  timestamp: '10:30 AM'
+}
+```
+
+### Assistant Messages
+
+Messages from the assistant appear on the left side:
+
+```tsx
+{
+  id: '2',
+  role: 'assistant',
+  content: 'Hi! How can I help?',
+  timestamp: '10:30 AM'
+}
+```
+
+### System Messages
+
+System messages appear centered with muted styling:
+
+```tsx
+{
+  id: '3',
+  role: 'system',
+  content: 'Chat session started'
+}
+```
+
+## Examples
+
+### Simple AI Chat
+
+```tsx
+const aiChat = {
+  type: 'chatbot',
+  messages: [
+    {
+      id: 'welcome',
+      role: 'assistant',
+      content: 'Hello! I\'m your AI assistant. Ask me anything!'
+    }
+  ],
+  placeholder: 'Ask me a question...',
+  assistantAvatarFallback: 'AI',
+  userAvatarFallback: 'You',
+  autoResponse: true,
+  autoResponseText: 'That\'s a great question! Let me think about that...',
+  maxHeight: '600px'
+}
+```
+
+### Support Ticket Chat
+
+```tsx
+const supportChat = {
+  type: 'chatbot',
+  messages: [
+    {
+      id: 'sys-1',
+      role: 'system',
+      content: 'Ticket #12345 - Account Access Issue'
+    },
+    {
+      id: '1',
+      role: 'assistant',
+      content: 'Hi! I\'m here to help with your account access issue.',
+      avatarFallback: 'SP',
+      timestamp: '2:15 PM'
+    }
+  ],
+  placeholder: 'Describe your issue...',
+  showTimestamp: true,
+  userAvatarFallback: 'JD',
+  assistantAvatarFallback: 'SP',
+  className: 'w-full max-w-3xl mx-auto'
+}
+```
+
+### Sales Bot
+
+```tsx
+const salesBot = {
+  type: 'chatbot',
+  messages: [
+    {
+      id: '1',
+      role: 'assistant',
+      content: 'Welcome! I\'m here to help you find the perfect product. What are you looking for today?',
+      avatarFallback: 'SB'
+    }
+  ],
+  placeholder: 'Tell us what you need...',
+  assistantAvatarFallback: 'SB',
+  userAvatarFallback: 'You',
+  autoResponse: true,
+  autoResponseText: 'Great choice! Let me show you some options...',
+  autoResponseDelay: 1200,
+  maxHeight: '500px',
+  className: 'border-2 border-primary rounded-xl'
+}
+```
+
+### Multi-agent Chat
+
+```tsx
+const multiAgentChat = {
+  type: 'chatbot',
+  messages: [
+    {
+      id: '1',
+      role: 'assistant',
+      content: 'Hello! Sarah from Sales here.',
+      avatarFallback: 'SA'
+    },
+    {
+      id: '2',
+      role: 'user',
+      content: 'I need help with pricing',
+      avatarFallback: 'CU'
+    },
+    {
+      id: '3',
+      role: 'system',
+      content: 'Transferring to Finance team...'
+    },
+    {
+      id: '4',
+      role: 'assistant',
+      content: 'Hi! Mike from Finance. I can help with that.',
+      avatarFallback: 'MI'
+    }
+  ],
+  showTimestamp: true,
+  userAvatarFallback: 'CU'
+}
+```
+
+## Custom Avatars
+
+### Avatar Images
+
+```tsx
+const schema = {
+  type: 'chatbot',
+  userAvatarUrl: 'https://example.com/user-avatar.jpg',
+  assistantAvatarUrl: 'https://example.com/bot-avatar.jpg',
+  messages: [...]
+}
+```
+
+### Avatar Fallbacks
+
+When images aren't available, fallback text is displayed:
+
+```tsx
+const schema = {
+  type: 'chatbot',
+  userAvatarFallback: 'JD',  // User initials
+  assistantAvatarFallback: 'AI',  // Bot identifier
+  messages: [...]
+}
+```
+
+### Per-message Avatars
+
+Override avatars for individual messages:
+
+```tsx
+{
+  id: '1',
+  role: 'assistant',
+  content: 'Message content',
+  avatar: 'https://example.com/special-avatar.jpg',
+  avatarFallback: 'SP'
+}
+```
+
+## Event Handling
+
+### onSend Callback
+
+Handle message sending in your application:
+
+```tsx
+const schema = {
+  type: 'chatbot',
+  messages: [...],
+  onSend: (content, allMessages) => {
+    console.log('User sent:', content);
+    console.log('All messages:', allMessages);
+    
+    // Send to your backend
+    fetch('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message: content })
+    });
+  }
+}
+```
+
+## Customization
+
+### Container Styling
+
+```tsx
+const schema = {
+  type: 'chatbot',
+  className: 'w-full max-w-2xl mx-auto border-2 rounded-xl shadow-lg',
+  maxHeight: '600px',
+  messages: [...]
+}
+```
+
+### Responsive Heights
+
+```tsx
+const schema = {
+  type: 'chatbot',
+  maxHeight: '400px', // or use Tailwind: 'h-96'
+  className: 'sm:max-h-[500px] lg:max-h-[600px]',
+  messages: [...]
+}
+```
+
+## TypeScript Support
+
+```typescript
+import type { ChatbotSchema, ChatMessage } from '@object-ui/types'
+
+const messages: ChatMessage[] = [
+  {
+    id: '1',
+    role: 'assistant',
+    content: 'Hello!'
+  }
+]
+
+const chatbotSchema: ChatbotSchema = {
+  type: 'chatbot',
+  messages,
+  placeholder: 'Type here...',
+  showTimestamp: true
+}
+```
+
+## Related Documentation
+
+- [Plugin System Overview](/docs/concepts/plugins)
+- [Package README](https://github.com/objectstack-ai/objectui/tree/main/packages/plugin-chatbot)

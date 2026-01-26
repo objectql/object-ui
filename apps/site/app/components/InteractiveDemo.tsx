@@ -17,6 +17,12 @@ const pluginsLoading = typeof window !== 'undefined'
       import('@object-ui/plugin-charts'),
       import('@object-ui/plugin-kanban'),
       import('@object-ui/plugin-markdown'),
+      import('@object-ui/plugin-timeline'),
+      import('@object-ui/plugin-calendar'),
+      import('@object-ui/plugin-calendar-view'),
+      import('@object-ui/plugin-gantt'),
+      import('@object-ui/plugin-map'),
+      import('@object-ui/plugin-chatbot'),
       import('@object-ui/views'),
     ])
   : Promise.resolve([]);

@@ -1,0 +1,397 @@
+---
+title: "Plugin Gantt"
+---
+
+Gantt chart component for ObjectQL data sources - visualizes project tasks, timelines, and dependencies.
+
+## Installation
+
+```bash
+npm install @object-ui/plugin-gantt
+```
+
+## Overview
+
+The `@object-ui/plugin-gantt` plugin provides Gantt chart visualization for ObjectQL data sources. It's designed to work with object-based data providers and automatically maps record fields to Gantt chart tasks.
+
+**Note**: This plugin is designed for use with ObjectQL data sources. For a simpler timeline component, see [Timeline Plugin](/docs/plugins/plugin-timeline).
+
+## Features
+
+- **ObjectQL Integration**: Works seamlessly with object/api/value data providers
+- **Automatic Field Mapping**: Maps database fields to Gantt tasks
+- **Task Timeline**: Visual bars showing task duration
+- **Progress Tracking**: Display task completion percentage (0-100%)
+- **Dependencies**: Visualize task dependencies and relationships
+- **Date Ranges**: Automatic date range calculation
+- **Interactive**: Click handling for tasks
+
+## Usage
+
+### Basic Usage with ObjectQL
+
+```tsx
+import '@object-ui/plugin-gantt'
+
+const schema = {
+  type: 'object-gantt',
+  objectName: 'tasks',  // Your ObjectQL object
+  gantt: {
+    startDateField: 'startDate',
+    endDateField: 'endDate',
+    titleField: 'taskName',
+    progressField: 'completion',
+    dependenciesField: 'dependencies'
+  }
+}
+```
+
+### With Static Data
+
+```tsx
+const schema = {
+  type: 'object-gantt',
+  staticData: [
+    {
+      id: 1,
+      taskName: 'Design Phase',
+      startDate: '2024-01-01',
+      endDate: '2024-01-15',
+      completion: 100
+    },
+    {
+      id: 2,
+      taskName: 'Development',
+      startDate: '2024-01-16',
+      endDate: '2024-02-28',
+      completion: 60,
+      dependencies: [1]
+    },
+    {
+      id: 3,
+      taskName: 'Testing',
+      startDate: '2024-03-01',
+      endDate: '2024-03-15',
+      completion: 0,
+      dependencies: [2]
+    }
+  ],
+  gantt: {
+    startDateField: 'startDate',
+    endDateField: 'endDate',
+    titleField: 'taskName',
+    progressField: 'completion',
+    dependenciesField: 'dependencies'
+  }
+}
+```
+
+## Schema API
+
+```typescript
+{
+  type: 'object-gantt',
+  objectName?: string,              // ObjectQL object name
+  staticData?: Array<any>,          // Static data array
+  data?: ViewData,                  // Advanced data configuration
+  gantt?: GanttConfig,              // Gantt-specific configuration
+  onTaskClick?: (record: any) => void,
+  className?: string
+}
+```
+
+### GanttConfig
+
+```typescript
+{
+  startDateField: string,      // Field containing task start date
+  endDateField: string,        // Field containing task end date
+  titleField: string,          // Field to use as task title
+  progressField?: string,      // Field for progress (0-100)
+  dependenciesField?: string   // Field for task dependencies (array of IDs)
+}
+```
+
+## Configuration
+
+### Field Mapping
+
+Map your database fields to Gantt properties:
+
+```tsx
+{
+  type: 'object-gantt',
+  objectName: 'project_tasks',
+  gantt: {
+    titleField: 'name',           // Database field for task name
+    startDateField: 'starts_at',  // Database field for start date
+    endDateField: 'ends_at',      // Database field for end date
+    progressField: 'percent_done', // Database field for progress
+    dependenciesField: 'depends_on' // Database field for dependencies
+  }
+}
+```
+
+### Progress Field
+
+The progress field should contain a number between 0-100 representing the completion percentage:
+
+```tsx
+{
+  id: 1,
+  taskName: 'Development',
+  startDate: '2024-01-01',
+  endDate: '2024-02-01',
+  completion: 75  // 75% complete
+}
+```
+
+### Dependencies Field
+
+The dependencies field should contain an array of task IDs that this task depends on:
+
+```tsx
+[
+  {
+    id: 1,
+    taskName: 'Design',
+    startDate: '2024-01-01',
+    endDate: '2024-01-15',
+    dependencies: []  // No dependencies
+  },
+  {
+    id: 2,
+    taskName: 'Development',
+    startDate: '2024-01-16',
+    endDate: '2024-02-28',
+    dependencies: [1]  // Depends on task 1 (Design)
+  },
+  {
+    id: 3,
+    taskName: 'Testing',
+    startDate: '2024-03-01',
+    endDate: '2024-03-15',
+    dependencies: [2]  // Depends on task 2 (Development)
+  }
+]
+```
+
+## Data Providers
+
+### Object Provider (Database)
+
+```tsx
+{
+  type: 'object-gantt',
+  objectName: 'project_tasks',
+  gantt: {
+    startDateField: 'start_date',
+    endDateField: 'due_date',
+    titleField: 'title',
+    progressField: 'progress'
+  }
+}
+```
+
+### Value Provider (Static)
+
+```tsx
+{
+  type: 'object-gantt',
+  staticData: [
+    { id: 1, title: 'Task 1', start: '2024-01-01', end: '2024-01-15' },
+    { id: 2, title: 'Task 2', start: '2024-01-16', end: '2024-01-31' }
+  ],
+  gantt: {
+    startDateField: 'start',
+    endDateField: 'end',
+    titleField: 'title'
+  }
+}
+```
+
+### API Provider
+
+```tsx
+{
+  type: 'object-gantt',
+  data: {
+    provider: 'api',
+    endpoint: '/api/project/tasks',
+    method: 'GET'
+  },
+  gantt: {
+    startDateField: 'startDate',
+    endDateField: 'endDate',
+    titleField: 'taskName',
+    progressField: 'percentComplete'
+  }
+}
+```
+
+## Event Handling
+
+### Task Click
+
+```tsx
+{
+  type: 'object-gantt',
+  objectName: 'tasks',
+  gantt: {
+    startDateField: 'start',
+    endDateField: 'end',
+    titleField: 'name'
+  },
+  onTaskClick: (task) => {
+    console.log('Task clicked:', task);
+    // Open task details
+    // Edit task
+    // Show task dependencies
+  }
+}
+```
+
+## Examples
+
+### Software Project
+
+```tsx
+const softwareProject = {
+  type: 'object-gantt',
+  objectName: 'sprint_tasks',
+  gantt: {
+    startDateField: 'startDate',
+    endDateField: 'endDate',
+    titleField: 'taskTitle',
+    progressField: 'completionPercent',
+    dependenciesField: 'blockedBy'
+  },
+  onTaskClick: (task) => {
+    // Show task details modal
+  }
+}
+```
+
+### Construction Project
+
+```tsx
+const constructionGantt = {
+  type: 'object-gantt',
+  objectName: 'construction_phases',
+  gantt: {
+    startDateField: 'phase_start',
+    endDateField: 'phase_end',
+    titleField: 'phase_name',
+    progressField: 'percent_complete'
+  },
+  onTaskClick: (phase) => {
+    // Navigate to phase details
+  }
+}
+```
+
+### Marketing Campaign
+
+```tsx
+const campaignGantt = {
+  type: 'object-gantt',
+  staticData: [
+    {
+      id: 1,
+      activity: 'Market Research',
+      start: '2024-01-01',
+      end: '2024-01-14',
+      done: 100
+    },
+    {
+      id: 2,
+      activity: 'Content Creation',
+      start: '2024-01-15',
+      end: '2024-02-15',
+      done: 80,
+      requires: [1]
+    },
+    {
+      id: 3,
+      activity: 'Campaign Launch',
+      start: '2024-02-16',
+      end: '2024-02-29',
+      done: 0,
+      requires: [2]
+    },
+    {
+      id: 4,
+      activity: 'Performance Analysis',
+      start: '2024-03-01',
+      end: '2024-03-15',
+      done: 0,
+      requires: [3]
+    }
+  ],
+  gantt: {
+    titleField: 'activity',
+    startDateField: 'start',
+    endDateField: 'end',
+    progressField: 'done',
+    dependenciesField: 'requires'
+  }
+}
+```
+
+## Comparison with Timeline Plugin
+
+| Feature | object-gantt | timeline (gantt variant) |
+|---------|-------------|--------------------------|
+| **Data Source** | ObjectQL (database) | Static arrays |
+| **Dependencies** | Yes | No |
+| **Progress** | Yes (0-100%) | No |
+| **Use Case** | Project management | Simple timelines |
+| **Field Mapping** | Configurable | Fixed schema |
+| **Best For** | Database-driven projects | Static presentations |
+
+**When to use object-gantt**:
+- You're using ObjectQL for data management
+- You need task dependencies and progress tracking
+- Tasks come from a database or API
+- You're building project management features
+
+**When to use timeline (gantt variant)**:
+- You have static timeline data
+- You don't need dependencies or progress
+- You're creating simple visual timelines
+- You're not using ObjectQL
+
+## Typical Use Cases
+
+1. **Project Management**: Track project tasks, milestones, and dependencies
+2. **Sprint Planning**: Visualize agile sprint tasks and their timeline
+3. **Construction Planning**: Display construction phases and their relationships
+4. **Event Planning**: Show event preparation tasks and schedules
+5. **Product Roadmap**: Display product features and release timelines
+
+## TypeScript Support
+
+```typescript
+import type { ObjectGridSchema, GanttConfig } from '@object-ui/types'
+
+const ganttConfig: GanttConfig = {
+  startDateField: 'startDate',
+  endDateField: 'endDate',
+  titleField: 'taskName',
+  progressField: 'completion',
+  dependenciesField: 'dependencies'
+}
+
+const ganttSchema: ObjectGridSchema = {
+  type: 'object-gantt',
+  objectName: 'project_tasks',
+  gantt: ganttConfig
+}
+```
+
+## Related Documentation
+
+- [Timeline Plugin](/docs/plugins/plugin-timeline) - Simpler timeline visualization
+- [Plugin System Overview](/docs/concepts/plugins)
+- [Views Package](/docs/views) - ObjectQL data management
+- [Package README](https://github.com/objectstack-ai/objectui/tree/main/packages/plugin-gantt)

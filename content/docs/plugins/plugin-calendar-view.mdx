@@ -1,0 +1,530 @@
+---
+title: "Plugin Calendar View"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+Full-featured calendar component with month, week, and day views for displaying events and scheduling.
+
+## Installation
+
+```bash
+npm install @object-ui/plugin-calendar-view
+```
+
+## Interactive Examples
+
+### Month View
+
+<InteractiveDemo
+  schema={{
+    type: "calendar-view",
+    view: "month",
+    data: [
+      {
+        id: 1,
+        title: "Team Meeting",
+        start: new Date(new Date().setHours(10, 0, 0, 0)).toISOString(),
+        end: new Date(new Date().setHours(11, 0, 0, 0)).toISOString(),
+        color: "#3b82f6",
+        allDay: false
+      },
+      {
+        id: 2,
+        title: "Project Deadline",
+        start: new Date(new Date().setDate(new Date().getDate() + 3)).toISOString(),
+        color: "#ef4444",
+        allDay: true
+      },
+      {
+        id: 3,
+        title: "Conference",
+        start: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString(),
+        end: new Date(new Date().setDate(new Date().getDate() + 9)).toISOString(),
+        color: "#10b981",
+        allDay: true
+      },
+      {
+        id: 4,
+        title: "Code Review",
+        start: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString(),
+        color: "#8b5cf6",
+        allDay: false
+      }
+    ],
+    titleField: "title",
+    startDateField: "start",
+    endDateField: "end",
+    colorField: "color",
+    allDayField: "allDay",
+    className: "h-[600px] border rounded-lg"
+  }}
+  title="Month View Calendar"
+  description="Full calendar view displaying events across the month"
+/>
+
+### Week View
+
+<InteractiveDemo
+  schema={{
+    type: "calendar-view",
+    view: "week",
+    data: [
+      {
+        id: 1,
+        title: "Monday Standup",
+        start: new Date(new Date().setDate(new Date().getDate() - new Date().getDay() + 1)).toISOString(),
+        color: "#3b82f6",
+        allDay: false
+      },
+      {
+        id: 2,
+        title: "Client Meeting",
+        start: new Date(new Date().setDate(new Date().getDate() - new Date().getDay() + 2)).toISOString(),
+        color: "#f59e0b",
+        allDay: false
+      },
+      {
+        id: 3,
+        title: "Team Lunch",
+        start: new Date(new Date().setDate(new Date().getDate() - new Date().getDay() + 3)).toISOString(),
+        color: "#10b981",
+        allDay: false
+      },
+      {
+        id: 4,
+        title: "Sprint Planning",
+        start: new Date(new Date().setDate(new Date().getDate() - new Date().getDay() + 5)).toISOString(),
+        color: "#8b5cf6",
+        allDay: false
+      }
+    ],
+    titleField: "title",
+    startDateField: "start",
+    colorField: "color",
+    className: "h-[600px] border rounded-lg"
+  }}
+  title="Week View Calendar"
+  description="Weekly calendar showing daily events and appointments"
+/>
+
+### Day View
+
+<InteractiveDemo
+  schema={{
+    type: "calendar-view",
+    view: "day",
+    data: [
+      {
+        id: 1,
+        title: "Morning Standup",
+        start: new Date(new Date().setHours(9, 0, 0, 0)).toISOString(),
+        end: new Date(new Date().setHours(9, 30, 0, 0)).toISOString(),
+        color: "#3b82f6"
+      },
+      {
+        id: 2,
+        title: "Focus Time",
+        start: new Date(new Date().setHours(10, 0, 0, 0)).toISOString(),
+        end: new Date(new Date().setHours(12, 0, 0, 0)).toISOString(),
+        color: "#8b5cf6"
+      },
+      {
+        id: 3,
+        title: "Lunch Break",
+        start: new Date(new Date().setHours(12, 0, 0, 0)).toISOString(),
+        end: new Date(new Date().setHours(13, 0, 0, 0)).toISOString(),
+        color: "#10b981"
+      },
+      {
+        id: 4,
+        title: "Client Call",
+        start: new Date(new Date().setHours(14, 0, 0, 0)).toISOString(),
+        end: new Date(new Date().setHours(15, 0, 0, 0)).toISOString(),
+        color: "#f59e0b"
+      },
+      {
+        id: 5,
+        title: "Team Sync",
+        start: new Date(new Date().setHours(16, 0, 0, 0)).toISOString(),
+        end: new Date(new Date().setHours(17, 0, 0, 0)).toISOString(),
+        color: "#ef4444"
+      }
+    ],
+    titleField: "title",
+    startDateField: "start",
+    endDateField: "end",
+    colorField: "color",
+    className: "h-[600px] border rounded-lg"
+  }}
+  title="Day View Calendar"
+  description="Detailed hourly schedule for a single day"
+/>
+
+## Usage
+
+### Basic Usage
+
+```tsx
+// Import once in your app entry point
+import '@object-ui/plugin-calendar-view'
+
+// Use in schemas
+const schema = {
+  type: 'calendar-view',
+  view: 'month',
+  data: [
+    {
+      id: 1,
+      title: 'Team Meeting',
+      start: '2024-01-15T10:00:00',
+      end: '2024-01-15T11:00:00',
+      color: '#3b82f6'
+    }
+  ]
+}
+```
+
+## Features
+
+- **Three View Modes**: Month, week, and day calendar views
+- **Event Display**: Show events with titles, times, and colors
+- **Navigation**: Previous/next navigation and "Today" button
+- **View Switcher**: Easy switching between month, week, day views
+- **Event Interaction**: Click events to trigger actions
+- **Date Selection**: Click dates to create new events
+- **All-day Events**: Support for all-day and timed events
+- **Color Coding**: Custom colors per event
+- **Responsive**: Adapts to different screen sizes
+
+## Schema API
+
+```typescript
+{
+  type: 'calendar-view',
+  view?: 'month' | 'week' | 'day',
+  data?: Array<CalendarEventData>,
+  titleField?: string,
+  startDateField?: string,
+  endDateField?: string,
+  allDayField?: string,
+  colorField?: string,
+  colorMapping?: Record<string, string>,
+  currentDate?: string,
+  allowCreate?: boolean,
+  onEventClick?: (event: any) => void,
+  onDateClick?: (date: Date) => void,
+  onViewChange?: (view: string) => void,
+  onNavigate?: (date: Date) => void,
+  className?: string
+}
+```
+
+### Calendar Event Data
+
+```typescript
+{
+  id: string | number,
+  title: string,           // or use custom titleField
+  start: string,           // ISO date string
+  end?: string,            // ISO date string (optional)
+  allDay?: boolean,
+  color?: string,          // Hex color or Tailwind class
+  [key: string]: any       // Additional custom fields
+}
+```
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `view` | string | `'month'` | Calendar view mode: month, week, or day |
+| `data` | array | `[]` | Array of event objects |
+| `titleField` | string | `'title'` | Field name for event title |
+| `startDateField` | string | `'start'` | Field name for event start date |
+| `endDateField` | string | `'end'` | Field name for event end date |
+| `allDayField` | string | `'allDay'` | Field name for all-day flag |
+| `colorField` | string | `'color'` | Field name for event color |
+| `colorMapping` | object | - | Map field values to colors |
+| `currentDate` | string | today | ISO date for initial display |
+| `allowCreate` | boolean | `false` | Enable event creation on date click |
+| `onEventClick` | function | - | Callback when event is clicked |
+| `onDateClick` | function | - | Callback when date is clicked |
+| `onViewChange` | function | - | Callback when view changes |
+| `onNavigate` | function | - | Callback when date navigation occurs |
+| `className` | string | `''` | Additional Tailwind CSS classes |
+
+## Examples
+
+### Meeting Scheduler
+
+```tsx
+const scheduler = {
+  type: 'calendar-view',
+  view: 'week',
+  data: [
+    {
+      id: 1,
+      title: '1:1 with Sarah',
+      start: '2024-01-15T10:00:00',
+      end: '2024-01-15T10:30:00',
+      color: '#3b82f6',
+      type: 'meeting'
+    },
+    {
+      id: 2,
+      title: 'Team Standup',
+      start: '2024-01-15T09:00:00',
+      end: '2024-01-15T09:15:00',
+      color: '#10b981',
+      type: 'meeting'
+    },
+    {
+      id: 3,
+      title: 'Product Review',
+      start: '2024-01-16T14:00:00',
+      end: '2024-01-16T15:30:00',
+      color: '#8b5cf6',
+      type: 'meeting'
+    }
+  ],
+  className: 'h-[700px] border rounded-lg shadow-sm'
+}
+```
+
+### Event Calendar
+
+```tsx
+const eventCalendar = {
+  type: 'calendar-view',
+  view: 'month',
+  data: [
+    {
+      id: 1,
+      title: 'Tech Conference 2024',
+      start: '2024-03-15',
+      end: '2024-03-17',
+      color: '#f59e0b',
+      allDay: true,
+      category: 'conference'
+    },
+    {
+      id: 2,
+      title: 'Workshop: React Best Practices',
+      start: '2024-03-20',
+      color: '#3b82f6',
+      allDay: true,
+      category: 'workshop'
+    },
+    {
+      id: 3,
+      title: 'Hackathon Weekend',
+      start: '2024-03-25',
+      end: '2024-03-26',
+      color: '#10b981',
+      allDay: true,
+      category: 'hackathon'
+    }
+  ],
+  colorMapping: {
+    conference: '#f59e0b',
+    workshop: '#3b82f6',
+    hackathon: '#10b981'
+  },
+  className: 'h-[650px] border-2 rounded-xl'
+}
+```
+
+### Project Timeline
+
+```tsx
+const projectTimeline = {
+  type: 'calendar-view',
+  view: 'month',
+  data: [
+    {
+      id: 1,
+      name: 'Design Phase',
+      startDate: '2024-01-01',
+      endDate: '2024-01-15',
+      color: '#8b5cf6',
+      allDay: true
+    },
+    {
+      id: 2,
+      name: 'Development Sprint 1',
+      startDate: '2024-01-16',
+      endDate: '2024-01-31',
+      color: '#3b82f6',
+      allDay: true
+    },
+    {
+      id: 3,
+      name: 'Testing & QA',
+      startDate: '2024-02-01',
+      endDate: '2024-02-10',
+      color: '#f59e0b',
+      allDay: true
+    },
+    {
+      id: 4,
+      name: 'Launch',
+      startDate: '2024-02-15',
+      color: '#10b981',
+      allDay: true
+    }
+  ],
+  titleField: 'name',
+  startDateField: 'startDate',
+  endDateField: 'endDate',
+  className: 'h-[600px] border rounded-lg'
+}
+```
+
+## Field Mapping
+
+Map your data structure to calendar fields:
+
+```tsx
+const schema = {
+  type: 'calendar-view',
+  data: [
+    {
+      id: 1,
+      eventName: 'Meeting',     // Custom field
+      begins: '2024-01-15',     // Custom field
+      ends: '2024-01-15',       // Custom field
+      bgcolor: '#3b82f6'        // Custom field
+    }
+  ],
+  titleField: 'eventName',      // Map to custom field
+  startDateField: 'begins',     // Map to custom field
+  endDateField: 'ends',         // Map to custom field
+  colorField: 'bgcolor'         // Map to custom field
+}
+```
+
+## Color Mapping
+
+Map categories to colors:
+
+```tsx
+const schema = {
+  type: 'calendar-view',
+  data: [
+    { id: 1, title: 'Meeting', start: '2024-01-15', category: 'work' },
+    { id: 2, title: 'Birthday', start: '2024-01-20', category: 'personal' }
+  ],
+  colorField: 'category',
+  colorMapping: {
+    work: '#3b82f6',        // Blue
+    personal: '#10b981',     // Green
+    urgent: '#ef4444'        // Red
+  }
+}
+```
+
+## Event Handling
+
+### Event Click
+
+```tsx
+const schema = {
+  type: 'calendar-view',
+  data: [...],
+  onEventClick: (event) => {
+    console.log('Event clicked:', event);
+    // Show event details modal
+    // Or navigate to event page
+  }
+}
+```
+
+### Date Click
+
+```tsx
+const schema = {
+  type: 'calendar-view',
+  data: [...],
+  allowCreate: true,
+  onDateClick: (date) => {
+    console.log('Date clicked:', date);
+    // Show create event dialog
+    // Pre-fill with selected date
+  }
+}
+```
+
+### View Change
+
+```tsx
+const schema = {
+  type: 'calendar-view',
+  onViewChange: (view) => {
+    console.log('View changed to:', view);
+    // Update URL or state
+  }
+}
+```
+
+### Navigation
+
+```tsx
+const schema = {
+  type: 'calendar-view',
+  onNavigate: (date) => {
+    console.log('Navigated to:', date);
+    // Fetch events for new date range
+  }
+}
+```
+
+## Customization
+
+### Container Sizing
+
+```tsx
+const schema = {
+  type: 'calendar-view',
+  className: 'h-[600px] border-2 border-gray-200 rounded-xl shadow-lg',
+  data: [...]
+}
+```
+
+### Responsive Heights
+
+```tsx
+const schema = {
+  type: 'calendar-view',
+  className: 'h-[400px] sm:h-[500px] lg:h-[700px] border rounded-lg',
+  data: [...]
+}
+```
+
+## TypeScript Support
+
+```typescript
+import type { CalendarViewSchema, CalendarEvent } from '@object-ui/types'
+
+const events: CalendarEvent[] = [
+  {
+    id: 1,
+    title: 'Meeting',
+    start: new Date('2024-01-15T10:00:00'),
+    end: new Date('2024-01-15T11:00:00'),
+    color: '#3b82f6'
+  }
+]
+
+const calendarSchema: CalendarViewSchema = {
+  type: 'calendar-view',
+  view: 'month',
+  data: events,
+  onEventClick: (event) => console.log(event)
+}
+```
+
+## Related Documentation
+
+- [Plugin System Overview](/docs/concepts/plugins)
+- [Package README](https://github.com/objectstack-ai/objectui/tree/main/packages/plugin-calendar-view)

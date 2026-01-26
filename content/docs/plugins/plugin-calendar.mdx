@@ -1,0 +1,311 @@
+---
+title: "Plugin Calendar"
+---
+
+Calendar view component for ObjectQL data sources - displays database records as calendar events.
+
+## Installation
+
+```bash
+npm install @object-ui/plugin-calendar
+```
+
+## Overview
+
+The `@object-ui/plugin-calendar` plugin provides calendar visualization for ObjectQL data sources. It's designed to work with object-based data providers and automatically maps record fields to calendar events.
+
+**Note**: This plugin is designed for use with ObjectQL data sources. For a standalone calendar component, see [Calendar View Plugin](/docs/plugins/plugin-calendar-view).
+
+## Features
+
+- **ObjectQL Integration**: Works seamlessly with object/api/value data providers
+- **Automatic Field Mapping**: Maps database fields to calendar events
+- **Multiple View Modes**: Month, week, and day calendar views
+- **Date Filtering**: Automatically filters records by date range
+- **Event Interaction**: Click handling for events and dates
+- **Color Coding**: Support for event color customization
+
+## Usage
+
+### Basic Usage with ObjectQL
+
+```tsx
+import '@object-ui/plugin-calendar'
+
+const schema = {
+  type: 'object-calendar',
+  objectName: 'events',  // Your ObjectQL object
+  calendar: {
+    startDateField: 'startDate',
+    endDateField: 'endDate',
+    titleField: 'title',
+    colorField: 'category'
+  }
+}
+```
+
+### With Static Data
+
+```tsx
+const schema = {
+  type: 'object-calendar',
+  staticData: [
+    {
+      id: 1,
+      title: 'Team Meeting',
+      startDate: '2024-01-15T10:00:00',
+      endDate: '2024-01-15T11:00:00',
+      category: 'meeting'
+    },
+    {
+      id: 2,
+      title: 'Project Deadline',
+      startDate: '2024-01-20',
+      category: 'deadline'
+    }
+  ],
+  calendar: {
+    startDateField: 'startDate',
+    endDateField: 'endDate',
+    titleField: 'title',
+    colorField: 'category'
+  }
+}
+```
+
+## Schema API
+
+```typescript
+{
+  type: 'object-calendar',
+  objectName?: string,              // ObjectQL object name
+  staticData?: Array<any>,          // Static data array
+  data?: ViewData,                  // Advanced data configuration
+  calendar?: CalendarConfig,        // Calendar-specific configuration
+  onEventClick?: (record: any) => void,
+  onDateClick?: (date: Date) => void,
+  className?: string
+}
+```
+
+### CalendarConfig
+
+```typescript
+{
+  startDateField: string,     // Field containing event start date
+  endDateField?: string,      // Field containing event end date
+  titleField: string,         // Field to use as event title
+  colorField?: string,        // Field for color coding
+  descriptionField?: string   // Field for event description
+}
+```
+
+## Configuration
+
+### Field Mapping
+
+Map your database fields to calendar properties:
+
+```tsx
+{
+  type: 'object-calendar',
+  objectName: 'tasks',
+  calendar: {
+    titleField: 'taskName',      // Database field for title
+    startDateField: 'dueDate',   // Database field for start
+    endDateField: 'completedAt', // Database field for end
+    colorField: 'priority'       // Database field for color
+  }
+}
+```
+
+### Data Providers
+
+#### Object Provider (Database)
+
+```tsx
+{
+  type: 'object-calendar',
+  objectName: 'appointments',
+  calendar: {
+    startDateField: 'scheduledAt',
+    titleField: 'subject'
+  }
+}
+```
+
+#### Value Provider (Static)
+
+```tsx
+{
+  type: 'object-calendar',
+  staticData: [
+    { id: 1, title: 'Event 1', date: '2024-01-15' },
+    { id: 2, title: 'Event 2', date: '2024-01-20' }
+  ],
+  calendar: {
+    startDateField: 'date',
+    titleField: 'title'
+  }
+}
+```
+
+#### API Provider
+
+```tsx
+{
+  type: 'object-calendar',
+  data: {
+    provider: 'api',
+    endpoint: '/api/events',
+    method: 'GET'
+  },
+  calendar: {
+    startDateField: 'startTime',
+    endDateField: 'endTime',
+    titleField: 'eventName'
+  }
+}
+```
+
+## Event Handling
+
+### Event Click
+
+```tsx
+{
+  type: 'object-calendar',
+  objectName: 'events',
+  calendar: {
+    startDateField: 'start',
+    titleField: 'title'
+  },
+  onEventClick: (record) => {
+    console.log('Event clicked:', record);
+    // Open event details
+    // Navigate to event page
+  }
+}
+```
+
+### Date Click
+
+```tsx
+{
+  type: 'object-calendar',
+  objectName: 'events',
+  calendar: {
+    startDateField: 'start',
+    titleField: 'title'
+  },
+  onDateClick: (date) => {
+    console.log('Date clicked:', date);
+    // Create new event on this date
+  }
+}
+```
+
+## Examples
+
+### Appointment Scheduler
+
+```tsx
+const appointmentCalendar = {
+  type: 'object-calendar',
+  objectName: 'appointments',
+  calendar: {
+    startDateField: 'appointmentDate',
+    endDateField: 'appointmentEnd',
+    titleField: 'patientName',
+    descriptionField: 'notes',
+    colorField: 'appointmentType'
+  },
+  onEventClick: (appointment) => {
+    // Show appointment details
+  }
+}
+```
+
+### Event Management
+
+```tsx
+const eventCalendar = {
+  type: 'object-calendar',
+  objectName: 'events',
+  calendar: {
+    startDateField: 'eventStart',
+    endDateField: 'eventEnd',
+    titleField: 'eventTitle',
+    colorField: 'eventCategory'
+  },
+  onEventClick: (event) => {
+    // Navigate to event details
+  },
+  onDateClick: (date) => {
+    // Create new event
+  }
+}
+```
+
+### Task Deadlines
+
+```tsx
+const taskCalendar = {
+  type: 'object-calendar',
+  objectName: 'tasks',
+  calendar: {
+    startDateField: 'dueDate',
+    titleField: 'taskTitle',
+    colorField: 'priority'
+  },
+  onEventClick: (task) => {
+    // Open task details
+  }
+}
+```
+
+## Comparison with Calendar View Plugin
+
+| Feature | object-calendar | calendar-view |
+|---------|----------------|---------------|
+| **Data Source** | ObjectQL (database) | Static arrays |
+| **Use Case** | Dynamic data from backend | Pre-loaded event data |
+| **Field Mapping** | Configurable field names | Standard field names |
+| **Data Loading** | Automatic via ObjectQL | Manual via props |
+| **Best For** | Database-driven apps | Static schedules |
+
+**When to use object-calendar**:
+- You're using ObjectQL for data management
+- Events come from a database or API
+- You need automatic data fetching and filtering
+
+**When to use calendar-view**:
+- You have static or pre-loaded event data
+- You're not using ObjectQL
+- You need a simple, standalone calendar
+
+## TypeScript Support
+
+```typescript
+import type { ObjectGridSchema, CalendarConfig } from '@object-ui/types'
+
+const calendarConfig: CalendarConfig = {
+  startDateField: 'startDate',
+  endDateField: 'endDate',
+  titleField: 'title',
+  colorField: 'category'
+}
+
+const calendarSchema: ObjectGridSchema = {
+  type: 'object-calendar',
+  objectName: 'events',
+  calendar: calendarConfig
+}
+```
+
+## Related Documentation
+
+- [Calendar View Plugin](/docs/plugins/plugin-calendar-view) - Standalone calendar component
+- [Plugin System Overview](/docs/concepts/plugins)
+- [Views Package](/docs/views) - ObjectQL data management
+- [Package README](https://github.com/objectstack-ai/objectui/tree/main/packages/plugin-calendar)

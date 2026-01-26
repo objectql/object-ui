@@ -1,0 +1,464 @@
+---
+title: "Plugin Timeline"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+Timeline component with vertical, horizontal, and Gantt-style layouts for displaying events and project timelines.
+
+## Installation
+
+```bash
+npm install @object-ui/plugin-timeline
+```
+
+## Interactive Examples
+
+### Vertical Timeline
+
+<InteractiveDemo
+  schema={{
+    type: "timeline",
+    variant: "vertical",
+    dateFormat: "long",
+    items: [
+      {
+        time: "2024-01-15",
+        title: "Project Started",
+        description: "Kickoff meeting and initial planning",
+        variant: "success",
+        icon: "🚀"
+      },
+      {
+        time: "2024-02-01",
+        title: "First Milestone",
+        description: "Completed initial design phase",
+        variant: "info",
+        icon: "🎨"
+      },
+      {
+        time: "2024-03-15",
+        title: "Beta Release",
+        description: "Released beta version to testers",
+        variant: "warning",
+        icon: "⚡"
+      },
+      {
+        time: "2024-04-01",
+        title: "Launch",
+        description: "Official product launch",
+        variant: "success",
+        icon: "🎉"
+      }
+    ]
+  }}
+  title="Vertical Timeline"
+  description="Display events in chronological order with markers and descriptions"
+/>
+
+### Horizontal Timeline
+
+<InteractiveDemo
+  schema={{
+    type: "timeline",
+    variant: "horizontal",
+    dateFormat: "short",
+    items: [
+      {
+        time: "2024-01-01",
+        title: "Q1",
+        description: "First quarter",
+        variant: "default"
+      },
+      {
+        time: "2024-04-01",
+        title: "Q2",
+        description: "Second quarter",
+        variant: "info"
+      },
+      {
+        time: "2024-07-01",
+        title: "Q3",
+        description: "Third quarter",
+        variant: "warning"
+      },
+      {
+        time: "2024-10-01",
+        title: "Q4",
+        description: "Fourth quarter",
+        variant: "success"
+      }
+    ]
+  }}
+  title="Horizontal Timeline"
+  description="Horizontal layout ideal for quarterly or milestone views"
+/>
+
+### Gantt-Style Timeline
+
+<InteractiveDemo
+  schema={{
+    type: "timeline",
+    variant: "gantt",
+    dateFormat: "short",
+    timeScale: "month",
+    rowLabel: "Projects",
+    items: [
+      {
+        label: "Backend Development",
+        items: [
+          {
+            title: "API Design",
+            startDate: "2024-01-01",
+            endDate: "2024-01-31",
+            variant: "success"
+          },
+          {
+            title: "Implementation",
+            startDate: "2024-02-01",
+            endDate: "2024-03-31",
+            variant: "info"
+          }
+        ]
+      },
+      {
+        label: "Frontend Development",
+        items: [
+          {
+            title: "UI Design",
+            startDate: "2024-01-15",
+            endDate: "2024-02-15",
+            variant: "warning"
+          },
+          {
+            title: "Component Dev",
+            startDate: "2024-02-15",
+            endDate: "2024-04-15",
+            variant: "default"
+          }
+        ]
+      },
+      {
+        label: "Testing",
+        items: [
+          {
+            title: "QA Phase",
+            startDate: "2024-03-01",
+            endDate: "2024-04-30",
+            variant: "danger"
+          }
+        ]
+      }
+    ]
+  }}
+  title="Gantt-Style Timeline"
+  description="Project timeline with task dependencies and duration bars"
+/>
+
+## Usage
+
+### Basic Usage
+
+```tsx
+// Import once in your app entry point
+import '@object-ui/plugin-timeline'
+
+// Use in schemas - Vertical Timeline
+const schema = {
+  type: 'timeline',
+  variant: 'vertical',
+  items: [
+    {
+      time: '2024-01-15',
+      title: 'Project Started',
+      description: 'Kickoff meeting',
+      variant: 'success'
+    }
+  ]
+}
+```
+
+## Features
+
+- **Three Layout Variants**: Vertical, horizontal, and Gantt-style layouts
+- **Customizable Markers**: Color-coded markers with icon support
+- **Date Formatting**: Multiple date format options
+- **Gantt Charts**: Project timeline visualization with task bars
+- **Time Scales**: Day, week, or month scales for Gantt view
+- **Lightweight**: Pure CSS and React components
+
+## Schema API
+
+### Timeline Schema
+
+```typescript
+{
+  type: 'timeline',
+  variant?: 'vertical' | 'horizontal' | 'gantt',
+  items?: TimelineItem[],
+  dateFormat?: 'short' | 'long' | 'iso',
+  // Gantt-specific
+  timeScale?: 'day' | 'week' | 'month',
+  rowLabel?: string,
+  minDate?: string,
+  maxDate?: string,
+  className?: string
+}
+```
+
+### Timeline Item (Vertical/Horizontal)
+
+```typescript
+{
+  time: string,              // ISO date string
+  title: string,
+  description?: string,
+  variant?: 'default' | 'success' | 'warning' | 'danger' | 'info',
+  icon?: string,            // Emoji or text
+  content?: SchemaNode,     // Custom React content
+  className?: string
+}
+```
+
+### Gantt Item
+
+```typescript
+{
+  label: string,            // Row label
+  items: Array<{
+    title: string,
+    startDate: string,      // ISO date string
+    endDate: string,        // ISO date string
+    variant?: 'default' | 'success' | 'warning' | 'danger' | 'info'
+  }>
+}
+```
+
+## Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `variant` | string | `'vertical'` | Timeline layout: vertical, horizontal, or gantt |
+| `items` | array | `[]` | Array of timeline items |
+| `dateFormat` | string | `'short'` | Date formatting: short, long, or iso |
+| `timeScale` | string | `'month'` | Gantt time scale: day, week, or month |
+| `rowLabel` | string | `'Items'` | Label for Gantt rows |
+| `minDate` | string | auto | Override min date for Gantt (YYYY-MM-DD) |
+| `maxDate` | string | auto | Override max date for Gantt (YYYY-MM-DD) |
+| `className` | string | `''` | Additional Tailwind CSS classes |
+
+## Variants
+
+### Marker Variants
+
+Available marker/bar colors:
+
+- `default` - Gray
+- `success` - Green
+- `info` - Blue
+- `warning` - Yellow
+- `danger` - Red
+
+```tsx
+const item = {
+  time: '2024-01-15',
+  title: 'Important Milestone',
+  variant: 'success'  // Green marker
+}
+```
+
+## Examples
+
+### Product Roadmap
+
+```tsx
+const roadmap = {
+  type: 'timeline',
+  variant: 'horizontal',
+  dateFormat: 'long',
+  items: [
+    {
+      time: '2024-01-01',
+      title: 'Alpha Release',
+      description: 'Internal testing phase',
+      variant: 'info',
+      icon: '🔬'
+    },
+    {
+      time: '2024-03-01',
+      title: 'Beta Launch',
+      description: 'Limited public beta',
+      variant: 'warning',
+      icon: '🚀'
+    },
+    {
+      time: '2024-06-01',
+      title: 'Public Launch',
+      description: 'General availability',
+      variant: 'success',
+      icon: '🎉'
+    }
+  ]
+}
+```
+
+### Project Schedule (Gantt)
+
+```tsx
+const schedule = {
+  type: 'timeline',
+  variant: 'gantt',
+  timeScale: 'week',
+  rowLabel: 'Teams',
+  items: [
+    {
+      label: 'Design Team',
+      items: [
+        {
+          title: 'Wireframes',
+          startDate: '2024-01-01',
+          endDate: '2024-01-14',
+          variant: 'info'
+        },
+        {
+          title: 'Mockups',
+          startDate: '2024-01-15',
+          endDate: '2024-02-01',
+          variant: 'success'
+        }
+      ]
+    },
+    {
+      label: 'Engineering',
+      items: [
+        {
+          title: 'Development',
+          startDate: '2024-02-01',
+          endDate: '2024-03-31',
+          variant: 'warning'
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Company History
+
+```tsx
+const history = {
+  type: 'timeline',
+  variant: 'vertical',
+  dateFormat: 'long',
+  items: [
+    {
+      time: '2020-01-01',
+      title: 'Company Founded',
+      description: 'Started in a garage with 2 founders',
+      variant: 'success',
+      icon: '🏢'
+    },
+    {
+      time: '2021-06-01',
+      title: 'Series A Funding',
+      description: 'Raised $5M from VCs',
+      variant: 'info',
+      icon: '💰'
+    },
+    {
+      time: '2022-12-01',
+      title: '10,000 Customers',
+      description: 'Reached major milestone',
+      variant: 'success',
+      icon: '🎯'
+    },
+    {
+      time: '2024-01-01',
+      title: 'Series B Funding',
+      description: 'Raised $20M to expand globally',
+      variant: 'warning',
+      icon: '🌍'
+    }
+  ]
+}
+```
+
+## Date Formatting
+
+The timeline component supports three date formats:
+
+```tsx
+// Short format: "1/15/2024"
+{ dateFormat: 'short' }
+
+// Long format: "January 15, 2024"
+{ dateFormat: 'long' }
+
+// ISO format: "2024-01-15"
+{ dateFormat: 'iso' }
+```
+
+## Time Scales (Gantt)
+
+For Gantt-style timelines, choose the appropriate time scale:
+
+```tsx
+// Day scale - for short projects
+{ timeScale: 'day' }
+
+// Week scale - for medium projects
+{ timeScale: 'week' }
+
+// Month scale - for long projects
+{ timeScale: 'month' }
+```
+
+## Customization
+
+### Custom Icons
+
+```tsx
+const item = {
+  time: '2024-01-15',
+  title: 'Milestone',
+  icon: '🎯',  // Any emoji or short text
+  variant: 'success'
+}
+```
+
+### Custom Colors
+
+Use Tailwind CSS classes for additional styling:
+
+```tsx
+const schema = {
+  type: 'timeline',
+  variant: 'vertical',
+  className: 'max-w-4xl mx-auto',
+  items: [...]
+}
+```
+
+## TypeScript Support
+
+```typescript
+import type { TimelineSchema } from '@object-ui/types'
+
+const timelineSchema: TimelineSchema = {
+  type: 'timeline',
+  variant: 'vertical',
+  items: [
+    {
+      time: '2024-01-15',
+      title: 'Event',
+      description: 'Description',
+      variant: 'success'
+    }
+  ]
+}
+```
+
+## Related Documentation
+
+- [Plugin System Overview](/docs/concepts/plugins)
+- [Package README](https://github.com/objectstack-ai/objectui/tree/main/packages/plugin-timeline)
