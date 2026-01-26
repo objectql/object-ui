@@ -1,5 +1,6 @@
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import './global.css';
+import '@object-ui/components/style.css';
 import '@object-ui/plugin-aggrid/style.css';
 import { Inter } from 'next/font/google';
 
