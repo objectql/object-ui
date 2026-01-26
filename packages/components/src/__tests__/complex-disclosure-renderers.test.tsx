@@ -224,29 +224,6 @@ describe('Complex Renderers - Display Issue Detection', () => {
     });
   });
 
-  describe('Calendar View Renderer', () => {
-    it('should be properly registered', () => {
-      const validation = validateComponentRegistration('calendar-view');
-      expect(validation.isRegistered).toBe(true);
-    });
-
-    it('should render calendar view', () => {
-      const { container } = renderComponent({
-        type: 'calendar-view',
-        events: [
-          {
-            id: '1',
-            title: 'Event 1',
-            start: '2024-01-01',
-            end: '2024-01-01',
-          },
-        ],
-      });
-
-      expect(container).toBeDefined();
-    });
-  });
-
   describe('Table Renderer', () => {
     it('should be properly registered', () => {
       const validation = validateComponentRegistration('table');

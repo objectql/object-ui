@@ -8,7 +8,7 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import type { CalendarViewSchema, CalendarEvent } from '@object-ui/types';
-import { CalendarView } from '../../ui';
+import { CalendarView } from './index';
 import React from 'react';
 
 // Calendar View Renderer - Airtable-style calendar for displaying records as events
