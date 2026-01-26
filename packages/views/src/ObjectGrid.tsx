@@ -25,6 +25,14 @@ import React, { useEffect, useState, useCallback } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
 import { SchemaRenderer } from '@object-ui/react';
 import { getCellRenderer } from './field-renderers';
+import { Button } from '@object-ui/components';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@object-ui/components';
+import { Edit, Trash2, MoreVertical } from 'lucide-react';
 
 export interface ObjectGridProps {
   schema: ObjectGridSchema;
@@ -298,18 +306,28 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       header: 'Actions',
       accessorKey: '_actions',
       cell: (_value: any, row: any) => (
-        <div className="flex gap-2">
-          {operations?.update && onEdit && (
-            <button onClick={() => onEdit(row)} className="text-blue-600 hover:text-blue-800 text-sm">
-              Edit
-            </button>
-          )}
-          {operations?.delete && onDelete && (
-            <button onClick={() => onDelete(row)} className="text-red-600 hover:text-red-800 text-sm">
-              Delete
-            </button>
-          )}
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreVertical className="h-4 w-4" />
+              <span className="sr-only">Open menu</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {operations?.update && onEdit && (
+              <DropdownMenuItem onClick={() => onEdit(row)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+            )}
+            {operations?.delete && onDelete && (
+              <DropdownMenuItem variant="destructive" onClick={() => onDelete(row)}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       ),
       sortable: false,
     },

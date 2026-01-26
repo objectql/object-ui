@@ -15,6 +15,8 @@
 
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
+import { Badge, Avatar, AvatarFallback, Button } from '@object-ui/components';
+import { Check, X } from 'lucide-react';
 
 /**
  * Cell renderer props
@@ -133,13 +135,15 @@ export function BooleanCellRenderer({ value }: CellRendererProps): React.ReactEl
   return (
     <div className="flex items-center">
       {value ? (
-        <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-100 text-green-600">
-          ✓
-        </span>
+        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1">
+          <Check className="size-3" />
+          True
+        </Badge>
       ) : (
-        <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-100 text-gray-400">
-          ✗
-        </span>
+        <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-200 gap-1">
+          <X className="size-3" />
+          False
+        </Badge>
       )}
     </div>
   );
@@ -173,17 +177,20 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
   
   if (!value) return <span>-</span>;
   
-  // Color mapping for Tailwind CSS (to avoid dynamic class names)
-  const colorClasses: Record<string, { bg: string; text: string }> = {
-    gray: { bg: 'bg-gray-100', text: 'text-gray-800' },
-    red: { bg: 'bg-red-100', text: 'text-red-800' },
-    orange: { bg: 'bg-orange-100', text: 'text-orange-800' },
-    yellow: { bg: 'bg-yellow-100', text: 'text-yellow-800' },
-    green: { bg: 'bg-green-100', text: 'text-green-800' },
-    blue: { bg: 'bg-blue-100', text: 'text-blue-800' },
-    indigo: { bg: 'bg-indigo-100', text: 'text-indigo-800' },
-    purple: { bg: 'bg-purple-100', text: 'text-purple-800' },
-    pink: { bg: 'bg-pink-100', text: 'text-pink-800' },
+  // Color to Tailwind class mapping for custom Badge styling
+  const getColorClasses = (color?: string) => {
+    const colorMap: Record<string, string> = {
+      gray: 'bg-gray-100 text-gray-800 border-gray-300',
+      red: 'bg-red-100 text-red-800 border-red-300',
+      orange: 'bg-orange-100 text-orange-800 border-orange-300',
+      yellow: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      green: 'bg-green-100 text-green-800 border-green-300',
+      blue: 'bg-blue-100 text-blue-800 border-blue-300',
+      indigo: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+      purple: 'bg-purple-100 text-purple-800 border-purple-300',
+      pink: 'bg-pink-100 text-pink-800 border-pink-300',
+    };
+    return colorMap[color || 'blue'] || colorMap.blue;
   };
   
   // Handle multiple values
@@ -193,16 +200,16 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
         {value.map((val, idx) => {
           const option = options.find(opt => opt.value === val);
           const label = option?.label || val;
-          const color = option?.color || 'gray';
-          const classes = colorClasses[color] || colorClasses.gray;
+          const colorClasses = getColorClasses(option?.color);
           
           return (
-            <span
+            <Badge
               key={idx}
-              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${classes.bg} ${classes.text}`}
+              variant="outline"
+              className={colorClasses}
             >
               {label}
-            </span>
+            </Badge>
           );
         })}
       </div>
@@ -212,15 +219,15 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
   // Handle single value
   const option = options.find(opt => opt.value === value);
   const label = option?.label || value;
-  const color = option?.color || 'blue';
-  const classes = colorClasses[color] || colorClasses.blue;
+  const colorClasses = getColorClasses(option?.color);
   
   return (
-    <span
-      className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${classes.bg} ${classes.text}`}
+    <Badge
+      variant="outline"
+      className={colorClasses}
     >
       {label}
-    </span>
+    </Badge>
   );
 }
 
@@ -231,13 +238,18 @@ export function EmailCellRenderer({ value }: CellRendererProps): React.ReactElem
   if (!value) return <span>-</span>;
   
   return (
-    <a
-      href={`mailto:${value}`}
-      className="text-blue-600 hover:text-blue-800 underline truncate"
-      onClick={(e) => e.stopPropagation()}
+    <Button
+      variant="link"
+      className="p-0 h-auto font-normal text-blue-600 hover:text-blue-800"
+      asChild
     >
-      {value}
-    </a>
+      <a
+        href={`mailto:${value}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {value}
+      </a>
+    </Button>
   );
 }
 
@@ -248,15 +260,20 @@ export function UrlCellRenderer({ value }: CellRendererProps): React.ReactElemen
   if (!value) return <span>-</span>;
   
   return (
-    <a
-      href={value}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-blue-600 hover:text-blue-800 underline truncate"
-      onClick={(e) => e.stopPropagation()}
+    <Button
+      variant="link"
+      className="p-0 h-auto font-normal text-blue-600 hover:text-blue-800"
+      asChild
     >
-      {value}
-    </a>
+      <a
+        href={value}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {value}
+      </a>
+    </Button>
   );
 }
 
@@ -313,11 +330,11 @@ export function ImageCellRenderer({ value }: CellRendererProps): React.ReactElem
             key={idx}
             src={img.url || ''}
             alt={img.name || `Image ${idx + 1}`}
-            className="w-8 h-8 rounded border-2 border-white object-cover"
+            className="size-8 rounded-md border-2 border-white object-cover"
           />
         ))}
         {value.length > 3 && (
-          <div className="w-8 h-8 rounded border-2 border-white bg-gray-100 flex items-center justify-center text-xs">
+          <div className="size-8 rounded-md border-2 border-white bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
             +{value.length - 3}
           </div>
         )}
@@ -329,7 +346,7 @@ export function ImageCellRenderer({ value }: CellRendererProps): React.ReactElem
     <img
       src={value.url || ''}
       alt={value.name || 'Image'}
-      className="w-10 h-10 rounded object-cover"
+      className="size-10 rounded-md object-cover"
     />
   );
 }
@@ -391,19 +408,23 @@ export function UserCellRenderer({ value }: CellRendererProps): React.ReactEleme
           const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
           
           return (
-            <div
+            <Avatar
               key={idx}
-              className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-medium border-2 border-white"
+              className="size-8 border-2 border-white"
               title={name}
             >
-              {initials}
-            </div>
+              <AvatarFallback className="bg-blue-500 text-white text-xs">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
           );
         })}
         {value.length > 3 && (
-          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs border-2 border-white">
-            +{value.length - 3}
-          </div>
+          <Avatar className="size-8 border-2 border-white">
+            <AvatarFallback className="bg-gray-200 text-gray-600 text-xs">
+              +{value.length - 3}
+            </AvatarFallback>
+          </Avatar>
         )}
       </div>
     );
@@ -414,9 +435,11 @@ export function UserCellRenderer({ value }: CellRendererProps): React.ReactEleme
   
   return (
     <div className="flex items-center gap-2">
-      <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-medium">
-        {initials}
-      </div>
+      <Avatar className="size-8">
+        <AvatarFallback className="bg-blue-500 text-white text-xs">
+          {initials}
+        </AvatarFallback>
+      </Avatar>
       <span className="truncate">{name}</span>
     </div>
   );

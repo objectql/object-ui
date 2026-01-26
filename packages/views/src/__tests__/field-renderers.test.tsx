@@ -82,13 +82,13 @@ describe('Field Renderers', () => {
     it('renders checkmark for true', () => {
       const field = { type: 'boolean', name: 'active' } as FieldMetadata;
       const { container } = render(<BooleanCellRenderer value={true} field={field} />);
-      expect(container.textContent).toContain('✓');
+      expect(container.textContent).toContain('True');
     });
 
     it('renders cross for false', () => {
       const field = { type: 'boolean', name: 'active' } as FieldMetadata;
       const { container } = render(<BooleanCellRenderer value={false} field={field} />);
-      expect(container.textContent).toContain('✗');
+      expect(container.textContent).toContain('False');
     });
   });
 
@@ -264,7 +264,8 @@ describe('Field Renderers', () => {
         { name: 'Jane Smith' },
       ];
       const { container } = render(<UserCellRenderer value={users} field={field} />);
-      const avatars = container.querySelectorAll('.rounded-full');
+      // Avatar component creates nested elements, so we look for the Avatar data-slot attribute instead
+      const avatars = container.querySelectorAll('[data-slot="avatar"]');
       expect(avatars.length).toBe(2);
     });
   });

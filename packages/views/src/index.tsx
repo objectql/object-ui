@@ -28,18 +28,6 @@ export type { ObjectFormProps } from './ObjectForm';
 export { ObjectView } from './ObjectView';
 export type { ObjectViewProps } from './ObjectView';
 
-export { ObjectKanban } from './ObjectKanban';
-export type { ObjectKanbanProps } from './ObjectKanban';
-
-export { ObjectCalendar } from './ObjectCalendar';
-export type { ObjectCalendarProps } from './ObjectCalendar';
-
-export { ObjectGantt } from './ObjectGantt';
-export type { ObjectGanttProps } from './ObjectGantt';
-
-export { ObjectMap } from './ObjectMap';
-export type { ObjectMapProps } from './ObjectMap';
-
 // Export field renderers for customization
 export {
   getCellRenderer,
@@ -74,10 +62,6 @@ export type {
 import { ObjectGrid } from './ObjectGrid';
 import { ObjectForm } from './ObjectForm';
 import { ObjectView } from './ObjectView';
-import { ObjectKanban } from './ObjectKanban';
-import { ObjectCalendar } from './ObjectCalendar';
-import { ObjectGantt } from './ObjectGantt';
-import { ObjectMap } from './ObjectMap';
 
 // Create renderer wrappers for ComponentRegistry
 const ObjectGridRenderer: React.FC<{ schema: any }> = ({ schema }) => {
@@ -135,22 +119,6 @@ const ObjectViewRenderer: React.FC<{ schema: any }> = ({ schema }) => {
   return <ObjectView schema={schema} dataSource={null as any} />;
 };
 
-const ObjectKanbanRenderer: React.FC<{ schema: any }> = ({ schema }) => {
-  return <ObjectKanban schema={schema} dataSource={null as any} />;
-};
-
-const ObjectCalendarRenderer: React.FC<{ schema: any }> = ({ schema }) => {
-  return <ObjectCalendar schema={schema} dataSource={null as any} />;
-};
-
-const ObjectGanttRenderer: React.FC<{ schema: any }> = ({ schema }) => {
-  return <ObjectGantt schema={schema} dataSource={null as any} />;
-};
-
-const ObjectMapRenderer: React.FC<{ schema: any }> = ({ schema }) => {
-  return <ObjectMap schema={schema} dataSource={null as any} />;
-};
-
 // Register components with ComponentRegistry
 ComponentRegistry.register('object-grid', ObjectGridRenderer, {
   label: 'Object Grid',
@@ -187,49 +155,9 @@ ComponentRegistry.register('object-view', ObjectViewRenderer, {
   ],
 });
 
-ComponentRegistry.register('object-kanban', ObjectKanbanRenderer, {
-  label: 'Object Kanban',
-  category: 'plugin',
-  inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'kanban', type: 'object', label: 'Kanban Config', description: 'groupByField, columns, summarizeField' },
-  ],
-});
-
-ComponentRegistry.register('object-calendar', ObjectCalendarRenderer, {
-  label: 'Object Calendar',
-  category: 'plugin',
-  inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'calendar', type: 'object', label: 'Calendar Config', description: 'startDateField, endDateField, titleField, colorField' },
-  ],
-});
-
-ComponentRegistry.register('object-gantt', ObjectGanttRenderer, {
-  label: 'Object Gantt',
-  category: 'plugin',
-  inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'gantt', type: 'object', label: 'Gantt Config', description: 'startDateField, endDateField, titleField, progressField, dependenciesField' },
-  ],
-});
-
-ComponentRegistry.register('object-map', ObjectMapRenderer, {
-  label: 'Object Map',
-  category: 'plugin',
-  inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'map', type: 'object', label: 'Map Config', description: 'latitudeField, longitudeField, titleField' },
-  ],
-});
-
 // Export for manual use
 export const objectComponents = {
   'object-grid': ObjectGridRenderer,
   'object-form': ObjectFormRenderer,
   'object-view': ObjectViewRenderer,
-  'object-kanban': ObjectKanbanRenderer,
-  'object-calendar': ObjectCalendarRenderer,
-  'object-gantt': ObjectGanttRenderer,
-  'object-map': ObjectMapRenderer,
 };
