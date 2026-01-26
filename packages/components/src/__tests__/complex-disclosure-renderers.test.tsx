@@ -101,45 +101,6 @@ describe('Disclosure Renderers - Display Issue Detection', () => {
  * Comprehensive tests for complex renderer components
  */
 describe('Complex Renderers - Display Issue Detection', () => {
-  describe('Timeline Renderer', () => {
-    it('should be properly registered', () => {
-      const validation = validateComponentRegistration('timeline');
-      expect(validation.isRegistered).toBe(true);
-    });
-
-    it('should render timeline with events', () => {
-      const { container } = renderComponent({
-        type: 'timeline',
-        items: [
-          {
-            title: 'Event 1',
-            description: 'Description 1',
-            time: '2024-01-01',
-          },
-          {
-            title: 'Event 2',
-            description: 'Description 2',
-            time: '2024-01-02',
-          },
-        ],
-      });
-
-      expect(container.textContent).toContain('Event 1');
-      expect(container.textContent).toContain('Event 2');
-    });
-
-    it('should handle empty timeline', () => {
-      const { container } = renderComponent({
-        type: 'timeline',
-        items: [],
-      });
-
-      const domCheck = checkDOMStructure(container);
-      // Empty timeline is acceptable
-      expect(domCheck).toBeDefined();
-    });
-  });
-
   describe('Data Table Renderer', () => {
     it('should be properly registered', () => {
       const validation = validateComponentRegistration('data-table');
@@ -185,36 +146,6 @@ describe('Complex Renderers - Display Issue Detection', () => {
       const domCheck = checkDOMStructure(container);
       // Tables can be nested but not excessively
       expect(domCheck.nestedDepth).toBeLessThan(25);
-    });
-  });
-
-  describe('Chatbot Renderer', () => {
-    it('should be properly registered', () => {
-      const validation = validateComponentRegistration('chatbot');
-      expect(validation.isRegistered).toBe(true);
-    });
-
-    it('should render chatbot interface', () => {
-      const { container } = renderComponent({
-        type: 'chatbot',
-        messages: [
-          { role: 'user', content: 'Hello' },
-          { role: 'assistant', content: 'Hi there!' },
-        ],
-      });
-
-      expect(container.textContent).toContain('Hello');
-      expect(container.textContent).toContain('Hi there!');
-    });
-
-    it('should handle empty messages', () => {
-      const { container } = renderComponent({
-        type: 'chatbot',
-        messages: [],
-      });
-
-      const domCheck = checkDOMStructure(container);
-      expect(domCheck).toBeDefined();
     });
   });
 

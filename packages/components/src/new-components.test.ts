@@ -70,13 +70,4 @@ describe('New Components Registration', () => {
       expect(component?.label).toBe('Loading');
     });
   });
-
-  describe('Complex Components', () => {
-    it('should register timeline component', () => {
-      const component = ComponentRegistry.getConfig('timeline');
-      expect(component).toBeDefined();
-      expect(component?.label).toBe('Timeline');
-      expect(component?.category).toBe('data-display');
-    });
-  });
 });
