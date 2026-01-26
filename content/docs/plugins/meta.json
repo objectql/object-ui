@@ -2,9 +2,15 @@
   "title": "Plugins",
   "pages": [
     "plugin-aggrid",
+    "plugin-calendar",
+    "plugin-calendar-view",
     "plugin-charts",
+    "plugin-chatbot",
     "plugin-editor",
+    "plugin-gantt",
     "plugin-kanban",
-    "plugin-markdown"
+    "plugin-map",
+    "plugin-markdown",
+    "plugin-timeline"
   ]
 }
