@@ -24,7 +24,7 @@
     "@object-ui/types": "workspace:*",
     "@objectstack/spec": "^0.3.3",
     "lodash": "^4.17.23",
-    "zod": "^3.22.4"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
