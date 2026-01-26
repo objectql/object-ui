@@ -189,7 +189,8 @@ function getWeekStart(date: Date): Date {
   const d = new Date(date)
   const day = d.getDay()
   const diff = d.getDate() - day
-  return new Date(d.setDate(diff))
+  d.setDate(diff)
+  return d
 }
 
 function getMonthDays(date: Date): Date[] {
@@ -202,7 +203,7 @@ function getMonthDays(date: Date): Date[] {
 
   // Add previous month days
   for (let i = startDay - 1; i >= 0; i--) {
-    const prevDate = new Date(firstDay)
+    const prevDate = new Date(firstDay.getTime())
     prevDate.setDate(prevDate.getDate() - (i + 1))
     days.push(prevDate)
   }
@@ -215,7 +216,7 @@ function getMonthDays(date: Date): Date[] {
   // Add next month days
   const remainingDays = 42 - days.length
   for (let i = 1; i <= remainingDays; i++) {
-    const nextDate = new Date(lastDay)
+    const nextDate = new Date(lastDay.getTime())
     nextDate.setDate(nextDate.getDate() + i)
     days.push(nextDate)
   }
