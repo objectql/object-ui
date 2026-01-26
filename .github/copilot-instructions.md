@@ -26,6 +26,7 @@ You manage a strict PNPM Workspace.
 | @object-ui/core | The Engine | Schema Registry, Validation, Expression Evaluation (visible: "${data.age > 18}"). | No UI library dependencies. Logic Only. |
 | @object-ui/components | The UI Kit | Shadcn implementation of the Schema. | Stateless. Controlled by props only. |
 | @object-ui/react | The Runtime | <SchemaRenderer>, useRenderer, useDataScope. | Bridges Core and Components. |
+| @object-ui/fields | The Registry | Standard Field Renderers & Registry. | Centralizes all field logic. |
 | @object-ui/layout | The Structure | Grid, Stack, Card, Dialog containers. | Handles responsiveness. |
 | @object-ui/data-* | The Adapters | Connectors for REST, ObjectQL, GraphQL. | Isolate ALL fetch logic. |
 4. The JSON Protocol Specification (The "DNA")
@@ -58,16 +59,31 @@ interface UIComponent {
   children?: UIComponent[]; 
 }
 
-5. Coding Standards (The 5 Commandments)
+5. Coding Standards (The 7 Commandments)
+📜 Rule #0: Strict Adherence to @objectstack/spec
+ * Context: We are the implementation of a standard protocol.
+ * Instruction: All component schemas, JSON structures, and data types MUST strictly follow definitions in `@objectstack/spec`.
+ * Constraint: Do not invent new schema properties. If the spec says `columns`, do not use `fields`.
+ * Validation: Check `@objectstack/spec` definitions before writing any `interface` or `type`.
+
 🌍 Rule #1: Protocol Agnostic (The Universal Adapter)
  * Context: The user might fetch data from a legacy SOAP API or a local JSON file.
  * Instruction: Never hardcode objectql.find(). Use the DataSource Interface.
  * Pattern: Inject dataSource via the root <SchemaRendererProvider dataSource={...} />.
-🎨 Rule #2: "Shadcn Native" Aesthetics
+
+📚 Rule #2: Documentation Driven Development
+ * Context: Code without docs is dead code.
+ * Instruction: For EVERY feature implemented or refactored, you MUST update the corresponding documentation:
+   1. Package `README.md`
+   2. `content/docs/guide/*.md`
+ * Definition of Done: The task is not complete until the documentation reflects the new code/architecture.
+
+🎨 Rule #3: "Shadcn Native" Aesthetics
  * Identity: We are essentially "Serializable Shadcn".
  * Instruction: When implementing a component (e.g., Card), strictly follow Shadcn's DOM structure (CardHeader, CardTitle, CardContent).
  * Constraint: ALWAYS expose className in the schema props. Allow users to inject bg-red-500 via JSON to override default styles.
-⚡ Rule #3: The Action System (Interactivity)
+
+⚡ Rule #4: The Action System (Interactivity)
  * Concept: A static UI is useless. The JSON must define behavior.
  * Pattern: Actions are defined as data, not functions.
  * Example JSON:
@@ -80,13 +96,16 @@ interface UIComponent {
 }
 
  * Implementation: The @object-ui/core package acts as an Event Bus to dispatch these actions.
-🧩 Rule #4: Layout as Components
+
+🧩 Rule #5: Layout as Components
  * Concept: Layouts are just components that render children.
  * Instruction: Treat Grid, Stack, Container as first-class citizens.
  * Responsiveness: Layout schemas must support responsive props (e.g., cols: { sm: 1, md: 2, lg: 4 }).
-🔒 Rule #5: Type Safety over Magic
+
+🔒 Rule #6: Type Safety over Magic
  * No any: Use strict Generics.
  * Registry: Use a central ComponentRegistry to map strings ("type": "button") to React components. Do not use eval() or dynamic imports to load components at runtime for security.
+
 6. Implementation Patterns
 Pattern A: The Component Registry (Extensibility)
 How do we let users add their own "Map" component?
