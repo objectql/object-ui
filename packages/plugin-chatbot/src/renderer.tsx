@@ -41,7 +41,7 @@ ComponentRegistry.register('chatbot',
     const handleSendMessage = (content: string) => {
       // Create user message with robust ID generation
       const userMessage: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: crypto?.randomUUID?.() || `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         role: 'user',
         content,
         timestamp: schema.showTimestamp ? new Date().toLocaleTimeString() : undefined,
@@ -59,7 +59,7 @@ ComponentRegistry.register('chatbot',
       if (schema.autoResponse) {
         setTimeout(() => {
           const assistantMessage: ChatMessage = {
-            id: crypto.randomUUID(),
+            id: crypto?.randomUUID?.() || `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`,
             role: 'assistant',
             content: schema.autoResponseText || 'Thank you for your message!',
             timestamp: schema.showTimestamp ? new Date().toLocaleTimeString() : undefined,
