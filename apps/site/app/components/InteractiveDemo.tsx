@@ -22,7 +22,9 @@ const pluginsLoading = typeof window !== 'undefined'
       import('@object-ui/plugin-gantt'),
       import('@object-ui/plugin-map'),
       import('@object-ui/plugin-chatbot'),
-      import('@object-ui/views'),
+      import('@object-ui/plugin-form'),
+      import('@object-ui/plugin-grid'),
+      import('@object-ui/plugin-view'),
     ])
   : Promise.resolve([]);
 

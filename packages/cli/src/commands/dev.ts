@@ -172,7 +172,9 @@ export async function dev(schemaPath: string, options: DevOptions) {
       '@object-ui/plugin-editor': join(cwd, 'packages/plugin-editor/src/index.tsx'),
       '@object-ui/plugin-kanban': join(cwd, 'packages/plugin-kanban/src/index.tsx'),
       '@object-ui/plugin-markdown': join(cwd, 'packages/plugin-markdown/src/index.tsx'),
-      '@object-ui/views': join(cwd, 'packages/views/src/index.ts'),
+      '@object-ui/plugin-form': join(cwd, 'packages/plugin-form/src/index.tsx'),
+      '@object-ui/plugin-grid': join(cwd, 'packages/plugin-grid/src/index.tsx'),
+      '@object-ui/plugin-view': join(cwd, 'packages/plugin-view/src/index.tsx'),
     };
 
     // Fix: Resolve lucide-react from components package to avoid "dependency not found" in temp app

@@ -15,8 +15,8 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import type { ObjectViewSchema, ObjectGridSchema, ObjectFormSchema, DataSource } from '@object-ui/types';
-import { ObjectGrid } from './ObjectGrid';
-import { ObjectForm } from './ObjectForm';
+import { ObjectGrid } from '@object-ui/plugin-grid';
+import { ObjectForm } from '@object-ui/plugin-form';
 import {
   Dialog,
   DialogContent,

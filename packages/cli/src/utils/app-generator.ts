@@ -152,7 +152,9 @@ import '@object-ui/plugin-charts';
 import '@object-ui/plugin-editor';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-markdown';
-import '@object-ui/views';
+import '@object-ui/plugin-form';
+import '@object-ui/plugin-grid';
+import '@object-ui/plugin-view';
 
 const schema = ${JSON.stringify(schema, null, 2)};
 
@@ -779,7 +781,9 @@ import '@object-ui/plugin-charts';
 import '@object-ui/plugin-editor';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-markdown';
-import '@object-ui/views';
+import '@object-ui/plugin-form';
+import '@object-ui/plugin-grid';
+import '@object-ui/plugin-view';
 ${schemaImports.join('\n')}
 ${layoutImport}
 
