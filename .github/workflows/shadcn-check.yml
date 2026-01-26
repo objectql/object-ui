@@ -59,7 +59,7 @@ jobs:
       
       - name: Create issue if components are outdated
         if: failure()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
