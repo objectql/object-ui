@@ -31,7 +31,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "recharts": "^2.15.0",
+    "recharts": "^3.7.0",
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/react": "workspace:*",
