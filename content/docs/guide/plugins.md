@@ -16,57 +16,195 @@ Plugins are lazy-loaded component packages that:
 
 ## Official Plugins
 
-Object UI provides four official plugins for common use cases:
+Object UI provides 14+ official plugins for common use cases:
 
-### [@object-ui/plugin-editor](../plugins/plugin-editor.md)
+### Data Visualization & Dashboards
 
-Code editor component powered by Monaco Editor (VS Code's editor).
-
-- Syntax highlighting for 100+ languages
-- IntelliSense and code completion
-- Multiple themes
-- Lazy-loaded (~20 KB)
-
-[Read full documentation →](../plugins/plugin-editor.md)
-
----
-
-### [@object-ui/plugin-charts](../plugins/plugin-charts.md)
+#### [@object-ui/plugin-charts](../plugins/plugin-charts.md)
 
 Data visualization components powered by Recharts.
 
 - Bar, line, area, and pie charts
 - Responsive design
 - Customizable colors
-- Lazy-loaded (~540 KB)
+- Lazy-loaded (~80 KB)
 
 [Read full documentation →](../plugins/plugin-charts.md)
 
 ---
 
-### [@object-ui/plugin-kanban](../plugins/plugin-kanban.md)
+#### [@object-ui/plugin-dashboard](../plugins/plugin-dashboard.md)
 
-Kanban board component with drag-and-drop powered by @dnd-kit.
+Dashboard layouts with metric cards and widgets.
 
-- Drag and drop cards between columns
-- Column limits (WIP limits)
-- Card badges for status/priority
-- Lazy-loaded (~100-150 KB)
+- Dashboard grid layouts
+- Metric/KPI cards with trends
+- Widget system
+- Lazy-loaded (~22 KB)
 
-[Read full documentation →](../plugins/plugin-kanban.md)
+[Read full documentation →](../plugins/plugin-dashboard.md)
 
 ---
 
-### [@object-ui/plugin-markdown](../plugins/plugin-markdown.md)
+#### [@object-ui/plugin-timeline](../plugins/plugin-timeline.md)
+
+Timeline component with multiple layout variants.
+
+- Vertical, horizontal layouts
+- Customizable markers
+- Date formatting
+- Lazy-loaded (~20 KB)
+
+[Read full documentation →](../plugins/plugin-timeline.md)
+
+---
+
+#### [@object-ui/plugin-gantt](../plugins/plugin-gantt.md)
+
+Gantt chart for project visualization.
+
+- Task dependencies
+- Progress tracking
+- ObjectQL integration
+- Lazy-loaded (~40 KB)
+
+[Read full documentation →](../plugins/plugin-gantt.md)
+
+---
+
+#### [@object-ui/plugin-calendar](../plugins/plugin-calendar.md)
+
+Calendar visualization for events.
+
+- Month/week/day views
+- Event management
+- ObjectQL integration
+- Lazy-loaded (~25 KB)
+
+[Read full documentation →](../plugins/plugin-calendar.md)
+
+---
+
+#### [@object-ui/plugin-map](../plugins/plugin-map.md)
+
+Map visualization with markers.
+
+- Interactive maps
+- Location markers
+- ObjectQL integration
+- Lazy-loaded (~60 KB)
+
+[Read full documentation →](../plugins/plugin-map.md)
+
+---
+
+### Data Management
+
+#### [@object-ui/plugin-grid](../plugins/plugin-grid.md)
+
+Advanced data grid with sorting, filtering, and pagination.
+
+- Column sorting and filtering
+- Pagination controls
+- Row selection
+- Lazy-loaded (~45 KB)
+
+[Read full documentation →](../plugins/plugin-grid.md)
+
+---
+
+#### [@object-ui/plugin-aggrid](../plugins/plugin-aggrid.md)
+
+Enterprise data grid powered by AG Grid.
+
+- Advanced filtering
+- Row editing
+- Multiple themes
+- Lazy-loaded (~150 KB)
+
+[Read full documentation →](../plugins/plugin-aggrid.md)
+
+---
+
+#### [@object-ui/plugin-form](../plugins/plugin-form.md)
+
+Advanced form builder with validation.
+
+- Multi-step forms
+- Field validation
+- Custom field types
+- Lazy-loaded (~28 KB)
+
+[Read full documentation →](../plugins/plugin-form.md)
+
+---
+
+#### [@object-ui/plugin-view](../plugins/plugin-view.md)
+
+ObjectQL-integrated views for automatic CRUD.
+
+- Auto-generated forms and grids
+- CRUD operations
+- Field mapping
+- Lazy-loaded (~35 KB)
+
+[Read full documentation →](../plugins/plugin-view.md)
+
+---
+
+### Content & Editing
+
+#### [@object-ui/plugin-editor](../plugins/plugin-editor.md)
+
+Code editor component powered by Monaco Editor.
+
+- Syntax highlighting for 100+ languages
+- IntelliSense and code completion
+- Multiple themes
+- Lazy-loaded (~120 KB)
+
+[Read full documentation →](../plugins/plugin-editor.md)
+
+---
+
+#### [@object-ui/plugin-markdown](../plugins/plugin-markdown.md)
 
 Markdown renderer with GitHub Flavored Markdown support.
 
 - GitHub Flavored Markdown
 - XSS protection
 - Code syntax highlighting
-- Lazy-loaded (~100-200 KB)
+- Lazy-loaded (~30 KB)
 
 [Read full documentation →](../plugins/plugin-markdown.md)
+
+---
+
+#### [@object-ui/plugin-chatbot](../plugins/plugin-chatbot.md)
+
+Chat interface component.
+
+- Message history
+- User and assistant roles
+- Timestamps and avatars
+- Lazy-loaded (~35 KB)
+
+[Read full documentation →](../plugins/plugin-chatbot.md)
+
+---
+
+### Workflows & Tasks
+
+#### [@object-ui/plugin-kanban](../plugins/plugin-kanban.md)
+
+Kanban board component with drag-and-drop powered by @dnd-kit.
+
+- Drag and drop cards between columns
+- Column limits (WIP limits)
+- Card badges for status/priority
+- Lazy-loaded (~100 KB)
+
+[Read full documentation →](../plugins/plugin-kanban.md)
 
 ---
 
@@ -99,12 +237,22 @@ export const CodeEditorRenderer = (props) => (
 
 ### Bundle Impact
 
-| Plugin | Initial Load | Lazy Load |
-|--------|-------------|-----------|
-| plugin-editor | ~0.2 KB | ~20 KB |
-| plugin-charts | ~0.2 KB | ~540 KB |
-| plugin-kanban | ~0.2 KB | ~100-150 KB |
-| plugin-markdown | ~0.2 KB | ~100-200 KB |
+| Plugin | Initial Load | Lazy Load | Description |
+|--------|-------------|-----------|-------------|
+| plugin-editor | ~0.2 KB | ~120 KB | Monaco editor |
+| plugin-charts | ~0.2 KB | ~80 KB | Recharts visualization |
+| plugin-kanban | ~0.2 KB | ~100 KB | Drag-and-drop board |
+| plugin-markdown | ~0.2 KB | ~30 KB | Markdown rendering |
+| plugin-aggrid | ~0.2 KB | ~150 KB | AG Grid data grid |
+| plugin-dashboard | ~0.2 KB | ~22 KB | Dashboard layouts |
+| plugin-form | ~0.2 KB | ~28 KB | Form builder |
+| plugin-grid | ~0.2 KB | ~45 KB | Data grid |
+| plugin-view | ~0.2 KB | ~35 KB | ObjectQL views |
+| plugin-timeline | ~0.2 KB | ~20 KB | Timeline layouts |
+| plugin-chatbot | ~0.2 KB | ~35 KB | Chat interface |
+| plugin-calendar | ~0.2 KB | ~25 KB | Calendar views |
+| plugin-gantt | ~0.2 KB | ~40 KB | Gantt charts |
+| plugin-map | ~0.2 KB | ~60 KB | Map visualization |
 
 Without lazy loading, all this code would be in your main bundle!
 
@@ -127,6 +275,10 @@ import '@object-ui/plugin-editor'
 import '@object-ui/plugin-charts'
 import '@object-ui/plugin-kanban'
 import '@object-ui/plugin-markdown'
+import '@object-ui/plugin-dashboard'
+import '@object-ui/plugin-form'
+import '@object-ui/plugin-grid'
+// ... import other plugins as needed
 ```
 
 Now all plugin components are available in your schemas!
