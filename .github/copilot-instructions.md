@@ -24,11 +24,20 @@ You manage a strict PNPM Workspace.
 |---|---|---|---|
 | @object-ui/types | The Protocol | Pure JSON Interfaces (ComponentSchema, ActionSchema). | ZERO dependencies. No React code. |
 | @object-ui/core | The Engine | Schema Registry, Validation, Expression Evaluation (visible: "${data.age > 18}"). | No UI library dependencies. Logic Only. |
-| @object-ui/components | The UI Kit | Shadcn implementation of the Schema. | Stateless. Controlled by props only. |
+| @object-ui/components | The Atoms | Shadcn Primitives (Button, Badge, Card) & Icons. | Pure UI. No business logic. |
+| @object-ui/fields | The Inputs | Standard Field Renderers (Text, Number, Select). | Must implement FieldWidgetProps. |
+| @object-ui/layout | The Shell | Page Structure (Header, Sidebar, AppShell). | Routing-aware composition. |
+| @object-ui/plugin-* | The Widgets | Complex Views (Grid, Kanban, Map, Charts). | Heavy dependencies allowed here only. |
 | @object-ui/react | The Runtime | <SchemaRenderer>, useRenderer, useDataScope. | Bridges Core and Components. |
-| @object-ui/fields | The Registry | Standard Field Renderers & Registry. | Centralizes all field logic. |
-| @object-ui/layout | The Structure | Grid, Stack, Card, Dialog containers. | Handles responsiveness. |
 | @object-ui/data-* | The Adapters | Connectors for REST, ObjectQL, GraphQL. | Isolate ALL fetch logic. |
+
+### 0. Architectural Strategy (Strict)
+**❌ Do NOT create a package for every component.**
+**✅ Group by Dependency Weight:**
+1.  **Atoms (@object-ui/components):** Shadcn Primitives. Zero heavy 3rd-party deps.
+2.  **Fields (@object-ui/fields):** Standard Inputs.
+3.  **Layouts (@object-ui/layout):** Page Skeletons.
+4.  **Plugins (@object-ui/plugin-*):** Heavy Widgets (>50KB) or specialized libraries (Maps, Editors, Charts).
 4. The JSON Protocol Specification (The "DNA")
 You must enforce a strict JSON structure. Every node in the UI tree follows this shape:
 // @object-ui/types
