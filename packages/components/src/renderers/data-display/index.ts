@@ -14,3 +14,5 @@ import './tree-view';
 import './statistic';
 import './breadcrumb';
 import './kbd';
+import './table';
+

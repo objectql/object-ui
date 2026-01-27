@@ -1,142 +1,132 @@
-// examples/crm-app/src/App.tsx
-import { useState } from 'react';
-import { SchemaRenderer } from '@object-ui/react';
-import { ComponentRegistry } from '@object-ui/core';
-// import { registerComponents } from '@object-ui/fields'; // Assuming this exists or we need to manually register
-import { Card, CardContent, CardHeader, CardTitle, Button } from '@object-ui/components';
-import { 
-  TextField, 
-  NumberField, 
-  BooleanField, 
-  SelectField, 
-  DateField 
-} from '@object-ui/fields';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Outlet, Link, useLocation } from 'react-router-dom';
+import { SchemaRendererProvider, SchemaRenderer, useRenderer } from '@object-ui/react';
+import { registerFields } from '@object-ui/fields';
+import { registerLayout } from '@object-ui/layout';
+import { SidebarNav } from './components/SidebarNav';
 
-import { ContactObject, ContactFormPage, contactData } from './schema';
+// 1. Register components from packages (The "Controls Repository")
+registerFields();
+registerLayout();
 
-// --- Temporary Manual Registration (Simulating what @object-ui/fields should do) ---
-// In a real app, this would be `import '@object-ui/fields/register';`
-ComponentRegistry.register('text', (props: any) => <TextField {...props} />);
-ComponentRegistry.register('textarea', (props: any) => <TextField {...props} />);
-ComponentRegistry.register('number', (props: any) => <NumberField {...props} />);
-ComponentRegistry.register('boolean', (props: any) => <BooleanField {...props} />);
-ComponentRegistry.register('select', (props: any) => <SelectField {...props} />);
-ComponentRegistry.register('date', (props: any) => <DateField {...props} />);
+// 2. Define Mock Data (In a real app, this comes from an API)
+const mockData = {
+  user: { name: "Demo User", role: "admin" },
+  stats: { revenue: 125000, leads: 45, deals: 12 },
+  contacts: [
+    { id: 1, name: "Alice Johnson", email: "alice@example.com", status: "Active" },
+    { id: 2, name: "Bob Smith", email: "bob@tech.com", status: "Lead" },
+    { id: 3, name: "Charlie Brown", email: "charlie@peanuts.com", status: "Customer" }
+  ]
+};
 
-// Simple Form Container Renderer
-ComponentRegistry.register('form', ({ children, className }: any) => (
-  <form className={className} onSubmit={(e) => e.preventDefault()}>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {children}
-    </div>
-  </form>
-));
+// 3. Define Page Schemas (The "JSON Rendering")
 
-// Simple Field Wrapper Renderer
-ComponentRegistry.register('field', ({ schema, data, onChange, objectSchema }: any) => {
-  const fieldName = schema.name;
-  const fieldConfig = objectSchema.fields[fieldName];
-  
-  if (!fieldConfig) return <div className="text-red-500">Field {fieldName} not found</div>;
+// Dashboard Page
+const dashboardSchema = {
+  type: "page",
+  props: { title: "Executive Dashboard" },
+  children: [
+    {
+      type: "grid",
+      props: { cols: 3, gap: 4, className: "mb-8" },
+      children: [
+        {
+          type: "card",
+          props: { title: "Total Revenue" },
+          children: [{ type: "text", props: { value: "$125,000", className: "text-2xl font-bold" } }]
+        },
+        {
+          type: "card",
+          props: { title: "Active Leads" },
+          children: [{ type: "text", props: { value: "45", className: "text-2xl font-bold" } }]
+        },
+        {
+          type: "card",
+          props: { title: "Open Deals" },
+          children: [{ type: "text", props: { value: "12", className: "text-2xl font-bold" } }]
+        }
+      ]
+    },
+    {
+      type: "card", 
+      props: { title: "Recent Activity", className: "col-span-3" },
+      children: [
+         { type: "text", props: { value: "Activity list would go here...", className: "text-gray-500" } }
+      ]
+    }
+  ]
+};
 
-  const Widget = ComponentRegistry.get(fieldConfig.type) || ComponentRegistry.get('text');
-  
-  // Resolve value from data binding
-  const value = data[schema.bind] || data[fieldName];
+// Contacts List Page
+const contactsSchema = {
+  type: "page",
+  props: { title: "Contacts" },
+  children: [
+    {
+      type: "page-header",
+      props: { 
+        title: "All Contacts", 
+        description: "Manage your customer relationships" 
+      },
+      children: [
+        { 
+          type: "button", 
+          props: { label: "Add Contact", variant: "default" },
+          events: { onClick: [{ action: "navigate", params: { url: "/contacts/new" } }] } 
+        }
+      ]
+    },
+    {
+      type: "card",
+      className: "mt-6",
+      children: [
+        {
+          type: "table", // Note: We need to implement 'table' in plugins soon
+          bind: "contacts", 
+          props: {
+            columns: [
+              { key: "name", label: "Name" },
+              { key: "email", label: "Email" },
+              { key: "status", label: "Status" }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+};
 
-  const handleChange = (val: any) => {
-    onChange?.(schema.bind || fieldName, val);
-  };
-
+// Layout Shell Component
+const Layout = () => {
   return (
-    <div className={schema.props?.className}>
-      <label className="block text-sm font-medium mb-1.5">
-        {fieldConfig.label}
-        {fieldConfig.required && <span className="text-red-500 ml-1">*</span>}
-      </label>
-      <Widget 
-        value={value} 
-        onChange={handleChange} 
-        field={fieldConfig}
-        readonly={schema.readonly}
-      />
-      {fieldConfig.help && <p className="text-xs text-muted-foreground mt-1">{fieldConfig.help}</p>}
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+      <SidebarNav />
+      <main className="flex-1 overflow-y-auto p-8">
+        <Outlet />
+      </main>
     </div>
   );
-});
+};
 
-
-// -------------------------------------------------------------
-
-export default function App() {
-  const [data, setData] = useState(contactData);
-
-  const handleFieldChange = (field: string, value: any) => {
-    console.log('Update:', field, value);
-    setData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
+function App() {
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-4xl mx-auto space-y-8">
-        
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">ObjectUI CRM Example</h1>
-          <p className="text-slate-500 mt-2">
-            Demonstrating Server-Driven UI with React + Tailwind + Shadcn.
-          </p>
-        </header>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Main Form Area */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>{ContactFormPage.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {/* Recursively render the Page Schema */}
-                {((ContactFormPage.children as any[]) || []).map((childSchema: any) => (
-                  <SchemaRenderer 
-                    key={childSchema.id || childSchema.name} 
-                    schema={childSchema}
-                    // Inject Context
-                    {...{
-                      data,
-                      onChange: handleFieldChange,
-                      objectSchema: ContactObject
-                    }}
-                  />
-                ))}
-                
-                <div className="mt-8 flex justify-end space-x-4">
-                  <Button variant="outline">Cancel</Button>
-                  <Button onClick={() => alert(JSON.stringify(data, null, 2))}>Save Contact</Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Real-time Data Debugger */}
-          <div className="lg:col-span-1">
-             <Card className="bg-slate-900 text-slate-50">
-              <CardHeader>
-                <CardTitle className="text-slate-50">Live State</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <pre className="text-xs font-mono overflow-auto max-h-[600px] p-2 bg-slate-950 rounded border border-slate-800">
-                  {JSON.stringify(data, null, 2)}
-                </pre>
-              </CardContent>
-            </Card>
-          </div>
-
-        </div>
-      </div>
-    </div>
+    <SchemaRendererProvider 
+      dataSource={mockData}
+      debug={true}
+    >
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<SchemaRenderer schema={dashboardSchema} />} />
+            <Route path="contacts" element={<SchemaRenderer schema={contactsSchema} />} />
+            <Route path="opportunities" element={<div className="p-4">Opportunities Module (Coming Soon)</div>} />
+            <Route path="settings" element={<div className="p-4">Settings Module (Coming Soon)</div>} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </SchemaRendererProvider>
   );
 }
+
+export default App;

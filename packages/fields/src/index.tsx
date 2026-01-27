@@ -714,6 +714,26 @@ export function evaluateCondition(condition: any, formData: any): boolean {
   return true;
 }
 
+import { ComponentRegistry } from '@object-ui/core';
+import { TextField } from './widgets/TextField';
+import { NumberField } from './widgets/NumberField';
+import { BooleanField } from './widgets/BooleanField';
+import { SelectField } from './widgets/SelectField';
+import { DateField } from './widgets/DateField';
+
+export function registerFields() {
+  ComponentRegistry.register('text', TextField);
+  ComponentRegistry.register('textarea', TextField); // TextField handles rows logic inside
+  ComponentRegistry.register('number', NumberField);
+  ComponentRegistry.register('boolean', BooleanField);
+  ComponentRegistry.register('select', SelectField);
+  ComponentRegistry.register('date', DateField);
+  
+  // Register aliases or specific widgets
+  ComponentRegistry.register('field:text', TextField);
+  ComponentRegistry.register('field:number', NumberField); 
+}
+
 export * from './widgets/types';
 export * from './widgets/TextField';
 export * from './widgets/NumberField';
