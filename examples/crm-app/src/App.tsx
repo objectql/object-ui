@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Outlet, Link, useLocation } from 'react-router-dom';
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@object-ui/components';
 import { SchemaRendererProvider, SchemaRenderer, useRenderer } from '@object-ui/react';
 import { registerFields } from '@object-ui/fields';
 import { registerLayout } from '@object-ui/layout';
@@ -100,12 +101,19 @@ const contactsSchema = {
 // Layout Shell Component
 const Layout = () => {
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-      <SidebarNav />
-      <main className="flex-1 overflow-y-auto p-8">
-        <Outlet />
-      </main>
-    </div>
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full bg-gray-50 dark:bg-gray-900">
+        <SidebarNav />
+        <SidebarInset>
+          <div className="p-4">
+             <SidebarTrigger className="md:hidden" />
+          </div>
+          <main className="flex-1 overflow-y-auto p-4 md:p-8">
+            <Outlet />
+          </main>
+        </SidebarInset>
+      </div>
+    </SidebarProvider>
   );
 };
 

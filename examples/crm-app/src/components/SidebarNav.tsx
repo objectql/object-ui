@@ -9,6 +9,8 @@ import {
   FileText 
 } from 'lucide-react';
 import {
+  Sidebar,
+  SidebarContent,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
@@ -51,26 +53,31 @@ export const mainNavItems: NavItem[] = [
   },
 ];
 
-export function SidebarNav({ items }: { items: NavItem[] }) {
+export function SidebarNav({ items = mainNavItems }: { items?: NavItem[] }) {
   const location = useLocation();
 
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>Application</SidebarGroupLabel>
-      <SidebarGroupContent>
-        <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton asChild isActive={location.pathname === item.href}>
-                <NavLink to={item.href}>
-                   {item.icon && <item.icon />}
-                   <span>{item.title}</span>
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+    <Sidebar>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Application</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {items.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton asChild isActive={location.pathname === item.href}>
+                    <NavLink to={item.href}>
+                      {item.icon && <item.icon />}
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+    </Sidebar>
   );
 }
+
