@@ -11,14 +11,22 @@ ObjectUI plugins are lazy-loaded component packages that extend the framework wi
 
 Browse available plugins:
 
-### Data Visualization
+### Data Visualization & Dashboards
 
 - **[Charts Plugin](/docs/plugins/plugin-charts)** - Bar, Line, Area, and Pie charts
+- **[Dashboard Plugin](/docs/plugins/plugin-dashboard)** - Dashboard layouts with metric cards and widgets
 - **[Timeline Plugin](/docs/plugins/plugin-timeline)** - Vertical, horizontal, and Gantt-style timelines
 - **[Gantt Plugin](/docs/plugins/plugin-gantt)** - Project task visualization with dependencies (ObjectQL)
 - **[Calendar View Plugin](/docs/plugins/plugin-calendar-view)** - Full calendar with month/week/day views
 - **[Calendar Plugin](/docs/plugins/plugin-calendar)** - Calendar for ObjectQL data sources
 - **[Map Plugin](/docs/plugins/plugin-map)** - Location visualization with markers (ObjectQL)
+
+### Data Management
+
+- **[Grid Plugin](/docs/plugins/plugin-grid)** - Advanced data grid with sorting, filtering, and pagination
+- **[AgGrid Plugin](/docs/plugins/plugin-aggrid)** - Enterprise data grid powered by AG Grid
+- **[Form Plugin](/docs/plugins/plugin-form)** - Advanced form builder with validation
+- **[View Plugin](/docs/plugins/plugin-view)** - ObjectQL-integrated views (grid, form, detail)
 
 ### Content & Editing
 
@@ -29,11 +37,6 @@ Browse available plugins:
 ### Workflows & Tasks
 
 - **[Kanban Plugin](/docs/plugins/plugin-kanban)** - Kanban board with drag-and-drop
-- **[AgGrid Plugin](/docs/plugins/plugin-aggrid)** - Advanced data grid
-
-### Core Packages
-
-- **[Views (Core Package)](/docs/views)** - Advanced object data management and visualization
 
 ## Official Plugins
 
@@ -224,20 +227,71 @@ npm install @object-ui/plugin-map
 
 ---
 
-### Views (Core Package)
+### Dashboard Plugin
 
-**[@object-ui/views](/docs/views)** - Core views package for advanced object data management and visualization.
+**[@object-ui/plugin-dashboard](/docs/plugins/plugin-dashboard)** - Dashboard layouts with metric cards and widgets.
 
-- Object data rendering
-- Complex data structures support
-- Flexible visualization options
-- Part of core framework
+- Dashboard grid layouts
+- Metric/KPI cards with trends
+- Widget system
+- Responsive design
 
 ```bash
-npm install @object-ui/views
+npm install @object-ui/plugin-dashboard
 ```
 
-[Read full documentation →](/docs/views)
+[Read full documentation →](/docs/plugins/plugin-dashboard)
+
+---
+
+### Grid Plugin
+
+**[@object-ui/plugin-grid](/docs/plugins/plugin-grid)** - Advanced data grid with sorting, filtering, and pagination.
+
+- Column sorting and filtering
+- Pagination controls
+- Row selection
+- Custom cell renderers
+
+```bash
+npm install @object-ui/plugin-grid
+```
+
+[Read full documentation →](/docs/plugins/plugin-grid)
+
+---
+
+### Form Plugin
+
+**[@object-ui/plugin-form](/docs/plugins/plugin-form)** - Advanced form builder with validation.
+
+- Multi-step forms
+- Field validation
+- Custom field types
+- Form state management
+
+```bash
+npm install @object-ui/plugin-form
+```
+
+[Read full documentation →](/docs/plugins/plugin-form)
+
+---
+
+### View Plugin
+
+**[@object-ui/plugin-view](/docs/plugins/plugin-view)** - ObjectQL-integrated views for automatic CRUD operations.
+
+- Auto-generated forms and grids
+- CRUD operations
+- ObjectQL integration
+- Field mapping
+
+```bash
+npm install @object-ui/plugin-view
+```
+
+[Read full documentation →](/docs/plugins/plugin-view)
 
 ---
 

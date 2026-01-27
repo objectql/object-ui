@@ -1,0 +1,195 @@
+---
+title: "Plugin Dashboard"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+Dashboard layouts and metric widgets for creating beautiful dashboards with KPIs, charts, and statistics.
+
+## Installation
+
+```bash
+npm install @object-ui/plugin-dashboard
+```
+
+## Interactive Examples
+
+<InteractiveDemo
+  schema={{
+    type: "dashboard",
+    columns: 3,
+    gap: 4,
+    widgets: [
+      {
+        type: "metric-card",
+        title: "Total Users",
+        value: "1,234",
+        icon: "users",
+        trend: "up",
+        trendValue: "+12%",
+        description: "vs last month"
+      },
+      {
+        type: "metric-card",
+        title: "Revenue",
+        value: "$56,789",
+        icon: "dollar-sign",
+        trend: "up",
+        trendValue: "+8.2%",
+        description: "vs last month"
+      },
+      {
+        type: "metric-card",
+        title: "Active Sessions",
+        value: "432",
+        icon: "activity",
+        trend: "down",
+        trendValue: "-3%",
+        description: "vs last month"
+      }
+    ]
+  }}
+  title="Basic Dashboard"
+  description="Dashboard with metric cards showing KPIs"
+/>
+
+## Features
+
+- **Dashboard Layouts** - Responsive grid-based layouts
+- **Metric Cards** - Display KPIs with trends and icons
+- **Widget System** - Modular widget architecture
+- **Customizable** - Full Tailwind CSS styling support
+
+## Schema API
+
+### Dashboard
+
+```typescript
+{
+  type: 'dashboard',
+  widgets: Widget[],
+  columns?: number,               // Grid columns (default: 3)
+  gap?: number,                   // Gap between widgets
+  className?: string
+}
+```
+
+### Metric Card
+
+```typescript
+{
+  type: 'metric-card',
+  title: string,
+  value: string | number,
+  icon?: string,                  // Lucide icon name
+  trend?: 'up' | 'down' | 'neutral',
+  trendValue?: string,
+  description?: string,
+  className?: string
+}
+```
+
+## Usage
+
+### Auto-registration (Side-effect Import)
+
+```typescript
+import '@object-ui/plugin-dashboard';
+```
+
+### Manual Registration
+
+```typescript
+import { dashboardComponents } from '@object-ui/plugin-dashboard';
+import { ComponentRegistry } from '@object-ui/core';
+
+Object.entries(dashboardComponents).forEach(([type, component]) => {
+  ComponentRegistry.register(type, component);
+});
+```
+
+## Examples
+
+### Dashboard with Multiple Metrics
+
+```json
+{
+  "type": "dashboard",
+  "columns": 4,
+  "gap": 6,
+  "widgets": [
+    {
+      "type": "metric-card",
+      "title": "Total Sales",
+      "value": "$123,456",
+      "icon": "shopping-cart",
+      "trend": "up",
+      "trendValue": "+15%"
+    },
+    {
+      "type": "metric-card",
+      "title": "New Customers",
+      "value": "856",
+      "icon": "user-plus",
+      "trend": "up",
+      "trendValue": "+22%"
+    },
+    {
+      "type": "metric-card",
+      "title": "Bounce Rate",
+      "value": "2.4%",
+      "icon": "trending-down",
+      "trend": "down",
+      "trendValue": "-5%"
+    },
+    {
+      "type": "metric-card",
+      "title": "Avg. Order Value",
+      "value": "$144.20",
+      "icon": "dollar-sign",
+      "trend": "up",
+      "trendValue": "+8%"
+    }
+  ]
+}
+```
+
+### Dashboard with Charts
+
+```json
+{
+  "type": "dashboard",
+  "widgets": [
+    {
+      "type": "metric-card",
+      "title": "Total Revenue",
+      "value": "$123,456"
+    },
+    {
+      "type": "card",
+      "title": "Sales Trend",
+      "body": {
+        "type": "line-chart",
+        "data": [],
+        "height": 300
+      }
+    }
+  ]
+}
+```
+
+## TypeScript Support
+
+```typescript
+import type { DashboardSchema, MetricCardSchema } from '@object-ui/plugin-dashboard';
+
+const dashboard: DashboardSchema = {
+  type: 'dashboard',
+  columns: 3,
+  widgets: [...]
+};
+```
+
+## License
+
+MIT

@@ -1,0 +1,200 @@
+---
+title: "Plugin Form"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+Advanced form components with validation, multi-step forms, and comprehensive field support.
+
+## Installation
+
+```bash
+npm install @object-ui/plugin-form
+```
+
+## Interactive Examples
+
+<InteractiveDemo
+  schema={{
+    type: "form",
+    fields: [
+      {
+        name: "name",
+        type: "input",
+        label: "Full Name",
+        placeholder: "Enter your name",
+        required: true
+      },
+      {
+        name: "email",
+        type: "input",
+        inputType: "email",
+        label: "Email Address",
+        required: true
+      },
+      {
+        name: "country",
+        type: "select",
+        label: "Country",
+        options: [
+          { label: "United States", value: "us" },
+          { label: "Canada", value: "ca" },
+          { label: "United Kingdom", value: "uk" }
+        ]
+      },
+      {
+        name: "subscribe",
+        type: "checkbox",
+        label: "Subscribe to newsletter"
+      }
+    ],
+    submitLabel: "Register"
+  }}
+  title="Basic Form"
+  description="Form with validation and multiple field types"
+/>
+
+## Features
+
+- **Form Builder** - Create complex forms from schemas
+- **Validation** - Built-in validation with custom rules
+- **Multi-Step Forms** - Wizard-style multi-step forms
+- **Field Types** - All standard HTML5 input types
+- **Form State** - Automatic state management
+- **Error Handling** - Field-level and form-level errors
+
+## Schema API
+
+### Form
+
+```typescript
+{
+  type: 'form',
+  fields: FormField[],
+  submitLabel?: string,
+  cancelLabel?: string,
+  onSubmit?: (data) => void,
+  onCancel?: () => void,
+  className?: string
+}
+```
+
+### Form Field
+
+```typescript
+interface FormField {
+  name: string;
+  type: string;                   // 'input', 'select', 'checkbox', etc.
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  validation?: ValidationRule[];
+  defaultValue?: any;
+  disabled?: boolean;
+  className?: string;
+}
+```
+
+## Usage
+
+### Auto-registration (Side-effect Import)
+
+```typescript
+import '@object-ui/plugin-form';
+```
+
+### Manual Registration
+
+```typescript
+import { formComponents } from '@object-ui/plugin-form';
+import { ComponentRegistry } from '@object-ui/core';
+
+Object.entries(formComponents).forEach(([type, component]) => {
+  ComponentRegistry.register(type, component);
+});
+```
+
+## Examples
+
+### Form with Validation
+
+```json
+{
+  "type": "form",
+  "fields": [
+    {
+      "name": "username",
+      "type": "input",
+      "label": "Username",
+      "required": true,
+      "validation": [
+        { "type": "minLength", "value": 3, "message": "Min 3 characters" },
+        { "type": "maxLength", "value": 20, "message": "Max 20 characters" }
+      ]
+    },
+    {
+      "name": "password",
+      "type": "input",
+      "inputType": "password",
+      "label": "Password",
+      "required": true,
+      "validation": [
+        { "type": "minLength", "value": 8, "message": "Min 8 characters" }
+      ]
+    }
+  ],
+  "submitLabel": "Sign Up"
+}
+```
+
+### Multi-Step Form
+
+```json
+{
+  "type": "multi-step-form",
+  "steps": [
+    {
+      "title": "Personal Info",
+      "fields": [
+        { "name": "firstName", "type": "input", "label": "First Name", "required": true },
+        { "name": "lastName", "type": "input", "label": "Last Name", "required": true }
+      ]
+    },
+    {
+      "title": "Contact Info",
+      "fields": [
+        { "name": "email", "type": "input", "inputType": "email", "label": "Email", "required": true },
+        { "name": "phone", "type": "input", "inputType": "tel", "label": "Phone" }
+      ]
+    }
+  ]
+}
+```
+
+## Field Types
+
+The plugin supports these field types:
+
+- **input** - Text, email, password, number, tel, url, etc.
+- **textarea** - Multi-line text input
+- **select** - Dropdown select
+- **checkbox** - Single checkbox
+- **radio-group** - Radio button group
+- **date-picker** - Date selection
+- **file-upload** - File upload
+
+## TypeScript Support
+
+```typescript
+import type { FormSchema, FormField } from '@object-ui/plugin-form';
+
+const loginForm: FormSchema = {
+  type: 'form',
+  fields: [...],
+  submitLabel: 'Sign In'
+};
+```
+
+## License
+
+MIT

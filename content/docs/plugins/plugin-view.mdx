@@ -1,0 +1,258 @@
+---
+title: "Plugin View"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+Unified view component for ObjectQL objects with automatic form and grid generation.
+
+## Installation
+
+```bash
+npm install @object-ui/plugin-view
+```
+
+## Features
+
+- **Automatic Views** - Generate views from ObjectQL schemas
+- **Form Generation** - Auto-generate forms from object definitions
+- **Grid Generation** - Auto-generate data grids
+- **CRUD Operations** - Built-in create, read, update, delete
+- **Field Mapping** - Automatic field type detection
+- **ObjectQL Integration** - Native ObjectStack support
+
+## Schema API
+
+### ObjectView
+
+```typescript
+{
+  type: 'object-view',
+  object: string,                 // ObjectQL object name
+  viewMode?: 'grid' | 'form' | 'detail',
+  fields?: string[],              // Fields to display
+  dataSource?: DataSource,
+  onCreate?: (data) => void,
+  onUpdate?: (id, data) => void,
+  onDelete?: (id) => void,
+  className?: string
+}
+```
+
+## Usage
+
+### Auto-registration (Side-effect Import)
+
+```typescript
+import '@object-ui/plugin-view';
+```
+
+### Manual Registration
+
+```typescript
+import { viewComponents } from '@object-ui/plugin-view';
+import { ComponentRegistry } from '@object-ui/core';
+
+Object.entries(viewComponents).forEach(([type, component]) => {
+  ComponentRegistry.register(type, component);
+});
+```
+
+## Examples
+
+### Grid View
+
+Display objects in a data grid:
+
+```json
+{
+  "type": "object-view",
+  "object": "users",
+  "viewMode": "grid",
+  "fields": ["name", "email", "role", "created_at"]
+}
+```
+
+### Form View
+
+Create or edit objects with a form:
+
+```json
+{
+  "type": "object-view",
+  "object": "users",
+  "viewMode": "form",
+  "mode": "create",
+  "fields": ["name", "email", "role"]
+}
+```
+
+### Detail View
+
+Display a single object's details:
+
+```json
+{
+  "type": "object-view",
+  "object": "users",
+  "viewMode": "detail",
+  "recordId": "123",
+  "fields": ["name", "email", "role", "bio", "created_at"]
+}
+```
+
+## CRUD Operations
+
+### Create
+
+```json
+{
+  "type": "object-view",
+  "object": "products",
+  "viewMode": "form",
+  "mode": "create"
+}
+```
+
+### Read/List
+
+```json
+{
+  "type": "object-view",
+  "object": "products",
+  "viewMode": "grid",
+  "pagination": true,
+  "searchable": true,
+  "filters": {
+    "category": "electronics"
+  }
+}
+```
+
+### Update
+
+```json
+{
+  "type": "object-view",
+  "object": "products",
+  "viewMode": "form",
+  "mode": "edit",
+  "recordId": "123"
+}
+```
+
+### Delete
+
+```json
+{
+  "type": "object-view",
+  "object": "products",
+  "viewMode": "grid",
+  "enableDelete": true
+}
+```
+
+## Field Configuration
+
+Customize field display and behavior:
+
+```json
+{
+  "type": "object-view",
+  "object": "users",
+  "viewMode": "form",
+  "fieldConfig": {
+    "name": {
+      "label": "Full Name",
+      "required": true,
+      "placeholder": "Enter name"
+    },
+    "email": {
+      "label": "Email Address",
+      "type": "email",
+      "required": true
+    },
+    "role": {
+      "label": "User Role",
+      "type": "select",
+      "options": [
+        { "label": "Admin", "value": "admin" },
+        { "label": "User", "value": "user" }
+      ]
+    }
+  }
+}
+```
+
+## Advanced Features
+
+### Nested Objects
+
+```json
+{
+  "type": "object-view",
+  "object": "orders",
+  "viewMode": "detail",
+  "fields": ["order_number", "customer.name", "items", "total"],
+  "nestedFields": {
+    "items": {
+      "type": "object-grid",
+      "object": "order_items",
+      "fields": ["product.name", "quantity", "price"]
+    }
+  }
+}
+```
+
+### Tabs View
+
+```json
+{
+  "type": "object-view",
+  "object": "users",
+  "viewMode": "tabs",
+  "tabs": [
+    { "label": "Details", "fields": ["name", "email", "bio"] },
+    { "label": "Settings", "fields": ["theme", "notifications", "timezone"] },
+    { "label": "Activity", "type": "object-grid", "object": "user_activities" }
+  ]
+}
+```
+
+## Integration with ObjectQL
+
+```typescript
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+
+const dataSource = createObjectStackAdapter({
+  baseUrl: 'https://api.example.com',
+  token: 'your-auth-token'
+});
+
+const schema = {
+  type: 'object-view',
+  object: 'contacts',
+  viewMode: 'grid',
+  dataSource,
+  fields: ['first_name', 'last_name', 'email', 'company'],
+  searchable: true,
+  sortable: true
+};
+```
+
+## TypeScript Support
+
+```typescript
+import type { ObjectViewSchema } from '@object-ui/plugin-view';
+
+const userView: ObjectViewSchema = {
+  type: 'object-view',
+  object: 'users',
+  viewMode: 'grid',
+  fields: ['name', 'email', 'role']
+};
+```
+
+## License
+
+MIT

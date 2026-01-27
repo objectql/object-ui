@@ -1,0 +1,239 @@
+---
+title: "Plugin Grid"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+
+Advanced data grid with sorting, filtering, pagination, and row selection capabilities.
+
+## Installation
+
+```bash
+npm install @object-ui/plugin-grid
+```
+
+## Interactive Examples
+
+<InteractiveDemo
+  schema={{
+    type: "grid",
+    columns: [
+      { header: "ID", accessorKey: "id", width: 80 },
+      { header: "Name", accessorKey: "name" },
+      { header: "Email", accessorKey: "email" },
+      { header: "Role", accessorKey: "role" },
+      { header: "Status", accessorKey: "status" }
+    ],
+    data: [
+      { id: 1, name: "John Doe", email: "john@example.com", role: "Admin", status: "Active" },
+      { id: 2, name: "Jane Smith", email: "jane@example.com", role: "User", status: "Active" },
+      { id: 3, name: "Bob Johnson", email: "bob@example.com", role: "User", status: "Inactive" }
+    ],
+    sortable: true,
+    filterable: true,
+    pagination: true
+  }}
+  title="Basic Data Grid"
+  description="Grid with sorting, filtering, and pagination"
+/>
+
+## Features
+
+- **Sorting** - Multi-column sorting support
+- **Filtering** - Column-level filtering
+- **Pagination** - Built-in pagination controls
+- **Row Selection** - Single and multi-row selection
+- **Custom Cells** - Custom cell renderers
+- **Responsive** - Mobile-friendly layouts
+
+## Schema API
+
+### Grid
+
+```typescript
+{
+  type: 'grid',
+  columns: GridColumn[],
+  data?: any[],
+  sortable?: boolean,
+  filterable?: boolean,
+  pagination?: boolean | PaginationConfig,
+  selectable?: boolean,
+  onRowClick?: (row) => void,
+  className?: string
+}
+```
+
+### Column Definition
+
+```typescript
+interface GridColumn {
+  header: string;
+  accessorKey: string;
+  sortable?: boolean;
+  filterable?: boolean;
+  width?: number | string;
+  align?: 'left' | 'center' | 'right';
+  cell?: (value, row) => ReactNode;
+}
+```
+
+## Usage
+
+### Auto-registration (Side-effect Import)
+
+```typescript
+import '@object-ui/plugin-grid';
+```
+
+### Manual Registration
+
+```typescript
+import { gridComponents } from '@object-ui/plugin-grid';
+import { ComponentRegistry } from '@object-ui/core';
+
+Object.entries(gridComponents).forEach(([type, component]) => {
+  ComponentRegistry.register(type, component);
+});
+```
+
+## Examples
+
+### Grid with Custom Cells
+
+```json
+{
+  "type": "grid",
+  "columns": [
+    { "header": "Name", "accessorKey": "name" },
+    { 
+      "header": "Status", 
+      "accessorKey": "status",
+      "cell": {
+        "type": "badge",
+        "label": "${value}",
+        "variant": "${value === 'Active' ? 'success' : 'default'}"
+      }
+    },
+    {
+      "header": "Actions",
+      "accessorKey": "id",
+      "cell": {
+        "type": "button-group",
+        "buttons": [
+          { "label": "Edit" },
+          { "label": "Delete", "variant": "destructive" }
+        ]
+      }
+    }
+  ]
+}
+```
+
+### Selectable Grid
+
+```json
+{
+  "type": "grid",
+  "columns": [...],
+  "data": [...],
+  "selectable": true,
+  "onSelectionChange": "handleSelection"
+}
+```
+
+### Grid with Pagination
+
+```json
+{
+  "type": "grid",
+  "columns": [...],
+  "data": [...],
+  "pagination": {
+    "pageSize": 10,
+    "showSizeChanger": true,
+    "pageSizeOptions": [10, 20, 50, 100]
+  }
+}
+```
+
+### ObjectQL Integration
+
+```json
+{
+  "type": "object-grid",
+  "object": "users",
+  "columns": [
+    { "header": "Name", "accessorKey": "name" },
+    { "header": "Email", "accessorKey": "email" },
+    { "header": "Created", "accessorKey": "created_at" }
+  ],
+  "pagination": true,
+  "sortable": true,
+  "filterable": true
+}
+```
+
+## Features
+
+### Sorting
+
+Enable sorting on all or specific columns:
+
+```json
+{
+  "type": "grid",
+  "sortable": true,
+  "columns": [
+    { "header": "Name", "accessorKey": "name", "sortable": true },
+    { "header": "Email", "accessorKey": "email", "sortable": false }
+  ]
+}
+```
+
+### Filtering
+
+Enable column-level filtering:
+
+```json
+{
+  "type": "grid",
+  "filterable": true,
+  "columns": [
+    { "header": "Status", "accessorKey": "status", "filterable": true }
+  ]
+}
+```
+
+### Row Actions
+
+Add action buttons to each row:
+
+```json
+{
+  "type": "grid",
+  "rowActions": [
+    { "label": "View", "onClick": "viewRow" },
+    { "label": "Edit", "onClick": "editRow" },
+    { "label": "Delete", "onClick": "deleteRow" }
+  ]
+}
+```
+
+## TypeScript Support
+
+```typescript
+import type { GridSchema, GridColumn } from '@object-ui/plugin-grid';
+
+const grid: GridSchema = {
+  type: 'grid',
+  columns: [...],
+  data: [],
+  sortable: true,
+  pagination: true
+};
+```
+
+## License
+
+MIT
