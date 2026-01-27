@@ -4,6 +4,7 @@
 
 
 /* Scan sources for Tailwind clcd asses */
+@source '../node_modules/fumadocs-ui/dist/**/*.js';
 @source '../../packages/components/src/**/*.{ts,tsx}';
 @source '../../packages/react/src/**/*.{ts,tsx}';
 @source '../../packages/plugin-*/src/**/*.{ts,tsx}';
