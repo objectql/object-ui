@@ -3,13 +3,18 @@
   "pages": [
     "plugin-aggrid",
     "plugin-calendar",
+    "plugin-calendar-view",
     "plugin-charts",
     "plugin-chatbot",
+    "plugin-dashboard",
     "plugin-editor",
+    "plugin-form",
     "plugin-gantt",
+    "plugin-grid",
     "plugin-kanban",
     "plugin-map",
     "plugin-markdown",
-    "plugin-timeline"
+    "plugin-timeline",
+    "plugin-view"
   ]
 }

@@ -1,9 +1,12 @@
 {
   "title": "Guide",
   "pages": [
+    "architecture",
     "schema-rendering",
+    "layout",
     "expressions",
     "data-source",
+    "fields",
     "component-registry",
     "plugins"
   ]
