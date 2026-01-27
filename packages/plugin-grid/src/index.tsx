@@ -19,4 +19,5 @@ const ObjectGridRenderer: React.FC<{ schema: any }> = ({ schema }) => {
 };
 
 ComponentRegistry.register('object-grid', ObjectGridRenderer);
-ComponentRegistry.register('grid', ObjectGridRenderer); // Alias
+// Note: 'grid' type is handled by @object-ui/components Grid layout component
+// This plugin only handles 'object-grid' which integrates with ObjectQL/ObjectStack
