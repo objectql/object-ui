@@ -163,17 +163,28 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     const cols = normalizeColumns(schema.columns);
     
     if (cols) {
-      // If columns are already ListColumn objects, convert them to data-table format
+      // Check if columns are already in data-table format (have 'accessorKey')
+      // vs ListColumn format (have 'field')
       if (cols.length > 0 && typeof cols[0] === 'object' && cols[0] !== null) {
-        return (cols as ListColumn[])
-          .filter((col) => col?.field && typeof col.field === 'string') // Filter out invalid column objects
-          .map((col) => ({
-            header: col.label || col.field.charAt(0).toUpperCase() + col.field.slice(1).replace(/_/g, ' '),
-            accessorKey: col.field,
-            ...(col.width && { width: col.width }),
-            ...(col.align && { align: col.align }),
-            sortable: col.sortable !== false,
-          }));
+        const firstCol = cols[0] as any;
+        
+        // Already in data-table format - use as-is
+        if ('accessorKey' in firstCol) {
+          return cols;
+        }
+        
+        // ListColumn format - convert to data-table format
+        if ('field' in firstCol) {
+          return (cols as ListColumn[])
+            .filter((col) => col?.field && typeof col.field === 'string') // Filter out invalid column objects
+            .map((col) => ({
+              header: col.label || col.field.charAt(0).toUpperCase() + col.field.slice(1).replace(/_/g, ' '),
+              accessorKey: col.field,
+              ...(col.width && { width: col.width }),
+              ...(col.align && { align: col.align }),
+              sortable: col.sortable !== false,
+            }));
+        }
       }
       
       // String array format - filter out invalid entries
