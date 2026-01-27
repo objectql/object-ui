@@ -3,7 +3,6 @@ import { BrowserRouter } from 'react-router-dom';
 import { SidebarNav } from './SidebarNav';
 import { describe, it, expect } from 'vitest';
 import { SidebarProvider } from '@object-ui/components';
-import React from 'react';
 
 describe('SidebarNav', () => {
     it('renders without crashing using default items', () => {

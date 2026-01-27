@@ -23,6 +23,7 @@ export default defineConfig({
         'react-dom',
         '@object-ui/components',
         '@object-ui/core',
+        '@object-ui/react',
         '@object-ui/types',
         'clsx',
         'tailwind-merge',

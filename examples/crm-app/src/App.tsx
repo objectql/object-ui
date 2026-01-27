@@ -1,7 +1,6 @@
-import { useEffect, useMemo } from 'react';
-import { BrowserRouter, Routes, Route, Outlet, Link, useLocation, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, useParams } from 'react-router-dom';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@object-ui/components';
-import { SchemaRendererProvider, SchemaRenderer, useRenderer } from '@object-ui/react';
+import { SchemaRendererProvider, SchemaRenderer } from '@object-ui/react';
 import { registerFields } from '@object-ui/fields';
 import { registerLayout } from '@object-ui/layout';
 import '@object-ui/plugin-dashboard'; 
@@ -9,7 +8,7 @@ import { registerPlaceholders } from '@object-ui/components';
 import { SidebarNav } from './components/SidebarNav';
 
 // Data & Schemas
-import { mockData, getContact, getOpportunity } from './data';
+import { mockData, getContact } from './data';
 import { dashboardSchema } from './schemas/dashboard';
 import { contactListSchema, contactDetailSchema } from './schemas/contacts';
 import { opportunityListSchema } from './schemas/opportunities';

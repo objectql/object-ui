@@ -6,7 +6,7 @@ export const dashboardSchema: DashboardSchema = {
     widgets: [
         {
             id: "w1",
-            layout: { w: 1, h: 1 },
+            layout: { x: 0, y: 0, w: 1, h: 1 },
             component: {
                 type: "card",
                 props: { title: "Total Revenue" },
@@ -17,7 +17,7 @@ export const dashboardSchema: DashboardSchema = {
         },
         {
             id: "w2",
-            layout: { w: 1, h: 1 },
+            layout: { x: 1, y: 0, w: 1, h: 1 },
             component: {
                 type: "card",
                 props: { title: "Active Leads" },
@@ -28,7 +28,7 @@ export const dashboardSchema: DashboardSchema = {
         },
         {
             id: "w3",
-            layout: { w: 1, h: 1 },
+            layout: { x: 2, y: 0, w: 1, h: 1 },
             component: {
                 type: "card",
                 props: { title: "Open Deals" },
@@ -39,7 +39,7 @@ export const dashboardSchema: DashboardSchema = {
         },
         {
             id: "w4",
-            layout: { w: 2, h: 2 },
+            layout: { x: 0, y: 1, w: 2, h: 2 },
             title: "Sales Pipeline",
             component: {
                 type: "widget:bar",
@@ -56,7 +56,7 @@ export const dashboardSchema: DashboardSchema = {
         },
         {
             id: "w5",
-            layout: { w: 1, h: 2 },
+            layout: { x: 2, y: 1, w: 1, h: 2 },
             title: "Recent Activity",
             component: {
                 type: "widget:text",

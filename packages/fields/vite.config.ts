@@ -22,6 +22,8 @@ export default defineConfig({
         'react',
         'react-dom',
         '@object-ui/components',
+        '@object-ui/core',
+        '@object-ui/react',
         '@object-ui/types',
         'lucide-react',
       ],
