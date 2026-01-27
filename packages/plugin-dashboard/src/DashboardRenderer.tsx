@@ -7,7 +7,7 @@
  */
 
 import { ComponentRegistry } from '@object-ui/core';
-import type { DashboardSchema } from '@object-ui/types';
+import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { SchemaRenderer } from '@object-ui/react';
 import { cn } from '@object-ui/components';
 import { forwardRef } from 'react';
@@ -30,7 +30,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, { schema: DashboardS
         }}
         {...props}
       >
-        {schema.widgets?.map((widget) => (
+        {schema.widgets?.map((widget: DashboardWidgetSchema) => (
             <div 
                 key={widget.id} 
                 className={cn("border rounded-lg p-4 bg-card text-card-foreground shadow-sm")}
