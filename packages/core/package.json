@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/core",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "license": "MIT",
   "description": "Core logic, types, and validation for Object UI. Zero React dependencies.",
   "homepage": "https://www.objectui.org",

@@ -7,13 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.3.1] - 2026-01-27
+
 ### Changed
 
-- **Package Restructure**: `@object-ui/plugin-object` has been upgraded to a core package and renamed to `@object-ui/views`
-  - Package name changed from `@object-ui/plugin-object` to `@object-ui/views`
-  - Now positioned as a core package instead of a plugin
-  - All functionality remains the same, only the package name and classification have changed
-  - Users should update their imports from `@object-ui/plugin-object` to `@object-ui/views`
+- Maintenance release - Documentation and build improvements
+- Updated internal dependencies across all packages
 
 ---
 

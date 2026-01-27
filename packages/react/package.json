@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/react",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "license": "MIT",
   "description": "React bindings and SchemaRenderer component for Object UI",
   "homepage": "https://www.objectui.org",
