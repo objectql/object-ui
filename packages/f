@@ -1,0 +1,85 @@
+ lds    }
+
+  // Cast for rowdW    return <spanr>  }
+
+  // Cast fpe
+ ies
+  // Cast for rows le
+  /nte
+  // Cast fpe
+ ies
+  // Cast for rows  Se ies
+  // C} f  / '  const rot =  const rows po  if (rows && rows > 1) {
+    rsN    return (
+      <Textpa      <Tid    rsN    return (
+    ';      <Textpa     Se        cly)        className={pro }}
+        />
+    );
+  }
+
+  returned        cly)        className={=         />
+    );
+  }
+
+  returned   data).options  }
+
+];
+
+  i        />
+    );
+  }
+
+  return (
+  ss    );
+  (o) => o.valu  }
+
+ v
+ ue)  ss    )urn <span cla
+  />
+="text-sm">{op      disnF      disa-2      disnF      disabled={readonly}fi      clasac      className={propsialexport funcm 
+expo}
+export function TextField({ value, onChanops  if (readonly) {
+    return  export functro    return <span classld    return  export functro    return <span className="text-sct>{  }
+
+  // Cast fbel>
+    </div>
+  );
+}
+EOF
+
+cat > packages/f
+ lds    }
+
+  // Cast tem key={    </div>
+  )va  );
+}
+EOon.value}EO   EOon.value}EO  n.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+EOF
+
+cat > packages/fields/src/widgets/DateField.tsx <<EOF
+import React from 'react';
+import { Input } from '@object-ui/components';
+import { FieldWidgetProps } from './types';
+
+export function DateField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
+  if (readonly) {
+    return <span className="text-sm">{value ? new Date(value).toLocaleDateString() : '-'}</span>;
+  }
+
+  return (
+    <Input
+      type="date"
+      value={value || ''}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={readonly}
+      className={props.className}
+    />
+  );
+}
+EOF
