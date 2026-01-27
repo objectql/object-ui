@@ -15,6 +15,7 @@ const pluginsLoading = typeof window !== 'undefined'
       import('@object-ui/plugin-aggrid'),
       import('@object-ui/plugin-editor'),
       import('@object-ui/plugin-charts'),
+      import('@object-ui/plugin-dashboard'),
       import('@object-ui/plugin-kanban'),
       import('@object-ui/plugin-markdown'),
       import('@object-ui/plugin-timeline'),
