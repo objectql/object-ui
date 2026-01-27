@@ -3,3 +3,5 @@ packages:
   - 'examples/*'
   - 'apps/*'
   - 'docs'
+
+  - 'examples/crm-app'
