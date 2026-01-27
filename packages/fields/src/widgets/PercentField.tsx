@@ -19,7 +19,12 @@ export function PercentField({ value, onChange, field, readonly, errorMessage, .
   const displayValue = value != null ? (value * 100) : '';
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value === '' ? null : parseFloat(e.target.value) / 100;
+    if (e.target.value === '') {
+      onChange(null as any);
+      return;
+    }
+    const parsed = parseFloat(e.target.value);
+    const val = isNaN(parsed) ? null : parsed / 100;
     onChange(val as any);
   };
 

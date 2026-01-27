@@ -30,8 +30,8 @@ export function ObjectField({ value, onChange, field, readonly, ...props }: Fiel
       const parsed = JSON.parse(str);
       onChange(parsed);
     } catch {
-      // Invalid JSON, just update the text (will be validated on blur)
-      onChange(str as any);
+      // Invalid JSON - keep the current valid value, don't update
+      // User will need to fix JSON before it's saved
     }
   };
 

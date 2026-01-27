@@ -14,7 +14,10 @@ export function VectorField({ value, field, ...props }: FieldWidgetProps<number[
   }
 
   // Show first few values and total dimensions
-  const preview = value.slice(0, 3).map(v => v.toFixed(4)).join(', ');
+  const preview = value.slice(0, 3).map(v => {
+    const num = Number(v);
+    return isNaN(num) ? '0' : num.toFixed(4);
+  }).join(', ');
 
   return (
     <div className={`text-sm ${props.className || ''}`}>
