@@ -24,7 +24,7 @@ import { useState } from 'react';
  * - Use case: Connect to backend API or trigger custom actions on message send
  */
 ComponentRegistry.register('chatbot', 
-  ({ schema, className, ...props }) => {
+  ({ schema, className, ...props }: { schema: ChatbotSchema; className?: string; [key: string]: any }) => {
     // Initialize messages from schema or use empty array
     const [messages, setMessages] = useState<ChatMessage[]>(
       schema.messages?.map((msg: any, idx: number) => ({

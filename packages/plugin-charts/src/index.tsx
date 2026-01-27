@@ -124,10 +124,11 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema }) => {
     // 3. Auto-generate config/colors if missing
     if (!config && series) {
        const colors = (schema as any).colors || ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))']; 
-       config = {};
+       const newConfig: Record<string, any> = {};
        series.forEach((s: any, idx: number) => {
-         config[s.dataKey] = { label: s.dataKey, color: colors[idx % colors.length] };
+         newConfig[s.dataKey] = { label: s.dataKey, color: colors[idx % colors.length] };
        });
+       config = newConfig;
     }
 
     return {
