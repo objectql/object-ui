@@ -1,0 +1,213 @@
+---
+title: "SchemaRenderer"
+description: "Core component for rendering JSON schemas into React components"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The SchemaRenderer is the heart of ObjectUI. It takes a JSON schema and dynamically renders the appropriate React components based on the schema's `type` field.
+
+## How It Works
+
+The SchemaRenderer uses the Component Registry to look up the appropriate component for each schema type and renders it with the provided props.
+
+```typescript
+import { SchemaRenderer } from '@object-ui/react';
+
+<SchemaRenderer schema={{
+  type: 'card',
+  title: 'Hello World',
+  children: [
+    { type: 'text', content: 'This is rendered from JSON!' }
+  ]
+}} />
+```
+
+## Basic Example
+
+<ComponentDemo
+  schema={{
+    type: 'card',
+    title: 'Dynamic Card',
+    children: [
+      {
+        type: 'text',
+        content: 'This entire UI is defined in JSON and rendered by SchemaRenderer',
+        className: 'text-sm text-muted-foreground'
+      }
+    ]
+  }}
+  title="SchemaRenderer in Action"
+/>
+
+## Nested Schemas
+
+The SchemaRenderer automatically handles nested schemas:
+
+<ComponentDemo
+  schema={{
+    type: 'stack',
+    gap: 4,
+    children: [
+      {
+        type: 'card',
+        title: 'Parent Component',
+        children: [
+          {
+            type: 'flex',
+            gap: 2,
+            children: [
+              { type: 'badge', children: 'Nested' },
+              { type: 'badge', children: 'Components', variant: 'outline' }
+            ]
+          }
+        ]
+      },
+      {
+        type: 'card',
+        title: 'Sibling Component',
+        children: [
+          { type: 'text', content: 'All rendered from a single schema tree' }
+        ]
+      }
+    ]
+  }}
+  title="Nested Schema Example"
+/>
+
+## Schema Structure
+
+```typescript
+interface SchemaNode {
+  type: string;                  // Component type (e.g., 'card', 'button', 'text')
+  id?: string;                   // Unique identifier
+  className?: string;            // Tailwind CSS classes
+  children?: SchemaNode | SchemaNode[]; // Child components
+  props?: Record<string, any>;   // Component-specific props
+  [key: string]: any;            // Any other component props
+}
+```
+
+## Error Handling
+
+When an unknown component type is encountered, SchemaRenderer displays a helpful error message:
+
+<ComponentDemo
+  schema={{
+    type: 'unknown-component',
+    someData: 'test'
+  }}
+  title="Unknown Component Type"
+/>
+
+## Component Registry
+
+The SchemaRenderer uses the Component Registry to resolve component types:
+
+```typescript
+import { ComponentRegistry } from '@object-ui/core';
+
+// Register a custom component
+ComponentRegistry.register('my-widget', MyWidgetComponent);
+
+// Now you can use it in schemas
+<SchemaRenderer schema={{
+  type: 'my-widget',
+  customProp: 'value'
+}} />
+```
+
+## Usage in Applications
+
+### Simple Rendering
+
+```typescript
+import { SchemaRenderer } from '@object-ui/react';
+
+function App() {
+  const schema = {
+    type: 'page',
+    title: 'Dashboard',
+    body: [
+      { type: 'text', content: 'Welcome to your dashboard' }
+    ]
+  };
+
+  return <SchemaRenderer schema={schema} />;
+}
+```
+
+### Dynamic Schemas
+
+```typescript
+import { SchemaRenderer } from '@object-ui/react';
+import { useState, useEffect } from 'react';
+
+function DynamicPage() {
+  const [schema, setSchema] = useState(null);
+
+  useEffect(() => {
+    // Fetch schema from API
+    fetch('/api/page-schema')
+      .then(res => res.json())
+      .then(setSchema);
+  }, []);
+
+  if (!schema) return <div>Loading...</div>;
+
+  return <SchemaRenderer schema={schema} />;
+}
+```
+
+### With Props
+
+You can pass additional props to the rendered component:
+
+```typescript
+<SchemaRenderer 
+  schema={{ type: 'button', label: 'Click Me' }}
+  onClick={() => console.log('Clicked!')}
+  className="extra-classes"
+/>
+```
+
+## Data Attributes
+
+SchemaRenderer automatically adds data attributes for debugging:
+
+- `data-obj-id`: The schema's id field
+- `data-obj-type`: The schema's type field
+
+These can be used for debugging, testing, or styling:
+
+```css
+[data-obj-type="card"] {
+  /* Target all card components */
+}
+```
+
+## Advanced Features
+
+### String Rendering
+
+If a schema is just a string, it's rendered as text:
+
+```typescript
+<SchemaRenderer schema="Hello World" />
+// Renders: Hello World
+```
+
+### Null/Undefined Handling
+
+Null or undefined schemas render nothing:
+
+```typescript
+<SchemaRenderer schema={null} />
+// Renders: null
+```
+
+## Related
+
+- [Component Registry](/docs/guide/component-registry) - Register custom components
+- [Schema Rendering Guide](/docs/guide/schema-rendering) - Deep dive into schema rendering
+- [FormRenderer](/docs/core/form-renderer) - Specialized renderer for forms

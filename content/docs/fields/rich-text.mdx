@@ -1,0 +1,118 @@
+---
+title: "Rich Text Field"
+description: "Rich text editor for formatted content"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Rich Text Field component provides a WYSIWYG editor for creating formatted text content with markdown or HTML support.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'markdown',
+    name: 'content',
+    label: 'Content',
+    placeholder: 'Enter your content here...',
+    rows: 6
+  }}
+  title="Markdown Editor"
+/>
+
+## HTML Editor
+
+<ComponentDemo
+  schema={{
+    type: 'html',
+    name: 'description',
+    label: 'Description',
+    placeholder: 'Enter HTML content...',
+    rows: 8
+  }}
+  title="HTML Editor"
+/>
+
+## Field Schema
+
+```typescript
+interface RichTextFieldSchema {
+  type: 'markdown' | 'html';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: string;                // Default value
+  rows?: number;                 // Editor height in rows
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Editor Configuration
+  toolbar?: boolean;             // Show formatting toolbar
+  preview?: boolean;             // Show preview panel
+  minHeight?: number;            // Minimum height in pixels
+  maxHeight?: number;            // Maximum height in pixels
+}
+```
+
+## Supported Formats
+
+### Markdown
+- **Headings**: `# H1`, `## H2`, `### H3`
+- **Bold/Italic**: `**bold**`, `*italic*`
+- **Lists**: Ordered and unordered
+- **Links**: `[text](url)`
+- **Images**: `![alt](url)`
+- **Code**: Inline and blocks
+- **Tables**: Markdown tables
+
+### HTML
+- Full HTML editing support
+- Sanitization for security
+- Style preservation
+- Embedded media support
+
+## Cell Renderer
+
+In tables/grids, rich text is shown as plain text:
+
+```typescript
+import { TextCellRenderer } from '@object-ui/fields';
+
+// Strips formatting, shows plain text only
+// Long content is truncated
+```
+
+## Use Cases
+
+- **Blog Posts**: Article content, blog posts
+- **Documentation**: Technical documentation
+- **Descriptions**: Product or feature descriptions
+- **Comments**: Rich formatted comments
+- **Emails**: Email templates, rich email content
+- **Pages**: CMS page content
+
+## Features
+
+- **WYSIWYG**: What you see is what you get editing
+- **Markdown Support**: For lightweight formatting
+- **HTML Support**: For advanced formatting
+- **Preview Mode**: See formatted output
+- **Syntax Highlighting**: For code blocks
+- **Image Upload**: Embed images (when configured)
+- **Auto-save**: Prevent data loss
+
+## Editor Modes
+
+The rich text field can operate in different modes:
+
+1. **Markdown Mode** (`type: 'markdown'`)
+   - Lightweight markup
+   - Easy to write and read
+   - Great for documentation
+
+2. **HTML Mode** (`type: 'html'`)
+   - Full HTML editing
+   - Advanced formatting
+   - Embedded content support

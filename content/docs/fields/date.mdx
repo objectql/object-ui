@@ -1,0 +1,93 @@
+---
+title: "Date Field"
+description: "Date picker input for date and datetime values"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Date Field component provides a date picker for selecting dates and optionally times.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'date',
+    name: 'birthdate',
+    label: 'Birth Date',
+    placeholder: 'Select date...'
+  }}
+  title="Basic Date Picker"
+/>
+
+## With Default Value
+
+<ComponentDemo
+  schema={{
+    type: 'date',
+    name: 'event_date',
+    label: 'Event Date',
+    value: new Date().toISOString()
+  }}
+  title="With Default Date"
+/>
+
+## Field Schema
+
+```typescript
+interface DateFieldSchema {
+  type: 'date' | 'datetime';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: string | Date;         // Default value (ISO string or Date)
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Validation
+  min?: string | Date;           // Minimum date
+  max?: string | Date;           // Maximum date
+  format?: string;               // Display format
+}
+```
+
+## Date Formats
+
+The date field supports various display formats:
+
+- **Short**: 12/31/2024
+- **Medium**: Dec 31, 2024 (default)
+- **Long**: December 31, 2024
+- **Full**: Monday, December 31, 2024
+
+## Use Cases
+
+- **Birthdates**: User birth dates
+- **Deadlines**: Task or project deadlines
+- **Events**: Event start/end dates
+- **Appointments**: Meeting or appointment scheduling
+- **Releases**: Product or content release dates
+
+## Cell Renderer
+
+In tables/grids, dates are formatted consistently:
+
+```typescript
+import { DateCellRenderer } from '@object-ui/fields';
+
+// Renders: Dec 31, 2024
+// Or: Dec 31, 2024 2:30 PM (for datetime)
+```
+
+## DateTime Variant
+
+For collecting both date and time:
+
+```typescript
+{
+  type: 'datetime',
+  name: 'appointment',
+  label: 'Appointment Time'
+}
+```

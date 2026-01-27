@@ -1,0 +1,83 @@
+---
+title: "URL Field"
+description: "URL input with validation and link rendering"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The URL Field component provides a text input with URL validation and clickable link rendering.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'url',
+    name: 'website',
+    label: 'Website',
+    placeholder: 'https://example.com'
+  }}
+  title="Basic URL Field"
+/>
+
+## Required URL
+
+<ComponentDemo
+  schema={{
+    type: 'url',
+    name: 'portfolio',
+    label: 'Portfolio URL',
+    placeholder: 'https://yoursite.com',
+    required: true
+  }}
+  title="Required URL"
+/>
+
+## Field Schema
+
+```typescript
+interface UrlFieldSchema {
+  type: 'url';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: string;                // Default value
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+}
+```
+
+## Validation
+
+The URL field automatically validates:
+- Proper URL protocol (http:// or https://)
+- Valid domain structure
+- No invalid characters
+
+## Cell Renderer
+
+In tables/grids, URLs are clickable external links:
+
+```typescript
+import { UrlCellRenderer } from '@object-ui/fields';
+
+// Renders as: <a href="https://example.com" target="_blank">https://example.com</a>
+// Opens in new tab with security attributes
+```
+
+## Use Cases
+
+- **Websites**: Company or personal websites
+- **Social Media**: Social media profile links
+- **Documentation**: External documentation links
+- **Resources**: Reference materials, articles
+- **Portfolios**: Portfolio or project links
+
+## Features
+
+- **Link Preview**: Clickable links in read-only mode
+- **New Tab**: External links open in new tab
+- **Security**: Proper rel="noopener noreferrer" attributes
+- **Validation**: Real-time URL format validation
+- **Accessible**: Proper ARIA labels for screen readers

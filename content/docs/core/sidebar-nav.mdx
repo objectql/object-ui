@@ -1,0 +1,282 @@
+---
+title: "SidebarNav"
+description: "Sidebar navigation component with active state and icons"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The SidebarNav component provides a responsive sidebar navigation menu with support for icons, active states, and nested items.
+
+## Basic Usage
+
+```typescript
+import { SidebarNav } from '@object-ui/layout';
+import { Home, Users, Settings } from 'lucide-react';
+
+<SidebarNav
+  title="My Application"
+  items={[
+    {
+      title: 'Dashboard',
+      href: '/',
+      icon: Home
+    },
+    {
+      title: 'Users',
+      href: '/users',
+      icon: Users
+    },
+    {
+      title: 'Settings',
+      href: '/settings',
+      icon: Settings
+    }
+  ]}
+/>
+```
+
+## Component Props
+
+```typescript
+interface SidebarNavProps {
+  items: NavItem[];              // Navigation items
+  title?: string;                // Sidebar title (default: "Application")
+  className?: string;            // Additional CSS classes
+}
+
+interface NavItem {
+  title: string;                 // Item label
+  href: string;                  // Navigation URL
+  icon?: React.ComponentType;    // Lucide icon component
+}
+```
+
+## Features
+
+### Active State
+
+The SidebarNav automatically highlights the active route based on the current URL:
+
+```typescript
+// Current URL: /users
+// The "Users" menu item will be highlighted
+```
+
+### Icons
+
+Add Lucide icons to navigation items:
+
+```typescript
+import { 
+  LayoutDashboard, 
+  Users, 
+  FolderKanban, 
+  Settings 
+} from 'lucide-react';
+
+<SidebarNav
+  items={[
+    { title: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { title: 'Team', href: '/team', icon: Users },
+    { title: 'Projects', href: '/projects', icon: FolderKanban },
+    { title: 'Settings', href: '/settings', icon: Settings }
+  ]}
+/>
+```
+
+### Custom Title
+
+Set a custom title for the sidebar:
+
+```typescript
+<SidebarNav
+  title="ObjectUI Dashboard"
+  items={navItems}
+/>
+```
+
+## Complete Example
+
+```typescript
+import { SidebarNav } from '@object-ui/layout';
+import { 
+  Home,
+  Users,
+  FolderOpen,
+  BarChart,
+  Settings,
+  HelpCircle
+} from 'lucide-react';
+
+const navigationItems = [
+  {
+    title: 'Dashboard',
+    href: '/',
+    icon: Home
+  },
+  {
+    title: 'Projects',
+    href: '/projects',
+    icon: FolderOpen
+  },
+  {
+    title: 'Team',
+    href: '/team',
+    icon: Users
+  },
+  {
+    title: 'Analytics',
+    href: '/analytics',
+    icon: BarChart
+  },
+  {
+    title: 'Settings',
+    href: '/settings',
+    icon: Settings
+  },
+  {
+    title: 'Help',
+    href: '/help',
+    icon: HelpCircle
+  }
+];
+
+function App() {
+  return (
+    <SidebarNav
+      title="My CRM"
+      items={navigationItems}
+    />
+  );
+}
+```
+
+## Usage with AppShell
+
+The SidebarNav is designed to work with AppShell:
+
+```typescript
+import { AppShell, SidebarNav } from '@object-ui/layout';
+
+<AppShell
+  sidebar={
+    <SidebarNav
+      title="My App"
+      items={[
+        { title: 'Home', href: '/', icon: Home },
+        { title: 'About', href: '/about', icon: Info }
+      ]}
+    />
+  }
+>
+  {/* Your content */}
+</AppShell>
+```
+
+## Styling
+
+The SidebarNav uses Shadcn UI Sidebar components:
+
+- **SidebarGroupLabel**: Section title
+- **SidebarMenuItem**: Individual menu items
+- **SidebarMenuButton**: Clickable button with active state
+
+### Active Item
+
+Active items receive:
+- Background color highlighting
+- Bold text
+- Visual indicator
+
+### Hover State
+
+Menu items on hover:
+- Subtle background change
+- Smooth transition
+- Cursor pointer
+
+## Responsive Behavior
+
+The SidebarNav works with the AppShell's responsive behavior:
+
+- **Desktop**: Full sidebar visible
+- **Mobile**: Collapsible sidebar with hamburger menu
+- **Tablet**: Medium-width sidebar
+
+## Navigation
+
+The SidebarNav uses React Router's `NavLink` for:
+- Client-side navigation
+- Active state detection
+- Browser history management
+- Back button support
+
+## Accessibility
+
+The SidebarNav includes:
+- Semantic `<nav>` element
+- Proper ARIA labels
+- Keyboard navigation
+- Focus management
+- Screen reader support
+
+## Icon Guidelines
+
+Use Lucide React icons:
+
+```bash
+npm install lucide-react
+```
+
+Common icons:
+- `Home` - Dashboard/home
+- `Users` - Team/users
+- `Settings` - Settings/config
+- `FolderOpen` - Projects/files
+- `BarChart` - Analytics/reports
+- `Mail` - Messages/email
+- `Calendar` - Events/schedule
+- `FileText` - Documents
+
+## Advanced Features
+
+### Grouping Items
+
+For complex navigation, you can extend the component to support groups:
+
+```typescript
+// Future enhancement - grouped navigation
+{
+  group: 'Main',
+  items: [
+    { title: 'Dashboard', href: '/' },
+    { title: 'Projects', href: '/projects' }
+  ]
+},
+{
+  group: 'Settings',
+  items: [
+    { title: 'Profile', href: '/profile' },
+    { title: 'Preferences', href: '/preferences' }
+  ]
+}
+```
+
+### Badges
+
+Add badges to navigation items (future enhancement):
+
+```typescript
+{
+  title: 'Messages',
+  href: '/messages',
+  icon: Mail,
+  badge: '12'  // Unread count
+}
+```
+
+## Related
+
+- [AppShell](/docs/core/app-shell) - Application shell layout
+- [PageHeader](/docs/core/page-header) - Page header component
+- [Sidebar](/docs/components/basic/sidebar) - Base sidebar component

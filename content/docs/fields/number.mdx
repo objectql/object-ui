@@ -1,0 +1,87 @@
+---
+title: "Number Field"
+description: "Numeric input field for integer and decimal numbers"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Number Field component provides a numeric input for collecting integer or decimal numbers with optional precision control.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'number',
+    name: 'quantity',
+    label: 'Quantity',
+    placeholder: '0'
+  }}
+  title="Basic Number Field"
+/>
+
+## With Precision
+
+<ComponentDemo
+  schema={{
+    type: 'number',
+    name: 'price',
+    label: 'Price',
+    placeholder: '0.00',
+    precision: 2
+  }}
+  title="Decimal Numbers"
+/>
+
+## With Min/Max
+
+<ComponentDemo
+  schema={{
+    type: 'number',
+    name: 'age',
+    label: 'Age',
+    placeholder: 'Enter age',
+    min: 0,
+    max: 120
+  }}
+  title="Range Validation"
+/>
+
+## Field Schema
+
+```typescript
+interface NumberFieldSchema {
+  type: 'number';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: number;                // Default value
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Validation
+  min?: number;                  // Minimum value
+  max?: number;                  // Maximum value
+  precision?: number;            // Decimal places (default: 0)
+  step?: number;                 // Increment/decrement step
+}
+```
+
+## Use Cases
+
+- **Quantities**: Order quantities, stock levels
+- **Measurements**: Dimensions, weights, distances
+- **Ratings**: Numeric ratings or scores
+- **Ages**: User age or duration values
+
+## Cell Renderer
+
+In tables/grids, numbers are displayed with tabular formatting:
+
+```typescript
+import { NumberCellRenderer } from '@object-ui/fields';
+
+// Renders with precision and tabular-nums font
+// Example: 1,234.56
+```

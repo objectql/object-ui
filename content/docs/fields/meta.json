@@ -1,0 +1,17 @@
+{
+  "title": "Fields",
+  "pages": [
+    "text",
+    "textarea",
+    "number",
+    "currency",
+    "boolean",
+    "select",
+    "date",
+    "email",
+    "phone",
+    "url",
+    "lookup",
+    "rich-text"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "title": "Core",
+  "pages": [
+    "schema-renderer",
+    "form-renderer",
+    "app-shell",
+    "page-header",
+    "sidebar-nav"
+  ]
+}

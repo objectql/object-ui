@@ -1,0 +1,120 @@
+---
+title: "Select Field"
+description: "Dropdown selection field with single or multiple options"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Select Field component provides a dropdown for selecting one or more options from a predefined list.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'select',
+    name: 'status',
+    label: 'Status',
+    placeholder: 'Select status...',
+    options: [
+      { label: 'Draft', value: 'draft' },
+      { label: 'In Progress', value: 'in_progress' },
+      { label: 'Completed', value: 'completed' }
+    ]
+  }}
+  title="Basic Select"
+/>
+
+## With Colors
+
+<ComponentDemo
+  schema={{
+    type: 'select',
+    name: 'priority',
+    label: 'Priority',
+    placeholder: 'Select priority...',
+    options: [
+      { label: 'Low', value: 'low', color: 'gray' },
+      { label: 'Medium', value: 'medium', color: 'blue' },
+      { label: 'High', value: 'high', color: 'orange' },
+      { label: 'Urgent', value: 'urgent', color: 'red' }
+    ]
+  }}
+  title="Colored Options"
+/>
+
+## Multiple Selection
+
+<ComponentDemo
+  schema={{
+    type: 'select',
+    name: 'tags',
+    label: 'Tags',
+    placeholder: 'Select tags...',
+    multiple: true,
+    options: [
+      { label: 'Frontend', value: 'frontend', color: 'blue' },
+      { label: 'Backend', value: 'backend', color: 'green' },
+      { label: 'DevOps', value: 'devops', color: 'purple' },
+      { label: 'Design', value: 'design', color: 'pink' }
+    ]
+  }}
+  title="Multi-Select"
+/>
+
+## Field Schema
+
+```typescript
+interface SelectFieldSchema {
+  type: 'select';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: string | string[];     // Default value(s)
+  multiple?: boolean;            // Allow multiple selections
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Options
+  options: SelectOption[];       // Available options
+}
+
+interface SelectOption {
+  label: string;                 // Display label
+  value: string;                 // Option value
+  color?: string;                // Badge color (gray, red, blue, etc.)
+  disabled?: boolean;            // Disable specific option
+}
+```
+
+## Available Colors
+
+- `gray` - Default neutral color
+- `red` - For errors, urgent items
+- `orange` - For warnings, high priority
+- `yellow` - For pending, attention needed
+- `green` - For success, completed
+- `blue` - For info, in progress
+- `indigo` - For special items
+- `purple` - For creative, design
+- `pink` - For featured items
+
+## Cell Renderer
+
+In tables/grids, select values are displayed as colored badges:
+
+```typescript
+import { SelectCellRenderer } from '@object-ui/fields';
+
+// Single value: Colored badge
+// Multiple values: Multiple badges in a row
+```
+
+## Use Cases
+
+- **Status Fields**: Order status, task status
+- **Categories**: Product categories, content types
+- **Tags**: Multi-tag selection
+- **Priorities**: Task or ticket priorities
+- **Roles**: User roles or permissions

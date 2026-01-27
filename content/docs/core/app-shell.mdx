@@ -1,0 +1,266 @@
+---
+title: "AppShell"
+description: "Main application shell with sidebar and header layout"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The AppShell component provides the main application layout structure with an integrated sidebar, header, and content area. It's the foundation for building enterprise applications with ObjectUI.
+
+## Basic Usage
+
+```typescript
+import { AppShell } from '@object-ui/layout';
+import { SidebarNav } from '@object-ui/layout';
+
+<AppShell
+  sidebar={
+    <SidebarNav
+      items={[
+        { label: 'Dashboard', href: '/', icon: 'home' },
+        { label: 'Users', href: '/users', icon: 'users' },
+        { label: 'Settings', href: '/settings', icon: 'settings' }
+      ]}
+    />
+  }
+  navbar={
+    <div className="flex items-center gap-4">
+      <span className="font-semibold">My App</span>
+    </div>
+  }
+>
+  {/* Your page content */}
+  <div>Main content area</div>
+</AppShell>
+```
+
+## Component Props
+
+```typescript
+interface AppShellProps {
+  sidebar?: React.ReactNode;     // Sidebar content (usually SidebarNav)
+  navbar?: React.ReactNode;      // Top navbar content (logo, search, user menu)
+  children: React.ReactNode;     // Main content area
+  className?: string;            // Additional CSS classes for content area
+  defaultOpen?: boolean;         // Sidebar default state (default: true)
+}
+```
+
+## Features
+
+### Responsive Sidebar
+
+The AppShell includes a responsive sidebar that:
+- Collapses on mobile devices
+- Can be toggled via hamburger menu
+- Persists state across page navigations
+- Supports smooth animations
+
+### Header Bar
+
+The header bar provides:
+- Sidebar toggle button
+- Custom navbar content area
+- Fixed height (64px / 4rem)
+- Border bottom separator
+- Background matching app theme
+
+### Content Area
+
+The main content area features:
+- Responsive padding (4 on mobile, 6 on desktop)
+- Automatic scrolling
+- Flexible height (fills viewport)
+- Custom className support
+
+## Layout Structure
+
+```
+┌─────────────────────────────────────┐
+│     Header (Sidebar Toggle + Nav)  │
+├──────────┬──────────────────────────┤
+│          │                          │
+│ Sidebar  │   Main Content Area      │
+│          │                          │
+│          │                          │
+│          │                          │
+└──────────┴──────────────────────────┘
+```
+
+## Sidebar Configuration
+
+### Default Open State
+
+Control whether sidebar is open by default:
+
+```typescript
+<AppShell defaultOpen={false}>
+  {/* Sidebar starts collapsed */}
+</AppShell>
+```
+
+### Collapsible Sidebar
+
+The sidebar can be toggled via:
+- Hamburger menu button (always visible)
+- Keyboard shortcuts (when implemented)
+- Programmatic control
+
+## Navbar Content
+
+The navbar area is flexible and can contain:
+
+### Logo and Title
+
+```typescript
+navbar={
+  <div className="flex items-center gap-2">
+    <img src="/logo.svg" alt="Logo" className="h-8 w-8" />
+    <span className="font-semibold text-lg">My Application</span>
+  </div>
+}
+```
+
+### Search Bar
+
+```typescript
+navbar={
+  <div className="flex-1 max-w-md">
+    <Input placeholder="Search..." />
+  </div>
+}
+```
+
+### User Menu
+
+```typescript
+navbar={
+  <div className="flex items-center gap-4 ml-auto">
+    <NotificationsButton />
+    <UserDropdown />
+  </div>
+}
+```
+
+## Complete Example
+
+```typescript
+import { AppShell, SidebarNav } from '@object-ui/layout';
+import { Avatar, Button, Input } from '@object-ui/components';
+
+function App() {
+  return (
+    <AppShell
+      defaultOpen={true}
+      sidebar={
+        <SidebarNav
+          header={{
+            logo: '/logo.svg',
+            title: 'ObjectUI'
+          }}
+          items={[
+            {
+              label: 'Dashboard',
+              href: '/',
+              icon: 'layout-dashboard',
+              badge: '12'
+            },
+            {
+              label: 'Projects',
+              href: '/projects',
+              icon: 'folder',
+              children: [
+                { label: 'Active', href: '/projects/active' },
+                { label: 'Archived', href: '/projects/archived' }
+              ]
+            },
+            {
+              label: 'Team',
+              href: '/team',
+              icon: 'users'
+            },
+            {
+              label: 'Settings',
+              href: '/settings',
+              icon: 'settings'
+            }
+          ]}
+          footer={
+            <div className="p-4 border-t">
+              <Button variant="outline" className="w-full">
+                Upgrade Plan
+              </Button>
+            </div>
+          }
+        />
+      }
+      navbar={
+        <div className="flex items-center justify-between w-full">
+          {/* Search */}
+          <div className="flex-1 max-w-md">
+            <Input 
+              placeholder="Search..." 
+              className="w-full"
+            />
+          </div>
+          
+          {/* Right side items */}
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon">
+              <Bell className="h-5 w-5" />
+            </Button>
+            <Avatar>
+              <AvatarFallback>JD</AvatarFallback>
+            </Avatar>
+          </div>
+        </div>
+      }
+      className="bg-gray-50"
+    >
+      {/* Main content */}
+      <div className="max-w-7xl">
+        <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
+        {/* Page content */}
+      </div>
+    </AppShell>
+  );
+}
+```
+
+## With Page Component
+
+Combine AppShell with the Page component for complete layouts:
+
+```typescript
+<AppShell sidebar={<SidebarNav items={navItems} />}>
+  <Page
+    title="Dashboard"
+    description="Welcome to your dashboard"
+    body={[
+      { type: 'text', content: 'Dashboard content' }
+    ]}
+  />
+</AppShell>
+```
+
+## Styling
+
+The AppShell uses Tailwind CSS and Shadcn UI components:
+
+- `SidebarProvider`: Manages sidebar state
+- `SidebarTrigger`: Hamburger menu button
+- `SidebarInset`: Content area wrapper
+
+## Accessibility
+
+The AppShell includes:
+- Proper ARIA labels for sidebar toggle
+- Keyboard navigation support
+- Focus management
+- Screen reader announcements
+
+## Related
+
+- [SidebarNav](/docs/core/sidebar-nav) - Sidebar navigation component
+- [PageHeader](/docs/core/page-header) - Page header component
+- [Page](/docs/components/layout/page) - Page layout component

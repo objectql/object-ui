@@ -1,0 +1,87 @@
+---
+title: "Boolean Field"
+description: "Switch/checkbox input for true/false values"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Boolean Field component provides a switch or checkbox input for collecting true/false boolean values.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'boolean',
+    name: 'is_active',
+    label: 'Active'
+  }}
+  title="Basic Switch"
+/>
+
+## With Description
+
+<ComponentDemo
+  schema={{
+    type: 'boolean',
+    name: 'notifications',
+    label: 'Email Notifications',
+    description: 'Receive email updates about your account'
+  }}
+  title="With Description"
+/>
+
+## Default Value
+
+<ComponentDemo
+  schema={{
+    type: 'boolean',
+    name: 'terms',
+    label: 'I agree to the terms and conditions',
+    value: true
+  }}
+  title="Pre-checked"
+/>
+
+## Field Schema
+
+```typescript
+interface BooleanFieldSchema {
+  type: 'boolean';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  description?: string;          // Helper text
+  value?: boolean;               // Default value
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+}
+```
+
+## Use Cases
+
+- **Feature Toggles**: Enable/disable features
+- **Preferences**: User settings and preferences
+- **Permissions**: Access control flags
+- **Status**: Active/inactive, published/draft states
+- **Agreements**: Terms acceptance, consent flags
+
+## Cell Renderer
+
+In tables/grids, boolean values are displayed as badges:
+
+```typescript
+import { BooleanCellRenderer } from '@object-ui/fields';
+
+// Renders:
+// ✓ True (green badge)
+// ✗ False (gray badge)
+```
+
+## Styling
+
+The boolean field uses the Switch component from Shadcn UI, providing:
+- Smooth animations
+- Accessible keyboard navigation
+- Focus states
+- Disabled states

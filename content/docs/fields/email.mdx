@@ -1,0 +1,83 @@
+---
+title: "Email Field"
+description: "Email input with validation"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Email Field component provides a text input with built-in email validation and formatting.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'email',
+    name: 'email',
+    label: 'Email Address',
+    placeholder: 'you@example.com'
+  }}
+  title="Basic Email Field"
+/>
+
+## Required Email
+
+<ComponentDemo
+  schema={{
+    type: 'email',
+    name: 'contact_email',
+    label: 'Contact Email',
+    placeholder: 'contact@company.com',
+    required: true
+  }}
+  title="Required Email"
+/>
+
+## Field Schema
+
+```typescript
+interface EmailFieldSchema {
+  type: 'email';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: string;                // Default value
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+}
+```
+
+## Validation
+
+The email field automatically validates:
+- Proper email format (user@domain.com)
+- Presence of @ symbol
+- Valid domain structure
+- No spaces or invalid characters
+
+## Cell Renderer
+
+In tables/grids, email addresses are clickable links:
+
+```typescript
+import { EmailCellRenderer } from '@object-ui/fields';
+
+// Renders as: <a href="mailto:user@example.com">user@example.com</a>
+// Clicking opens default email client
+```
+
+## Use Cases
+
+- **User Registration**: Account email addresses
+- **Contact Forms**: Customer contact information
+- **Support**: Support ticket emails
+- **Notifications**: Email notification addresses
+- **Team Members**: Team member email addresses
+
+## Features
+
+- **Autocomplete**: Browser email autocomplete
+- **Validation**: Real-time email format validation
+- **Clickable Links**: Email links in read-only mode
+- **Accessible**: Proper ARIA labels and keyboard navigation

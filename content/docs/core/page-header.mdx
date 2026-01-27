@@ -1,0 +1,237 @@
+---
+title: "PageHeader"
+description: "Page header component with title, description, and actions"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The PageHeader component provides a consistent header for pages with title, description, and action buttons.
+
+## Basic Usage
+
+```typescript
+import { PageHeader } from '@object-ui/layout';
+
+<PageHeader
+  title="Dashboard"
+  description="Welcome to your dashboard"
+/>
+```
+
+## With Actions
+
+<ComponentDemo
+  schema={{
+    type: 'div',
+    className: 'space-y-6',
+    children: [
+      {
+        type: 'div',
+        className: 'flex flex-col gap-4 pb-4',
+        children: [
+          {
+            type: 'div',
+            className: 'flex items-center justify-between gap-4',
+            children: [
+              {
+                type: 'div',
+                className: 'flex flex-col gap-1',
+                children: [
+                  {
+                    type: 'text',
+                    content: 'Users',
+                    className: 'text-2xl font-bold tracking-tight'
+                  },
+                  {
+                    type: 'text',
+                    content: 'Manage your team members and permissions',
+                    className: 'text-sm text-muted-foreground'
+                  }
+                ]
+              },
+              {
+                type: 'div',
+                className: 'flex items-center gap-2',
+                children: [
+                  { type: 'button', label: 'Export', variant: 'outline' },
+                  { type: 'button', label: 'Add User' }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+  title="PageHeader with Actions"
+/>
+
+## Component Props
+
+```typescript
+interface PageHeaderProps {
+  title: string;                 // Page title (required)
+  description?: string;          // Page description
+  action?: React.ReactNode;      // Action buttons or elements
+  children?: React.ReactNode;    // Additional content (actions)
+  className?: string;            // Additional CSS classes
+}
+```
+
+## Examples
+
+### Simple Header
+
+```typescript
+<PageHeader title="Settings" />
+```
+
+### With Description
+
+```typescript
+<PageHeader
+  title="Analytics"
+  description="Track your key metrics and performance indicators"
+/>
+```
+
+### With Action Buttons
+
+```typescript
+<PageHeader
+  title="Projects"
+  description="Manage your projects and tasks"
+  action={
+    <div className="flex gap-2">
+      <Button variant="outline">
+        <Download className="mr-2 h-4 w-4" />
+        Export
+      </Button>
+      <Button>
+        <Plus className="mr-2 h-4 w-4" />
+        New Project
+      </Button>
+    </div>
+  }
+/>
+```
+
+### With Children
+
+```typescript
+<PageHeader
+  title="Team"
+  description="Manage your team members"
+>
+  <Button>Invite Member</Button>
+  <Button variant="outline">Settings</Button>
+</PageHeader>
+```
+
+## Layout
+
+The PageHeader uses a flex layout:
+
+```
+┌─────────────────────────────────────┐
+│ Title                     [Actions] │
+│ Description                         │
+└─────────────────────────────────────┘
+```
+
+- **Left Side**: Title and description stacked vertically
+- **Right Side**: Action buttons or custom content
+- **Responsive**: Actions move below title on mobile (if needed)
+
+## Styling
+
+### Title
+
+- Font size: `text-2xl` on mobile, `text-3xl` on desktop
+- Font weight: `font-bold`
+- Tracking: `tracking-tight`
+
+### Description
+
+- Font size: `text-sm`
+- Color: `text-muted-foreground` (gray)
+
+### Container
+
+- Padding bottom: `pb-4` on mobile, `pb-8` on desktop
+- Gap: `gap-4` between elements
+
+## Usage with Page Component
+
+The Page component includes built-in PageHeader support:
+
+```typescript
+<Page
+  title="Dashboard"
+  description="Welcome to your dashboard"
+  action={<Button>Add Widget</Button>}
+  body={[
+    // Page content
+  ]}
+/>
+```
+
+## Complete Example
+
+```typescript
+import { PageHeader } from '@object-ui/layout';
+import { Button } from '@object-ui/components';
+import { Plus, Download, Settings } from 'lucide-react';
+
+function UsersPage() {
+  return (
+    <div>
+      <PageHeader
+        title="Team Members"
+        description="Manage your team members and their roles"
+        action={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm">
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+            <Button variant="outline" size="sm">
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </Button>
+            <Button size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Invite Member
+            </Button>
+          </div>
+        }
+      />
+      
+      {/* Page content */}
+      <div className="space-y-4">
+        {/* Table, cards, etc. */}
+      </div>
+    </div>
+  );
+}
+```
+
+## Accessibility
+
+The PageHeader includes:
+- Semantic HTML (`<h1>` for title)
+- Proper heading hierarchy
+- Color contrast for text
+- Responsive layout
+
+## Responsive Behavior
+
+- **Mobile**: Actions stack below title if needed
+- **Desktop**: Actions align to right side
+- **Spacing**: Adjusts padding for different screen sizes
+
+## Related
+
+- [Page](/docs/components/layout/page) - Complete page layout
+- [AppShell](/docs/core/app-shell) - Application shell
+- [SidebarNav](/docs/core/sidebar-nav) - Sidebar navigation

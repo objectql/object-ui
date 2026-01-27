@@ -2,8 +2,6 @@
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
 
-/* Tailwind plugin for animations */
-@plugin 'tailwindcss-animate';
 
 /* Scan sources for Tailwind clcd asses */
 @source '../node_modules/fumadocs-ui/dist/**/*.js';

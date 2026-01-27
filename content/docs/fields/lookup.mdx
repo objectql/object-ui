@@ -1,0 +1,134 @@
+---
+title: "Lookup Field"
+description: "Reference field for linking to other objects/records"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Lookup Field component provides a reference field for creating relationships between objects and records.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'lookup',
+    name: 'assigned_to',
+    label: 'Assigned To',
+    placeholder: 'Select user...',
+    reference_to: 'users',
+    options: [
+      { label: 'John Doe', value: 'user_1' },
+      { label: 'Jane Smith', value: 'user_2' },
+      { label: 'Bob Johnson', value: 'user_3' }
+    ]
+  }}
+  title="Basic Lookup"
+/>
+
+## Multiple References
+
+<ComponentDemo
+  schema={{
+    type: 'lookup',
+    name: 'team_members',
+    label: 'Team Members',
+    placeholder: 'Select team members...',
+    reference_to: 'users',
+    multiple: true,
+    options: [
+      { label: 'Alice Brown', value: 'user_4' },
+      { label: 'Charlie Davis', value: 'user_5' },
+      { label: 'Diana Wilson', value: 'user_6' }
+    ]
+  }}
+  title="Multi-Select Lookup"
+/>
+
+## Field Schema
+
+```typescript
+interface LookupFieldSchema {
+  type: 'lookup' | 'master_detail';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: string | string[];     // Default value(s)
+  multiple?: boolean;            // Allow multiple selections
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Reference Configuration
+  reference_to: string;          // Referenced object/table name
+  reference_field?: string;      // Field to display (default: 'name')
+  options?: LookupOption[];      // Available options (if static)
+  
+  // Data Source (for dynamic lookups)
+  dataSource?: {
+    api?: string;                // API endpoint
+    method?: string;             // HTTP method
+    params?: Record<string, any>; // Query parameters
+  };
+}
+
+interface LookupOption {
+  label: string;                 // Display label
+  value: string;                 // Record ID
+  _id?: string;                  // Alternative ID field
+  name?: string;                 // Alternative label field
+}
+```
+
+## Lookup vs Master-Detail
+
+- **Lookup**: Standard reference field, can be deleted independently
+- **Master-Detail**: Parent-child relationship, deleting parent deletes children
+
+## Cell Renderer
+
+In tables/grids, lookup values display the referenced record name:
+
+```typescript
+import { LookupCellRenderer } from '@object-ui/fields';
+
+// Single value: Display name/label
+// Multiple values: Multiple chips/badges
+```
+
+## Use Cases
+
+- **Assignments**: Assign tasks to users
+- **Relationships**: Link related records
+- **Categories**: Reference to category objects
+- **Parent Records**: Master-detail relationships
+- **Team Members**: Multi-user references
+
+## Dynamic Data Source
+
+For lookups that fetch data from an API:
+
+```typescript
+{
+  type: 'lookup',
+  name: 'customer',
+  label: 'Customer',
+  reference_to: 'customers',
+  dataSource: {
+    api: '/api/customers',
+    method: 'GET',
+    params: {
+      active: true,
+      limit: 100
+    }
+  }
+}
+```
+
+## Features
+
+- **Search**: Type-ahead search in options
+- **Multi-Select**: Support for multiple references
+- **Lazy Loading**: Load options on demand
+- **Relationships**: Create data relationships
+- **Cascading**: Support for dependent lookups

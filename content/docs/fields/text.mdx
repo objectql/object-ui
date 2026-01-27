@@ -1,0 +1,97 @@
+---
+title: "Text Field"
+description: "Single-line text input field for basic text entry"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Text Field component provides a single-line text input for collecting basic text data from users. It's the most commonly used field type for names, titles, and short text entries.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'text',
+    name: 'username',
+    label: 'Username',
+    placeholder: 'Enter username...'
+  }}
+  title="Basic Text Field"
+/>
+
+## With Placeholder
+
+<ComponentDemo
+  schema={{
+    type: 'text',
+    name: 'title',
+    label: 'Title',
+    placeholder: 'Enter a title for your post'
+  }}
+  title="With Placeholder"
+/>
+
+## Required Field
+
+<ComponentDemo
+  schema={{
+    type: 'text',
+    name: 'name',
+    label: 'Full Name',
+    placeholder: 'John Doe',
+    required: true
+  }}
+  title="Required Field"
+/>
+
+## Read-Only
+
+<ComponentDemo
+  schema={{
+    type: 'text',
+    name: 'readonly_field',
+    label: 'Read-Only',
+    value: 'This value cannot be changed',
+    readonly: true
+  }}
+  title="Read-Only Field"
+/>
+
+## Field Schema
+
+```typescript
+interface TextFieldSchema {
+  type: 'text';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: string;                // Default value
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Validation
+  min_length?: number;           // Minimum character length
+  max_length?: number;           // Maximum character length
+  pattern?: string | RegExp;     // Validation pattern
+}
+```
+
+## Use Cases
+
+- **User Names**: Collecting first names, last names, or usernames
+- **Titles**: Post titles, document names, or product names
+- **Short Text**: Any short text input that doesn't require multiple lines
+- **IDs**: Custom identifiers or reference numbers
+
+## Cell Renderer
+
+When used in data tables or grids, the text field is rendered as simple truncated text:
+
+```typescript
+import { TextCellRenderer } from '@object-ui/fields';
+
+// Automatically used for type: 'text' in grids/tables
+// Displays value or '-' if empty
+```

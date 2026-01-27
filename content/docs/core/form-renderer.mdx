@@ -1,0 +1,287 @@
+---
+title: "FormRenderer"
+description: "Specialized renderer for dynamic forms with validation and state management"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The FormRenderer is a specialized component for rendering dynamic forms based on JSON schemas. It provides built-in form state management, validation, and submission handling using react-hook-form.
+
+## Basic Usage
+
+```typescript
+import { FormRenderer } from '@object-ui/react';
+
+<FormRenderer
+  schema={{
+    type: 'form',
+    sections: [
+      {
+        label: 'User Information',
+        fields: [
+          { field: 'name', type: 'text', label: 'Name', required: true },
+          { field: 'email', type: 'email', label: 'Email', required: true }
+        ]
+      }
+    ]
+  }}
+  onSubmit={(data) => console.log('Form submitted:', data)}
+/>
+```
+
+## Form Schema
+
+```typescript
+interface FormViewSchema {
+  type: 'form';
+  sections: FormSection[];      // Form sections
+  submitLabel?: string;          // Submit button text
+}
+
+interface FormSection {
+  label?: string;                // Section header
+  description?: string;          // Section description
+  columns?: 1 | 2 | 3 | 4;      // Grid columns (responsive)
+  collapsible?: boolean;         // Can section be collapsed
+  collapsed?: boolean;           // Initial collapsed state
+  fields: FormFieldSchema[];     // Section fields
+}
+
+interface FormFieldSchema {
+  field: string;                 // Field name/key
+  type: string;                  // Field type (text, email, etc.)
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only state
+  hidden?: boolean;              // Hide field
+  colSpan?: number;              // Column span in grid
+  defaultValue?: any;            // Default value
+  
+  // Validation
+  min?: number;                  // Min value/length
+  max?: number;                  // Max value/length
+  pattern?: string | RegExp;     // Validation pattern
+  
+  // Options (for select/lookup)
+  options?: SelectOption[];
+  reference_to?: string;         // For lookup fields
+}
+```
+
+## Features
+
+### State Management
+
+The FormRenderer uses react-hook-form for efficient state management:
+
+- **Automatic Validation**: Built-in field validation
+- **Change Tracking**: Track form changes in real-time
+- **Error Handling**: Display validation errors
+- **Dirty State**: Know when form has unsaved changes
+
+### Grid Layout
+
+Forms support responsive grid layouts with 1-4 columns:
+
+```typescript
+{
+  sections: [
+    {
+      label: 'Personal Info',
+      columns: 2,  // 2-column responsive grid
+      fields: [
+        { field: 'firstName', type: 'text', label: 'First Name' },
+        { field: 'lastName', type: 'text', label: 'Last Name' },
+        { field: 'email', type: 'email', label: 'Email', colSpan: 2 }  // Spans 2 columns
+      ]
+    }
+  ]
+}
+```
+
+### Collapsible Sections
+
+Sections can be made collapsible to organize complex forms:
+
+```typescript
+{
+  sections: [
+    {
+      label: 'Advanced Settings',
+      collapsible: true,
+      collapsed: true,  // Initially collapsed
+      fields: [
+        // ...fields
+      ]
+    }
+  ]
+}
+```
+
+## Event Handlers
+
+### onSubmit
+
+Called when form is submitted with valid data:
+
+```typescript
+<FormRenderer
+  schema={schema}
+  onSubmit={async (data) => {
+    await saveToAPI(data);
+    console.log('Saved!');
+  }}
+/>
+```
+
+### onChange
+
+Called whenever any field value changes:
+
+```typescript
+<FormRenderer
+  schema={schema}
+  onChange={(data) => {
+    console.log('Form data:', data);
+    // Auto-save, update preview, etc.
+  }}
+/>
+```
+
+## Initial Data
+
+Provide initial form values:
+
+```typescript
+<FormRenderer
+  schema={schema}
+  data={{
+    name: 'John Doe',
+    email: 'john@example.com',
+    role: 'admin'
+  }}
+/>
+```
+
+## Validation
+
+FormRenderer supports multiple validation types:
+
+### Required Fields
+
+```typescript
+{ field: 'email', type: 'email', required: true }
+```
+
+### Min/Max Length
+
+```typescript
+{ field: 'username', type: 'text', min: 3, max: 20 }
+```
+
+### Pattern Matching
+
+```typescript
+{ field: 'phone', type: 'text', pattern: /^\d{3}-\d{3}-\d{4}$/ }
+```
+
+### Custom Validation
+
+```typescript
+{ 
+  field: 'age', 
+  type: 'number',
+  validate: (value) => value >= 18 || 'Must be 18 or older'
+}
+```
+
+## Field Types
+
+The FormRenderer supports all field types from the Field Registry:
+
+- **Text**: `text`, `textarea`, `email`, `phone`, `url`
+- **Numbers**: `number`, `currency`
+- **Dates**: `date`, `datetime`
+- **Selection**: `select`, `lookup`, `boolean`
+- **Rich**: `markdown`, `html`
+
+## Complete Example
+
+```typescript
+<FormRenderer
+  schema={{
+    type: 'form',
+    sections: [
+      {
+        label: 'Account Details',
+        columns: 2,
+        fields: [
+          {
+            field: 'username',
+            type: 'text',
+            label: 'Username',
+            required: true,
+            min: 3,
+            max: 20
+          },
+          {
+            field: 'email',
+            type: 'email',
+            label: 'Email Address',
+            required: true
+          },
+          {
+            field: 'role',
+            type: 'select',
+            label: 'Role',
+            options: [
+              { label: 'Admin', value: 'admin' },
+              { label: 'User', value: 'user' }
+            ]
+          },
+          {
+            field: 'active',
+            type: 'boolean',
+            label: 'Active Account'
+          }
+        ]
+      },
+      {
+        label: 'Profile Information',
+        collapsible: true,
+        collapsed: false,
+        columns: 1,
+        fields: [
+          {
+            field: 'bio',
+            type: 'textarea',
+            label: 'Biography',
+            rows: 4
+          }
+        ]
+      }
+    ]
+  }}
+  data={{ active: true, role: 'user' }}
+  onSubmit={(data) => console.log('Submit:', data)}
+  onChange={(data) => console.log('Change:', data)}
+/>
+```
+
+## Styling
+
+The FormRenderer uses Tailwind CSS and can be customized:
+
+```typescript
+<FormRenderer
+  schema={schema}
+  className="max-w-2xl mx-auto"
+/>
+```
+
+## Related
+
+- [Fields](/docs/fields/text) - Available field types
+- [Field Registry](/docs/guide/fields) - Field system overview
+- [SchemaRenderer](/docs/core/schema-renderer) - General schema rendering

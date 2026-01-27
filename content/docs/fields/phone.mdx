@@ -1,0 +1,75 @@
+---
+title: "Phone Field"
+description: "Phone number input with formatting"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Phone Field component provides a text input optimized for phone number entry with proper formatting.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'phone',
+    name: 'phone',
+    label: 'Phone Number',
+    placeholder: '+1 (555) 123-4567'
+  }}
+  title="Basic Phone Field"
+/>
+
+## Required Phone
+
+<ComponentDemo
+  schema={{
+    type: 'phone',
+    name: 'contact_phone',
+    label: 'Contact Phone',
+    placeholder: 'Enter phone number',
+    required: true
+  }}
+  title="Required Phone"
+/>
+
+## Field Schema
+
+```typescript
+interface PhoneFieldSchema {
+  type: 'phone';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: string;                // Default value
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+}
+```
+
+## Cell Renderer
+
+In tables/grids, phone numbers are clickable tel: links:
+
+```typescript
+import { PhoneCellRenderer } from '@object-ui/fields';
+
+// Renders as: <a href="tel:+15551234567">+1 (555) 123-4567</a>
+// Clicking initiates a phone call on mobile devices
+```
+
+## Use Cases
+
+- **Contact Information**: Customer phone numbers
+- **Support**: Support line numbers
+- **Emergency Contacts**: Emergency contact numbers
+- **Delivery**: Delivery contact numbers
+- **Appointments**: Callback numbers
+
+## Features
+
+- **Mobile Optimized**: Opens phone dialer on mobile
+- **Clickable Links**: tel: links in read-only mode
+- **International Support**: Supports international formats
+- **Accessible**: Proper input type for mobile keyboards

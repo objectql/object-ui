@@ -1,6 +1,8 @@
 {
   "pages": [
     "guide",
+    "core",
+    "fields",
     "components",
     "views",
     "plugins"

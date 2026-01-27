@@ -1,0 +1,86 @@
+---
+title: "TextArea Field"
+description: "Multi-line text input for longer content"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The TextArea Field component provides a multi-line text input for collecting longer text content from users, such as descriptions, comments, or notes.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'textarea',
+    name: 'description',
+    label: 'Description',
+    placeholder: 'Enter a description...',
+    rows: 4
+  }}
+  title="Basic TextArea"
+/>
+
+## Custom Rows
+
+<ComponentDemo
+  schema={{
+    type: 'textarea',
+    name: 'message',
+    label: 'Message',
+    placeholder: 'Type your message here...',
+    rows: 6
+  }}
+  title="Larger TextArea"
+/>
+
+## Required Field
+
+<ComponentDemo
+  schema={{
+    type: 'textarea',
+    name: 'comments',
+    label: 'Comments',
+    placeholder: 'Please provide your feedback',
+    rows: 4,
+    required: true
+  }}
+  title="Required TextArea"
+/>
+
+## Field Schema
+
+```typescript
+interface TextAreaFieldSchema {
+  type: 'textarea';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  rows?: number;                 // Number of visible rows (default: 3)
+  value?: string;                // Default value
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Validation
+  min_length?: number;           // Minimum character length
+  max_length?: number;           // Maximum character length
+}
+```
+
+## Use Cases
+
+- **Descriptions**: Product descriptions, bio information
+- **Comments**: User feedback, review comments
+- **Notes**: Meeting notes, task descriptions
+- **Messages**: Contact form messages, support tickets
+
+## Cell Renderer
+
+When displayed in tables or grids, long text is truncated:
+
+```typescript
+import { TextCellRenderer } from '@object-ui/fields';
+
+// Same renderer as text field - truncates long content
+```

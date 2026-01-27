@@ -1,0 +1,80 @@
+---
+title: "Currency Field"
+description: "Formatted currency input with locale support"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Currency Field component provides a formatted currency input with proper locale formatting and currency symbol display.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'currency',
+    name: 'amount',
+    label: 'Amount',
+    placeholder: '$0.00',
+    currency: 'USD'
+  }}
+  title="USD Currency"
+/>
+
+## Different Currencies
+
+<ComponentDemo
+  schema={{
+    type: 'currency',
+    name: 'price_eur',
+    label: 'Price (EUR)',
+    placeholder: '€0.00',
+    currency: 'EUR'
+  }}
+  title="Euro Currency"
+/>
+
+## Field Schema
+
+```typescript
+interface CurrencyFieldSchema {
+  type: 'currency';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: number;                // Default value
+  currency?: string;             // Currency code (default: 'USD')
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Validation
+  min?: number;                  // Minimum value
+  max?: number;                  // Maximum value
+}
+```
+
+## Supported Currencies
+
+- **USD**: US Dollar ($)
+- **EUR**: Euro (€)
+- **GBP**: British Pound (£)
+- **JPY**: Japanese Yen (¥)
+- And all other ISO 4217 currency codes
+
+## Cell Renderer
+
+In tables/grids, currency values are formatted with the appropriate symbol:
+
+```typescript
+import { CurrencyCellRenderer } from '@object-ui/fields';
+
+// Renders: $1,234.56 or €1.234,56 based on locale
+```
+
+## Use Cases
+
+- **Pricing**: Product prices, service costs
+- **Financial Data**: Revenue, expenses, budgets
+- **Transactions**: Payment amounts, invoice totals
+- **Salaries**: Compensation amounts

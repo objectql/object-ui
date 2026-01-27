@@ -4,7 +4,6 @@ import Image from 'next/image';
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      enabled: false,
       title:  (
        <div className="flex items-center gap-2 font-bold">
         <Image 
