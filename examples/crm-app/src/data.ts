@@ -8,9 +8,36 @@ export const mockData = {
       { id: "3", name: "Charlie Brown", email: "charlie@peanuts.com", phone: "555-0103", title: "Manager", company: "Good Grief LLC", status: "Customer" }
     ],
     opportunities: [
-        { id: "101", name: "TechCorp Enterprise License", amount: 50000, stage: "Proposal", closeDate: "2024-06-30", accountId: "1" },
-        { id: "102", name: "Software Inc Pilot", amount: 5000, stage: "Closed Won", closeDate: "2024-01-15", accountId: "2" },
-        { id: "103", name: "Good Grief Consultant", amount: 12000, stage: "Negotiation", closeDate: "2024-05-20", accountId: "3" }
+        { 
+            id: "101", 
+            name: "TechCorp Enterprise License", 
+            amount: 50000, 
+            stage: "Proposal", 
+            closeDate: "2024-06-30", 
+            accountId: "1",
+            contactIds: ["c1", "c2"],
+            description: "Enterprise software license for 500 users. Includes premium support and training." 
+        },
+        { 
+            id: "102", 
+            name: "Software Inc Pilot", 
+            amount: 5000, 
+            stage: "Closed Won", 
+            closeDate: "2024-01-15", 
+            accountId: "2",
+            contactIds: ["c2"],
+            description: "Pilot program for 50 users." 
+        },
+        { 
+            id: "103", 
+            name: "Good Grief Consultant", 
+            amount: 12000, 
+            stage: "Negotiation", 
+            closeDate: "2024-05-20", 
+            accountId: "3",
+            contactIds: ["c3"],
+            description: "Consulting services for Q2 implementation." 
+        }
     ]
   };
   

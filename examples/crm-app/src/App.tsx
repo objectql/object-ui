@@ -8,10 +8,11 @@ import { registerPlaceholders } from '@object-ui/components';
 import { SidebarNav } from './components/SidebarNav';
 
 // Data & Schemas
-import { mockData, getContact } from './data';
+import { mockData, getContact, getOpportunity } from './data';
 import { dashboardSchema } from './schemas/dashboard';
 import { contactListSchema, contactDetailSchema } from './schemas/contacts';
 import { opportunityListSchema } from './schemas/opportunities';
+import { opportunityDetailSchema } from './schemas/opportunity-detail';
 
 // 1. Register components
 registerFields();
@@ -54,6 +55,19 @@ const ContactDetailPage = () => {
     );
 }
 
+const OpportunityDetailPage = () => {
+    const { id } = useParams();
+    const opportunity = getOpportunity(id || "");
+    
+    if (!opportunity) return <div>Opportunity not found</div>;
+
+    return (
+        <SchemaRendererProvider dataSource={opportunity} debug={true}>
+            <SchemaRenderer schema={opportunityDetailSchema} />
+        </SchemaRendererProvider>
+    );
+}
+
 function App() {
   return (
     <SchemaRendererProvider 
@@ -70,7 +84,10 @@ function App() {
                 <Route path=":id" element={<ContactDetailPage />} />
             </Route>
 
-            <Route path="opportunities" element={<SchemaRenderer schema={opportunityListSchema} />} />
+            <Route path="opportunities">
+                <Route index element={<SchemaRenderer schema={opportunityListSchema} />} />
+                <Route path=":id" element={<OpportunityDetailPage />} />
+            </Route>
             
             <Route path="products" element={<div className="p-4">Products Module (Coming Soon)</div>} />
             <Route path="settings" element={<div className="p-4">Settings Module (Coming Soon)</div>} />

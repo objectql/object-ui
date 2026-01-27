@@ -26,7 +26,8 @@ export const opportunityListSchema: PageSchema = {
                 card: {
                     title: "name",
                     subtitle: "amount",
-                    footer: "closeDate"
+                    footer: "closeDate",
+                    onClick: { action: "navigate", params: { url: "/opportunities/${id}" } }
                 }
             }
         }
