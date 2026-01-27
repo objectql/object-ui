@@ -30,7 +30,7 @@
   "dependencies": {
     "@object-ui/types": "workspace:*",
     "@object-ui/core": "workspace:*",
-    "@objectstack/client": "^0.3.3"
+    "@objectstack/client": "^0.4.1"
   },
   "devDependencies": {
     "tsup": "^8.0.1",
