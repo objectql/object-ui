@@ -107,7 +107,7 @@ export const ButtonSchema = BaseSchema.extend({
   loading: z.boolean().optional().describe('Whether button is in loading state'),
   icon: z.string().optional().describe('Icon to display (lucide-react icon name)'),
   iconPosition: z.enum(['left', 'right']).optional().default('left').describe('Icon position'),
-  onClick: z.function(z.tuple([]), z.union([z.void(), z.promise(z.void())]))
+  onClick: z.function()
     .optional()
     .describe('Click handler'),
   buttonType: z.enum(['button', 'submit', 'reset'])
@@ -393,7 +393,7 @@ export const FormFieldSchema = z.object({
 export const FormSchema = BaseSchema.extend({
   type: z.literal('form'),
   fields: z.array(FormFieldSchema).describe('Form fields'),
-  defaultValues: z.record(z.any()).optional().describe('Default form values'),
+  defaultValues: z.record(z.string(), z.any()).optional().describe('Default form values'),
   submitLabel: z.string().optional().describe('Submit button label'),
   cancelLabel: z.string().optional().describe('Cancel button label'),
   showCancel: z.boolean().optional().describe('Show cancel button'),

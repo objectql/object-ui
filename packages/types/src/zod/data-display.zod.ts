@@ -156,7 +156,7 @@ export const MarkdownSchema = BaseSchema.extend({
   type: z.literal('markdown'),
   content: z.string().describe('Markdown content'),
   sanitize: z.boolean().optional().describe('Sanitize HTML'),
-  components: z.record(z.any()).optional().describe('Custom component overrides'),
+  components: z.record(z.string(), z.any()).optional().describe('Custom component overrides'),
 });
 
 /**
@@ -227,7 +227,7 @@ export const ChartSchema = BaseSchema.extend({
   showLegend: z.boolean().optional().describe('Show legend'),
   showGrid: z.boolean().optional().describe('Show grid lines'),
   animate: z.boolean().optional().describe('Enable animations'),
-  config: z.record(z.any()).optional().describe('Additional chart configuration'),
+  config: z.record(z.string(), z.any()).optional().describe('Additional chart configuration'),
 });
 
 /**

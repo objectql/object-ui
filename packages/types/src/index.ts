@@ -332,17 +332,17 @@ export type {
 // Union Types - Discriminated Unions for All Schemas
 // ============================================================================
 
-import type { AnySchema, BaseSchema, SchemaNode } from './base';
-import type { LayoutSchema } from './layout';
+import type { BaseSchema, SchemaNode } from './base';
+import type { LayoutSchema, PageSchema } from './layout';
 import type { FormComponentSchema } from './form';
 import type { DataDisplaySchema } from './data-display';
 import type { FeedbackSchema } from './feedback';
 import type { DisclosureSchema } from './disclosure';
 import type { OverlaySchema } from './overlay';
 import type { NavigationSchema } from './navigation';
-import type { ComplexSchema } from './complex';
+import type { ComplexSchema, DashboardSchema } from './complex';
 import type { CRUDComponentSchema } from './crud';
-import type { ObjectQLComponentSchema } from './objectql';
+import type { ObjectQLComponentSchema, ListViewSchema } from './objectql';
 import type { AppSchema } from './app';
 
 /**
@@ -353,6 +353,7 @@ export type AnySchema =
   | AppSchema 
   | BaseSchema
   | LayoutSchema
+  | PageSchema
   | FormComponentSchema
   | DataDisplaySchema
   | FeedbackSchema
@@ -360,8 +361,10 @@ export type AnySchema =
   | OverlaySchema
   | NavigationSchema
   | ComplexSchema
+  | DashboardSchema
   | CRUDComponentSchema
-  | ObjectQLComponentSchema;
+  | ObjectQLComponentSchema
+  | ListViewSchema;
 
 /**
  * Utility type to extract the schema type from a type string.

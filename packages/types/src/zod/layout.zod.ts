@@ -136,7 +136,7 @@ export const GridSchema = BaseSchema.extend({
   type: z.literal('grid'),
   columns: z.union([
     z.number(),
-    z.record(z.number()),
+    z.record(z.string(), z.number()),
   ]).optional().default(3).describe('Number of columns (responsive)'),
   gap: z.number().optional().default(4).describe('Gap between items (Tailwind scale 0-8)'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
@@ -179,7 +179,7 @@ export const TabsSchema = BaseSchema.extend({
   value: z.string().optional().describe('Controlled active tab value'),
   orientation: z.enum(['horizontal', 'vertical']).optional().default('horizontal').describe('Tabs orientation'),
   items: z.array(TabItemSchema).describe('Tab items configuration'),
-  onValueChange: z.function(z.tuple([z.string()]), z.void()).optional().describe('Change handler'),
+  onValueChange: z.function().optional().describe('Change handler'),
 });
 
 /**

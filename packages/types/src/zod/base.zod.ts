@@ -77,7 +77,7 @@ const BaseSchemaCore = z.object({
   /**
    * Inline styles
    */
-  style: z.record(z.union([z.string(), z.number()])).optional().describe('Inline CSS styles'),
+  style: z.record(z.string(), z.union([z.string(), z.number()])).optional().describe('Inline CSS styles'),
 
   /**
    * Arbitrary data
@@ -185,9 +185,9 @@ export const ComponentMetaSchema = z.object({
   icon: z.string().optional().describe('Icon name or SVG'),
   category: z.string().optional().describe('Component category'),
   inputs: z.array(ComponentInputSchema).optional().describe('Configurable properties'),
-  defaultProps: z.record(z.any()).optional().describe('Default property values'),
+  defaultProps: z.record(z.string(), z.any()).optional().describe('Default property values'),
   defaultChildren: z.array(SchemaNodeSchema).optional().describe('Default children'),
-  examples: z.record(z.any()).optional().describe('Example configurations'),
+  examples: z.record(z.string(), z.any()).optional().describe('Example configurations'),
   isContainer: z.boolean().optional().describe('Can have children'),
   resizable: z.boolean().optional().describe('Can be resized'),
   resizeConstraints: z.object({
@@ -213,17 +213,17 @@ export const ComponentConfigSchema = ComponentMetaSchema.extend({
 /**
  * HTML Attributes (generic)
  */
-export const HTMLAttributesSchema = z.record(z.any()).describe('HTML attributes');
+export const HTMLAttributesSchema = z.record(z.string(), z.any()).describe('HTML attributes');
 
 /**
  * Event Handlers
  */
-export const EventHandlersSchema = z.record(z.function()).describe('Event handlers');
+export const EventHandlersSchema = z.record(z.string(), z.function()).describe('Event handlers');
 
 /**
  * Style Props
  */
 export const StylePropsSchema = z.object({
   className: z.string().optional(),
-  style: z.record(z.union([z.string(), z.number()])).optional(),
+  style: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
 }).describe('Style properties');

@@ -211,8 +211,34 @@ export {
   CarouselSchema,
   ChatMessageSchema,
   ChatbotSchema,
+  DashboardWidgetLayoutSchema,
+  DashboardWidgetSchema,
+  DashboardSchema,
   ComplexSchema,
 } from './complex.zod';
+
+// ============================================================================
+// ObjectQL Components - Smart Data Components
+// ============================================================================
+export {
+  HttpMethodSchema,
+  HttpRequestSchema,
+  ViewDataSchema,
+  ListColumnSchema,
+  SelectionConfigSchema,
+  PaginationConfigSchema,
+  SortConfigSchema,
+  ObjectGridSchema,
+  ObjectFormSchema,
+  ObjectViewSchema,
+  ObjectMapSchema,
+  ObjectGanttSchema,
+  ObjectCalendarSchema,
+  ObjectKanbanSchema,
+  ObjectChartSchema,
+  ListViewSchema,
+  ObjectQLComponentSchema,
+} from './objectql.zod';
 
 // ============================================================================
 // Union Types - All Component Schemas
@@ -227,6 +253,7 @@ import { DisclosureSchema } from './disclosure.zod';
 import { OverlaySchema } from './overlay.zod';
 import { NavigationSchema } from './navigation.zod';
 import { ComplexSchema } from './complex.zod';
+import { ObjectQLComponentSchema } from './objectql.zod';
 
 /**
  * Union of all component schemas.
@@ -241,6 +268,7 @@ export const AnyComponentSchema = z.union([
   OverlaySchema,
   NavigationSchema,
   ComplexSchema,
+  ObjectQLComponentSchema,
 ]);
 
 /**

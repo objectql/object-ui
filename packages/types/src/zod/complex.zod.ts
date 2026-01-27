@@ -196,7 +196,7 @@ export const ChatMessageSchema = z.object({
   role: z.enum(['user', 'assistant', 'system']).describe('Message role'),
   content: z.string().describe('Message content'),
   timestamp: z.union([z.string(), z.date()]).optional().describe('Message timestamp'),
-  metadata: z.record(z.any()).optional().describe('Custom metadata'),
+  metadata: z.record(z.string(), z.any()).optional().describe('Custom metadata'),
 });
 
 /**
@@ -216,6 +216,36 @@ export const ChatbotSchema = BaseSchema.extend({
 });
 
 /**
+ * Dashboard Widget Layout Schema
+ */
+export const DashboardWidgetLayoutSchema = z.object({
+  x: z.number().describe('Grid x position'),
+  y: z.number().describe('Grid y position'),
+  w: z.number().describe('Grid width'),
+  h: z.number().describe('Grid height'),
+});
+
+/**
+ * Dashboard Widget Schema
+ */
+export const DashboardWidgetSchema = z.object({
+  id: z.string().describe('Widget ID'),
+  title: z.string().optional().describe('Widget Title'),
+  component: SchemaNodeSchema.describe('Widget Component'),
+  layout: DashboardWidgetLayoutSchema.optional().describe('Widget Layout'),
+});
+
+/**
+ * Dashboard Schema - Dashboard component
+ */
+export const DashboardSchema = BaseSchema.extend({
+  type: z.literal('dashboard'),
+  columns: z.number().optional().describe('Number of columns'),
+  gap: z.number().optional().describe('Grid gap'),
+  widgets: z.array(DashboardWidgetSchema).describe('Dashboard widgets'),
+});
+
+/**
  * Complex Schema Union - All complex component schemas
  */
 export const ComplexSchema = z.union([
@@ -224,4 +254,5 @@ export const ComplexSchema = z.union([
   FilterBuilderSchema,
   CarouselSchema,
   ChatbotSchema,
+  DashboardSchema,
 ]);
