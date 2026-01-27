@@ -196,22 +196,49 @@ export default App
 
 Object UI is a modular monorepo with packages designed for specific use cases:
 
+### Core Packages
+
+| Package | Description | Size |
+|---------|-------------|------|
+| **[@object-ui/types](./packages/types)** | TypeScript definitions and protocol specs | 10KB |
+| **[@object-ui/core](./packages/core)** | Core logic, validation, registry, expression evaluation | 20KB |
+| **[@object-ui/react](./packages/react)** | React bindings and `SchemaRenderer` | 15KB |
+| **[@object-ui/components](./packages/components)** | Standard UI components (Tailwind + Shadcn) | 50KB |
+| **[@object-ui/fields](./packages/fields)** | Field renderers and registry | 12KB |
+| **[@object-ui/layout](./packages/layout)** | Layout components with React Router integration | 18KB |
+
+### CLI & Tools
+
 | Package | Description | Size |
 |---------|-------------|------|
 | **[@object-ui/cli](./packages/cli)** | CLI tool for building apps from JSON schemas | 25KB |
-| **[@object-ui/types](./packages/types)** | TypeScript definitions and protocol specs | 10KB |
-| **[@object-ui/core](./packages/core)** | Core logic, validation, registry, ObjectStack adapter | 20KB |
-| **[@object-ui/react](./packages/react)** | React bindings and `SchemaRenderer` | 15KB |
-| **[@object-ui/components](./packages/components)** | Standard UI components (Tailwind + Shadcn) | 50KB |
-| **[vscode-extension](./packages/vscode-extension)** | VSCode extension for schema development | 32KB |
+| **[@object-ui/runner](./packages/runner)** | Universal application runner for testing schemas | 30KB |
+| **[vscode-extension](./packages/vscode-extension)** | VSCode extension with IntelliSense and live preview | 32KB |
 
-**Plugins** (lazy-loaded):
-- `@object-ui/plugin-charts` - Chart components (Chart.js)
-- `@object-ui/plugin-editor` - Rich text editor components
-- `@object-ui/views` - ObjectStack-aware table and form components (core package)
+### Data Adapters
 
-**Developer Tools**:
-- **[VSCode Extension](./packages/vscode-extension)** - IntelliSense, live preview, validation, and snippets for Object UI schemas
+| Package | Description | Size |
+|---------|-------------|------|
+| **[@object-ui/data-objectstack](./packages/data-objectstack)** | ObjectStack data adapter | 8KB |
+
+### Plugins (Lazy-Loaded)
+
+| Plugin | Description | Size |
+|--------|-------------|------|
+| **[@object-ui/plugin-aggrid](./packages/plugin-aggrid)** | AG Grid data grid integration | 150KB |
+| **[@object-ui/plugin-calendar](./packages/plugin-calendar)** | Calendar and event management | 25KB |
+| **[@object-ui/plugin-charts](./packages/plugin-charts)** | Chart components powered by Recharts | 80KB |
+| **[@object-ui/plugin-chatbot](./packages/plugin-chatbot)** | Chatbot interface components | 35KB |
+| **[@object-ui/plugin-dashboard](./packages/plugin-dashboard)** | Dashboard layouts and widgets | 22KB |
+| **[@object-ui/plugin-editor](./packages/plugin-editor)** | Rich text editor powered by Monaco | 120KB |
+| **[@object-ui/plugin-form](./packages/plugin-form)** | Advanced form components | 28KB |
+| **[@object-ui/plugin-gantt](./packages/plugin-gantt)** | Gantt chart visualization | 40KB |
+| **[@object-ui/plugin-grid](./packages/plugin-grid)** | Advanced data grid | 45KB |
+| **[@object-ui/plugin-kanban](./packages/plugin-kanban)** | Kanban boards with drag-and-drop | 100KB |
+| **[@object-ui/plugin-map](./packages/plugin-map)** | Map visualization | 60KB |
+| **[@object-ui/plugin-markdown](./packages/plugin-markdown)** | Markdown rendering | 30KB |
+| **[@object-ui/plugin-timeline](./packages/plugin-timeline)** | Timeline components | 20KB |
+| **[@object-ui/plugin-view](./packages/plugin-view)** | ObjectQL-integrated views (grid, form, detail) | 35KB |
 
 ## 🔌 Data Integration
 
