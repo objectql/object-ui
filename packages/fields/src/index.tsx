@@ -720,18 +720,44 @@ import { NumberField } from './widgets/NumberField';
 import { BooleanField } from './widgets/BooleanField';
 import { SelectField } from './widgets/SelectField';
 import { DateField } from './widgets/DateField';
+import { EmailField } from './widgets/EmailField';
+import { PhoneField } from './widgets/PhoneField';
+import { UrlField } from './widgets/UrlField';
+import { CurrencyField } from './widgets/CurrencyField';
+import { TextAreaField } from './widgets/TextAreaField';
+import { RichTextField } from './widgets/RichTextField';
+import { LookupField } from './widgets/LookupField';
 
 export function registerFields() {
+  // Basic fields
   ComponentRegistry.register('text', TextField);
-  ComponentRegistry.register('textarea', TextField); // TextField handles rows logic inside
+  ComponentRegistry.register('textarea', TextAreaField);
   ComponentRegistry.register('number', NumberField);
   ComponentRegistry.register('boolean', BooleanField);
   ComponentRegistry.register('select', SelectField);
   ComponentRegistry.register('date', DateField);
   
-  // Register aliases or specific widgets
+  // Contact fields
+  ComponentRegistry.register('email', EmailField);
+  ComponentRegistry.register('phone', PhoneField);
+  ComponentRegistry.register('url', UrlField);
+  
+  // Specialized fields
+  ComponentRegistry.register('currency', CurrencyField);
+  ComponentRegistry.register('markdown', RichTextField);
+  ComponentRegistry.register('html', RichTextField);
+  ComponentRegistry.register('lookup', LookupField);
+  ComponentRegistry.register('master_detail', LookupField);
+  
+  // Register with field: prefix for explicit field widgets
   ComponentRegistry.register('field:text', TextField);
-  ComponentRegistry.register('field:number', NumberField); 
+  ComponentRegistry.register('field:textarea', TextAreaField);
+  ComponentRegistry.register('field:number', NumberField);
+  ComponentRegistry.register('field:email', EmailField);
+  ComponentRegistry.register('field:phone', PhoneField);
+  ComponentRegistry.register('field:url', UrlField);
+  ComponentRegistry.register('field:currency', CurrencyField);
+  ComponentRegistry.register('field:lookup', LookupField);
 }
 
 export * from './widgets/types';
@@ -740,3 +766,10 @@ export * from './widgets/NumberField';
 export * from './widgets/BooleanField';
 export * from './widgets/SelectField';
 export * from './widgets/DateField';
+export * from './widgets/EmailField';
+export * from './widgets/PhoneField';
+export * from './widgets/UrlField';
+export * from './widgets/CurrencyField';
+export * from './widgets/TextAreaField';
+export * from './widgets/RichTextField';
+export * from './widgets/LookupField';
