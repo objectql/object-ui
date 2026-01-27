@@ -12,8 +12,9 @@ export function RichTextField({ value, onChange, field, readonly, errorMessage, 
     return (
       <div 
         className="text-sm prose prose-sm max-w-none"
-        dangerouslySetInnerHTML={{ __html: value || '-' }}
-      />
+      >
+        {value || '-'}
+      </div>
     );
   }
 

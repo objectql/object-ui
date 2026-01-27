@@ -115,12 +115,15 @@ export class ActionRunner {
     return result;
   }
 
+  /**
+   * Execute navigation action
+   */
   private async executeNavigation(action: any): Promise<ActionResult> {
     const nav = action.navigate || action;
     const to = this.evaluator.evaluate(nav.to) as string;
 
     if (nav.external) {
-      window.open(to, '_blank');
+      window.open(to, '_blank', 'noopener,noreferrer');
     } else {
       return { success: true, redirect: to };
     }

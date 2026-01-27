@@ -5,6 +5,13 @@ import { FieldWidgetProps } from './types';
 export function UrlField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<string>) {
   if (readonly) {
     if (!value) return <span className="text-sm">-</span>;
+    
+    // Validate URL to prevent javascript: or data: URLs
+    const isValidUrl = value.startsWith('http://') || value.startsWith('https://');
+    if (!isValidUrl) {
+      return <span className="text-sm">{value}</span>;
+    }
+    
     return (
       <a 
         href={value}

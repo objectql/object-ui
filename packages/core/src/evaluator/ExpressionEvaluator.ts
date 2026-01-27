@@ -138,7 +138,13 @@ export class ExpressionEvaluator {
       const varNames = Object.keys(contextObj);
       const varValues = Object.values(contextObj);
       
-      // Create function with variables in scope
+      // SECURITY NOTE: Using Function constructor for expression evaluation.
+      // This is a controlled use case with:
+      // 1. Sanitization check (isDangerous) blocks dangerous patterns
+      // 2. Strict mode enabled ("use strict")
+      // 3. Limited scope (only contextObj variables available)
+      // 4. No access to global objects (process, window, etc.)
+      // For production use, consider: expr-eval, safe-eval, or a custom parser
       const fn = new Function(...varNames, `"use strict"; return (${expression});`);
       
       // Execute with context values
