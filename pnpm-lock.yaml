@@ -555,6 +555,9 @@ importers:
       '@object-ui/components':
         specifier: workspace:*
         version: link:../components
+      '@object-ui/core':
+        specifier: workspace:*
+        version: link:../core
       '@object-ui/types':
         specifier: workspace:*
         version: link:../types
