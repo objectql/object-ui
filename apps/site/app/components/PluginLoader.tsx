@@ -23,23 +23,6 @@ interface PluginLoaderProps {
   children: React.ReactNode;
 }
 
-const pluginImports: Record<PluginName, () => Promise<any>> = {
-  aggrid: () => import('@object-ui/plugin-aggrid'),
-  editor: () => import('@object-ui/plugin-editor'),
-  charts: () => import('@object-ui/plugin-charts'),
-  dashboard: () => import('@object-ui/plugin-dashboard'),
-  kanban: () => import('@object-ui/plugin-kanban'),
-  markdown: () => import('@object-ui/plugin-markdown'),
-  timeline: () => import('@object-ui/plugin-timeline'),
-  calendar: () => import('@object-ui/plugin-calendar'),
-  gantt: () => import('@object-ui/plugin-gantt'),
-  map: () => import('@object-ui/plugin-map'),
-  chatbot: () => import('@object-ui/plugin-chatbot'),
-  form: () => import('@object-ui/plugin-form'),
-  grid: () => import('@object-ui/plugin-grid'),
-  view: () => import('@object-ui/plugin-view'),
-};
-
 /**
  * PluginLoader component - Loads specific plugins on-demand
  * 
@@ -60,14 +43,51 @@ export function PluginLoader({ plugins, children }: PluginLoaderProps) {
       return;
     }
 
-    Promise.all(plugins.map(plugin => pluginImports[plugin]()))
-      .then(() => {
+    const loadPlugins = async () => {
+      try {
+        // Dynamically import plugins based on the list
+        const imports = plugins.map(async (plugin) => {
+          switch (plugin) {
+            case 'aggrid':
+              return import('@object-ui/plugin-aggrid');
+            case 'editor':
+              return import('@object-ui/plugin-editor');
+            case 'charts':
+              return import('@object-ui/plugin-charts');
+            case 'dashboard':
+              return import('@object-ui/plugin-dashboard');
+            case 'kanban':
+              return import('@object-ui/plugin-kanban');
+            case 'markdown':
+              return import('@object-ui/plugin-markdown');
+            case 'timeline':
+              return import('@object-ui/plugin-timeline');
+            case 'calendar':
+              return import('@object-ui/plugin-calendar');
+            case 'gantt':
+              return import('@object-ui/plugin-gantt');
+            case 'map':
+              return import('@object-ui/plugin-map');
+            case 'chatbot':
+              return import('@object-ui/plugin-chatbot');
+            case 'form':
+              return import('@object-ui/plugin-form');
+            case 'grid':
+              return import('@object-ui/plugin-grid');
+            case 'view':
+              return import('@object-ui/plugin-view');
+          }
+        });
+
+        await Promise.all(imports);
         setLoaded(true);
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error('Failed to load plugins:', error);
         setLoaded(true); // Still render children even if plugin loading fails
-      });
+      }
+    };
+
+    loadPlugins();
   }, [plugins]);
 
   if (!loaded) {

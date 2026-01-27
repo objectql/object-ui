@@ -126,6 +126,9 @@ importers:
       '@object-ui/plugin-chatbot':
         specifier: workspace:*
         version: link:../../packages/plugin-chatbot
+      '@object-ui/plugin-dashboard':
+        specifier: workspace:*
+        version: link:../../packages/plugin-dashboard
       '@object-ui/plugin-editor':
         specifier: workspace:*
         version: link:../../packages/plugin-editor
