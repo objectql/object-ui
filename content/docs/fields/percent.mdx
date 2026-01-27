@@ -1,0 +1,112 @@
+---
+title: "Percent Field"
+description: "Percentage input with automatic conversion and formatting"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Percent Field component provides a percentage input that automatically converts between stored decimal values (0-1) and displayed percentage values (0-100).
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'percent',
+    name: 'completion',
+    label: 'Completion',
+    placeholder: '0'
+  }}
+  title="Basic Percent Field"
+/>
+
+## With Precision
+
+<ComponentDemo
+  schema={{
+    type: 'percent',
+    name: 'progress',
+    label: 'Progress',
+    precision: 1,
+    value: 0.753
+  }}
+  title="With Decimal Precision"
+/>
+
+## Required Field
+
+<ComponentDemo
+  schema={{
+    type: 'percent',
+    name: 'discount',
+    label: 'Discount Rate',
+    required: true,
+    precision: 2
+  }}
+  title="Required Percent"
+/>
+
+## Read-Only
+
+<ComponentDemo
+  schema={{
+    type: 'percent',
+    name: 'success_rate',
+    label: 'Success Rate',
+    value: 0.875,
+    readonly: true
+  }}
+  title="Read-Only Percent"
+/>
+
+## Field Schema
+
+```typescript
+interface PercentFieldSchema {
+  type: 'percent';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: number;                // Default value (0-1 decimal)
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Validation
+  precision?: number;            // Decimal places (default: 2)
+  min?: number;                  // Minimum value (0-1)
+  max?: number;                  // Maximum value (0-1)
+}
+```
+
+## Value Conversion
+
+The percent field handles automatic conversion:
+
+- **Stored Value**: Decimal between 0 and 1 (e.g., `0.75`)
+- **Display Value**: Percentage between 0 and 100 (e.g., `75%`)
+
+Example:
+```typescript
+// Stored in database: 0.85
+// Displayed to user: 85%
+// User enters: 90
+// Stored as: 0.90
+```
+
+## Cell Renderer
+
+In tables/grids, values are formatted with percentage symbol:
+
+```typescript
+import { PercentCellRenderer } from '@object-ui/fields';
+
+// Renders: 85.50%
+```
+
+## Use Cases
+
+- **Progress Tracking**: Task completion, project progress
+- **Analytics**: Conversion rates, success metrics
+- **Financial Data**: Interest rates, discount percentages
+- **Statistics**: Performance scores, efficiency ratings

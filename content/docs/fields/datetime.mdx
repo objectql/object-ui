@@ -1,0 +1,101 @@
+---
+title: "DateTime Field"
+description: "Date and time input with combined picker"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The DateTime Field component provides a combined date and time input for collecting both date and time information in a single field.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'datetime',
+    name: 'meeting_time',
+    label: 'Meeting Time',
+    placeholder: 'Select date and time...'
+  }}
+  title="Basic DateTime Field"
+/>
+
+## With Default Value
+
+<ComponentDemo
+  schema={{
+    type: 'datetime',
+    name: 'scheduled_at',
+    label: 'Scheduled At',
+    value: '2024-03-15T14:30'
+  }}
+  title="With Default Value"
+/>
+
+## Required Field
+
+<ComponentDemo
+  schema={{
+    type: 'datetime',
+    name: 'appointment',
+    label: 'Appointment',
+    required: true
+  }}
+  title="Required DateTime"
+/>
+
+## Read-Only
+
+<ComponentDemo
+  schema={{
+    type: 'datetime',
+    name: 'created_at',
+    label: 'Created At',
+    value: '2024-03-15T10:30',
+    readonly: true
+  }}
+  title="Read-Only DateTime"
+/>
+
+## Field Schema
+
+```typescript
+interface DateTimeFieldSchema {
+  type: 'datetime';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: string;                // Default value (ISO 8601 format)
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Validation
+  format?: string;               // Display format
+  min_date?: string | Date;      // Minimum date/time
+  max_date?: string | Date;      // Maximum date/time
+}
+```
+
+## Date Format
+
+The datetime field stores values in ISO 8601 format: `YYYY-MM-DDTHH:mm`
+
+Example: `2024-03-15T14:30` represents March 15, 2024 at 2:30 PM
+
+## Cell Renderer
+
+When used in data tables or grids:
+
+```typescript
+import { DateTimeCellRenderer } from '@object-ui/fields';
+
+// Renders: Mar 15, 2024, 02:30 PM
+```
+
+## Use Cases
+
+- **Event Scheduling**: Meeting times, appointments
+- **Timestamps**: Order placed, task deadline
+- **Booking Systems**: Reservation date and time
+- **Notifications**: Scheduled notification time

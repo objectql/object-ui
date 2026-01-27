@@ -1,0 +1,139 @@
+---
+title: "Location Field"
+description: "Geographic coordinates input for latitude and longitude"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Location Field component provides an input for geographic coordinates, storing latitude and longitude as a structured object.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'location',
+    name: 'office_location',
+    label: 'Office Location',
+    placeholder: 'latitude, longitude'
+  }}
+  title="Basic Location Field"
+/>
+
+## With Default Value
+
+<ComponentDemo
+  schema={{
+    type: 'location',
+    name: 'store_location',
+    label: 'Store Location',
+    value: { latitude: 37.7749, longitude: -122.4194 }
+  }}
+  title="San Francisco Coordinates"
+/>
+
+## Read-Only
+
+<ComponentDemo
+  schema={{
+    type: 'location',
+    name: 'headquarters',
+    label: 'Headquarters',
+    value: { latitude: 40.7128, longitude: -74.0060 },
+    readonly: true
+  }}
+  title="Read-Only Location"
+/>
+
+## Field Schema
+
+```typescript
+interface LocationFieldSchema {
+  type: 'location';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: LocationValue;         // Default coordinates
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Map Options
+  default_zoom?: number;         // Default map zoom level
+}
+
+interface LocationValue {
+  latitude: number;              // -90 to 90
+  longitude: number;             // -180 to 180
+}
+```
+
+## Data Format
+
+The location field stores coordinates as an object:
+
+```typescript
+{
+  latitude: 37.7749,
+  longitude: -122.4194
+}
+```
+
+Input format: `latitude, longitude`
+- Example: `37.7749, -122.4194`
+
+## Coordinate Ranges
+
+- **Latitude**: -90 to 90 (negative = South, positive = North)
+- **Longitude**: -180 to 180 (negative = West, positive = East)
+
+Examples:
+- New York: `40.7128, -74.0060`
+- Tokyo: `35.6762, 139.6503`
+- Sydney: `-33.8688, 151.2093`
+- London: `51.5074, -0.1278`
+
+## Use Cases
+
+- **Store Locator**: Retail locations, branch offices
+- **Delivery Zones**: Service areas, delivery points
+- **Event Venues**: Conference locations, meeting points
+- **Asset Tracking**: Equipment locations, vehicle tracking
+- **Real Estate**: Property coordinates, land parcels
+
+## Integration with Maps
+
+For full map functionality, consider integrating with map services:
+
+```typescript
+import { LocationField } from '@object-ui/fields';
+
+// Basic coordinates input
+<LocationField {...props} />
+
+// With map visualization (using map plugin)
+{
+  type: 'plugin:map',
+  bind: 'location',
+  props: {
+    center: location,
+    zoom: 12,
+    markers: [location]
+  }
+}
+```
+
+## Validation
+
+The field validates coordinate ranges:
+
+```typescript
+// Valid coordinates
+{ latitude: 37.7749, longitude: -122.4194 } ✓
+
+// Invalid - latitude out of range
+{ latitude: 95, longitude: -122.4194 } ✗
+
+// Invalid - longitude out of range
+{ latitude: 37.7749, longitude: 200 } ✗
+```

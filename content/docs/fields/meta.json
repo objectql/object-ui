@@ -5,13 +5,27 @@
     "textarea",
     "number",
     "currency",
+    "percent",
     "boolean",
     "select",
     "date",
+    "datetime",
+    "time",
     "email",
     "phone",
     "url",
+    "password",
+    "file",
+    "image",
+    "location",
     "lookup",
-    "rich-text"
+    "formula",
+    "summary",
+    "auto-number",
+    "user",
+    "rich-text",
+    "object",
+    "vector",
+    "grid"
   ]
 }

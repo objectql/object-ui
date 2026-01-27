@@ -1,0 +1,134 @@
+---
+title: "Formula Field"
+description: "Read-only computed field with automatic calculation"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Formula Field component displays computed values calculated from other fields. This is a read-only field where the value is automatically calculated by the backend.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'formula',
+    name: 'total',
+    label: 'Total Amount',
+    formula: 'quantity * price',
+    return_type: 'number',
+    readonly: true
+  }}
+  title="Numeric Formula"
+/>
+
+## Text Formula
+
+<ComponentDemo
+  schema={{
+    type: 'formula',
+    name: 'full_name',
+    label: 'Full Name',
+    formula: 'first_name + " " + last_name',
+    return_type: 'text',
+    readonly: true,
+    value: 'John Doe'
+  }}
+  title="Text Concatenation"
+/>
+
+## Date Formula
+
+<ComponentDemo
+  schema={{
+    type: 'formula',
+    name: 'due_date',
+    label: 'Due Date',
+    formula: 'created_at + 30 days',
+    return_type: 'date',
+    readonly: true
+  }}
+  title="Date Calculation"
+/>
+
+## Field Schema
+
+```typescript
+interface FormulaFieldSchema {
+  type: 'formula';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  value?: any;                   // Computed value (read-only)
+  readonly: true;                // Always read-only
+  className?: string;            // Additional CSS classes
+  
+  // Formula Configuration
+  formula?: string;              // Formula expression
+  return_type?: string;          // Return type (text, number, boolean, date, currency)
+}
+```
+
+## Return Types
+
+The formula field formats values based on return type:
+
+- **number**: Displays with decimal precision
+- **currency**: Displays with currency symbol
+- **boolean**: Displays as Yes/No
+- **date**: Displays formatted date
+- **text**: Displays as string
+
+## Formula Examples
+
+Common formula patterns:
+
+```typescript
+// Arithmetic
+formula: 'price * quantity'
+formula: '(subtotal - discount) * tax_rate'
+
+// Text concatenation
+formula: 'first_name + " " + last_name'
+formula: 'city + ", " + state + " " + zip'
+
+// Conditional
+formula: 'IF(age >= 18, "Adult", "Minor")'
+formula: 'IF(status == "closed", completed_at, null)'
+
+// Date calculations
+formula: 'created_at + 7 days'
+formula: 'end_date - start_date'
+```
+
+## Cell Renderer
+
+In tables/grids, displays with monospace font:
+
+```typescript
+import { FormulaCellRenderer } from '@object-ui/fields';
+
+// Renders computed value in monospace font
+```
+
+## Backend Implementation
+
+Formula fields are computed on the backend:
+
+```typescript
+// Example backend calculation
+const calculateFormula = (formula: string, record: any) => {
+  // Parse and evaluate formula
+  if (formula === 'quantity * price') {
+    return record.quantity * record.price;
+  }
+  // Use expression parser for complex formulas
+  return evaluateExpression(formula, record);
+};
+```
+
+## Use Cases
+
+- **Calculations**: Totals, subtotals, tax amounts
+- **Aggregations**: Sum of related records
+- **Concatenations**: Full names, addresses
+- **Derived Values**: Age from birthdate, days until deadline
+- **Conditional Logic**: Status based on other fields

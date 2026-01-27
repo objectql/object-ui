@@ -1,0 +1,294 @@
+---
+title: "Grid Field"
+description: "Sub-table field for inline tabular data"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Grid Field component provides an inline table for managing related records or tabular data within a parent record. It displays data in rows and columns with optional editing capabilities.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'grid',
+    name: 'line_items',
+    label: 'Line Items',
+    columns: [
+      { name: 'product', label: 'Product', type: 'text' },
+      { name: 'quantity', label: 'Quantity', type: 'number' },
+      { name: 'price', label: 'Price', type: 'currency' }
+    ]
+  }}
+  title="Basic Grid"
+/>
+
+## With Data
+
+<ComponentDemo
+  schema={{
+    type: 'grid',
+    name: 'order_items',
+    label: 'Order Items',
+    columns: [
+      { name: 'item', label: 'Item', type: 'text' },
+      { name: 'qty', label: 'Qty', type: 'number' },
+      { name: 'price', label: 'Price', type: 'currency' }
+    ],
+    value: [
+      { item: 'Widget A', qty: 2, price: 29.99 },
+      { item: 'Widget B', qty: 1, price: 49.99 },
+      { item: 'Widget C', qty: 5, price: 9.99 }
+    ]
+  }}
+  title="Grid with Data"
+/>
+
+## Read-Only
+
+<ComponentDemo
+  schema={{
+    type: 'grid',
+    name: 'transaction_history',
+    label: 'Transaction History',
+    columns: [
+      { name: 'date', label: 'Date', type: 'date' },
+      { name: 'description', label: 'Description', type: 'text' },
+      { name: 'amount', label: 'Amount', type: 'currency' }
+    ],
+    readonly: true,
+    value: [
+      { date: '2024-03-15', description: 'Payment received', amount: 100.00 },
+      { date: '2024-03-14', description: 'Service charge', amount: -5.00 }
+    ]
+  }}
+  title="Read-Only Grid"
+/>
+
+## Field Schema
+
+```typescript
+interface GridFieldSchema {
+  type: 'grid';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  value?: any[];                 // Array of row objects
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Grid Options
+  columns?: ColumnDefinition[];  // Column definitions
+}
+
+interface ColumnDefinition {
+  name: string;                  // Column field name
+  label: string;                 // Column header label
+  type: string;                  // Field type (text, number, etc.)
+  width?: string;                // Column width
+  editable?: boolean;            // Is column editable
+  required?: boolean;            // Is column required
+  [key: string]: any;            // Additional field-specific props
+}
+```
+
+## Column Types
+
+Columns can use any field type:
+
+```typescript
+columns: [
+  { name: 'name', label: 'Name', type: 'text', required: true },
+  { name: 'quantity', label: 'Qty', type: 'number', min: 1 },
+  { name: 'price', label: 'Price', type: 'currency', currency: 'USD' },
+  { name: 'date', label: 'Date', type: 'date' },
+  { name: 'status', label: 'Status', type: 'select', options: [...] },
+  { name: 'active', label: 'Active', type: 'boolean' }
+]
+```
+
+## Data Format
+
+Grid data is stored as an array of objects:
+
+```typescript
+const gridValue = [
+  { product: 'Item 1', quantity: 2, price: 29.99 },
+  { product: 'Item 2', quantity: 1, price: 49.99 },
+  { product: 'Item 3', quantity: 5, price: 9.99 }
+];
+```
+
+## Common Patterns
+
+### Invoice Line Items
+
+```typescript
+{
+  type: 'grid',
+  name: 'line_items',
+  label: 'Line Items',
+  columns: [
+    { name: 'description', label: 'Description', type: 'text', required: true },
+    { name: 'quantity', label: 'Quantity', type: 'number', min: 1, required: true },
+    { name: 'unit_price', label: 'Unit Price', type: 'currency', required: true },
+    { name: 'amount', label: 'Amount', type: 'currency', readonly: true }
+  ]
+}
+```
+
+### Order Details
+
+```typescript
+{
+  type: 'grid',
+  name: 'order_details',
+  label: 'Order Details',
+  columns: [
+    { name: 'sku', label: 'SKU', type: 'text' },
+    { name: 'product', label: 'Product', type: 'lookup', reference_to: 'products' },
+    { name: 'quantity', label: 'Qty', type: 'number' },
+    { name: 'price', label: 'Price', type: 'currency' },
+    { name: 'discount', label: 'Discount', type: 'percent' },
+    { name: 'total', label: 'Total', type: 'currency', readonly: true }
+  ]
+}
+```
+
+### Task Checklist
+
+```typescript
+{
+  type: 'grid',
+  name: 'tasks',
+  label: 'Tasks',
+  columns: [
+    { name: 'task', label: 'Task', type: 'text', required: true },
+    { name: 'assigned_to', label: 'Assigned To', type: 'user' },
+    { name: 'due_date', label: 'Due Date', type: 'date' },
+    { name: 'completed', label: 'Done', type: 'boolean' }
+  ]
+}
+```
+
+## Features
+
+- **Table Display**: Clean tabular layout
+- **Pagination Preview**: Shows first 5 rows with "Showing X of Y" indicator
+- **Type-Specific Rendering**: Each column renders according to its type
+- **Read-Only Mode**: Full table view without editing
+- **Responsive**: Scrollable for many columns
+
+## Cell Renderer
+
+In tables/grids, displays row count:
+
+```typescript
+import { GridCellRenderer } from '@object-ui/fields';
+
+// Renders: "5 rows"
+```
+
+## Full Grid Functionality
+
+For advanced grid features, use the grid plugin:
+
+```typescript
+// Basic inline grid (simple display)
+{ type: 'grid', name: 'items', columns: [...] }
+
+// Advanced grid (full CRUD)
+{
+  type: 'plugin:grid',
+  bind: 'items',
+  props: {
+    columns: [...],
+    editable: true,
+    sortable: true,
+    filterable: true,
+    pagination: { pageSize: 20 }
+  }
+}
+```
+
+## Use Cases
+
+- **Invoice/Order Line Items**: Product lines, services
+- **Expense Reports**: Expense entries, receipts
+- **Time Tracking**: Time entries, work logs
+- **Inventory**: Stock items, materials
+- **Checklists**: Task lists, requirements
+- **Schedules**: Appointments, bookings
+- **Configurations**: Settings lists, parameters
+
+## Backend Storage
+
+Grid data is typically stored as JSON:
+
+```typescript
+// Database column type: JSONB (PostgreSQL)
+interface OrderRecord {
+  id: string;
+  customer_id: string;
+  line_items: Array<{
+    product: string;
+    quantity: number;
+    price: number;
+  }>;
+}
+
+// Store in database
+const order = {
+  customer_id: 'CUST-123',
+  line_items: [
+    { product: 'Widget A', quantity: 2, price: 29.99 },
+    { product: 'Widget B', quantity: 1, price: 49.99 }
+  ]
+};
+
+await db.insert('orders', order);
+```
+
+## Validation
+
+Example validation for grid data:
+
+```typescript
+const validateGridData = (data: any[], columns: ColumnDefinition[]) => {
+  const errors: string[] = [];
+  
+  data.forEach((row, index) => {
+    columns.forEach(col => {
+      // Check required columns
+      if (col.required && !row[col.name]) {
+        errors.push(`Row ${index + 1}: ${col.label} is required`);
+      }
+      
+      // Validate by type
+      if (col.type === 'number' && isNaN(row[col.name])) {
+        errors.push(`Row ${index + 1}: ${col.label} must be a number`);
+      }
+      
+      // Check min/max
+      if (col.min !== undefined && row[col.name] < col.min) {
+        errors.push(`Row ${index + 1}: ${col.label} must be >= ${col.min}`);
+      }
+    });
+  });
+  
+  return errors;
+};
+```
+
+## Integration with Advanced Grid
+
+For full-featured grids, use the `@object-ui/plugin-grid` package which provides:
+
+- Inline editing
+- Add/remove rows
+- Sorting and filtering
+- Drag-and-drop reordering
+- Export functionality
+- Formula columns
+- Aggregation rows

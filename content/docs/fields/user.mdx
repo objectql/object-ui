@@ -1,0 +1,193 @@
+---
+title: "User Field"
+description: "User and owner selector with avatar display"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The User Field component provides a user selector for assigning users or owners to records. It displays user avatars and supports both single and multiple user selection.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'user',
+    name: 'assigned_to',
+    label: 'Assigned To',
+  }}
+  title="Single User Selection"
+/>
+
+## Multiple Users
+
+<ComponentDemo
+  schema={{
+    type: 'user',
+    name: 'team_members',
+    label: 'Team Members',
+    multiple: true
+  }}
+  title="Multiple User Selection"
+/>
+
+## Owner Field
+
+<ComponentDemo
+  schema={{
+    type: 'owner',
+    name: 'record_owner',
+    label: 'Owner',
+    readonly: true
+  }}
+  title="Record Owner (Read-Only)"
+/>
+
+## Field Schema
+
+```typescript
+interface UserFieldSchema {
+  type: 'user' | 'owner';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  value?: User | User[];         // Selected user(s)
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // User Options
+  multiple?: boolean;            // Allow multiple users
+}
+
+interface User {
+  id: string;                    // User ID
+  name?: string;                 // Display name
+  username?: string;             // Username
+  email?: string;                // Email address
+  avatar?: string;               // Avatar URL
+}
+```
+
+## User vs Owner
+
+- **User Field**: Selectable user field for assignments, team members, etc.
+- **Owner Field**: Typically read-only, automatically set to the record creator
+
+## Display Features
+
+- **Avatar Badges**: User avatars with initials if no image
+- **Color Coding**: Consistent colors for user avatars
+- **Multiple Display**: Shows up to 3 users, then "+N more"
+- **Hover Info**: User details on avatar hover
+
+## Cell Renderer
+
+In tables/grids, displays avatar with name:
+
+```typescript
+import { UserCellRenderer } from '@object-ui/fields';
+
+// Single user: Avatar + name
+// Multiple users: Overlapping avatars + count
+```
+
+## Integration
+
+User selection requires integration with your user management system:
+
+```typescript
+// Example user search API
+const searchUsers = async (query: string) => {
+  const response = await fetch(`/api/users/search?q=${query}`);
+  return response.json();
+};
+
+// Example user data structure
+const user = {
+  id: 'user_123',
+  name: 'John Doe',
+  username: 'johndoe',
+  email: 'john@example.com',
+  avatar: 'https://example.com/avatars/john.jpg'
+};
+```
+
+## Permission Patterns
+
+Common permission configurations:
+
+```typescript
+// Record owner only
+{
+  type: 'owner',
+  name: 'owner',
+  label: 'Owner',
+  readonly: true,
+  defaultValue: '${current_user.id}'
+}
+
+// Assignable user
+{
+  type: 'user',
+  name: 'assigned_to',
+  label: 'Assigned To',
+  required: true
+}
+
+// Team members
+{
+  type: 'user',
+  name: 'collaborators',
+  label: 'Collaborators',
+  multiple: true
+}
+```
+
+## Use Cases
+
+- **Task Management**: Task assignee, reviewer
+- **CRM**: Account owner, opportunity owner
+- **Support**: Ticket assignee, support agent
+- **Project Management**: Project members, task owners
+- **Approval Workflows**: Approvers, reviewers
+- **Collaboration**: Document collaborators, editors
+
+## Backend Implementation
+
+Example backend logic for user fields:
+
+```typescript
+// Set owner on create
+const createRecord = async (data: any, currentUser: User) => {
+  return db.create('records', {
+    ...data,
+    owner: currentUser.id,
+    created_by: currentUser.id
+  });
+};
+
+// Validate user assignment permissions
+const canAssignUser = async (
+  record: any,
+  targetUser: User,
+  currentUser: User
+) => {
+  // Only owner or admin can reassign
+  if (record.owner === currentUser.id || currentUser.isAdmin) {
+    return true;
+  }
+  return false;
+};
+
+// Get user details for display
+const getUserDetails = async (userId: string) => {
+  const user = await db.findOne('users', { id: userId });
+  return {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    email: user.email,
+    avatar: user.avatar_url
+  };
+};
+```

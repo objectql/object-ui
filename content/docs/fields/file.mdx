@@ -1,0 +1,144 @@
+---
+title: "File Field"
+description: "File upload with multiple file support and metadata display"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The File Field component provides a file upload interface with support for multiple files, file type filtering, and file metadata display.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'file',
+    name: 'attachment',
+    label: 'Attachment',
+  }}
+  title="Basic File Upload"
+/>
+
+## Multiple Files
+
+<ComponentDemo
+  schema={{
+    type: 'file',
+    name: 'documents',
+    label: 'Documents',
+    multiple: true
+  }}
+  title="Multiple File Upload"
+/>
+
+## File Type Restrictions
+
+<ComponentDemo
+  schema={{
+    type: 'file',
+    name: 'pdf_upload',
+    label: 'PDF Documents',
+    accept: ['application/pdf'],
+    multiple: true
+  }}
+  title="PDF Files Only"
+/>
+
+## Field Schema
+
+```typescript
+interface FileFieldSchema {
+  type: 'file';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  value?: FileMetadata | FileMetadata[];  // Current file(s)
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // File Options
+  multiple?: boolean;            // Allow multiple files
+  accept?: string[];             // Accepted MIME types
+  max_size?: number;             // Max file size in bytes
+  max_files?: number;            // Max number of files
+}
+
+interface FileMetadata {
+  name: string;                  // File name
+  original_name?: string;        // Original file name
+  size?: number;                 // File size in bytes
+  mime_type?: string;            // MIME type
+  url?: string;                  // File URL
+}
+```
+
+## Accepted File Types
+
+Common MIME type examples:
+
+```typescript
+// Documents
+accept: ['application/pdf', 'application/msword']
+
+// Images
+accept: ['image/png', 'image/jpeg', 'image/gif']
+
+// Archives
+accept: ['application/zip', 'application/x-rar']
+
+// Spreadsheets
+accept: ['application/vnd.ms-excel', 'text/csv']
+
+// Wildcards
+accept: ['image/*']  // All images
+```
+
+## Features
+
+- **File List Display**: Shows uploaded files with names and sizes
+- **Remove Files**: Individual file removal with X button
+- **Size Display**: File sizes shown in KB/MB
+- **Upload Button**: Clear upload interface
+- **Multiple Selection**: Support for batch file uploads
+
+## Cell Renderer
+
+In tables/grids, displays file count:
+
+```typescript
+import { FileCellRenderer } from '@object-ui/fields';
+
+// Renders: "3 files" or "document.pdf"
+```
+
+## Integration Notes
+
+This component creates object URLs for file preview. Actual file upload requires backend integration:
+
+```typescript
+// Frontend creates preview
+const fileData = {
+  name: 'document.pdf',
+  size: 1024000,
+  mime_type: 'application/pdf',
+  url: URL.createObjectURL(file)
+};
+
+// Backend handles actual upload
+const uploadToServer = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    body: formData
+  });
+  return response.json();
+};
+```
+
+## Use Cases
+
+- **Document Management**: PDF uploads, contracts
+- **File Attachments**: Email attachments, support tickets
+- **Media Libraries**: Asset uploads, resources
+- **Data Import**: CSV files, batch uploads

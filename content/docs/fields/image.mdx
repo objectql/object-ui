@@ -1,0 +1,137 @@
+---
+title: "Image Field"
+description: "Image upload with thumbnail preview and multiple image support"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Image Field component provides an image upload interface with thumbnail previews, multiple image support, and visual file management.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'image',
+    name: 'avatar',
+    label: 'Profile Picture',
+  }}
+  title="Basic Image Upload"
+/>
+
+## Multiple Images
+
+<ComponentDemo
+  schema={{
+    type: 'image',
+    name: 'gallery',
+    label: 'Photo Gallery',
+    multiple: true
+  }}
+  title="Multiple Image Upload"
+/>
+
+## Field Schema
+
+```typescript
+interface ImageFieldSchema {
+  type: 'image';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  value?: FileMetadata | FileMetadata[];  // Current image(s)
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Image Options
+  multiple?: boolean;            // Allow multiple images
+  accept?: string[];             // Accepted image types
+  max_size?: number;             // Max file size in bytes
+  max_files?: number;            // Max number of images
+  max_width?: number;            // Max image width
+  max_height?: number;           // Max image height
+}
+```
+
+## Accepted Image Types
+
+By default, accepts all common image formats:
+
+```typescript
+// Default: 'image/*'
+// Specific formats:
+accept: ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+```
+
+## Features
+
+- **Thumbnail Grid**: Images displayed in 4-column grid
+- **Preview**: Visual thumbnails for uploaded images
+- **Hover to Remove**: Delete button appears on hover
+- **Batch Upload**: Multiple image selection
+- **Size Restrictions**: Configurable file size limits
+
+## Cell Renderer
+
+In tables/grids, displays image thumbnails:
+
+```typescript
+import { ImageCellRenderer } from '@object-ui/fields';
+
+// Shows up to 3 thumbnails plus count if more
+```
+
+## Image Optimization
+
+For best results, consider:
+
+```typescript
+{
+  type: 'image',
+  name: 'product_images',
+  label: 'Product Photos',
+  multiple: true,
+  max_size: 5242880,        // 5MB
+  max_files: 10,
+  max_width: 2048,
+  max_height: 2048,
+  accept: ['image/jpeg', 'image/png', 'image/webp']
+}
+```
+
+## Integration Notes
+
+This component creates object URLs for preview. For production use, implement server-side upload:
+
+```typescript
+const uploadImage = async (file: File) => {
+  // Validate dimensions
+  const img = new Image();
+  img.src = URL.createObjectURL(file);
+  await new Promise((resolve) => {
+    img.onload = resolve;
+  });
+  
+  if (img.width > maxWidth || img.height > maxHeight) {
+    throw new Error('Image dimensions too large');
+  }
+  
+  // Upload to server
+  const formData = new FormData();
+  formData.append('image', file);
+  const response = await fetch('/api/images', {
+    method: 'POST',
+    body: formData
+  });
+  
+  return response.json();
+};
+```
+
+## Use Cases
+
+- **User Profiles**: Avatar/profile pictures
+- **Product Catalogs**: Product images, SKU photos
+- **Photo Galleries**: Image collections, portfolios
+- **Content Management**: Blog post images, media assets
+- **Real Estate**: Property photos, listings

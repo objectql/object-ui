@@ -1,0 +1,92 @@
+---
+title: "Time Field"
+description: "Time-only input field for hour and minute selection"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Time Field component provides a time-only input for collecting hour and minute information without a date component.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'time',
+    name: 'start_time',
+    label: 'Start Time',
+    placeholder: 'HH:MM'
+  }}
+  title="Basic Time Field"
+/>
+
+## With Default Value
+
+<ComponentDemo
+  schema={{
+    type: 'time',
+    name: 'office_hours',
+    label: 'Office Hours',
+    value: '09:00'
+  }}
+  title="With Default Value"
+/>
+
+## Required Field
+
+<ComponentDemo
+  schema={{
+    type: 'time',
+    name: 'alarm_time',
+    label: 'Alarm Time',
+    required: true
+  }}
+  title="Required Time"
+/>
+
+## Read-Only
+
+<ComponentDemo
+  schema={{
+    type: 'time',
+    name: 'closing_time',
+    label: 'Closing Time',
+    value: '18:00',
+    readonly: true
+  }}
+  title="Read-Only Time"
+/>
+
+## Field Schema
+
+```typescript
+interface TimeFieldSchema {
+  type: 'time';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: string;                // Default value (HH:mm format)
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Validation
+  format?: string;               // Display format
+}
+```
+
+## Time Format
+
+The time field uses 24-hour format: `HH:mm`
+
+Examples:
+- `09:00` - 9:00 AM
+- `14:30` - 2:30 PM
+- `23:45` - 11:45 PM
+
+## Use Cases
+
+- **Operating Hours**: Business hours, shift times
+- **Scheduling**: Daily task times, recurring events
+- **Alarms**: Reminder times, notification schedules
+- **Time Tracking**: Work start/end times

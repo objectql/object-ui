@@ -1,0 +1,253 @@
+---
+title: "Object Field"
+description: "JSON object editor for structured data"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Object Field component provides a JSON editor for storing and editing structured data objects. It validates JSON syntax and provides a textarea interface for complex data.
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'object',
+    name: 'metadata',
+    label: 'Metadata',
+    placeholder: '{\n  "key": "value"\n}'
+  }}
+  title="Basic Object Editor"
+/>
+
+## With Schema
+
+<ComponentDemo
+  schema={{
+    type: 'object',
+    name: 'config',
+    label: 'Configuration',
+    schema: {
+      api_key: 'string',
+      timeout: 'number',
+      enabled: 'boolean'
+    }
+  }}
+  title="Structured Configuration"
+/>
+
+## Nested Data
+
+<ComponentDemo
+  schema={{
+    type: 'object',
+    name: 'settings',
+    label: 'Settings',
+    value: {
+      theme: 'dark',
+      notifications: {
+        email: true,
+        push: false
+      },
+      privacy: {
+        public: false
+      }
+    }
+  }}
+  title="Nested Object Data"
+/>
+
+## Read-Only
+
+<ComponentDemo
+  schema={{
+    type: 'object',
+    name: 'response',
+    label: 'API Response',
+    value: {
+      status: 200,
+      data: { id: 123, name: 'Test' }
+    },
+    readonly: true
+  }}
+  title="Read-Only JSON Display"
+/>
+
+## Field Schema
+
+```typescript
+interface ObjectFieldSchema {
+  type: 'object';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  placeholder?: string;          // Placeholder text
+  value?: Record<string, any>;   // JSON object value
+  required?: boolean;            // Is field required
+  readonly?: boolean;            // Read-only mode
+  disabled?: boolean;            // Disabled state
+  className?: string;            // Additional CSS classes
+  
+  // Object Options
+  schema?: Record<string, any>;  // Optional schema definition
+}
+```
+
+## JSON Validation
+
+The field validates JSON syntax in real-time:
+
+- **Valid JSON**: Updates the value immediately
+- **Invalid JSON**: Maintains current valid value, doesn't update
+- **Empty Input**: Sets value to `null`
+
+## Data Format
+
+The object field stores data as parsed JSON:
+
+```typescript
+// Input (string)
+'{"name": "John", "age": 30}'
+
+// Stored (object)
+{ name: "John", age: 30 }
+
+// Display (formatted)
+{
+  "name": "John",
+  "age": 30
+}
+```
+
+## Common Patterns
+
+### Configuration Objects
+
+```typescript
+{
+  type: 'object',
+  name: 'api_config',
+  label: 'API Configuration',
+  value: {
+    endpoint: 'https://api.example.com',
+    timeout: 5000,
+    retries: 3,
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  }
+}
+```
+
+### Metadata
+
+```typescript
+{
+  type: 'object',
+  name: 'custom_metadata',
+  label: 'Custom Metadata',
+  value: {
+    tags: ['important', 'urgent'],
+    priority: 'high',
+    department: 'engineering'
+  }
+}
+```
+
+### Preferences
+
+```typescript
+{
+  type: 'object',
+  name: 'user_preferences',
+  label: 'Preferences',
+  value: {
+    theme: 'dark',
+    language: 'en',
+    notifications: {
+      email: true,
+      push: false,
+      sms: false
+    }
+  }
+}
+```
+
+## Cell Renderer
+
+In tables/grids, displays formatted JSON preview:
+
+```typescript
+import { ObjectCellRenderer } from '@object-ui/fields';
+
+// Shows: [Object] or truncated JSON in read-only mode
+```
+
+## Schema Validation
+
+For typed object fields, define a schema:
+
+```typescript
+{
+  type: 'object',
+  name: 'product_specs',
+  label: 'Product Specifications',
+  schema: {
+    weight: 'number',
+    dimensions: {
+      width: 'number',
+      height: 'number',
+      depth: 'number'
+    },
+    materials: 'array'
+  }
+}
+```
+
+## Use Cases
+
+- **Configuration**: Application settings, API configurations
+- **Metadata**: Custom properties, tags, attributes
+- **API Responses**: Storing API response data
+- **Preferences**: User preferences, feature flags
+- **Structured Data**: Any complex structured information
+- **JSON Storage**: Raw JSON data storage
+
+## Best Practices
+
+1. **Use for Flexible Data**: When schema changes frequently
+2. **Validate on Backend**: Always validate structure server-side
+3. **Consider Alternatives**: Use typed fields when structure is fixed
+4. **Document Schema**: Provide clear documentation for expected structure
+5. **Size Limits**: Set reasonable size limits for JSON data
+
+## Backend Validation
+
+Example backend validation:
+
+```typescript
+import Ajv from 'ajv';
+
+const ajv = new Ajv();
+
+const validateObjectField = (value: any, schema: any) => {
+  if (!schema) return { valid: true };
+  
+  const validate = ajv.compile(schema);
+  const valid = validate(value);
+  
+  return {
+    valid,
+    errors: validate.errors
+  };
+};
+
+// Example schema
+const configSchema = {
+  type: 'object',
+  properties: {
+    api_key: { type: 'string', minLength: 1 },
+    timeout: { type: 'number', minimum: 0 },
+    enabled: { type: 'boolean' }
+  },
+  required: ['api_key']
+};
+```

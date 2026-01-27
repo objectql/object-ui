@@ -1,0 +1,182 @@
+---
+title: "Summary Field"
+description: "Read-only aggregation field for rollup calculations"
+---
+
+import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
+The Summary Field component displays aggregated values from related records. This is a read-only field where the value is automatically calculated by the backend through rollup aggregations.
+
+## Count Summary
+
+<ComponentDemo
+  schema={{
+    type: 'summary',
+    name: 'order_count',
+    label: 'Total Orders',
+    summary_object: 'orders',
+    summary_field: 'id',
+    summary_type: 'count',
+    readonly: true,
+    value: 42
+  }}
+  title="Count of Related Records"
+/>
+
+## Sum Summary
+
+<ComponentDemo
+  schema={{
+    type: 'summary',
+    name: 'total_revenue',
+    label: 'Total Revenue',
+    summary_object: 'orders',
+    summary_field: 'amount',
+    summary_type: 'sum',
+    readonly: true,
+    value: 15750.50
+  }}
+  title="Sum of Field Values"
+/>
+
+## Average Summary
+
+<ComponentDemo
+  schema={{
+    type: 'summary',
+    name: 'avg_rating',
+    label: 'Average Rating',
+    summary_object: 'reviews',
+    summary_field: 'rating',
+    summary_type: 'avg',
+    readonly: true,
+    value: 4.52
+  }}
+  title="Average of Field Values"
+/>
+
+## Field Schema
+
+```typescript
+interface SummaryFieldSchema {
+  type: 'summary';
+  name: string;                  // Field name/ID
+  label?: string;                // Field label
+  value?: number;                // Computed value (read-only)
+  readonly: true;                // Always read-only
+  className?: string;            // Additional CSS classes
+  
+  // Summary Configuration
+  summary_object?: string;       // Related object name
+  summary_field?: string;        // Field to aggregate
+  summary_type?: 'count' | 'sum' | 'avg' | 'min' | 'max';
+}
+```
+
+## Summary Types
+
+- **count**: Count of related records
+- **sum**: Sum of numeric field values
+- **avg**: Average of numeric field values
+- **min**: Minimum value in the field
+- **max**: Maximum value in the field
+
+## Examples
+
+### Count Related Records
+
+```typescript
+{
+  type: 'summary',
+  name: 'task_count',
+  label: 'Open Tasks',
+  summary_object: 'tasks',
+  summary_field: 'id',
+  summary_type: 'count'
+}
+```
+
+### Sum Amounts
+
+```typescript
+{
+  type: 'summary',
+  name: 'total_sales',
+  label: 'Total Sales',
+  summary_object: 'invoices',
+  summary_field: 'amount',
+  summary_type: 'sum'
+}
+```
+
+### Average Value
+
+```typescript
+{
+  type: 'summary',
+  name: 'avg_response_time',
+  label: 'Avg Response Time',
+  summary_object: 'support_tickets',
+  summary_field: 'response_time_hours',
+  summary_type: 'avg'
+}
+```
+
+### Min/Max Values
+
+```typescript
+{
+  type: 'summary',
+  name: 'highest_bid',
+  label: 'Highest Bid',
+  summary_object: 'bids',
+  summary_field: 'amount',
+  summary_type: 'max'
+}
+```
+
+## Cell Renderer
+
+In tables/grids, displays with tabular numbers:
+
+```typescript
+import { SummaryCellRenderer } from '@object-ui/fields';
+
+// Renders: 15,750.50 (formatted with proper precision)
+```
+
+## Backend Implementation
+
+Summary fields are calculated through database aggregations:
+
+```typescript
+// Example backend aggregation
+const calculateSummary = async (config: SummaryConfig, parentId: string) => {
+  const { summary_object, summary_field, summary_type } = config;
+  
+  switch (summary_type) {
+    case 'count':
+      return db.count(summary_object, { parent_id: parentId });
+    
+    case 'sum':
+      return db.sum(summary_object, summary_field, { parent_id: parentId });
+    
+    case 'avg':
+      return db.avg(summary_object, summary_field, { parent_id: parentId });
+    
+    case 'min':
+      return db.min(summary_object, summary_field, { parent_id: parentId });
+    
+    case 'max':
+      return db.max(summary_object, summary_field, { parent_id: parentId });
+  }
+};
+```
+
+## Use Cases
+
+- **Order Management**: Total order value, order count
+- **CRM**: Number of contacts, total deal value
+- **Project Management**: Task count, total hours
+- **Analytics**: Average ratings, min/max values
+- **Financial**: Sum of expenses, average transaction size
