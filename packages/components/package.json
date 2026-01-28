@@ -32,6 +32,7 @@
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
     "storybook": "storybook dev -p 6006",
+    "prebuild-storybook": "pnpm --filter @object-ui/types build && pnpm --filter @object-ui/core build && pnpm --filter @object-ui/react build",
     "build-storybook": "storybook build"
   },
   "dependencies": {
