@@ -12,9 +12,9 @@ import * as React from "react"
 import { X, Plus, Trash2 } from "lucide-react"
 
 import { cn } from "../lib/utils"
-import { Button } from "@/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
-import { Input } from "@/ui/input"
+import { Button } from "../ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
+import { Input } from "../ui/input"
 
 export interface FilterCondition {
   id: string

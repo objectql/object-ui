@@ -12,7 +12,7 @@ import * as React from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
 
 import { cn } from "../lib/utils"
-import { Button } from "@/ui/button"
+import { Button } from "../ui/button"
 import {
   Command,
   CommandEmpty,
@@ -20,12 +20,12 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/ui/command"
+} from "../ui/command"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/ui/popover"
+} from "../ui/popover"
 
 export interface ComboboxOption {
   value: string

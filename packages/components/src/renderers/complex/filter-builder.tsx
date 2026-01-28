@@ -8,7 +8,7 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import type { FilterBuilderSchema, FilterGroup } from '@object-ui/types';
-import { FilterBuilder } from '@/custom/filter-builder';
+import { FilterBuilder } from '../../custom/filter-builder';
 
 ComponentRegistry.register('filter-builder', 
   ({ schema, className, onChange, ...props }: { schema: FilterBuilderSchema; className?: string; onChange?: (event: any) => void; [key: string]: any }) => {
