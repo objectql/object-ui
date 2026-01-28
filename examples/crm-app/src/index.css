@@ -6,6 +6,7 @@
 @source '../../packages/layout/src/**/*.{ts,tsx}';
 @source '../../packages/fields/src/**/*.{ts,tsx}';
 @source '../../packages/react/src/**/*.{ts,tsx}';
+@source '../../packages/react/src/**/*.{ts,tsx}';
 @source '../../packages/plugin-dashboard/src/**/*.{ts,tsx}';
 
 /* Tailwind plugin for animations */
