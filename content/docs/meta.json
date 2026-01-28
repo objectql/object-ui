@@ -1,6 +1,7 @@
 {
   "pages": [
     "guide",
+    "blocks",
     "core",
     "fields",
     "components",

@@ -1,0 +1,928 @@
+---
+title: "E-commerce Blocks"
+description: "Product cards, checkout flows, and shopping components"
+---
+
+import { InteractiveDemo } from '@/app/components/ComponentDemo';
+
+# E-commerce Blocks
+
+Professional e-commerce components for online stores and marketplaces.
+
+## Product Card
+
+Product display with image, title, price, and actions.
+
+<InteractiveDemo
+  title="Product Card"
+  description="Single product card with add to cart"
+  schema={{
+    type: "card",
+    className: "w-full max-w-sm mx-auto overflow-hidden",
+    children: [
+      {
+        type: "div",
+        className: "aspect-square bg-muted flex items-center justify-center",
+        children: [
+          {
+            type: "icon",
+            icon: "package",
+            className: "h-24 w-24 text-muted-foreground"
+          }
+        ]
+      },
+      {
+        type: "div",
+        className: "p-6 space-y-3",
+        children: [
+          {
+            type: "div",
+            className: "space-y-1",
+            children: [
+              {
+                type: "text",
+                content: "Premium Wireless Headphones",
+                className: "text-lg font-semibold"
+              },
+              {
+                type: "text",
+                content: "High-quality audio with active noise cancellation",
+                className: "text-sm text-muted-foreground"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "flex items-center gap-1",
+            children: [
+              {
+                type: "icon",
+                icon: "star",
+                className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+              },
+              {
+                type: "icon",
+                icon: "star",
+                className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+              },
+              {
+                type: "icon",
+                icon: "star",
+                className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+              },
+              {
+                type: "icon",
+                icon: "star",
+                className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+              },
+              {
+                type: "icon",
+                icon: "star",
+                className: "h-4 w-4 text-muted"
+              },
+              {
+                type: "text",
+                content: "4.0 (128 reviews)",
+                className: "text-sm text-muted-foreground ml-2"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "flex items-baseline gap-2",
+            children: [
+              {
+                type: "text",
+                content: "$299.99",
+                className: "text-2xl font-bold"
+              },
+              {
+                type: "text",
+                content: "$399.99",
+                className: "text-sm text-muted-foreground line-through"
+              },
+              {
+                type: "badge",
+                label: "25% OFF",
+                variant: "destructive",
+                className: "ml-auto"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "flex gap-2",
+            children: [
+              {
+                type: "button",
+                label: "Add to Cart",
+                variant: "default",
+                className: "flex-1"
+              },
+              {
+                type: "button",
+                label: "",
+                variant: "outline",
+                size: "icon",
+                children: [
+                  {
+                    type: "icon",
+                    icon: "heart",
+                    className: "h-4 w-4"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Product Grid
+
+Multiple products in a responsive grid.
+
+<InteractiveDemo
+  title="Product Grid"
+  description="Responsive product listing"
+  schema={{
+    type: "div",
+    className: "w-full max-w-6xl mx-auto",
+    children: [
+      {
+        type: "div",
+        className: "flex items-center justify-between mb-6",
+        children: [
+          {
+            type: "text",
+            content: "Featured Products",
+            className: "text-2xl font-bold"
+          },
+          {
+            type: "button",
+            label: "View All",
+            variant: "outline"
+          }
+        ]
+      },
+      {
+        type: "div",
+        className: "grid sm:grid-cols-2 lg:grid-cols-4 gap-6",
+        children: [
+          {
+            type: "card",
+            className: "overflow-hidden",
+            children: [
+              {
+                type: "div",
+                className: "aspect-square bg-muted flex items-center justify-center",
+                children: [
+                  {
+                    type: "icon",
+                    icon: "smartphone",
+                    className: "h-16 w-16 text-muted-foreground"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "p-4 space-y-2",
+                children: [
+                  {
+                    type: "text",
+                    content: "Smartphone Pro",
+                    className: "font-semibold"
+                  },
+                  {
+                    type: "text",
+                    content: "$899",
+                    className: "text-xl font-bold"
+                  },
+                  {
+                    type: "button",
+                    label: "Add to Cart",
+                    variant: "outline",
+                    size: "sm",
+                    className: "w-full"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            className: "overflow-hidden",
+            children: [
+              {
+                type: "div",
+                className: "aspect-square bg-muted flex items-center justify-center",
+                children: [
+                  {
+                    type: "icon",
+                    icon: "watch",
+                    className: "h-16 w-16 text-muted-foreground"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "p-4 space-y-2",
+                children: [
+                  {
+                    type: "text",
+                    content: "Smart Watch",
+                    className: "font-semibold"
+                  },
+                  {
+                    type: "text",
+                    content: "$399",
+                    className: "text-xl font-bold"
+                  },
+                  {
+                    type: "button",
+                    label: "Add to Cart",
+                    variant: "outline",
+                    size: "sm",
+                    className: "w-full"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            className: "overflow-hidden",
+            children: [
+              {
+                type: "div",
+                className: "aspect-square bg-muted flex items-center justify-center",
+                children: [
+                  {
+                    type: "icon",
+                    icon: "laptop",
+                    className: "h-16 w-16 text-muted-foreground"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "p-4 space-y-2",
+                children: [
+                  {
+                    type: "text",
+                    content: "Laptop Ultra",
+                    className: "font-semibold"
+                  },
+                  {
+                    type: "text",
+                    content: "$1,299",
+                    className: "text-xl font-bold"
+                  },
+                  {
+                    type: "button",
+                    label: "Add to Cart",
+                    variant: "outline",
+                    size: "sm",
+                    className: "w-full"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            className: "overflow-hidden",
+            children: [
+              {
+                type: "div",
+                className: "aspect-square bg-muted flex items-center justify-center",
+                children: [
+                  {
+                    type: "icon",
+                    icon: "headphones",
+                    className: "h-16 w-16 text-muted-foreground"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "p-4 space-y-2",
+                children: [
+                  {
+                    type: "text",
+                    content: "Headphones",
+                    className: "font-semibold"
+                  },
+                  {
+                    type: "text",
+                    content: "$299",
+                    className: "text-xl font-bold"
+                  },
+                  {
+                    type: "button",
+                    label: "Add to Cart",
+                    variant: "outline",
+                    size: "sm",
+                    className: "w-full"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Shopping Cart
+
+Cart summary with items and checkout.
+
+<InteractiveDemo
+  title="Shopping Cart"
+  description="Cart items and total"
+  schema={{
+    type: "card",
+    className: "w-full max-w-2xl mx-auto",
+    children: [
+      {
+        type: "div",
+        className: "p-6 space-y-6",
+        children: [
+          {
+            type: "div",
+            className: "flex items-center justify-between",
+            children: [
+              {
+                type: "text",
+                content: "Shopping Cart",
+                className: "text-2xl font-bold"
+              },
+              {
+                type: "badge",
+                label: "3 items",
+                variant: "secondary"
+              }
+            ]
+          },
+          {
+            type: "separator"
+          },
+          {
+            type: "div",
+            className: "space-y-4",
+            children: [
+              {
+                type: "div",
+                className: "flex gap-4",
+                children: [
+                  {
+                    type: "div",
+                    className: "h-24 w-24 rounded-lg bg-muted flex items-center justify-center flex-shrink-0",
+                    children: [
+                      {
+                        type: "icon",
+                        icon: "smartphone",
+                        className: "h-8 w-8 text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "flex-1 space-y-1",
+                    children: [
+                      {
+                        type: "text",
+                        content: "Smartphone Pro",
+                        className: "font-semibold"
+                      },
+                      {
+                        type: "text",
+                        content: "Color: Black, Storage: 256GB",
+                        className: "text-sm text-muted-foreground"
+                      },
+                      {
+                        type: "div",
+                        className: "flex items-center gap-2 mt-2",
+                        children: [
+                          {
+                            type: "button",
+                            label: "-",
+                            variant: "outline",
+                            size: "sm",
+                            className: "h-8 w-8 p-0"
+                          },
+                          {
+                            type: "text",
+                            content: "1",
+                            className: "w-8 text-center"
+                          },
+                          {
+                            type: "button",
+                            label: "+",
+                            variant: "outline",
+                            size: "sm",
+                            className: "h-8 w-8 p-0"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "text-right space-y-2",
+                    children: [
+                      {
+                        type: "text",
+                        content: "$899.00",
+                        className: "font-bold"
+                      },
+                      {
+                        type: "button",
+                        label: "Remove",
+                        variant: "ghost",
+                        size: "sm",
+                        className: "text-destructive"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                type: "separator"
+              },
+              {
+                type: "div",
+                className: "flex gap-4",
+                children: [
+                  {
+                    type: "div",
+                    className: "h-24 w-24 rounded-lg bg-muted flex items-center justify-center flex-shrink-0",
+                    children: [
+                      {
+                        type: "icon",
+                        icon: "headphones",
+                        className: "h-8 w-8 text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "flex-1 space-y-1",
+                    children: [
+                      {
+                        type: "text",
+                        content: "Wireless Headphones",
+                        className: "font-semibold"
+                      },
+                      {
+                        type: "text",
+                        content: "Color: Silver",
+                        className: "text-sm text-muted-foreground"
+                      },
+                      {
+                        type: "div",
+                        className: "flex items-center gap-2 mt-2",
+                        children: [
+                          {
+                            type: "button",
+                            label: "-",
+                            variant: "outline",
+                            size: "sm",
+                            className: "h-8 w-8 p-0"
+                          },
+                          {
+                            type: "text",
+                            content: "2",
+                            className: "w-8 text-center"
+                          },
+                          {
+                            type: "button",
+                            label: "+",
+                            variant: "outline",
+                            size: "sm",
+                            className: "h-8 w-8 p-0"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "text-right space-y-2",
+                    children: [
+                      {
+                        type: "text",
+                        content: "$598.00",
+                        className: "font-bold"
+                      },
+                      {
+                        type: "button",
+                        label: "Remove",
+                        variant: "ghost",
+                        size: "sm",
+                        className: "text-destructive"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "separator"
+          },
+          {
+            type: "div",
+            className: "space-y-2",
+            children: [
+              {
+                type: "div",
+                className: "flex justify-between text-sm",
+                children: [
+                  {
+                    type: "text",
+                    content: "Subtotal"
+                  },
+                  {
+                    type: "text",
+                    content: "$1,497.00"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "flex justify-between text-sm",
+                children: [
+                  {
+                    type: "text",
+                    content: "Shipping"
+                  },
+                  {
+                    type: "text",
+                    content: "$15.00"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "flex justify-between text-sm",
+                children: [
+                  {
+                    type: "text",
+                    content: "Tax"
+                  },
+                  {
+                    type: "text",
+                    content: "$149.70"
+                  }
+                ]
+              },
+              {
+                type: "separator"
+              },
+              {
+                type: "div",
+                className: "flex justify-between text-lg font-bold",
+                children: [
+                  {
+                    type: "text",
+                    content: "Total"
+                  },
+                  {
+                    type: "text",
+                    content: "$1,661.70"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "button",
+            label: "Proceed to Checkout",
+            variant: "default",
+            className: "w-full",
+            size: "lg"
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Order Summary
+
+Checkout order review.
+
+<InteractiveDemo
+  title="Order Summary"
+  description="Final order review before payment"
+  schema={{
+    type: "div",
+    className: "w-full max-w-2xl mx-auto space-y-6",
+    children: [
+      {
+        type: "text",
+        content: "Order Summary",
+        className: "text-2xl font-bold"
+      },
+      {
+        type: "div",
+        className: "grid md:grid-cols-2 gap-6",
+        children: [
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-4",
+                children: [
+                  {
+                    type: "text",
+                    content: "Shipping Address",
+                    className: "font-semibold"
+                  },
+                  {
+                    type: "div",
+                    className: "text-sm space-y-1",
+                    children: [
+                      {
+                        type: "text",
+                        content: "John Doe",
+                        className: "font-medium"
+                      },
+                      {
+                        type: "text",
+                        content: "123 Main Street"
+                      },
+                      {
+                        type: "text",
+                        content: "Apt 4B"
+                      },
+                      {
+                        type: "text",
+                        content: "New York, NY 10001"
+                      },
+                      {
+                        type: "text",
+                        content: "United States"
+                      }
+                    ]
+                  },
+                  {
+                    type: "button",
+                    label: "Edit",
+                    variant: "ghost",
+                    size: "sm"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-4",
+                children: [
+                  {
+                    type: "text",
+                    content: "Payment Method",
+                    className: "font-semibold"
+                  },
+                  {
+                    type: "div",
+                    className: "flex items-center gap-3",
+                    children: [
+                      {
+                        type: "div",
+                        className: "h-10 w-16 rounded bg-muted flex items-center justify-center",
+                        children: [
+                          {
+                            type: "icon",
+                            icon: "credit-card",
+                            className: "h-6 w-6"
+                          }
+                        ]
+                      },
+                      {
+                        type: "div",
+                        className: "text-sm",
+                        children: [
+                          {
+                            type: "text",
+                            content: "Visa ending in 4242",
+                            className: "font-medium"
+                          },
+                          {
+                            type: "text",
+                            content: "Expires 12/24",
+                            className: "text-muted-foreground"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    type: "button",
+                    label: "Change",
+                    variant: "ghost",
+                    size: "sm"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        type: "card",
+        children: [
+          {
+            type: "div",
+            className: "p-6 space-y-4",
+            children: [
+              {
+                type: "text",
+                content: "Order Items",
+                className: "font-semibold"
+              },
+              {
+                type: "div",
+                className: "space-y-3",
+                children: [
+                  {
+                    type: "div",
+                    className: "flex justify-between text-sm",
+                    children: [
+                      {
+                        type: "text",
+                        content: "Smartphone Pro × 1"
+                      },
+                      {
+                        type: "text",
+                        content: "$899.00",
+                        className: "font-medium"
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "flex justify-between text-sm",
+                    children: [
+                      {
+                        type: "text",
+                        content: "Wireless Headphones × 2"
+                      },
+                      {
+                        type: "text",
+                        content: "$598.00",
+                        className: "font-medium"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                type: "separator"
+              },
+              {
+                type: "div",
+                className: "space-y-2",
+                children: [
+                  {
+                    type: "div",
+                    className: "flex justify-between text-sm",
+                    children: [
+                      {
+                        type: "text",
+                        content: "Subtotal"
+                      },
+                      {
+                        type: "text",
+                        content: "$1,497.00"
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "flex justify-between text-sm",
+                    children: [
+                      {
+                        type: "text",
+                        content: "Shipping"
+                      },
+                      {
+                        type: "text",
+                        content: "$15.00"
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "flex justify-between text-sm",
+                    children: [
+                      {
+                        type: "text",
+                        content: "Tax"
+                      },
+                      {
+                        type: "text",
+                        content: "$149.70"
+                      }
+                    ]
+                  },
+                  {
+                    type: "separator"
+                  },
+                  {
+                    type: "div",
+                    className: "flex justify-between font-bold text-lg",
+                    children: [
+                      {
+                        type: "text",
+                        content: "Total"
+                      },
+                      {
+                        type: "text",
+                        content: "$1,661.70"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        type: "div",
+        className: "flex gap-3",
+        children: [
+          {
+            type: "button",
+            label: "Back to Cart",
+            variant: "outline",
+            className: "flex-1"
+          },
+          {
+            type: "button",
+            label: "Place Order",
+            variant: "default",
+            className: "flex-1"
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Usage
+
+Customize e-commerce blocks for your store:
+
+### Add Product Data
+
+```json
+{
+  "type": "card",
+  "dataSource": {
+    "api": "/api/products",
+    "method": "GET"
+  }
+}
+```
+
+### Add to Cart Action
+
+```json
+{
+  "type": "button",
+  "label": "Add to Cart",
+  "action": {
+    "type": "submit",
+    "endpoint": "/api/cart",
+    "method": "POST"
+  }
+}
+```
+
+### Customize Pricing Display
+
+```json
+{
+  "type": "text",
+  "content": "$299.99",
+  "className": "text-2xl font-bold text-primary"
+}
+```
+
+## Next Steps
+
+- Browse [Authentication Blocks](/docs/blocks/authentication)
+- Explore [Dashboard Blocks](/docs/blocks/dashboard)
+- Learn about [Actions](/docs/guide/actions)

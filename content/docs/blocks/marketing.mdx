@@ -1,0 +1,1036 @@
+---
+title: "Marketing Blocks"
+description: "Pricing tables, hero sections, and marketing components"
+---
+
+import { InteractiveDemo } from '@/app/components/ComponentDemo';
+
+# Marketing Blocks
+
+Professional marketing components for landing pages and promotional content.
+
+## Pricing Cards
+
+Responsive pricing table with three tiers.
+
+<InteractiveDemo
+  title="Pricing Table"
+  description="Three-tier pricing layout"
+  schema={{
+    type: "div",
+    className: "w-full max-w-6xl mx-auto",
+    children: [
+      {
+        type: "div",
+        className: "text-center mb-12",
+        children: [
+          {
+            type: "text",
+            content: "Simple, Transparent Pricing",
+            className: "text-3xl font-bold mb-2"
+          },
+          {
+            type: "text",
+            content: "Choose the plan that's right for you",
+            className: "text-muted-foreground"
+          }
+        ]
+      },
+      {
+        type: "div",
+        className: "grid md:grid-cols-3 gap-8",
+        children: [
+          {
+            type: "card",
+            className: "border-2",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-4",
+                children: [
+                  {
+                    type: "div",
+                    children: [
+                      {
+                        type: "text",
+                        content: "Starter",
+                        className: "text-xl font-semibold"
+                      },
+                      {
+                        type: "text",
+                        content: "Perfect for individuals",
+                        className: "text-sm text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "flex items-baseline",
+                    children: [
+                      {
+                        type: "text",
+                        content: "$9",
+                        className: "text-4xl font-bold"
+                      },
+                      {
+                        type: "text",
+                        content: "/month",
+                        className: "text-muted-foreground ml-1"
+                      }
+                    ]
+                  },
+                  {
+                    type: "button",
+                    label: "Get Started",
+                    variant: "outline",
+                    className: "w-full"
+                  },
+                  {
+                    type: "separator"
+                  },
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "div",
+                        className: "flex items-center",
+                        children: [
+                          {
+                            type: "icon",
+                            icon: "check",
+                            className: "h-4 w-4 text-primary mr-2"
+                          },
+                          {
+                            type: "text",
+                            content: "Up to 10 projects",
+                            className: "text-sm"
+                          }
+                        ]
+                      },
+                      {
+                        type: "div",
+                        className: "flex items-center",
+                        children: [
+                          {
+                            type: "icon",
+                            icon: "check",
+                            className: "h-4 w-4 text-primary mr-2"
+                          },
+                          {
+                            type: "text",
+                            content: "5GB storage",
+                            className: "text-sm"
+                          }
+                        ]
+                      },
+                      {
+                        type: "div",
+                        className: "flex items-center",
+                        children: [
+                          {
+                            type: "icon",
+                            icon: "check",
+                            className: "h-4 w-4 text-primary mr-2"
+                          },
+                          {
+                            type: "text",
+                            content: "Email support",
+                            className: "text-sm"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            className: "border-2 border-primary shadow-lg",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-4",
+                children: [
+                  {
+                    type: "div",
+                    children: [
+                      {
+                        type: "div",
+                        className: "flex items-center justify-between mb-1",
+                        children: [
+                          {
+                            type: "text",
+                            content: "Pro",
+                            className: "text-xl font-semibold"
+                          },
+                          {
+                            type: "badge",
+                            label: "Popular",
+                            variant: "default"
+                          }
+                        ]
+                      },
+                      {
+                        type: "text",
+                        content: "For growing teams",
+                        className: "text-sm text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "flex items-baseline",
+                    children: [
+                      {
+                        type: "text",
+                        content: "$29",
+                        className: "text-4xl font-bold"
+                      },
+                      {
+                        type: "text",
+                        content: "/month",
+                        className: "text-muted-foreground ml-1"
+                      }
+                    ]
+                  },
+                  {
+                    type: "button",
+                    label: "Get Started",
+                    variant: "default",
+                    className: "w-full"
+                  },
+                  {
+                    type: "separator"
+                  },
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "div",
+                        className: "flex items-center",
+                        children: [
+                          {
+                            type: "icon",
+                            icon: "check",
+                            className: "h-4 w-4 text-primary mr-2"
+                          },
+                          {
+                            type: "text",
+                            content: "Unlimited projects",
+                            className: "text-sm"
+                          }
+                        ]
+                      },
+                      {
+                        type: "div",
+                        className: "flex items-center",
+                        children: [
+                          {
+                            type: "icon",
+                            icon: "check",
+                            className: "h-4 w-4 text-primary mr-2"
+                          },
+                          {
+                            type: "text",
+                            content: "50GB storage",
+                            className: "text-sm"
+                          }
+                        ]
+                      },
+                      {
+                        type: "div",
+                        className: "flex items-center",
+                        children: [
+                          {
+                            type: "icon",
+                            icon: "check",
+                            className: "h-4 w-4 text-primary mr-2"
+                          },
+                          {
+                            type: "text",
+                            content: "Priority support",
+                            className: "text-sm"
+                          }
+                        ]
+                      },
+                      {
+                        type: "div",
+                        className: "flex items-center",
+                        children: [
+                          {
+                            type: "icon",
+                            icon: "check",
+                            className: "h-4 w-4 text-primary mr-2"
+                          },
+                          {
+                            type: "text",
+                            content: "Advanced analytics",
+                            className: "text-sm"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            className: "border-2",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-4",
+                children: [
+                  {
+                    type: "div",
+                    children: [
+                      {
+                        type: "text",
+                        content: "Enterprise",
+                        className: "text-xl font-semibold"
+                      },
+                      {
+                        type: "text",
+                        content: "For large organizations",
+                        className: "text-sm text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "flex items-baseline",
+                    children: [
+                      {
+                        type: "text",
+                        content: "$99",
+                        className: "text-4xl font-bold"
+                      },
+                      {
+                        type: "text",
+                        content: "/month",
+                        className: "text-muted-foreground ml-1"
+                      }
+                    ]
+                  },
+                  {
+                    type: "button",
+                    label: "Contact Sales",
+                    variant: "outline",
+                    className: "w-full"
+                  },
+                  {
+                    type: "separator"
+                  },
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "div",
+                        className: "flex items-center",
+                        children: [
+                          {
+                            type: "icon",
+                            icon: "check",
+                            className: "h-4 w-4 text-primary mr-2"
+                          },
+                          {
+                            type: "text",
+                            content: "Unlimited everything",
+                            className: "text-sm"
+                          }
+                        ]
+                      },
+                      {
+                        type: "div",
+                        className: "flex items-center",
+                        children: [
+                          {
+                            type: "icon",
+                            icon: "check",
+                            className: "h-4 w-4 text-primary mr-2"
+                          },
+                          {
+                            type: "text",
+                            content: "500GB storage",
+                            className: "text-sm"
+                          }
+                        ]
+                      },
+                      {
+                        type: "div",
+                        className: "flex items-center",
+                        children: [
+                          {
+                            type: "icon",
+                            icon: "check",
+                            className: "h-4 w-4 text-primary mr-2"
+                          },
+                          {
+                            type: "text",
+                            content: "24/7 phone support",
+                            className: "text-sm"
+                          }
+                        ]
+                      },
+                      {
+                        type: "div",
+                        className: "flex items-center",
+                        children: [
+                          {
+                            type: "icon",
+                            icon: "check",
+                            className: "h-4 w-4 text-primary mr-2"
+                          },
+                          {
+                            type: "text",
+                            content: "Custom integrations",
+                            className: "text-sm"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Feature Grid
+
+Showcase product features in a grid layout.
+
+<InteractiveDemo
+  title="Features Grid"
+  description="Product feature highlights"
+  schema={{
+    type: "div",
+    className: "w-full max-w-6xl mx-auto",
+    children: [
+      {
+        type: "div",
+        className: "text-center mb-12",
+        children: [
+          {
+            type: "text",
+            content: "Everything you need to succeed",
+            className: "text-3xl font-bold mb-2"
+          },
+          {
+            type: "text",
+            content: "Powerful features to help you grow your business",
+            className: "text-muted-foreground"
+          }
+        ]
+      },
+      {
+        type: "div",
+        className: "grid md:grid-cols-3 gap-8",
+        children: [
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-3",
+                children: [
+                  {
+                    type: "div",
+                    className: "h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center",
+                    children: [
+                      {
+                        type: "icon",
+                        icon: "zap",
+                        className: "h-6 w-6 text-primary"
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "Lightning Fast",
+                    className: "text-xl font-semibold"
+                  },
+                  {
+                    type: "text",
+                    content: "Optimized for speed and performance. Your users will love the experience.",
+                    className: "text-sm text-muted-foreground"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-3",
+                children: [
+                  {
+                    type: "div",
+                    className: "h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center",
+                    children: [
+                      {
+                        type: "icon",
+                        icon: "shield",
+                        className: "h-6 w-6 text-primary"
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "Secure by Default",
+                    className: "text-xl font-semibold"
+                  },
+                  {
+                    type: "text",
+                    content: "Enterprise-grade security to protect your data and your users.",
+                    className: "text-sm text-muted-foreground"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-3",
+                children: [
+                  {
+                    type: "div",
+                    className: "h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center",
+                    children: [
+                      {
+                        type: "icon",
+                        icon: "smartphone",
+                        className: "h-6 w-6 text-primary"
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "Mobile First",
+                    className: "text-xl font-semibold"
+                  },
+                  {
+                    type: "text",
+                    content: "Responsive design that works perfectly on any device, anywhere.",
+                    className: "text-sm text-muted-foreground"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-3",
+                children: [
+                  {
+                    type: "div",
+                    className: "h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center",
+                    children: [
+                      {
+                        type: "icon",
+                        icon: "palette",
+                        className: "h-6 w-6 text-primary"
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "Beautiful Design",
+                    className: "text-xl font-semibold"
+                  },
+                  {
+                    type: "text",
+                    content: "Crafted with attention to detail using modern design principles.",
+                    className: "text-sm text-muted-foreground"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-3",
+                children: [
+                  {
+                    type: "div",
+                    className: "h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center",
+                    children: [
+                      {
+                        type: "icon",
+                        icon: "settings",
+                        className: "h-6 w-6 text-primary"
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "Fully Customizable",
+                    className: "text-xl font-semibold"
+                  },
+                  {
+                    type: "text",
+                    content: "Customize every aspect to match your brand and requirements.",
+                    className: "text-sm text-muted-foreground"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-3",
+                children: [
+                  {
+                    type: "div",
+                    className: "h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center",
+                    children: [
+                      {
+                        type: "icon",
+                        icon: "headphones",
+                        className: "h-6 w-6 text-primary"
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "24/7 Support",
+                    className: "text-xl font-semibold"
+                  },
+                  {
+                    type: "text",
+                    content: "Our team is always here to help you succeed, day or night.",
+                    className: "text-sm text-muted-foreground"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## CTA Section
+
+Call-to-action section for conversions.
+
+<InteractiveDemo
+  title="Call to Action"
+  description="Convert visitors into customers"
+  schema={{
+    type: "card",
+    className: "w-full max-w-4xl mx-auto bg-gradient-to-r from-primary to-primary/80",
+    children: [
+      {
+        type: "div",
+        className: "p-12 text-center space-y-6",
+        children: [
+          {
+            type: "text",
+            content: "Ready to get started?",
+            className: "text-3xl font-bold text-white"
+          },
+          {
+            type: "text",
+            content: "Join thousands of users who trust us to power their applications",
+            className: "text-lg text-white/90 max-w-2xl mx-auto"
+          },
+          {
+            type: "div",
+            className: "flex items-center justify-center gap-4",
+            children: [
+              {
+                type: "button",
+                label: "Start Free Trial",
+                variant: "secondary",
+                size: "lg"
+              },
+              {
+                type: "button",
+                label: "Schedule Demo",
+                variant: "outline",
+                size: "lg",
+                className: "border-white text-white hover:bg-white/10"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "flex items-center justify-center gap-8 text-white/80 text-sm",
+            children: [
+              {
+                type: "div",
+                className: "flex items-center gap-2",
+                children: [
+                  {
+                    type: "icon",
+                    icon: "check-circle",
+                    className: "h-4 w-4"
+                  },
+                  {
+                    type: "text",
+                    content: "No credit card required"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "flex items-center gap-2",
+                children: [
+                  {
+                    type: "icon",
+                    icon: "check-circle",
+                    className: "h-4 w-4"
+                  },
+                  {
+                    type: "text",
+                    content: "Cancel anytime"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "flex items-center gap-2",
+                children: [
+                  {
+                    type: "icon",
+                    icon: "check-circle",
+                    className: "h-4 w-4"
+                  },
+                  {
+                    type: "text",
+                    content: "24/7 support"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Testimonials
+
+Customer testimonials and social proof.
+
+<InteractiveDemo
+  title="Testimonials"
+  description="Social proof from happy customers"
+  schema={{
+    type: "div",
+    className: "w-full max-w-6xl mx-auto",
+    children: [
+      {
+        type: "div",
+        className: "text-center mb-12",
+        children: [
+          {
+            type: "text",
+            content: "Loved by thousands",
+            className: "text-3xl font-bold mb-2"
+          },
+          {
+            type: "text",
+            content: "See what our customers have to say",
+            className: "text-muted-foreground"
+          }
+        ]
+      },
+      {
+        type: "div",
+        className: "grid md:grid-cols-3 gap-6",
+        children: [
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-4",
+                children: [
+                  {
+                    type: "div",
+                    className: "flex items-center gap-1",
+                    children: [
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      },
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      },
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      },
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      },
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "\"This product has completely transformed how we build our applications. The time savings alone make it worth every penny.\"",
+                    className: "text-sm"
+                  },
+                  {
+                    type: "div",
+                    className: "flex items-center gap-3",
+                    children: [
+                      {
+                        type: "avatar",
+                        fallback: "JD",
+                        className: "h-10 w-10"
+                      },
+                      {
+                        type: "div",
+                        children: [
+                          {
+                            type: "text",
+                            content: "John Doe",
+                            className: "text-sm font-semibold"
+                          },
+                          {
+                            type: "text",
+                            content: "CEO, Tech Corp",
+                            className: "text-xs text-muted-foreground"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-4",
+                children: [
+                  {
+                    type: "div",
+                    className: "flex items-center gap-1",
+                    children: [
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      },
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      },
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      },
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      },
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "\"The flexibility and ease of use is unmatched. We migrated our entire platform and couldn't be happier with the results.\"",
+                    className: "text-sm"
+                  },
+                  {
+                    type: "div",
+                    className: "flex items-center gap-3",
+                    children: [
+                      {
+                        type: "avatar",
+                        fallback: "JS",
+                        className: "h-10 w-10"
+                      },
+                      {
+                        type: "div",
+                        children: [
+                          {
+                            type: "text",
+                            content: "Jane Smith",
+                            className: "text-sm font-semibold"
+                          },
+                          {
+                            type: "text",
+                            content: "CTO, StartupXYZ",
+                            className: "text-xs text-muted-foreground"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-6 space-y-4",
+                children: [
+                  {
+                    type: "div",
+                    className: "flex items-center gap-1",
+                    children: [
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      },
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      },
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      },
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      },
+                      {
+                        type: "icon",
+                        icon: "star",
+                        className: "h-4 w-4 fill-yellow-500 text-yellow-500"
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "\"Outstanding support and documentation. The team really cares about their users and it shows in every detail.\"",
+                    className: "text-sm"
+                  },
+                  {
+                    type: "div",
+                    className: "flex items-center gap-3",
+                    children: [
+                      {
+                        type: "avatar",
+                        fallback: "MJ",
+                        className: "h-10 w-10"
+                      },
+                      {
+                        type: "div",
+                        children: [
+                          {
+                            type: "text",
+                            content: "Mike Johnson",
+                            className: "text-sm font-semibold"
+                          },
+                          {
+                            type: "text",
+                            content: "Product Lead, BigCo",
+                            className: "text-xs text-muted-foreground"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Usage
+
+Customize marketing blocks for your campaigns:
+
+### Update Colors
+
+```json
+{
+  "type": "card",
+  "className": "bg-gradient-to-r from-blue-600 to-purple-600"
+}
+```
+
+### Add Analytics
+
+```json
+{
+  "type": "button",
+  "label": "Get Started",
+  "action": {
+    "type": "analytics",
+    "event": "cta_clicked"
+  }
+}
+```
+
+### Customize Content
+
+```json
+{
+  "type": "text",
+  "content": "Your custom headline here",
+  "className": "text-4xl font-bold"
+}
+```
+
+## Next Steps
+
+- Browse [E-commerce Blocks](/docs/blocks/ecommerce)
+- Explore [Authentication Blocks](/docs/blocks/authentication)
+- Learn about [Theming](/docs/guide/theming)

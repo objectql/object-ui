@@ -1,0 +1,532 @@
+---
+title: "Authentication Blocks"
+description: "Login forms, signup pages, and authentication flows"
+---
+
+import { InteractiveDemo } from '@/app/components/ComponentDemo';
+
+# Authentication Blocks
+
+Beautiful, accessible authentication forms and flows. Copy the JSON schema and integrate into your application.
+
+## Login Form
+
+A clean login form with email and password fields.
+
+<InteractiveDemo
+  title="Simple Login Form"
+  description="Basic login form with email and password"
+  schema={{
+    type: "card",
+    className: "w-full max-w-md mx-auto",
+    children: [
+      {
+        type: "div",
+        className: "p-6 space-y-6",
+        children: [
+          {
+            type: "div",
+            className: "space-y-2 text-center",
+            children: [
+              {
+                type: "text",
+                content: "Welcome Back",
+                className: "text-2xl font-bold tracking-tight"
+              },
+              {
+                type: "text",
+                content: "Enter your credentials to sign in",
+                className: "text-sm text-muted-foreground"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "space-y-4",
+            children: [
+              {
+                type: "div",
+                className: "space-y-2",
+                children: [
+                  {
+                    type: "label",
+                    htmlFor: "email",
+                    label: "Email"
+                  },
+                  {
+                    type: "input",
+                    id: "email",
+                    name: "email",
+                    inputType: "email",
+                    placeholder: "name@example.com",
+                    required: true
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "space-y-2",
+                children: [
+                  {
+                    type: "label",
+                    htmlFor: "password",
+                    label: "Password"
+                  },
+                  {
+                    type: "input",
+                    id: "password",
+                    name: "password",
+                    inputType: "password",
+                    placeholder: "Enter your password",
+                    required: true
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "flex items-center justify-between",
+                children: [
+                  {
+                    type: "div",
+                    className: "flex items-center space-x-2",
+                    children: [
+                      {
+                        type: "checkbox",
+                        id: "remember",
+                        name: "remember"
+                      },
+                      {
+                        type: "label",
+                        htmlFor: "remember",
+                        label: "Remember me",
+                        className: "text-sm font-normal"
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "Forgot password?",
+                    className: "text-sm text-primary hover:underline cursor-pointer"
+                  }
+                ]
+              },
+              {
+                type: "button",
+                label: "Sign In",
+                variant: "default",
+                className: "w-full"
+              },
+              {
+                type: "div",
+                className: "relative",
+                children: [
+                  {
+                    type: "separator",
+                    className: "my-4"
+                  },
+                  {
+                    type: "div",
+                    className: "absolute inset-0 flex items-center justify-center",
+                    children: [
+                      {
+                        type: "text",
+                        content: "OR",
+                        className: "bg-background px-2 text-xs text-muted-foreground"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                type: "button",
+                label: "Continue with Google",
+                variant: "outline",
+                className: "w-full"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "text-center text-sm",
+            children: [
+              {
+                type: "text",
+                content: "Don't have an account? ",
+                className: "text-muted-foreground"
+              },
+              {
+                type: "text",
+                content: "Sign up",
+                className: "text-primary hover:underline cursor-pointer font-medium"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Sign Up Form
+
+Complete registration form with validation.
+
+<InteractiveDemo
+  title="Sign Up Form"
+  description="Registration form with full name, email, and password"
+  schema={{
+    type: "card",
+    className: "w-full max-w-md mx-auto",
+    children: [
+      {
+        type: "div",
+        className: "p-6 space-y-6",
+        children: [
+          {
+            type: "div",
+            className: "space-y-2 text-center",
+            children: [
+              {
+                type: "text",
+                content: "Create an Account",
+                className: "text-2xl font-bold tracking-tight"
+              },
+              {
+                type: "text",
+                content: "Enter your information to get started",
+                className: "text-sm text-muted-foreground"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "space-y-4",
+            children: [
+              {
+                type: "div",
+                className: "grid grid-cols-2 gap-4",
+                children: [
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "label",
+                        htmlFor: "firstName",
+                        label: "First Name"
+                      },
+                      {
+                        type: "input",
+                        id: "firstName",
+                        name: "firstName",
+                        placeholder: "John",
+                        required: true
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "label",
+                        htmlFor: "lastName",
+                        label: "Last Name"
+                      },
+                      {
+                        type: "input",
+                        id: "lastName",
+                        name: "lastName",
+                        placeholder: "Doe",
+                        required: true
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "space-y-2",
+                children: [
+                  {
+                    type: "label",
+                    htmlFor: "email",
+                    label: "Email"
+                  },
+                  {
+                    type: "input",
+                    id: "email",
+                    name: "email",
+                    inputType: "email",
+                    placeholder: "name@example.com",
+                    required: true
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "space-y-2",
+                children: [
+                  {
+                    type: "label",
+                    htmlFor: "password",
+                    label: "Password"
+                  },
+                  {
+                    type: "input",
+                    id: "password",
+                    name: "password",
+                    inputType: "password",
+                    placeholder: "Create a strong password",
+                    required: true
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "flex items-start space-x-2",
+                children: [
+                  {
+                    type: "checkbox",
+                    id: "terms",
+                    name: "terms",
+                    required: true
+                  },
+                  {
+                    type: "label",
+                    htmlFor: "terms",
+                    className: "text-sm font-normal leading-none",
+                    label: "I agree to the Terms of Service and Privacy Policy"
+                  }
+                ]
+              },
+              {
+                type: "button",
+                label: "Create Account",
+                variant: "default",
+                className: "w-full"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "text-center text-sm",
+            children: [
+              {
+                type: "text",
+                content: "Already have an account? ",
+                className: "text-muted-foreground"
+              },
+              {
+                type: "text",
+                content: "Sign in",
+                className: "text-primary hover:underline cursor-pointer font-medium"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Forgot Password
+
+Password reset request form.
+
+<InteractiveDemo
+  title="Forgot Password"
+  description="Reset password flow"
+  schema={{
+    type: "card",
+    className: "w-full max-w-md mx-auto",
+    children: [
+      {
+        type: "div",
+        className: "p-6 space-y-6",
+        children: [
+          {
+            type: "div",
+            className: "space-y-2 text-center",
+            children: [
+              {
+                type: "text",
+                content: "Reset Password",
+                className: "text-2xl font-bold tracking-tight"
+              },
+              {
+                type: "text",
+                content: "Enter your email address and we'll send you a reset link",
+                className: "text-sm text-muted-foreground"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "space-y-4",
+            children: [
+              {
+                type: "div",
+                className: "space-y-2",
+                children: [
+                  {
+                    type: "label",
+                    htmlFor: "email",
+                    label: "Email"
+                  },
+                  {
+                    type: "input",
+                    id: "email",
+                    name: "email",
+                    inputType: "email",
+                    placeholder: "name@example.com",
+                    required: true
+                  }
+                ]
+              },
+              {
+                type: "button",
+                label: "Send Reset Link",
+                variant: "default",
+                className: "w-full"
+              },
+              {
+                type: "button",
+                label: "Back to Login",
+                variant: "ghost",
+                className: "w-full"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Two-Factor Authentication
+
+2FA verification code input.
+
+<InteractiveDemo
+  title="Two-Factor Authentication"
+  description="Enter verification code"
+  schema={{
+    type: "card",
+    className: "w-full max-w-md mx-auto",
+    children: [
+      {
+        type: "div",
+        className: "p-6 space-y-6",
+        children: [
+          {
+            type: "div",
+            className: "space-y-2 text-center",
+            children: [
+              {
+                type: "text",
+                content: "Two-Factor Authentication",
+                className: "text-2xl font-bold tracking-tight"
+              },
+              {
+                type: "text",
+                content: "Enter the verification code from your authenticator app",
+                className: "text-sm text-muted-foreground"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "space-y-4",
+            children: [
+              {
+                type: "div",
+                className: "space-y-2",
+                children: [
+                  {
+                    type: "label",
+                    htmlFor: "code",
+                    label: "Verification Code"
+                  },
+                  {
+                    type: "input",
+                    id: "code",
+                    name: "code",
+                    placeholder: "000000",
+                    className: "text-center text-2xl tracking-widest",
+                    maxLength: 6,
+                    required: true
+                  }
+                ]
+              },
+              {
+                type: "button",
+                label: "Verify",
+                variant: "default",
+                className: "w-full"
+              },
+              {
+                type: "div",
+                className: "text-center",
+                children: [
+                  {
+                    type: "text",
+                    content: "Didn't receive a code? ",
+                    className: "text-sm text-muted-foreground"
+                  },
+                  {
+                    type: "text",
+                    content: "Resend",
+                    className: "text-sm text-primary hover:underline cursor-pointer"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Usage
+
+All authentication blocks can be customized by modifying the schema. Common customizations include:
+
+### Change Colors
+
+```json
+{
+  "type": "button",
+  "className": "bg-blue-600 hover:bg-blue-700"
+}
+```
+
+### Add Data Sources
+
+```json
+{
+  "type": "button",
+  "label": "Sign In",
+  "action": {
+    "type": "submit",
+    "endpoint": "/api/auth/login",
+    "method": "POST"
+  }
+}
+```
+
+### Customize Layout
+
+```json
+{
+  "type": "card",
+  "className": "max-w-lg p-8"
+}
+```
+
+## Next Steps
+
+- Browse [Dashboard Blocks](/docs/blocks/dashboard)
+- Explore [Form Blocks](/docs/blocks/forms)
+- Learn about [Actions](/docs/guide/actions)
