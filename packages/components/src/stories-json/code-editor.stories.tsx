@@ -3,7 +3,7 @@ import { SchemaRenderer } from '../SchemaRenderer';
 import type { BaseSchema } from '@object-ui/types';
 
 const meta = {
-  title: 'Schema/Plugins/Code Editor',
+  title: 'Views/Code Editor',
   component: SchemaRenderer,
   parameters: {
     layout: 'padded',

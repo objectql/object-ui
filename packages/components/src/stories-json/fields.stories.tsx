@@ -34,7 +34,7 @@ import { FieldMetadata } from '@object-ui/types';
  * Note: These widgets implement the `FieldWidgetProps` interface.
  */
 const meta = {
-  title: 'Schema/Fields',
+  title: 'Fields/Gallery',
   parameters: {
     layout: 'centered',
   },

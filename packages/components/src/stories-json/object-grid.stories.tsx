@@ -3,7 +3,7 @@ import { SchemaRenderer } from '../SchemaRenderer';
 import type { BaseSchema } from '@object-ui/types';
 
 const meta = {
-  title: 'Schema/Plugins/Object Grid',
+  title: 'Views/Object Grid',
   component: SchemaRenderer,
   parameters: {
     layout: 'padded',

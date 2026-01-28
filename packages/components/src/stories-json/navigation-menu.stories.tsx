@@ -3,7 +3,7 @@ import { SchemaRenderer } from '../SchemaRenderer';
 import type { BaseSchema } from '@object-ui/types';
 
 const meta = {
-  title: 'Schema/Navigation/Navigation Menu',
+  title: 'Primitives/Navigation/Navigation Menu',
   component: SchemaRenderer,
   parameters: { layout: 'centered' },
   tags: ['autodocs'],

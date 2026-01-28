@@ -3,7 +3,7 @@ import { SchemaRenderer } from '../SchemaRenderer';
 import type { BaseSchema } from '@object-ui/types';
 
 const meta = {
-  title: 'Schema/Plugins/AG Grid',
+  title: 'Views/Data Grid (AgGrid)',
   component: SchemaRenderer,
   parameters: {
     layout: 'padded',

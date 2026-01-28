@@ -3,7 +3,7 @@ import { SchemaRenderer } from '../SchemaRenderer';
 import type { BaseSchema } from '@object-ui/types';
 
 const meta = {
-  title: 'Schema/Overlay',
+  title: 'Primitives/Overlay/Others',
   component: SchemaRenderer,
   parameters: { layout: 'centered' },
   tags: ['autodocs'],

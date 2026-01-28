@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { SchemaRenderer } from '../SchemaRenderer';
 
 const meta: Meta = {
-  title: 'Schema/Navigation/Sidebar',
+  title: 'Primitives/Navigation/Sidebar',
   component: SchemaRenderer,
   tags: ['autodocs'],
   argTypes: {
