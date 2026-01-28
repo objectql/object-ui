@@ -32,12 +32,12 @@ Product display with image, title, price, and actions.
         ]
       },
       {
-        type: "stack",
-        spacing: 3,,
+        type: "div",
+        className: "p-6 space-y-3",
         children: [
           {
-            type: "stack",
-        spacing: 1,,
+            type: "div",
+            className: "space-y-1",
             children: [
               {
                 type: "text",
@@ -52,8 +52,8 @@ Product display with image, title, price, and actions.
             ]
           },
           {
-            type: "flex",
-        className: "items-center gap-1",
+            type: "div",
+            className: "flex items-center gap-1",
             children: [
               {
                 type: "icon",
@@ -88,8 +88,8 @@ Product display with image, title, price, and actions.
             ]
           },
           {
-            type: "flex",
-        className: "items-baseline gap-2",
+            type: "div",
+            className: "flex items-baseline gap-2",
             children: [
               {
                 type: "text",
@@ -110,8 +110,8 @@ Product display with image, title, price, and actions.
             ]
           },
           {
-            type: "flex",
-        className: "gap-2",
+            type: "div",
+            className: "flex gap-2",
             children: [
               {
                 type: "button",
@@ -152,8 +152,8 @@ Multiple products in a responsive grid.
     className: "w-full max-w-6xl mx-auto",
     children: [
       {
-        type: "flex",
-        className: "items-center justify-between mb-6",
+        type: "div",
+        className: "flex items-center justify-between mb-6",
         children: [
           {
             type: "text",
@@ -187,8 +187,8 @@ Multiple products in a responsive grid.
                 ]
               },
               {
-                type: "stack",
-        spacing: 2,,
+                type: "div",
+                className: "p-4 space-y-2",
                 children: [
                   {
                     type: "text",
@@ -227,8 +227,8 @@ Multiple products in a responsive grid.
                 ]
               },
               {
-                type: "stack",
-        spacing: 2,,
+                type: "div",
+                className: "p-4 space-y-2",
                 children: [
                   {
                     type: "text",
@@ -267,8 +267,8 @@ Multiple products in a responsive grid.
                 ]
               },
               {
-                type: "stack",
-        spacing: 2,,
+                type: "div",
+                className: "p-4 space-y-2",
                 children: [
                   {
                     type: "text",
@@ -307,8 +307,8 @@ Multiple products in a responsive grid.
                 ]
               },
               {
-                type: "stack",
-        spacing: 2,,
+                type: "div",
+                className: "p-4 space-y-2",
                 children: [
                   {
                     type: "text",
@@ -349,12 +349,12 @@ Cart summary with items and checkout.
     className: "w-full max-w-2xl mx-auto",
     children: [
       {
-        type: "stack",
-        spacing: 6,,
+        type: "div",
+        className: "p-6 space-y-6",
         children: [
           {
-            type: "flex",
-        className: "items-center justify-between",
+            type: "div",
+            className: "flex items-center justify-between",
             children: [
               {
                 type: "text",
@@ -372,12 +372,12 @@ Cart summary with items and checkout.
             type: "separator"
           },
           {
-            type: "stack",
-        spacing: 4,,
+            type: "div",
+            className: "space-y-4",
             children: [
               {
-                type: "flex",
-        className: "gap-4",
+                type: "div",
+                className: "flex gap-4",
                 children: [
                   {
                     type: "div",
@@ -391,8 +391,8 @@ Cart summary with items and checkout.
                     ]
                   },
                   {
-                    type: "stack",
-        spacing: 1,,
+                    type: "div",
+                    className: "flex-1 space-y-1",
                     children: [
                       {
                         type: "text",
@@ -405,8 +405,8 @@ Cart summary with items and checkout.
                         className: "text-sm text-muted-foreground"
                       },
                       {
-                        type: "flex",
-        className: "items-center gap-2 mt-2",
+                        type: "div",
+                        className: "flex items-center gap-2 mt-2",
                         children: [
                           {
                             type: "button",
@@ -432,8 +432,8 @@ Cart summary with items and checkout.
                     ]
                   },
                   {
-                    type: "stack",
-        spacing: 2,,
+                    type: "div",
+                    className: "text-right space-y-2",
                     children: [
                       {
                         type: "text",
@@ -455,8 +455,8 @@ Cart summary with items and checkout.
                 type: "separator"
               },
               {
-                type: "flex",
-        className: "gap-4",
+                type: "div",
+                className: "flex gap-4",
                 children: [
                   {
                     type: "div",
@@ -470,8 +470,8 @@ Cart summary with items and checkout.
                     ]
                   },
                   {
-                    type: "stack",
-        spacing: 1,,
+                    type: "div",
+                    className: "flex-1 space-y-1",
                     children: [
                       {
                         type: "text",
@@ -484,8 +484,8 @@ Cart summary with items and checkout.
                         className: "text-sm text-muted-foreground"
                       },
                       {
-                        type: "flex",
-        className: "items-center gap-2 mt-2",
+                        type: "div",
+                        className: "flex items-center gap-2 mt-2",
                         children: [
                           {
                             type: "button",
@@ -511,8 +511,8 @@ Cart summary with items and checkout.
                     ]
                   },
                   {
-                    type: "stack",
-        spacing: 2,,
+                    type: "div",
+                    className: "text-right space-y-2",
                     children: [
                       {
                         type: "text",
@@ -536,12 +536,12 @@ Cart summary with items and checkout.
             type: "separator"
           },
           {
-            type: "stack",
-        spacing: 2,,
+            type: "div",
+            className: "space-y-2",
             children: [
               {
-                type: "flex",
-        className: "justify-between text-sm",
+                type: "div",
+                className: "flex justify-between text-sm",
                 children: [
                   {
                     type: "text",
@@ -554,8 +554,8 @@ Cart summary with items and checkout.
                 ]
               },
               {
-                type: "flex",
-        className: "justify-between text-sm",
+                type: "div",
+                className: "flex justify-between text-sm",
                 children: [
                   {
                     type: "text",
@@ -568,8 +568,8 @@ Cart summary with items and checkout.
                 ]
               },
               {
-                type: "flex",
-        className: "justify-between text-sm",
+                type: "div",
+                className: "flex justify-between text-sm",
                 children: [
                   {
                     type: "text",
@@ -585,8 +585,8 @@ Cart summary with items and checkout.
                 type: "separator"
               },
               {
-                type: "flex",
-        className: "justify-between text-lg font-bold",
+                type: "div",
+                className: "flex justify-between text-lg font-bold",
                 children: [
                   {
                     type: "text",
@@ -621,8 +621,8 @@ Checkout order review.
   title="Order Summary"
   description="Final order review before payment"
   schema={{
-    type: "stack",
-        spacing: 6,,
+    type: "div",
+    className: "w-full max-w-2xl mx-auto space-y-6",
     children: [
       {
         type: "text",
@@ -637,8 +637,8 @@ Checkout order review.
             type: "card",
             children: [
               {
-                type: "stack",
-        spacing: 4,,
+                type: "div",
+                className: "p-6 space-y-4",
                 children: [
                   {
                     type: "text",
@@ -646,8 +646,8 @@ Checkout order review.
                     className: "font-semibold"
                   },
                   {
-                    type: "stack",
-        spacing: 1,,
+                    type: "div",
+                    className: "text-sm space-y-1",
                     children: [
                       {
                         type: "text",
@@ -686,8 +686,8 @@ Checkout order review.
             type: "card",
             children: [
               {
-                type: "stack",
-        spacing: 4,,
+                type: "div",
+                className: "p-6 space-y-4",
                 children: [
                   {
                     type: "text",
@@ -695,8 +695,8 @@ Checkout order review.
                     className: "font-semibold"
                   },
                   {
-                    type: "flex",
-        className: "items-center gap-3",
+                    type: "div",
+                    className: "flex items-center gap-3",
                     children: [
                       {
                         type: "div",
@@ -743,8 +743,8 @@ Checkout order review.
         type: "card",
         children: [
           {
-            type: "stack",
-        spacing: 4,,
+            type: "div",
+            className: "p-6 space-y-4",
             children: [
               {
                 type: "text",
@@ -752,12 +752,12 @@ Checkout order review.
                 className: "font-semibold"
               },
               {
-                type: "stack",
-        spacing: 3,,
+                type: "div",
+                className: "space-y-3",
                 children: [
                   {
-                    type: "flex",
-        className: "justify-between text-sm",
+                    type: "div",
+                    className: "flex justify-between text-sm",
                     children: [
                       {
                         type: "text",
@@ -771,8 +771,8 @@ Checkout order review.
                     ]
                   },
                   {
-                    type: "flex",
-        className: "justify-between text-sm",
+                    type: "div",
+                    className: "flex justify-between text-sm",
                     children: [
                       {
                         type: "text",
@@ -791,12 +791,12 @@ Checkout order review.
                 type: "separator"
               },
               {
-                type: "stack",
-        spacing: 2,,
+                type: "div",
+                className: "space-y-2",
                 children: [
                   {
-                    type: "flex",
-        className: "justify-between text-sm",
+                    type: "div",
+                    className: "flex justify-between text-sm",
                     children: [
                       {
                         type: "text",
@@ -809,8 +809,8 @@ Checkout order review.
                     ]
                   },
                   {
-                    type: "flex",
-        className: "justify-between text-sm",
+                    type: "div",
+                    className: "flex justify-between text-sm",
                     children: [
                       {
                         type: "text",
@@ -823,8 +823,8 @@ Checkout order review.
                     ]
                   },
                   {
-                    type: "flex",
-        className: "justify-between text-sm",
+                    type: "div",
+                    className: "flex justify-between text-sm",
                     children: [
                       {
                         type: "text",
@@ -840,8 +840,8 @@ Checkout order review.
                     type: "separator"
                   },
                   {
-                    type: "flex",
-        className: "justify-between font-bold text-lg",
+                    type: "div",
+                    className: "flex justify-between font-bold text-lg",
                     children: [
                       {
                         type: "text",
@@ -860,8 +860,8 @@ Checkout order review.
         ]
       },
       {
-        type: "flex",
-        className: "gap-3",
+        type: "div",
+        className: "flex gap-3",
         children: [
           {
             type: "button",

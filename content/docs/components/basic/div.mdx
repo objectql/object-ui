@@ -1,73 +1,80 @@
 ---
-title: "Div"
-description: "Generic container element for grouping and laying out content"
+title: "Div (Deprecated)"
+description: "Generic container element - use Shadcn components instead"
 ---
 
 import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
 
-The Div component is a versatile container element that wraps content and provides structure. It's the basic building block for creating layouts and organizing components.
+<div className="rounded-lg border border-yellow-500/50 bg-yellow-50 p-4 dark:bg-yellow-950/50">
+  <p className="font-semibold text-yellow-800 dark:text-yellow-200">⚠️ Deprecated Component</p>
+  <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+    The Div component is deprecated. Please use Shadcn components instead:
+  </p>
+  <ul className="mt-2 list-inside list-disc text-sm text-yellow-700 dark:text-yellow-300">
+    <li>For containers: use <code>card</code>, <code>flex</code>, or semantic layout components</li>
+    <li>For simple wrappers: use layout components like <code>container</code>, <code>stack</code>, or <code>grid</code></li>
+  </ul>
+</div>
 
-## Basic Usage
+The Div component is a generic container element. **It is now deprecated in favor of semantic Shadcn-based components** that provide better accessibility, consistency, and design system integration.
+
+## Migration Guide
+
+Instead of using `div`, use these Shadcn alternatives:
+
+### For Card-like Containers → Use `card`
 
 <ComponentDemo
   schema={{
-    type: 'div',
-    className: 'p-4 border rounded',
+    type: 'card',
     children: [
-      { type: 'text', content: 'This is content inside a div' }
+      { type: 'text', content: 'Card Title', className: 'text-2xl font-semibold' },
+      { type: 'text', content: 'Card content with proper semantic structure.', className: 'text-sm text-muted-foreground mt-2' }
     ]
   }}
-  title="Simple Div"
+  title="Use Card Instead"
 />
 
-## With Multiple Children
+### For Flex Layouts → Use `flex`
 
 <ComponentDemo
   schema={{
-    type: 'div',
-    className: 'p-6 border rounded-lg bg-slate-50 space-y-3',
+    type: 'flex',
+    gap: 4,
     children: [
-      { type: 'text', content: 'First child', className: 'font-semibold' },
-      { type: 'text', content: 'Second child', className: 'text-muted-foreground' },
-      { type: 'text', content: 'Third child', className: 'text-sm' }
+      { type: 'card', className: 'w-20 h-20 bg-blue-500' },
+      { type: 'card', className: 'w-20 h-20 bg-green-500' },
+      { type: 'card', className: 'w-20 h-20 bg-purple-500' }
     ]
   }}
-  title="Multiple Children"
+  title="Flex Layout"
 />
 
-## Layout Examples
+### For Grid Layouts → Use `grid`
 
-<DemoGrid>
-  <ComponentDemo
-    schema={{
-      type: 'div',
-      className: 'flex gap-4 p-4 border rounded',
-      children: [
-        { type: 'div', className: 'w-20 h-20 bg-blue-500 rounded' },
-        { type: 'div', className: 'w-20 h-20 bg-green-500 rounded' },
-        { type: 'div', className: 'w-20 h-20 bg-purple-500 rounded' }
-      ]
-    }}
-    title="Flex Container"
-  />
-  <ComponentDemo
-    schema={{
-      type: 'div',
-      className: 'grid grid-cols-2 gap-4 p-4 border rounded',
-      children: [
-        { type: 'div', className: 'h-20 bg-red-500 rounded' },
-        { type: 'div', className: 'h-20 bg-yellow-500 rounded' },
-        { type: 'div', className: 'h-20 bg-pink-500 rounded' },
-        { type: 'div', className: 'h-20 bg-indigo-500 rounded' }
-      ]
-    }}
-    title="Grid Container"
-  />
-</DemoGrid>
+<ComponentDemo
+  schema={{
+    type: 'grid',
+    cols: 2,
+    gap: 4,
+    children: [
+      { type: 'card', className: 'h-20 bg-red-500' },
+      { type: 'card', className: 'h-20 bg-yellow-500' },
+      { type: 'card', className: 'h-20 bg-pink-500' },
+      { type: 'card', className: 'h-20 bg-indigo-500' }
+    ]
+  }}
+  title="Grid Layout"
+/>
+
+## Old Examples (Deprecated)
+
+Below are the old `div` examples. Please migrate to the alternatives shown above.
 
 ## Schema
 
 ```typescript
+// ⚠️ DEPRECATED - Use Card, Flex, Grid, or other layout components instead
 interface DivSchema {
   type: 'div';
   
@@ -85,9 +92,9 @@ interface DivSchema {
 }
 ```
 
-## Examples
+## Legacy Examples (For Reference Only)
 
-### Card Layout
+### Old Card Layout Example
 
 <ComponentDemo
   schema={{

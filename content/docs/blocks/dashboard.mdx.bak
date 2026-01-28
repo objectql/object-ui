@@ -24,12 +24,12 @@ Display key metrics with trend indicators.
         type: "card",
         children: [
           {
-            type: "stack",
-        spacing: 2,,
+            type: "div",
+            className: "p-6 space-y-2",
             children: [
               {
-                type: "flex",
-        className: "items-center justify-between",
+                type: "div",
+                className: "flex items-center justify-between",
                 children: [
                   {
                     type: "text",
@@ -44,8 +44,8 @@ Display key metrics with trend indicators.
                 ]
               },
               {
-                type: "stack",
-        spacing: 1,,
+                type: "div",
+                className: "space-y-1",
                 children: [
                   {
                     type: "text",
@@ -53,8 +53,8 @@ Display key metrics with trend indicators.
                     className: "text-2xl font-bold"
                   },
                   {
-                    type: "flex",
-        className: "items-center text-xs",
+                    type: "div",
+                    className: "flex items-center text-xs",
                     children: [
                       {
                         type: "icon",
@@ -78,12 +78,12 @@ Display key metrics with trend indicators.
         type: "card",
         children: [
           {
-            type: "stack",
-        spacing: 2,,
+            type: "div",
+            className: "p-6 space-y-2",
             children: [
               {
-                type: "flex",
-        className: "items-center justify-between",
+                type: "div",
+                className: "flex items-center justify-between",
                 children: [
                   {
                     type: "text",
@@ -98,8 +98,8 @@ Display key metrics with trend indicators.
                 ]
               },
               {
-                type: "stack",
-        spacing: 1,,
+                type: "div",
+                className: "space-y-1",
                 children: [
                   {
                     type: "text",
@@ -107,8 +107,8 @@ Display key metrics with trend indicators.
                     className: "text-2xl font-bold"
                   },
                   {
-                    type: "flex",
-        className: "items-center text-xs",
+                    type: "div",
+                    className: "flex items-center text-xs",
                     children: [
                       {
                         type: "icon",
@@ -132,12 +132,12 @@ Display key metrics with trend indicators.
         type: "card",
         children: [
           {
-            type: "stack",
-        spacing: 2,,
+            type: "div",
+            className: "p-6 space-y-2",
             children: [
               {
-                type: "flex",
-        className: "items-center justify-between",
+                type: "div",
+                className: "flex items-center justify-between",
                 children: [
                   {
                     type: "text",
@@ -152,8 +152,8 @@ Display key metrics with trend indicators.
                 ]
               },
               {
-                type: "stack",
-        spacing: 1,,
+                type: "div",
+                className: "space-y-1",
                 children: [
                   {
                     type: "text",
@@ -161,8 +161,8 @@ Display key metrics with trend indicators.
                     className: "text-2xl font-bold"
                   },
                   {
-                    type: "flex",
-        className: "items-center text-xs",
+                    type: "div",
+                    className: "flex items-center text-xs",
                     children: [
                       {
                         type: "icon",
@@ -186,12 +186,12 @@ Display key metrics with trend indicators.
         type: "card",
         children: [
           {
-            type: "stack",
-        spacing: 2,,
+            type: "div",
+            className: "p-6 space-y-2",
             children: [
               {
-                type: "flex",
-        className: "items-center justify-between",
+                type: "div",
+                className: "flex items-center justify-between",
                 children: [
                   {
                     type: "text",
@@ -206,8 +206,8 @@ Display key metrics with trend indicators.
                 ]
               },
               {
-                type: "stack",
-        spacing: 1,,
+                type: "div",
+                className: "space-y-1",
                 children: [
                   {
                     type: "text",
@@ -215,8 +215,8 @@ Display key metrics with trend indicators.
                     className: "text-2xl font-bold"
                   },
                   {
-                    type: "flex",
-        className: "items-center text-xs",
+                    type: "div",
+                    className: "flex items-center text-xs",
                     children: [
                       {
                         type: "icon",
@@ -252,12 +252,12 @@ Display recent user activities or transactions.
     className: "w-full max-w-2xl",
     children: [
       {
-        type: "container",
-        className: "p-6",,
+        type: "div",
+        className: "p-6",
         children: [
           {
-            type: "flex",
-        className: "items-center justify-between mb-4",
+            type: "div",
+            className: "flex items-center justify-between mb-4",
             children: [
               {
                 type: "text",
@@ -273,16 +273,16 @@ Display recent user activities or transactions.
             ]
           },
           {
-            type: "stack",
-        spacing: 4,,
+            type: "div",
+            className: "space-y-4",
             children: [
               {
-                type: "flex",
-        className: "items-center justify-between pb-4 border-b",
+                type: "div",
+                className: "flex items-center justify-between pb-4 border-b",
                 children: [
                   {
-                    type: "flex",
-        className: "items-center space-x-4",
+                    type: "div",
+                    className: "flex items-center space-x-4",
                     children: [
                       {
                         type: "avatar",
@@ -290,8 +290,8 @@ Display recent user activities or transactions.
                         className: "h-9 w-9"
                       },
                       {
-                        type: "stack",
-                        spacing: 2, [
+                        type: "div",
+                        children: [
                           {
                             type: "text",
                             content: "Olivia Martin",
@@ -314,12 +314,12 @@ Display recent user activities or transactions.
                 ]
               },
               {
-                type: "flex",
-        className: "items-center justify-between pb-4 border-b",
+                type: "div",
+                className: "flex items-center justify-between pb-4 border-b",
                 children: [
                   {
-                    type: "flex",
-        className: "items-center space-x-4",
+                    type: "div",
+                    className: "flex items-center space-x-4",
                     children: [
                       {
                         type: "avatar",
@@ -327,8 +327,8 @@ Display recent user activities or transactions.
                         className: "h-9 w-9"
                       },
                       {
-                        type: "stack",
-                        spacing: 2, [
+                        type: "div",
+                        children: [
                           {
                             type: "text",
                             content: "Jackson Lee",
@@ -351,12 +351,12 @@ Display recent user activities or transactions.
                 ]
               },
               {
-                type: "flex",
-        className: "items-center justify-between pb-4 border-b",
+                type: "div",
+                className: "flex items-center justify-between pb-4 border-b",
                 children: [
                   {
-                    type: "flex",
-        className: "items-center space-x-4",
+                    type: "div",
+                    className: "flex items-center space-x-4",
                     children: [
                       {
                         type: "avatar",
@@ -364,8 +364,8 @@ Display recent user activities or transactions.
                         className: "h-9 w-9"
                       },
                       {
-                        type: "stack",
-                        spacing: 2, [
+                        type: "div",
+                        children: [
                           {
                             type: "text",
                             content: "Isabella Nguyen",
@@ -388,12 +388,12 @@ Display recent user activities or transactions.
                 ]
               },
               {
-                type: "flex",
-        className: "items-center justify-between pb-4 border-b",
+                type: "div",
+                className: "flex items-center justify-between pb-4 border-b",
                 children: [
                   {
-                    type: "flex",
-        className: "items-center space-x-4",
+                    type: "div",
+                    className: "flex items-center space-x-4",
                     children: [
                       {
                         type: "avatar",
@@ -401,8 +401,8 @@ Display recent user activities or transactions.
                         className: "h-9 w-9"
                       },
                       {
-                        type: "stack",
-                        spacing: 2, [
+                        type: "div",
+                        children: [
                           {
                             type: "text",
                             content: "William Kim",
@@ -425,12 +425,12 @@ Display recent user activities or transactions.
                 ]
               },
               {
-                type: "flex",
-        className: "items-center justify-between",
+                type: "div",
+                className: "flex items-center justify-between",
                 children: [
                   {
-                    type: "flex",
-        className: "items-center space-x-4",
+                    type: "div",
+                    className: "flex items-center space-x-4",
                     children: [
                       {
                         type: "avatar",
@@ -438,8 +438,8 @@ Display recent user activities or transactions.
                         className: "h-9 w-9"
                       },
                       {
-                        type: "stack",
-                        spacing: 2, [
+                        type: "div",
+                        children: [
                           {
                             type: "text",
                             content: "Sofia Davis",
@@ -477,12 +477,12 @@ Complete dashboard layout with multiple sections.
   title="Dashboard Overview"
   description="Complete dashboard with stats and activity"
   schema={{
-    type: "stack",
-        spacing: 6,,
+    type: "div",
+    className: "space-y-6",
     children: [
       {
-        type: "flex",
-        className: "items-center justify-between",
+        type: "div",
+        className: "flex items-center justify-between",
         children: [
           {
             type: "text",
@@ -505,8 +505,8 @@ Complete dashboard layout with multiple sections.
             type: "card",
             children: [
               {
-                type: "container",
-                className: "p-4",,
+                type: "div",
+                className: "p-4",
                 children: [
                   {
                     type: "text",
@@ -526,8 +526,8 @@ Complete dashboard layout with multiple sections.
             type: "card",
             children: [
               {
-                type: "container",
-                className: "p-4",,
+                type: "div",
+                className: "p-4",
                 children: [
                   {
                     type: "text",
@@ -547,8 +547,8 @@ Complete dashboard layout with multiple sections.
             type: "card",
             children: [
               {
-                type: "container",
-                className: "p-4",,
+                type: "div",
+                className: "p-4",
                 children: [
                   {
                     type: "text",
@@ -568,8 +568,8 @@ Complete dashboard layout with multiple sections.
             type: "card",
             children: [
               {
-                type: "container",
-                className: "p-4",,
+                type: "div",
+                className: "p-4",
                 children: [
                   {
                     type: "text",
@@ -596,8 +596,8 @@ Complete dashboard layout with multiple sections.
             className: "lg:col-span-4",
             children: [
               {
-                type: "container",
-                className: "p-6",,
+                type: "div",
+                className: "p-6",
                 children: [
                   {
                     type: "text",
@@ -623,8 +623,8 @@ Complete dashboard layout with multiple sections.
             className: "lg:col-span-3",
             children: [
               {
-                type: "container",
-                className: "p-6",,
+                type: "div",
+                className: "p-6",
                 children: [
                   {
                     type: "text",
@@ -632,12 +632,12 @@ Complete dashboard layout with multiple sections.
                     className: "text-lg font-semibold mb-4"
                   },
                   {
-                    type: "stack",
-        spacing: 4,,
+                    type: "div",
+                    className: "space-y-4",
                     children: [
                       {
-                        type: "flex",
-        className: "items-center",
+                        type: "div",
+                        className: "flex items-center",
                         children: [
                           {
                             type: "avatar",
@@ -645,8 +645,8 @@ Complete dashboard layout with multiple sections.
                             className: "h-9 w-9"
                           },
                           {
-                            type: "stack",
-        spacing: 1,,
+                            type: "div",
+                            className: "ml-4 space-y-1",
                             children: [
                               {
                                 type: "text",

@@ -13,6 +13,16 @@ import { forwardRef } from 'react';
 
 const SpanRenderer = forwardRef<HTMLSpanElement, { schema: SpanSchema; className?: string; [key: string]: any }>(
   ({ schema, className, ...props }, ref) => {
+    // Deprecation warning
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(
+        '[ObjectUI] The "span" component is deprecated. Please use Shadcn components instead:\n' +
+        '  - For badges/labels: use "badge" component\n' +
+        '  - For inline text emphasis: use "text" component with appropriate className\n' +
+        'See documentation at https://www.objectui.org/docs/components for alternatives.'
+      );
+    }
+    
     // Extract designer-related props
     const { 
         'data-obj-id': dataObjId, 
@@ -38,7 +48,8 @@ const SpanRenderer = forwardRef<HTMLSpanElement, { schema: SpanSchema; className
 ComponentRegistry.register('span', 
   SpanRenderer,
   {
-    label: 'Inline Container',
+    label: 'Inline Container (Deprecated)',
+    deprecated: true,
     inputs: [
       { name: 'className', type: 'string', label: 'CSS Class' }
     ],

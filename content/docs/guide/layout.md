@@ -103,7 +103,7 @@ The `Page` component provides a consistent wrapper for individual pages with opt
   "title": "User Management",
   "description": "Manage users and permissions",
   "body": {
-    "type": "div",
+    "type": "container",
     "children": [
       { "type": "text", "value": "User list goes here" }
     ]
@@ -357,8 +357,8 @@ The `SidebarNav` provides a collapsible navigation sidebar with menu items.
     "title": "Welcome"
   },
   "body": {
-    "type": "div",
-    "className": "container mx-auto py-12",
+    "type": "container",
+    "className": "mx-auto py-12",
     "children": [
       { "type": "text", "value": "Landing page content" }
     ]
@@ -477,7 +477,7 @@ Control page content padding:
   "type": "page",
   "padding": false,  // Remove default padding
   "body": {
-    "type": "div",
+    "type": "container",
     "className": "p-8",  // Custom padding
     "children": [...]
   }

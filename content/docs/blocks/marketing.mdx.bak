@@ -45,12 +45,12 @@ Responsive pricing table with three tiers.
             className: "border-2",
             children: [
               {
-                type: "stack",
-        spacing: 4,,
+                type: "div",
+                className: "p-6 space-y-4",
                 children: [
                   {
-                    type: "stack",
-                    spacing: 2, [
+                    type: "div",
+                    children: [
                       {
                         type: "text",
                         content: "Starter",
@@ -64,8 +64,8 @@ Responsive pricing table with three tiers.
                     ]
                   },
                   {
-                    type: "flex",
-        className: "items-baseline",
+                    type: "div",
+                    className: "flex items-baseline",
                     children: [
                       {
                         type: "text",
@@ -89,12 +89,12 @@ Responsive pricing table with three tiers.
                     type: "separator"
                   },
                   {
-                    type: "stack",
-        spacing: 2,,
+                    type: "div",
+                    className: "space-y-2",
                     children: [
                       {
-                        type: "flex",
-        className: "items-center",
+                        type: "div",
+                        className: "flex items-center",
                         children: [
                           {
                             type: "icon",
@@ -109,8 +109,8 @@ Responsive pricing table with three tiers.
                         ]
                       },
                       {
-                        type: "flex",
-        className: "items-center",
+                        type: "div",
+                        className: "flex items-center",
                         children: [
                           {
                             type: "icon",
@@ -125,8 +125,8 @@ Responsive pricing table with three tiers.
                         ]
                       },
                       {
-                        type: "flex",
-        className: "items-center",
+                        type: "div",
+                        className: "flex items-center",
                         children: [
                           {
                             type: "icon",
@@ -151,15 +151,15 @@ Responsive pricing table with three tiers.
             className: "border-2 border-primary shadow-lg",
             children: [
               {
-                type: "stack",
-        spacing: 4,,
+                type: "div",
+                className: "p-6 space-y-4",
                 children: [
                   {
-                    type: "stack",
-                    spacing: 2, [
+                    type: "div",
+                    children: [
                       {
-                        type: "flex",
-        className: "items-center justify-between mb-1",
+                        type: "div",
+                        className: "flex items-center justify-between mb-1",
                         children: [
                           {
                             type: "text",
@@ -181,8 +181,8 @@ Responsive pricing table with three tiers.
                     ]
                   },
                   {
-                    type: "flex",
-        className: "items-baseline",
+                    type: "div",
+                    className: "flex items-baseline",
                     children: [
                       {
                         type: "text",
@@ -206,12 +206,12 @@ Responsive pricing table with three tiers.
                     type: "separator"
                   },
                   {
-                    type: "stack",
-        spacing: 2,,
+                    type: "div",
+                    className: "space-y-2",
                     children: [
                       {
-                        type: "flex",
-        className: "items-center",
+                        type: "div",
+                        className: "flex items-center",
                         children: [
                           {
                             type: "icon",
@@ -226,8 +226,8 @@ Responsive pricing table with three tiers.
                         ]
                       },
                       {
-                        type: "flex",
-        className: "items-center",
+                        type: "div",
+                        className: "flex items-center",
                         children: [
                           {
                             type: "icon",
@@ -242,8 +242,8 @@ Responsive pricing table with three tiers.
                         ]
                       },
                       {
-                        type: "flex",
-        className: "items-center",
+                        type: "div",
+                        className: "flex items-center",
                         children: [
                           {
                             type: "icon",
@@ -258,8 +258,8 @@ Responsive pricing table with three tiers.
                         ]
                       },
                       {
-                        type: "flex",
-        className: "items-center",
+                        type: "div",
+                        className: "flex items-center",
                         children: [
                           {
                             type: "icon",
@@ -284,12 +284,12 @@ Responsive pricing table with three tiers.
             className: "border-2",
             children: [
               {
-                type: "stack",
-        spacing: 4,,
+                type: "div",
+                className: "p-6 space-y-4",
                 children: [
                   {
-                    type: "stack",
-                    spacing: 2, [
+                    type: "div",
+                    children: [
                       {
                         type: "text",
                         content: "Enterprise",
@@ -303,8 +303,8 @@ Responsive pricing table with three tiers.
                     ]
                   },
                   {
-                    type: "flex",
-        className: "items-baseline",
+                    type: "div",
+                    className: "flex items-baseline",
                     children: [
                       {
                         type: "text",
@@ -328,12 +328,12 @@ Responsive pricing table with three tiers.
                     type: "separator"
                   },
                   {
-                    type: "stack",
-        spacing: 2,,
+                    type: "div",
+                    className: "space-y-2",
                     children: [
                       {
-                        type: "flex",
-        className: "items-center",
+                        type: "div",
+                        className: "flex items-center",
                         children: [
                           {
                             type: "icon",
@@ -348,8 +348,8 @@ Responsive pricing table with three tiers.
                         ]
                       },
                       {
-                        type: "flex",
-        className: "items-center",
+                        type: "div",
+                        className: "flex items-center",
                         children: [
                           {
                             type: "icon",
@@ -364,8 +364,8 @@ Responsive pricing table with three tiers.
                         ]
                       },
                       {
-                        type: "flex",
-        className: "items-center",
+                        type: "div",
+                        className: "flex items-center",
                         children: [
                           {
                             type: "icon",
@@ -380,8 +380,8 @@ Responsive pricing table with three tiers.
                         ]
                       },
                       {
-                        type: "flex",
-        className: "items-center",
+                        type: "div",
+                        className: "flex items-center",
                         children: [
                           {
                             type: "icon",
@@ -442,8 +442,8 @@ Showcase product features in a grid layout.
             type: "card",
             children: [
               {
-                type: "stack",
-        spacing: 3,,
+                type: "div",
+                className: "p-6 space-y-3",
                 children: [
                   {
                     type: "div",
@@ -474,8 +474,8 @@ Showcase product features in a grid layout.
             type: "card",
             children: [
               {
-                type: "stack",
-        spacing: 3,,
+                type: "div",
+                className: "p-6 space-y-3",
                 children: [
                   {
                     type: "div",
@@ -506,8 +506,8 @@ Showcase product features in a grid layout.
             type: "card",
             children: [
               {
-                type: "stack",
-        spacing: 3,,
+                type: "div",
+                className: "p-6 space-y-3",
                 children: [
                   {
                     type: "div",
@@ -538,8 +538,8 @@ Showcase product features in a grid layout.
             type: "card",
             children: [
               {
-                type: "stack",
-        spacing: 3,,
+                type: "div",
+                className: "p-6 space-y-3",
                 children: [
                   {
                     type: "div",
@@ -570,8 +570,8 @@ Showcase product features in a grid layout.
             type: "card",
             children: [
               {
-                type: "stack",
-        spacing: 3,,
+                type: "div",
+                className: "p-6 space-y-3",
                 children: [
                   {
                     type: "div",
@@ -602,8 +602,8 @@ Showcase product features in a grid layout.
             type: "card",
             children: [
               {
-                type: "stack",
-        spacing: 3,,
+                type: "div",
+                className: "p-6 space-y-3",
                 children: [
                   {
                     type: "div",
@@ -648,8 +648,8 @@ Call-to-action section for conversions.
     className: "w-full max-w-4xl mx-auto bg-gradient-to-r from-primary to-primary/80",
     children: [
       {
-        type: "stack",
-        spacing: 6,,
+        type: "div",
+        className: "p-12 text-center space-y-6",
         children: [
           {
             type: "text",
@@ -662,8 +662,8 @@ Call-to-action section for conversions.
             className: "text-lg text-white/90 max-w-2xl mx-auto"
           },
           {
-            type: "flex",
-        className: "items-center justify-center gap-4",
+            type: "div",
+            className: "flex items-center justify-center gap-4",
             children: [
               {
                 type: "button",
@@ -681,12 +681,12 @@ Call-to-action section for conversions.
             ]
           },
           {
-            type: "flex",
-        className: "items-center justify-center gap-8 text-white/80 text-sm",
+            type: "div",
+            className: "flex items-center justify-center gap-8 text-white/80 text-sm",
             children: [
               {
-                type: "flex",
-        className: "items-center gap-2",
+                type: "div",
+                className: "flex items-center gap-2",
                 children: [
                   {
                     type: "icon",
@@ -700,8 +700,8 @@ Call-to-action section for conversions.
                 ]
               },
               {
-                type: "flex",
-        className: "items-center gap-2",
+                type: "div",
+                className: "flex items-center gap-2",
                 children: [
                   {
                     type: "icon",
@@ -715,8 +715,8 @@ Call-to-action section for conversions.
                 ]
               },
               {
-                type: "flex",
-        className: "items-center gap-2",
+                type: "div",
+                className: "flex items-center gap-2",
                 children: [
                   {
                     type: "icon",
@@ -772,12 +772,12 @@ Customer testimonials and social proof.
             type: "card",
             children: [
               {
-                type: "stack",
-        spacing: 4,,
+                type: "div",
+                className: "p-6 space-y-4",
                 children: [
                   {
-                    type: "flex",
-        className: "items-center gap-1",
+                    type: "div",
+                    className: "flex items-center gap-1",
                     children: [
                       {
                         type: "icon",
@@ -812,8 +812,8 @@ Customer testimonials and social proof.
                     className: "text-sm"
                   },
                   {
-                    type: "flex",
-        className: "items-center gap-3",
+                    type: "div",
+                    className: "flex items-center gap-3",
                     children: [
                       {
                         type: "avatar",
@@ -821,8 +821,8 @@ Customer testimonials and social proof.
                         className: "h-10 w-10"
                       },
                       {
-                        type: "stack",
-                        spacing: 2, [
+                        type: "div",
+                        children: [
                           {
                             type: "text",
                             content: "John Doe",
@@ -845,12 +845,12 @@ Customer testimonials and social proof.
             type: "card",
             children: [
               {
-                type: "stack",
-        spacing: 4,,
+                type: "div",
+                className: "p-6 space-y-4",
                 children: [
                   {
-                    type: "flex",
-        className: "items-center gap-1",
+                    type: "div",
+                    className: "flex items-center gap-1",
                     children: [
                       {
                         type: "icon",
@@ -885,8 +885,8 @@ Customer testimonials and social proof.
                     className: "text-sm"
                   },
                   {
-                    type: "flex",
-        className: "items-center gap-3",
+                    type: "div",
+                    className: "flex items-center gap-3",
                     children: [
                       {
                         type: "avatar",
@@ -894,8 +894,8 @@ Customer testimonials and social proof.
                         className: "h-10 w-10"
                       },
                       {
-                        type: "stack",
-                        spacing: 2, [
+                        type: "div",
+                        children: [
                           {
                             type: "text",
                             content: "Jane Smith",
@@ -918,12 +918,12 @@ Customer testimonials and social proof.
             type: "card",
             children: [
               {
-                type: "stack",
-        spacing: 4,,
+                type: "div",
+                className: "p-6 space-y-4",
                 children: [
                   {
-                    type: "flex",
-        className: "items-center gap-1",
+                    type: "div",
+                    className: "flex items-center gap-1",
                     children: [
                       {
                         type: "icon",
@@ -958,8 +958,8 @@ Customer testimonials and social proof.
                     className: "text-sm"
                   },
                   {
-                    type: "flex",
-        className: "items-center gap-3",
+                    type: "div",
+                    className: "flex items-center gap-3",
                     children: [
                       {
                         type: "avatar",
@@ -967,8 +967,8 @@ Customer testimonials and social proof.
                         className: "h-10 w-10"
                       },
                       {
-                        type: "stack",
-                        spacing: 2, [
+                        type: "div",
+                        children: [
                           {
                             type: "text",
                             content: "Mike Johnson",

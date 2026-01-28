@@ -21,13 +21,12 @@ A clean login form with email and password fields.
     className: "w-full max-w-md mx-auto",
     children: [
       {
-        type: "stack",
-        spacing: 6,,
+        type: "div",
+        className: "p-6 space-y-6",
         children: [
           {
-            type: "stack",
-        spacing: 2,
-        className: "text-center",,
+            type: "div",
+            className: "space-y-2 text-center",
             children: [
               {
                 type: "text",
@@ -42,12 +41,12 @@ A clean login form with email and password fields.
             ]
           },
           {
-            type: "stack",
-        spacing: 4,,
+            type: "div",
+            className: "space-y-4",
             children: [
               {
-                type: "stack",
-        spacing: 2,,
+                type: "div",
+                className: "space-y-2",
                 children: [
                   {
                     type: "label",
@@ -65,8 +64,8 @@ A clean login form with email and password fields.
                 ]
               },
               {
-                type: "stack",
-        spacing: 2,,
+                type: "div",
+                className: "space-y-2",
                 children: [
                   {
                     type: "label",
@@ -84,12 +83,12 @@ A clean login form with email and password fields.
                 ]
               },
               {
-                type: "flex",
-        className: "items-center justify-between",
+                type: "div",
+                className: "flex items-center justify-between",
                 children: [
                   {
-                    type: "flex",
-        className: "items-center space-x-2",
+                    type: "div",
+                    className: "flex items-center space-x-2",
                     children: [
                       {
                         type: "checkbox",
@@ -180,13 +179,12 @@ Complete registration form with validation.
     className: "w-full max-w-md mx-auto",
     children: [
       {
-        type: "stack",
-        spacing: 6,,
+        type: "div",
+        className: "p-6 space-y-6",
         children: [
           {
-            type: "stack",
-        spacing: 2,
-        className: "text-center",,
+            type: "div",
+            className: "space-y-2 text-center",
             children: [
               {
                 type: "text",
@@ -201,17 +199,16 @@ Complete registration form with validation.
             ]
           },
           {
-            type: "stack",
-        spacing: 4,,
+            type: "div",
+            className: "space-y-4",
             children: [
               {
-                type: "grid",
-        cols: 2,
-        gap: 4,
+                type: "div",
+                className: "grid grid-cols-2 gap-4",
                 children: [
                   {
-                    type: "stack",
-        spacing: 2,,
+                    type: "div",
+                    className: "space-y-2",
                     children: [
                       {
                         type: "label",
@@ -228,8 +225,8 @@ Complete registration form with validation.
                     ]
                   },
                   {
-                    type: "stack",
-        spacing: 2,,
+                    type: "div",
+                    className: "space-y-2",
                     children: [
                       {
                         type: "label",
@@ -248,8 +245,8 @@ Complete registration form with validation.
                 ]
               },
               {
-                type: "stack",
-        spacing: 2,,
+                type: "div",
+                className: "space-y-2",
                 children: [
                   {
                     type: "label",
@@ -267,8 +264,8 @@ Complete registration form with validation.
                 ]
               },
               {
-                type: "stack",
-        spacing: 2,,
+                type: "div",
+                className: "space-y-2",
                 children: [
                   {
                     type: "label",
@@ -286,8 +283,8 @@ Complete registration form with validation.
                 ]
               },
               {
-                type: "flex",
-        className: "items-start space-x-2",
+                type: "div",
+                className: "flex items-start space-x-2",
                 children: [
                   {
                     type: "checkbox",
@@ -345,13 +342,12 @@ Password reset request form.
     className: "w-full max-w-md mx-auto",
     children: [
       {
-        type: "stack",
-        spacing: 6,,
+        type: "div",
+        className: "p-6 space-y-6",
         children: [
           {
-            type: "stack",
-        spacing: 2,
-        className: "text-center",,
+            type: "div",
+            className: "space-y-2 text-center",
             children: [
               {
                 type: "text",
@@ -366,12 +362,12 @@ Password reset request form.
             ]
           },
           {
-            type: "stack",
-        spacing: 4,,
+            type: "div",
+            className: "space-y-4",
             children: [
               {
-                type: "stack",
-        spacing: 2,,
+                type: "div",
+                className: "space-y-2",
                 children: [
                   {
                     type: "label",
@@ -420,13 +416,12 @@ Password reset request form.
     className: "w-full max-w-md mx-auto",
     children: [
       {
-        type: "stack",
-        spacing: 6,,
+        type: "div",
+        className: "p-6 space-y-6",
         children: [
           {
-            type: "stack",
-        spacing: 2,
-        className: "text-center",,
+            type: "div",
+            className: "space-y-2 text-center",
             children: [
               {
                 type: "text",
@@ -441,12 +436,12 @@ Password reset request form.
             ]
           },
           {
-            type: "stack",
-        spacing: 4,,
+            type: "div",
+            className: "space-y-4",
             children: [
               {
-                type: "stack",
-        spacing: 2,,
+                type: "div",
+                className: "space-y-2",
                 children: [
                   {
                     type: "label",

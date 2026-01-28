@@ -13,6 +13,16 @@ import { forwardRef } from 'react';
 
 const DivRenderer = forwardRef<HTMLDivElement, { schema: DivSchema; className?: string; [key: string]: any }>(
   ({ schema, className, ...props }, ref) => {
+    // Deprecation warning
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(
+        '[ObjectUI] The "div" component is deprecated. Please use Shadcn components instead:\n' +
+        '  - For containers: use "card", "flex", or semantic layout components\n' +
+        '  - For simple wrappers: use layout components like "container", "stack", or "grid"\n' +
+        'See documentation at https://www.objectui.org/docs/components for alternatives.'
+      );
+    }
+    
     // Extract designer-related props
     const { 
         'data-obj-id': dataObjId, 
@@ -38,7 +48,8 @@ const DivRenderer = forwardRef<HTMLDivElement, { schema: DivSchema; className?: 
 ComponentRegistry.register('div', 
   DivRenderer,
   {
-    label: 'Container',
+    label: 'Container (Deprecated)',
+    deprecated: true,
     inputs: [
       { name: 'className', type: 'string', label: 'CSS Class' }
     ],
