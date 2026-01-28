@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 /* Scan sources for Tailwind classes */
-@source '../src/**/*.{ts,tsx}';
+@source './src/**/*.{ts,tsx}';
 @source '../../packages/components/src/**/*.{ts,tsx}';
 @source '../../packages/layout/src/**/*.{ts,tsx}';
 @source '../../packages/fields/src/**/*.{ts,tsx}';
