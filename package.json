@@ -31,6 +31,7 @@
     "storybook": "storybook dev -p 6006",
     "build:storybook": "storybook build",
     "test:storybook": "test-storybook",
+    "test:storybook:ci": "concurrently -k -s first \"pnpm storybook --no-open\" \"wait-on tcp:6006 && pnpm test:storybook\"",
     "doctor": "node packages/cli/dist/cli.js doctor",
     "studio": "node packages/cli/dist/cli.js studio",
     "check": "node packages/cli/dist/cli.js check",
@@ -66,6 +67,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "@vitest/ui": "^4.0.18",
     "autoprefixer": "^10.4.23",
+    "concurrently": "^9.2.1",
     "eslint": "^9.39.2",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
@@ -83,7 +85,8 @@
     "turbo": "^2.7.6",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.53.1",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "wait-on": "^9.0.3"
   },
   "pnpm": {
     "overrides": {
