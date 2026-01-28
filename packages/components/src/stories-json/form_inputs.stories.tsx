@@ -3,7 +3,7 @@ import { SchemaRenderer } from '../SchemaRenderer';
 import type { BaseSchema } from '@object-ui/types';
 
 const meta: Meta = {
-  title: 'Schema/Inputs/Inputs',
+  title: 'Schema/Inputs',
   component: SchemaRenderer,
   tags: ['autodocs'],
 };
