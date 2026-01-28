@@ -21,13 +21,14 @@ export interface SidebarNavProps {
     items: NavItem[];
     title?: string;
     className?: string;
+    collapsible?: "offcanvas" | "icon" | "none";
 }
 
-export function SidebarNav({ items, title = "Application", className }: SidebarNavProps) {
+export function SidebarNav({ items, title = "Application", className, collapsible = "icon" }: SidebarNavProps) {
   const location = useLocation();
 
   return (
-    <Sidebar className={className}>
+    <Sidebar className={className} collapsible={collapsible}>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>{title}</SidebarGroupLabel>
