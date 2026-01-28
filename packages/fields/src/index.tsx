@@ -6,8 +6,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import './index.css';
-
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
 import { Badge, Avatar, AvatarFallback, Button } from '@object-ui/components';
