@@ -158,7 +158,7 @@ export const AutoNumber: Story = {
   render: () => (
     <FieldWrapper 
       Component={AutoNumberField}
-      field={{ label: 'Order Number', type: 'autonumber' }}
+      field={{ label: 'Order Number', type: 'auto_number' }}
       initialValue="ORD-2024-001"
       readonly={true} 
     />
@@ -171,7 +171,7 @@ export const Number: Story = {
   render: () => (
     <FieldWrapper 
       Component={NumberField}
-      field={{ label: 'Quantity', type: 'number', scale: 0 }}
+      field={{ label: 'Quantity', type: 'number', precision: 0 }}
       initialValue={42}
     />
   )
@@ -204,7 +204,7 @@ export const Date: Story = {
     <FieldWrapper 
       Component={DateField}
       field={{ label: 'Close Date', type: 'date' }}
-      initialValue={new Date().toISOString()}
+      initialValue={new globalThis.Date().toISOString()}
     />
   )
 };
@@ -214,7 +214,7 @@ export const DateTime: Story = {
     <FieldWrapper 
       Component={DateTimeField}
       field={{ label: 'Meeting Time', type: 'datetime' }}
-      initialValue={new Date().toISOString()}
+      initialValue={new globalThis.Date().toISOString()}
     />
   )
 };
