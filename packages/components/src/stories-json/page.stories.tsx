@@ -1,24 +1,20 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { SchemaRenderer } from '@object-ui/react';
-import type { BaseSchema } from '@object-ui/types';
+import { SchemaRenderer } from '../SchemaRenderer';
 
-const meta = {
-  title: 'JSON/Layout/Page',
+const meta: Meta = {
+  title: 'Layout/Page',
   component: SchemaRenderer,
   parameters: { layout: 'fullscreen' },
   tags: ['autodocs'],
   argTypes: {
-    schema: { table: { disable: true } }
+    // Schema properties
   }
-} satisfies Meta<typeof SchemaRenderer>;
+};
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const renderStory = (args: any) => <SchemaRenderer schema={args as unknown as BaseSchema} />;
-
-export const Default: Story = {
-  render: renderStory,
+export const Dashboard: Story = {
   args: {
     type: 'page',
     title: 'Dashboard',
@@ -26,7 +22,8 @@ export const Default: Story = {
     children: [
         { 
             type: 'grid', 
-            props: { cols: { base: 1, md: 3 }, gap: 4 },
+            cols: { base: 1, md: 3 }, 
+            gap: 4,
             children: [
                 { type: 'statistic', label: 'Total Revenue', value: '$45,231.89', trend: 'up', description: '+20.1% from last month' },
                 { type: 'statistic', label: 'Subscriptions', value: '+2350', trend: 'up', description: '+180.1% from last month' },
@@ -49,5 +46,6 @@ export const Default: Story = {
              ]
         }
     ]
-  } as any,
+  },
+  render: (args) => <SchemaRenderer schema={args} />
 };
