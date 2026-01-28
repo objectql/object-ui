@@ -16,232 +16,232 @@
   "registry": "https://ui.shadcn.com/registry",
   "components": {
     "accordion": {
-      "source": "https://ui.shadcn.com/registry/styles/default/accordion.json",
+      "source": "https://ui.shadcn.com/r/styles/default/accordion.json",
       "dependencies": ["@radix-ui/react-accordion"],
       "registryDependencies": []
     },
     "alert": {
-      "source": "https://ui.shadcn.com/registry/styles/default/alert.json",
+      "source": "https://ui.shadcn.com/r/styles/default/alert.json",
       "dependencies": [],
       "registryDependencies": []
     },
     "alert-dialog": {
-      "source": "https://ui.shadcn.com/registry/styles/default/alert-dialog.json",
+      "source": "https://ui.shadcn.com/r/styles/default/alert-dialog.json",
       "dependencies": ["@radix-ui/react-alert-dialog"],
       "registryDependencies": ["button"]
     },
     "aspect-ratio": {
-      "source": "https://ui.shadcn.com/registry/styles/default/aspect-ratio.json",
+      "source": "https://ui.shadcn.com/r/styles/default/aspect-ratio.json",
       "dependencies": ["@radix-ui/react-aspect-ratio"],
       "registryDependencies": []
     },
     "avatar": {
-      "source": "https://ui.shadcn.com/registry/styles/default/avatar.json",
+      "source": "https://ui.shadcn.com/r/styles/default/avatar.json",
       "dependencies": ["@radix-ui/react-avatar"],
       "registryDependencies": []
     },
     "badge": {
-      "source": "https://ui.shadcn.com/registry/styles/default/badge.json",
+      "source": "https://ui.shadcn.com/r/styles/default/badge.json",
       "dependencies": [],
       "registryDependencies": []
     },
     "breadcrumb": {
-      "source": "https://ui.shadcn.com/registry/styles/default/breadcrumb.json",
+      "source": "https://ui.shadcn.com/r/styles/default/breadcrumb.json",
       "dependencies": [],
       "registryDependencies": []
     },
     "button": {
-      "source": "https://ui.shadcn.com/registry/styles/default/button.json",
+      "source": "https://ui.shadcn.com/r/styles/default/button.json",
       "dependencies": ["@radix-ui/react-slot"],
       "registryDependencies": []
     },
     "calendar": {
-      "source": "https://ui.shadcn.com/registry/styles/default/calendar.json",
+      "source": "https://ui.shadcn.com/r/styles/default/calendar.json",
       "dependencies": ["react-day-picker", "date-fns"],
       "registryDependencies": ["button"]
     },
     "card": {
-      "source": "https://ui.shadcn.com/registry/styles/default/card.json",
+      "source": "https://ui.shadcn.com/r/styles/default/card.json",
       "dependencies": [],
       "registryDependencies": []
     },
     "carousel": {
-      "source": "https://ui.shadcn.com/registry/styles/default/carousel.json",
+      "source": "https://ui.shadcn.com/r/styles/default/carousel.json",
       "dependencies": ["embla-carousel-react"],
       "registryDependencies": ["button"]
     },
     "checkbox": {
-      "source": "https://ui.shadcn.com/registry/styles/default/checkbox.json",
+      "source": "https://ui.shadcn.com/r/styles/default/checkbox.json",
       "dependencies": ["@radix-ui/react-checkbox"],
       "registryDependencies": []
     },
     "collapsible": {
-      "source": "https://ui.shadcn.com/registry/styles/default/collapsible.json",
+      "source": "https://ui.shadcn.com/r/styles/default/collapsible.json",
       "dependencies": ["@radix-ui/react-collapsible"],
       "registryDependencies": []
     },
     "command": {
-      "source": "https://ui.shadcn.com/registry/styles/default/command.json",
+      "source": "https://ui.shadcn.com/r/styles/default/command.json",
       "dependencies": ["cmdk"],
       "registryDependencies": ["dialog"]
     },
     "context-menu": {
-      "source": "https://ui.shadcn.com/registry/styles/default/context-menu.json",
+      "source": "https://ui.shadcn.com/r/styles/default/context-menu.json",
       "dependencies": ["@radix-ui/react-context-menu"],
       "registryDependencies": []
     },
     "dialog": {
-      "source": "https://ui.shadcn.com/registry/styles/default/dialog.json",
+      "source": "https://ui.shadcn.com/r/styles/default/dialog.json",
       "dependencies": ["@radix-ui/react-dialog"],
       "registryDependencies": []
     },
     "drawer": {
-      "source": "https://ui.shadcn.com/registry/styles/default/drawer.json",
+      "source": "https://ui.shadcn.com/r/styles/default/drawer.json",
       "dependencies": ["vaul"],
       "registryDependencies": []
     },
     "dropdown-menu": {
-      "source": "https://ui.shadcn.com/registry/styles/default/dropdown-menu.json",
+      "source": "https://ui.shadcn.com/r/styles/default/dropdown-menu.json",
       "dependencies": ["@radix-ui/react-dropdown-menu"],
       "registryDependencies": []
     },
     "form": {
-      "source": "https://ui.shadcn.com/registry/styles/default/form.json",
+      "source": "https://ui.shadcn.com/r/styles/default/form.json",
       "dependencies": ["@radix-ui/react-label", "react-hook-form", "@hookform/resolvers"],
       "registryDependencies": ["button", "label"]
     },
     "hover-card": {
-      "source": "https://ui.shadcn.com/registry/styles/default/hover-card.json",
+      "source": "https://ui.shadcn.com/r/styles/default/hover-card.json",
       "dependencies": ["@radix-ui/react-hover-card"],
       "registryDependencies": []
     },
     "input": {
-      "source": "https://ui.shadcn.com/registry/styles/default/input.json",
+      "source": "https://ui.shadcn.com/r/styles/default/input.json",
       "dependencies": [],
       "registryDependencies": []
     },
     "input-otp": {
-      "source": "https://ui.shadcn.com/registry/styles/default/input-otp.json",
+      "source": "https://ui.shadcn.com/r/styles/default/input-otp.json",
       "dependencies": ["input-otp"],
       "registryDependencies": []
     },
     "label": {
-      "source": "https://ui.shadcn.com/registry/styles/default/label.json",
+      "source": "https://ui.shadcn.com/r/styles/default/label.json",
       "dependencies": ["@radix-ui/react-label"],
       "registryDependencies": []
     },
     "menubar": {
-      "source": "https://ui.shadcn.com/registry/styles/default/menubar.json",
+      "source": "https://ui.shadcn.com/r/styles/default/menubar.json",
       "dependencies": ["@radix-ui/react-menubar"],
       "registryDependencies": []
     },
     "navigation-menu": {
-      "source": "https://ui.shadcn.com/registry/styles/default/navigation-menu.json",
+      "source": "https://ui.shadcn.com/r/styles/default/navigation-menu.json",
       "dependencies": ["@radix-ui/react-navigation-menu"],
       "registryDependencies": []
     },
     "pagination": {
-      "source": "https://ui.shadcn.com/registry/styles/default/pagination.json",
+      "source": "https://ui.shadcn.com/r/styles/default/pagination.json",
       "dependencies": [],
       "registryDependencies": ["button"]
     },
     "popover": {
-      "source": "https://ui.shadcn.com/registry/styles/default/popover.json",
+      "source": "https://ui.shadcn.com/r/styles/default/popover.json",
       "dependencies": ["@radix-ui/react-popover"],
       "registryDependencies": []
     },
     "progress": {
-      "source": "https://ui.shadcn.com/registry/styles/default/progress.json",
+      "source": "https://ui.shadcn.com/r/styles/default/progress.json",
       "dependencies": ["@radix-ui/react-progress"],
       "registryDependencies": []
     },
     "radio-group": {
-      "source": "https://ui.shadcn.com/registry/styles/default/radio-group.json",
+      "source": "https://ui.shadcn.com/r/styles/default/radio-group.json",
       "dependencies": ["@radix-ui/react-radio-group"],
       "registryDependencies": []
     },
     "resizable": {
-      "source": "https://ui.shadcn.com/registry/styles/default/resizable.json",
+      "source": "https://ui.shadcn.com/r/styles/default/resizable.json",
       "dependencies": ["react-resizable-panels"],
       "registryDependencies": []
     },
     "scroll-area": {
-      "source": "https://ui.shadcn.com/registry/styles/default/scroll-area.json",
+      "source": "https://ui.shadcn.com/r/styles/default/scroll-area.json",
       "dependencies": ["@radix-ui/react-scroll-area"],
       "registryDependencies": []
     },
     "select": {
-      "source": "https://ui.shadcn.com/registry/styles/default/select.json",
+      "source": "https://ui.shadcn.com/r/styles/default/select.json",
       "dependencies": ["@radix-ui/react-select"],
       "registryDependencies": []
     },
     "separator": {
-      "source": "https://ui.shadcn.com/registry/styles/default/separator.json",
+      "source": "https://ui.shadcn.com/r/styles/default/separator.json",
       "dependencies": ["@radix-ui/react-separator"],
       "registryDependencies": []
     },
     "sheet": {
-      "source": "https://ui.shadcn.com/registry/styles/default/sheet.json",
+      "source": "https://ui.shadcn.com/r/styles/default/sheet.json",
       "dependencies": ["@radix-ui/react-dialog"],
       "registryDependencies": []
     },
     "sidebar": {
-      "source": "https://ui.shadcn.com/registry/styles/default/sidebar.json",
+      "source": "https://ui.shadcn.com/r/styles/default/sidebar.json",
       "dependencies": ["@radix-ui/react-separator", "@radix-ui/react-slot"],
       "registryDependencies": ["button", "separator", "sheet", "skeleton", "tooltip"]
     },
     "skeleton": {
-      "source": "https://ui.shadcn.com/registry/styles/default/skeleton.json",
+      "source": "https://ui.shadcn.com/r/styles/default/skeleton.json",
       "dependencies": [],
       "registryDependencies": []
     },
     "slider": {
-      "source": "https://ui.shadcn.com/registry/styles/default/slider.json",
+      "source": "https://ui.shadcn.com/r/styles/default/slider.json",
       "dependencies": ["@radix-ui/react-slider"],
       "registryDependencies": []
     },
     "sonner": {
-      "source": "https://ui.shadcn.com/registry/styles/default/sonner.json",
+      "source": "https://ui.shadcn.com/r/styles/default/sonner.json",
       "dependencies": ["sonner", "next-themes"],
       "registryDependencies": []
     },
     "switch": {
-      "source": "https://ui.shadcn.com/registry/styles/default/switch.json",
+      "source": "https://ui.shadcn.com/r/styles/default/switch.json",
       "dependencies": ["@radix-ui/react-switch"],
       "registryDependencies": []
     },
     "table": {
-      "source": "https://ui.shadcn.com/registry/styles/default/table.json",
+      "source": "https://ui.shadcn.com/r/styles/default/table.json",
       "dependencies": [],
       "registryDependencies": []
     },
     "tabs": {
-      "source": "https://ui.shadcn.com/registry/styles/default/tabs.json",
+      "source": "https://ui.shadcn.com/r/styles/default/tabs.json",
       "dependencies": ["@radix-ui/react-tabs"],
       "registryDependencies": []
     },
     "textarea": {
-      "source": "https://ui.shadcn.com/registry/styles/default/textarea.json",
+      "source": "https://ui.shadcn.com/r/styles/default/textarea.json",
       "dependencies": [],
       "registryDependencies": []
     },
     "toast": {
-      "source": "https://ui.shadcn.com/registry/styles/default/toast.json",
+      "source": "https://ui.shadcn.com/r/styles/default/toast.json",
       "dependencies": ["@radix-ui/react-toast"],
       "registryDependencies": []
     },
     "toggle": {
-      "source": "https://ui.shadcn.com/registry/styles/default/toggle.json",
+      "source": "https://ui.shadcn.com/r/styles/default/toggle.json",
       "dependencies": ["@radix-ui/react-toggle"],
       "registryDependencies": []
     },
     "toggle-group": {
-      "source": "https://ui.shadcn.com/registry/styles/default/toggle-group.json",
+      "source": "https://ui.shadcn.com/r/styles/default/toggle-group.json",
       "dependencies": ["@radix-ui/react-toggle-group"],
       "registryDependencies": []
     },
     "tooltip": {
-      "source": "https://ui.shadcn.com/registry/styles/default/tooltip.json",
+      "source": "https://ui.shadcn.com/r/styles/default/tooltip.json",
       "dependencies": ["@radix-ui/react-tooltip"],
       "registryDependencies": []
     }
