@@ -22,7 +22,7 @@ import {
   LocationField,
   FormulaField,
   SummaryField
-} from '@object-ui/fields';
+} from './index';
 import { FieldMetadata } from '@object-ui/types';
 
 /**
