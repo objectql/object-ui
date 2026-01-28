@@ -87,7 +87,6 @@
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
-    "@object-ui/fields": "workspace:*",
     "@storybook/addon-essentials": "^8.6.0",
     "@storybook/addon-interactions": "^8.6.0",
     "@storybook/addon-links": "^8.6.0",
