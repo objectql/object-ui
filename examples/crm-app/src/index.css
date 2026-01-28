@@ -1,12 +1,12 @@
 @import 'tailwindcss';
 
 /* Scan sources for Tailwind classes */
-@source './src/**/*.{ts,tsx}';
-@source '../../packages/components/src/**/*.{ts,tsx}';
-@source '../../packages/layout/src/**/*.{ts,tsx}';
-@source '../../packages/fields/src/**/*.{ts,tsx}';
-@source '../../packages/react/src/**/*.{ts,tsx}';
-@source '../../packages/plugin-dashboard/src/**/*.{ts,tsx}';
+@source '../src/**/*.{ts,tsx}';
+@source '../../../packages/components/src/**/*.{ts,tsx}';
+@source '../../../packages/layout/src/**/*.{ts,tsx}';
+@source '../../../packages/fields/src/**/*.{ts,tsx}';
+@source '../../../packages/react/src/**/*.{ts,tsx}';
+@source '../../../packages/plugin-dashboard/src/**/*.{ts,tsx}';
 
 /* Tailwind plugin for animations */
 @plugin 'tailwindcss-animate';
