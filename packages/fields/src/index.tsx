@@ -800,29 +800,29 @@ function createFieldRenderer(FieldWidget: React.ComponentType<any>) {
 }
 
 export function registerFields() {
-  // Basic fields
-  ComponentRegistry.register('text', TextField);
-  ComponentRegistry.register('textarea', TextAreaField);
-  ComponentRegistry.register('number', NumberField);
-  ComponentRegistry.register('boolean', BooleanField);
-  ComponentRegistry.register('select', SelectField);
-  ComponentRegistry.register('date', DateField);
+  // Basic fields - wrapped for documentation compatibility
+  ComponentRegistry.register('text', createFieldRenderer(TextField));
+  ComponentRegistry.register('textarea', createFieldRenderer(TextAreaField));
+  ComponentRegistry.register('number', createFieldRenderer(NumberField));
+  ComponentRegistry.register('boolean', createFieldRenderer(BooleanField));
+  ComponentRegistry.register('select', createFieldRenderer(SelectField));
+  ComponentRegistry.register('date', createFieldRenderer(DateField));
   ComponentRegistry.register('datetime', createFieldRenderer(DateTimeField));
   ComponentRegistry.register('time', createFieldRenderer(TimeField));
   
-  // Contact fields
-  ComponentRegistry.register('email', EmailField);
-  ComponentRegistry.register('phone', PhoneField);
-  ComponentRegistry.register('url', UrlField);
+  // Contact fields - wrapped for documentation compatibility
+  ComponentRegistry.register('email', createFieldRenderer(EmailField));
+  ComponentRegistry.register('phone', createFieldRenderer(PhoneField));
+  ComponentRegistry.register('url', createFieldRenderer(UrlField));
   
-  // Specialized fields
-  ComponentRegistry.register('currency', CurrencyField);
+  // Specialized fields - wrapped for documentation compatibility
+  ComponentRegistry.register('currency', createFieldRenderer(CurrencyField));
   ComponentRegistry.register('percent', createFieldRenderer(PercentField));
   ComponentRegistry.register('password', createFieldRenderer(PasswordField));
-  ComponentRegistry.register('markdown', RichTextField);
-  ComponentRegistry.register('html', RichTextField);
-  ComponentRegistry.register('lookup', LookupField);
-  ComponentRegistry.register('master_detail', LookupField);
+  ComponentRegistry.register('markdown', createFieldRenderer(RichTextField));
+  ComponentRegistry.register('html', createFieldRenderer(RichTextField));
+  ComponentRegistry.register('lookup', createFieldRenderer(LookupField));
+  ComponentRegistry.register('master_detail', createFieldRenderer(LookupField));
   
   // File fields
   ComponentRegistry.register('file', createFieldRenderer(FileField));
