@@ -28,6 +28,7 @@
     "lint": "pnpm -r lint",
     "cli": "node packages/cli/dist/cli.js",
     "objectui": "node packages/cli/dist/cli.js",
+    "build:storybook": "pnpm --filter @object-ui/components build-storybook",
     "doctor": "node packages/cli/dist/cli.js doctor",
     "studio": "node packages/cli/dist/cli.js studio",
     "check": "node packages/cli/dist/cli.js check",
