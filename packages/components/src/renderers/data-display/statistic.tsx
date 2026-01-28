@@ -9,22 +9,34 @@
 import { ComponentRegistry } from '@object-ui/core';
 import type { StatisticSchema } from '@object-ui/types';
 import { cn } from '../../lib/utils';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, icons } from 'lucide-react';
+
+// Helper to resolve icon
+const getIcon = (name: string) => {
+    if (!name) return null;
+    const pascalName = name.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('');
+    // @ts-ignore
+    const Icon = icons[pascalName] || icons[name];
+    return Icon;
+};
 
 const StatisticRenderer = ({ schema }: { schema: StatisticSchema }) => {
+  const Icon = schema.icon ? getIcon(schema.icon) : null;
+  
   return (
     <div className={cn(
         "group relative flex flex-col p-4 sm:p-5 md:p-6 rounded-xl border bg-card text-card-foreground shadow-sm",
         schema.className
     )}>
-      {/* Label */}
-      {schema.label && (
-        <div className="flex items-center gap-2 mb-2">
+      {/* Label & Header Icon */}
+      <div className="flex items-center justify-between mb-2">
+          {schema.label && (
             <p className="text-sm font-medium text-muted-foreground">
             {schema.label}
             </p>
-        </div>
-      )}
+          )}
+          {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+      </div>
 
       {/* Value Area */}
       <div className="flex items-baseline gap-2">

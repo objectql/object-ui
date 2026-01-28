@@ -22,13 +22,14 @@ ComponentRegistry.register('text',
         ...rest 
     } = props;
 
-    // If we have designer props, we must wrap it to make it selectable
-    if (dataObjId) {
+    // If we have designer props or className, we must wrap it to make it selectable and styleable
+    if (dataObjId || schema.className || rest.className) {
         return (
             <span 
                 data-obj-id={dataObjId}
                 data-obj-type={dataObjType}
                 style={style}
+                className={schema.className || rest.className}
                 {...rest}
             >
                 {schema.content || schema.value}

@@ -19,34 +19,32 @@ A clean login form with email and password fields.
   schema={{
     type: "card",
     className: "w-full max-w-md mx-auto",
+    header: [
+      {
+        type: "stack",
+        spacing: 2,
+        className: "text-center",
+        children: [
+          {
+            type: "text",
+            content: "Welcome Back",
+            className: "text-2xl font-bold tracking-tight"
+          },
+          {
+            type: "text",
+            content: "Enter your credentials to sign in",
+            className: "text-sm text-muted-foreground"
+          }
+        ]
+      }
+    ],
     children: [
       {
         type: "stack",
-        spacing: 6,
+        spacing: 4,
         children: [
           {
             type: "stack",
-        spacing: 2,
-        className: "text-center",
-            children: [
-              {
-                type: "text",
-                content: "Welcome Back",
-                className: "text-2xl font-bold tracking-tight"
-              },
-              {
-                type: "text",
-                content: "Enter your credentials to sign in",
-                className: "text-sm text-muted-foreground"
-              }
-            ]
-          },
-          {
-            type: "stack",
-        spacing: 4,
-            children: [
-              {
-                type: "stack",
         spacing: 2,
                 children: [
                   {
@@ -162,8 +160,6 @@ A clean login form with email and password fields.
               }
             ]
           }
-        ]
-      }
     ]
   }}
 />

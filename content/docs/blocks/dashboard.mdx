@@ -22,220 +22,36 @@ Display key metrics with trend indicators.
     className: "md:grid-cols-2 lg:grid-cols-4",
     children: [
       {
-        type: "card",
-        children: [
-          {
-            type: "stack",
-        spacing: 2,
-            children: [
-              {
-                type: "flex",
-        className: "items-center justify-between",
-                children: [
-                  {
-                    type: "text",
-                    content: "Total Revenue",
-                    className: "text-sm font-medium text-muted-foreground"
-                  },
-                  {
-                    type: "icon",
-                    name: "dollar-sign",
-                    className: "h-4 w-4 text-muted-foreground"
-                  }
-                ]
-              },
-              {
-                type: "stack",
-        spacing: 1,
-                children: [
-                  {
-                    type: "text",
-                    content: "$45,231.89",
-                    className: "text-2xl font-bold"
-                  },
-                  {
-                    type: "flex",
-        className: "items-center text-xs",
-                    children: [
-                      {
-                        type: "icon",
-                        name: "trending-up",
-                        className: "h-3 w-3 text-green-500 mr-1"
-                      },
-                      {
-                        type: "text",
-                        content: "+20.1% from last month",
-                        className: "text-green-500"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        ]
+        type: "statistic",
+        label: "Total Revenue",
+        value: "$45,231.89",
+        trend: "up",
+        description: "+20.1% from last month",
+        icon: "dollar-sign"
       },
       {
-        type: "card",
-        children: [
-          {
-            type: "stack",
-        spacing: 2,
-            children: [
-              {
-                type: "flex",
-        className: "items-center justify-between",
-                children: [
-                  {
-                    type: "text",
-                    content: "New Users",
-                    className: "text-sm font-medium text-muted-foreground"
-                  },
-                  {
-                    type: "icon",
-                    name: "users",
-                    className: "h-4 w-4 text-muted-foreground"
-                  }
-                ]
-              },
-              {
-                type: "stack",
-        spacing: 1,
-                children: [
-                  {
-                    type: "text",
-                    content: "+2,350",
-                    className: "text-2xl font-bold"
-                  },
-                  {
-                    type: "flex",
-        className: "items-center text-xs",
-                    children: [
-                      {
-                        type: "icon",
-                        name: "trending-up",
-                        className: "h-3 w-3 text-green-500 mr-1"
-                      },
-                      {
-                        type: "text",
-                        content: "+180.1% from last month",
-                        className: "text-green-500"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        ]
+        type: "statistic",
+        label: "New Users",
+        value: "+2,350",
+        trend: "up",
+        description: "+180.1% from last month",
+        icon: "users"
       },
       {
-        type: "card",
-        children: [
-          {
-            type: "stack",
-        spacing: 2,
-            children: [
-              {
-                type: "flex",
-        className: "items-center justify-between",
-                children: [
-                  {
-                    type: "text",
-                    content: "Active Sessions",
-                    className: "text-sm font-medium text-muted-foreground"
-                  },
-                  {
-                    type: "icon",
-                    name: "activity",
-                    className: "h-4 w-4 text-muted-foreground"
-                  }
-                ]
-              },
-              {
-                type: "stack",
-        spacing: 1,
-                children: [
-                  {
-                    type: "text",
-                    content: "+12,234",
-                    className: "text-2xl font-bold"
-                  },
-                  {
-                    type: "flex",
-        className: "items-center text-xs",
-                    children: [
-                      {
-                        type: "icon",
-                        name: "trending-up",
-                        className: "h-3 w-3 text-green-500 mr-1"
-                      },
-                      {
-                        type: "text",
-                        content: "+19% from last month",
-                        className: "text-green-500"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        ]
+        type: "statistic",
+        label: "Active Sessions",
+        value: "+12,234",
+        trend: "up",
+        description: "+19% from last month",
+        icon: "activity"
       },
       {
-        type: "card",
-        children: [
-          {
-            type: "stack",
-        spacing: 2,
-            children: [
-              {
-                type: "flex",
-        className: "items-center justify-between",
-                children: [
-                  {
-                    type: "text",
-                    content: "Conversion Rate",
-                    className: "text-sm font-medium text-muted-foreground"
-                  },
-                  {
-                    type: "icon",
-                    name: "percent",
-                    className: "h-4 w-4 text-muted-foreground"
-                  }
-                ]
-              },
-              {
-                type: "stack",
-        spacing: 1,
-                children: [
-                  {
-                    type: "text",
-                    content: "3.2%",
-                    className: "text-2xl font-bold"
-                  },
-                  {
-                    type: "flex",
-        className: "items-center text-xs",
-                    children: [
-                      {
-                        type: "icon",
-                        name: "trending-down",
-                        className: "h-3 w-3 text-red-500 mr-1"
-                      },
-                      {
-                        type: "text",
-                        content: "-4.3% from last month",
-                        className: "text-red-500"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        ]
+        type: "statistic",
+        label: "Conversion Rate",
+        value: "3.2%",
+        trend: "down",
+        description: "-4.3% from last month",
+        icon: "percent"
       }
     ]
   }}

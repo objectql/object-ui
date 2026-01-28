@@ -19,7 +19,7 @@ const StackRenderer = forwardRef<HTMLDivElement, { schema: StackSchema; classNam
     const direction = schema.direction || 'col';
     const justify = schema.justify || 'start';
     const align = schema.align || 'stretch'; // Stack items usually stretch
-    const gap = schema.gap || 2;
+    const gap = schema.gap ?? (schema as any).spacing ?? 2;
     const wrap = schema.wrap || false;
     
     const stackClass = cn(

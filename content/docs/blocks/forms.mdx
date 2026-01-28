@@ -19,34 +19,31 @@ Simple contact form with name, email, and message fields.
   schema={{
     type: "card",
     className: "w-full max-w-2xl mx-auto",
+    header: [
+      {
+        type: "stack",
+        spacing: 2,
+        children: [
+          {
+            type: "text",
+            content: "Contact Us",
+            className: "text-2xl font-bold"
+          },
+          {
+            type: "text",
+            content: "Fill out the form below and we'll get back to you as soon as possible.",
+            className: "text-muted-foreground"
+          }
+        ]
+      }
+    ],
     children: [
       {
         type: "stack",
-        spacing: 6,
-        className: "p-6",
+        spacing: 4,
         children: [
           {
-            type: "stack",
-            spacing: 2,
-            children: [
-              {
-                type: "text",
-                content: "Contact Us",
-                className: "text-2xl font-bold"
-              },
-              {
-                type: "text",
-                content: "Fill out the form below and we'll get back to you as soon as possible.",
-                className: "text-muted-foreground"
-              }
-            ]
-          },
-          {
-            type: "stack",
-            spacing: 4,
-            children: [
-              {
-                type: "grid",
+            type: "grid",
                 cols: 2,
                 gap: 4,
                 children: [
@@ -152,8 +149,6 @@ Simple contact form with name, email, and message fields.
               }
             ]
           }
-        ]
-      }
     ]
   }}
 />
