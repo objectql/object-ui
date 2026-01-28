@@ -1,0 +1,725 @@
+---
+title: "Dashboard Blocks"
+description: "Stats cards, metrics, and dashboard layouts"
+---
+
+import { InteractiveDemo } from '@/app/components/ComponentDemo';
+
+# Dashboard Blocks
+
+Professional dashboard components for displaying metrics, statistics, and data visualizations.
+
+## Stats Card
+
+Display key metrics with trend indicators.
+
+<InteractiveDemo
+  title="Stats Cards Grid"
+  description="Revenue and user statistics"
+  schema={{
+    type: "div",
+    className: "grid gap-4 md:grid-cols-2 lg:grid-cols-4",
+    children: [
+      {
+        type: "card",
+        children: [
+          {
+            type: "div",
+            className: "p-6 space-y-2",
+            children: [
+              {
+                type: "div",
+                className: "flex items-center justify-between",
+                children: [
+                  {
+                    type: "text",
+                    content: "Total Revenue",
+                    className: "text-sm font-medium text-muted-foreground"
+                  },
+                  {
+                    type: "icon",
+                    name: "dollar-sign",
+                    className: "h-4 w-4 text-muted-foreground"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "space-y-1",
+                children: [
+                  {
+                    type: "text",
+                    content: "$45,231.89",
+                    className: "text-2xl font-bold"
+                  },
+                  {
+                    type: "div",
+                    className: "flex items-center text-xs",
+                    children: [
+                      {
+                        type: "icon",
+                        name: "trending-up",
+                        className: "h-3 w-3 text-green-500 mr-1"
+                      },
+                      {
+                        type: "text",
+                        content: "+20.1% from last month",
+                        className: "text-green-500"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        type: "card",
+        children: [
+          {
+            type: "div",
+            className: "p-6 space-y-2",
+            children: [
+              {
+                type: "div",
+                className: "flex items-center justify-between",
+                children: [
+                  {
+                    type: "text",
+                    content: "New Users",
+                    className: "text-sm font-medium text-muted-foreground"
+                  },
+                  {
+                    type: "icon",
+                    name: "users",
+                    className: "h-4 w-4 text-muted-foreground"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "space-y-1",
+                children: [
+                  {
+                    type: "text",
+                    content: "+2,350",
+                    className: "text-2xl font-bold"
+                  },
+                  {
+                    type: "div",
+                    className: "flex items-center text-xs",
+                    children: [
+                      {
+                        type: "icon",
+                        name: "trending-up",
+                        className: "h-3 w-3 text-green-500 mr-1"
+                      },
+                      {
+                        type: "text",
+                        content: "+180.1% from last month",
+                        className: "text-green-500"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        type: "card",
+        children: [
+          {
+            type: "div",
+            className: "p-6 space-y-2",
+            children: [
+              {
+                type: "div",
+                className: "flex items-center justify-between",
+                children: [
+                  {
+                    type: "text",
+                    content: "Active Sessions",
+                    className: "text-sm font-medium text-muted-foreground"
+                  },
+                  {
+                    type: "icon",
+                    name: "activity",
+                    className: "h-4 w-4 text-muted-foreground"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "space-y-1",
+                children: [
+                  {
+                    type: "text",
+                    content: "+12,234",
+                    className: "text-2xl font-bold"
+                  },
+                  {
+                    type: "div",
+                    className: "flex items-center text-xs",
+                    children: [
+                      {
+                        type: "icon",
+                        name: "trending-up",
+                        className: "h-3 w-3 text-green-500 mr-1"
+                      },
+                      {
+                        type: "text",
+                        content: "+19% from last month",
+                        className: "text-green-500"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        type: "card",
+        children: [
+          {
+            type: "div",
+            className: "p-6 space-y-2",
+            children: [
+              {
+                type: "div",
+                className: "flex items-center justify-between",
+                children: [
+                  {
+                    type: "text",
+                    content: "Conversion Rate",
+                    className: "text-sm font-medium text-muted-foreground"
+                  },
+                  {
+                    type: "icon",
+                    name: "percent",
+                    className: "h-4 w-4 text-muted-foreground"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "space-y-1",
+                children: [
+                  {
+                    type: "text",
+                    content: "3.2%",
+                    className: "text-2xl font-bold"
+                  },
+                  {
+                    type: "div",
+                    className: "flex items-center text-xs",
+                    children: [
+                      {
+                        type: "icon",
+                        name: "trending-down",
+                        className: "h-3 w-3 text-red-500 mr-1"
+                      },
+                      {
+                        type: "text",
+                        content: "-4.3% from last month",
+                        className: "text-red-500"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Recent Activity
+
+Display recent user activities or transactions.
+
+<InteractiveDemo
+  title="Recent Activity Card"
+  description="List of recent transactions"
+  schema={{
+    type: "card",
+    className: "w-full max-w-2xl",
+    children: [
+      {
+        type: "div",
+        className: "p-6",
+        children: [
+          {
+            type: "div",
+            className: "flex items-center justify-between mb-4",
+            children: [
+              {
+                type: "text",
+                content: "Recent Transactions",
+                className: "text-lg font-semibold"
+              },
+              {
+                type: "button",
+                label: "View All",
+                variant: "ghost",
+                size: "sm"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "space-y-4",
+            children: [
+              {
+                type: "div",
+                className: "flex items-center justify-between pb-4 border-b",
+                children: [
+                  {
+                    type: "div",
+                    className: "flex items-center space-x-4",
+                    children: [
+                      {
+                        type: "avatar",
+                        fallback: "OM",
+                        className: "h-9 w-9"
+                      },
+                      {
+                        type: "div",
+                        children: [
+                          {
+                            type: "text",
+                            content: "Olivia Martin",
+                            className: "text-sm font-medium"
+                          },
+                          {
+                            type: "text",
+                            content: "olivia.martin@email.com",
+                            className: "text-xs text-muted-foreground"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "+$1,999.00",
+                    className: "text-sm font-medium"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "flex items-center justify-between pb-4 border-b",
+                children: [
+                  {
+                    type: "div",
+                    className: "flex items-center space-x-4",
+                    children: [
+                      {
+                        type: "avatar",
+                        fallback: "JL",
+                        className: "h-9 w-9"
+                      },
+                      {
+                        type: "div",
+                        children: [
+                          {
+                            type: "text",
+                            content: "Jackson Lee",
+                            className: "text-sm font-medium"
+                          },
+                          {
+                            type: "text",
+                            content: "jackson.lee@email.com",
+                            className: "text-xs text-muted-foreground"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "+$39.00",
+                    className: "text-sm font-medium"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "flex items-center justify-between pb-4 border-b",
+                children: [
+                  {
+                    type: "div",
+                    className: "flex items-center space-x-4",
+                    children: [
+                      {
+                        type: "avatar",
+                        fallback: "IN",
+                        className: "h-9 w-9"
+                      },
+                      {
+                        type: "div",
+                        children: [
+                          {
+                            type: "text",
+                            content: "Isabella Nguyen",
+                            className: "text-sm font-medium"
+                          },
+                          {
+                            type: "text",
+                            content: "isabella.nguyen@email.com",
+                            className: "text-xs text-muted-foreground"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "+$299.00",
+                    className: "text-sm font-medium"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "flex items-center justify-between pb-4 border-b",
+                children: [
+                  {
+                    type: "div",
+                    className: "flex items-center space-x-4",
+                    children: [
+                      {
+                        type: "avatar",
+                        fallback: "WK",
+                        className: "h-9 w-9"
+                      },
+                      {
+                        type: "div",
+                        children: [
+                          {
+                            type: "text",
+                            content: "William Kim",
+                            className: "text-sm font-medium"
+                          },
+                          {
+                            type: "text",
+                            content: "will@email.com",
+                            className: "text-xs text-muted-foreground"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "+$99.00",
+                    className: "text-sm font-medium"
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "flex items-center justify-between",
+                children: [
+                  {
+                    type: "div",
+                    className: "flex items-center space-x-4",
+                    children: [
+                      {
+                        type: "avatar",
+                        fallback: "SD",
+                        className: "h-9 w-9"
+                      },
+                      {
+                        type: "div",
+                        children: [
+                          {
+                            type: "text",
+                            content: "Sofia Davis",
+                            className: "text-sm font-medium"
+                          },
+                          {
+                            type: "text",
+                            content: "sofia.davis@email.com",
+                            className: "text-xs text-muted-foreground"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    type: "text",
+                    content: "+$39.00",
+                    className: "text-sm font-medium"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Overview Dashboard
+
+Complete dashboard layout with multiple sections.
+
+<InteractiveDemo
+  title="Dashboard Overview"
+  description="Complete dashboard with stats and activity"
+  schema={{
+    type: "div",
+    className: "space-y-6",
+    children: [
+      {
+        type: "div",
+        className: "flex items-center justify-between",
+        children: [
+          {
+            type: "text",
+            content: "Dashboard",
+            className: "text-3xl font-bold tracking-tight"
+          },
+          {
+            type: "button",
+            label: "Download Report",
+            variant: "outline",
+            size: "sm"
+          }
+        ]
+      },
+      {
+        type: "div",
+        className: "grid gap-4 md:grid-cols-2 lg:grid-cols-4",
+        children: [
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-4",
+                children: [
+                  {
+                    type: "text",
+                    content: "Total Revenue",
+                    className: "text-sm font-medium text-muted-foreground"
+                  },
+                  {
+                    type: "text",
+                    content: "$45,231",
+                    className: "text-2xl font-bold mt-2"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-4",
+                children: [
+                  {
+                    type: "text",
+                    content: "Subscriptions",
+                    className: "text-sm font-medium text-muted-foreground"
+                  },
+                  {
+                    type: "text",
+                    content: "+2,350",
+                    className: "text-2xl font-bold mt-2"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-4",
+                children: [
+                  {
+                    type: "text",
+                    content: "Sales",
+                    className: "text-sm font-medium text-muted-foreground"
+                  },
+                  {
+                    type: "text",
+                    content: "+12,234",
+                    className: "text-2xl font-bold mt-2"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            children: [
+              {
+                type: "div",
+                className: "p-4",
+                children: [
+                  {
+                    type: "text",
+                    content: "Active Now",
+                    className: "text-sm font-medium text-muted-foreground"
+                  },
+                  {
+                    type: "text",
+                    content: "+573",
+                    className: "text-2xl font-bold mt-2"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        type: "div",
+        className: "grid gap-4 md:grid-cols-2 lg:grid-cols-7",
+        children: [
+          {
+            type: "card",
+            className: "lg:col-span-4",
+            children: [
+              {
+                type: "div",
+                className: "p-6",
+                children: [
+                  {
+                    type: "text",
+                    content: "Overview",
+                    className: "text-lg font-semibold mb-4"
+                  },
+                  {
+                    type: "div",
+                    className: "h-[300px] flex items-center justify-center text-muted-foreground",
+                    children: [
+                      {
+                        type: "text",
+                        content: "Chart area - connect with plugin-charts"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: "card",
+            className: "lg:col-span-3",
+            children: [
+              {
+                type: "div",
+                className: "p-6",
+                children: [
+                  {
+                    type: "text",
+                    content: "Recent Sales",
+                    className: "text-lg font-semibold mb-4"
+                  },
+                  {
+                    type: "div",
+                    className: "space-y-4",
+                    children: [
+                      {
+                        type: "div",
+                        className: "flex items-center",
+                        children: [
+                          {
+                            type: "avatar",
+                            fallback: "OM",
+                            className: "h-9 w-9"
+                          },
+                          {
+                            type: "div",
+                            className: "ml-4 space-y-1",
+                            children: [
+                              {
+                                type: "text",
+                                content: "Olivia Martin",
+                                className: "text-sm font-medium"
+                              },
+                              {
+                                type: "text",
+                                content: "olivia.martin@email.com",
+                                className: "text-xs text-muted-foreground"
+                              }
+                            ]
+                          },
+                          {
+                            type: "text",
+                            content: "+$1,999.00",
+                            className: "ml-auto font-medium"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Usage
+
+Customize dashboard blocks for your needs:
+
+### Add Real Data
+
+```json
+{
+  "type": "card",
+  "dataSource": {
+    "api": "/api/stats/revenue",
+    "method": "GET"
+  }
+}
+```
+
+### Customize Colors
+
+```json
+{
+  "type": "text",
+  "content": "+20.1%",
+  "className": "text-emerald-500"
+}
+```
+
+### Add Actions
+
+```json
+{
+  "type": "button",
+  "label": "View Details",
+  "action": {
+    "type": "navigate",
+    "path": "/dashboard/details"
+  }
+}
+```
+
+## Next Steps
+
+- Explore [Form Blocks](/docs/blocks/forms)
+- View [Marketing Blocks](/docs/blocks/marketing)
+- Learn about [Data Sources](/docs/guide/data-source)

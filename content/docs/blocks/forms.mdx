@@ -1,0 +1,717 @@
+---
+title: "Form Blocks"
+description: "Contact forms, settings panels, and form layouts"
+---
+
+import { InteractiveDemo } from '@/app/components/ComponentDemo';
+
+# Form Blocks
+
+Professional form layouts for various use cases. All forms are accessible and include proper validation.
+
+## Contact Form
+
+Simple contact form with name, email, and message fields.
+
+<InteractiveDemo
+  title="Contact Form"
+  description="Basic contact form layout"
+  schema={{
+    type: "card",
+    className: "w-full max-w-2xl mx-auto",
+    children: [
+      {
+        type: "div",
+        className: "p-6 space-y-6",
+        children: [
+          {
+            type: "div",
+            className: "space-y-2",
+            children: [
+              {
+                type: "text",
+                content: "Contact Us",
+                className: "text-2xl font-bold"
+              },
+              {
+                type: "text",
+                content: "Fill out the form below and we'll get back to you as soon as possible.",
+                className: "text-muted-foreground"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "space-y-4",
+            children: [
+              {
+                type: "div",
+                className: "grid grid-cols-2 gap-4",
+                children: [
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "label",
+                        htmlFor: "firstName",
+                        label: "First Name"
+                      },
+                      {
+                        type: "input",
+                        id: "firstName",
+                        name: "firstName",
+                        placeholder: "John",
+                        required: true
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "label",
+                        htmlFor: "lastName",
+                        label: "Last Name"
+                      },
+                      {
+                        type: "input",
+                        id: "lastName",
+                        name: "lastName",
+                        placeholder: "Doe",
+                        required: true
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "space-y-2",
+                children: [
+                  {
+                    type: "label",
+                    htmlFor: "email",
+                    label: "Email"
+                  },
+                  {
+                    type: "input",
+                    id: "email",
+                    name: "email",
+                    inputType: "email",
+                    placeholder: "john.doe@example.com",
+                    required: true
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "space-y-2",
+                children: [
+                  {
+                    type: "label",
+                    htmlFor: "subject",
+                    label: "Subject"
+                  },
+                  {
+                    type: "input",
+                    id: "subject",
+                    name: "subject",
+                    placeholder: "How can we help?",
+                    required: true
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "space-y-2",
+                children: [
+                  {
+                    type: "label",
+                    htmlFor: "message",
+                    label: "Message"
+                  },
+                  {
+                    type: "textarea",
+                    id: "message",
+                    name: "message",
+                    placeholder: "Tell us more about your inquiry...",
+                    rows: 5,
+                    required: true
+                  }
+                ]
+              },
+              {
+                type: "button",
+                label: "Send Message",
+                variant: "default",
+                className: "w-full"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Settings Form
+
+User settings panel with various input types.
+
+<InteractiveDemo
+  title="Settings Form"
+  description="User preferences and settings"
+  schema={{
+    type: "div",
+    className: "w-full max-w-2xl mx-auto space-y-6",
+    children: [
+      {
+        type: "div",
+        className: "space-y-2",
+        children: [
+          {
+            type: "text",
+            content: "Settings",
+            className: "text-3xl font-bold"
+          },
+          {
+            type: "text",
+            content: "Manage your account settings and preferences.",
+            className: "text-muted-foreground"
+          }
+        ]
+      },
+      {
+        type: "card",
+        children: [
+          {
+            type: "div",
+            className: "p-6 space-y-6",
+            children: [
+              {
+                type: "div",
+                className: "space-y-4",
+                children: [
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "text",
+                        content: "Profile",
+                        className: "text-lg font-semibold"
+                      },
+                      {
+                        type: "text",
+                        content: "Update your personal information",
+                        className: "text-sm text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "label",
+                        htmlFor: "username",
+                        label: "Username"
+                      },
+                      {
+                        type: "input",
+                        id: "username",
+                        name: "username",
+                        placeholder: "johndoe",
+                        defaultValue: "johndoe"
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "label",
+                        htmlFor: "email",
+                        label: "Email"
+                      },
+                      {
+                        type: "input",
+                        id: "email",
+                        name: "email",
+                        inputType: "email",
+                        placeholder: "john@example.com",
+                        defaultValue: "john@example.com"
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "label",
+                        htmlFor: "bio",
+                        label: "Bio"
+                      },
+                      {
+                        type: "textarea",
+                        id: "bio",
+                        name: "bio",
+                        placeholder: "Tell us about yourself",
+                        rows: 3
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                type: "separator"
+              },
+              {
+                type: "div",
+                className: "space-y-4",
+                children: [
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "text",
+                        content: "Preferences",
+                        className: "text-lg font-semibold"
+                      },
+                      {
+                        type: "text",
+                        content: "Customize your experience",
+                        className: "text-sm text-muted-foreground"
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "flex items-center justify-between",
+                    children: [
+                      {
+                        type: "div",
+                        children: [
+                          {
+                            type: "text",
+                            content: "Email Notifications",
+                            className: "text-sm font-medium"
+                          },
+                          {
+                            type: "text",
+                            content: "Receive email updates about your activity",
+                            className: "text-sm text-muted-foreground"
+                          }
+                        ]
+                      },
+                      {
+                        type: "switch",
+                        id: "emailNotifications",
+                        name: "emailNotifications",
+                        defaultChecked: true
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "flex items-center justify-between",
+                    children: [
+                      {
+                        type: "div",
+                        children: [
+                          {
+                            type: "text",
+                            content: "Marketing Emails",
+                            className: "text-sm font-medium"
+                          },
+                          {
+                            type: "text",
+                            content: "Receive updates about new features and products",
+                            className: "text-sm text-muted-foreground"
+                          }
+                        ]
+                      },
+                      {
+                        type: "switch",
+                        id: "marketingEmails",
+                        name: "marketingEmails"
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "label",
+                        htmlFor: "language",
+                        label: "Language"
+                      },
+                      {
+                        type: "select",
+                        id: "language",
+                        name: "language",
+                        options: [
+                          { value: "en", label: "English" },
+                          { value: "es", label: "Spanish" },
+                          { value: "fr", label: "French" },
+                          { value: "de", label: "German" }
+                        ],
+                        defaultValue: "en"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "flex justify-end space-x-2",
+                children: [
+                  {
+                    type: "button",
+                    label: "Cancel",
+                    variant: "outline"
+                  },
+                  {
+                    type: "button",
+                    label: "Save Changes",
+                    variant: "default"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Newsletter Signup
+
+Simple newsletter subscription form.
+
+<InteractiveDemo
+  title="Newsletter Signup"
+  description="Email subscription form"
+  schema={{
+    type: "card",
+    className: "w-full max-w-md mx-auto",
+    children: [
+      {
+        type: "div",
+        className: "p-6 space-y-4",
+        children: [
+          {
+            type: "div",
+            className: "space-y-2 text-center",
+            children: [
+              {
+                type: "icon",
+                name: "mail",
+                className: "h-12 w-12 mx-auto text-primary"
+              },
+              {
+                type: "text",
+                content: "Subscribe to our Newsletter",
+                className: "text-xl font-bold"
+              },
+              {
+                type: "text",
+                content: "Get the latest updates and exclusive content delivered to your inbox.",
+                className: "text-sm text-muted-foreground"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "space-y-2",
+            children: [
+              {
+                type: "label",
+                htmlFor: "email",
+                label: "Email Address"
+              },
+              {
+                type: "input",
+                id: "email",
+                name: "email",
+                inputType: "email",
+                placeholder: "you@example.com",
+                required: true
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "flex items-start space-x-2",
+            children: [
+              {
+                type: "checkbox",
+                id: "terms",
+                name: "terms",
+                required: true
+              },
+              {
+                type: "label",
+                htmlFor: "terms",
+                label: "I agree to receive marketing emails and accept the Privacy Policy",
+                className: "text-sm font-normal leading-none"
+              }
+            ]
+          },
+          {
+            type: "button",
+            label: "Subscribe",
+            variant: "default",
+            className: "w-full"
+          },
+          {
+            type: "text",
+            content: "We respect your privacy. Unsubscribe at any time.",
+            className: "text-xs text-center text-muted-foreground"
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Payment Form
+
+Payment details form with card information.
+
+<InteractiveDemo
+  title="Payment Form"
+  description="Credit card payment form"
+  schema={{
+    type: "card",
+    className: "w-full max-w-md mx-auto",
+    children: [
+      {
+        type: "div",
+        className: "p-6 space-y-6",
+        children: [
+          {
+            type: "div",
+            className: "space-y-2",
+            children: [
+              {
+                type: "text",
+                content: "Payment Details",
+                className: "text-2xl font-bold"
+              },
+              {
+                type: "text",
+                content: "Enter your payment information below",
+                className: "text-sm text-muted-foreground"
+              }
+            ]
+          },
+          {
+            type: "div",
+            className: "space-y-4",
+            children: [
+              {
+                type: "div",
+                className: "space-y-2",
+                children: [
+                  {
+                    type: "label",
+                    htmlFor: "cardName",
+                    label: "Cardholder Name"
+                  },
+                  {
+                    type: "input",
+                    id: "cardName",
+                    name: "cardName",
+                    placeholder: "John Doe",
+                    required: true
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "space-y-2",
+                children: [
+                  {
+                    type: "label",
+                    htmlFor: "cardNumber",
+                    label: "Card Number"
+                  },
+                  {
+                    type: "input",
+                    id: "cardNumber",
+                    name: "cardNumber",
+                    placeholder: "1234 5678 9012 3456",
+                    required: true
+                  }
+                ]
+              },
+              {
+                type: "div",
+                className: "grid grid-cols-3 gap-4",
+                children: [
+                  {
+                    type: "div",
+                    className: "col-span-2 space-y-2",
+                    children: [
+                      {
+                        type: "label",
+                        htmlFor: "expiry",
+                        label: "Expiry Date"
+                      },
+                      {
+                        type: "input",
+                        id: "expiry",
+                        name: "expiry",
+                        placeholder: "MM/YY",
+                        required: true
+                      }
+                    ]
+                  },
+                  {
+                    type: "div",
+                    className: "space-y-2",
+                    children: [
+                      {
+                        type: "label",
+                        htmlFor: "cvc",
+                        label: "CVC"
+                      },
+                      {
+                        type: "input",
+                        id: "cvc",
+                        name: "cvc",
+                        placeholder: "123",
+                        required: true
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                type: "separator"
+              },
+              {
+                type: "div",
+                className: "space-y-2",
+                children: [
+                  {
+                    type: "text",
+                    content: "Billing Address",
+                    className: "text-sm font-semibold"
+                  },
+                  {
+                    type: "div",
+                    className: "space-y-4",
+                    children: [
+                      {
+                        type: "div",
+                        className: "space-y-2",
+                        children: [
+                          {
+                            type: "label",
+                            htmlFor: "country",
+                            label: "Country"
+                          },
+                          {
+                            type: "select",
+                            id: "country",
+                            name: "country",
+                            options: [
+                              { value: "us", label: "United States" },
+                              { value: "uk", label: "United Kingdom" },
+                              { value: "ca", label: "Canada" },
+                              { value: "au", label: "Australia" }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        type: "div",
+                        className: "space-y-2",
+                        children: [
+                          {
+                            type: "label",
+                            htmlFor: "zipCode",
+                            label: "ZIP / Postal Code"
+                          },
+                          {
+                            type: "input",
+                            id: "zipCode",
+                            name: "zipCode",
+                            placeholder: "12345"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                type: "button",
+                label: "Pay Now",
+                variant: "default",
+                className: "w-full"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+## Usage
+
+Customize form blocks for your application:
+
+### Add Validation
+
+```json
+{
+  "type": "input",
+  "name": "email",
+  "inputType": "email",
+  "required": true,
+  "validation": {
+    "pattern": "^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$",
+    "message": "Please enter a valid email address"
+  }
+}
+```
+
+### Add Submit Action
+
+```json
+{
+  "type": "button",
+  "label": "Submit",
+  "action": {
+    "type": "submit",
+    "endpoint": "/api/contact",
+    "method": "POST"
+  }
+}
+```
+
+### Customize Layout
+
+```json
+{
+  "type": "div",
+  "className": "grid grid-cols-1 md:grid-cols-2 gap-6"
+}
+```
+
+## Next Steps
+
+- Browse [Marketing Blocks](/docs/blocks/marketing)
+- Explore [E-commerce Blocks](/docs/blocks/ecommerce)
+- Learn about [Form Validation](/docs/guide/fields)
