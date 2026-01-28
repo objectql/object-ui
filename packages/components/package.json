@@ -30,7 +30,9 @@
     "pretest": "pnpm --filter @object-ui/core build && pnpm --filter @object-ui/react build",
     "test": "vitest run",
     "type-check": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@object-ui/core": "workspace:*",
@@ -86,6 +88,12 @@
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
+    "@storybook/addon-essentials": "^8.6.0",
+    "@storybook/addon-interactions": "^8.6.0",
+    "@storybook/addon-links": "^8.6.0",
+    "@storybook/blocks": "^8.6.0",
+    "@storybook/react": "^8.6.0",
+    "@storybook/react-vite": "^8.6.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3",
@@ -93,6 +101,7 @@
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.31",
     "shadcn": "^3.7.0",
+    "storybook": "^8.6.0",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
