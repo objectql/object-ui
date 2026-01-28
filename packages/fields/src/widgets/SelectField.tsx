@@ -26,7 +26,7 @@ export function SelectField({ value, onChange, field, readonly, ...props }: Fiel
       <SelectTrigger className={props.className}>
         <SelectValue placeholder={field.placeholder || "Select an option"} />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent position="popper">
         {options.map((option) => (
           <SelectItem key={option.value} value={option.value}>
             {option.label}
