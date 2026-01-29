@@ -19,11 +19,16 @@ import { opportunityDetailSchema } from './schemas/opportunity-detail';
 
 import { registerCustomWidgets } from './components/registry';
 
-// 1. Register components
-registerFields();
-registerLayout();
-registerPlaceholders();
-registerCustomWidgets();
+// 1. Register components (Single execution guard)
+const globalAny: any = window;
+if (!globalAny.__OBJECT_UI_REGISTERED__) {
+  console.log('Registering Object UI components...');
+  registerFields();
+  registerLayout();
+  registerPlaceholders();
+  registerCustomWidgets();
+  globalAny.__OBJECT_UI_REGISTERED__ = true;
+}
 
 // Generic Layout Shell
 const Layout = () => {
