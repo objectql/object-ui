@@ -5,7 +5,8 @@ import { protocol } from './protocol';
 import { mockData } from '../data';
 
 // 1. Initialize the mock server with our protocol definition
-ObjectStackServer.init(protocol);
+// Casting as any to bypass strict protocol interface checks for this mock implementation
+ObjectStackServer.init(protocol as any);
 
 // 2. Seed Data
 // We intentionally perform this side-effect here to ensure data exists when the app starts
@@ -122,9 +123,8 @@ const handlers = [
 
 const standardHandlers = [
     // Data Query
-    http.get('/api/v1/data/:object', async ({ params, request }) => {
+    http.get('/api/v1/data/:object', async ({ params }) => {
         const { object } = params;
-        const url = new URL(request.url);
         // We could implement filtering from url.searchParams if ObjectStackServer supports it
         const result = await ObjectStackServer.findData(object as string); // findData(obj, params?)
         return HttpResponse.json({ value: result.data }); // OData style usually { value: [] }? Or ObjectStack style?

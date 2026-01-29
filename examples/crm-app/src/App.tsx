@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Outlet, useParams } from 'react-router-dom';
 import { SidebarProvider, SidebarInset, SidebarTrigger, Separator } from '@object-ui/components';
 import { SchemaRendererProvider, SchemaRenderer } from '@object-ui/react';
