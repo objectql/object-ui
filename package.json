@@ -101,5 +101,10 @@
   },
   "dependencies": {
     "coverage-v8": "0.0.1-security"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }
