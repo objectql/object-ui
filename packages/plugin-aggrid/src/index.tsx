@@ -20,12 +20,15 @@ import 'ag-grid-community/styles/ag-theme-material.css';
 
 // Export types for external use
 export type { AgGridSchema, SimpleColumnDef, AgGridCallbacks, ExportConfig, StatusBarConfig, ColumnConfig, ContextMenuConfig } from './types';
+export type { ObjectAgGridSchema } from './object-aggrid.types';
 
 import type { AgGridCallbacks, ExportConfig, StatusBarConfig, ColumnConfig, ContextMenuConfig } from './types';
+import type { DataSource } from '@object-ui/types';
 
 // 🚀 Lazy load the implementation file
 // This ensures AG Grid is only loaded when the component is actually rendered
 const LazyAgGrid = React.lazy(() => import('./AgGridImpl'));
+const LazyObjectAgGrid = React.lazy(() => import('./ObjectAgGridImpl'));
 
 export interface AgGridRendererProps {
   schema: {
@@ -299,7 +302,184 @@ ComponentRegistry.register(
   }
 );
 
+/**
+ * ObjectAgGridRenderer - The public API for the metadata-driven AG Grid component
+ * This wrapper handles lazy loading internally using React.Suspense
+ */
+export interface ObjectAgGridRendererProps {
+  schema: {
+    type: string;
+    id?: string;
+    className?: string;
+    objectName: string;
+    dataSource?: DataSource;
+    fields?: any[];
+    fieldNames?: string[];
+    filters?: Record<string, any>;
+    sort?: Record<string, 'asc' | 'desc'>;
+    pageSize?: number;
+    pagination?: boolean;
+    domLayout?: 'normal' | 'autoHeight' | 'print';
+    animateRows?: boolean;
+    rowSelection?: 'single' | 'multiple';
+    theme?: 'alpine' | 'balham' | 'material' | 'quartz';
+    height?: number | string;
+    editable?: boolean;
+    editType?: 'fullRow';
+    singleClickEdit?: boolean;
+    stopEditingWhenCellsLoseFocus?: boolean;
+    exportConfig?: ExportConfig;
+    statusBar?: StatusBarConfig;
+    callbacks?: AgGridCallbacks & {
+      onDataLoaded?: (data: any[]) => void;
+      onDataError?: (error: Error) => void;
+    };
+    columnConfig?: ColumnConfig;
+    enableRangeSelection?: boolean;
+    enableCharts?: boolean;
+    contextMenu?: ContextMenuConfig;
+  };
+}
+
+export const ObjectAgGridRenderer: React.FC<ObjectAgGridRendererProps> = ({ schema }) => {
+  return (
+    <Suspense fallback={<Skeleton className="w-full h-[500px]" />}>
+      <LazyObjectAgGrid
+        objectName={schema.objectName}
+        dataSource={schema.dataSource}
+        fields={schema.fields}
+        fieldNames={schema.fieldNames}
+        filters={schema.filters}
+        sort={schema.sort}
+        pageSize={schema.pageSize}
+        pagination={schema.pagination}
+        domLayout={schema.domLayout}
+        animateRows={schema.animateRows}
+        rowSelection={schema.rowSelection}
+        theme={schema.theme}
+        height={schema.height}
+        className={schema.className}
+        editable={schema.editable}
+        editType={schema.editType}
+        singleClickEdit={schema.singleClickEdit}
+        stopEditingWhenCellsLoseFocus={schema.stopEditingWhenCellsLoseFocus}
+        exportConfig={schema.exportConfig}
+        statusBar={schema.statusBar}
+        callbacks={schema.callbacks}
+        columnConfig={schema.columnConfig}
+        enableRangeSelection={schema.enableRangeSelection}
+        enableCharts={schema.enableCharts}
+        contextMenu={schema.contextMenu}
+      />
+    </Suspense>
+  );
+};
+
 // Standard Export Protocol - for manual integration
 export const aggridComponents = {
   'aggrid': AgGridRenderer,
+  'object-aggrid': ObjectAgGridRenderer,
 };
+
+// Register the ObjectAgGrid component with the ComponentRegistry
+ComponentRegistry.register(
+  'object-aggrid',
+  ObjectAgGridRenderer,
+  {
+    label: 'Object AG Grid',
+    icon: 'Table',
+    category: 'plugin',
+    inputs: [
+      { 
+        name: 'objectName', 
+        type: 'string', 
+        label: 'Object Name',
+        description: 'Name of the object to fetch metadata and data from',
+        required: true
+      },
+      { 
+        name: 'dataSource', 
+        type: 'object', 
+        label: 'Data Source',
+        description: 'ObjectStack data source adapter instance',
+        required: true
+      },
+      { 
+        name: 'fieldNames', 
+        type: 'array', 
+        label: 'Field Names',
+        description: 'Optional: Specify which fields to show (defaults to all fields)',
+      },
+      { 
+        name: 'filters', 
+        type: 'object', 
+        label: 'Filters',
+        description: 'Query filters to apply to the data',
+      },
+      { 
+        name: 'sort', 
+        type: 'object', 
+        label: 'Sort',
+        description: 'Sorting configuration: { fieldName: "asc" | "desc" }',
+      },
+      { 
+        name: 'pagination', 
+        type: 'boolean', 
+        label: 'Enable Pagination',
+        defaultValue: true
+      },
+      { 
+        name: 'pageSize', 
+        type: 'number', 
+        label: 'Page Size',
+        defaultValue: 10,
+        description: 'Number of rows per page'
+      },
+      {
+        name: 'theme',
+        type: 'enum',
+        label: 'Theme',
+        enum: [
+          { label: 'Quartz', value: 'quartz' },
+          { label: 'Alpine', value: 'alpine' },
+          { label: 'Balham', value: 'balham' },
+          { label: 'Material', value: 'material' }
+        ],
+        defaultValue: 'quartz'
+      },
+      { 
+        name: 'height', 
+        type: 'number', 
+        label: 'Height (px)',
+        defaultValue: 500
+      },
+      { 
+        name: 'editable', 
+        type: 'boolean', 
+        label: 'Enable Editing',
+        defaultValue: false,
+        description: 'Allow cells to be edited inline',
+        advanced: true
+      },
+      { 
+        name: 'exportConfig', 
+        type: 'code', 
+        label: 'Export Config (JSON)',
+        description: 'Configure CSV export: { enabled: true, fileName: "data.csv" }',
+        advanced: true
+      },
+      { 
+        name: 'columnConfig', 
+        type: 'code', 
+        label: 'Column Config (JSON)',
+        description: 'Global column settings: { resizable: true, sortable: true, filterable: true }',
+        advanced: true
+      },
+      { 
+        name: 'className', 
+        type: 'string', 
+        label: 'CSS Class' 
+      }
+    ]
+  }
+);

@@ -890,6 +890,9 @@ importers:
       '@object-ui/core':
         specifier: workspace:*
         version: link:../core
+      '@object-ui/data-objectstack':
+        specifier: workspace:*
+        version: link:../data-objectstack
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react

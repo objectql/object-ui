@@ -512,7 +512,212 @@ pnpm type-check
 
 MIT
 
-## Resources
+## Object AgGrid - Metadata-Driven AG Grid
+
+The `object-aggrid` component extends the standard `aggrid` with metadata-driven capabilities using `@objectstack/client`. It automatically fetches object schemas and data, and generates appropriate column definitions based on field types.
+
+### Features
+
+- **Automatic Metadata Fetching**: Retrieves object schema from ObjectStack backend
+- **Automatic Data Loading**: Fetches data with pagination, filtering, and sorting
+- **Field Type Support**: Supports all ObjectUI field types with appropriate formatters and renderers
+- **Inline Editing**: Automatically saves changes to the backend
+- **Zero Column Configuration**: Columns are generated from metadata
+- **Selective Field Display**: Optionally show only specific fields
+
+### Installation
+
+```bash
+pnpm add @object-ui/plugin-aggrid @object-ui/data-objectstack ag-grid-community ag-grid-react
+```
+
+### Usage
+
+```typescript
+import '@object-ui/plugin-aggrid';
+import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+// Create data source
+const dataSource = new ObjectStackAdapter({
+  baseUrl: 'https://api.example.com',
+  token: 'your-api-token'
+});
+
+// Use in schema
+const schema = {
+  type: 'object-aggrid',
+  objectName: 'contacts',  // Object to fetch
+  dataSource: dataSource,  // ObjectStack data source
+  pagination: true,
+  pageSize: 20,
+  theme: 'quartz',
+  height: 600
+};
+```
+
+### Supported Field Types
+
+The component automatically applies appropriate formatters and cell renderers for all field types:
+
+- **Text Types**: text, textarea, markdown, html
+- **Numeric Types**: number, currency (with locale formatting), percent
+- **Boolean**: Displays ✓ Yes / ✗ No
+- **Date/Time**: date, datetime, time (with locale formatting)
+- **Contact**: email (clickable mailto), phone (clickable tel), url (clickable link)
+- **Select/Lookup**: select, lookup, master_detail (shows labels)
+- **Visual**: color (with color swatch), image, avatar, rating (stars)
+- **Advanced**: formula, summary, auto_number, user, file
+
+### Schema API for Object AgGrid
+
+```typescript
+{
+  type: 'object-aggrid',
+  
+  // Required
+  objectName: string,              // Name of the object to fetch
+  dataSource: DataSource,          // ObjectStack data source instance
+  
+  // Optional Field Configuration
+  fieldNames?: string[],           // Show only these fields (default: all)
+  fields?: FieldMetadata[],        // Override field metadata
+  
+  // Query Parameters
+  filters?: Record<string, any>,   // Query filters
+  sort?: Record<string, 'asc' | 'desc'>, // Sorting
+  pageSize?: number,               // Rows per page (default: 10)
+  
+  // Display Options (same as aggrid)
+  pagination?: boolean,            // Enable pagination (default: true)
+  theme?: string,                  // Grid theme (default: 'quartz')
+  height?: number | string,        // Grid height (default: 500)
+  
+  // Editing
+  editable?: boolean,              // Enable inline editing (auto-saves to backend)
+  
+  // Export, Status Bar, Callbacks, etc. (same as aggrid)
+  exportConfig?: ExportConfig,
+  statusBar?: StatusBarConfig,
+  columnConfig?: ColumnConfig,
+  callbacks?: {
+    onDataLoaded?: (data: any[]) => void,
+    onDataError?: (error: Error) => void,
+    // ... other aggrid callbacks
+  }
+}
+```
+
+### Examples
+
+#### Basic Usage
+
+```typescript
+const schema = {
+  type: 'object-aggrid',
+  objectName: 'users',
+  dataSource: myDataSource,
+  pagination: true,
+  pageSize: 25
+};
+```
+
+#### With Field Selection
+
+```typescript
+const schema = {
+  type: 'object-aggrid',
+  objectName: 'contacts',
+  dataSource: myDataSource,
+  fieldNames: ['name', 'email', 'phone', 'company'],
+  pagination: true
+};
+```
+
+#### With Filters and Sorting
+
+```typescript
+const schema = {
+  type: 'object-aggrid',
+  objectName: 'products',
+  dataSource: myDataSource,
+  filters: {
+    category: 'Electronics',
+    price: { $lt: 1000 }
+  },
+  sort: {
+    price: 'asc'
+  },
+  pagination: true
+};
+```
+
+#### Editable Grid with Auto-Save
+
+```typescript
+const schema = {
+  type: 'object-aggrid',
+  objectName: 'tasks',
+  dataSource: myDataSource,
+  editable: true,               // Enable editing
+  singleClickEdit: true,        // Single-click to edit
+  callbacks: {
+    onCellValueChanged: (event) => {
+      // Changes are automatically saved to backend
+      console.log('Saved:', event.data);
+    }
+  }
+};
+```
+
+#### With Export
+
+```typescript
+const schema = {
+  type: 'object-aggrid',
+  objectName: 'sales',
+  dataSource: myDataSource,
+  exportConfig: {
+    enabled: true,
+    fileName: 'sales-report.csv'
+  }
+};
+```
+
+### Field Type Formatting Examples
+
+**Currency Field:**
+```typescript
+// Schema defines: { type: 'currency', currency: 'USD', precision: 2 }
+// Renders as: $1,234.56
+```
+
+**Percent Field:**
+```typescript
+// Schema defines: { type: 'percent', precision: 1 }
+// Renders as: 45.5%
+```
+
+**Email Field:**
+```typescript
+// Schema defines: { type: 'email' }
+// Renders as: <a href="mailto:user@example.com">user@example.com</a>
+```
+
+**Rating Field:**
+```typescript
+// Schema defines: { type: 'rating', max: 5 }
+// Renders as: ⭐⭐⭐⭐⭐
+```
+
+**Color Field:**
+```typescript
+// Schema defines: { type: 'color' }
+// Renders as: [color swatch] #FF5733
+```
+
+## License
+
+
 
 - [AG Grid Community Documentation](https://www.ag-grid.com/documentation/)
 - [AG Grid Column Definitions](https://www.ag-grid.com/documentation/javascript/column-definitions/)
