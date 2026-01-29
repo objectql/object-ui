@@ -22,6 +22,7 @@ export const SchemaRenderer = ({ schema }: { schema: any }) => {
     return <div className="p-2 text-xs text-red-500 border border-red-200 bg-red-50 rounded">Unknown: {type}</div>;
   }
 
+  // False positive: Component is retrieved from registry, not created during render
   // eslint-disable-next-line react-hooks/rules-of-hooks
   return <Component schema={schema} {...schema} />;
 };

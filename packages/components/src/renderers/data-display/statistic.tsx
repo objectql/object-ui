@@ -36,6 +36,7 @@ const StatisticRenderer = ({ schema }: { schema: StatisticSchema }) => {
             {schema.label}
             </p>
           )}
+          {/* False positive: Icon is a component reference from getIcon(), not a hook call */}
           {/* eslint-disable-next-line react-hooks/rules-of-hooks */}
           {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
       </div>
