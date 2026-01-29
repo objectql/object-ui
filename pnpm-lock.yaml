@@ -211,8 +211,8 @@ importers:
         specifier: ^32.3.9
         version: 32.3.9
       ag-grid-react:
-        specifier: ^32.3.9
-        version: 32.3.9(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: ^35.0.1
+        version: 35.0.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       fumadocs-core:
         specifier: 16.4.8
         version: 16.4.8(@types/react@19.2.9)(algoliasearch@5.46.3)(lucide-react@0.563.0(react@19.2.3))(next@16.1.4(@babel/core@7.28.6)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-router@7.13.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(zod@4.3.6)
@@ -644,7 +644,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^1.2.0
-        version: 1.6.1(@types/node@25.0.10)(@vitest/ui@4.0.18(vitest@4.0.18))(happy-dom@20.3.9)(jsdom@27.4.0)(lightningcss@1.30.2)
+        version: 1.6.1(@types/node@25.0.10)(@vitest/ui@4.0.18)(happy-dom@20.3.9)(jsdom@27.4.0)(lightningcss@1.30.2)
 
   packages/fields:
     dependencies:
@@ -769,8 +769,8 @@ importers:
         specifier: ^32.3.9
         version: 32.3.9
       ag-grid-react:
-        specifier: ^32.3.9
-        version: 32.3.9(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: ^35.0.1
+        version: 35.0.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -4823,11 +4823,17 @@ packages:
   ag-charts-types@10.3.9:
     resolution: {integrity: sha512-drcRiJVencliC8LnRwk4MmeQDNNBg5GzmOoLFihO3/k0CUK0VF/N+2nc7iFozwaNG0btSB9vAhYuJLjqHMtRrQ==}
 
+  ag-charts-types@13.0.1:
+    resolution: {integrity: sha512-qg9adyiAaeUaDtWZEEPF45dv55kdJTe6Ghi0EQXCS79h/7KvOd6dxhqGZjPL1zeFl/L9qEXuYgb+LkGStq4mgQ==}
+
   ag-grid-community@32.3.9:
     resolution: {integrity: sha512-l07SB0mCbGPkC1R8rQQFgBtI5+1FoXBi3RUk1+dHKV/UPeorMEFAzCokcsOhz0qwcWCPrHauUsbRa1SIxfVEJQ==}
 
-  ag-grid-react@32.3.9:
-    resolution: {integrity: sha512-moC64CHbTOf+OSG2xCHYJdWh3MtYaVNvi5n7ro+ImS5gSFn7c5a42pjcfTmDh2sPsKD7qmBXXQ5Vr+Zwg9DhNA==}
+  ag-grid-community@35.0.1:
+    resolution: {integrity: sha512-fYYZdymWKsN9/tZv+R6uZRnuiWYEQr+GHl85ZrB0ixbFcE8opYK4NJI29NnMc9ShYiCBnAO9hj54IFa+FI4aDA==}
+
+  ag-grid-react@35.0.1:
+    resolution: {integrity: sha512-NvrrgWUm+DsnsZVFho16srlyBNKSl9nqeSadk63HpHYerq4S4vN/2JCxdNtfqns7SpbYx7GbasbMFCXKYj7Qaw==}
     peerDependencies:
       react: 19.2.3
       react-dom: 19.2.3
@@ -13390,13 +13396,19 @@ snapshots:
 
   ag-charts-types@10.3.9: {}
 
+  ag-charts-types@13.0.1: {}
+
   ag-grid-community@32.3.9:
     dependencies:
       ag-charts-types: 10.3.9
 
-  ag-grid-react@32.3.9(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+  ag-grid-community@35.0.1:
     dependencies:
-      ag-grid-community: 32.3.9
+      ag-charts-types: 13.0.1
+
+  ag-grid-react@35.0.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+    dependencies:
+      ag-grid-community: 35.0.1
       prop-types: 15.8.1
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
@@ -18822,7 +18834,7 @@ snapshots:
       jiti: 2.6.1
       lightningcss: 1.30.2
 
-  vitest@1.6.1(@types/node@25.0.10)(@vitest/ui@4.0.18(vitest@4.0.18))(happy-dom@20.3.9)(jsdom@27.4.0)(lightningcss@1.30.2):
+  vitest@1.6.1(@types/node@25.0.10)(@vitest/ui@4.0.18)(happy-dom@20.3.9)(jsdom@27.4.0)(lightningcss@1.30.2):
     dependencies:
       '@vitest/expect': 1.6.1
       '@vitest/runner': 1.6.1
