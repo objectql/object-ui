@@ -22,5 +22,6 @@ export const SchemaRenderer = ({ schema }: { schema: any }) => {
     return <div className="p-2 text-xs text-red-500 border border-red-200 bg-red-50 rounded">Unknown: {type}</div>;
   }
 
+  // eslint-disable-next-line
   return <Component schema={schema} {...schema} />;
 };

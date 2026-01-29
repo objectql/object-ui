@@ -16,7 +16,7 @@ import * as LucideIcons from 'lucide-react';
 const getIcon = (name: string) => {
     if (!name) return null;
     const pascalName = name.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('');
-    // @ts-ignore
+    // @ts-expect-error - Dynamic icon lookup from Lucide
     const Icon = LucideIcons[pascalName] || LucideIcons[name];
     return Icon;
 };
@@ -36,6 +36,7 @@ const StatisticRenderer = ({ schema }: { schema: StatisticSchema }) => {
             {schema.label}
             </p>
           )}
+          {/* eslint-disable-next-line */}
           {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
       </div>
 
