@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { SchemaRenderer } from '../SchemaRenderer';
+import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 
 const meta: Meta = {
   title: 'Templates/Page',
@@ -47,5 +47,9 @@ export const Page: Story = {
         }
     ]
   },
-  render: (args) => <SchemaRenderer schema={args} />
+  render: (args) => (
+    <SchemaRendererProvider dataSource={{}}>
+      <SchemaRenderer schema={args} />
+    </SchemaRendererProvider>
+  )
 };

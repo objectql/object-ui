@@ -17,7 +17,7 @@
   "scripts": {
     "dev": "pnpm --filter @examples/crm-app dev",
     "build": "pnpm --filter './packages/*' -r build && pnpm --filter './examples/*' -r build && pnpm --filter './apps/*' -r build",
-    "pretest": "pnpm --filter @object-ui/types build && pnpm --filter @object-ui/core build && pnpm --filter @object-ui/react build && pnpm --filter @object-ui/components build && pnpm --filter @object-ui/fields build && pnpm --filter @object-ui/layout build && pnpm --filter @object-ui/plugin-kanban build && pnpm --filter @object-ui/plugin-charts build",
+    "pretest": "pnpm --filter @object-ui/types build && pnpm --filter @object-ui/core build && pnpm --filter @object-ui/react build && pnpm --filter @object-ui/components build && pnpm --filter @object-ui/fields build && pnpm --filter @object-ui/layout build && pnpm --filter @object-ui/plugin-kanban build && pnpm --filter @object-ui/plugin-charts build && pnpm --filter @object-ui/plugin-form build && pnpm --filter @object-ui/plugin-grid build",
     "test": "vitest run",
     "site:dev": "pnpm --filter @objectui/site dev",
     "site:build": "pnpm --filter @objectui/site build",
@@ -72,6 +72,7 @@
     "eslint": "^9.39.2",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
+    "eslint-plugin-storybook": "^0.10.2",
     "globals": "^17.1.0",
     "happy-dom": "^20.3.9",
     "jsdom": "^27.4.0",

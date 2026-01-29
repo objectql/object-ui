@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { SchemaRenderer } from '../SchemaRenderer';
+import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 import type { BaseSchema } from '@object-ui/types';
 
 const meta = {
@@ -17,7 +17,11 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const renderStory = (args: any) => <SchemaRenderer schema={args as unknown as BaseSchema} />;
+const renderStory = (args: any) => (
+  <SchemaRendererProvider dataSource={{}}>
+    <SchemaRenderer schema={args as unknown as BaseSchema} />
+  </SchemaRendererProvider>
+);
 
 export const UserProfile: Story = {
   render: renderStory,

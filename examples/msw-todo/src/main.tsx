@@ -9,7 +9,6 @@ import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import { startMockServer } from './mocks/browser';
 
-// Start MSW before rendering the app
 async function bootstrap() {
   // Initialize Mock Service Worker
   await startMockServer();
@@ -22,4 +21,7 @@ async function bootstrap() {
   );
 }
 
-bootstrap();
+bootstrap().catch(err => {
+  console.error("FATAL: Application failed to start", err);
+  document.body.innerHTML = `<div style="color:red; padding: 20px;"><h1>Application Error</h1><pre>${err.message}</pre></div>`;
+});
