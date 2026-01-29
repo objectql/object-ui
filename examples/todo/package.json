@@ -3,6 +3,10 @@
   "version": "0.6.1",
   "description": "Example Todo App using ObjectStack Protocol",
   "private": true,
+  "type": "module",
+  "exports": {
+    "./objectstack.config": "./objectstack.config.ts"
+  },
   "scripts": {
     "build": "objectstack compile objectstack.config.ts dist/objectstack.json"
   },
