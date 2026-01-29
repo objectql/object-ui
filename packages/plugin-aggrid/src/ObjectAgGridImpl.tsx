@@ -148,7 +148,9 @@ export default function ObjectAgGridImpl({
         sortable: field.sortable !== false,
         filter: getFilterType(field),
         editable: editable && !field.readonly,
-        hide: field.visible_on ? false : undefined, // Handle conditional visibility
+        // visible_on will be evaluated by the core renderer
+        // For now, we just show all fields. Conditional visibility
+        // should be handled at a higher level or via dynamic column updates
       };
 
       // Apply column config defaults
@@ -290,6 +292,8 @@ export default function ObjectAgGridImpl({
     callbacks?.onCellValueChanged?.(event);
     
     // Save changes to backend if dataSource supports update
+    // Note: Assumes records have an 'id' field as primary key
+    // TODO: Make the ID field name configurable via schema
     if (dataSource && event.data && event.data.id) {
       try {
         await dataSource.update(objectName, event.data.id, {
@@ -413,6 +417,15 @@ export default function ObjectAgGridImpl({
 }
 
 /**
+ * Escape HTML to prevent XSS attacks
+ */
+function escapeHtml(text: string): string {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+/**
  * Get filter type based on field metadata
  */
 function getFilterType(field: FieldMetadata): string | boolean {
@@ -461,16 +474,26 @@ function applyFieldTypeFormatting(colDef: ColDef, field: FieldMetadata): void {
     case 'date':
       colDef.valueFormatter = (params: any) => {
         if (!params.value) return '';
-        const date = new Date(params.value);
-        return date.toLocaleDateString();
+        try {
+          const date = new Date(params.value);
+          if (isNaN(date.getTime())) return '';
+          return date.toLocaleDateString();
+        } catch {
+          return '';
+        }
       };
       break;
       
     case 'datetime':
       colDef.valueFormatter = (params: any) => {
         if (!params.value) return '';
-        const date = new Date(params.value);
-        return date.toLocaleString();
+        try {
+          const date = new Date(params.value);
+          if (isNaN(date.getTime())) return '';
+          return date.toLocaleString();
+        } catch {
+          return '';
+        }
       };
       break;
       
@@ -484,21 +507,24 @@ function applyFieldTypeFormatting(colDef: ColDef, field: FieldMetadata): void {
     case 'email':
       colDef.cellRenderer = (params: any) => {
         if (!params.value) return '';
-        return `<a href="mailto:${params.value}" class="text-blue-600 hover:underline">${params.value}</a>`;
+        const escaped = escapeHtml(params.value);
+        return `<a href="mailto:${escaped}" class="text-blue-600 hover:underline">${escaped}</a>`;
       };
       break;
       
     case 'url':
       colDef.cellRenderer = (params: any) => {
         if (!params.value) return '';
-        return `<a href="${params.value}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">${params.value}</a>`;
+        const escaped = escapeHtml(params.value);
+        return `<a href="${escaped}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">${escaped}</a>`;
       };
       break;
       
     case 'phone':
       colDef.cellRenderer = (params: any) => {
         if (!params.value) return '';
-        return `<a href="tel:${params.value}" class="text-blue-600 hover:underline">${params.value}</a>`;
+        const escaped = escapeHtml(params.value);
+        return `<a href="tel:${escaped}" class="text-blue-600 hover:underline">${escaped}</a>`;
       };
       break;
       
@@ -536,9 +562,10 @@ function applyFieldTypeFormatting(colDef: ColDef, field: FieldMetadata): void {
     case 'color':
       colDef.cellRenderer = (params: any) => {
         if (!params.value) return '';
+        const escaped = escapeHtml(params.value);
         return `<div class="flex items-center gap-2">
-          <div style="width: 16px; height: 16px; background-color: ${params.value}; border: 1px solid #ccc; border-radius: 2px;"></div>
-          <span>${params.value}</span>
+          <div style="width: 16px; height: 16px; background-color: ${escaped}; border: 1px solid #ccc; border-radius: 2px;"></div>
+          <span>${escaped}</span>
         </div>`;
       };
       break;
@@ -557,7 +584,8 @@ function applyFieldTypeFormatting(colDef: ColDef, field: FieldMetadata): void {
         if (!params.value) return '';
         const url = typeof params.value === 'string' ? params.value : params.value.url;
         if (!url) return '';
-        return `<img src="${url}" alt="" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" />`;
+        const escapedUrl = escapeHtml(url);
+        return `<img src="${escapedUrl}" alt="" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" />`;
       };
       break;
       
@@ -566,7 +594,8 @@ function applyFieldTypeFormatting(colDef: ColDef, field: FieldMetadata): void {
         if (!params.value) return '';
         const url = typeof params.value === 'string' ? params.value : params.value.url;
         if (!url) return '';
-        return `<img src="${url}" alt="" style="width: 32px; height: 32px; object-fit: cover; border-radius: 50%;" />`;
+        const escapedUrl = escapeHtml(url);
+        return `<img src="${escapedUrl}" alt="" style="width: 32px; height: 32px; object-fit: cover; border-radius: 50%;" />`;
       };
       break;
   }

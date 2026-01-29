@@ -21,7 +21,7 @@ export interface ObjectAgGridSchema {
   
   // Object metadata
   objectName: string;
-  dataSource?: DataSource;
+  dataSource: DataSource;  // Required for metadata-driven grid
   
   // Optional field configuration override
   fields?: FieldMetadata[];
@@ -74,7 +74,7 @@ export interface ObjectAgGridSchema {
  */
 export interface ObjectAgGridImplProps {
   objectName: string;
-  dataSource?: DataSource;
+  dataSource?: DataSource;  // Optional in props, but required for functionality
   fields?: FieldMetadata[];
   fieldNames?: string[];
   filters?: Record<string, any>;
@@ -102,25 +102,6 @@ export interface ObjectAgGridImplProps {
   enableCharts?: boolean;
   contextMenu?: ContextMenuConfig;
 }
-
-/**
- * Field type to AG Grid column type mapping
- */
-export const FIELD_TYPE_TO_AGGRID_TYPE: Record<string, string> = {
-  text: 'text',
-  textarea: 'text',
-  number: 'numericColumn',
-  currency: 'numericColumn',
-  percent: 'numericColumn',
-  boolean: 'text',
-  date: 'dateColumn',
-  datetime: 'dateColumn',
-  time: 'text',
-  email: 'text',
-  phone: 'text',
-  url: 'text',
-  select: 'text',
-};
 
 /**
  * Field type to AG Grid filter type mapping
