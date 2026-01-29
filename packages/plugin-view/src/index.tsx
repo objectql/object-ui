@@ -19,3 +19,26 @@ const ObjectViewRenderer: React.FC<{ schema: any }> = ({ schema }) => {
 };
 
 ComponentRegistry.register('object-view', ObjectViewRenderer);
+
+// Simple View Renderer (Container)
+const SimpleViewRenderer: React.FC<any> = ({ schema, className, children, ...props }) => {
+  // If columns prop is present, use grid layout
+  const style = schema.props?.columns 
+    ? { display: 'grid', gridTemplateColumns: `repeat(${schema.props.columns}, 1fr)`, gap: '1rem' }
+    : undefined;
+
+  return (
+    <div 
+      className={className} 
+      style={style}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+};
+
+ComponentRegistry.register('view:simple', SimpleViewRenderer, {
+  label: 'Simple View',
+  category: 'view'
+});

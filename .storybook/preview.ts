@@ -29,6 +29,7 @@ import '@object-ui/plugin-map';
 import '@object-ui/plugin-markdown';
 import '@object-ui/plugin-timeline';
 import '@object-ui/plugin-view';
+import '@object-ui/layout';
 
 const preview: Preview = {
   loaders: [mswLoader],
