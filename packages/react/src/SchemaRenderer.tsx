@@ -6,21 +6,49 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { forwardRef } from 'react';
-import { SchemaNode, ComponentRegistry } from '@object-ui/core';
+import React, { forwardRef, useContext, useMemo } from 'react';
+import { SchemaNode, ComponentRegistry, ExpressionEvaluator } from '@object-ui/core';
+import { SchemaRendererContext } from './context/SchemaRendererContext';
 
 export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<string, any>>(({ schema, ...props }, _ref) => {
-  if (!schema) return null;
+  const context = useContext(SchemaRendererContext);
+  const dataSource = context?.dataSource || {};
+
+  // Evaluate schema expressions against the data source
+  const evaluatedSchema = useMemo(() => {
+    if (!schema || typeof schema === 'string') return schema;
+
+    const evaluator = new ExpressionEvaluator({ data: dataSource });
+    const newSchema = { ...schema };
+
+    // Evaluate 'content' (common in Text, Button)
+    if (typeof newSchema.content === 'string') {
+      newSchema.content = evaluator.evaluate(newSchema.content);
+    }
+    
+    // Evaluate 'props'
+    if (newSchema.props) {
+      const newProps = { ...newSchema.props };
+      for (const [key, val] of Object.entries(newProps)) {
+        newProps[key] = evaluator.evaluate(val);
+      }
+      newSchema.props = newProps;
+    }
+
+    return newSchema;
+  }, [schema, dataSource]);
+
+  if (!evaluatedSchema) return null;
   // If schema is just a string, render it as text
-  if (typeof schema === 'string') return <>{schema}</>;
+  if (typeof evaluatedSchema === 'string') return <>{evaluatedSchema}</>;
   
-  const Component = ComponentRegistry.get(schema.type);
+  const Component = ComponentRegistry.get(evaluatedSchema.type);
 
   if (!Component) {
     return (
       <div className="p-4 border border-red-500 rounded text-red-500 bg-red-50 my-2">
-        Unknown component type: <strong>{schema.type}</strong>
-        <pre className="text-xs mt-2 overflow-auto">{JSON.stringify(schema, null, 2)}</pre>
+        Unknown component type: <strong>{evaluatedSchema.type}</strong>
+        <pre className="text-xs mt-2 overflow-auto">{JSON.stringify(evaluatedSchema, null, 2)}</pre>
       </div>
     );
   }
@@ -28,11 +56,11 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
   // Note: We don't forward the ref to the Component because components in the registry
   // may not support refs. The SchemaRenderer itself can still receive refs for its own use.
   return React.createElement(Component, {
-    schema,
-    ...(schema.props || {}),
-    className: schema.className,
-    'data-obj-id': schema.id,
-    'data-obj-type': schema.type,
+    schema: evaluatedSchema,
+    ...(evaluatedSchema.props || {}),
+    className: evaluatedSchema.className,
+    'data-obj-id': evaluatedSchema.id,
+    'data-obj-type': evaluatedSchema.type,
     ...props
   });
 });

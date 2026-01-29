@@ -7,6 +7,8 @@ interface SchemaRendererContextType {
 
 const SchemaRendererContext = createContext<SchemaRendererContextType | null>(null);
 
+export { SchemaRendererContext };
+
 export const SchemaRendererProvider = ({ 
   children, 
   dataSource, 
