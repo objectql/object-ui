@@ -7,10 +7,9 @@ import { registerLayout } from '@object-ui/layout';
 import '@object-ui/plugin-dashboard'; 
 import { ObjectForm } from '@object-ui/plugin-form';
 import { ObjectGrid } from '@object-ui/plugin-grid';
-import { dataSource } from './config/dataSource';
 import { registerPlaceholders } from '@object-ui/components';
 import { SidebarNav } from './components/SidebarNav';
-import { client } from './client';
+import { client, dataSource } from './client';
 
 // Schemas
 import { dashboardSchema } from './schemas/dashboard';

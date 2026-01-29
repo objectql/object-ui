@@ -1,3 +1,10 @@
+
+import fs from 'fs';
+import path from 'path';
+
+const root = process.cwd();
+
+const browserTs = `
 import { ObjectKernel, DriverPlugin, AppPlugin } from '@objectstack/runtime';
 import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver } from '@objectstack/driver-memory';
@@ -67,7 +74,7 @@ async function initializeMockData(driver: InMemoryDriver) {
     const manifest = crmConfig.manifest;
     if (manifest && manifest.data) {
         for (const dataSet of manifest.data) {
-            console.log(`[MockServer] Seeding ${dataSet.object}...`);
+            console.log(\`[MockServer] Seeding \${dataSet.object}...\`);
             if (dataSet.records) {
                 for (const record of dataSet.records) {
                     await driver.create(dataSet.object, record);
@@ -75,4 +82,45 @@ async function initializeMockData(driver: InMemoryDriver) {
             }
         }
     }
+}
+`;
+
+const clientTs = `
+import { ObjectStackClient } from '@objectstack/client';
+import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+// Use empty string to use current origin. 
+// Matches MSW baseUrl: ''
+const BASE_URL = '/api/v1'; 
+
+export const client = new ObjectStackClient({
+  baseUrl: BASE_URL, 
+  fetch: globalThis.fetch.bind(globalThis)
+});
+
+export const dataSource = new ObjectStackAdapter({
+  baseUrl: BASE_URL,
+  token: 'mock-token',
+  fetch: globalThis.fetch.bind(globalThis)
+});
+
+export const initClient = async () => {
+    console.log('[Client] Connecting...');
+    // Only connect client (adapter connects lazily or we can connect it too)
+    await client.connect();
+    // await dataSource.connect(); // Adapter usually auto-connects on request
+    console.log('[Client] Connected');
+}
+`;
+
+
+const files = {
+    'examples/crm-app/src/mocks/browser.ts': browserTs,
+    'examples/crm-app/src/client.ts': clientTs
+};
+
+for (const [f, c] of Object.entries(files)) {
+    const p = path.join(root, f);
+    fs.writeFileSync(p, c.trim());
+    console.log(`Updated ${f}`);
 }
