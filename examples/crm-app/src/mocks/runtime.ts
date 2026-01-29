@@ -66,47 +66,49 @@ export async function startMockServer() {
   await kernel.bootstrap();
 
   // Seed Data
-  await seedData(kernel);
+  await initializeMockData(kernel);
   
   return kernel;
 }
 
 // Helper to seed data into the in-memory driver
-async function seedData(kernel: ObjectKernel) {
-    console.log('[MockServer] Seeding data...');
-    const session = { userId: 'system' };
+async function initializeMockData(kernel: ObjectKernel) {
+    console.log('[MockServer] Initializing mock data (fresh)...');
     const objectql = kernel.getService<any>('objectql');
     
-    // Seed User
-    if (mockData.user) {
-        // Use IDataEngine interface directly: insert(object, data)
-        await objectql.insert('user', { ...mockData.user, id: 'current', _id: 'current' });
-    }
-
-    // Seed Contacts
-    if (mockData.contacts) {
-        for (const contact of mockData.contacts) {
-            await objectql.insert('contact', { ...contact, _id: contact.id });
+    try {
+        // Seed User
+        if (mockData.user) {
+            await objectql.insert('user', { ...mockData.user, id: 'current', _id: 'current' });
         }
-    }
 
-    // Seed Opportunities
-    if (mockData.opportunities) {
-        for (const opp of mockData.opportunities) {
-            await objectql.insert('opportunity', { ...opp, _id: opp.id });
+        // Seed Contacts
+        if (mockData.contacts) {
+            for (const contact of mockData.contacts) {
+                await objectql.insert('contact', { ...contact, _id: contact.id });
+            }
         }
+
+        // Seed Opportunities
+        if (mockData.opportunities) {
+            for (const opp of mockData.opportunities) {
+                await objectql.insert('opportunity', { ...opp, _id: opp.id });
+            }
+        }
+
+        // Seed Accounts
+        const accounts = [
+            { id: '1', name: 'Acme Corp', industry: 'Technology' },
+            { id: '2', name: 'TechStart Inc', industry: 'Startup' },
+            { id: '3', name: 'Global Solutions', industry: 'Consulting' }
+        ];
+
+        for (const acc of accounts) {
+            await objectql.insert('account', { ...acc, _id: acc.id });
+        }
+
+        console.log('[MockServer] Data seeded successfully');
+    } catch (err) {
+        console.error('[MockServer] Seeding failed:', err);
     }
-
-    // Seed Accounts
-    const accounts = [
-        { id: '1', name: 'Acme Corp', industry: 'Technology' },
-        { id: '2', name: 'TechStart Inc', industry: 'Startup' },
-        { id: '3', name: 'Global Solutions', industry: 'Consulting' }
-    ];
-
-    for (const acc of accounts) {
-        await objectql.insert('account', { ...acc, _id: acc.id });
-    }
-
-    console.log('[MockServer] Data seeded successfully');
 }
