@@ -5,6 +5,9 @@ import { SchemaRendererProvider, SchemaRenderer } from '@object-ui/react';
 import { registerFields } from '@object-ui/fields';
 import { registerLayout } from '@object-ui/layout';
 import '@object-ui/plugin-dashboard'; 
+import { ObjectForm } from '@object-ui/plugin-form';
+import { ObjectGrid } from '@object-ui/plugin-grid';
+import { dataSource } from './config/dataSource';
 import { registerPlaceholders } from '@object-ui/components';
 import { SidebarNav } from './components/SidebarNav';
 
@@ -97,6 +100,40 @@ const OpportunityDetailPage = () => {
     );
 }
 
+const VerificationPage = () => {
+    return (
+        <div className="space-y-8">
+            <div className="space-y-4">
+                <h2 className="text-xl font-bold">Object Grid (Contact)</h2>
+                <div className="border rounded-md p-4 bg-white dark:bg-black">
+                    <ObjectGrid 
+                        schema={{ 
+                            type: 'object-grid', 
+                            objectName: 'contact',
+                            columns: ['name', 'email', 'status'] 
+                        }} 
+                        dataSource={dataSource} 
+                    />
+                </div>
+            </div>
+
+            <div className="space-y-4">
+                <h2 className="text-xl font-bold">Object Form (Create Contact)</h2>
+                <div className="border rounded-md p-4 bg-white dark:bg-black max-w-2xl">
+                    <ObjectForm 
+                        schema={{ 
+                            type: 'object-form', 
+                            objectName: 'contact',
+                            mode: 'create'
+                        }} 
+                        dataSource={dataSource} 
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
+
 function App() {
   // Global Data State (Dashboard, Lists)
   const [appData, setAppData] = useState<any>(null);
@@ -125,6 +162,8 @@ function App() {
                 <Route index element={<SchemaRenderer schema={contactListSchema} />} />
                 <Route path=":id" element={<ContactDetailPage />} />
             </Route>
+            
+            <Route path="verify" element={<VerificationPage />} />
 
             <Route path="opportunities">
                 <Route index element={<SchemaRenderer schema={opportunityListSchema} />} />
