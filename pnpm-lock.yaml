@@ -323,6 +323,12 @@ importers:
         specifier: ^3.4.0
         version: 3.4.0
     devDependencies:
+      '@objectstack/driver-memory':
+        specifier: ^0.6.1
+        version: 0.6.1
+      '@objectstack/objectql':
+        specifier: ^0.6.1
+        version: 0.6.1
       '@objectstack/plugin-msw':
         specifier: ^0.6.1
         version: 0.6.1(@objectstack/runtime@0.6.1)(@types/node@25.0.10)(typescript@5.9.3)
@@ -2886,6 +2892,9 @@ packages:
 
   '@objectstack/core@0.6.1':
     resolution: {integrity: sha512-rIUXnDo8hPCLv2V82miepx3knBv49HIkgFc4tUjnKpseyzmOlyT95CleC7K9cjKq+dAFiPrdQGlAShbVk0K1EQ==}
+
+  '@objectstack/driver-memory@0.6.1':
+    resolution: {integrity: sha512-1mCdi9xz/hRRHAFdcMMufsdrcz+J6hB81JTtkcfwXU64DvxSVDIOoGyTJdBcIiM/bpkQqMdZumdYbe99Xj+ptg==}
 
   '@objectstack/objectql@0.6.1':
     resolution: {integrity: sha512-VnpHH7vm3P1GOT0A0Yju1/xMTznp3vWbj44fWuc1fAoD52TnJkMSW+aEWI4ETkVySMU02ey0QBc0yu8ziJntkw==}
@@ -11227,6 +11236,11 @@ snapshots:
 
   '@objectstack/core@0.6.1':
     dependencies:
+      '@objectstack/spec': 0.6.1
+
+  '@objectstack/driver-memory@0.6.1':
+    dependencies:
+      '@objectstack/core': 0.6.1
       '@objectstack/spec': 0.6.1
 
   '@objectstack/objectql@0.6.1':

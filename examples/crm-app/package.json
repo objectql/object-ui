@@ -30,6 +30,8 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
+    "@objectstack/driver-memory": "^0.6.1",
+    "@objectstack/objectql": "^0.6.1",
     "@objectstack/plugin-msw": "^0.6.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@tailwindcss/vite": "^4.1.18",
