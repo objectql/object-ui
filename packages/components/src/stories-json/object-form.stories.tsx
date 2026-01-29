@@ -32,7 +32,7 @@ export const BasicSchema: Story = {
   args: {
     type: 'object-form',
     objectName: 'User',
-    fields: [
+    customFields: [
       { name: 'firstName', label: 'First Name', type: 'text', required: true },
       { name: 'lastName', label: 'Last Name', type: 'text', required: true },
       { name: 'email', label: 'Email', type: 'email', required: true },
@@ -74,7 +74,7 @@ export const ComplexFields: Story = {
   args: {
     type: 'object-form',
     objectName: 'Product',
-    fields: [
+    customFields: [
       { name: 'name', label: 'Product Name', type: 'text', required: true },
       { name: 'category', label: 'Category', type: 'select', options: ['Electronics', 'Clothing', 'Food'], required: true },
       { name: 'price', label: 'Price', type: 'number', required: true },
@@ -96,7 +96,7 @@ export const ContactForm: Story = {
   args: {
     type: 'object-form',
     objectName: 'contact',
-    fields: [
+    customFields: [
       { name: 'name', label: 'Name', type: 'text', required: true },
       { name: 'email', label: 'Email', type: 'email', required: true },
       { name: 'phone', label: 'Phone', type: 'tel' },
@@ -118,7 +118,7 @@ export const OpportunityForm: Story = {
   args: {
     type: 'object-form',
     objectName: 'opportunity',
-    fields: [
+    customFields: [
       { name: 'name', label: 'Opportunity Name', type: 'text', required: true },
       { name: 'amount', label: 'Amount', type: 'number', required: true },
       { name: 'stage', label: 'Stage', type: 'select', options: ['Prospecting', 'Qualification', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost'] },
