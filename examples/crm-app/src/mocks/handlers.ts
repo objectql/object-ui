@@ -2,9 +2,12 @@ import { http, HttpResponse } from 'msw';
 import { ObjectStackServer } from '@objectstack/plugin-msw';
 import { protocol } from './protocol';
 import { mockData } from '../data';
+import { MemoryProtocol } from './MemoryProtocol';
 
 // Initialize the mock server with our protocol definition
-ObjectStackServer.init(protocol as any);
+// The JSON protocol def is insufficient for methods, so we wrap it or replace it with an implementation
+const memoryProtocol = new MemoryProtocol({}, (protocol as any).objects);
+ObjectStackServer.init(memoryProtocol as any);
 
 export const seedData = async () => {
     // Seed User

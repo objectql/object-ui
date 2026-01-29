@@ -20,6 +20,8 @@
     "@object-ui/plugin-grid": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
+    "@objectstack/core": "^0.6.1",
+    "@objectstack/runtime": "^0.6.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.563.0",
     "react": "^18.3.1",

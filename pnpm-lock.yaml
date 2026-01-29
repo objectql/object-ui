@@ -298,6 +298,12 @@ importers:
       '@object-ui/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@objectstack/core':
+        specifier: ^0.6.1
+        version: 0.6.1
+      '@objectstack/runtime':
+        specifier: ^0.6.1
+        version: 0.6.1
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
