@@ -15,7 +15,6 @@
 | **UI 协议** | UI Protocol | 65% | ⚠️ 部分实现 | 🔴 高 | High |
 | **数据协议** | Data Protocol | 55% | ⚠️ 部分实现 | 🔴 高 | High |
 | **系统协议** | System Protocol | 10% | ❌ 基本未实现 | 🟡 中 | Medium |
-| **权限协议** | Permission Protocol | 0% | ❌ 未实现 | 🟡 中 | Medium |
 | **API 协议** | API Protocol | 0% | ❌ 未实现 | 🟡 中 | Medium |
 | **AI 协议** | AI Protocol | 0% | ❌ 未实现 | 🟢 低 | Low |
 | **自动化协议** | Automation Protocol | 0% | ❌ 未实现 | 🟢 低 | Low |
@@ -123,7 +122,10 @@
 | **IdentitySchema** | 身份认证 | Identity | ❌ | Not Implemented | 0% | 需要实现用户、角色、认证 |
 | **PluginSchema** | 插件系统 | Plugin System | ⚠️ | Partial | 30% | 基础插件加载完成，缺生命周期 |
 | **EventSchema** | 事件系统 | Event System | ❌ | Not Implemented | 0% | 需要实现事件总线 |
-| **PolicySchema** | 权限策略 | Permission Policy | ❌ | Not Implemented | 0% | 需要实现 RBAC 系统 |
+
+**注**: 权限策略 (PolicySchema) 位于 `@objectstack/spec/permission` 命名空间，作为系统协议的扩展。
+
+**Note**: Permission policy (PolicySchema) is in `@objectstack/spec/permission` namespace, as an extension of system protocol.
 
 ---
 
