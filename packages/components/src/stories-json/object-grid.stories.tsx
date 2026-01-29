@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 import type { BaseSchema } from '@object-ui/types';
+import { createStorybookDataSource } from '../../../.storybook/datasource';
 
 const meta = {
   title: 'Views/Object Grid',
@@ -17,8 +18,11 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+// Create a DataSource instance that connects to MSW
+const dataSource = createStorybookDataSource();
+
 const renderStory = (args: any) => (
-  <SchemaRendererProvider dataSource={{}}>
+  <SchemaRendererProvider dataSource={dataSource}>
     <SchemaRenderer schema={args as unknown as BaseSchema} />
   </SchemaRendererProvider>
 );
@@ -91,6 +95,60 @@ export const WithActions: Story = {
       { orderId: 'ORD-1001', customer: 'Alice Brown', date: '2024-01-15', total: 159.99, status: 'Completed' },
       { orderId: 'ORD-1002', customer: 'Charlie Davis', date: '2024-01-18', total: 89.50, status: 'Processing' },
       { orderId: 'ORD-1003', customer: 'Eve Wilson', date: '2024-01-20', total: 299.99, status: 'Shipped' }
+    ],
+    pagination: true,
+    pageSize: 10,
+    className: 'w-full'
+  } as any,
+};
+
+/**
+ * Contacts Grid - Uses MSW-backed data from ObjectStack runtime
+ * 
+ * This story demonstrates integration with the MSW plugin runtime mode.
+ * Data is fetched from /api/v1/data/contact via the ObjectStack kernel.
+ */
+export const ContactsGrid: Story = {
+  render: renderStory,
+  args: {
+    type: 'object-grid',
+    objectName: 'contact',
+    data: {
+      provider: 'object',
+      object: 'contact',
+    },
+    columns: [
+      { field: 'name', header: 'Name', sortable: true, filterable: true },
+      { field: 'email', header: 'Email', sortable: true, filterable: true },
+      { field: 'title', header: 'Title', sortable: true },
+      { field: 'company', header: 'Company', sortable: true },
+      { field: 'status', header: 'Status', sortable: true }
+    ],
+    pagination: true,
+    pageSize: 10,
+    className: 'w-full'
+  } as any,
+};
+
+/**
+ * Opportunities Grid - Uses MSW-backed data from ObjectStack runtime
+ * 
+ * This story demonstrates fetching opportunity data from the MSW runtime.
+ */
+export const OpportunitiesGrid: Story = {
+  render: renderStory,
+  args: {
+    type: 'object-grid',
+    objectName: 'opportunity',
+    data: {
+      provider: 'object',
+      object: 'opportunity',
+    },
+    columns: [
+      { field: 'name', header: 'Name', sortable: true, filterable: true },
+      { field: 'amount', header: 'Amount', sortable: true, type: 'currency' },
+      { field: 'stage', header: 'Stage', sortable: true },
+      { field: 'closeDate', header: 'Close Date', sortable: true, type: 'date' }
     ],
     pagination: true,
     pageSize: 10,
