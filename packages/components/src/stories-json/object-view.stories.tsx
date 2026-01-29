@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 import type { BaseSchema } from '@object-ui/types';
+import { createStorybookDataSource } from '@storybook-config/datasource';
 
 const meta = {
   title: 'Views/Object View',
@@ -17,8 +18,11 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+// Create a DataSource instance that connects to MSW
+const dataSource = createStorybookDataSource();
+
 const renderStory = (args: any) => (
-  <SchemaRendererProvider dataSource={{}}>
+  <SchemaRendererProvider dataSource={dataSource}>
     <SchemaRenderer schema={args as unknown as BaseSchema} />
   </SchemaRendererProvider>
 );
