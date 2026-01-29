@@ -25,16 +25,23 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
+    "@objectstack/plugin-msw": "^0.6.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
+    "msw": "^2.12.7",
     "postcss": "^8.4.38",
     "tailwindcss": "^4.1.18",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.9.3",
     "vite": "^5.3.1"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }
