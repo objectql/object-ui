@@ -58,7 +58,7 @@ export interface ExpressionMetadata {
  * ```ts
  * const cache = new ExpressionCache();
  * const compiled = cache.compile('data.amount > 1000', ['data']);
- * const result = compiled({ amount: 1500 }); // true
+ * const result = compiled.fn({ amount: 1500 }); // true
  * ```
  */
 export class ExpressionCache {
@@ -91,9 +91,9 @@ export class ExpressionCache {
       return metadata;
     }
     
-    // Evict least recently used if cache is full
+    // Evict least frequently used if cache is full
     if (this.cache.size >= this.maxSize) {
-      this.evictLRU();
+      this.evictLFU();
     }
     
     // Compile the expression
@@ -125,9 +125,9 @@ export class ExpressionCache {
   }
   
   /**
-   * Evict the least recently used expression from cache
+   * Evict the least frequently used expression from cache
    */
-  private evictLRU(): void {
+  private evictLFU(): void {
     let oldestKey: string | null = null;
     let oldestTime = Infinity;
     let lowestHits = Infinity;

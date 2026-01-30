@@ -239,6 +239,11 @@ export class ExpressionEvaluator {
 }
 
 /**
+ * Shared global cache for convenience functions
+ */
+const globalCache = new ExpressionCache();
+
+/**
  * Convenience function to quickly evaluate an expression
  */
 export function evaluateExpression(
@@ -246,7 +251,7 @@ export function evaluateExpression(
   context: Record<string, any> = {},
   options: EvaluationOptions = {}
 ): any {
-  const evaluator = new ExpressionEvaluator(context);
+  const evaluator = new ExpressionEvaluator(context, globalCache);
   return evaluator.evaluate(expression, options);
 }
 
@@ -257,6 +262,6 @@ export function evaluateCondition(
   condition: string | boolean | undefined,
   context: Record<string, any> = {}
 ): boolean {
-  const evaluator = new ExpressionEvaluator(context);
+  const evaluator = new ExpressionEvaluator(context, globalCache);
   return evaluator.evaluateCondition(condition);
 }

@@ -35,6 +35,7 @@ export interface VirtualGridProps {
   data: any[];
   columns: VirtualGridColumn[];
   rowHeight?: number;
+  height?: number | string;
   className?: string;
   headerClassName?: string;
   rowClassName?: string | ((row: any, index: number) => string);
@@ -61,6 +62,7 @@ export const VirtualGrid: React.FC<VirtualGridProps> = ({
   data,
   columns,
   rowHeight = 40,
+  height = 600,
   className = '',
   headerClassName = '',
   rowClassName,
@@ -92,7 +94,13 @@ export const VirtualGrid: React.FC<VirtualGridProps> = ({
         {columns.map((column, index) => (
           <div
             key={index}
-            className={`px-4 py-2 font-semibold text-sm text-${column.align || 'left'}`}
+            className={`px-4 py-2 font-semibold text-sm ${
+              column.align === 'center'
+                ? 'text-center'
+                : column.align === 'right'
+                ? 'text-right'
+                : 'text-left'
+            }`}
           >
             {column.header}
           </div>
@@ -102,8 +110,11 @@ export const VirtualGrid: React.FC<VirtualGridProps> = ({
       {/* Virtual scrolling container */}
       <div
         ref={parentRef}
-        className="h-[600px] overflow-auto"
-        style={{ contain: 'strict' }}
+        className="overflow-auto"
+        style={{ 
+          height: typeof height === 'number' ? `${height}px` : height,
+          contain: 'strict' 
+        }}
       >
         <div
           style={{
@@ -145,7 +156,13 @@ export const VirtualGrid: React.FC<VirtualGridProps> = ({
                   return (
                     <div
                       key={colIndex}
-                      className={`px-4 py-2 text-sm flex items-center text-${column.align || 'left'}`}
+                      className={`px-4 py-2 text-sm flex items-center ${
+                        column.align === 'center'
+                          ? 'text-center justify-center'
+                          : column.align === 'right'
+                          ? 'text-right justify-end'
+                          : 'text-left justify-start'
+                      }`}
                     >
                       {cellContent}
                     </div>
