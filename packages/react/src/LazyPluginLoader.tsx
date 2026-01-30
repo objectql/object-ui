@@ -36,15 +36,17 @@ export interface LazyPluginOptions {
  * );
  * ```
  */
-export function createLazyPlugin<P = any>(
+export function createLazyPlugin<P extends object = any>(
   importFn: () => Promise<{ default: React.ComponentType<P> }>,
   options?: LazyPluginOptions
 ): React.ComponentType<P> {
   const LazyComponent = lazy(importFn);
   
-  return (props: P) => (
+  const PluginWrapper: React.FC<P> = (props) => (
     <Suspense fallback={options?.fallback || null}>
-      <LazyComponent {...(props as any)} />
+      <LazyComponent {...props} />
     </Suspense>
   );
+  
+  return PluginWrapper;
 }

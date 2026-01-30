@@ -34,7 +34,18 @@ async function createPlugin(pluginName?: string, options: PluginOptions = {}) {
       type: 'text',
       name: 'name',
       message: 'Plugin name (without prefix):',
-      validate: (value) => value.length > 0 || 'Plugin name is required'
+      validate: (value) => {
+        if (value.length === 0) return 'Plugin name is required';
+        // Validate package name format
+        if (!/^[a-z0-9-]+$/.test(value)) {
+          return 'Plugin name must contain only lowercase letters, numbers, and hyphens';
+        }
+        // Prevent path traversal
+        if (value.includes('..') || value.includes('/') || value.includes('\\')) {
+          return 'Plugin name cannot contain path separators or ".."';
+        }
+        return true;
+      }
     });
     pluginName = response.name;
     
@@ -44,11 +55,29 @@ async function createPlugin(pluginName?: string, options: PluginOptions = {}) {
     }
   }
 
+  // Validate plugin name format and security
+  if (!/^[a-z0-9-]+$/.test(pluginName)) {
+    console.log(chalk.red('\n❌ Plugin name must contain only lowercase letters, numbers, and hyphens'));
+    process.exit(1);
+  }
+  
+  if (pluginName.includes('..') || pluginName.includes('/') || pluginName.includes('\\') || path.isAbsolute(pluginName)) {
+    console.log(chalk.red('\n❌ Invalid plugin name: path traversal detected'));
+    process.exit(1);
+  }
+
   // Ensure plugin name doesn't include the plugin- prefix
-  const cleanName = pluginName.replace(/^plugin-/, '');
+  const cleanName = pluginName.replace(/^plugin-/, '').replace(/^-+|-+$/g, '').replace(/-{2,}/g, '-');
+  
+  if (cleanName.length === 0) {
+    console.log(chalk.red('\n❌ Plugin name cannot be empty after sanitization'));
+    process.exit(1);
+  }
+  
   const fullPackageName = `plugin-${cleanName}`;
   const pascalCaseName = cleanName
     .split('-')
+    .filter(part => part.length > 0)
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join('');
 

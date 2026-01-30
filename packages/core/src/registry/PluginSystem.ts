@@ -25,9 +25,10 @@ export class PluginSystem {
   /**
    * Load a plugin into the system
    * @param plugin The plugin definition to load
+   * @param registry The component registry to use for registration
    * @throws Error if dependencies are missing
    */
-  async loadPlugin(plugin: PluginDefinition): Promise<void> {
+  async loadPlugin(plugin: PluginDefinition, registry: Registry): Promise<void> {
     // Check if already loaded
     if (this.loaded.has(plugin.name)) {
       console.warn(`Plugin "${plugin.name}" is already loaded. Skipping.`);
@@ -41,14 +42,23 @@ export class PluginSystem {
       }
     }
 
-    // Store plugin definition
-    this.plugins.set(plugin.name, plugin);
+    try {
+      // Execute registration
+      plugin.register(registry);
 
-    // Execute lifecycle hook
-    await plugin.onLoad?.();
+      // Store plugin definition
+      this.plugins.set(plugin.name, plugin);
 
-    // Mark as loaded
-    this.loaded.add(plugin.name);
+      // Execute lifecycle hook
+      await plugin.onLoad?.();
+
+      // Mark as loaded
+      this.loaded.add(plugin.name);
+    } catch (error) {
+      // Clean up on failure
+      this.plugins.delete(plugin.name);
+      throw error;
+    }
   }
 
   /**

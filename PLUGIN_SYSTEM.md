@@ -52,13 +52,13 @@ const myPlugin: PluginDefinition = {
 The `PluginSystem` class manages plugin loading, dependency resolution, and lifecycle:
 
 ```typescript
-import { PluginSystem } from '@object-ui/core';
+import { PluginSystem, ComponentRegistry } from '@object-ui/core';
 
 const pluginSystem = new PluginSystem();
 
-// Load plugins in dependency order
-await pluginSystem.loadPlugin(basePlugin);
-await pluginSystem.loadPlugin(dependentPlugin); // Requires basePlugin
+// Load plugins in dependency order (pass registry for component registration)
+await pluginSystem.loadPlugin(basePlugin, ComponentRegistry);
+await pluginSystem.loadPlugin(dependentPlugin, ComponentRegistry); // Requires basePlugin
 
 // Check plugin status
 if (pluginSystem.isLoaded('my-plugin')) {
@@ -84,19 +84,19 @@ await pluginSystem.loadPlugin({
   version: '1.0.0',
   dependencies: ['missing-plugin'], // Not loaded yet
   register: () => {}
-});
+}, ComponentRegistry);
 // Error: Missing dependency: missing-plugin required by dependent-plugin
 
 // ✅ Load in correct order
-await pluginSystem.loadPlugin(basePlugin);
-await pluginSystem.loadPlugin(dependentPlugin);
+await pluginSystem.loadPlugin(basePlugin, ComponentRegistry);
+await pluginSystem.loadPlugin(dependentPlugin, ComponentRegistry);
 ```
 
 The system also prevents unloading plugins that other plugins depend on:
 
 ```typescript
-await pluginSystem.loadPlugin(basePlugin);
-await pluginSystem.loadPlugin(dependentPlugin); // depends on basePlugin
+await pluginSystem.loadPlugin(basePlugin, ComponentRegistry);
+await pluginSystem.loadPlugin(dependentPlugin, ComponentRegistry); // depends on basePlugin
 
 // ❌ This will throw an error
 await pluginSystem.unloadPlugin('base-plugin');
@@ -357,8 +357,8 @@ const chartPluginDef = {
 const pluginSystem = new PluginSystem();
 
 async function initPlugins() {
-  await pluginSystem.loadPlugin(gridPluginDef);
-  await pluginSystem.loadPlugin(chartPluginDef);
+  await pluginSystem.loadPlugin(gridPluginDef, ComponentRegistry);
+  await pluginSystem.loadPlugin(chartPluginDef, ComponentRegistry);
   
   // All plugins are now registered and ready to use
   console.log('Loaded plugins:', pluginSystem.getLoadedPlugins());
@@ -387,7 +387,7 @@ interface PluginDefinition {
 
 ```typescript
 class PluginSystem {
-  loadPlugin(plugin: PluginDefinition): Promise<void>;
+  loadPlugin(plugin: PluginDefinition, registry: Registry): Promise<void>;
   unloadPlugin(name: string): Promise<void>;
   isLoaded(name: string): boolean;
   getPlugin(name: string): PluginDefinition | undefined;
@@ -452,9 +452,11 @@ If you're maintaining an existing plugin, here's how to migrate:
 
 2. **Use PluginSystem for dependency management:**
    ```typescript
+   import { ComponentRegistry } from '@object-ui/core';
+   
    const pluginSystem = new PluginSystem();
-   await pluginSystem.loadPlugin(basePlugin);
-   await pluginSystem.loadPlugin(featurePlugin);
+   await pluginSystem.loadPlugin(basePlugin, ComponentRegistry);
+   await pluginSystem.loadPlugin(featurePlugin, ComponentRegistry);
    ```
 
 ## Troubleshooting

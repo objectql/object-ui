@@ -28,10 +28,11 @@ describe('PluginSystem', () => {
       }
     };
 
-    await pluginSystem.loadPlugin(plugin);
+    await pluginSystem.loadPlugin(plugin, registry);
     
     expect(pluginSystem.isLoaded('test-plugin')).toBe(true);
     expect(pluginSystem.getLoadedPlugins()).toContain('test-plugin');
+    expect(registry.has('test')).toBe(true);
   });
 
   it('should execute onLoad lifecycle hook', async () => {
@@ -43,7 +44,7 @@ describe('PluginSystem', () => {
       onLoad
     };
 
-    await pluginSystem.loadPlugin(plugin);
+    await pluginSystem.loadPlugin(plugin, registry);
     
     expect(onLoad).toHaveBeenCalledTimes(1);
   });
@@ -57,7 +58,7 @@ describe('PluginSystem', () => {
       onLoad
     };
 
-    await pluginSystem.loadPlugin(plugin);
+    await pluginSystem.loadPlugin(plugin, registry);
     
     expect(onLoad).toHaveBeenCalledTimes(1);
   });
@@ -71,8 +72,8 @@ describe('PluginSystem', () => {
       onLoad
     };
 
-    await pluginSystem.loadPlugin(plugin);
-    await pluginSystem.loadPlugin(plugin);
+    await pluginSystem.loadPlugin(plugin, registry);
+    await pluginSystem.loadPlugin(plugin, registry);
     
     expect(onLoad).toHaveBeenCalledTimes(1);
   });
@@ -85,7 +86,7 @@ describe('PluginSystem', () => {
       register: () => {}
     };
 
-    await expect(pluginSystem.loadPlugin(plugin)).rejects.toThrow(
+    await expect(pluginSystem.loadPlugin(plugin, registry)).rejects.toThrow(
       'Missing dependency: base-plugin required by dependent-plugin'
     );
   });
@@ -104,8 +105,8 @@ describe('PluginSystem', () => {
       register: () => {}
     };
 
-    await pluginSystem.loadPlugin(basePlugin);
-    await pluginSystem.loadPlugin(dependentPlugin);
+    await pluginSystem.loadPlugin(basePlugin, registry);
+    await pluginSystem.loadPlugin(dependentPlugin, registry);
     
     expect(pluginSystem.isLoaded('base-plugin')).toBe(true);
     expect(pluginSystem.isLoaded('dependent-plugin')).toBe(true);
@@ -120,7 +121,7 @@ describe('PluginSystem', () => {
       onUnload
     };
 
-    await pluginSystem.loadPlugin(plugin);
+    await pluginSystem.loadPlugin(plugin, registry);
     expect(pluginSystem.isLoaded('test-plugin')).toBe(true);
     
     await pluginSystem.unloadPlugin('test-plugin');
@@ -143,8 +144,8 @@ describe('PluginSystem', () => {
       register: () => {}
     };
 
-    await pluginSystem.loadPlugin(basePlugin);
-    await pluginSystem.loadPlugin(dependentPlugin);
+    await pluginSystem.loadPlugin(basePlugin, registry);
+    await pluginSystem.loadPlugin(dependentPlugin, registry);
     
     await expect(pluginSystem.unloadPlugin('base-plugin')).rejects.toThrow(
       'Cannot unload plugin "base-plugin" - plugin "dependent-plugin" depends on it'
@@ -164,7 +165,7 @@ describe('PluginSystem', () => {
       register: () => {}
     };
 
-    await pluginSystem.loadPlugin(plugin);
+    await pluginSystem.loadPlugin(plugin, registry);
     
     const retrieved = pluginSystem.getPlugin('test-plugin');
     expect(retrieved).toBe(plugin);
@@ -183,12 +184,41 @@ describe('PluginSystem', () => {
       register: () => {}
     };
 
-    await pluginSystem.loadPlugin(plugin1);
-    await pluginSystem.loadPlugin(plugin2);
+    await pluginSystem.loadPlugin(plugin1, registry);
+    await pluginSystem.loadPlugin(plugin2, registry);
     
     const allPlugins = pluginSystem.getAllPlugins();
     expect(allPlugins).toHaveLength(2);
     expect(allPlugins).toContain(plugin1);
     expect(allPlugins).toContain(plugin2);
+  });
+
+  it('should call register function with registry', async () => {
+    const registerFn = vi.fn();
+    const plugin: PluginDefinition = {
+      name: 'test-plugin',
+      version: '1.0.0',
+      register: registerFn
+    };
+
+    await pluginSystem.loadPlugin(plugin, registry);
+    
+    expect(registerFn).toHaveBeenCalledWith(registry);
+    expect(registerFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('should cleanup on registration failure', async () => {
+    const plugin: PluginDefinition = {
+      name: 'failing-plugin',
+      version: '1.0.0',
+      register: () => {
+        throw new Error('Registration failed');
+      }
+    };
+
+    await expect(pluginSystem.loadPlugin(plugin, registry)).rejects.toThrow('Registration failed');
+    
+    expect(pluginSystem.isLoaded('failing-plugin')).toBe(false);
+    expect(pluginSystem.getPlugin('failing-plugin')).toBeUndefined();
   });
 });
