@@ -22,7 +22,7 @@ export class ObjectStackError extends Error {
     message: string,
     public code: string,
     public statusCode?: number,
-    public details?: any
+    public details?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'ObjectStackError';
@@ -54,7 +54,7 @@ export class ObjectStackError extends Error {
 export class MetadataNotFoundError extends ObjectStackError {
   constructor(
     objectName: string,
-    details?: any
+    details?: Record<string, unknown>
   ) {
     super(
       `Metadata not found for object: ${objectName}`,
@@ -83,8 +83,8 @@ export class BulkOperationError extends ObjectStackError {
     operation: 'create' | 'update' | 'delete',
     public successCount: number,
     public failureCount: number,
-    public errors: Array<{ index: number; error: any }>,
-    details?: any
+    public errors: Array<{ index: number; error: unknown }>,
+    details?: Record<string, unknown>
   ) {
     super(
       `Bulk ${operation} operation failed: ${successCount} succeeded, ${failureCount} failed`,
@@ -109,7 +109,7 @@ export class BulkOperationError extends ObjectStackError {
     const failureRate = total > 0 ? this.failureCount / total : 0;
     
     return {
-      operation: this.details.operation,
+      operation: this.details?.operation as string,
       total: total,
       successful: this.successCount,
       failed: this.failureCount,
@@ -126,7 +126,7 @@ export class ConnectionError extends ObjectStackError {
   constructor(
     message: string,
     public url?: string,
-    details?: any,
+    details?: Record<string, unknown>,
     statusCode?: number
   ) {
     super(
@@ -145,7 +145,7 @@ export class ConnectionError extends ObjectStackError {
 export class AuthenticationError extends ObjectStackError {
   constructor(
     message: string = 'Authentication failed',
-    details?: any,
+    details?: Record<string, unknown>,
     statusCode?: number
   ) {
     super(
@@ -174,7 +174,7 @@ export class ValidationError extends ObjectStackError {
     message: string,
     public field?: string,
     public validationErrors?: Array<{ field: string; message: string }>,
-    details?: any
+    details?: Record<string, unknown>
   ) {
     super(
       message,
@@ -204,9 +204,9 @@ export class ValidationError extends ObjectStackError {
  * @param context - Additional context for debugging
  * @returns Appropriate error instance
  */
-export function createErrorFromResponse(response: any, context?: string): ObjectStackError {
-  const status = response?.status || response?.statusCode || 500;
-  const message = response?.message || response?.statusText || 'Unknown error';
+export function createErrorFromResponse(response: Record<string, unknown>, context?: string): ObjectStackError {
+  const status = (response?.status as number) || (response?.statusCode as number) || 500;
+  const message = (response?.message as string) || (response?.statusText as string) || 'Unknown error';
   const details = {
     context,
     response: {
@@ -232,13 +232,13 @@ export function createErrorFromResponse(response: any, context?: string): Object
       return new ObjectStackError(message, 'NOT_FOUND', 404, details);
     
     case 400:
-      return new ValidationError(message, undefined, response?.data?.errors, details);
+      return new ValidationError(message, undefined, (response?.data as Record<string, unknown>)?.errors as Array<{ field: string; message: string }>, details);
     
     case 503:
-      return new ConnectionError(message, response?.config?.url, details, 503);
+      return new ConnectionError(message, (response?.config as Record<string, unknown>)?.url as string, details, 503);
     
     case 504:
-      return new ConnectionError(message, response?.config?.url, details, 504);
+      return new ConnectionError(message, (response?.config as Record<string, unknown>)?.url as string, details, 504);
     
     default:
       return new ObjectStackError(message, 'UNKNOWN_ERROR', status, details);
@@ -259,7 +259,7 @@ function extractObjectName(context?: string): string {
 /**
  * Type guard to check if an error is an ObjectStackError
  */
-export function isObjectStackError(error: any): error is ObjectStackError {
+export function isObjectStackError(error: unknown): error is ObjectStackError {
   return error instanceof ObjectStackError;
 }
 
@@ -267,7 +267,8 @@ export function isObjectStackError(error: any): error is ObjectStackError {
  * Type guard to check if an error is a specific ObjectStack error type
  */
 export function isErrorType<T extends ObjectStackError>(
-  error: any,
+  error: unknown,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   errorClass: new (...args: any[]) => T
 ): error is T {
   return error instanceof errorClass;

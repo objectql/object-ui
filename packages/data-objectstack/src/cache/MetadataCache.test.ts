@@ -412,7 +412,6 @@ describe('MetadataCache', () => {
 
     it('should handle very large cache', async () => {
       const largeCache = new MetadataCache({ maxSize: 10000, ttl: 60000 });
-      const fetcher = vi.fn(async () => ({ data: 'test' }));
       
       // Add many entries
       for (let i = 0; i < 1000; i++) {

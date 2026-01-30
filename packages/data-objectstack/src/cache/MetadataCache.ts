@@ -10,7 +10,7 @@
  * Represents a cached schema entry with metadata
  */
 interface CachedSchema {
-  data: any;
+  data: unknown;
   timestamp: number;
   accessCount: number;
   lastAccessed: number;
@@ -88,7 +88,7 @@ export class MetadataCache {
    * @param fetcher - Async function to fetch data if not in cache
    * @returns Promise resolving to the cached or fetched data
    */
-  async get(key: string, fetcher: () => Promise<any>): Promise<any> {
+  async get<T = unknown>(key: string, fetcher: () => Promise<T>): Promise<T> {
     const now = Date.now();
     const cached = this.cache.get(key);
 
@@ -106,7 +106,7 @@ export class MetadataCache {
         this.cache.delete(key);
         this.cache.set(key, cached);
         
-        return cached.data;
+        return cached.data as T;
       } else {
         // Expired entry - remove it
         this.cache.delete(key);
@@ -129,7 +129,7 @@ export class MetadataCache {
    * @param key - Cache key
    * @param data - Data to cache
    */
-  private set(key: string, data: any): void {
+  private set(key: string, data: unknown): void {
     const now = Date.now();
 
     // Check if we need to evict entries

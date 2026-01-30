@@ -40,7 +40,7 @@ import {
  * });
  * ```
  */
-export class ObjectStackAdapter<T = any> implements DataSource<T> {
+export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   private client: ObjectStackClient;
   private connected: boolean = false;
   private metadataCache: MetadataCache;
@@ -67,9 +67,10 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
       try {
         await this.client.connect();
         this.connected = true;
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to connect to ObjectStack server';
         throw new ConnectionError(
-          error?.message || 'Failed to connect to ObjectStack server',
+          errorMessage,
           undefined,
           { originalError: error }
         );
@@ -85,7 +86,7 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
     await this.connect();
 
     const queryOptions = this.convertQueryParams(params);
-    const result: any = await this.client.data.find<T>(resource, queryOptions);
+    const result: unknown = await this.client.data.find<T>(resource, queryOptions);
 
     // Handle legacy/raw array response (e.g. from some mock servers or non-OData endpoints)
     if (Array.isArray(result)) {
@@ -98,13 +99,14 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
       };
     }
 
+    const resultObj = result as { value?: T[]; count?: number };
     return {
-      data: result.value || [],
-      total: result.count || (result.value ? result.value.length : 0),
+      data: resultObj.value || [],
+      total: resultObj.count || (resultObj.value ? resultObj.value.length : 0),
       // Calculate page number safely
       page: params?.$skip && params.$top ? Math.floor(params.$skip / params.$top) + 1 : 1,
       pageSize: params?.$top,
-      hasMore: params?.$top ? (result.value?.length || 0) === params.$top : false,
+      hasMore: params?.$top ? (resultObj.value?.length || 0) === params.$top : false,
     };
   }
 
@@ -117,9 +119,9 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
     try {
       const record = await this.client.data.get<T>(resource, String(id));
       return record;
-    } catch (error) {
+    } catch (error: unknown) {
       // If record not found, return null instead of throwing
-      if ((error as any)?.status === 404) {
+      if ((error as Record<string, unknown>)?.status === 404) {
         return null;
       }
       throw error;
@@ -172,7 +174,7 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
           return await this.client.data.createMany<T>(resource, data);
         
         case 'delete': {
-          const ids = data.map(item => (item as any).id).filter(Boolean);
+          const ids = data.map(item => (item as Record<string, unknown>).id).filter(Boolean);
           
           if (ids.length === 0) {
             // Track which items are missing IDs
@@ -190,23 +192,25 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
         
         case 'update': {
           // Check if client supports updateMany
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if (typeof (this.client.data as any).updateMany === 'function') {
             try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const updateMany = (this.client.data as any).updateMany;
               return await updateMany(resource, data) as T[];
-            } catch (error) {
+            } catch {
               // If updateMany is not supported, fall back to individual updates
-              console.warn('updateMany not supported, falling back to individual updates');
+              // Silently fallback without logging
             }
           }
           
           // Fallback: Process updates individually with detailed error tracking
           const results: T[] = [];
-          const errors: Array<{ index: number; error: any }> = [];
+          const errors: Array<{ index: number; error: unknown }> = [];
           
           for (let i = 0; i < data.length; i++) {
             const item = data[i];
-            const id = (item as any).id;
+            const id = (item as Record<string, unknown>).id;
             
             if (!id) {
               errors.push({ index: i, error: 'Missing ID' });
@@ -216,8 +220,9 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
             try {
               const result = await this.client.data.update<T>(resource, String(id), item);
               results.push(result);
-            } catch (error: any) {
-              errors.push({ index: i, error: error.message || error });
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              errors.push({ index: i, error: errorMessage });
             }
           }
           
@@ -242,7 +247,7 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
             400
           );
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If it's already a BulkOperationError, re-throw it
       if (error instanceof BulkOperationError) {
         throw error;
@@ -254,9 +259,10 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
       }
       
       // Wrap other errors in BulkOperationError with proper error tracking
+      const errorMessage = error instanceof Error ? error.message : String(error);
       const errors = data.map((_, index) => ({
         index,
-        error: error.message || String(error)
+        error: errorMessage
       }));
       
       throw new BulkOperationError(
@@ -315,7 +321,7 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
    * @param objectName - Object name
    * @returns Promise resolving to the object schema
    */
-  async getObjectSchema(objectName: string): Promise<any> {
+  async getObjectSchema(objectName: string): Promise<unknown> {
     await this.connect();
     
     try {
@@ -326,9 +332,10 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
       });
       
       return schema;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Check if it's a 404 error
-      if (error?.status === 404 || error?.statusCode === 404) {
+      const errorObj = error as Record<string, unknown>;
+      if (errorObj?.status === 404 || errorObj?.statusCode === 404) {
         throw new MetadataNotFoundError(objectName, { originalError: error });
       }
       
@@ -337,7 +344,7 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
         throw error;
       }
       
-      throw createErrorFromResponse(error, `getObjectSchema(${objectName})`);
+      throw createErrorFromResponse(errorObj, `getObjectSchema(${objectName})`);
     }
   }
 
@@ -384,7 +391,7 @@ export class ObjectStackAdapter<T = any> implements DataSource<T> {
  * });
  * ```
  */
-export function createObjectStackAdapter<T = any>(config: {
+export function createObjectStackAdapter<T = unknown>(config: {
   baseUrl: string;
   token?: string;
   fetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
