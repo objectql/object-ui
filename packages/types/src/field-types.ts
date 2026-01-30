@@ -731,12 +731,7 @@ export interface ObjectSchemaMetadata {
   /**
    * Permissions (Phase 3.1.4: Enhanced permissions)
    */
-  permissions?: ObjectPermission | {
-    create?: boolean;
-    read?: boolean;
-    update?: boolean;
-    delete?: boolean;
-  };
+  permissions?: ObjectPermission;
   
   /**
    * Parent object to inherit from (Phase 3.1.2)

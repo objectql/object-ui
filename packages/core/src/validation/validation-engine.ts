@@ -57,7 +57,7 @@ export class ValidationEngine {
           severity: rule.severity || 'error',
         };
 
-        if (rule.severity === 'warning') {
+        if (rule.severity === 'warning' || rule.severity === 'info') {
           warnings.push(error);
         } else {
           errors.push(error);
@@ -111,11 +111,11 @@ export class ValidationEngine {
   /**
    * Validate built-in rules
    */
-  private validateBuiltInRule(
+  private async validateBuiltInRule(
     value: any,
     rule: AdvancedValidationRule,
     context?: ValidationContext
-  ): string | null {
+  ): Promise<string | null> {
     const { type, params, message } = rule;
 
     switch (type) {
@@ -139,9 +139,13 @@ export class ValidationEngine {
 
       case 'pattern':
         if (typeof value === 'string') {
-          const regex = typeof params === 'string' ? new RegExp(params) : params;
-          if (!regex.test(value)) {
-            return message || 'Invalid format';
+          try {
+            const regex = typeof params === 'string' ? new RegExp(params) : params;
+            if (!regex.test(value)) {
+              return message || 'Invalid format';
+            }
+          } catch (error) {
+            return message || 'Invalid pattern configuration';
           }
         }
         break;
@@ -305,11 +309,16 @@ export class ValidationEngine {
       case 'conditional':
         if (context?.values && params) {
           const { condition, rules } = params;
+          
+          if (!Array.isArray(rules) || rules.length === 0) {
+            break;
+          }
+          
           const conditionMet = this.evaluateCondition(condition, context.values);
           
           if (conditionMet) {
             for (const conditionalRule of rules) {
-              const result = this.validateBuiltInRule(value, conditionalRule, context);
+              const result = await this.validateRule(value, conditionalRule, context);
               if (result) {
                 return result;
               }
@@ -317,6 +326,11 @@ export class ValidationEngine {
           }
         }
         break;
+      
+      default:
+        // Unhandled validation rule type
+        console.warn(`Unsupported validation rule type: ${type}`);
+        return null;
     }
 
     return null;
@@ -324,10 +338,12 @@ export class ValidationEngine {
 
   /**
    * Evaluate a condition
+   * Note: Conditions must be declarative objects, not functions, for security.
    */
   private evaluateCondition(condition: any, values: Record<string, any>): boolean {
     if (typeof condition === 'function') {
-      return condition(values);
+      console.warn('Function-based conditions are deprecated and will be removed. Use declarative conditions instead.');
+      return false; // Security: reject function-based conditions
     }
     
     if (typeof condition === 'object' && condition.field) {
@@ -372,7 +388,11 @@ export class ValidationEngine {
 
     for (const [field, schema] of Object.entries(schemas)) {
       const value = values[field];
-      results[field] = await this.validate(value, schema, context);
+      const schemaWithField: AdvancedValidationSchema = {
+        ...schema,
+        field: schema.field ?? field,
+      };
+      results[field] = await this.validate(value, schemaWithField, context);
     }
 
     return results;

@@ -118,11 +118,64 @@ export class QueryASTBuilder {
 
   private buildCondition(condition: AdvancedFilterCondition): OperatorNode {
     const field = this.buildField(condition.field);
-    const value = this.buildLiteral(condition.value);
     
+    // Map filter operators to comparison operators
+    const operatorMap: Record<string, string> = {
+      'equals': '=',
+      'not_equals': '!=',
+      'greater_than': '>',
+      'greater_than_or_equal': '>=',
+      'less_than': '<',
+      'less_than_or_equal': '<=',
+      'contains': 'contains',
+      'not_contains': 'contains',
+      'starts_with': 'starts_with',
+      'ends_with': 'ends_with',
+      'like': 'like',
+      'ilike': 'ilike',
+      'in': 'in',
+      'not_in': 'not_in',
+      'is_null': 'is_null',
+      'is_not_null': 'is_not_null',
+      'between': 'between',
+    };
+
+    const operator = operatorMap[condition.operator] || '=';
+    
+    // Handle special operators
+    if (operator === 'between' && condition.values && condition.values.length === 2) {
+      return {
+        type: 'operator',
+        operator: 'between' as any,
+        operands: [
+          field,
+          this.buildLiteral(condition.values[0]),
+          this.buildLiteral(condition.values[1])
+        ],
+      };
+    }
+
+    if ((operator === 'in' || operator === 'not_in') && condition.values) {
+      return {
+        type: 'operator',
+        operator: operator as any,
+        operands: [field, ...condition.values.map(v => this.buildLiteral(v))],
+      };
+    }
+
+    if (operator === 'is_null' || operator === 'is_not_null') {
+      return {
+        type: 'operator',
+        operator: operator as any,
+        operands: [field],
+      };
+    }
+
+    // Standard binary operator
+    const value = this.buildLiteral(condition.value);
     return {
       type: 'operator',
-      operator: '=',
+      operator: operator as any,
       operands: [field, value],
     };
   }

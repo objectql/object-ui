@@ -300,7 +300,7 @@ export type {
 export type {
   BaseFieldMetadata,
   VisibilityCondition,
-  ValidationFunction,
+  ValidationFunction as FieldValidationFunction,
   TextFieldMetadata,
   TextareaFieldMetadata,
   MarkdownFieldMetadata,
@@ -390,6 +390,7 @@ export type {
   AdvancedValidationSchema,
   AdvancedValidationRule,
   ValidationRuleType,
+  ValidationFunction,
   AsyncValidationFunction,
   ValidationContext,
   AdvancedValidationResult,

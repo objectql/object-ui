@@ -17,11 +17,8 @@
  */
 
 // Import existing base types to avoid duplication
-import type { QueryParams } from './data';
-import type { FilterOperator as BaseFilterOperator, FilterCondition as BaseFilterCondition } from './complex';
 import type { SortConfig as BaseSortConfig } from './objectql';
-import type { ValidationRule as BaseValidationRule } from './field-types';
-import type { ValidationError as BaseValidationError } from './data';
+import type { FilterOperator as BaseFilterOperator } from './complex';
 
 /**
  * =============================================================================
@@ -623,7 +620,14 @@ export type ValidationRuleType =
   | 'exists_check';
 
 /**
- * Validation function type from base
+ * Validation function signature used by AdvancedValidationRule in the data protocol.
+ *
+ * This type is defined in this module and may differ from similarly named
+ * validation function types in other packages (e.g., in `field-types`).
+ * 
+ * @param value - The value to validate
+ * @param context - Optional validation context with access to other field values
+ * @returns true if valid, false or error message string if invalid
  */
 export type ValidationFunction = (value: any, context?: ValidationContext) => boolean | string;
 
@@ -681,9 +685,24 @@ export interface AdvancedValidationResult {
 }
 
 /**
- * Validation error (Phase 3.5.5: Improved error messages) - Extended
+ * Validation error (Phase 3.5.5: Improved error messages)
  */
-export interface AdvancedValidationError extends BaseValidationError {
+export interface AdvancedValidationError {
+  /**
+   * Field path
+   */
+  field: string;
+  
+  /**
+   * Error message
+   */
+  message: string;
+  
+  /**
+   * Error code
+   */
+  code?: string;
+  
   /**
    * Rule type that failed
    */
