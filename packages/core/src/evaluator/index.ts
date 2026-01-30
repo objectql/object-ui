@@ -8,3 +8,4 @@
 
 export * from './ExpressionContext';
 export * from './ExpressionEvaluator';
+export * from './ExpressionCache';
