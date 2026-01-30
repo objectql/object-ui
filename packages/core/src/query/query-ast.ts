@@ -68,7 +68,8 @@ export class QueryASTBuilder {
 
     if (query.fields && query.fields.length > 0) {
       fields.push(...query.fields.map(field => this.buildField(field)));
-    } else {
+    } else if (!query.aggregations || query.aggregations.length === 0) {
+      // Only add '*' if there are no aggregations
       fields.push(this.buildField('*'));
     }
 
