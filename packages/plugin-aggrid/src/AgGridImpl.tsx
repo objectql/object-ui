@@ -241,6 +241,9 @@ export default function AgGridImpl({
     suppressCellFocus: !editable,
     enableCellTextSelection: true,
     ensureDomOrder: true,
+    // Virtual scrolling optimizations for large datasets
+    rowBuffer: gridOptions.rowBuffer ?? 10,
+    debounceVerticalScrollbar: gridOptions.debounceVerticalScrollbar ?? (rowData.length > 1000),
     // Event handlers
     onCellClicked: handleCellClicked,
     onRowClicked: handleRowClicked,
@@ -263,6 +266,7 @@ export default function AgGridImpl({
     contextMenu,
     getContextMenuItems,
     editable,
+    rowData.length,
     handleCellClicked,
     handleRowClicked,
     handleSelectionChanged,

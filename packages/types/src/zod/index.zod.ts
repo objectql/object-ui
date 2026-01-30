@@ -368,6 +368,58 @@ export const AnyComponentSchema = z.union([
 ]);
 
 /**
+ * Validate a schema against the AnyComponentSchema
+ * 
+ * @param schema - The schema to validate
+ * @returns The validated and typed schema
+ * @throws ZodError if validation fails
+ * 
+ * @example
+ * ```typescript
+ * import { validateSchema } from '@object-ui/types/zod';
+ * 
+ * try {
+ *   const validSchema = validateSchema({
+ *     type: 'button',
+ *     label: 'Click Me',
+ *   });
+ *   console.log('Valid schema:', validSchema);
+ * } catch (error) {
+ *   console.error('Validation failed:', error);
+ * }
+ * ```
+ */
+export function validateSchema(schema: unknown) {
+  return AnyComponentSchema.parse(schema);
+}
+
+/**
+ * Safely validate a schema without throwing errors
+ * 
+ * @param schema - The schema to validate
+ * @returns Object with success boolean and either data or error
+ * 
+ * @example
+ * ```typescript
+ * import { safeValidateSchema } from '@object-ui/types/zod';
+ * 
+ * const result = safeValidateSchema({
+ *   type: 'button',
+ *   label: 'Click Me',
+ * });
+ * 
+ * if (result.success) {
+ *   console.log('Valid schema:', result.data);
+ * } else {
+ *   console.error('Validation errors:', result.error);
+ * }
+ * ```
+ */
+export function safeValidateSchema(schema: unknown) {
+  return AnyComponentSchema.safeParse(schema);
+}
+
+/**
  * Version information
  */
 export const SCHEMA_VERSION = '1.0.0';

@@ -9,9 +9,11 @@
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { ObjectGrid } from './ObjectGrid';
+import { VirtualGrid } from './VirtualGrid';
 
-export { ObjectGrid };
+export { ObjectGrid, VirtualGrid };
 export type { ObjectGridProps } from './ObjectGrid';
+export type { VirtualGridProps, VirtualGridColumn } from './VirtualGrid';
 
 // Register object-grid component
 const ObjectGridRenderer: React.FC<{ schema: any }> = ({ schema }) => {

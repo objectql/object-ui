@@ -20,6 +20,9 @@ import { doctor } from './commands/doctor.js';
 import { add } from './commands/add.js';
 import { studio } from './commands/studio.js';
 import { check } from './commands/check.js';
+import { validate } from './commands/validate.js';
+import { createPlugin } from './commands/create-plugin.js';
+import { analyze } from './commands/analyze.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -148,8 +151,17 @@ program
   .description('Generate new resources (objects, pages, plugins)')
   .argument('<type>', 'Type of resource to generate (resource/object, page, plugin)')
   .argument('<name>', 'Name of the resource')
-  .action(async (type, name) => {
+  .option('--from <source>', 'Generate schema from external source (openapi.yaml, prisma.schema)')
+  .option('--output <dir>', 'Output directory for generated schemas', 'schemas/')
+  .action(async (type, name, options) => {
     try {
+      // Handle schema generation from external sources
+      if (options.from) {
+        console.log(chalk.yellow('\n⚠ Schema generation from external sources (OpenAPI/Prisma) is not yet implemented.'));
+        console.log(chalk.gray('This feature will be available in a future release.\n'));
+        process.exit(0);
+      }
+      
       await generate(type, name);
     } catch (error) {
       console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
@@ -200,6 +212,53 @@ program
   .action(async () => {
     try {
       await check();
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('validate')
+  .description('Validate a schema file against ObjectUI specifications')
+  .argument('[schema]', 'Path to schema file (JSON or YAML)', 'app.json')
+  .action(async (schema) => {
+    try {
+      await validate(schema);
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('create')
+  .description('Create new resources')
+  .argument('<type>', 'Type of resource to create (plugin)')
+  .argument('<name>', 'Name of the resource')
+  .action(async (type, name) => {
+    try {
+      if (type === 'plugin') {
+        await createPlugin(name);
+      } else {
+        console.error(chalk.red(`Unknown resource type: ${type}`));
+        console.log(chalk.gray('Available types: plugin'));
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('analyze')
+  .description('Analyze application performance')
+  .option('--bundle-size', 'Analyze bundle size')
+  .option('--render-performance', 'Analyze render performance')
+  .action(async (options) => {
+    try {
+      await analyze(options);
     } catch (error) {
       console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
       process.exit(1);

@@ -17,6 +17,7 @@
  */
 
 import { ExpressionContext } from './ExpressionContext';
+import { ExpressionCache } from './ExpressionCache';
 
 /**
  * Options for expression evaluation
@@ -45,13 +46,17 @@ export interface EvaluationOptions {
  */
 export class ExpressionEvaluator {
   private context: ExpressionContext;
+  private cache: ExpressionCache;
 
-  constructor(context?: ExpressionContext | Record<string, any>) {
+  constructor(context?: ExpressionContext | Record<string, any>, cache?: ExpressionCache) {
     if (context instanceof ExpressionContext) {
       this.context = context;
     } else {
       this.context = new ExpressionContext(context || {});
     }
+    
+    // Use provided cache or create a new one
+    this.cache = cache || new ExpressionCache();
   }
 
   /**
@@ -138,17 +143,11 @@ export class ExpressionEvaluator {
       const varNames = Object.keys(contextObj);
       const varValues = Object.values(contextObj);
       
-      // SECURITY NOTE: Using Function constructor for expression evaluation.
-      // This is a controlled use case with:
-      // 1. Sanitization check (isDangerous) blocks dangerous patterns
-      // 2. Strict mode enabled ("use strict")
-      // 3. Limited scope (only contextObj variables available)
-      // 4. No access to global objects (process, window, etc.)
-      // For production use, consider: expr-eval, safe-eval, or a custom parser
-      const fn = new Function(...varNames, `"use strict"; return (${expression});`);
+      // Use cached compilation
+      const compiled = this.cache.compile(expression, varNames);
       
       // Execute with context values
-      return fn(...varValues);
+      return compiled.fn(...varValues);
     } catch (error) {
       throw new Error(`Failed to evaluate expression "${expression}": ${(error as Error).message}`);
     }
@@ -220,9 +219,29 @@ export class ExpressionEvaluator {
    * Create a new evaluator with additional context data
    */
   withContext(data: Record<string, any>): ExpressionEvaluator {
-    return new ExpressionEvaluator(this.context.createChild(data));
+    // Share the cache with the new evaluator for maximum efficiency
+    return new ExpressionEvaluator(this.context.createChild(data), this.cache);
+  }
+  
+  /**
+   * Get cache statistics (useful for debugging and optimization)
+   */
+  getCacheStats() {
+    return this.cache.getStats();
+  }
+  
+  /**
+   * Clear the expression cache
+   */
+  clearCache(): void {
+    this.cache.clear();
   }
 }
+
+/**
+ * Shared global cache for convenience functions
+ */
+const globalCache = new ExpressionCache();
 
 /**
  * Convenience function to quickly evaluate an expression
@@ -232,7 +251,7 @@ export function evaluateExpression(
   context: Record<string, any> = {},
   options: EvaluationOptions = {}
 ): any {
-  const evaluator = new ExpressionEvaluator(context);
+  const evaluator = new ExpressionEvaluator(context, globalCache);
   return evaluator.evaluate(expression, options);
 }
 
@@ -243,6 +262,6 @@ export function evaluateCondition(
   condition: string | boolean | undefined,
   context: Record<string, any> = {}
 ): boolean {
-  const evaluator = new ExpressionEvaluator(context);
+  const evaluator = new ExpressionEvaluator(context, globalCache);
   return evaluator.evaluateCondition(condition);
 }
