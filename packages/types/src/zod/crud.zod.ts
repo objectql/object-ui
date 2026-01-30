@@ -248,6 +248,8 @@ export const CRUDComponentSchema = z.union([
  */
 export type ActionExecutionModeSchemaType = z.infer<typeof ActionExecutionModeSchema>;
 export type ActionCallbackSchemaType = z.infer<typeof ActionCallbackSchema>;
+export type ActionConditionSchemaType = z.infer<typeof ActionConditionSchema>;
+export type ActionSchemaType = z.infer<typeof ActionSchema>;
 export type CRUDOperationSchemaType = z.infer<typeof CRUDOperationSchema>;
 export type CRUDFilterSchemaType = z.infer<typeof CRUDFilterSchema>;
 export type CRUDToolbarSchemaType = z.infer<typeof CRUDToolbarSchema>;
