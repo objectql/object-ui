@@ -47,6 +47,31 @@ describe('ValidationEngine', () => {
       const result2 = await engine.validate('valid@example.com', schema);
       expect(result2.valid).toBe(true);
     });
+
+    it('should validate phone format', async () => {
+      const schema: AdvancedValidationSchema = {
+        field: 'phone',
+        rules: [
+          {
+            type: 'phone',
+          },
+        ],
+      };
+
+      // Valid phone numbers with various formats
+      const validResult1 = await engine.validate('123-456-7890', schema);
+      expect(validResult1.valid).toBe(true);
+
+      const validResult2 = await engine.validate('+1 (234) 567-8900', schema);
+      expect(validResult2.valid).toBe(true);
+
+      const validResult3 = await engine.validate('1234567890', schema);
+      expect(validResult3.valid).toBe(true);
+
+      // Invalid phone number with letters
+      const invalidResult = await engine.validate('123-abc-7890', schema);
+      expect(invalidResult.valid).toBe(false);
+    });
   });
 
   describe('Custom Validation', () => {
