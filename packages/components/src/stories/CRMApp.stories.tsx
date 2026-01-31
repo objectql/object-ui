@@ -75,12 +75,12 @@ const OPPORTUNITY_DETAIL_DATA = {
     id: 101,
     name: "TechCorp License Renewal",
     amount: 50000,
-    stage: "Proposal",
-    probability: "60%",
-    closeDate: "2026-02-28",
+    stage: "Negotiation",
+    probability: "80%",
+    closeDate: "2026-02-15",
     contact: "Alice Johnson",
-    expectedRevenue: 30000,
-    daysToClose: 28
+    expectedRevenue: 40000,
+    daysToClose: 15
 };
 
 /* --- SCHEMAS --- */
