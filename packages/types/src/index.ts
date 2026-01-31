@@ -587,7 +587,7 @@ export type {
   PluginScopeConfig,
   ComponentMeta as PluginComponentMeta,
   ComponentInput as PluginComponentInput,
-  EventHandler as PluginEventHandler,
+  PluginEventHandler,
 } from './plugin-scope';
 
 // ============================================================================

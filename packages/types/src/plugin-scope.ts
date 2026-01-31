@@ -102,7 +102,7 @@ export interface PluginScope {
    *   console.log('Scoped event received:', data);
    * });
    */
-  on(event: string, handler: EventHandler): () => void;
+  on(event: string, handler: PluginEventHandler): () => void;
   
   /**
    * Emit a scoped event.
@@ -132,7 +132,7 @@ export interface PluginScope {
    * @param handler - Event handler function
    * @returns Unsubscribe function
    */
-  onGlobal(event: string, handler: EventHandler): () => void;
+  onGlobal(event: string, handler: PluginEventHandler): () => void;
   
   /**
    * Clean up all plugin resources (state, event listeners, etc.)
@@ -182,7 +182,7 @@ export interface ComponentInput {
 /**
  * Event handler type
  */
-export type EventHandler = (data?: any) => void;
+export type PluginEventHandler = (data?: any) => void;
 
 /**
  * Plugin scope configuration

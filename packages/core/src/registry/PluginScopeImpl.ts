@@ -16,16 +16,20 @@
  * @packageDocumentation
  */
 
-import type { PluginScope, PluginScopeConfig, ComponentMeta, EventHandler } from '@object-ui/types';
-import type { Registry } from './Registry';
+import type { 
+  PluginScope, 
+  PluginScopeConfig, 
+  PluginEventHandler
+} from '@object-ui/types';
+import type { Registry, ComponentMeta as RegistryComponentMeta } from './Registry';
 
 /**
  * Event Bus for scoped plugin events
  */
 class EventBus {
-  private listeners = new Map<string, Set<EventHandler>>();
+  private listeners = new Map<string, Set<PluginEventHandler>>();
 
-  on(event: string, handler: EventHandler): () => void {
+  on(event: string, handler: PluginEventHandler): () => void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
@@ -97,12 +101,13 @@ export class PluginScopeImpl implements PluginScope {
   /**
    * Register a component in the scoped namespace
    */
-  registerComponent(type: string, component: any, meta?: ComponentMeta): void {
+  registerComponent(type: string, component: any, meta?: any): void {
     // Components are registered as "pluginName:type"
-    this.registry.register(type, component, {
+    const registryMeta: RegistryComponentMeta = {
       ...meta,
       namespace: this.name,
-    });
+    };
+    this.registry.register(type, component, registryMeta);
   }
 
   /**
@@ -112,12 +117,11 @@ export class PluginScopeImpl implements PluginScope {
     // First try scoped lookup
     const scoped = this.registry.get(`${this.name}:${type}`);
     if (scoped) {
-      return scoped.component;
+      return scoped;
     }
     
     // Fall back to global lookup
-    const global = this.registry.get(type);
-    return global?.component;
+    return this.registry.get(type);
   }
 
   /**
@@ -176,7 +180,7 @@ export class PluginScopeImpl implements PluginScope {
   /**
    * Subscribe to scoped events
    */
-  on(event: string, handler: EventHandler): () => void {
+  on(event: string, handler: PluginEventHandler): () => void {
     if (!this.config.enableEventIsolation) {
       // If isolation is disabled, use global event bus
       return this.onGlobal(event, handler);
@@ -215,7 +219,7 @@ export class PluginScopeImpl implements PluginScope {
   /**
    * Subscribe to global events
    */
-  onGlobal(event: string, handler: EventHandler): () => void {
+  onGlobal(event: string, handler: PluginEventHandler): () => void {
     if (!this.config.allowGlobalEvents) {
       throw new Error('Global events are disabled for this plugin');
     }

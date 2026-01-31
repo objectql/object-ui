@@ -50,8 +50,8 @@ describe('Plugin Scope Integration', () => {
       await pluginSystem.loadPlugin(pluginB, registry, true);
 
       // Both plugins should have their own namespaced component
-      const tableA = registry.get('plugin-a:table');
-      const tableB = registry.get('plugin-b:table');
+      const tableA = registry.getConfig('plugin-a:table');
+      const tableB = registry.getConfig('plugin-b:table');
 
       expect(tableA).toBeDefined();
       expect(tableB).toBeDefined();
@@ -276,7 +276,7 @@ describe('Plugin Scope Integration', () => {
       await pluginSystem.loadPlugin(legacyPlugin, registry, false);
 
       // Component should be registered directly
-      const component = registry.get('legacy');
+      const component = registry.getConfig('legacy');
       expect(component?.component).toBe(MockComponent);
     });
   });
