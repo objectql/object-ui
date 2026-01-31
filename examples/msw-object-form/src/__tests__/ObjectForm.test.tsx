@@ -4,14 +4,14 @@
  * Tests ObjectForm component with real ObjectStack MSW runtime
  */
 
-import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ObjectStackClient } from '@objectstack/client';
 import { ObjectForm } from '@object-ui/plugin-form';
 import { ObjectStackDataSource } from '../dataSource';
-import { startMockServer, getDriver } from '../mocks/browser';
+import { startMockServer, stopMockServer, getDriver } from '../mocks/server';
 
 describe('ObjectForm with MSW Integration', () => {
   let client: ObjectStackClient;
@@ -21,11 +21,15 @@ describe('ObjectForm with MSW Integration', () => {
     // Start MSW mock server
     await startMockServer();
 
-    // Initialize client
-    client = new ObjectStackClient({ baseUrl: '' });
+    // Initialize client - use localhost to match MSW handlers
+    client = new ObjectStackClient({ baseUrl: 'http://localhost:3000' });
     await client.connect();
     
     dataSource = new ObjectStackDataSource(client);
+  });
+
+  afterAll(() => {
+    stopMockServer();
   });
 
   afterEach(async () => {

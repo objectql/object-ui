@@ -14,10 +14,10 @@
     "test:ui": "vitest --ui"
   },
   "dependencies": {
+    "@object-ui/fields": "workspace:*",
     "@object-ui/plugin-form": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@object-ui/fields": "workspace:*",
     "@objectstack/client": "^0.7.2",
     "@objectstack/driver-memory": "^0.7.2",
     "@objectstack/objectql": "^0.7.2",
@@ -32,6 +32,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^25.0.10",
     "@types/react": "^19.0.6",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
