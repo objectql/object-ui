@@ -18,16 +18,16 @@
  * - Different modes (create, edit, view) work as expected
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll, afterEach, afterAll } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ObjectForm } from '../ObjectForm';
 import type { ObjectFormSchema } from '@object-ui/types';
-import { setupMSW, MockDataSource } from '@object-ui/react/src/__tests__/utils/msw-test-utils';
+import { setupMSW, MockDataSource } from './msw-test-utils';
 
 // Setup MSW server
-const server = setupMSW();
+const server = setupMSW({ beforeAll, afterEach, afterAll });
 
 describe('ObjectForm with MSW Integration', () => {
   let dataSource: MockDataSource;

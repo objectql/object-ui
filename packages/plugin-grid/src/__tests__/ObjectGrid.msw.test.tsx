@@ -17,15 +17,15 @@
  * - CRUD operations work through the API layer
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll, afterEach, afterAll } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ObjectGrid } from '../ObjectGrid';
 import type { ObjectGridSchema } from '@object-ui/types';
-import { setupMSW, MockDataSource } from '@object-ui/react/src/__tests__/utils/msw-test-utils';
+import { setupMSW, MockDataSource } from './msw-test-utils';
 
 // Setup MSW server
-const server = setupMSW();
+const server = setupMSW({ beforeAll, afterEach, afterAll });
 
 describe('ObjectGrid with MSW Integration', () => {
   let dataSource: MockDataSource;
