@@ -56,9 +56,9 @@ export default defineStack({
               name: "TechCorp Enterprise License", 
               amount: 50000, 
               stage: "Proposal", 
-              closeDate: new Date("2024-06-30"), 
-              accountId: "1", // This would ideally link to an account record
-              contactIds: ["1", "2"], // Corrected IDs
+              close_date: new Date("2024-06-30"), 
+              account_id: "1", // This would ideally link to an account record
+              contact_ids: ["1", "2"], // Corrected IDs
               description: "Enterprise software license for 500 users. Includes premium support and training." 
           },
           { 
@@ -66,9 +66,9 @@ export default defineStack({
               name: "Software Inc Pilot", 
               amount: 5000, 
               stage: "Closed Won", 
-              closeDate: new Date("2024-01-15"), 
-              accountId: "2",
-              contactIds: ["2"],
+              close_date: new Date("2024-01-15"), 
+              account_id: "2",
+              contact_ids: ["2"],
               description: "Pilot program for 50 users." 
           },
           { 
@@ -76,9 +76,9 @@ export default defineStack({
               name: "Good Grief Consultant", 
               amount: 12000, 
               stage: "Negotiation", 
-              closeDate: new Date("2024-05-20"), 
-              accountId: "3",
-              contactIds: ["3"],
+              close_date: new Date("2024-05-20"), 
+              account_id: "3",
+              contact_ids: ["3"],
               description: "Consulting services for Q2 implementation." 
           }
         ]
