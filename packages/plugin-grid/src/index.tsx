@@ -26,7 +26,8 @@ ComponentRegistry.register('object-grid', ObjectGridRenderer, {
   category: 'plugin'
 });
 
-// Alias for view:grid
+// Alias for view namespace - this allows using { type: 'view:grid' } in schemas
+// which is semantically meaningful for data display components
 ComponentRegistry.register('grid', ObjectGridRenderer, {
   namespace: 'view',
   label: 'Data Grid',
