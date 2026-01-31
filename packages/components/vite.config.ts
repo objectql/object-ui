@@ -46,6 +46,7 @@ export default defineConfig({
     globals: true,
     environment: 'happy-dom',
     setupFiles: ['../../vitest.setup.ts'],
+    passWithNoTests: true,
     // Ensure dependencies are resolved properly for tests
     deps: {
       inline: ['@object-ui/core', '@object-ui/react'],
