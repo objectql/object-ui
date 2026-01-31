@@ -28,7 +28,8 @@ describe('PluginSystem', () => {
       }
     };
 
-    await pluginSystem.loadPlugin(plugin, registry);
+    // Use legacy mode (useScope: false) to test direct registry access
+    await pluginSystem.loadPlugin(plugin, registry, false);
     
     expect(pluginSystem.isLoaded('test-plugin')).toBe(true);
     expect(pluginSystem.getLoadedPlugins()).toContain('test-plugin');
@@ -201,7 +202,8 @@ describe('PluginSystem', () => {
       register: registerFn
     };
 
-    await pluginSystem.loadPlugin(plugin, registry);
+    // Use legacy mode (useScope: false) to verify the raw Registry is passed
+    await pluginSystem.loadPlugin(plugin, registry, false);
     
     expect(registerFn).toHaveBeenCalledWith(registry);
     expect(registerFn).toHaveBeenCalledTimes(1);

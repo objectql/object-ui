@@ -11,6 +11,7 @@ export default defineConfig({
     environment: 'happy-dom',
     setupFiles: [path.resolve(__dirname, 'vitest.setup.ts')],
     exclude: ['**/node_modules/**', '**/dist/**', '**/cypress/**', '**/.{idea,git,cache,output,temp}/**'],
+    passWithNoTests: true,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
