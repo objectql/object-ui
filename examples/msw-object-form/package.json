@@ -1,0 +1,54 @@
+{
+  "name": "@object-ui/example-msw-object-form",
+  "version": "0.1.0",
+  "description": "MSW integration example with ObjectForm component for testing CRUD operations",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "msw:init": "msw init -y public",
+    "dev": "pnpm msw:init && vite",
+    "build": "pnpm msw:init && tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui"
+  },
+  "dependencies": {
+    "@object-ui/fields": "workspace:*",
+    "@object-ui/plugin-form": "workspace:*",
+    "@object-ui/react": "workspace:*",
+    "@object-ui/types": "workspace:*",
+    "@objectstack/client": "^0.7.2",
+    "@objectstack/driver-memory": "^0.7.2",
+    "@objectstack/objectql": "^0.7.2",
+    "@objectstack/plugin-msw": "^0.7.2",
+    "@objectstack/runtime": "^0.7.2",
+    "@objectstack/spec": "^0.7.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^25.0.10",
+    "@types/react": "^19.0.6",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/ui": "^4.0.18",
+    "autoprefixer": "^10.4.23",
+    "happy-dom": "^20.0.0",
+    "msw": "^2.12.7",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.9.3",
+    "vite": "^6.0.11",
+    "vitest": "^4.0.18"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
+  }
+}
