@@ -61,7 +61,7 @@ describe('QueryASTBuilder - Window Functions', () => {
         ],
       };
 
-      // @ts-expect-error
+      // @ts-expect-error - testing private method
       const result: WindowNode = builder.buildWindow(config);
 
       expect(result).toMatchObject({
@@ -85,7 +85,7 @@ describe('QueryASTBuilder - Window Functions', () => {
         defaultValue: 0,
       };
 
-      // @ts-expect-error
+      // @ts-expect-error - testing private method
       const result: WindowNode = builder.buildWindow(config);
 
       expect(result).toMatchObject({
@@ -116,7 +116,7 @@ describe('QueryASTBuilder - Window Functions', () => {
         offset: 1,
       };
 
-      // @ts-expect-error
+      // @ts-expect-error - testing private method
       const result: WindowNode = builder.buildWindow(config);
 
       expect(result).toMatchObject({
@@ -140,7 +140,7 @@ describe('QueryASTBuilder - Window Functions', () => {
         },
       };
 
-      // @ts-expect-error
+      // @ts-expect-error - testing private method
       const result: WindowNode = builder.buildWindow(sumConfig);
 
       expect(result).toMatchObject({
@@ -170,7 +170,7 @@ describe('QueryASTBuilder - Window Functions', () => {
         orderBy: [{ field: 'created_at', direction: 'asc' as const }],
       };
 
-      // @ts-expect-error
+      // @ts-expect-error - testing private method
       const result: WindowNode = builder.buildWindow(config);
 
       expect(result).toMatchObject({
@@ -189,7 +189,7 @@ describe('QueryASTBuilder - Window Functions', () => {
         orderBy: [{ field: 'updated_at', direction: 'desc' as const }],
       };
 
-      // @ts-expect-error
+      // @ts-expect-error - testing private method
       const result: WindowNode = builder.buildWindow(config);
 
       expect(result).toMatchObject({
@@ -206,7 +206,7 @@ describe('QueryASTBuilder - Window Functions', () => {
         orderBy: [{ field: 'created_at', direction: 'asc' as const }],
       };
 
-      // @ts-expect-error
+      // @ts-expect-error - testing private method
       const result: WindowNode = builder.buildWindow(config);
 
       expect(result.partitionBy).toBeUndefined();
@@ -226,7 +226,7 @@ describe('QueryASTBuilder - Window Functions', () => {
         },
       };
 
-      // @ts-expect-error
+      // @ts-expect-error - testing private method
       const result: WindowNode = builder.buildWindow(config);
 
       expect(result.frame).toEqual({
@@ -244,7 +244,7 @@ describe('QueryASTBuilder - Window Functions', () => {
         orderBy: [{ field: 'score', direction: 'desc' as const }],
       };
 
-      // @ts-expect-error
+      // @ts-expect-error - testing private method
       const result: WindowNode = builder.buildWindow(config);
 
       expect(result).toMatchObject({
@@ -262,7 +262,7 @@ describe('QueryASTBuilder - Window Functions', () => {
         orderBy: [{ field: 'exam_score', direction: 'desc' as const }],
       };
 
-      // @ts-expect-error
+      // @ts-expect-error - testing private method
       const result: WindowNode = builder.buildWindow(config);
 
       expect(result).toMatchObject({

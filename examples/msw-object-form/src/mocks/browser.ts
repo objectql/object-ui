@@ -9,6 +9,7 @@ import { ObjectKernel, DriverPlugin, AppPlugin } from '@objectstack/runtime';
 import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { MSWPlugin } from '@objectstack/plugin-msw';
+// @ts-expect-error - Config file not in src directory
 import appConfig from '../../objectstack.config';
 
 let kernel: ObjectKernel | null = null;
