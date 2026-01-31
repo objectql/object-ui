@@ -22,6 +22,13 @@ export default defineConfig({
         '**/index.ts',
         'examples/',
       ],
+      // Section 3.6: Testing coverage thresholds
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 75,
+        statements: 80,
+      },
     },
   },
   resolve: {

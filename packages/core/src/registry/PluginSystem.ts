@@ -7,28 +7,33 @@
  */
 
 import type { Registry } from './Registry';
+import type { PluginScope, PluginScopeConfig } from '@object-ui/types';
+import { PluginScopeImpl } from './PluginScopeImpl';
 
 export interface PluginDefinition {
   name: string;
   version: string;
   dependencies?: string[];  // Dependencies on other plugins
   peerDependencies?: string[];  // Peer dependencies
-  register: (registry: Registry) => void;
+  register: (registry: Registry | PluginScope) => void;  // Support both legacy and scoped registration
   onLoad?: () => void | Promise<void>;  // Lifecycle hook: called after registration
   onUnload?: () => void | Promise<void>;  // Lifecycle hook: called before unload
+  scopeConfig?: PluginScopeConfig;  // Optional scope configuration
 }
 
 export class PluginSystem {
   private plugins = new Map<string, PluginDefinition>();
   private loaded = new Set<string>();
+  private scopes = new Map<string, PluginScopeImpl>();
 
   /**
-   * Load a plugin into the system
+   * Load a plugin into the system with optional scope isolation
    * @param plugin The plugin definition to load
    * @param registry The component registry to use for registration
+   * @param useScope Whether to use scoped loading (default: true for better isolation)
    * @throws Error if dependencies are missing
    */
-  async loadPlugin(plugin: PluginDefinition, registry: Registry): Promise<void> {
+  async loadPlugin(plugin: PluginDefinition, registry: Registry, useScope: boolean = true): Promise<void> {
     // Check if already loaded
     if (this.loaded.has(plugin.name)) {
       console.warn(`Plugin "${plugin.name}" is already loaded. Skipping.`);
@@ -43,8 +48,24 @@ export class PluginSystem {
     }
 
     try {
-      // Execute registration
-      plugin.register(registry);
+      if (useScope) {
+        // Create scoped environment for plugin
+        const scope = new PluginScopeImpl(
+          plugin.name,
+          plugin.version,
+          registry,
+          plugin.scopeConfig
+        );
+        
+        // Store scope for cleanup
+        this.scopes.set(plugin.name, scope);
+        
+        // Execute registration with scope
+        plugin.register(scope);
+      } else {
+        // Legacy mode: direct registry access
+        plugin.register(registry);
+      }
 
       // Store plugin definition
       this.plugins.set(plugin.name, plugin);
@@ -57,6 +78,7 @@ export class PluginSystem {
     } catch (error) {
       // Clean up on failure
       this.plugins.delete(plugin.name);
+      this.scopes.delete(plugin.name);
       throw error;
     }
   }
@@ -82,9 +104,25 @@ export class PluginSystem {
     // Execute lifecycle hook
     await plugin.onUnload?.();
 
+    // Clean up scope if exists
+    const scope = this.scopes.get(name);
+    if (scope) {
+      scope.cleanup();
+      this.scopes.delete(name);
+    }
+
     // Remove from loaded set
     this.loaded.delete(name);
     this.plugins.delete(name);
+  }
+
+  /**
+   * Get the scope for a loaded plugin
+   * @param name The name of the plugin
+   * @returns The plugin scope or undefined
+   */
+  getScope(name: string): PluginScope | undefined {
+    return this.scopes.get(name);
   }
 
   /**

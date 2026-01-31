@@ -580,6 +580,17 @@ export type {
 } from './registry';
 
 // ============================================================================
+// Plugin Scope Isolation - Section 3.3
+// ============================================================================
+export type {
+  PluginScope,
+  PluginScopeConfig,
+  ComponentMeta as PluginComponentMeta,
+  ComponentInput as PluginComponentInput,
+  PluginEventHandler,
+} from './plugin-scope';
+
+// ============================================================================
 // ObjectStack Protocol Namespaces - Protocol Re-exports
 // ============================================================================
 /**

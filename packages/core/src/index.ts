@@ -9,6 +9,7 @@
 export * from './types';
 export * from './registry/Registry';
 export * from './registry/PluginSystem';
+export * from './registry/PluginScopeImpl';
 export * from './validation';
 export * from './builder/schema-builder';
 export * from './utils/filter-converter';
