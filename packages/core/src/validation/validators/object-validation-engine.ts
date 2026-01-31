@@ -25,7 +25,6 @@
  */
 
 import type {
-  BaseValidation,
   ScriptValidation,
   UniquenessValidation,
   StateMachineValidation,
@@ -588,7 +587,7 @@ export class ObjectValidationEngine {
   private getPredefinedPattern(format: string): RegExp {
     const patterns: Record<string, RegExp> = {
       email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-      url: /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&/=]*)$/,
+      url: /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&/=]*)$/,
       phone: /^[\d\s\-+()]+$/,
       ipv4: /^(\d{1,3}\.){3}\d{1,3}$/,
       ipv6: /^([\da-f]{1,4}:){7}[\da-f]{1,4}$/i,
