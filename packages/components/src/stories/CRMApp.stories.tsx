@@ -8,7 +8,10 @@ import {
     Users, 
     Settings, 
     FileText,
-    GalleryVerticalEnd
+    GalleryVerticalEnd,
+    Building2,
+    UserPlus,
+    TrendingUp
 } from 'lucide-react';
 
 /* --- MOCK DATA --- */
@@ -43,10 +46,20 @@ const CONTACTS_DATA = {
 
 const OPPORTUNITIES_DATA = {
     opportunities: [
-        { id: 101, name: "TechCorp License Renewal", amount: 50000, stage: "Negotiation", probability: "80%" },
-        { id: 102, name: "SalesInc New Deal", amount: 12000, stage: "Qualified", probability: "40%" },
-        { id: 103, name: "StartupHub Seed", amount: 5000, stage: "Closed Won", probability: "100%" },
-        { id: 104, name: "Enterprise Ltd Expansion", amount: 150000, stage: "Proposal", probability: "60%" }
+        { id: 101, name: "TechCorp License Renewal", amount: 50000, stage: "Negotiation", probability: "80%", closeDate: "2026-02-15", contact: "Alice Johnson" },
+        { id: 102, name: "SalesInc New Deal", amount: 12000, stage: "Qualified", probability: "40%", closeDate: "2026-03-01", contact: "Bob Smith" },
+        { id: 103, name: "StartupHub Seed", amount: 5000, stage: "Closed Won", probability: "100%", closeDate: "2026-01-20", contact: "Charlie Davis" },
+        { id: 104, name: "Enterprise Ltd Expansion", amount: 150000, stage: "Proposal", probability: "60%", closeDate: "2026-02-28", contact: "Dana Wilson" }
+    ]
+};
+
+const ACCOUNTS_DATA = {
+    accounts: [
+        { id: 1, name: "TechCorp", industry: "Technology", revenue: 5000000, employees: 250, status: "Active" },
+        { id: 2, name: "SalesInc", industry: "Sales & Marketing", revenue: 1200000, employees: 50, status: "Active" },
+        { id: 3, name: "StartupHub", industry: "Venture Capital", revenue: 500000, employees: 15, status: "Lead" },
+        { id: 4, name: "Enterprise Ltd", industry: "Enterprise Software", revenue: 15000000, employees: 500, status: "Active" },
+        { id: 5, name: "Innovate LLC", industry: "Innovation", revenue: 3000000, employees: 100, status: "Active" }
     ]
 };
 
@@ -170,7 +183,10 @@ const opportunitiesSchema = {
     children: [
         {
             type: "page:header",
-            props: { title: "Opportunities", description: "View and track sales deals." }
+            props: { title: "Opportunities", description: "View and track sales deals." },
+            children: [
+                { type: "button", props: { children: "New Opportunity", size: "sm" } }
+            ]
         },
         {
             type: "page:card",
@@ -182,9 +198,11 @@ const opportunitiesSchema = {
                     props: {
                         columns: [
                             { key: "name", label: "Deal Name", type: "text" },
+                            { key: "contact", label: "Contact", type: "text" },
                             { key: "stage", label: "Stage", type: "text" },
                             { key: "amount", label: "Amount ($)", type: "number" },
-                            { key: "probability", label: "Probability", type: "text" }
+                            { key: "probability", label: "Probability", type: "text" },
+                            { key: "closeDate", label: "Close Date", type: "text" }
                         ]
                     }
                 }
@@ -255,6 +273,39 @@ const SETTINGS_DATA = {
     }
 };
 
+const accountsSchema = {
+    type: "page",
+    props: { title: "Accounts" },
+    children: [
+        {
+            type: "page:header",
+            props: { title: "Accounts", description: "Manage your business accounts and companies." },
+            children: [
+                { type: "button", props: { children: "New Account", size: "sm" } }
+            ]
+        },
+        {
+            type: "page:card",
+            className: "mt-6",
+            children: [
+                {
+                    type: "view:grid",
+                    bind: "accounts",
+                    props: {
+                        columns: [
+                            { key: "name", label: "Account Name", type: "text" },
+                            { key: "industry", label: "Industry", type: "text" },
+                            { key: "revenue", label: "Annual Revenue ($)", type: "number" },
+                            { key: "employees", label: "Employees", type: "number" },
+                            { key: "status", label: "Status", type: "text" }
+                        ]
+                    }
+                }
+            ]
+        }
+    ]
+};
+
 /* --- APP COMPONENT --- */
 
 const CRMStoryApp = () => {
@@ -266,6 +317,8 @@ const CRMStoryApp = () => {
                 return <SchemaRendererProvider dataSource={DASHBOARD_DATA}><SchemaRenderer schema={dashboardSchema} /></SchemaRendererProvider>;
             case "contacts":
                 return <SchemaRendererProvider dataSource={CONTACTS_DATA}><SchemaRenderer schema={contactsSchema} /></SchemaRendererProvider>;
+            case "accounts":
+                return <SchemaRendererProvider dataSource={ACCOUNTS_DATA}><SchemaRenderer schema={accountsSchema} /></SchemaRendererProvider>;
             case "opportunities":
                 return <SchemaRendererProvider dataSource={OPPORTUNITIES_DATA}><SchemaRenderer schema={opportunitiesSchema} /></SchemaRendererProvider>;
             case "settings":
@@ -316,11 +369,19 @@ const CRMStoryApp = () => {
                                     <span>Contacts</span>
                                 </SidebarMenuButton>
                                 <SidebarMenuButton 
+                                    isActive={activePage === "accounts"} 
+                                    onClick={() => setActivePage("accounts")}
+                                    tooltip="Accounts"
+                                >
+                                    <Building2 />
+                                    <span>Accounts</span>
+                                </SidebarMenuButton>
+                                <SidebarMenuButton 
                                     isActive={activePage === "opportunities"} 
                                     onClick={() => setActivePage("opportunities")}
                                     tooltip="Opportunities"
                                 >
-                                    <FileText />
+                                    <TrendingUp />
                                     <span>Opportunities</span>
                                 </SidebarMenuButton>
                                 <SidebarMenuButton 
