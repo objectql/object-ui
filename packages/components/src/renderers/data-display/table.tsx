@@ -20,8 +20,10 @@ import {
 import { cn } from '../../lib/utils';
 
 export const SimpleTableRenderer = ({ schema, className }: any) => {
-  const data = useDataScope(schema.bind);
-  const columns = schema.props?.columns || [];
+  // Try to get data from binding first, then fall back to inline data
+  const boundData = useDataScope(schema.bind);
+  const data = boundData || schema.data || schema.props?.data || [];
+  const columns = schema.columns || schema.props?.columns || [];
 
   // If we have data but it's not an array, show error. 
   // If data is undefined, we might just be loading or empty.
@@ -36,8 +38,10 @@ export const SimpleTableRenderer = ({ schema, className }: any) => {
       <Table>
         <TableHeader>
           <TableRow>
-            {columns.map((col: any) => (
-              <TableHead key={col.key}>{col.label}</TableHead>
+            {columns.map((col: any, index: number) => (
+              <TableHead key={col.key || col.accessorKey || index}>
+                {col.label || col.header}
+              </TableHead>
             ))}
           </TableRow>
         </TableHeader>
@@ -51,11 +55,15 @@ export const SimpleTableRenderer = ({ schema, className }: any) => {
           ) : (
             displayData.map((row: any, i: number) => (
               <TableRow key={row.id || i}>
-                {columns.map((col: any) => (
-                  <TableCell key={col.key}>
-                    {row[col.key]}
-                  </TableCell>
-                ))}
+                {columns.map((col: any, index: number) => {
+                  const accessor = col.key || col.accessorKey || '';
+                  const value = accessor ? row[accessor] : '';
+                  return (
+                    <TableCell key={col.key || col.accessorKey || index}>
+                      {value}
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             ))
           )}

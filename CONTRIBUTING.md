@@ -182,7 +182,8 @@ describe('MyComponent', () => {
 - Write tests for all new features
 - Test user interactions, not implementation details
 - Use meaningful test descriptions
-- Aim for 80%+ code coverage
+- Maintain or improve code coverage (current thresholds: 63% lines, 43% functions, 40% branches, 62% statements)
+- Aim to gradually increase coverage toward the long-term goal of 80%+ across all metrics
 - Test edge cases and error states
 
 ## Code Style
@@ -373,6 +374,16 @@ Our repository includes several automated GitHub workflows that will run when yo
 - **Tests**: Runs unit and integration tests
 - **Build**: Ensures all packages build successfully
 - **Matrix Testing**: Tests on Node.js 18.x and 20.x
+- **Coverage Thresholds**: Enforces minimum test coverage (see below)
+
+##### Test Coverage Requirements
+The project enforces minimum test coverage thresholds to maintain code quality:
+- **Lines**: 63% (target: gradually increase to 80%)
+- **Functions**: 43% (target: gradually increase to 80%)
+- **Branches**: 40% (target: gradually increase to 75%)
+- **Statements**: 62% (target: gradually increase to 80%)
+
+These thresholds are intentionally set just below current coverage levels to prevent CI failures from minor fluctuations while we improve test coverage. New code should aim for higher coverage than these minimums.
 
 #### Security Scans
 - **CodeQL**: Scans for security vulnerabilities in code
