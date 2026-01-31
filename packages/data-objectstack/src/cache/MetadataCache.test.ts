@@ -101,12 +101,12 @@ describe('MetadataCache', () => {
       await new Promise(resolve => setTimeout(resolve, 100));
       await cache.get('test', fetcher);
       
-      // Access again after another 100ms (total 200ms from first, but 100ms from last access)
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Access again after another 110ms (total 210ms from first, ensuring TTL has passed)
+      await new Promise(resolve => setTimeout(resolve, 110));
       
       // Should still be in cache because we're checking timestamp, not last accessed
       // Actually, the implementation uses timestamp for expiration, not lastAccessed
-      // So after 200ms total, it should expire
+      // So after 210ms total (> 200ms TTL), it should expire
       await cache.get('test', fetcher);
       
       // Should have been called twice - initial + after expiration
