@@ -78,30 +78,30 @@ export interface ValidationExpressionEvaluator {
 }
 
 /**
- * Simple expression evaluator (basic implementation)
- * In production, this should use a proper expression engine
+ * Simple expression evaluator using a simple parser (no dynamic code execution)
  * 
- * SECURITY NOTE: This implementation uses a sandboxed approach with limited
- * expression capabilities. For production use, consider:
+ * SECURITY: This implementation parses expressions into an AST and evaluates them
+ * without using eval() or new Function(). It supports:
+ * - Comparison operators: ==, !=, >, <, >=, <=
+ * - Logical operators: &&, ||, !
+ * - Property access: record.field, record['field']
+ * - Literals: true, false, null, numbers, strings
+ * 
+ * LIMITATIONS:
+ * - Single comparison operator per expression (no chaining like a > b > c)
+ * - Simple escape sequence handling (doesn't handle escaped backslashes)
+ * - Field names in bracket notation cannot contain escaped quotes
+ * 
+ * For more complex expressions, integrate a dedicated library like:
  * - JSONLogic (jsonlogic.com)
- * - expr-eval with allowlist
- * - Custom AST-based evaluator
+ * - filtrex
+ * 
+ * @see https://github.com/objectstack-ai/objectui/blob/main/SECURITY_FIX_SUMMARY.md
  */
 class SimpleExpressionEvaluator implements ValidationExpressionEvaluator {
   evaluate(expression: string, context: Record<string, any>): any {
     try {
-      // Sanitize expression: only allow basic comparisons and logical operators
-      // This is a basic safeguard - proper expression parsing should be used in production
-      const sanitizedExpression = this.sanitizeExpression(expression);
-      
-      // Create a safe evaluation context with read-only access
-      const safeContext = this.createSafeContext(context);
-      const contextKeys = Object.keys(safeContext);
-      const contextValues = Object.values(safeContext);
-      
-      // Use Function constructor with controlled input
-      const func = new Function(...contextKeys, `'use strict'; return (${sanitizedExpression});`);
-      return func(...contextValues);
+      return this.evaluateSafeExpression(expression.trim(), context);
     } catch (error) {
       console.error('Expression evaluation error:', error);
       return false;
@@ -109,43 +109,148 @@ class SimpleExpressionEvaluator implements ValidationExpressionEvaluator {
   }
 
   /**
-   * Sanitize expression to prevent code injection
+   * Safely evaluate an expression without using dynamic code execution
    */
-  private sanitizeExpression(expression: string): string {
-    // Remove potentially dangerous patterns
-    const dangerous = [
-      /require\s*\(/gi,
-      /import\s+/gi,
-      /eval\s*\(/gi,
-      /Function\s*\(/gi,
-      /constructor/gi,
-      /__proto__/gi,
-      /prototype/gi,
-    ];
-
-    for (const pattern of dangerous) {
-      if (pattern.test(expression)) {
-        throw new Error('Invalid expression: contains forbidden pattern');
+  private evaluateSafeExpression(expr: string, context: Record<string, any>): any {
+    // Handle boolean literals
+    if (expr === 'true') return true;
+    if (expr === 'false') return false;
+    if (expr === 'null') return null;
+    
+    // Handle string literals
+    if ((expr.startsWith('"') && expr.endsWith('"')) || 
+        (expr.startsWith("'") && expr.endsWith("'"))) {
+      return expr.slice(1, -1);
+    }
+    
+    // Handle numeric literals
+    if (/^-?\d+(\.\d+)?$/.test(expr)) {
+      return parseFloat(expr);
+    }
+    
+    // Handle logical NOT
+    if (expr.startsWith('!')) {
+      return !this.evaluateSafeExpression(expr.slice(1).trim(), context);
+    }
+    
+    // Handle logical AND
+    if (expr.includes('&&')) {
+      const parts = this.splitOnOperator(expr, '&&');
+      return parts.every(part => this.evaluateSafeExpression(part, context));
+    }
+    
+    // Handle logical OR
+    if (expr.includes('||')) {
+      const parts = this.splitOnOperator(expr, '||');
+      return parts.some(part => this.evaluateSafeExpression(part, context));
+    }
+    
+    // Handle comparison operators
+    const comparisonMatch = expr.match(/^(.+?)\s*(===|!==|==|!=|>=|<=|>|<)\s*(.+)$/);
+    if (comparisonMatch) {
+      const [, left, op, right] = comparisonMatch;
+      const leftVal = this.evaluateSafeExpression(left.trim(), context);
+      const rightVal = this.evaluateSafeExpression(right.trim(), context);
+      
+      switch (op) {
+        case '===':
+          return leftVal === rightVal;
+        case '==':
+          // Use loose equality for backward compatibility with existing expressions
+          // eslint-disable-next-line eqeqeq
+          return leftVal == rightVal;
+        case '!==':
+          return leftVal !== rightVal;
+        case '!=':
+          // Use loose inequality for backward compatibility with existing expressions
+          // eslint-disable-next-line eqeqeq
+          return leftVal != rightVal;
+        case '>': return leftVal > rightVal;
+        case '<': return leftVal < rightVal;
+        case '>=': return leftVal >= rightVal;
+        case '<=': return leftVal <= rightVal;
+        default: return false;
       }
     }
-
-    return expression;
+    
+    // Handle property access (e.g., record.field or context.field)
+    return this.getValueFromContext(expr, context);
   }
 
   /**
-   * Create a safe read-only context
+   * Split expression on operator, respecting parentheses and quotes
    */
-  private createSafeContext(context: Record<string, any>): Record<string, any> {
-    const safe: Record<string, any> = {};
-    for (const [key, value] of Object.entries(context)) {
-      // Deep clone primitive values and objects to prevent mutation
-      if (typeof value === 'object' && value !== null) {
-        safe[key] = JSON.parse(JSON.stringify(value));
+  private splitOnOperator(expr: string, operator: string): string[] {
+    const parts: string[] = [];
+    let current = '';
+    let depth = 0;
+    let inString = false;
+    let stringChar = '';
+    
+    for (let i = 0; i < expr.length; i++) {
+      const char = expr[i];
+      const nextChar = expr[i + 1];
+      const prevChar = i > 0 ? expr[i - 1] : '';
+      
+      // Handle string quotes, checking for escape sequences
+      if ((char === '"' || char === "'") && !inString) {
+        inString = true;
+        stringChar = char;
+      } else if (char === stringChar && inString && prevChar !== '\\') {
+        // Only close string if quote is not escaped
+        inString = false;
+      }
+      
+      if (!inString) {
+        if (char === '(') depth++;
+        if (char === ')') depth--;
+        
+        if (depth === 0 && char === operator[0] && nextChar === operator[1]) {
+          parts.push(current.trim());
+          current = '';
+          i++; // Skip next character
+          continue;
+        }
+      }
+      
+      current += char;
+    }
+    
+    if (current) {
+      parts.push(current.trim());
+    }
+    
+    return parts;
+  }
+
+  /**
+   * Get value from context by path (e.g., "record.age" or "age")
+   */
+  private getValueFromContext(path: string, context: Record<string, any>): any {
+    // Handle bracket notation: record['field']
+    const bracketMatch = path.match(/^(\w+)\['([^']+)'\]$/);
+    if (bracketMatch) {
+      const [, obj, field] = bracketMatch;
+      return context[obj]?.[field];
+    }
+    
+    // Handle dot notation: record.field or just field
+    const parts = path.split('.');
+    let value: any = context;
+    
+    for (const part of parts) {
+      if (value && typeof value === 'object' && part in value) {
+        value = value[part];
       } else {
-        safe[key] = value;
+        // Try direct context access for simple identifiers
+        if (parts.length === 1 && part in context) {
+          return context[part];
+        }
+        return undefined;
       }
     }
-    return safe;
+    
+    return value;
   }
 }
 
