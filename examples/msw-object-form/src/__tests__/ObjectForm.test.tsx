@@ -1,0 +1,465 @@
+/**
+ * ObjectForm with MSW Integration Tests
+ * 
+ * Tests ObjectForm component with real ObjectStack MSW runtime
+ */
+
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import '@testing-library/jest-dom';
+import { ObjectStackClient } from '@objectstack/client';
+import { ObjectForm } from '@object-ui/plugin-form';
+import { ObjectStackDataSource } from '../dataSource';
+import { startMockServer, getDriver } from '../mocks/browser';
+
+describe('ObjectForm with MSW Integration', () => {
+  let client: ObjectStackClient;
+  let dataSource: ObjectStackDataSource;
+
+  beforeAll(async () => {
+    // Start MSW mock server
+    await startMockServer();
+
+    // Initialize client
+    client = new ObjectStackClient({ baseUrl: '' });
+    await client.connect();
+    
+    dataSource = new ObjectStackDataSource(client);
+  });
+
+  afterEach(async () => {
+    // Clean up created contacts after each test
+    const driver = getDriver();
+    if (driver) {
+      const contacts = await driver.find('contact', {});
+      for (const contact of contacts) {
+        if (contact.id && !['1', '2', '3'].includes(contact.id)) {
+          await driver.delete('contact', contact.id);
+        }
+      }
+    }
+  });
+
+  describe('Create Mode', () => {
+    it('should render create form with all fields', async () => {
+      const onSuccess = vi.fn();
+
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'create',
+            fields: ['name', 'email', 'phone', 'company', 'position', 'priority', 'is_active', 'notes'],
+            onSuccess,
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
+      });
+
+      expect(screen.getByLabelText(/Email/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Phone Number/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Company/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Position/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Priority/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Active/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Notes/i)).toBeInTheDocument();
+    });
+
+    it('should create a new contact successfully', async () => {
+      const user = userEvent.setup();
+      const onSuccess = vi.fn();
+
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'create',
+            fields: ['name', 'email', 'phone', 'company'],
+            onSuccess,
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
+      });
+
+      // Fill in the form
+      await user.type(screen.getByLabelText(/Full Name/i), 'Test User');
+      await user.type(screen.getByLabelText(/Email/i), 'test@example.com');
+      await user.type(screen.getByLabelText(/Phone Number/i), '+1234567890');
+      await user.type(screen.getByLabelText(/Company/i), 'Test Company');
+
+      // Submit the form
+      const submitButton = screen.getByRole('button', { name: /create/i });
+      await user.click(submitButton);
+
+      // Wait for success callback
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalled();
+      });
+
+      const createdContact = onSuccess.mock.calls[0][0];
+      expect(createdContact.name).toBe('Test User');
+      expect(createdContact.email).toBe('test@example.com');
+      expect(createdContact.phone).toBe('+1234567890');
+      expect(createdContact.company).toBe('Test Company');
+    });
+
+    it('should validate required fields', async () => {
+      const user = userEvent.setup();
+      const onSuccess = vi.fn();
+
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'create',
+            fields: ['name', 'email'],
+            onSuccess,
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
+      });
+
+      // Try to submit without filling required fields
+      const submitButton = screen.getByRole('button', { name: /create/i });
+      await user.click(submitButton);
+
+      // Form should not submit
+      await waitFor(() => {
+        expect(onSuccess).not.toHaveBeenCalled();
+      }, { timeout: 1000 });
+    });
+
+    it('should apply default values', async () => {
+      const user = userEvent.setup();
+      const onSuccess = vi.fn();
+
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'create',
+            fields: ['name', 'email', 'priority', 'is_active'],
+            onSuccess,
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
+      });
+
+      // Fill required fields only
+      await user.type(screen.getByLabelText(/Full Name/i), 'Default Test');
+      await user.type(screen.getByLabelText(/Email/i), 'default@example.com');
+
+      // Submit
+      await user.click(screen.getByRole('button', { name: /create/i }));
+
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalled();
+      });
+
+      const createdContact = onSuccess.mock.calls[0][0];
+      // Check default values from schema
+      expect(createdContact.priority).toBe(5);
+      expect(createdContact.is_active).toBe(true);
+    });
+  });
+
+  describe('Edit Mode', () => {
+    it('should load existing contact data', async () => {
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'edit',
+            recordId: '1',
+            fields: ['name', 'email', 'company'],
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      // Wait for data to load
+      await waitFor(() => {
+        const nameInput = screen.getByLabelText(/Full Name/i) as HTMLInputElement;
+        expect(nameInput.value).toBe('John Doe');
+      });
+
+      const emailInput = screen.getByLabelText(/Email/i) as HTMLInputElement;
+      expect(emailInput.value).toBe('john.doe@example.com');
+
+      const companyInput = screen.getByLabelText(/Company/i) as HTMLInputElement;
+      expect(companyInput.value).toBe('Acme Corp');
+    });
+
+    it('should update contact successfully', async () => {
+      const user = userEvent.setup();
+      const onSuccess = vi.fn();
+
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'edit',
+            recordId: '1',
+            fields: ['name', 'email', 'company'],
+            onSuccess,
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      // Wait for data to load
+      await waitFor(() => {
+        const nameInput = screen.getByLabelText(/Full Name/i) as HTMLInputElement;
+        expect(nameInput.value).toBe('John Doe');
+      });
+
+      // Update the name
+      const nameInput = screen.getByLabelText(/Full Name/i);
+      await user.clear(nameInput);
+      await user.type(nameInput, 'John Doe Updated');
+
+      // Submit
+      await user.click(screen.getByRole('button', { name: /update/i }));
+
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalled();
+      });
+
+      const updatedContact = onSuccess.mock.calls[0][0];
+      expect(updatedContact.name).toBe('John Doe Updated');
+      expect(updatedContact.id).toBe('1');
+    });
+
+    it('should handle update errors gracefully', async () => {
+      const user = userEvent.setup();
+      const onError = vi.fn();
+
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'edit',
+            recordId: 'non-existent-id',
+            fields: ['name', 'email'],
+            onError,
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      // Wait a bit for the error to occur
+      await waitFor(() => {
+        expect(screen.getByText(/Error loading form/i)).toBeInTheDocument();
+      }, { timeout: 3000 });
+    });
+  });
+
+  describe('View Mode', () => {
+    it('should render form in read-only mode', async () => {
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'view',
+            recordId: '1',
+            fields: ['name', 'email', 'company'],
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      await waitFor(() => {
+        const nameInput = screen.getByLabelText(/Full Name/i) as HTMLInputElement;
+        expect(nameInput.value).toBe('John Doe');
+        expect(nameInput.disabled).toBe(true);
+      });
+
+      // Submit button should not be shown in view mode
+      expect(screen.queryByRole('button', { name: /create|update/i })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Field Types', () => {
+    it('should render checkbox for boolean fields', async () => {
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'create',
+            fields: ['name', 'email', 'is_active'],
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
+      });
+
+      const checkbox = screen.getByLabelText(/Active/i) as HTMLInputElement;
+      expect(checkbox.type).toBe('checkbox');
+    });
+
+    it('should render number input for number fields', async () => {
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'create',
+            fields: ['name', 'email', 'priority'],
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
+      });
+
+      const numberInput = screen.getByLabelText(/Priority/i) as HTMLInputElement;
+      expect(numberInput.type).toBe('number');
+    });
+
+    it('should render textarea for notes field', async () => {
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'create',
+            fields: ['name', 'email', 'notes'],
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
+      });
+
+      const textarea = screen.getByLabelText(/Notes/i) as HTMLTextAreaElement;
+      expect(textarea.tagName).toBe('TEXTAREA');
+    });
+
+    it('should render phone input with tel type', async () => {
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'create',
+            fields: ['name', 'email', 'phone'],
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
+      });
+
+      const phoneInput = screen.getByLabelText(/Phone Number/i) as HTMLInputElement;
+      expect(phoneInput.type).toBe('tel');
+    });
+  });
+
+  describe('Form Callbacks', () => {
+    it('should call onCancel when cancel button is clicked', async () => {
+      const user = userEvent.setup();
+      const onCancel = vi.fn();
+
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'create',
+            fields: ['name', 'email'],
+            showCancel: true,
+            onCancel,
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
+      });
+
+      const cancelButton = screen.getByRole('button', { name: /cancel/i });
+      await user.click(cancelButton);
+
+      expect(onCancel).toHaveBeenCalled();
+    });
+  });
+
+  describe('Data Persistence', () => {
+    it('should persist created data in MSW memory', async () => {
+      const user = userEvent.setup();
+      const onSuccess = vi.fn();
+
+      // Create a contact
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'contact',
+            mode: 'create',
+            fields: ['name', 'email'],
+            onSuccess,
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
+      });
+
+      await user.type(screen.getByLabelText(/Full Name/i), 'Persist Test');
+      await user.type(screen.getByLabelText(/Email/i), 'persist@example.com');
+      await user.click(screen.getByRole('button', { name: /create/i }));
+
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalled();
+      });
+
+      const createdContact = onSuccess.mock.calls[0][0];
+      const createdId = createdContact.id;
+
+      // Verify data is persisted by fetching it
+      const result = await client.data.findById('contact', createdId);
+      expect(result.value.name).toBe('Persist Test');
+      expect(result.value.email).toBe('persist@example.com');
+    });
+  });
+});
