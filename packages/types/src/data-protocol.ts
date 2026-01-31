@@ -40,6 +40,7 @@ export type QueryASTNodeType =
   | 'offset'
   | 'subquery'
   | 'aggregate'
+  | 'window'
   | 'field'
   | 'literal'
   | 'operator'
@@ -58,7 +59,7 @@ export interface QueryASTNode {
  */
 export interface SelectNode extends QueryASTNode {
   type: 'select';
-  fields: (FieldNode | AggregateNode)[];
+  fields: (FieldNode | AggregateNode | WindowNode)[];
   distinct?: boolean;
 }
 
@@ -80,6 +81,11 @@ export interface WhereNode extends QueryASTNode {
 }
 
 /**
+ * Join execution strategy hint (ObjectStack Spec v0.7.1)
+ */
+export type JoinStrategy = 'auto' | 'database' | 'hash' | 'loop';
+
+/**
  * JOIN clause node (Phase 3.3.4)
  */
 export interface JoinNode extends QueryASTNode {
@@ -88,6 +94,7 @@ export interface JoinNode extends QueryASTNode {
   table: string;
   alias?: string;
   on: OperatorNode;
+  strategy?: JoinStrategy; // Execution strategy hint for cross-datasource joins
 }
 
 /**
@@ -140,10 +147,73 @@ export interface SubqueryNode extends QueryASTNode {
  */
 export interface AggregateNode extends QueryASTNode {
   type: 'aggregate';
-  function: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'first' | 'last';
+  function: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'first' | 'last' | 'count_distinct' | 'array_agg' | 'string_agg';
   field?: FieldNode;
   alias?: string;
   distinct?: boolean;
+  separator?: string; // For string_agg function
+}
+
+/**
+ * Window function type (ObjectStack Spec v0.7.1)
+ */
+export type WindowFunction = 
+  | 'row_number'
+  | 'rank'
+  | 'dense_rank'
+  | 'percent_rank'
+  | 'lag'
+  | 'lead'
+  | 'first_value'
+  | 'last_value'
+  | 'sum'
+  | 'avg'
+  | 'count'
+  | 'min'
+  | 'max';
+
+/**
+ * Window frame unit (ObjectStack Spec v0.7.1)
+ */
+export type WindowFrameUnit = 'rows' | 'range';
+
+/**
+ * Window frame boundary (ObjectStack Spec v0.7.1)
+ */
+export type WindowFrameBoundary = 
+  | 'unbounded_preceding'
+  | 'unbounded_following'
+  | 'current_row'
+  | { type: 'preceding'; offset: number }
+  | { type: 'following'; offset: number };
+
+/**
+ * Window frame specification (ObjectStack Spec v0.7.1)
+ */
+export interface WindowFrame {
+  unit: WindowFrameUnit;
+  start: WindowFrameBoundary;
+  end?: WindowFrameBoundary; // Defaults to CURRENT ROW if not specified
+}
+
+/**
+ * Window function node (ObjectStack Spec v0.7.1)
+ */
+export interface WindowNode extends QueryASTNode {
+  type: 'window';
+  function: WindowFunction;
+  field?: FieldNode; // For aggregate window functions
+  alias: string;
+  partitionBy?: FieldNode[];
+  orderBy?: Array<{
+    field: FieldNode;
+    direction: 'asc' | 'desc';
+  }>;
+  frame?: WindowFrame;
+  
+  // For LAG/LEAD functions
+  offset?: number;
+  defaultValue?: LiteralNode;
 }
 
 /**
@@ -271,6 +341,11 @@ export interface QuerySchema {
   group_by?: string[];
   
   /**
+   * Window functions (ObjectStack Spec v0.7.1)
+   */
+  windows?: WindowConfig[];
+  
+  /**
    * Related objects to expand
    */
   expand?: string[];
@@ -305,10 +380,40 @@ export interface JoinConfig {
  * Aggregation configuration
  */
 export interface AggregationConfig {
-  function: 'count' | 'sum' | 'avg' | 'min' | 'max';
+  function: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'count_distinct' | 'array_agg' | 'string_agg';
   field?: string;
   alias?: string;
   distinct?: boolean;
+  separator?: string; // For string_agg function
+}
+
+/**
+ * Window function configuration (ObjectStack Spec v0.7.1)
+ */
+export interface WindowConfig {
+  /** Window function name */
+  function: WindowFunction;
+  
+  /** Field to operate on (not required for row_number, rank, etc.) */
+  field?: string;
+  
+  /** Result alias */
+  alias: string;
+  
+  /** PARTITION BY fields */
+  partitionBy?: string[];
+  
+  /** ORDER BY clause */
+  orderBy?: Array<{ field: string; direction: 'asc' | 'desc' }>;
+  
+  /** Window frame specification */
+  frame?: WindowFrame;
+  
+  /** Offset for lag/lead functions */
+  offset?: number;
+  
+  /** Default value for lag/lead when no previous/next row */
+  defaultValue?: any;
 }
 
 /**
@@ -718,6 +823,199 @@ export interface AdvancedValidationError {
    */
   context?: Record<string, any>;
 }
+
+/**
+ * =============================================================================
+ * ObjectStack Spec v0.7.1: Object-Level Validation Framework
+ * =============================================================================
+ */
+
+/**
+ * Base validation interface (ObjectStack Spec v0.7.1)
+ */
+export interface BaseValidation {
+  /** Unique validation name (snake_case) */
+  name: string;
+  
+  /** Display label for the validation */
+  label?: string;
+  
+  /** Description of what this validation does */
+  description?: string;
+  
+  /** Whether this validation is currently active */
+  active: boolean;
+  
+  /** When this validation should run */
+  events: Array<'insert' | 'update' | 'delete'>;
+  
+  /** Severity of validation failure */
+  severity: 'error' | 'warning' | 'info';
+  
+  /** Error message to display on failure */
+  message: string;
+  
+  /** Tags for categorization */
+  tags?: string[];
+}
+
+/**
+ * Script-based validation (ObjectStack Spec v0.7.1)
+ * Uses expression language to define conditions
+ */
+export interface ScriptValidation extends BaseValidation {
+  type: 'script';
+  
+  /** Expression that must evaluate to true */
+  condition: string;
+}
+
+/**
+ * Uniqueness validation (ObjectStack Spec v0.7.1)
+ * Ensures field combinations are unique
+ */
+export interface UniquenessValidation extends BaseValidation {
+  type: 'unique';
+  
+  /** Fields that must be unique together */
+  fields: string[];
+  
+  /** Optional scope expression (e.g., "tenant_id = ${current_tenant}") */
+  scope?: string;
+  
+  /** Whether comparison is case-sensitive */
+  caseSensitive?: boolean;
+}
+
+/**
+ * State machine validation (ObjectStack Spec v0.7.1)
+ * Enforces valid state transitions
+ */
+export interface StateMachineValidation extends BaseValidation {
+  type: 'state_machine';
+  
+  /** Field containing the state */
+  stateField: string;
+  
+  /** Allowed state transitions */
+  transitions: Array<{
+    /** Source state(s) */
+    from: string | string[];
+    
+    /** Target state */
+    to: string;
+    
+    /** Optional condition that must be true */
+    condition?: string;
+  }>;
+}
+
+/**
+ * Cross-field validation (ObjectStack Spec v0.7.1)
+ * Validates relationships between multiple fields
+ */
+export interface CrossFieldValidation extends BaseValidation {
+  type: 'cross_field';
+  
+  /** Fields involved in the validation */
+  fields: string[];
+  
+  /** Condition expression involving multiple fields */
+  condition: string;
+}
+
+/**
+ * Async/remote validation (ObjectStack Spec v0.7.1)
+ * Calls external endpoint for validation
+ */
+export interface AsyncValidation extends BaseValidation {
+  type: 'async';
+  
+  /** API endpoint to call */
+  endpoint: string;
+  
+  /** HTTP method */
+  method?: 'GET' | 'POST';
+  
+  /** Debounce delay in milliseconds */
+  debounce?: number;
+  
+  /** Cache configuration */
+  cache?: {
+    enabled: boolean;
+    ttl?: number; // Time to live in seconds
+  };
+}
+
+/**
+ * Conditional validation (ObjectStack Spec v0.7.1)
+ * Applies nested rules only when condition is met
+ */
+export interface ConditionalValidation extends BaseValidation {
+  type: 'conditional';
+  
+  /** Condition that determines if rules should apply */
+  condition: string;
+  
+  /** Nested validation rules to apply when condition is true */
+  rules: ObjectValidationRule[];
+}
+
+/**
+ * Format validation (ObjectStack Spec v0.7.1)
+ * Validates field format using regex or predefined patterns
+ */
+export interface FormatValidation extends BaseValidation {
+  type: 'format';
+  
+  /** Field to validate */
+  field: string;
+  
+  /** Regex pattern or predefined format name */
+  pattern: string | RegExp;
+  
+  /** Predefined format (email, url, phone, etc.) */
+  format?: 'email' | 'url' | 'phone' | 'ipv4' | 'ipv6' | 'uuid' | 'iso_date' | 'credit_card';
+  
+  /** Validation flags for regex (i, g, m, etc.) */
+  flags?: string;
+}
+
+/**
+ * Range validation (ObjectStack Spec v0.7.1)
+ * Validates numeric or date ranges
+ */
+export interface RangeValidation extends BaseValidation {
+  type: 'range';
+  
+  /** Field to validate */
+  field: string;
+  
+  /** Minimum value (inclusive) */
+  min?: number | string | Date;
+  
+  /** Maximum value (inclusive) */
+  max?: number | string | Date;
+  
+  /** Whether min is exclusive */
+  minExclusive?: boolean;
+  
+  /** Whether max is exclusive */
+  maxExclusive?: boolean;
+}
+
+/**
+ * Union type for all validation rules (ObjectStack Spec v0.7.1)
+ */
+export type ObjectValidationRule = 
+  | ScriptValidation
+  | UniquenessValidation
+  | StateMachineValidation
+  | CrossFieldValidation
+  | AsyncValidation
+  | ConditionalValidation
+  | FormatValidation
+  | RangeValidation;
 
 /**
  * =============================================================================

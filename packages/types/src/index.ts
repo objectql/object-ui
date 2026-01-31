@@ -361,12 +361,18 @@ export type {
   FromNode,
   WhereNode,
   JoinNode,
+  JoinStrategy,
   GroupByNode,
   OrderByNode,
   LimitNode,
   OffsetNode,
   SubqueryNode,
   AggregateNode,
+  WindowNode,
+  WindowFunction,
+  WindowFrame,
+  WindowFrameUnit,
+  WindowFrameBoundary,
   FieldNode,
   LiteralNode,
   OperatorNode,
@@ -378,6 +384,7 @@ export type {
   QuerySortConfig,
   JoinConfig,
   AggregationConfig,
+  WindowConfig,
   // Filter Schema (Phase 3.4)
   AdvancedFilterSchema,
   AdvancedFilterCondition,
@@ -395,6 +402,17 @@ export type {
   ValidationContext,
   AdvancedValidationResult,
   AdvancedValidationError,
+  // ObjectStack Spec v0.7.1 Validation
+  BaseValidation,
+  ScriptValidation,
+  UniquenessValidation,
+  StateMachineValidation,
+  CrossFieldValidation,
+  AsyncValidation,
+  ConditionalValidation,
+  FormatValidation,
+  RangeValidation,
+  ObjectValidationRule,
   // Driver Interface (Phase 3.6)
   DriverInterface,
   ConnectionConfig,
@@ -589,6 +607,25 @@ export type {
   ComponentInput as PluginComponentInput,
   PluginEventHandler,
 } from './plugin-scope';
+
+// ============================================================================
+// UI Actions - Enhanced Action Schema (ObjectStack Spec v0.7.1)
+// ============================================================================
+/**
+ * Enhanced action schema with location-based placement, parameter collection,
+ * conditional visibility, and rich feedback mechanisms.
+ */
+export type {
+  ActionLocation,
+  ActionComponent,
+  ActionType,
+  ActionParam,
+  ActionSchema as UIActionSchema,
+  ActionGroup,
+  ActionContext,
+  ActionResult,
+  ActionExecutor,
+} from './ui-action';
 
 // ============================================================================
 // ObjectStack Protocol Namespaces - Protocol Re-exports

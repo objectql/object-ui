@@ -1,6 +1,7 @@
 /**
  * ObjectUI - Query AST Builder
  * Phase 3.3: QuerySchema AST implementation
+ * ObjectStack Spec v0.7.1: Window functions support
  */
 
 import type {
@@ -15,6 +16,10 @@ import type {
   LimitNode,
   OffsetNode,
   AggregateNode,
+  WindowNode,
+  WindowFunction,
+  WindowFrame,
+  WindowConfig,
   FieldNode,
   LiteralNode,
   OperatorNode,
@@ -64,7 +69,7 @@ export class QueryASTBuilder {
   }
 
   private buildSelect(query: QuerySchema): SelectNode {
-    const fields: (FieldNode | AggregateNode)[] = [];
+    const fields: (FieldNode | AggregateNode | WindowNode)[] = [];
 
     if (query.fields && query.fields.length > 0) {
       fields.push(...query.fields.map(field => this.buildField(field)));
@@ -75,6 +80,11 @@ export class QueryASTBuilder {
 
     if (query.aggregations && query.aggregations.length > 0) {
       fields.push(...query.aggregations.map(agg => this.buildAggregation(agg)));
+    }
+
+    // Add window functions (ObjectStack Spec v0.7.1)
+    if (query.windows && query.windows.length > 0) {
+      fields.push(...query.windows.map(win => this.buildWindow(win)));
     }
 
     return {
@@ -277,6 +287,46 @@ export class QueryASTBuilder {
       alias: agg.alias,
       distinct: agg.distinct,
     };
+  }
+
+  /**
+   * Build window function node (ObjectStack Spec v0.7.1)
+   */
+  private buildWindow(config: WindowConfig): WindowNode {
+    const node: WindowNode = {
+      type: 'window',
+      function: config.function,
+      alias: config.alias,
+    };
+
+    if (config.field) {
+      node.field = this.buildField(config.field);
+    }
+
+    if (config.partitionBy && config.partitionBy.length > 0) {
+      node.partitionBy = config.partitionBy.map(field => this.buildField(field));
+    }
+
+    if (config.orderBy && config.orderBy.length > 0) {
+      node.orderBy = config.orderBy.map(sort => ({
+        field: this.buildField(sort.field),
+        direction: sort.direction,
+      }));
+    }
+
+    if (config.frame) {
+      node.frame = config.frame;
+    }
+
+    if (config.offset !== undefined) {
+      node.offset = config.offset;
+    }
+
+    if (config.defaultValue !== undefined) {
+      node.defaultValue = this.buildLiteral(config.defaultValue);
+    }
+
+    return node;
   }
 
   optimize(ast: QueryAST): QueryAST {
