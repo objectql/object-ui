@@ -23,7 +23,7 @@ graph TD
 - **MSW Integration**: Complete ObjectStack runtime running in the browser via Service Worker
 - **Full CRUD Operations**: Create, Read, Update, Delete contacts with validation
 - **Real Logic**: Schema validation, defaults, and field types enforced by ObjectStack Kernel
-- **Comprehensive Tests**: Test suite covering all form operations and field types
+- **Testing Support**: MSW server setup for Node.js test environment
 - **Zero Backend**: Develop and test frontend forms before backend exists
 
 ## 📦 What's Inside
@@ -33,18 +33,15 @@ graph TD
 - **`src/App.tsx`** - Main application component with ObjectForm integration
 - **`src/components/ContactList.tsx`** - Contact list component with edit/delete
 - **`src/dataSource.ts`** - ObjectStack DataSource adapter for ObjectForm
-- **`src/mocks/browser.ts`** - MSW setup with ObjectStack Kernel
+- **`src/mocks/browser.ts`** - MSW setup with ObjectStack Kernel (for browser)
+- **`src/mocks/server.ts`** - MSW setup for Node.js testing environment
 - **`objectstack.config.ts`** - Contact object schema definition
 
 ### Test Files
 
-- **`src/__tests__/ObjectForm.test.tsx`** - Comprehensive test suite covering:
-  - Create mode with field validation
-  - Edit mode with data loading and updates
-  - View mode (read-only)
-  - Different field types (text, email, phone, checkbox, number, textarea)
-  - Form callbacks (onSuccess, onCancel, onError)
-  - Data persistence in MSW memory
+- **`src/__tests__/MSWServer.test.tsx`** - ✅ **Working Tests** - MSW server integration tests
+- **`src/__tests__/ObjectFormUnit.test.tsx`** - Unit tests with mock DataSource (partial)
+- **`src/__tests__/ObjectForm.test.tsx`** - Integration tests (requires HTTP interception setup)
 
 ## 🚀 Getting Started
 
@@ -74,8 +71,11 @@ Open [http://localhost:5173](http://localhost:5173) to view the app. You can:
 ### Testing
 
 ```bash
-# Run tests
+# Run all tests
 pnpm test
+
+# Run specific test file
+pnpm test MSWServer.test.tsx
 
 # Run tests in watch mode
 pnpm test:watch
@@ -122,44 +122,25 @@ const dataSource = new ObjectStackDataSource(client);
 />
 ```
 
-### Testing with MSW
+### Testing with MSW Server
 
 ```tsx
-import { startMockServer } from './mocks/browser';
-import { ObjectStackClient } from '@objectstack/client';
+import { startMockServer, stopMockServer, getDriver } from './mocks/server';
 
-// Start MSW before tests
+// Start MSW server for tests
 beforeAll(async () => {
   await startMockServer();
-  
-  client = new ObjectStackClient({ baseUrl: '' });
-  await client.connect();
-  
-  dataSource = new ObjectStackDataSource(client);
 });
 
-// Test form creation
-it('should create a contact', async () => {
-  render(
-    <ObjectForm
-      schema={{
-        type: 'object-form',
-        objectName: 'contact',
-        mode: 'create',
-        fields: ['name', 'email'],
-        onSuccess,
-      }}
-      dataSource={dataSource}
-    />
-  );
+afterAll(() => {
+  stopMockServer();
+});
 
-  await user.type(screen.getByLabelText(/name/i), 'Test User');
-  await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-  await user.click(screen.getByRole('button', { name: /create/i }));
-
-  await waitFor(() => {
-    expect(onSuccess).toHaveBeenCalled();
-  });
+// Test with direct driver access
+it('should initialize with data', async () => {
+  const driver = getDriver();
+  const contacts = await driver!.find('contact', {});
+  expect(contacts).toHaveLength(3);
 });
 ```
 
@@ -214,18 +195,30 @@ Implement custom validation in the ObjectForm schema:
 
 ## 🧪 Test Coverage
 
-The test suite covers:
+### ✅ Working Tests
 
-✅ Create mode with all field types  
-✅ Form validation (required fields, field types)  
-✅ Default values from schema  
-✅ Edit mode with data loading  
-✅ Update operations  
-✅ View mode (read-only)  
-✅ Error handling  
-✅ Form callbacks (onSuccess, onCancel, onError)  
-✅ Data persistence in MSW memory  
-✅ Various field types (text, email, phone, number, checkbox, textarea)
+**MSW Server Integration** (`MSWServer.test.tsx`):
+- ✅ MSW server initialization with data
+- ✅ Direct driver CRUD operations
+- ✅ Data persistence
+
+### 🔨 In Progress
+
+**ObjectForm Unit Tests** (`ObjectFormUnit.test.tsx`):
+- ✅ Form rendering with different field types
+- ✅ Field type detection
+- ⚠️ Form submission (needs adjustment for react-hook-form)
+- ⚠️ Callbacks (requires proper event handling)
+
+**ObjectForm Integration** (`ObjectForm.test.tsx`):
+- ⚠️ Requires HTTP interception setup in test environment
+
+## 📝 Notes
+
+- The app works perfectly in the browser with MSW worker
+- MSW server setup works great for Node.js test environment
+- Direct driver access is tested and working
+- HTTP interception in tests requires additional configuration with happy-dom
 
 ## 📄 License
 
