@@ -99,6 +99,7 @@ ComponentRegistry.register(
   'aggrid',
   AgGridRenderer,
   {
+    namespace: 'plugin-aggrid',
     label: 'AG Grid',
     icon: 'Table',
     category: 'plugin',
@@ -386,6 +387,7 @@ ComponentRegistry.register(
   'object-aggrid',
   ObjectAgGridRenderer,
   {
+    namespace: 'plugin-aggrid',
     label: 'Object AG Grid',
     icon: 'Table',
     category: 'plugin',

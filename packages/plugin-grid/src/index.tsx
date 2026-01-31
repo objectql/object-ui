@@ -20,10 +20,15 @@ const ObjectGridRenderer: React.FC<{ schema: any }> = ({ schema }) => {
   return <ObjectGrid schema={schema} dataSource={null as any} />;
 };
 
-ComponentRegistry.register('object-grid', ObjectGridRenderer);
+ComponentRegistry.register('object-grid', ObjectGridRenderer, {
+  namespace: 'plugin-grid',
+  label: 'Object Grid',
+  category: 'plugin'
+});
 
 // Alias for view:grid
-ComponentRegistry.register('view:grid', ObjectGridRenderer, {
+ComponentRegistry.register('grid', ObjectGridRenderer, {
+  namespace: 'view',
   label: 'Data Grid',
   category: 'view'
 });

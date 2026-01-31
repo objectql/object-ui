@@ -120,6 +120,7 @@ ComponentRegistry.register('calendar-view',
     );
   },
   {
+    namespace: 'plugin-calendar',
     label: 'Calendar View',
     inputs: [
       { 

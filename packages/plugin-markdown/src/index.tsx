@@ -46,6 +46,7 @@ ComponentRegistry.register(
   'markdown',
   MarkdownRenderer,
   {
+    namespace: 'plugin-markdown',
     label: 'Markdown',
     category: 'plugin',
     inputs: [

@@ -56,6 +56,7 @@ ComponentRegistry.register(
   'bar-chart',
   ChartBarRenderer,
   {
+    namespace: 'plugin-charts',
     label: 'Bar Chart',
     category: 'plugin',
     inputs: [
@@ -162,6 +163,7 @@ ComponentRegistry.register(
   'chart',
   ChartRenderer,
   {
+    namespace: 'plugin-charts',
     label: 'Chart',
     category: 'plugin',
     inputs: [
@@ -215,6 +217,7 @@ ComponentRegistry.register(
   'chart:bar',
   ChartRenderer, // Use the smart renderer to handle Tremor-like props
   {
+    namespace: 'plugin-charts',
     label: 'Bar Chart (Alias)',
     category: 'plugin',
     defaultProps: { chartType: 'bar' }

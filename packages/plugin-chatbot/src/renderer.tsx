@@ -87,6 +87,7 @@ ComponentRegistry.register('chatbot',
     );
   },
   {
+    namespace: 'plugin-chatbot',
     label: 'Chatbot',
     inputs: [
       { 

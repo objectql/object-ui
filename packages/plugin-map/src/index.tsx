@@ -20,6 +20,7 @@ const ObjectMapRenderer: React.FC<{ schema: any }> = ({ schema }) => {
 };
 
 ComponentRegistry.register('object-map', ObjectMapRenderer, {
+  namespace: 'plugin-map',
   label: 'Object Map',
   category: 'plugin',
   inputs: [

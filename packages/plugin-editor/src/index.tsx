@@ -58,6 +58,7 @@ ComponentRegistry.register(
   'code-editor',
   CodeEditorRenderer,
   {
+    namespace: 'plugin-editor',
     label: 'Code Editor',
     category: 'plugin',
     inputs: [

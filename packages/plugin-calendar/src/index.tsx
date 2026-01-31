@@ -28,6 +28,7 @@ const ObjectCalendarRenderer: React.FC<{ schema: any }> = ({ schema }) => {
 };
 
 ComponentRegistry.register('object-calendar', ObjectCalendarRenderer, {
+  namespace: 'plugin-calendar',
   label: 'Object Calendar',
   category: 'plugin',
   inputs: [

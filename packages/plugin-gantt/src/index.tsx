@@ -20,6 +20,7 @@ const ObjectGanttRenderer: React.FC<{ schema: any }> = ({ schema }) => {
 };
 
 ComponentRegistry.register('object-gantt', ObjectGanttRenderer, {
+  namespace: 'plugin-gantt',
   label: 'Object Gantt',
   category: 'plugin',
   inputs: [

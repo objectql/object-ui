@@ -282,6 +282,7 @@ ComponentRegistry.register(
     return null;
   },
   {
+    namespace: 'plugin-timeline',
     label: 'Timeline',
     category: 'data-display',
     inputs: [

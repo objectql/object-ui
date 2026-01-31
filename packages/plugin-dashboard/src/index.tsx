@@ -17,6 +17,7 @@ ComponentRegistry.register(
   'dashboard',
   DashboardRenderer,
   {
+    namespace: 'plugin-dashboard',
     label: 'Dashboard',
     category: 'Complex',
     icon: 'layout-dashboard',
@@ -37,6 +38,7 @@ ComponentRegistry.register(
   'metric',
   MetricWidget,
   {
+    namespace: 'plugin-dashboard',
     label: 'Metric Card',
     category: 'Dashboard',
     inputs: [

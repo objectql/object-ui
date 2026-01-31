@@ -78,6 +78,7 @@ ComponentRegistry.register(
   'kanban',
   KanbanRenderer,
   {
+    namespace: 'plugin-kanban',
     label: 'Kanban Board',
     icon: 'LayoutDashboard',
     category: 'plugin',
