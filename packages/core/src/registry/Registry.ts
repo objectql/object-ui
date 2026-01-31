@@ -72,6 +72,14 @@ export class Registry<T = any> {
   register(type: string, component: ComponentRenderer<T>, meta?: ComponentMeta) {
     const fullType = meta?.namespace ? `${meta.namespace}:${type}` : type;
     
+    // Warn if registering without namespace (deprecated pattern)
+    if (!meta?.namespace) {
+      console.warn(
+        `Registering component "${type}" without a namespace is deprecated. ` +
+        `Please provide a namespace in the meta parameter.`
+      );
+    }
+    
     if (this.components.has(fullType)) {
       // console.warn(`Component type "${fullType}" is already registered. Overwriting.`);
     }
@@ -84,7 +92,7 @@ export class Registry<T = any> {
     
     // Also register without namespace for backward compatibility
     // This allows "button" to work even when registered as "ui:button"
-    if (meta?.namespace && !this.components.has(type)) {
+    if (meta?.namespace) {
       this.components.set(type, {
         type: fullType, // Keep reference to namespaced type
         component,
@@ -113,16 +121,13 @@ export class Registry<T = any> {
    * registry.get('button', 'ui') // Tries 'ui:button' first, then 'button'
    */
   get(type: string, namespace?: string): ComponentRenderer<T> | undefined {
-    // Try namespaced lookup first if namespace provided
+    // If namespace is explicitly provided, ONLY look in that namespace (no fallback)
     if (namespace) {
       const namespacedType = `${namespace}:${type}`;
-      const namespacedComponent = this.components.get(namespacedType);
-      if (namespacedComponent) {
-        return namespacedComponent.component;
-      }
+      return this.components.get(namespacedType)?.component;
     }
     
-    // Fallback to direct type lookup
+    // When no namespace provided, use backward compatibility lookup
     return this.components.get(type)?.component;
   }
 
@@ -134,16 +139,13 @@ export class Registry<T = any> {
    * @returns Component configuration or undefined
    */
   getConfig(type: string, namespace?: string): ComponentConfig<T> | undefined {
-    // Try namespaced lookup first if namespace provided
+    // If namespace is explicitly provided, ONLY look in that namespace (no fallback)
     if (namespace) {
       const namespacedType = `${namespace}:${type}`;
-      const namespacedConfig = this.components.get(namespacedType);
-      if (namespacedConfig) {
-        return namespacedConfig;
-      }
+      return this.components.get(namespacedType);
     }
     
-    // Fallback to direct type lookup
+    // When no namespace provided, use backward compatibility lookup
     return this.components.get(type);
   }
 
@@ -155,12 +157,12 @@ export class Registry<T = any> {
    * @returns True if component is registered
    */
   has(type: string, namespace?: string): boolean {
+    // If namespace is explicitly provided, ONLY look in that namespace (no fallback)
     if (namespace) {
       const namespacedType = `${namespace}:${type}`;
-      if (this.components.has(namespacedType)) {
-        return true;
-      }
+      return this.components.has(namespacedType);
     }
+    // When no namespace provided, use backward compatibility lookup
     return this.components.has(type);
   }
   

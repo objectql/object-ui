@@ -28,7 +28,7 @@ describe('PluginSystem', () => {
       }
     };
 
-    await pluginSystem.loadPlugin(plugin, registry);
+    await pluginSystem.loadPlugin(plugin, registry, false);
     
     expect(pluginSystem.isLoaded('test-plugin')).toBe(true);
     expect(pluginSystem.getLoadedPlugins()).toContain('test-plugin');
@@ -201,7 +201,7 @@ describe('PluginSystem', () => {
       register: registerFn
     };
 
-    await pluginSystem.loadPlugin(plugin, registry);
+    await pluginSystem.loadPlugin(plugin, registry, false);
     
     expect(registerFn).toHaveBeenCalledWith(registry);
     expect(registerFn).toHaveBeenCalledTimes(1);
