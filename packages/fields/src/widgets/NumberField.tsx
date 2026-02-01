@@ -13,6 +13,7 @@ export function NumberField({ value, onChange, field, readonly, ...props }: Fiel
 
   return (
     <Input
+      {...props}
       type="number"
       value={value ?? ''}
       onChange={(e) => {
@@ -22,7 +23,6 @@ export function NumberField({ value, onChange, field, readonly, ...props }: Fiel
       placeholder={numberField?.placeholder}
       disabled={readonly}
       step={precision ? Math.pow(10, -precision) : 'any'}
-      className={props.className}
     />
   );
 }

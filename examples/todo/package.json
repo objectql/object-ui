@@ -11,11 +11,11 @@
     "build": "objectstack compile objectstack.config.ts dist/objectstack.json"
   },
   "dependencies": {
-    "@objectstack/spec": "^0.7.2",
-    "@objectstack/client": "^0.7.2"
+    "@objectstack/spec": "^0.8.0",
+    "@objectstack/client": "^0.8.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
-    "@objectstack/cli": "^0.7.2"
+    "@objectstack/cli": "^0.8.0"
   }
 }

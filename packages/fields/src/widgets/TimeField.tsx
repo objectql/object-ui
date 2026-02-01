@@ -9,11 +9,11 @@ export function TimeField({ value, onChange, field, readonly, ...props }: FieldW
 
   return (
     <Input
+      {...props}
       type="time"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       disabled={readonly}
-      className={props.className}
     />
   );
 }

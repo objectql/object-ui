@@ -2,7 +2,7 @@ import React from 'react';
 import { Input } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
 
-export function PercentField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<number>) {
+export function PercentField({ value, onChange, field, readonly, errorMessage, className, ...props }: FieldWidgetProps<number>) {
   const percentField = (field || (props as any).schema) as any;
   const precision = percentField?.precision ?? 2;
 
@@ -31,12 +31,13 @@ export function PercentField({ value, onChange, field, readonly, errorMessage, .
   return (
     <div className="relative">
       <Input
+        {...props}
         type="number"
         value={displayValue}
         onChange={handleChange}
         placeholder={percentField?.placeholder || '0'}
         disabled={readonly}
-        className={`pr-8 ${props.className || ''}`}
+        className={`pr-8 ${className || ''}`}
         step={Math.pow(10, -precision).toFixed(precision)}
         aria-invalid={!!errorMessage}
       />

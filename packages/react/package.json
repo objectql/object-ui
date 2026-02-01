@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@object-ui/core": "workspace:*",
-    "@objectstack/spec": "^0.7.2",
+    "@objectstack/spec": "^0.8.0",
     "react-hook-form": "^7.71.1"
   },
   "peerDependencies": {
