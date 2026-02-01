@@ -128,31 +128,4 @@ export function MasterDetailField({
       </Button>
     </div>
   );
-}                disabled={readonly || props.disabled}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {!readonly && (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleAdd}
-          className="w-full"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Related Record
-        </Button>
-      )}
-
-      <p className="text-xs text-muted-foreground">
-        {items.length} {items.length === 1 ? 'record' : 'records'}
-      </p>
-    </div>
-  );
 }
