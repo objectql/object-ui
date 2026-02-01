@@ -37,6 +37,7 @@ ComponentRegistry.register('form',
       submitLabel = 'Submit',
       cancelLabel = 'Cancel',
       showCancel = false,
+      showSubmit = true,
       layout = 'vertical',
       columns = 1,
       onSubmit: onSubmitProp,
@@ -309,6 +310,7 @@ ComponentRegistry.register('form',
                   {cancelLabel}
                 </Button>
               )}
+              {showSubmit && (
               <Button
                 type="submit"
                 disabled={isSubmitting || disabled}
@@ -316,6 +318,7 @@ ComponentRegistry.register('form',
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {submitLabel}
               </Button>
+              )}
             </div>
           )}
         </form>
