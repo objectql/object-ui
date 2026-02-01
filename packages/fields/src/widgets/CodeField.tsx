@@ -8,8 +8,9 @@ import { FieldWidgetProps } from './types';
  * For advanced code editing, use the @object-ui/plugin-editor component
  */
 export function CodeField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
+  const config = field || (props as any).schema;
   // Get code-specific configuration from field metadata
-  const language = (field as any).language ?? 'javascript';
+  const language = (config as any)?.language ?? 'javascript';
 
   if (readonly) {
     return (
@@ -23,7 +24,7 @@ export function CodeField({ value, onChange, field, readonly, ...props }: FieldW
     <Textarea
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
-      placeholder={field.placeholder || `// Write ${language} code here...`}
+      placeholder={config?.placeholder || `// Write ${language} code here...`}
       disabled={readonly}
       className={`font-mono text-sm ${props.className}`}
       rows={12}

@@ -18,7 +18,7 @@ export function RichTextField({ value, onChange, field, readonly, errorMessage, 
     );
   }
 
-  const richField = field as any;
+  const richField = (field || (props as any).schema) as any;
   const rows = richField?.rows || 8;
   const format = richField?.format || 'markdown'; // 'markdown' or 'html'
 
@@ -31,7 +31,7 @@ export function RichTextField({ value, onChange, field, readonly, errorMessage, 
       <Textarea
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={field?.placeholder || 'Enter text...'}
+        placeholder={richField?.placeholder || 'Enter text...'}
         disabled={readonly}
         rows={rows}
         className={`font-mono text-sm ${props.className || ''}`}

@@ -5,9 +5,9 @@ import { FieldWidgetProps } from './types';
 
 export function FileField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const fileField = field as any;
-  const multiple = fileField.multiple || false;
-  const accept = fileField.accept ? fileField.accept.join(',') : undefined;
+  const fileField = (field || (props as any).schema) as any;
+  const multiple = fileField?.multiple || false;
+  const accept = fileField?.accept ? fileField.accept.join(',') : undefined;
 
   if (readonly) {
     if (!value) return <span className="text-sm">-</span>;

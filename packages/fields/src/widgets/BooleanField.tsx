@@ -7,20 +7,23 @@ export function BooleanField({ value, onChange, field, readonly, ...props }: Fie
     return <span className="text-sm">{value ? 'Yes' : 'No'}</span>;
   }
 
+  const config = (field || (props as any).schema) as any;
   // Use simple type assertion for arbitrary custom properties not in BaseFieldMetadata
-  const widget = (field as any).widget;
+  const widget = config?.widget;
+  const id = config?.name || `boolean-field-${Math.random().toString(36).substr(2, 9)}`;
+  const label = config?.label || 'Checkbox';
 
   if (widget === 'checkbox') {
      return (
         <div className="flex items-center space-x-2">
             <Checkbox 
-                id={field.name}
+                id={id}
                 checked={!!value}
                 onCheckedChange={(checked) => onChange(!!checked)}
                 disabled={readonly}
                 className={props.className}
             />
-            <Label htmlFor={field.name}>{field.label}</Label>
+            <Label htmlFor={id}>{label}</Label>
         </div>
      )
   }
@@ -28,13 +31,13 @@ export function BooleanField({ value, onChange, field, readonly, ...props }: Fie
   return (
     <div className="flex items-center space-x-2">
         <Switch 
-            id={field.name} 
+            id={id} 
             checked={!!value} 
             onCheckedChange={onChange}
             disabled={readonly}
             className={props.className}
         />
-        <Label htmlFor={field.name}>{field.label}</Label>
+        <Label htmlFor={id}>{label}</Label>
     </div>
   );
 }

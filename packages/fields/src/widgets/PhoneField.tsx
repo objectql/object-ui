@@ -3,6 +3,7 @@ import { Input } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
 
 export function PhoneField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<string>) {
+  const config = field || (props as any).schema;
   if (readonly) {
     if (!value) return <span className="text-sm">-</span>;
     return (
@@ -20,7 +21,7 @@ export function PhoneField({ value, onChange, field, readonly, errorMessage, ...
       type="tel"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
-      placeholder={field.placeholder || '(555) 123-4567'}
+      placeholder={config?.placeholder || '(555) 123-4567'}
       disabled={readonly}
       className={props.className}
       aria-invalid={!!errorMessage}

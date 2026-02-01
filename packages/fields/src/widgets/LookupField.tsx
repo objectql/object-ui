@@ -22,12 +22,12 @@ interface LookupOption {
  * Lookup field for selecting related records
  * Supports single and multi-select with search
  */
-export function LookupField({ value, onChange, field, readonly }: FieldWidgetProps<any>) {
+export function LookupField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const lookupField = field as any;
-  const options: LookupOption[] = lookupField.options || [];
+  const lookupField = (field || (props as any).schema) as any;
+  const options: LookupOption[] = lookupField?.options || [];
   const multiple = lookupField.multiple || false;
   const displayField = lookupField.display_field || 'label';
 
@@ -127,7 +127,7 @@ export function LookupField({ value, onChange, field, readonly }: FieldWidgetPro
           >
             <Search className="mr-2 size-4" />
             {selectedOptions.length === 0 
-              ? field.placeholder || 'Select...'
+              ? lookupField?.placeholder || 'Select...'
               : multiple ? `${selectedOptions.length} selected` : 'Change selection'
             }
           </Button>
@@ -135,7 +135,7 @@ export function LookupField({ value, onChange, field, readonly }: FieldWidgetPro
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {field.label || 'Select'} {multiple && '(multiple)'}
+              {lookupField?.label || 'Select'} {multiple && '(multiple)'}
             </DialogTitle>
           </DialogHeader>
           

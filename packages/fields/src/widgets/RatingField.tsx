@@ -6,9 +6,10 @@ import { FieldWidgetProps } from './types';
  * Rating field widget - provides a star rating input
  * Supports numeric values from 0 to max (default 5)
  */
-export function RatingField({ value, onChange, field, readonly }: FieldWidgetProps<number>) {
+export function RatingField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<number>) {
   // Get rating-specific configuration from field metadata
-  const max = (field as any).max ?? 5;
+  const ratingField = (field || (props as any).schema) as any;
+  const max = ratingField?.max ?? 5;
   const currentValue = value ?? 0;
 
   const [hoverValue, setHoverValue] = React.useState<number | null>(null);

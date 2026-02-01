@@ -6,8 +6,8 @@ import { FieldWidgetProps } from './types';
  * Shows vector embeddings in a read-only format
  */
 export function VectorField({ value, field, ...props }: FieldWidgetProps<number[]>) {
-  const vectorField = field as any;
-  const dimensions = vectorField.dimensions || (Array.isArray(value) ? value.length : 0);
+  const vectorField = (field || (props as any).schema) as any;
+  const dimensions = vectorField?.dimensions || (Array.isArray(value) ? value.length : 0);
 
   if (!value || !Array.isArray(value)) {
     return <span className="text-sm text-gray-500">-</span>;

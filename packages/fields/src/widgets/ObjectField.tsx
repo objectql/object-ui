@@ -7,6 +7,7 @@ import { FieldWidgetProps } from './types';
  * Allows editing structured JSON data
  */
 export function ObjectField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
+  const config = field || (props as any).schema;
   if (readonly) {
     if (!value) return <span className="text-sm">-</span>;
     return (
@@ -39,7 +40,7 @@ export function ObjectField({ value, onChange, field, readonly, ...props }: Fiel
     <Textarea
       value={jsonString}
       onChange={handleChange}
-      placeholder={field.placeholder || '{\n  "key": "value"\n}'}
+      placeholder={config?.placeholder || '{\n  "key": "value"\n}'}
       disabled={readonly}
       className={`font-mono text-xs ${props.className || ''}`}
       rows={6}

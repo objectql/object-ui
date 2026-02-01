@@ -9,6 +9,7 @@ import { FieldWidgetProps } from './types';
  */
 export function QRCodeField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
   const [showQR, setShowQR] = React.useState(false);
+  const config = field || (props as any).schema;
 
   // Simple QR code generation using an external library would be ideal
   // For now, we'll use a service API approach or placeholder
@@ -49,7 +50,7 @@ export function QRCodeField({ value, onChange, field, readonly, ...props }: Fiel
           type="text"
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder || 'Enter text for QR code'}
+          placeholder={config?.placeholder || 'Enter text for QR code'}
           disabled={readonly}
           className={props.className}
         />

@@ -7,6 +7,8 @@ import { FieldWidgetProps } from './types';
  * Supports hex color values (e.g., #ff0000)
  */
 export function ColorField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
+  const colorField = (field || (props as any).schema) as any;
+
   if (readonly) {
     return (
       <div className="flex items-center gap-2">
@@ -32,7 +34,7 @@ export function ColorField({ value, onChange, field, readonly, ...props }: Field
         type="text"
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={field.placeholder || '#000000'}
+        placeholder={colorField?.placeholder || '#000000'}
         disabled={readonly}
         className={props.className}
         pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"

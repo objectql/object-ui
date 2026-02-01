@@ -6,6 +6,7 @@ import { FieldWidgetProps } from './types';
 
 export function PasswordField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
   const [showPassword, setShowPassword] = useState(false);
+  const config = field || (props as any).schema;
 
   if (readonly) {
     return <span className="text-sm">••••••••</span>;
@@ -17,7 +18,7 @@ export function PasswordField({ value, onChange, field, readonly, ...props }: Fi
         type={showPassword ? 'text' : 'password'}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={field.placeholder}
+        placeholder={config?.placeholder}
         disabled={readonly}
         className={`pr-10 ${props.className || ''}`}
       />

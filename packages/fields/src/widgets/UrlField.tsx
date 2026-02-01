@@ -3,6 +3,7 @@ import { Input } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
 
 export function UrlField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<string>) {
+  const config = field || (props as any).schema;
   if (readonly) {
     if (!value) return <span className="text-sm">-</span>;
     
@@ -29,7 +30,7 @@ export function UrlField({ value, onChange, field, readonly, errorMessage, ...pr
       type="url"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
-      placeholder={field.placeholder || 'https://example.com'}
+      placeholder={config?.placeholder || 'https://example.com'}
       disabled={readonly}
       className={props.className}
       aria-invalid={!!errorMessage}

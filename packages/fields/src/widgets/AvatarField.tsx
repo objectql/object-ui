@@ -7,9 +7,11 @@ import { FieldWidgetProps } from './types';
  * Avatar field widget - provides an avatar/profile picture uploader
  * Supports image URLs or file uploads
  */
-export function AvatarField({ value, onChange, field, readonly }: FieldWidgetProps<string>) {
+export function AvatarField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
   const [isHovered, setIsHovered] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  
+  const avatarField = (field || (props as any).schema) as any;
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -41,7 +43,7 @@ export function AvatarField({ value, onChange, field, readonly }: FieldWidgetPro
 
   // Extract initials for fallback
   const getInitials = (): string => {
-    const name = (field as any).defaultName || field.label || 'User';
+    const name = avatarField?.defaultName || avatarField?.label || 'User';
     return name
       .split(' ')
       .map((word: string) => word[0])
@@ -53,7 +55,7 @@ export function AvatarField({ value, onChange, field, readonly }: FieldWidgetPro
   if (readonly) {
     return (
       <Avatar className="w-16 h-16">
-        {value && <AvatarImage src={value} alt={field.label} />}
+        {value && <AvatarImage src={value} alt={avatarField?.label} />}
         <AvatarFallback>{getInitials()}</AvatarFallback>
       </Avatar>
     );
@@ -67,7 +69,7 @@ export function AvatarField({ value, onChange, field, readonly }: FieldWidgetPro
         onMouseLeave={() => setIsHovered(false)}
       >
         <Avatar className="w-16 h-16">
-          {value && <AvatarImage src={value} alt={field.label} />}
+          {value && <AvatarImage src={value} alt={avatarField?.label} />}
           <AvatarFallback>{getInitials()}</AvatarFallback>
         </Avatar>
         {!readonly && isHovered && value && (

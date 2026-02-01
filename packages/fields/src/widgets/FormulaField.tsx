@@ -6,8 +6,8 @@ import { FieldWidgetProps } from './types';
  * Values are computed on the backend and cannot be edited
  */
 export function FormulaField({ value, field, ...props }: FieldWidgetProps<any>) {
-  const formulaField = field as any;
-  const returnType = formulaField.return_type || 'text';
+  const formulaField = (field || (props as any).schema) as any;
+  const returnType = formulaField?.return_type || 'text';
 
   // Format based on return type
   let displayValue = '-';

@@ -10,7 +10,8 @@ import { SelectFieldMetadata } from '@object-ui/types';
 import { FieldWidgetProps } from './types';
 
 export function SelectField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
-  const options = (field as unknown as SelectFieldMetadata).options || [];
+  const config = (field || (props as any).schema) as SelectFieldMetadata;
+  const options = config?.options || [];
 
   if (readonly) {
     const option = options.find((o) => o.value === value);
@@ -24,7 +25,7 @@ export function SelectField({ value, onChange, field, readonly, ...props }: Fiel
       disabled={readonly}
     >
       <SelectTrigger className={props.className}>
-        <SelectValue placeholder={field.placeholder || "Select an option"} />
+        <SelectValue placeholder={config?.placeholder || "Select an option"} />
       </SelectTrigger>
       <SelectContent position="popper">
         {options.map((option) => (

@@ -5,9 +5,9 @@ import { FieldWidgetProps } from './types';
 
 export function ImageField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const imageField = field as any;
-  const multiple = imageField.multiple || false;
-  const accept = imageField.accept ? imageField.accept.join(',') : 'image/*';
+  const imageField = (field || (props as any).schema) as any;
+  const multiple = imageField?.multiple || false;
+  const accept = imageField?.accept ? imageField.accept.join(',') : 'image/*';
 
   if (readonly) {
     if (!value) return <span className="text-sm">-</span>;

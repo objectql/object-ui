@@ -3,7 +3,7 @@ import { Input } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
 
 export function PercentField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<number>) {
-  const percentField = field as any;
+  const percentField = (field || (props as any).schema) as any;
   const precision = percentField?.precision ?? 2;
 
   if (readonly) {
@@ -34,7 +34,7 @@ export function PercentField({ value, onChange, field, readonly, errorMessage, .
         type="number"
         value={displayValue}
         onChange={handleChange}
-        placeholder={field?.placeholder || '0'}
+        placeholder={percentField?.placeholder || '0'}
         disabled={readonly}
         className={`pr-8 ${props.className || ''}`}
         step={Math.pow(10, -precision).toFixed(precision)}

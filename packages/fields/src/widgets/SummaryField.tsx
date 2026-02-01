@@ -6,8 +6,8 @@ import { FieldWidgetProps } from './types';
  * Values are aggregated from related records and cannot be edited
  */
 export function SummaryField({ value, field, ...props }: FieldWidgetProps<any>) {
-  const summaryField = field as any;
-  const summaryType = summaryField.summary_type || 'count';
+  const summaryField = (field || (props as any).schema) as any;
+  const summaryType = summaryField?.summary_type || 'count';
 
   // Format based on aggregation type
   let displayValue = '-';

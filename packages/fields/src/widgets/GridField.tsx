@@ -7,8 +7,8 @@ import { FieldWidgetProps } from './types';
  * For full editing capabilities, use the grid plugin
  */
 export function GridField({ value, field, readonly, ...props }: FieldWidgetProps<any[]>) {
-  const gridField = field as any;
-  const columns = gridField.columns || [];
+  const gridField = (field || (props as any).schema) as any;
+  const columns = gridField?.columns || [];
 
   if (!value || !Array.isArray(value)) {
     return <span className="text-sm text-gray-500">-</span>;

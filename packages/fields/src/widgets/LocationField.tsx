@@ -3,6 +3,7 @@ import { Input } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
 
 export function LocationField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
+  const config = field || (props as any).schema;
   // Location is stored as { latitude, longitude } object
   // For display, convert to "latitude, longitude" string format
   const displayValue = value && typeof value === 'object' 
@@ -37,7 +38,7 @@ export function LocationField({ value, onChange, field, readonly, ...props }: Fi
       type="text"
       value={displayValue}
       onChange={handleChange}
-      placeholder={field.placeholder || 'latitude, longitude'}
+      placeholder={config?.placeholder || 'latitude, longitude'}
       disabled={readonly}
       className={props.className}
     />
