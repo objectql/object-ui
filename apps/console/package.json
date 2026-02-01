@@ -29,6 +29,7 @@
     "@objectstack/runtime": "^0.7.2",
     "@objectstack/spec": "^0.7.2",
     "@object-ui/example-crm": "workspace:*",
+    "@object-ui/example-kitchen-sink": "workspace:*",
     "@object-ui/example-todo": "workspace:*",
     "lucide-react": "^0.563.0",
     "react": "^19.0.0",

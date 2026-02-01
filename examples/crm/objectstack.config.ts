@@ -27,6 +27,12 @@ export default defineStack({
           type: 'object',
           objectName: 'opportunity',
           label: 'Opportunities'
+        },
+        {
+          id: 'nav_accounts',
+          type: 'object',
+          objectName: 'account',
+          label: 'Accounts'
         }
       ]
     })
@@ -39,8 +45,17 @@ export default defineStack({
     description: 'CRM App Definition',
     data: [
       {
+        object: 'account',
+        mode: 'upsert',
+        records: [
+          { _id: "1", name: "TechCorp" },
+          { _id: "2", name: "Software Inc" },
+          { _id: "3", name: "Good Grief LLC" }
+        ]
+      },
+      {
         object: 'contact',
-        mode: 'upsert', // upsert based on ID (which is usually _id or id)
+        mode: 'upsert',
         records: [
           { _id: "1", name: "Alice Johnson", email: "alice@example.com", phone: "555-0101", title: "VP Sales", company: "TechCorp", status: "Active" },
           { _id: "2", name: "Bob Smith", email: "bob@tech.com", phone: "555-0102", title: "Developer", company: "Software Inc", status: "Lead" },
@@ -57,8 +72,8 @@ export default defineStack({
               amount: 50000, 
               stage: "Proposal", 
               close_date: new Date("2024-06-30"), 
-              account_id: "1", // This would ideally link to an account record
-              contact_ids: ["1", "2"], // Corrected IDs
+              account_id: "1", 
+              contact_ids: ["1", "2"], 
               description: "Enterprise software license for 500 users. Includes premium support and training." 
           },
           { 

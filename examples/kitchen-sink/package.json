@@ -1,0 +1,22 @@
+{
+  "name": "@object-ui/example-kitchen-sink",
+  "version": "0.1.0",
+  "description": "Kitchen Sink Example showing all ObjectStack UI capabilities",
+  "private": true,
+  "main": "dist/objectstack.json",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./objectstack.config": "./objectstack.config.ts"
+  },
+  "scripts": {
+    "build": "objectstack compile objectstack.config.ts dist/objectstack.json"
+  },
+  "dependencies": {
+    "@objectstack/spec": "^0.7.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@objectstack/cli": "^0.7.2"
+  }
+}

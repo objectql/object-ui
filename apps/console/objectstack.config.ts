@@ -1,6 +1,7 @@
 import { defineConfig } from './src/config';
 import crmConfig from '@object-ui/example-crm/objectstack.config';
 import todoConfig from '@object-ui/example-todo/objectstack.config';
+import kitchenSinkConfig from '@object-ui/example-kitchen-sink/objectstack.config';
 
 export default defineConfig({
   // ============================================================================
@@ -41,20 +42,23 @@ export default defineConfig({
   ],
 
   // ============================================================================
-  // Merged Stack Configuration (CRM + Todo)
+  // Merged Stack Configuration (CRM + Todo + Kitchen Sink)
   // ============================================================================
   objects: [
     ...(crmConfig.objects || []),
-    ...(todoConfig.objects || [])
+    ...(todoConfig.objects || []),
+    ...(kitchenSinkConfig.objects || [])
   ],
   apps: [
     ...(crmConfig.apps || []),
-    ...(todoConfig.apps || [])
+    ...(todoConfig.apps || []),
+    ...(kitchenSinkConfig.apps || [])
   ],
   manifest: {
     data: [
       ...(crmConfig.manifest?.data || []),
-      ...(todoConfig.manifest?.data || [])
+      ...(todoConfig.manifest?.data || []),
+      ...(kitchenSinkConfig.manifest?.data || [])
     ]
   },
   
