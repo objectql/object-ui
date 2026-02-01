@@ -2,8 +2,18 @@
   "name": "@object-ui/console",
   "version": "0.1.0",
   "description": "ObjectStack Console - The standard runtime UI for ObjectStack applications",
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
+  "main": "./plugin.js",
+  "exports": {
+    ".": "./plugin.js"
+  },
+  "files": [
+    "dist",
+    "plugin.js"
+  ],
   "scripts": {
     "msw:init": "msw init -y public",
     "dev": "pnpm msw:init && vite",
