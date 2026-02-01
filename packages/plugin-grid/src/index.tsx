@@ -8,6 +8,7 @@
 
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import { useSchemaContext } from '@object-ui/react';
 import { ObjectGrid } from './ObjectGrid';
 import { VirtualGrid } from './VirtualGrid';
 
@@ -17,7 +18,8 @@ export type { VirtualGridProps, VirtualGridColumn } from './VirtualGrid';
 
 // Register object-grid component
 const ObjectGridRenderer: React.FC<{ schema: any }> = ({ schema }) => {
-  return <ObjectGrid schema={schema} dataSource={null as any} />;
+  const { dataSource } = useSchemaContext() || {};
+  return <ObjectGrid schema={schema} dataSource={dataSource} />;
 };
 
 ComponentRegistry.register('object-grid', ObjectGridRenderer, {
