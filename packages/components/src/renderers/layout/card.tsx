@@ -8,7 +8,7 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import type { CardSchema } from '@object-ui/types';
-import { renderChildren } from '../../lib/utils';
+import { renderChildren, cn } from '../../lib/utils';
 import {
   Card,
   CardHeader,
@@ -28,11 +28,18 @@ const CardRenderer = forwardRef<HTMLDivElement, { schema: CardSchema; className?
         style, 
         ...cardProps 
     } = props;
+    
+    const isClickable = schema.clickable || !!props.onClick;
+    const isHoverable = schema.hoverable || isClickable;
 
     return (
     <Card 
         ref={ref}
-        className={className} 
+        className={cn(
+          className, 
+          isHoverable && "transition-colors hover:bg-muted/50",
+          isClickable && "cursor-pointer active:bg-muted"
+        )} 
         {...cardProps}
         // Apply designer props
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}

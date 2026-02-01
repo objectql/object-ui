@@ -12,12 +12,30 @@ import { ScrollArea, ScrollBar } from '../../ui';
 import { renderChildren } from '../../lib/utils';
 
 ComponentRegistry.register('scroll-area', 
-  ({ schema, className, ...props }: { schema: ScrollAreaSchema; className?: string; [key: string]: any }) => (
-    <ScrollArea className={className} style={{ height: schema.height, width: schema.width }} {...props}>
-      {renderChildren(schema.content || schema.children)}
-      {schema.orientation === 'horizontal' && <ScrollBar orientation="horizontal" />}
+  ({ schema, className, ...props }: { schema: ScrollAreaSchema; className?: string; [key: string]: any }) => {
+    // Extract designer-related props
+    const { 
+        'data-obj-id': dataObjId, 
+        'data-obj-type': dataObjType,
+        style, 
+        ...scrollAreaProps 
+    } = props;
+
+    const orientation = schema.orientation || 'vertical';
+
+    return (
+    <ScrollArea 
+        className={className} 
+        style={{ height: schema.height, width: schema.width, ...style }} 
+        {...scrollAreaProps}
+        data-obj-id={dataObjId}
+        data-obj-type={dataObjType}
+    >
+      {renderChildren(schema.children)}
+      {(orientation === 'horizontal' || orientation === 'both') && <ScrollBar orientation="horizontal" />}
+      {(orientation === 'vertical' || orientation === 'both') && <ScrollBar orientation="vertical" />}
     </ScrollArea>
-  ),
+  )},
   {
     namespace: 'ui',
     label: 'Scroll Area',
@@ -25,14 +43,13 @@ ComponentRegistry.register('scroll-area',
       { name: 'height', type: 'string', label: 'Height (e.g. 200px)' },
       { name: 'width', type: 'string', label: 'Width' },
       { name: 'orientation', type: 'enum', enum: ['vertical', 'horizontal', 'both'], defaultValue: 'vertical', label: 'Orientation' },
-      { name: 'content', type: 'slot', label: 'Content' },
       { name: 'className', type: 'string', label: 'CSS Class' }
     ],
     defaultProps: {
       height: '200px',
       width: '100%',
       orientation: 'vertical',
-      content: [
+      children: [
         { type: 'div', className: 'p-4', body: [{ type: 'text', content: 'Scrollable content goes here. Add more content to see scrolling behavior.' }] }
       ],
       className: 'rounded-md border'

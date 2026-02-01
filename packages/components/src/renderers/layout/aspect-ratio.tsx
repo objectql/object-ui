@@ -30,7 +30,7 @@ ComponentRegistry.register('aspect-ratio',
         {schema.image ? (
           <img src={schema.image} alt={schema.alt || ''} className="rounded-md object-cover w-full h-full" />
         ) : (
-          renderChildren(schema.body)
+          renderChildren(schema.children || schema.body)
         )}
       </AspectRatio>
     );

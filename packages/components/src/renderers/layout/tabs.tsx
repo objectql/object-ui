@@ -15,38 +15,63 @@ import {
   TabsTrigger,
   TabsContent
 } from '../../ui';
+import { cn } from '../../lib/utils';
+import React from 'react';
 
-ComponentRegistry.register('tabs', 
-  ({ schema, className, ...props }: { schema: TabsSchema; className?: string; [key: string]: any }) => {
-    // Extract designer-related props
-    const { 
-        'data-obj-id': dataObjId, 
-        'data-obj-type': dataObjType,
-        style, 
-        ...tabsProps 
-    } = props;
+const TabsRenderer = ({ schema, className, onChange, value, ...props }: { schema: TabsSchema; className?: string; onChange?: (val: string) => void; value?: string; [key: string]: any }) => {
+  // Extract designer-related props
+  const { 
+      'data-obj-id': dataObjId, 
+      'data-obj-type': dataObjType,
+      style, 
+      ...tabsProps 
+  } = props;
 
-    return (
+  const handleValueChange = (val: string) => {
+    if (onChange) {
+      onChange(val);
+    }
+  };
+
+  const isVertical = schema.orientation === 'vertical';
+
+  return (
     <Tabs 
-        defaultValue={schema.defaultValue} 
-        className={className} 
+        defaultValue={value === undefined ? schema.defaultValue : undefined} 
+        value={value ?? schema.value}
+        onValueChange={handleValueChange}
+        orientation={schema.orientation || 'horizontal'}
+        className={cn(className, isVertical && "flex gap-2")} 
         {...tabsProps}
         // Apply designer props
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
     >
-      <TabsList>
+      <TabsList className={cn(isVertical && "flex-col h-auto items-stretch bg-muted/50 p-1")}>
         {schema.items?.map((item) => (
-          <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>
+          <TabsTrigger 
+            key={item.value} 
+            value={item.value}
+            disabled={item.disabled}
+            className={cn(isVertical && "justify-start")}
+          >
+            {item.label}
+          </TabsTrigger>
         ))}
       </TabsList>
       {schema.items?.map((item) => (
-        <TabsContent key={item.value} value={item.value}>
-          {renderChildren((item as any).body)}
+        <TabsContent 
+          key={item.value} 
+          value={item.value}
+          className={cn("mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2", isVertical && "mt-0 flex-1")}
+        >
+          {renderChildren(item.content || (item as any).body)}
         </TabsContent>
       ))}
     </Tabs>
   );
-  },
+};
+
+ComponentRegistry.register('tabs', TabsRenderer,
   {
     namespace: 'ui',
     label: 'Tabs',

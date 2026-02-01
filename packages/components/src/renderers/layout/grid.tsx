@@ -50,13 +50,27 @@ const GAPS: Record<number, string> = {
 ComponentRegistry.register('grid', 
   ({ schema, className, ...props }: { schema: GridSchema & { smColumns?: number, mdColumns?: number, lgColumns?: number, xlColumns?: number }; className?: string; [key: string]: any }) => {
     // Determine columns configuration
-    // Supports direct number or responsive object logic if schema allows, 
-    // but here we primarily handle the flat properties supported by the designer inputs
-    const baseCols = typeof schema.columns === 'number' ? schema.columns : 2;
-    const smCols = schema.smColumns;
-    const mdCols = schema.mdColumns;
-    const lgCols = schema.lgColumns;
-    const xlCols = schema.xlColumns;
+    // Supports detailed object configuration from schema
+    let baseCols = 2;
+    let smCols, mdCols, lgCols, xlCols;
+
+    if (typeof schema.columns === 'number') {
+      baseCols = schema.columns;
+    } else if (typeof schema.columns === 'object' && schema.columns !== null) {
+      // Handle responsive object: { xs: 1, sm: 2, md: 3, lg: 4 }
+      // Note: 'xs' corresponds to base (mobile-first)
+      baseCols = schema.columns.xs ?? 1;
+      smCols = schema.columns.sm;
+      mdCols = schema.columns.md;
+      lgCols = schema.columns.lg;
+      xlCols = schema.columns.xl;
+    }
+
+    // Fallback to legacy flat props if provided (from designer)
+    if (schema.smColumns) smCols = schema.smColumns;
+    if (schema.mdColumns) mdCols = schema.mdColumns;
+    if (schema.lgColumns) lgCols = schema.lgColumns;
+    if (schema.xlColumns) xlCols = schema.xlColumns;
 
     const gap = schema.gap ?? 4;
     
@@ -71,7 +85,7 @@ ComponentRegistry.register('grid',
       lgCols && GRID_COLS_LG[lgCols],
       xlCols && GRID_COLS_XL[xlCols],
       // Gap
-      GAPS[gap] || 'gap-4',
+      GAPS[gap] || `gap-[${gap * 0.25}rem]`, // Fallback for arbitrary values if not in map
       className
     );
 
