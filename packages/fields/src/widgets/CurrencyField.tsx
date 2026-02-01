@@ -16,7 +16,7 @@ function formatCurrency(value: number, currency: string = 'USD'): string {
   }
 }
 
-export function CurrencyField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<number>) {
+export function CurrencyField({ value, onChange, field, readonly, errorMessage, className, ...props }: FieldWidgetProps<number>) {
   const currencyField = (field || (props as any).schema) as any;
   const currency = currencyField?.currency || 'USD';
   const precision = currencyField?.precision ?? 2;
@@ -44,6 +44,7 @@ export function CurrencyField({ value, onChange, field, readonly, errorMessage, 
         {currency === 'USD' ? '$' : currency}
       </span>
       <Input
+        {...props}
         type="number"
         value={value ?? ''}
         onChange={(e) => {
@@ -53,10 +54,9 @@ export function CurrencyField({ value, onChange, field, readonly, errorMessage, 
         onBlur={handleBlur}
         placeholder={currencyField?.placeholder || '0.00'}
         disabled={readonly}
-        className={`pl-8 ${props.className || ''}`}
+        className={`pl-8 ${className || ''}`}
         step={Math.pow(10, -precision).toFixed(precision)}
         aria-invalid={!!errorMessage}
-        {...props}
       />
     </div>
   );

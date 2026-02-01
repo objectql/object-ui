@@ -20,6 +20,7 @@ export function SelectField({ value, onChange, field, readonly, ...props }: Fiel
 
   return (
     <Select 
+      {...props}
       value={value} 
       onValueChange={onChange}
       disabled={readonly}

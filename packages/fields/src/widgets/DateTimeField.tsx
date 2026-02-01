@@ -15,11 +15,11 @@ export function DateTimeField({ value, onChange, field, readonly, ...props }: Fi
 
   return (
     <Input
+      {...props}
       type="datetime-local"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       disabled={readonly}
-      className={props.className}
     />
   );
 }

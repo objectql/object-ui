@@ -17,11 +17,11 @@ export function BooleanField({ value, onChange, field, readonly, ...props }: Fie
      return (
         <div className="flex items-center space-x-2">
             <Checkbox 
+                {...props}
                 id={id}
                 checked={!!value}
                 onCheckedChange={(checked) => onChange(!!checked)}
                 disabled={readonly}
-                className={props.className}
             />
             <Label htmlFor={id}>{label}</Label>
         </div>
@@ -31,11 +31,11 @@ export function BooleanField({ value, onChange, field, readonly, ...props }: Fie
   return (
     <div className="flex items-center space-x-2">
         <Switch 
+            {...props}
             id={id} 
             checked={!!value} 
             onCheckedChange={onChange}
             disabled={readonly}
-            className={props.className}
         />
         <Label htmlFor={id}>{label}</Label>
     </div>
