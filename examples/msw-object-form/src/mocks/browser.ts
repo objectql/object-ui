@@ -9,27 +9,7 @@ import { ObjectKernel, DriverPlugin, AppPlugin } from '@objectstack/runtime';
 import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { MSWPlugin } from '@objectstack/plugin-msw';
-import crmConfig from '@object-ui/example-crm/objectstack.config';
-import todoConfig from '@object-ui/example-todo/objectstack.config';
-
-// Combine configurations
-const appConfig = {
-  ...crmConfig,
-  objects: [
-    ...(crmConfig.objects || []),
-    ...(todoConfig.objects || [])
-  ],
-  apps: [
-    ...(crmConfig.apps || []),
-    ...(todoConfig.apps || [])
-  ],
-  manifest: {
-    data: [
-      ...(crmConfig.manifest?.data || []),
-      ...(todoConfig.manifest?.data || [])
-    ]
-  }
-};
+import appConfig from '../../objectstack.config';
 
 let kernel: ObjectKernel | null = null;
 let driver: InMemoryDriver | null = null;

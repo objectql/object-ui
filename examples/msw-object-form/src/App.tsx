@@ -6,14 +6,24 @@ import { ObjectGrid } from '@object-ui/plugin-grid';
 import { ObjectForm } from '@object-ui/plugin-form';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Button } from '@object-ui/components';
 import { ObjectStackDataSource } from './dataSource';
-import { LayoutDashboard, Users, Plus, Database } from 'lucide-react';
+import { LayoutDashboard, Users, Plus, Database, Settings } from 'lucide-react';
 
-import crmConfig from '@object-ui/example-crm/objectstack.config';
-import todoConfig from '@object-ui/example-todo/objectstack.config';
+import appConfig from '../objectstack.config';
 
 const APPS: any = {
-  crm: { ...crmConfig, name: 'crm', label: 'CRM App' },
-  todo: { ...todoConfig, name: 'todo', label: 'Todo App' }
+  // Filter objects based on source config (heuristic: contacts->crm, todo->todo)
+  crm: { 
+    ...appConfig, 
+    name: 'crm', 
+    label: 'CRM App',
+    objects: appConfig.objects?.filter((o: any) => ['account', 'contact', 'opportunity'].includes(o.name)) || []
+  },
+  todo: { 
+    ...appConfig, 
+    name: 'todo', 
+    label: 'Todo App',
+    objects: appConfig.objects?.filter((o: any) => ['todo_task'].includes(o.name)) || [] 
+  }
 };
 
 function ObjectView({ dataSource, config, onEdit }: any) {
