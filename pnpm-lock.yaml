@@ -14,12 +14,18 @@ importers:
 
   .:
     dependencies:
+      '@hono/node-server':
+        specifier: ^1.19.9
+        version: 1.19.9(hono@4.11.7)
       '@objectstack/plugin-hono-server':
         specifier: ^0.8.0
         version: 0.8.0(pino@8.21.0)
       coverage-v8:
         specifier: 0.0.1-security
         version: 0.0.1-security
+      hono:
+        specifier: ^4.11.7
+        version: 4.11.7
       pino:
         specifier: ^8.21.0
         version: 8.21.0

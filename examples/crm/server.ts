@@ -6,6 +6,7 @@ import { HonoServerPlugin } from '@objectstack/plugin-hono-server';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import config from './objectstack.config';
 import { pino } from 'pino';
+import { ConsolePlugin } from './console-plugin';
 
 async function startServer() {
   const logger = pino({
@@ -43,6 +44,10 @@ async function startServer() {
     // 4. HTTP Server
     const serverPlugin = new HonoServerPlugin({ port: 3000 });
     kernel.use(serverPlugin);
+
+    // 5. Console Plugin
+    const consolePlugin = new ConsolePlugin();
+    kernel.use(consolePlugin);
 
     // Bootstrap
     await kernel.bootstrap();
