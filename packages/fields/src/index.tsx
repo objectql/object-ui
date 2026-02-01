@@ -12,6 +12,44 @@ import { ComponentRegistry } from '@object-ui/core';
 import { Badge, Avatar, AvatarFallback, Button } from '@object-ui/components';
 import { Check, X } from 'lucide-react';
 
+import { TextField } from './widgets/TextField';
+import { NumberField } from './widgets/NumberField';
+import { BooleanField } from './widgets/BooleanField';
+import { SelectField } from './widgets/SelectField';
+import { DateField } from './widgets/DateField';
+import { EmailField } from './widgets/EmailField';
+import { PhoneField } from './widgets/PhoneField';
+import { UrlField } from './widgets/UrlField';
+import { CurrencyField } from './widgets/CurrencyField';
+import { TextAreaField } from './widgets/TextAreaField';
+import { RichTextField } from './widgets/RichTextField';
+import { LookupField } from './widgets/LookupField';
+import { DateTimeField } from './widgets/DateTimeField';
+import { TimeField } from './widgets/TimeField';
+import { PercentField } from './widgets/PercentField';
+import { PasswordField } from './widgets/PasswordField';
+import { FileField } from './widgets/FileField';
+import { ImageField } from './widgets/ImageField';
+import { LocationField } from './widgets/LocationField';
+import { FormulaField } from './widgets/FormulaField';
+import { SummaryField } from './widgets/SummaryField';
+import { AutoNumberField } from './widgets/AutoNumberField';
+import { UserField } from './widgets/UserField';
+import { ObjectField } from './widgets/ObjectField';
+import { VectorField } from './widgets/VectorField';
+import { GridField } from './widgets/GridField';
+// New widgets according to @objectstack/spec
+import { ColorField } from './widgets/ColorField';
+import { SliderField } from './widgets/SliderField';
+import { RatingField } from './widgets/RatingField';
+import { CodeField } from './widgets/CodeField';
+import { AvatarField } from './widgets/AvatarField';
+import { AddressField } from './widgets/AddressField';
+import { GeolocationField } from './widgets/GeolocationField';
+import { SignatureField } from './widgets/SignatureField';
+import { QRCodeField } from './widgets/QRCodeField';
+import { MasterDetailField } from './widgets/MasterDetailField';
+
 /**
  * Cell renderer props
  */
@@ -709,45 +747,6 @@ export function evaluateCondition(condition: any, formData: any): boolean {
   // Default to true if condition format is unknown
   return true;
 }
-
-import { ComponentRegistry } from '@object-ui/core';
-import { TextField } from './widgets/TextField';
-import { NumberField } from './widgets/NumberField';
-import { BooleanField } from './widgets/BooleanField';
-import { SelectField } from './widgets/SelectField';
-import { DateField } from './widgets/DateField';
-import { EmailField } from './widgets/EmailField';
-import { PhoneField } from './widgets/PhoneField';
-import { UrlField } from './widgets/UrlField';
-import { CurrencyField } from './widgets/CurrencyField';
-import { TextAreaField } from './widgets/TextAreaField';
-import { RichTextField } from './widgets/RichTextField';
-import { LookupField } from './widgets/LookupField';
-import { DateTimeField } from './widgets/DateTimeField';
-import { TimeField } from './widgets/TimeField';
-import { PercentField } from './widgets/PercentField';
-import { PasswordField } from './widgets/PasswordField';
-import { FileField } from './widgets/FileField';
-import { ImageField } from './widgets/ImageField';
-import { LocationField } from './widgets/LocationField';
-import { FormulaField } from './widgets/FormulaField';
-import { SummaryField } from './widgets/SummaryField';
-import { AutoNumberField } from './widgets/AutoNumberField';
-import { UserField } from './widgets/UserField';
-import { ObjectField } from './widgets/ObjectField';
-import { VectorField } from './widgets/VectorField';
-import { GridField } from './widgets/GridField';
-// New widgets according to @objectstack/spec
-import { ColorField } from './widgets/ColorField';
-import { SliderField } from './widgets/SliderField';
-import { RatingField } from './widgets/RatingField';
-import { CodeField } from './widgets/CodeField';
-import { AvatarField } from './widgets/AvatarField';
-import { AddressField } from './widgets/AddressField';
-import { GeolocationField } from './widgets/GeolocationField';
-import { SignatureField } from './widgets/SignatureField';
-import { QRCodeField } from './widgets/QRCodeField';
-import { MasterDetailField } from './widgets/MasterDetailField';
 
 // Create wrapper renderers for field widgets to work with ComponentDemo
 function createFieldRenderer(FieldWidget: React.ComponentType<any>) {
