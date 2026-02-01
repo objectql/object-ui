@@ -278,8 +278,8 @@ describe('ObjectForm Unit Tests', () => {
       expect(priorityInput.type).toBe('number');
 
       // Checkbox field
-      const activeInput = screen.getByLabelText(/Active/i) as HTMLInputElement;
-      expect(activeInput.type).toBe('checkbox');
+      const activeInput = screen.getByLabelText(/Active/i);
+      expect(activeInput).toHaveRole('switch');
 
       // Textarea field
       const notesInput = screen.getByLabelText(/Notes/i) as HTMLTextAreaElement;
@@ -315,6 +315,62 @@ describe('ObjectForm Unit Tests', () => {
       await user.click(cancelButton);
 
       expect(onCancel).toHaveBeenCalled();
+    });
+  });
+
+  describe('Field Type Mapping Logic', () => {
+    it('correctly maps various field types to expected inputs', async () => {
+      const dataSource = new MockDataSource();
+      vi.spyOn(dataSource, 'getObjectSchema').mockResolvedValue({
+        name: 'test_mapping',
+        fields: {
+          text_f: { name: 'text_f', label: 'Text Type', type: 'text' },
+          textarea_f: { name: 'textarea_f', label: 'Textarea Type', type: 'textarea' },
+          number_f: { name: 'number_f', label: 'Number Type', type: 'number' },
+          boolean_f: { name: 'boolean_f', label: 'Boolean Type', type: 'boolean' },
+          email_f: { name: 'email_f', label: 'Email Type', type: 'email' },
+          // Note: Date handling depends on implementation (native or custom widget)
+        }
+      });
+
+      render(
+        <ObjectForm
+          schema={{
+            type: 'object-form',
+            objectName: 'test_mapping',
+            mode: 'create'
+          }}
+          dataSource={dataSource}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.queryByText(/Loading form/i)).not.toBeInTheDocument();
+      });
+
+      // Verify Text (Input)
+      const textInput = screen.getByLabelText('Text Type');
+      expect(textInput.tagName).toBe('INPUT');
+      expect(textInput).toHaveAttribute('type', 'text');
+
+      // Verify Textarea
+      const textarea = screen.getByLabelText('Textarea Type');
+      expect(textarea.tagName).toBe('TEXTAREA');
+
+      // Verify Number
+      const numberInput = screen.getByLabelText('Number Type');
+      expect(numberInput.tagName).toBe('INPUT');
+      expect(numberInput).toHaveAttribute('type', 'number');
+
+      // Verify Email
+      const emailInput = screen.getByLabelText('Email Type');
+      expect(emailInput.tagName).toBe('INPUT');
+      expect(emailInput).toHaveAttribute('type', 'email');
+
+      // Verify Boolean (Switch/Checkbox)
+      expect(screen.getByText('Boolean Type')).toBeInTheDocument();
+      const switchControl = screen.getByRole('switch', { name: 'Boolean Type' });
+      expect(switchControl).toBeInTheDocument();
     });
   });
 });

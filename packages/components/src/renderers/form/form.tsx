@@ -14,6 +14,7 @@ import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Textarea } from '../../ui/textarea';
 import { Checkbox } from '../../ui/checkbox';
+import { Switch } from '../../ui/switch';
 import { 
   Select, 
   SelectTrigger, 
@@ -40,6 +41,7 @@ ComponentRegistry.register('form',
       columns = 1,
       onSubmit: onSubmitProp,
       onChange: onChangeProp,
+      onCancel: onCancelProp,
       resetOnSubmit = false,
       validationMode = 'onSubmit',
       disabled = false,
@@ -73,12 +75,33 @@ ComponentRegistry.register('form',
       setIsSubmitting(true);
       setSubmitError(null);
 
+      // Defensive check: If data is an Event, use getValues()
+      let formData = data;
+      // Check for Event-like properties
+      const isEvent = data && (
+        (data as any).nativeEvent || 
+        typeof (data as any).preventDefault === 'function' || 
+        typeof (data as any).stopPropagation === 'function' ||
+        (data as any).target
+      );
+
+      if (isEvent) {
+        console.warn('Form Renderer: Received Event instead of data! Fetching values manually.');
+        formData = form.getValues();
+      } else if (!formData || Object.keys(formData).length === 0) {
+        // Fallback: if data is empty check getValues(), in case RHF failed to pass it for some reason
+        const values = form.getValues();
+        if (values && Object.keys(values).length > 0) {
+             formData = values;
+        }
+      }
+
       try {
         if (onAction) {
           const result = await onAction({
             type: 'form_submit',
-            data,
-            formData: data,
+            data: formData,
+            formData: formData,
           }) as any;
 
           // Check if submission returned an error
@@ -89,7 +112,7 @@ ComponentRegistry.register('form',
         }
 
         if (onSubmitProp && typeof onSubmitProp === 'function') {
-          await onSubmitProp(data);
+          await onSubmitProp(formData);
         }
 
         if (resetOnSubmit) {
@@ -117,6 +140,11 @@ ComponentRegistry.register('form',
     // Handle cancel
     const handleCancel = () => {
       form.reset();
+      
+      if (onCancelProp && typeof onCancelProp === 'function') {
+        onCancelProp();
+      }
+
       if (onAction) {
         onAction({
           type: 'form_cancel',
@@ -377,22 +405,32 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
 
   switch (type) {
     case 'input':
-      return <Input type={inputType || 'text'} placeholder={placeholder} {...fieldProps} />;
+      return <Input type={inputType || 'text'} placeholder={placeholder} {...fieldProps} value={fieldProps.value ?? ''} />;
     
     case 'textarea':
-      return <Textarea placeholder={placeholder} {...fieldProps} />;
+      return <Textarea placeholder={placeholder} {...fieldProps} value={fieldProps.value ?? ''} />;
     
     case 'checkbox': {
       // For checkbox, we need to handle the value differently
       const { value, onChange, ...checkboxProps } = fieldProps;
       return (
-        <div className="flex items-center space-x-2">
-          <Checkbox 
-            checked={value}
-            onCheckedChange={onChange}
-            {...checkboxProps}
-          />
-        </div>
+        <Checkbox 
+          checked={value}
+          onCheckedChange={onChange}
+          {...checkboxProps}
+        />
+      );
+    }
+
+    case 'switch': {
+      // For switch, we need to handle the value differently (same as checkbox)
+      const { value, onChange, ...switchProps } = fieldProps;
+      return (
+        <Switch 
+          checked={value}
+          onCheckedChange={onChange}
+          {...switchProps}
+        />
       );
     }
     

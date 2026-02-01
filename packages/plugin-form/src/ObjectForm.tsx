@@ -187,6 +187,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
         }
 
         if (field.type === 'number' || field.type === 'currency' || field.type === 'percent') {
+          formField.inputType = 'number';
           formField.min = field.min;
           formField.max = field.max;
           formField.step = field.precision ? Math.pow(10, -field.precision) : undefined;
@@ -251,6 +252,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
 
   // Handle form submission
   const handleSubmit = useCallback(async (formData: any) => {
+    console.log('ObjectForm submitting data:', formData);
     // For inline fields without a dataSource, just call the success callback
     if (hasInlineFields && !dataSource) {
       if (schema.onSuccess) {
@@ -299,6 +301,24 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
     }
   }, [schema]);
 
+  // Calculate default values from schema fields
+  const schemaDefaultValues = React.useMemo(() => {
+    if (!objectSchema?.fields) return {};
+    const defaults: Record<string, any> = {};
+    Object.keys(objectSchema.fields).forEach(key => {
+        const field = objectSchema.fields[key];
+        if (field.defaultValue !== undefined) {
+            defaults[key] = field.defaultValue;
+        }
+    });
+    return defaults;
+  }, [objectSchema]);
+
+  const finalDefaultValues = {
+     ...schemaDefaultValues,
+     ...initialData
+  };
+
   // Render error state
   if (error) {
     return (
@@ -334,7 +354,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
     showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
     showCancel: schema.showCancel !== false,
     resetOnSubmit: schema.showReset,
-    defaultValues: initialData,
+    defaultValues: finalDefaultValues,
     onSubmit: handleSubmit,
     onCancel: handleCancel,
     className: schema.className,
