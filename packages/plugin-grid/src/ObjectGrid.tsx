@@ -212,10 +212,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       // String array format - filter out invalid entries
       return (cols as string[])
         .filter((fieldName) => typeof fieldName === 'string' && fieldName.trim().length > 0)
-        .map((fieldName) => ({
-          header: fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' '),
-          accessorKey: fieldName,
-        }));
+        .map((fieldName) => {
+          const fieldLabel = objectSchema?.fields?.[fieldName]?.label;
+          return {
+            header: fieldLabel || fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' '),
+            accessorKey: fieldName,
+          };
+        });
     }
 
     // Legacy support: use 'fields' if columns not provided

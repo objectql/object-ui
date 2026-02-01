@@ -11,6 +11,13 @@ export default defineConfig({
       include: ['src'],
     }),
   ],
+  resolve: {
+    alias: {
+      '@object-ui/core': resolve(__dirname, '../core/src/index.ts'),
+      '@object-ui/types': resolve(__dirname, '../types/src/index.ts'),
+      '@object-ui/data-objectstack': resolve(__dirname, '../data-objectstack/src/index.ts'),
+    }
+  },
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.tsx'),
