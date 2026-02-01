@@ -63,11 +63,13 @@ Since this package is not yet published to NPM, here is how to play with the sou
     pnpm build 
     ```
 
-2.  **Run the Development Server**
+2.  **Run the ObjectStack Console**
+
+    Start the unified development console to preview your apps and objects:
 
     ```bash
     pnpm dev
-    # Opens http://localhost:3000
+    # Opens http://localhost:5173
     ```
 
 3.  **Edit & Reload**
