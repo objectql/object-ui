@@ -1,7 +1,7 @@
 import { defineConfig } from './src/config';
 import { MSWPlugin } from '@objectstack/plugin-msw';
 import { ObjectQLPlugin } from '@objectstack/objectql';
-import ConsolePluginConfig from '@object-ui/console';
+import ConsolePluginConfig from './plugin.js';
 import crmConfig from '@object-ui/example-crm/objectstack.config';
 import todoConfig from '@object-ui/example-todo/objectstack.config';
 import kitchenSinkConfig from '@object-ui/example-kitchen-sink/objectstack.config';

@@ -7,7 +7,6 @@ index 0c953cd09a590946325a6f7f069fef6429e24eb3..877c792179de362ee2bad5028b7a6357
  export * from './plugin-loader.js';
  export * from './enhanced-kernel.js';
 +export { ObjectKernel as ObjectStackKernel } from './kernel.js';
-+export { ObjectKernel as ObjectStackKernel } from './kernel.js';
 diff --git a/dist/kernel.js b/dist/kernel.js
 index 9064a04e9d4240e1c123b46331095dd68820227c..f9ebd2d3d7cf03a1f107455ba066701293be9627 100644
 --- a/dist/kernel.js
@@ -32,9 +31,6 @@ index e0edf3605aad358224cd3dc01fcf3d9d693c9118..9dfe43fa47255a13f520b4a691570477
   * - Browser console integration
   * - Distributed tracing support (traceId, spanId)
   */
-+import { createRequire } from "module";
-+const require = createRequire(import.meta.url);
-+
 +import { createRequire } from "module";
 +const require = createRequire(import.meta.url);
 +

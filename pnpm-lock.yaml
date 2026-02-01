@@ -11,9 +11,9 @@ overrides:
   '@types/react-dom': 19.2.3
 
 patchedDependencies:
-  '@objectstack/core':
-    hash: 8e8927a95c32c96e0ee9dd65e1e0ce4c2ca938212b82deba7ada8bd162663ee8
-    path: patches/@objectstack__core.patch
+  '@objectstack/core@0.7.2':
+    hash: 8706406b6336880e63a03d18a00724604ef239fc9ad9d883741a85c58daf82ac
+    path: patches/@objectstack__core@0.7.2.patch
 
 importers:
 
@@ -40,7 +40,7 @@ importers:
         version: 0.7.2(esbuild@0.27.2)(pino@10.3.0)
       '@objectstack/core':
         specifier: ^0.7.2
-        version: 0.7.2(patch_hash=8e8927a95c32c96e0ee9dd65e1e0ce4c2ca938212b82deba7ada8bd162663ee8)(pino@10.3.0)
+        version: 0.7.2(patch_hash=8706406b6336880e63a03d18a00724604ef239fc9ad9d883741a85c58daf82ac)(pino@10.3.0)
       '@objectstack/driver-memory':
         specifier: ^0.7.2
         version: 0.7.2(pino@10.3.0)
@@ -469,7 +469,7 @@ importers:
         version: 0.7.2(pino@10.3.0)
       '@objectstack/core':
         specifier: ^0.7.2
-        version: 0.7.2(patch_hash=8e8927a95c32c96e0ee9dd65e1e0ce4c2ca938212b82deba7ada8bd162663ee8)(pino@10.3.0)
+        version: 0.7.2(patch_hash=8706406b6336880e63a03d18a00724604ef239fc9ad9d883741a85c58daf82ac)(pino@10.3.0)
       '@objectstack/runtime':
         specifier: ^0.7.2
         version: 0.7.2(pino@10.3.0)
@@ -12140,7 +12140,7 @@ snapshots:
 
   '@objectstack/cli@0.7.2(esbuild@0.27.2)(pino@10.3.0)':
     dependencies:
-      '@objectstack/core': 0.7.2(patch_hash=8e8927a95c32c96e0ee9dd65e1e0ce4c2ca938212b82deba7ada8bd162663ee8)(pino@10.3.0)
+      '@objectstack/core': 0.7.2(patch_hash=8706406b6336880e63a03d18a00724604ef239fc9ad9d883741a85c58daf82ac)(pino@10.3.0)
       '@objectstack/plugin-hono-server': 0.7.2(pino@10.3.0)
       '@objectstack/spec': 0.7.2
       bundle-require: 5.1.0(esbuild@0.27.2)
@@ -12154,12 +12154,12 @@ snapshots:
 
   '@objectstack/client@0.7.2(pino@10.3.0)':
     dependencies:
-      '@objectstack/core': 0.7.2(patch_hash=8e8927a95c32c96e0ee9dd65e1e0ce4c2ca938212b82deba7ada8bd162663ee8)(pino@10.3.0)
+      '@objectstack/core': 0.7.2(patch_hash=8706406b6336880e63a03d18a00724604ef239fc9ad9d883741a85c58daf82ac)(pino@10.3.0)
       '@objectstack/spec': 0.7.2
     transitivePeerDependencies:
       - pino
 
-  '@objectstack/core@0.7.2(patch_hash=8e8927a95c32c96e0ee9dd65e1e0ce4c2ca938212b82deba7ada8bd162663ee8)(pino@10.3.0)':
+  '@objectstack/core@0.7.2(patch_hash=8706406b6336880e63a03d18a00724604ef239fc9ad9d883741a85c58daf82ac)(pino@10.3.0)':
     dependencies:
       '@objectstack/spec': 0.7.2
       pino-pretty: 10.3.1
@@ -12169,14 +12169,14 @@ snapshots:
 
   '@objectstack/driver-memory@0.7.2(pino@10.3.0)':
     dependencies:
-      '@objectstack/core': 0.7.2(patch_hash=8e8927a95c32c96e0ee9dd65e1e0ce4c2ca938212b82deba7ada8bd162663ee8)(pino@10.3.0)
+      '@objectstack/core': 0.7.2(patch_hash=8706406b6336880e63a03d18a00724604ef239fc9ad9d883741a85c58daf82ac)(pino@10.3.0)
       '@objectstack/spec': 0.7.2
     transitivePeerDependencies:
       - pino
 
   '@objectstack/objectql@0.7.2(pino@10.3.0)':
     dependencies:
-      '@objectstack/core': 0.7.2(patch_hash=8e8927a95c32c96e0ee9dd65e1e0ce4c2ca938212b82deba7ada8bd162663ee8)(pino@10.3.0)
+      '@objectstack/core': 0.7.2(patch_hash=8706406b6336880e63a03d18a00724604ef239fc9ad9d883741a85c58daf82ac)(pino@10.3.0)
       '@objectstack/spec': 0.7.2
       '@objectstack/types': 0.7.2
     transitivePeerDependencies:
@@ -12185,7 +12185,7 @@ snapshots:
   '@objectstack/plugin-hono-server@0.7.2(pino@10.3.0)':
     dependencies:
       '@hono/node-server': 1.19.9(hono@4.11.7)
-      '@objectstack/core': 0.7.2(patch_hash=8e8927a95c32c96e0ee9dd65e1e0ce4c2ca938212b82deba7ada8bd162663ee8)(pino@10.3.0)
+      '@objectstack/core': 0.7.2(patch_hash=8706406b6336880e63a03d18a00724604ef239fc9ad9d883741a85c58daf82ac)(pino@10.3.0)
       '@objectstack/spec': 0.7.2
       '@objectstack/types': 0.7.2
       hono: 4.11.7
@@ -12206,7 +12206,7 @@ snapshots:
 
   '@objectstack/runtime@0.7.2(pino@10.3.0)':
     dependencies:
-      '@objectstack/core': 0.7.2(patch_hash=8e8927a95c32c96e0ee9dd65e1e0ce4c2ca938212b82deba7ada8bd162663ee8)(pino@10.3.0)
+      '@objectstack/core': 0.7.2(patch_hash=8706406b6336880e63a03d18a00724604ef239fc9ad9d883741a85c58daf82ac)(pino@10.3.0)
       '@objectstack/spec': 0.7.2
       '@objectstack/types': 0.7.2
     transitivePeerDependencies:

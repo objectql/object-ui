@@ -115,7 +115,7 @@
       "@types/react-dom": "19.2.3"
     },
     "patchedDependencies": {
-      "@objectstack/core": "patches/@objectstack__core.patch"
+      "@objectstack/core@0.7.2": "patches/@objectstack__core@0.7.2.patch"
     }
   },
   "dependencies": {
