@@ -433,130 +433,6 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
-  examples/crm-app:
-    dependencies:
-      '@object-ui/components':
-        specifier: workspace:*
-        version: link:../../packages/components
-      '@object-ui/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@object-ui/data-objectstack':
-        specifier: workspace:*
-        version: link:../../packages/data-objectstack
-      '@object-ui/example-crm':
-        specifier: workspace:*
-        version: link:../crm
-      '@object-ui/fields':
-        specifier: workspace:*
-        version: link:../../packages/fields
-      '@object-ui/layout':
-        specifier: workspace:*
-        version: link:../../packages/layout
-      '@object-ui/plugin-dashboard':
-        specifier: workspace:*
-        version: link:../../packages/plugin-dashboard
-      '@object-ui/plugin-form':
-        specifier: workspace:*
-        version: link:../../packages/plugin-form
-      '@object-ui/plugin-grid':
-        specifier: workspace:*
-        version: link:../../packages/plugin-grid
-      '@object-ui/react':
-        specifier: workspace:*
-        version: link:../../packages/react
-      '@object-ui/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@objectstack/client':
-        specifier: ^0.8.0
-        version: 0.8.0(pino@10.3.0)
-      '@objectstack/core':
-        specifier: ^0.8.0
-        version: 0.8.0(pino@10.3.0)
-      '@objectstack/runtime':
-        specifier: ^0.8.0
-        version: 0.8.0(pino@10.3.0)
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-      lucide-react:
-        specifier: ^0.563.0
-        version: 0.563.0(react@19.2.3)
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
-      react-router-dom:
-        specifier: ^7.13.0
-        version: 7.13.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      tailwind-merge:
-        specifier: ^3.4.0
-        version: 3.4.0
-    devDependencies:
-      '@objectstack/driver-memory':
-        specifier: ^0.8.0
-        version: 0.8.0(pino@10.3.0)
-      '@objectstack/objectql':
-        specifier: ^0.8.0
-        version: 0.8.0(pino@10.3.0)
-      '@objectstack/plugin-msw':
-        specifier: ^0.8.0
-        version: 0.8.0(@objectstack/runtime@0.8.0(pino@10.3.0))(@types/node@25.0.10)(pino@10.3.0)(typescript@5.9.3)
-      '@tailwindcss/postcss':
-        specifier: ^4.1.18
-        version: 4.1.18
-      '@tailwindcss/vite':
-        specifier: ^4.1.18
-        version: 4.1.18(vite@5.4.21(@types/node@25.0.10)(lightningcss@1.30.2))
-      '@testing-library/jest-dom':
-        specifier: ^6.9.1
-        version: 6.9.1
-      '@testing-library/react':
-        specifier: ^16.3.2
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@types/node':
-        specifier: ^25.0.10
-        version: 25.0.10
-      '@types/react':
-        specifier: 19.2.9
-        version: 19.2.9
-      '@types/react-dom':
-        specifier: 19.2.3
-        version: 19.2.3(@types/react@19.2.9)
-      '@vitejs/plugin-react':
-        specifier: ^4.3.1
-        version: 4.7.0(vite@5.4.21(@types/node@25.0.10)(lightningcss@1.30.2))
-      autoprefixer:
-        specifier: ^10.4.19
-        version: 10.4.23(postcss@8.5.6)
-      jsdom:
-        specifier: ^27.4.0
-        version: 27.4.0
-      msw:
-        specifier: ^2.12.7
-        version: 2.12.7(@types/node@25.0.10)(typescript@5.9.3)
-      postcss:
-        specifier: ^8.4.38
-        version: 8.5.6
-      tailwindcss:
-        specifier: ^4.1.18
-        version: 4.1.18
-      tailwindcss-animate:
-        specifier: ^1.0.7
-        version: 1.0.7(tailwindcss@4.1.18)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vite:
-        specifier: ^5.3.1
-        version: 5.4.21(@types/node@25.0.10)(lightningcss@1.30.2)
-      vitest:
-        specifier: ^4.0.18
-        version: 4.0.18(@types/node@25.0.10)(@vitest/ui@4.0.18)(happy-dom@20.3.9)(jiti@2.6.1)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@25.0.10)(typescript@5.9.3))(tsx@4.21.0)
-
   examples/kitchen-sink:
     dependencies:
       '@objectstack/spec':
@@ -980,7 +856,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^1.2.0
-        version: 1.6.1(@types/node@25.0.10)(@vitest/ui@4.0.18(vitest@4.0.18))(happy-dom@20.3.9)(jsdom@27.4.0)(lightningcss@1.30.2)
+        version: 1.6.1(@types/node@25.0.10)(@vitest/ui@4.0.18)(happy-dom@20.3.9)(jsdom@27.4.0)(lightningcss@1.30.2)
 
   packages/fields:
     dependencies:
@@ -3469,9 +3345,6 @@ packages:
     resolution: {integrity: sha512-a61ljmRVVyG5MC/698C8/FfFDw5a8LOIvyOLW5fztgUXqUpc1jOfQzOitSCbge657OgXXThmY3Tk8fpiDb4UcA==}
     engines: {node: '>= 20.0.0'}
 
-  '@pinojs/redact@0.4.0':
-    resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
-
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
@@ -4811,11 +4684,6 @@ packages:
 
   '@tailwindcss/postcss@4.1.18':
     resolution: {integrity: sha512-Ce0GFnzAOuPyfV5SxjXGn0CubwGcuDB0zcdaPuCSzAa/2vII24JTkH+I6jcbXLb1ctjZMZZI6OjDaLPJQL1S0g==}
-
-  '@tailwindcss/vite@4.1.18':
-    resolution: {integrity: sha512-jVA+/UpKL1vRLg6Hkao5jldawNmRo7mQYrZtNHMIVpLfLhDml5nMRUo/8MwoX2vNXvnaXNNMedrMfMugAVX1nA==}
-    peerDependencies:
-      vite: ^5.2.0 || ^6 || ^7
 
   '@tanstack/react-virtual@3.13.18':
     resolution: {integrity: sha512-dZkhyfahpvlaV0rIKnvQiVoWPyURppl6w4m9IwMDpuIjcJ1sD9YGWrt0wISvgU7ewACXx2Ct46WPgI6qAD4v6A==}
@@ -8686,13 +8554,6 @@ packages:
   pino-std-serializers@6.2.2:
     resolution: {integrity: sha512-cHjPPsE+vhj/tnhCy/wiMh3M3z3h/j15zHQX+S9GkTBgqJuTuJzYJ4gUyACLhDaJ7kk9ba9iRDmbH2tJU03OiA==}
 
-  pino-std-serializers@7.1.0:
-    resolution: {integrity: sha512-BndPH67/JxGExRgiX1dX0w1FvZck5Wa4aal9198SrRhZjH3GxKQUKIBnYJTdj2HDN3UQAS06HlfcSbQj2OHmaw==}
-
-  pino@10.3.0:
-    resolution: {integrity: sha512-0GNPNzHXBKw6U/InGe79A3Crzyk9bcSyObF9/Gfo9DLEf5qj5RF50RSjsu0W1rZ6ZqRGdzDFCRBQvi9/rSGPtA==}
-    hasBin: true
-
   pino@8.21.0:
     resolution: {integrity: sha512-ip4qdzjkAyDDZklUaZkcRFb2iA118H9SgRh8yzTkSQK8HilsOJF7rSY8HoW5+I0M46AZgX/pxbprf2vvzQCE0Q==}
     hasBin: true
@@ -8818,9 +8679,6 @@ packages:
 
   process-warning@3.0.0:
     resolution: {integrity: sha512-mqn0kFRl0EoqhnL0GQ0veqFHyIN1yig9RHh/InzORTUiZHFRAur+aMtRkELNwGs9aNwKS6tg/An4NYBPGwvtzQ==}
-
-  process-warning@5.0.0:
-    resolution: {integrity: sha512-a39t9ApHNx2L4+HBnQKqxxHNs1r7KF+Intd8Q/g1bUh6q0WIp9voPXJ/x0j+ZL45KF1pJd9+q2jLIRMfvEshkA==}
 
   process@0.11.10:
     resolution: {integrity: sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A==}
@@ -9663,10 +9521,6 @@ packages:
 
   thread-stream@2.7.0:
     resolution: {integrity: sha512-qQiRWsU/wvNolI6tbbCKd9iKaTnCXsTwVxhhKM6nctPdujTyztjlbUkUTUymidWcMnZ5pWR0ej4a0tjsW021vw==}
-
-  thread-stream@4.0.0:
-    resolution: {integrity: sha512-4iMVL6HAINXWf1ZKZjIPcz5wYaOdPhtO8ATvZ+Xqp3BTdaqtAwQkNmKORqcIo5YkQqGXq5cwfswDwMqqQNrpJA==}
-    engines: {node: '>=20'}
 
   tiny-invariant@1.3.3:
     resolution: {integrity: sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg==}
@@ -12207,27 +12061,12 @@ snapshots:
     dependencies:
       '@objectstack/spec': 0.3.3
 
-  '@objectstack/client@0.8.0(pino@10.3.0)':
-    dependencies:
-      '@objectstack/core': 0.8.0(pino@10.3.0)
-      '@objectstack/spec': 0.8.0
-    transitivePeerDependencies:
-      - pino
-
   '@objectstack/client@0.8.0(pino@8.21.0)':
     dependencies:
       '@objectstack/core': 0.8.0(pino@8.21.0)
       '@objectstack/spec': 0.8.0
     transitivePeerDependencies:
       - pino
-
-  '@objectstack/core@0.8.0(pino@10.3.0)':
-    dependencies:
-      '@objectstack/spec': 0.8.0
-      pino-pretty: 10.3.1
-      zod: 4.3.6
-    optionalDependencies:
-      pino: 10.3.0
 
   '@objectstack/core@0.8.0(pino@8.21.0)':
     dependencies:
@@ -12237,25 +12076,10 @@ snapshots:
     optionalDependencies:
       pino: 8.21.0
 
-  '@objectstack/driver-memory@0.8.0(pino@10.3.0)':
-    dependencies:
-      '@objectstack/core': 0.8.0(pino@10.3.0)
-      '@objectstack/spec': 0.8.0
-    transitivePeerDependencies:
-      - pino
-
   '@objectstack/driver-memory@0.8.0(pino@8.21.0)':
     dependencies:
       '@objectstack/core': 0.8.0(pino@8.21.0)
       '@objectstack/spec': 0.8.0
-    transitivePeerDependencies:
-      - pino
-
-  '@objectstack/objectql@0.8.0(pino@10.3.0)':
-    dependencies:
-      '@objectstack/core': 0.8.0(pino@10.3.0)
-      '@objectstack/spec': 0.8.0
-      '@objectstack/types': 0.8.0
     transitivePeerDependencies:
       - pino
 
@@ -12277,18 +12101,6 @@ snapshots:
     transitivePeerDependencies:
       - pino
 
-  '@objectstack/plugin-msw@0.8.0(@objectstack/runtime@0.8.0(pino@10.3.0))(@types/node@25.0.10)(pino@10.3.0)(typescript@5.9.3)':
-    dependencies:
-      '@objectstack/objectql': 0.8.0(pino@10.3.0)
-      '@objectstack/runtime': 0.8.0(pino@10.3.0)
-      '@objectstack/spec': 0.8.0
-      '@objectstack/types': 0.8.0
-      msw: 2.12.7(@types/node@25.0.10)(typescript@5.9.3)
-    transitivePeerDependencies:
-      - '@types/node'
-      - pino
-      - typescript
-
   '@objectstack/plugin-msw@0.8.0(@objectstack/runtime@0.8.0(pino@8.21.0))(@types/node@25.0.10)(pino@8.21.0)(typescript@5.9.3)':
     dependencies:
       '@objectstack/objectql': 0.8.0(pino@8.21.0)
@@ -12300,14 +12112,6 @@ snapshots:
       - '@types/node'
       - pino
       - typescript
-
-  '@objectstack/runtime@0.8.0(pino@10.3.0)':
-    dependencies:
-      '@objectstack/core': 0.8.0(pino@10.3.0)
-      '@objectstack/spec': 0.8.0
-      '@objectstack/types': 0.8.0
-    transitivePeerDependencies:
-      - pino
 
   '@objectstack/runtime@0.8.0(pino@8.21.0)':
     dependencies:
@@ -12339,9 +12143,6 @@ snapshots:
   '@open-draft/until@2.1.0': {}
 
   '@orama/orama@3.1.18': {}
-
-  '@pinojs/redact@0.4.0':
-    optional: true
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -13730,13 +13531,6 @@ snapshots:
       '@tailwindcss/oxide': 4.1.18
       postcss: 8.5.6
       tailwindcss: 4.1.18
-
-  '@tailwindcss/vite@4.1.18(vite@5.4.21(@types/node@25.0.10)(lightningcss@1.30.2))':
-    dependencies:
-      '@tailwindcss/node': 4.1.18
-      '@tailwindcss/oxide': 4.1.18
-      tailwindcss: 4.1.18
-      vite: 5.4.21(@types/node@25.0.10)(lightningcss@1.30.2)
 
   '@tanstack/react-virtual@3.13.18(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
@@ -18453,24 +18247,6 @@ snapshots:
 
   pino-std-serializers@6.2.2: {}
 
-  pino-std-serializers@7.1.0:
-    optional: true
-
-  pino@10.3.0:
-    dependencies:
-      '@pinojs/redact': 0.4.0
-      atomic-sleep: 1.0.0
-      on-exit-leak-free: 2.1.2
-      pino-abstract-transport: 3.0.0
-      pino-std-serializers: 7.1.0
-      process-warning: 5.0.0
-      quick-format-unescaped: 4.0.4
-      real-require: 0.2.0
-      safe-stable-stringify: 2.5.0
-      sonic-boom: 4.2.0
-      thread-stream: 4.0.0
-    optional: true
-
   pino@8.21.0:
     dependencies:
       atomic-sleep: 1.0.0
@@ -18601,9 +18377,6 @@ snapshots:
       fromentries: 1.3.2
 
   process-warning@3.0.0: {}
-
-  process-warning@5.0.0:
-    optional: true
 
   process@0.11.10: {}
 
@@ -19685,11 +19458,6 @@ snapshots:
     dependencies:
       real-require: 0.2.0
 
-  thread-stream@4.0.0:
-    dependencies:
-      real-require: 0.2.0
-    optional: true
-
   tiny-invariant@1.3.3: {}
 
   tinybench@2.9.0: {}
@@ -20186,7 +19954,7 @@ snapshots:
       lightningcss: 1.30.2
       tsx: 4.21.0
 
-  vitest@1.6.1(@types/node@25.0.10)(@vitest/ui@4.0.18(vitest@4.0.18))(happy-dom@20.3.9)(jsdom@27.4.0)(lightningcss@1.30.2):
+  vitest@1.6.1(@types/node@25.0.10)(@vitest/ui@4.0.18)(happy-dom@20.3.9)(jsdom@27.4.0)(lightningcss@1.30.2):
     dependencies:
       '@vitest/expect': 1.6.1
       '@vitest/runner': 1.6.1

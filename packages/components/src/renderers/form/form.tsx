@@ -77,6 +77,7 @@ ComponentRegistry.register('form',
 
     // Handle form submission
     const handleSubmit = form.handleSubmit(async (data) => {
+      console.log('Form Renderer handleSubmit data:', data);
       setIsSubmitting(true);
       setSubmitError(null);
 
@@ -87,7 +88,8 @@ ComponentRegistry.register('form',
         (data as any).nativeEvent || 
         typeof (data as any).preventDefault === 'function' || 
         typeof (data as any).stopPropagation === 'function' ||
-        (data as any).target
+        (data as any).target ||
+        (data as any).bubbles
       );
 
       if (isEvent) {

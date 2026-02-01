@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import { ObjectForm } from './ObjectForm';
 import { ObjectStackAdapter } from '@object-ui/data-objectstack';
 import { setupServer } from 'msw/node';

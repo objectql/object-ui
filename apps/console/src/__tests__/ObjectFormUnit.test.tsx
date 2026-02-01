@@ -44,6 +44,7 @@ class MockDataSource implements DataSource {
   }
 
   async create(_objectName: string, data: any): Promise<any> {
+    console.log('MockDataSource.create received:', data);
     return { ...data, id: 'new-id' };
   }
 
