@@ -11,7 +11,7 @@ import { ContactObject } from '../../../examples/crm/src/objects/contact.object'
 
 registerAllFields();
 
-const BASE_URL = 'http://test-api.com';
+const BASE_URL = process.env.OBJECTSTACK_API_URL || 'http://test-api.com';
 
 // --- Mock Data ---
 
@@ -63,9 +63,12 @@ const server = setupServer(...handlers);
 // --- Test Suite ---
 
 describe('ObjectGrid with ObjectStack/MSW', () => {
-    beforeAll(() => server.listen());
-    afterEach(() => server.resetHandlers());
-    afterAll(() => server.close());
+    // Only start MSW if we are NOT using a real server
+    if (!process.env.OBJECTSTACK_API_URL) {
+        beforeAll(() => server.listen());
+        afterEach(() => server.resetHandlers());
+        afterAll(() => server.close());
+    }
 
     const dataSource = new ObjectStackAdapter({
         baseUrl: BASE_URL,

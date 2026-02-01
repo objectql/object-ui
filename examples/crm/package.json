@@ -10,7 +10,8 @@
     "./objectstack.config": "./objectstack.config.ts"
   },
   "scripts": {
-    "build": "objectstack compile objectstack.config.ts dist/objectstack.json"
+    "build": "objectstack compile objectstack.config.ts dist/objectstack.json",
+    "dev": "objectstack dev"
   },
   "dependencies": {
     "@objectstack/spec": "^0.8.0"

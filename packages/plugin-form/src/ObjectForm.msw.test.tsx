@@ -12,7 +12,7 @@ import { ContactObject } from '../../../examples/crm/src/objects/contact.object'
 // Register widget renderers
 registerAllFields();
 
-const BASE_URL = 'http://test-api.com';
+const BASE_URL = process.env.OBJECTSTACK_API_URL || 'http://test-api.com';
 
 // --- Mock Data ---
 
@@ -69,11 +69,14 @@ const server = setupServer(...handlers);
 // --- Test Suite ---
 
 describe('ObjectForm with ObjectStack/MSW', () => {
-  beforeAll(() => server.listen());
-  afterEach(() => server.resetHandlers());
-  afterAll(() => server.close());
+  // Only start MSW if we are NOT using a real server
+  if (!process.env.OBJECTSTACK_API_URL) {
+    beforeAll(() => server.listen());
+    afterEach(() => server.resetHandlers());
+    afterAll(() => server.close());
+  }
 
-  // Create real adapter instance pointing to MSW
+  // Create real adapter instance pointing to MSW or Real Server
   const dataSource = new ObjectStackAdapter({
     baseUrl: BASE_URL,
     // Add custom fetch for environment that might need it, or rely on global fetch
