@@ -16,6 +16,7 @@
   "dependencies": {
     "@object-ui/components": "workspace:*",
     "@object-ui/fields": "workspace:*",
+    "@object-ui/layout": "^0.1.1",
     "@object-ui/plugin-dashboard": "workspace:*",
     "@object-ui/plugin-form": "workspace:*",
     "@object-ui/plugin-grid": "workspace:*",
@@ -29,7 +30,8 @@
     "@objectstack/spec": "^0.7.2",
     "lucide-react": "^0.563.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.13.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
