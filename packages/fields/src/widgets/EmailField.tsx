@@ -18,12 +18,12 @@ export function EmailField({ value, onChange, field, readonly, errorMessage, ...
 
   return (
     <Input
+      {...props}
       type="email"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       placeholder={config?.placeholder || 'email@example.com'}
       disabled={readonly}
-      className={props.className}
       aria-invalid={!!errorMessage}
     />
   );

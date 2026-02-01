@@ -27,12 +27,12 @@ export function UrlField({ value, onChange, field, readonly, errorMessage, ...pr
 
   return (
     <Input
+      {...props}
       type="url"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       placeholder={config?.placeholder || 'https://example.com'}
       disabled={readonly}
-      className={props.className}
       aria-invalid={!!errorMessage}
     />
   );

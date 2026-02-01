@@ -18,13 +18,13 @@ export function TextAreaField({ value, onChange, field, readonly, errorMessage, 
   return (
     <div className="relative">
       <Textarea
+        {...props}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         placeholder={textareaField?.placeholder}
         disabled={readonly}
         rows={rows}
         maxLength={maxLength}
-        className={props.className}
         aria-invalid={!!errorMessage}
       />
       {maxLength && (

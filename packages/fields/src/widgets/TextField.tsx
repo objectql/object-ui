@@ -16,24 +16,23 @@ export function TextField({ value, onChange, field, readonly, ...props }: FieldW
   if (rows && rows > 1) {
     return (
       <Textarea
+        {...props}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         placeholder={fieldData?.placeholder}
         disabled={readonly}
-        className={props.className}
       />
     );
   }
 
   return (
     <Input
+      {...props}
       type={fieldData?.type === 'password' ? 'password' : 'text'}
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       placeholder={fieldData?.placeholder}
       disabled={readonly}
-      className={props.className}
-      {...props}
     />
   );
 }
