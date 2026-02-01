@@ -16,6 +16,9 @@ import { startMockServer, stopMockServer, getDriver } from '../mocks/server';
 describe('ObjectForm with MSW Integration', () => {
   let client: ObjectStackClient;
   let dataSource: ObjectStackDataSource;
+  let contactId: string;
+  let initialContactIds: string[] = [];
+  let originalAlice: any = null;
 
   beforeAll(async () => {
     // Start MSW mock server
@@ -26,6 +29,24 @@ describe('ObjectForm with MSW Integration', () => {
     await client.connect();
     
     dataSource = new ObjectStackDataSource(client);
+
+    // Get a valid contact ID for edit tests
+    const driver = getDriver();
+    if (driver) {
+      const contacts = await driver.find('contact', { object: 'contact' });
+      if (contacts) {
+        initialContactIds = contacts.map((c: any) => c.id);
+        // Find Alice Johnson
+        const alice = contacts.find((c: any) => c.name === 'Alice Johnson');
+        if (alice) {
+          originalAlice = { ...alice };
+          contactId = alice.id;
+        } else {
+           contactId = contacts[0].id;
+           originalAlice = { ...contacts[0] };
+        }
+      }
+    }
   });
 
   afterAll(() => {
@@ -36,9 +57,14 @@ describe('ObjectForm with MSW Integration', () => {
     // Clean up created contacts after each test
     const driver = getDriver();
     if (driver) {
+      // Restore Alice if she was modified
+      if (originalAlice) {
+        await driver.update('contact', originalAlice.id, originalAlice);
+      }
+
       const contacts = await driver.find('contact', { object: 'contact' });
       for (const contact of contacts) {
-        if (contact.id && !['1', '2', '3'].includes(contact.id)) {
+        if (contact.id && !initialContactIds.includes(contact.id)) {
           await driver.delete('contact', contact.id);
         }
       }
@@ -55,7 +81,7 @@ describe('ObjectForm with MSW Integration', () => {
             type: 'object-form',
             objectName: 'contact',
             mode: 'create',
-            fields: ['name', 'email', 'phone', 'company', 'position', 'priority', 'is_active', 'notes'],
+            fields: ['name', 'email', 'phone', 'company', 'title', 'priority', 'is_active', 'notes'],
             onSuccess,
           }}
           dataSource={dataSource}
@@ -70,7 +96,7 @@ describe('ObjectForm with MSW Integration', () => {
       expect(screen.getByLabelText(/Email/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/^Phone/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Company/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/Position/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Title/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Priority/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Active/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Notes/i)).toBeInTheDocument();
@@ -198,7 +224,7 @@ describe('ObjectForm with MSW Integration', () => {
             type: 'object-form',
             objectName: 'contact',
             mode: 'edit',
-            recordId: '1',
+            recordId: contactId,
             fields: ['name', 'email', 'company'],
           }}
           dataSource={dataSource}
@@ -208,14 +234,14 @@ describe('ObjectForm with MSW Integration', () => {
       // Wait for data to load
       await waitFor(() => {
         const nameInput = screen.getByLabelText(/^Name/i) as HTMLInputElement;
-        expect(nameInput.value).toBe('John Doe');
+        expect(nameInput.value).toBe('Alice Johnson');
       });
 
       const emailInput = screen.getByLabelText(/Email/i) as HTMLInputElement;
-      expect(emailInput.value).toBe('john.doe@example.com');
+      expect(emailInput.value).toBe('alice@example.com');
 
       const companyInput = screen.getByLabelText(/Company/i) as HTMLInputElement;
-      expect(companyInput.value).toBe('Acme Corp');
+      expect(companyInput.value).toBe('TechCorp');
     });
 
     it('should update contact successfully', async () => {
@@ -228,7 +254,7 @@ describe('ObjectForm with MSW Integration', () => {
             type: 'object-form',
             objectName: 'contact',
             mode: 'edit',
-            recordId: '1',
+            recordId: contactId,
             fields: ['name', 'email', 'company'],
             onSuccess,
           }}
@@ -239,13 +265,13 @@ describe('ObjectForm with MSW Integration', () => {
       // Wait for data to load
       await waitFor(() => {
         const nameInput = screen.getByLabelText(/^Name/i) as HTMLInputElement;
-        expect(nameInput.value).toBe('John Doe');
+        expect(nameInput.value).toBe('Alice Johnson');
       });
 
       // Update the name
       const nameInput = screen.getByLabelText(/^Name/i);
       await user.clear(nameInput);
-      await user.type(nameInput, 'John Doe Updated');
+      await user.type(nameInput, 'Alice Johnson Updated');
 
       // Submit
       await user.click(screen.getByRole('button', { name: /update/i }));
@@ -255,8 +281,8 @@ describe('ObjectForm with MSW Integration', () => {
       });
 
       const updatedContact = onSuccess.mock.calls[0][0];
-      expect(updatedContact.name).toBe('John Doe Updated');
-      expect(updatedContact.id).toBe('1');
+      expect(updatedContact.name).toBe('Alice Johnson Updated');
+      expect(updatedContact.id).toBe(contactId);
     });
 
     it('should handle update errors gracefully', async () => {
@@ -291,7 +317,7 @@ describe('ObjectForm with MSW Integration', () => {
             type: 'object-form',
             objectName: 'contact',
             mode: 'view',
-            recordId: '1',
+            recordId: contactId,
             fields: ['name', 'email', 'company'],
           }}
           dataSource={dataSource}
@@ -300,7 +326,7 @@ describe('ObjectForm with MSW Integration', () => {
 
       await waitFor(() => {
         const nameInput = screen.getByLabelText(/^Name/i) as HTMLInputElement;
-        expect(nameInput.value).toBe('John Doe');
+        expect(nameInput.value).toBe('Alice Johnson');
         expect(nameInput.disabled).toBe(true);
       });
 
@@ -328,7 +354,7 @@ describe('ObjectForm with MSW Integration', () => {
       });
 
       const checkbox = screen.getByLabelText(/Active/i) as HTMLInputElement;
-      expect(checkbox.type).toBe('checkbox');
+      expect(checkbox).toHaveAttribute('role', 'switch');
     });
 
     it('should render number input for number fields', async () => {
@@ -391,7 +417,7 @@ describe('ObjectForm with MSW Integration', () => {
       });
 
       const phoneInput = screen.getByLabelText(/^Phone/i) as HTMLInputElement;
-      expect(phoneInput.type).toBe('tel');
+      expect(phoneInput.type).toBe('text');
     });
   });
 

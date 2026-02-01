@@ -32,7 +32,7 @@ export function TextField({ value, onChange, field, readonly, ...props }: FieldW
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       placeholder={fieldData?.placeholder}
-      disabled={readonly}
+      disabled={readonly || props.disabled}
     />
   );
 }

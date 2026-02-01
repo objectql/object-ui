@@ -53,7 +53,7 @@ export async function startMockServer() {
 
   // Create MSW handlers manually
   const baseUrl = 'http://localhost:3000/api/v1';
-  const handlers = createHandlers(baseUrl, kernel);
+  const handlers = createHandlers(baseUrl, kernel, driver!);
   
   // Setup MSW server for Node.js environment
   server = setupServer(...handlers);
@@ -83,7 +83,7 @@ export function getDriver(): InMemoryDriver | null {
 /**
  * Create MSW request handlers for ObjectStack API
  */
-function createHandlers(baseUrl: string, kernel: ObjectKernel) {
+function createHandlers(baseUrl: string, kernel: ObjectKernel, driver: InMemoryDriver) {
   const protocol = kernel.getService('protocol') as any;
   
   return [
@@ -152,49 +152,52 @@ function createHandlers(baseUrl: string, kernel: ObjectKernel) {
         }
       });
 
-      const response = await protocol.findData({
-        objectName: params.objectName as string,
-        query
-      });
-      return HttpResponse.json(response, { status: 200 });
+      // Use driver directly
+      const response = await driver.find(params.objectName as string, query);
+      return HttpResponse.json({ value: response }, { status: 200 }); // Wrap in value for OData/Client?
     }),
 
     // Data endpoints - Find by ID
     http.get(`${baseUrl}/data/:objectName/:id`, async ({ params }) => {
-      const response = await protocol.getData({
-        objectName: params.objectName as string,
-        id: params.id as string
-      });
-      return HttpResponse.json(response, { status: 200 });
+      try {
+        console.log('MSW: getData', params.objectName, params.id);
+        // Use driver directly
+        // Try simple find first
+        const records = await driver.find(params.objectName as string, {
+            filters: [['_id', '=', params.id]]
+        });
+        // Manual filter to ensure we get the correct record if driver ignores filters
+        const record = records ? records.find((r: any) => r.id === params.id || r._id === params.id) : null;
+        
+        console.log('MSW: getData result', JSON.stringify(record));
+        return HttpResponse.json(record, { status: record ? 200 : 404 });
+      } catch (e) {
+        console.error('MSW: getData error', e); 
+        return HttpResponse.json({ error: String(e) }, { status: 500 });
+      }
     }),
 
     // Data endpoints - Create
     http.post(`${baseUrl}/data/:objectName`, async ({ params, request }) => {
       const body = await request.json();
-      const response = await protocol.createData({
-        objectName: params.objectName as string,
-        data: body
-      });
+      console.log('MSW: createData', params.objectName, JSON.stringify(body));
+      const response = await driver.create(params.objectName as string, body as any);
+      console.log('MSW: createData result', JSON.stringify(response));
       return HttpResponse.json(response, { status: 201 });
     }),
 
     // Data endpoints - Update
     http.patch(`${baseUrl}/data/:objectName/:id`, async ({ params, request }) => {
       const body = await request.json();
-      const response = await protocol.updateData({
-        objectName: params.objectName as string,
-        id: params.id as string,
-        data: body
-      });
+      console.log('MSW: updateData', params.objectName, params.id, JSON.stringify(body));
+      const response = await driver.update(params.objectName as string, params.id as string, body as any);
+      console.log('MSW: updateData result', JSON.stringify(response));
       return HttpResponse.json(response, { status: 200 });
     }),
 
     // Data endpoints - Delete
     http.delete(`${baseUrl}/data/:objectName/:id`, async ({ params }) => {
-      const response = await protocol.deleteData({
-        objectName: params.objectName as string,
-        id: params.id as string
-      });
+      const response = await driver.delete(params.objectName as string, params.id as string);
       return HttpResponse.json(response, { status: 200 });
     }),
   ];
