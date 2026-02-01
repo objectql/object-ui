@@ -11,9 +11,10 @@ import { ComponentRegistry } from '@object-ui/core';
 
 describe('Plugin Editor', () => {
   // Import all renderers to register them
+  // Note: Monaco Editor is a heavy library that takes time to load
   beforeAll(async () => {
     await import('./index');
-  });
+  }, 30000); // 30 second timeout for Monaco Editor initialization
 
   describe('code-editor component', () => {
     it('should be registered in ComponentRegistry', () => {
