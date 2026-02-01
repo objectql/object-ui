@@ -8,8 +8,8 @@ import { FieldWidgetProps } from './types';
  * Allows selecting one or multiple users
  */
 export function UserField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
-  const userField = field as any;
-  const multiple = userField.multiple || false;
+  const userField = (field || (props as any).schema) as any;
+  const multiple = userField?.multiple || false;
 
   if (readonly) {
     if (!value) return <span className="text-sm">-</span>;
