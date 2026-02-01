@@ -16,7 +16,7 @@ import {
 // Import renderers to ensure registration
 beforeAll(async () => {
   await import('../renderers');
-});
+}, 30000); // Increase timeout to 30 seconds for heavy renderer imports
 
 /**
  * Comprehensive tests for feedback renderer components
