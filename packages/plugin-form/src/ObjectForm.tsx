@@ -275,7 +275,6 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
       }
     }
 
-    console.log('ObjectForm submitting data:', formData);
     // For inline fields without a dataSource, just call the success callback
     if (hasInlineFields && !dataSource) {
       if (schema.onSuccess) {
