@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "objectstack compile objectstack.config.ts dist/objectstack.json",
-    "dev": "objectstack dev"
+    "start": "tsx server.ts"
   },
   "dependencies": {
     "@objectstack/spec": "^0.8.0"

@@ -19,10 +19,10 @@ const BASE_URL = process.env.OBJECTSTACK_API_URL || 'http://test-api.com';
 const mockSchema = ContactObject;
 
 const mockRecord = {
-  _id: 'rec_123',
-  name: 'Alice Smith',
+  _id: '1',
+  name: 'Alice Johnson',
   email: 'alice@example.com',
-  status: 'Customer'
+  status: 'Active'
 };
 
 // --- MSW Setup ---
@@ -57,7 +57,7 @@ const handlers = [
   // Mock Record Fetch: GET /api/v1/data/:object/:id
   http.get(`${BASE_URL}/api/v1/data/:object/:id`, ({ params }) => {
     const { object, id } = params;
-    if (object === 'contact' && id === 'rec_123') {
+    if (object === 'contact' && id === '1') {
       return HttpResponse.json(mockRecord);
     }
     return new HttpResponse(null, { status: 404 });
@@ -111,7 +111,7 @@ describe('ObjectForm with ObjectStack/MSW', () => {
           type: 'object-form',
           objectName: 'contact',
           mode: 'edit',
-          recordId: 'rec_123'
+          recordId: '1'
         }}
         dataSource={dataSource}
       />
@@ -120,7 +120,7 @@ describe('ObjectForm with ObjectStack/MSW', () => {
     // Initial load of schema logic + data fetch
     await waitFor(() => {
       // Changed from 'Full Name' to 'Name'
-      expect(screen.getByRole('textbox', { name: /Name/i })).toHaveValue('Alice Smith');
+      expect(screen.getByRole('textbox', { name: /Name/i })).toHaveValue('Alice Johnson');
     }, { timeout: 2000 }); // Give slight buffer for network mock
 
     // Changed from 'Email Address' to 'Email'
