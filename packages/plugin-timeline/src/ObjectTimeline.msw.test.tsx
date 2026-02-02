@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
 import { ObjectTimeline } from './ObjectTimeline';
 import { ObjectStackAdapter } from '@object-ui/data-objectstack';
 import { setupServer } from 'msw/node';
