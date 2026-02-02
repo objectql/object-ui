@@ -22,6 +22,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
+      '@object-ui/core': resolve(__dirname, '../core/src'),
+      '@object-ui/types': resolve(__dirname, '../types/src'),
+      '@object-ui/react': resolve(__dirname, '../react/src'),
+      '@object-ui/components': resolve(__dirname, '../components/src'),
+      '@object-ui/fields': resolve(__dirname, '../fields/src'),
+      '@object-ui/plugin-dashboard': resolve(__dirname, '../plugin-dashboard/src'),
+      '@object-ui/plugin-grid': resolve(__dirname, '../plugin-grid/src'),
     },
   },
   build: {
