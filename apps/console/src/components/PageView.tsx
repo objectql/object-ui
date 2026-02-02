@@ -4,7 +4,7 @@
  */
 
 import { useParams, useSearchParams } from 'react-router-dom';
-import { PageRenderer } from '@object-ui/components';
+import { SchemaRenderer } from '@object-ui/react';
 import appConfig from '../../objectstack.config';
 
 export function PageView() {
@@ -30,7 +30,7 @@ export function PageView() {
   const params = Object.fromEntries(searchParams.entries());
 
   return (
-    <PageRenderer 
+    <SchemaRenderer 
       schema={{
         type: 'page',
         ...page,

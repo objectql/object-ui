@@ -14,7 +14,7 @@ export function formatRecordTitle(titleFormat: string | undefined, record: any):
   }
 
   // Replace {fieldName} patterns with actual values
-  return titleFormat.replace(/\{(\w+)\}/g, (match, fieldName) => {
+  return titleFormat.replace(/\{(\w+)\}/g, (_match, fieldName) => {
     const value = record[fieldName];
     if (value === null || value === undefined) {
       return '';

@@ -29,6 +29,8 @@ function AppContent() {
   const defaultApp = activeApps.find((a: any) => a.isDefault === true) || activeApps[0];
   const [activeAppName, setActiveAppName] = useState<string>(defaultApp?.name || 'default');
 
+  const activeApp = apps.find((a: any) => a.name === activeAppName) || apps[0];
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
 
@@ -63,7 +65,6 @@ function AppContent() {
     }
   }
 
-  const activeApp = apps.find((a: any) => a.name === activeAppName) || apps[0];
   const allObjects = appConfig.objects || [];
   
   // Find current object definition for Dialog (Create/Edit)
