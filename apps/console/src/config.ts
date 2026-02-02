@@ -26,6 +26,8 @@ export interface ObjectStackConfig {
   // Runtime config (merged from stack)
   objects?: any[];
   apps?: any[];
+  dashboards?: any[];
+  pages?: any[];
   manifest?: {
     data?: any[];
   };

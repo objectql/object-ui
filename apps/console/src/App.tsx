@@ -11,6 +11,8 @@ import appConfig from '../objectstack.config';
 import { AppSidebar } from './components/AppSidebar';
 import { ObjectView } from './components/ObjectView';
 import { AppHeader } from './components/AppHeader';
+import { DashboardView } from './components/DashboardView';
+import { PageView } from './components/PageView';
 
 function AppContent() {
   const [client, setClient] = useState<ObjectStackClient | null>(null);
@@ -22,9 +24,10 @@ function AppContent() {
   const apps = appConfig.apps || [];
   
   // Determine active app based on URL or default
-  // Ideally, valid routes should drive this state, but for now we keep local state 
-  // synced or just use local state.
-  const [activeAppName, setActiveAppName] = useState<string>(apps[0]?.name || 'default');
+  // Filter active apps and find default app
+  const activeApps = apps.filter((a: any) => a.active !== false);
+  const defaultApp = activeApps.find((a: any) => a.isDefault === true) || activeApps[0];
+  const [activeAppName, setActiveAppName] = useState<string>(defaultApp?.name || 'default');
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
@@ -32,6 +35,21 @@ function AppContent() {
   useEffect(() => {
     initializeClient();
   }, []);
+
+  // Apply favicon from app branding
+  useEffect(() => {
+    const favicon = activeApp?.branding?.favicon;
+    if (favicon) {
+      const link = document.querySelector<HTMLLinkElement>('#favicon');
+      if (link) {
+        link.href = favicon;
+      }
+    }
+    // Update document title with app label
+    if (activeApp?.label) {
+      document.title = `${activeApp.label} - ObjectStack Console`;
+    }
+  }, [activeApp]);
 
   async function initializeClient() {
     try {
@@ -93,6 +111,12 @@ function AppContent() {
         } />
         <Route path="/:objectName" element={
             <ObjectView dataSource={dataSource} objects={allObjects} onEdit={handleEdit} />
+        } />
+        <Route path="/dashboard/:dashboardName" element={
+            <DashboardView />
+        } />
+        <Route path="/page/:pageName" element={
+            <PageView />
         } />
       </Routes>
 

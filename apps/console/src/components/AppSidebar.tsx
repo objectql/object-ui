@@ -22,6 +22,9 @@ import {
   AvatarImage,
   AvatarFallback,
   useSidebar,
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
 } from '@object-ui/components';
 import { 
   ChevronsUpDown, 
@@ -34,7 +37,8 @@ import {
   CheckSquare,
   Activity,
   Briefcase,
-  FileText
+  FileText,
+  ChevronRight,
 } from 'lucide-react';
 import appConfig from '../../objectstack.config';
 
@@ -59,7 +63,9 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const { isMobile } = useSidebar();
   
   const apps = appConfig.apps || [];
-  const activeApp = apps.find((a: any) => a.name === activeAppName) || apps[0];
+  // Filter out inactive apps
+  const activeApps = apps.filter((a: any) => a.active !== false);
+  const activeApp = activeApps.find((a: any) => a.name === activeAppName) || activeApps[0];
 
   // Extract branding information from spec
   const logo = activeApp?.branding?.logo;
@@ -92,7 +98,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold">{activeApp.label}</span>
                     <span className="truncate text-xs">
-                      {activeApp.description || `${apps.length} Apps Available`}
+                      {activeApp.description || `${activeApps.length} Apps Available`}
                     </span>
                   </div>
                   <ChevronsUpDown className="ml-auto" />
@@ -107,7 +113,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                 <DropdownMenuLabel className="text-xs text-muted-foreground">
                   Switch Application
                 </DropdownMenuLabel>
-                {apps.map((app: any) => (
+                {activeApps.map((app: any) => (
                   <DropdownMenuItem
                     key={app.name}
                     onClick={() => onAppChange(app.name)}
@@ -221,6 +227,7 @@ function NavigationTree({ items }: { items: any[] }) {
 function NavigationItemRenderer({ item }: { item: any }) {
     const Icon = getIcon(item.icon);
     const location = useLocation();
+    const [isOpen, setIsOpen] = React.useState(item.expanded !== false);
 
     // Handle visibility condition from spec (visible field)
     // In a real implementation, this would evaluate the expression
@@ -231,16 +238,25 @@ function NavigationItemRenderer({ item }: { item: any }) {
 
     if (item.type === 'group') {
         return (
-            <SidebarGroup>
-                <SidebarGroupLabel>{item.label}</SidebarGroupLabel>
-                <SidebarGroupContent>
-                    <SidebarMenu>
-                        {item.children?.map((child: any) => (
-                            <NavigationItemRenderer key={child.id} item={child} />
-                        ))}
-                    </SidebarMenu>
-                </SidebarGroupContent>
-            </SidebarGroup>
+            <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+                <SidebarGroup>
+                    <SidebarGroupLabel asChild>
+                        <CollapsibleTrigger className="flex w-full items-center justify-between">
+                            {item.label}
+                            <ChevronRight className={`ml-auto transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                        </CollapsibleTrigger>
+                    </SidebarGroupLabel>
+                    <CollapsibleContent>
+                        <SidebarGroupContent>
+                            <SidebarMenu>
+                                {item.children?.map((child: any) => (
+                                    <NavigationItemRenderer key={child.id} item={child} />
+                                ))}
+                            </SidebarMenu>
+                        </SidebarGroupContent>
+                    </CollapsibleContent>
+                </SidebarGroup>
+            </Collapsible>
         );
     }
 
