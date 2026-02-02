@@ -48,6 +48,9 @@ docs/.vitepress/cache
 # Object UI CLI temporary files
 .objectui-tmp
 
+# ObjectStack bundled files
+*.bundled_*.mjs
+
 # Fumadocs
 apps/site/.next
 apps/site/.map.ts
