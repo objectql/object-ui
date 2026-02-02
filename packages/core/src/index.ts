@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-export type * from './types/index.js';
+export type { SchemaNode, ComponentRendererProps } from './types/index.js';
 export * from './registry/Registry.js';
 export * from './registry/PluginSystem.js';
 export * from './registry/PluginScopeImpl.js';
