@@ -29,14 +29,14 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.0",
     "lucide-react": "^0.563.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
-    "@types/react": "^19.2.9",
+    "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.19",

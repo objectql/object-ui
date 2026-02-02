@@ -42,8 +42,8 @@
     "@objectstack/runtime": "^0.8.2",
     "@objectstack/spec": "^0.8.2",
     "lucide-react": "^0.563.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.0"
   },
   "devDependencies": {
@@ -52,7 +52,7 @@
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
     "@types/node": "^25.0.10",
-    "@types/react": "^19.0.6",
+    "@types/react": "^19.2.10",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/ui": "^4.0.18",
