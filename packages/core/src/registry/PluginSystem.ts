@@ -6,9 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { Registry } from './Registry';
+import type { Registry } from './Registry.js';
 import type { PluginScope, PluginScopeConfig } from '@object-ui/types';
-import { PluginScopeImpl } from './PluginScopeImpl';
+import { PluginScopeImpl } from './PluginScopeImpl.js';
 
 export interface PluginDefinition {
   name: string;

@@ -6,6 +6,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-export * from './ExpressionContext';
-export * from './ExpressionEvaluator';
-export * from './ExpressionCache';
+export * from './ExpressionContext.js';
+export * from './ExpressionEvaluator.js';
+export * from './ExpressionCache.js';

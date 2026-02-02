@@ -5,6 +5,6 @@
  * ObjectStack Spec v0.7.1: Object-level validation
  */
 
-export * from './validation-engine';
-export * from './schema-validator';
-export * from './validators';
+export * from './validation-engine.js';
+export * from './schema-validator.js';
+export * from './validators/index.js';
