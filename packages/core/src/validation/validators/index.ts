@@ -22,4 +22,4 @@ export {
   type ObjectValidationContext,
   type ObjectValidationResult,
   type ValidationExpressionEvaluator,
-} from './object-validation-engine';
+} from './object-validation-engine.js';

@@ -6,4 +6,4 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-export * from './ActionRunner';
+export * from './ActionRunner.js';

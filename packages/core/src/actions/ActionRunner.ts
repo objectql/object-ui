@@ -12,7 +12,7 @@
  * Executes actions defined in ActionSchema and EventHandler.
  */
 
-import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
+import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator.js';
 
 export interface ActionResult {
   success: boolean;

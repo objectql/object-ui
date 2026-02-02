@@ -16,8 +16,8 @@
  * @packageDocumentation
  */
 
-import { ExpressionContext } from './ExpressionContext';
-import { ExpressionCache } from './ExpressionCache';
+import { ExpressionContext } from './ExpressionContext.js';
+import { ExpressionCache } from './ExpressionCache.js';
 
 /**
  * Options for expression evaluation

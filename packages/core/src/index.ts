@@ -6,16 +6,16 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-export * from './types/index';
-export * from './registry/Registry';
-export * from './registry/PluginSystem';
-export * from './registry/PluginScopeImpl';
-export * from './validation/index';
-export * from './builder/schema-builder';
-export * from './utils/filter-converter';
-export * from './evaluator/index';
-export * from './actions/index';
-export * from './query/index';
+export * from './types/index.js';
+export * from './registry/Registry.js';
+export * from './registry/PluginSystem.js';
+export * from './registry/PluginScopeImpl.js';
+export * from './validation/index.js';
+export * from './builder/schema-builder.js';
+export * from './utils/filter-converter.js';
+export * from './evaluator/index.js';
+export * from './actions/index.js';
+export * from './query/index.js';
 // export * from './data-scope'; // TODO
 // export * from './validators'; // TODO
 
