@@ -26,7 +26,6 @@ export function ConsoleLayout({
            onAppChange={onAppChange} 
          />
       }
-      header={undefined}
       navbar={
           <AppHeader 
             appName={activeApp?.label || activeAppName} 
