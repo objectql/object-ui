@@ -7,4 +7,4 @@
 
 export * from './validation-engine.js';
 export * from './schema-validator.js';
-export * from './validators/index.js';
+export * from './validators';
