@@ -52,7 +52,7 @@ export default defineConfig({
   ],
 
   // ============================================================================
-  // Merged Stack Configuration (CRM + Todo + Kitchen Sink)
+  // Merged Stack Configuration (CRM + Todo + Kitchen Sink + Mock Metadata)
   // ============================================================================
   objects: [
     ...(crmConfig.objects || []),
@@ -63,6 +63,16 @@ export default defineConfig({
     ...(crmConfig.apps || []),
     ...(todoConfig.apps || []),
     ...(kitchenSinkConfig.apps || [])
+  ],
+  dashboards: [
+    ...(crmConfig.dashboards || []),
+    ...(todoConfig.dashboards || []),
+    ...(kitchenSinkConfig.dashboards || [])
+  ],
+  pages: [
+    ...(crmConfig.pages || []),
+    ...(todoConfig.pages || []),
+    ...(kitchenSinkConfig.pages || [])
   ],
   manifest: {
     data: [
