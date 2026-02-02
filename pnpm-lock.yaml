@@ -3286,9 +3286,6 @@ packages:
   '@objectstack/types@0.9.0':
     resolution: {integrity: sha512-8akcYSbHOZ1SqqmuJVvkulUQLo3zAJpMP4Ni7ackqrHxi2EbnzOHTznOAiHHWZUlyIhHYRp6I3PSWOrZvVLthQ==}
 
-  '@objectstack/types@0.9.0':
-    resolution: {integrity: sha512-8akcYSbHOZ1SqqmuJVvkulUQLo3zAJpMP4Ni7ackqrHxi2EbnzOHTznOAiHHWZUlyIhHYRp6I3PSWOrZvVLthQ==}
-
   '@open-draft/deferred-promise@2.2.0':
     resolution: {integrity: sha512-CecwLWx3rhxVQF6V4bAgPS5t+So2sTbPgAzafKkVizyi7tlwpcFpdFqq+wqF2OwNBmqFuu6tOyouTuxgpMfzmA==}
 
@@ -11992,10 +11989,6 @@ snapshots:
   '@objectstack/spec@0.9.0':
     dependencies:
       zod: 4.3.6
-
-  '@objectstack/types@0.9.0':
-    dependencies:
-      '@objectstack/spec': 0.9.0
 
   '@objectstack/types@0.9.0':
     dependencies:
