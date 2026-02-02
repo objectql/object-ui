@@ -100,7 +100,7 @@ describe('ObjectForm with ObjectStack/MSW', () => {
     await waitFor(() => {
       // Changed from 'Full Name' to 'Name' based on CRM example schema
       expect(screen.getByText('Name')).toBeInTheDocument();
-    });
+    }, { timeout: 2000 }); // Give slight buffer for network mock
     expect(screen.getByText('Email')).toBeInTheDocument();
     expect(screen.getByText('Status')).toBeInTheDocument();
   });
