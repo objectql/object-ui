@@ -44,7 +44,7 @@
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@types/glob": "^9.0.0",
-    "@vitejs/plugin-react": "^4.2.1",
+    "@vitejs/plugin-react": "^5.1.3",
     "chalk": "^5.4.1",
     "commander": "^14.0.3",
     "express": "^4.21.2",
