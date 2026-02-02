@@ -622,7 +622,7 @@ import {
 } from '@object-ui/components'; 
 
 const DynamicIcon = ({ name, className }) => {
-  // @ts-expect-error
+  // @ts-expect-error - Dynamic icon lookup by string key
   const Icon = LucideIcons[name];
   if (!Icon) return null;
   return <Icon className={className} />;
