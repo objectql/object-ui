@@ -102,3 +102,42 @@ ObjectUI Phase 2 introduces enterprise-grade capabilities:
 [**Learn more about Phase 2 →**](/docs/guide/phase2-schemas)
 
 ---
+
+## 🛠️ Developer Tools & Utilities
+
+ObjectUI provides a complete toolkit for building schema-driven applications:
+
+### Command-Line Tools
+
+- **[CLI](/docs/utilities/cli)** - Build and run apps directly from JSON/YAML schemas
+  ```bash
+  npx @object-ui/cli dev --schema dashboard.json
+  ```
+
+- **[Create Plugin](/docs/utilities/create-plugin)** - Scaffold new plugins with best practices
+  ```bash
+  npx @object-ui/create-plugin my-plugin
+  ```
+
+- **[Runner](/docs/utilities/runner)** - Universal runtime for testing and development
+  ```bash
+  pnpm --filter @object-ui/runner dev
+  ```
+
+### Data Integration
+
+- **[ObjectStack Adapter](/docs/utilities/data-objectstack)** - Connect to ObjectStack backends
+  ```typescript
+  import { ObjectStackProvider } from '@object-ui/data-objectstack'
+  ```
+
+### Editor Extensions
+
+- **[VS Code Extension](/docs/utilities/vscode-extension)** - Schema preview, validation, and IntelliSense
+  ```bash
+  code --install-extension objectui.object-ui
+  ```
+
+[**Explore all utilities →**](/docs/utilities)
+
+---
