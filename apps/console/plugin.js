@@ -30,11 +30,6 @@ export default {
     homepage: 'https://www.objectui.org',
     repository: 'https://github.com/objectstack-ai/objectui',
     
-    // Spec compatibility
-    specVersion: '0.8.2',
-    requires: {
-      objectstack: '^0.8.0'
-    },
     
     // Plugin capabilities
     capabilities: [
