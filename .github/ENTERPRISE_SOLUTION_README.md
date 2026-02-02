@@ -26,7 +26,7 @@
    - Performance evaluation (Bundle 6x smaller than competitors)
    - Security assessment (90/100)
 
-4. **[QUICK_START_GUIDE_CN.md](../QUICK_START_GUIDE_CN.md)**
+4. **[QUICK_START_GUIDE.md](../QUICK_START_GUIDE.md)**
    - 5-minute quick start
    - 6 common scenario examples
    - Advanced features and FAQ
@@ -51,7 +51,7 @@ PACKAGE_SCAN_REPORT.md (In-depth, 20 minutes)
 
 ### 💻 Developers
 ```
-QUICK_START_GUIDE_CN.md (Hands-on first, 15 minutes)
+QUICK_START_GUIDE.md (Hands-on first, 15 minutes)
   ↓
 OBJECTUI_ENTERPRISE_SOLUTION.md (Deep dive, 30 minutes)
   ↓
