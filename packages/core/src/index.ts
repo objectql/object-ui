@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-export * from './types';
+export type * from './types';
 export * from './registry/Registry.js';
 export * from './registry/PluginSystem.js';
 export * from './registry/PluginScopeImpl.js';
