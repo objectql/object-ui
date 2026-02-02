@@ -68,22 +68,24 @@ export default defineStack({
     {
       name: 'help_page',
       label: 'Help Guide',
-      type: 'page',
+      type: 'app',
       regions: [
         {
           name: 'main',
           components: [
             {
               type: 'container',
-              className: 'prose max-w-none p-6 text-foreground bg-card rounded-lg border shadow-sm',
-              children: [
-                { type: 'text', value: '# Application Guide', className: 'text-3xl font-bold mb-4 block' },
-                { type: 'text', value: 'Welcome to the ObjectStack Console.', className: 'mb-4 block' },
-                { type: 'text', value: '## Features', className: 'text-xl font-bold mb-2 block' },
-                { type: 'text', value: '- Dynamic Object CRUD\n- Server-Driven Dashboards\n- Flexible Page Layouts', className: 'whitespace-pre-line block' },
-                { type: 'text', value: '## Getting Started', className: 'text-xl font-bold mb-2 block mt-6' },
-                { type: 'text', value: 'Navigate using the sidebar to explore different apps and objects.', className: 'mb-4 block' }
-              ]
+              properties: {
+                className: 'prose max-w-none p-6 text-foreground bg-card rounded-lg border shadow-sm',
+                children: [
+                    { type: 'text', properties: { value: '# Application Guide', className: 'text-3xl font-bold mb-4 block' } },
+                    { type: 'text', properties: { value: 'Welcome to the ObjectStack Console.', className: 'mb-4 block' } },
+                    { type: 'text', properties: { value: '## Features', className: 'text-xl font-bold mb-2 block' } },
+                    { type: 'text', properties: { value: '- Dynamic Object CRUD\n- Server-Driven Dashboards\n- Flexible Page Layouts', className: 'whitespace-pre-line block' } },
+                    { type: 'text', properties: { value: '## Getting Started', className: 'text-xl font-bold mb-2 block mt-6' } },
+                    { type: 'text', properties: { value: 'Navigate using the sidebar to explore different apps and objects.', className: 'mb-4 block' } }
+                ]
+               }
             }
           ]
         }
