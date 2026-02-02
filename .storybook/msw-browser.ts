@@ -65,7 +65,7 @@ export async function startMockServer() {
         }),
         
         // Metadata endpoints
-        http.get('/api/v1/metadata/object/:objectName', async ({ params }) => {
+        http.get('/api/v1/meta/object/:objectName', async ({ params }) => {
             console.log('[MSW] Get Meta:', params.objectName);
             try {
                 const response = await protocol.getMetaItem({ 

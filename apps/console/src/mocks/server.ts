@@ -120,6 +120,24 @@ function createHandlers(baseUrl: string, kernel: ObjectKernel, driver: InMemoryD
       }
     }),
 
+    http.get(`${baseUrl}/meta/object/:objectName`, async ({ params }) => {
+      console.log('MSW: getting meta item for /meta/object', params.objectName);
+      try {
+        const response = await protocol.getMetaItem({ 
+          type: 'object', 
+          name: params.objectName as string 
+        });
+        
+        // Unwrap item if present
+        const payload = (response && response.item) ? response.item : response;
+        
+        return HttpResponse.json(payload || { error: 'Not found' }, { status: payload ? 200 : 404 });
+      } catch (e) {
+        console.error('MSW: error getting meta item', e);
+        return HttpResponse.json({ error: String(e) }, { status: 500 });
+      }
+    }),
+
     http.get(`${baseUrl}/metadata/object/:objectName`, async ({ params }) => {
       console.log('MSW: getting meta item for', params.objectName);
       try {

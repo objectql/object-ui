@@ -48,8 +48,8 @@ const handlers = [
     return HttpResponse.json({ status: 'ok', version: '1.0.0' });
   }),
 
-  // Schema: /api/v1/metadata/object/:name
-  http.get(`${BASE_URL}/api/v1/metadata/object/contact`, () => {
+  // Schema: /api/v1/meta/object/:name
+  http.get(`${BASE_URL}/api/v1/meta/object/contact`, () => {
     return HttpResponse.json(mockSchema);
   }),
 
