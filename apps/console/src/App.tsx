@@ -62,14 +62,12 @@ function AppContent() {
       setActiveAppName(appName);
       const app = apps.find((a: any) => a.name === appName);
       if (app) {
-         // simplified nav logic
-         const firstNav = app.navigation?.[0];
-         if (firstNav) {
-             if (firstNav.type === 'object') navigate(`/${firstNav.objectName}`);
-             else if (firstNav.type === 'group' && firstNav.children?.[0]?.objectName) navigate(`/${firstNav.children[0].objectName}`);
-             else navigate('/');
+         // Navigate to homePageId if defined in spec, otherwise first nav item
+         if (app.homePageId) {
+             navigate(app.homePageId);
          } else {
-             navigate('/');
+             const firstRoute = findFirstRoute(app.navigation);
+             navigate(firstRoute);
          }
       }
   };
@@ -142,7 +140,9 @@ function findFirstRoute(items: any[]): string {
     if (!items || items.length === 0) return '/';
     for (const item of items) {
         if (item.type === 'object') return `/${item.objectName}`;
-        if (item.type === 'page') return item.path;
+        if (item.type === 'page') return item.pageName ? `/page/${item.pageName}` : '/';
+        if (item.type === 'dashboard') return item.dashboardName ? `/dashboard/${item.dashboardName}` : '/';
+        if (item.type === 'url') continue; // Skip external URLs
         if (item.type === 'group' && item.children) {
             const childRoute = findFirstRoute(item.children); // Recurse
             if (childRoute !== '/') return childRoute;

@@ -61,6 +61,10 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const apps = appConfig.apps || [];
   const activeApp = apps.find((a: any) => a.name === activeAppName) || apps[0];
 
+  // Extract branding information from spec
+  const logo = activeApp?.branding?.logo;
+  const primaryColor = activeApp?.branding?.primaryColor;
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -72,13 +76,24 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                   size="lg"
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                     {/* App Logo */}
-                     {activeApp.icon ? React.createElement(getIcon(activeApp.icon), { className: "size-4" }) : <Database className="size-4" />}
+                  <div 
+                    className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"
+                    style={primaryColor ? { backgroundColor: primaryColor } : undefined}
+                  >
+                     {/* App Logo - use branding logo if available */}
+                     {logo ? (
+                       <img src={logo} alt={activeApp.label} className="size-6 object-contain" />
+                     ) : activeApp.icon ? (
+                       React.createElement(getIcon(activeApp.icon), { className: "size-4" })
+                     ) : (
+                       <Database className="size-4" />
+                     )}
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold">{activeApp.label}</span>
-                    <span className="truncate text-xs">{apps.length} Apps Available</span>
+                    <span className="truncate text-xs">
+                      {activeApp.description || `${apps.length} Apps Available`}
+                    </span>
                   </div>
                   <ChevronsUpDown className="ml-auto" />
                 </SidebarMenuButton>
@@ -207,6 +222,13 @@ function NavigationItemRenderer({ item }: { item: any }) {
     const Icon = getIcon(item.icon);
     const location = useLocation();
 
+    // Handle visibility condition from spec (visible field)
+    // In a real implementation, this would evaluate the expression
+    // For now, we'll just check if it exists and is not explicitly false
+    if (item.visible === 'false' || item.visible === false) {
+        return null;
+    }
+
     if (item.type === 'group') {
         return (
             <SidebarGroup>
@@ -222,16 +244,37 @@ function NavigationItemRenderer({ item }: { item: any }) {
         );
     }
 
-    const href = item.type === 'object' ? `/${item.objectName}` : (item.path || '#');
+    // Determine href based on navigation item type
+    let href = '#';
+    let isExternal = false;
+    
+    if (item.type === 'object') {
+        href = `/${item.objectName}`;
+    } else if (item.type === 'page') {
+        href = item.pageName ? `/page/${item.pageName}` : '#';
+    } else if (item.type === 'dashboard') {
+        href = item.dashboardName ? `/dashboard/${item.dashboardName}` : '#';
+    } else if (item.type === 'url') {
+        href = item.url || '#';
+        isExternal = item.target === '_blank';
+    }
+
     const isActive = location.pathname === href; // Simple active check
 
     return (
         <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
-                <Link to={href}>
-                    <Icon className="mr-2 h-4 w-4" />
-                    <span>{item.label}</span>
-                </Link>
+                {isExternal ? (
+                    <a href={href} target="_blank" rel="noopener noreferrer">
+                        <Icon className="mr-2 h-4 w-4" />
+                        <span>{item.label}</span>
+                    </a>
+                ) : (
+                    <Link to={href}>
+                        <Icon className="mr-2 h-4 w-4" />
+                        <span>{item.label}</span>
+                    </Link>
+                )}
             </SidebarMenuButton>
         </SidebarMenuItem>
     );
