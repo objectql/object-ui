@@ -3,12 +3,18 @@ import { App } from '@objectstack/spec/ui';
 import { AccountObject } from './src/objects/account.object';
 import { ContactObject } from './src/objects/contact.object';
 import { OpportunityObject } from './src/objects/opportunity.object';
+import { ProductObject } from './src/objects/product.object';
+import { OrderObject } from './src/objects/order.object';
+import { UserObject } from './src/objects/user.object';
 
 export default defineStack({
   objects: [
     AccountObject,
     ContactObject,
-    OpportunityObject
+    OpportunityObject,
+    ProductObject,
+    OrderObject,
+    UserObject
   ],
   apps: [
     App.create({
@@ -17,10 +23,23 @@ export default defineStack({
       icon: 'users',
       navigation: [
         {
+          id: 'nav_dashboard',
+          type: 'page',
+          pageName: 'dashboard',
+          label: 'Dashboard',
+          icon: 'layout-dashboard'
+        },
+        {
           id: 'nav_contacts',
           type: 'object',
           objectName: 'contact',
           label: 'Contacts'
+        },
+        {
+          id: 'nav_accounts',
+          type: 'object',
+          objectName: 'account',
+          label: 'Accounts'
         },
         {
           id: 'nav_opportunities',
@@ -29,10 +48,23 @@ export default defineStack({
           label: 'Opportunities'
         },
         {
-          id: 'nav_accounts',
-          type: 'object',
-          objectName: 'account',
-          label: 'Accounts'
+          id: 'nav_sales',
+          type: 'group',
+          label: 'Sales',
+          children: [
+             {
+                id: 'nav_orders',
+                type: 'object',
+                objectName: 'order',
+                label: 'Orders'
+             },
+             {
+                id: 'nav_products',
+                type: 'object',
+                objectName: 'product',
+                label: 'Products'
+             }
+          ]
         }
       ]
     })
@@ -97,6 +129,31 @@ export default defineStack({
               description: "Consulting services for Q2 implementation." 
           }
         ]
+      },
+      {
+        object: 'user',
+        mode: 'upsert',
+        records: [
+             { _id: "1", name: 'John Doe', email: 'john@example.com', username: 'jdoe', role: 'admin', active: true },
+             { _id: "2", name: 'Jane Smith', email: 'jane@example.com', username: 'jsmith', role: 'user', active: true }
+        ]
+      },
+      {
+          object: 'product',
+          mode: 'upsert',
+          records: [
+              { _id: "p1", sku: 'PROD-001', name: 'Laptop', category: 'Electronics', price: 1299.99, stock: 15 },
+              { _id: "p2", sku: 'PROD-002', name: 'Mouse', category: 'Electronics', price: 29.99, stock: 120 },
+              { _id: "p3", sku: 'PROD-003', name: 'Desk Chair', category: 'Furniture', price: 249.99, stock: 8 }
+          ]
+      },
+      {
+          object: 'order',
+          mode: 'upsert',
+          records: [
+              { _id: "o1", name: 'ORD-1001', customer: "1", order_date: new Date('2024-01-15'), amount: 159.99, status: 'Draft' },
+              { _id: "o2", name: 'ORD-1002', customer: "2", order_date: new Date('2024-01-18'), amount: 89.50, status: 'Pending' }
+          ]
       }
     ]
   }
