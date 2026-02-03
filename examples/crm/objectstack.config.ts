@@ -219,6 +219,18 @@ export default defineStack({
               { _id: "o1", name: 'ORD-1001', customer: "1", order_date: new Date('2024-01-15'), amount: 159.99, status: 'Draft' },
               { _id: "o2", name: 'ORD-1002', customer: "2", order_date: new Date('2024-01-18'), amount: 89.50, status: 'Pending' }
           ]
+      },
+      {
+          object: 'project_task',
+          mode: 'upsert',
+          records: [
+              { _id: "t1", name: "Requirements Gathering", start_date: new Date("2024-01-01"), end_date: new Date("2024-01-14"), progress: 100, status: 'Completed', color: '#10b981' },
+              { _id: "t2", name: "System Design", start_date: new Date("2024-01-15"), end_date: new Date("2024-02-15"), progress: 100, status: 'Completed', color: '#3b82f6' },
+              { _id: "t3", name: "Implementation", start_date: new Date("2024-02-16"), end_date: new Date("2024-04-30"), progress: 65, status: 'In Progress', color: '#8b5cf6' },
+              { _id: "t4", name: "Quality Assurance", start_date: new Date("2024-05-01"), end_date: new Date("2024-05-30"), progress: 0, status: 'Planned', color: '#f59e0b' },
+              { _id: "t5", name: "User Acceptance", start_date: new Date("2024-06-01"), end_date: new Date("2024-06-15"), progress: 0, status: 'Planned', color: '#f43f5e' },
+              { _id: "t6", name: "Go Live", start_date: new Date("2024-06-20"), end_date: new Date("2024-06-20"), progress: 0, status: 'Planned', color: '#ef4444' }
+          ]
       }
     ]
   }
