@@ -124,6 +124,8 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                         schema={{
                             type: 'object-grid',
                             objectName: objectDef.name,
+                            // Gantt config is read by ObjectGantt via getGanttConfig helper
+                            // TypeScript workaround: gantt property not in ObjectGridSchema but supported by implementation
                             gantt: {
                                 startDateField: activeView.startDateField || 'start_date',
                                 endDateField: activeView.endDateField || 'end_date',
