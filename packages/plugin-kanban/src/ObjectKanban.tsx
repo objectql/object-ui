@@ -100,7 +100,23 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
     
     // Support cardTitle property from schema (passed by ObjectView)
     // @ts-ignore - cardTitle might not be in KanbanSchema type definition yet
-    const titleField = schema.cardTitle || (schema as any).titleField || 'name'; 
+    let titleField = schema.cardTitle || (schema as any).titleField;
+
+    // Fallback: Try to infer from object definition
+    if (!titleField && objectDef) {
+       // 1. Check for standard NAME_FIELD_KEY
+       if (objectDef.NAME_FIELD_KEY) {
+           titleField = objectDef.NAME_FIELD_KEY;
+       } 
+       // 2. Check for titleFormat like "{subject}"
+       else if (objectDef.titleFormat) {
+           const match = /\{(.+?)\}/.exec(objectDef.titleFormat);
+           if (match) titleField = match[1];
+       }
+    }
+
+    // Default to 'name'
+    titleField = titleField || 'name';
     
     return rawData.map(item => ({
       ...item,
@@ -109,7 +125,7 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
       // Map title
       title: item[titleField] || item.title || 'Untitled',
     }));
-  }, [rawData, schema]);
+  }, [rawData, schema, objectDef]);
 
   // Generate columns if missing but groupBy is present
   const effectiveColumns = useMemo(() => {

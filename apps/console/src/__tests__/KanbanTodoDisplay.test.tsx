@@ -18,6 +18,7 @@ describe('ObjectKanban Todo Example Display', () => {
 
     const todoSchema = {
         name: 'todo_task',
+        titleFormat: '{subject}', // Added titleFormat
         fields: {
             priority: {
                 type: 'rating',
@@ -52,9 +53,8 @@ describe('ObjectKanban Todo Example Display', () => {
                 schema={{ 
                     type: 'kanban', 
                     objectName: 'todo_task', 
-                    groupBy: 'priority',
-                    // Critical: Must map the card title to the correct field (subject)
-                    cardTitle: 'subject' 
+                    groupBy: 'priority'
+                    // removed explicit cardTitle to test auto-detection
                 } as any}
                 dataSource={mockDataSource as any}
             />
