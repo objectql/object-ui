@@ -4,4 +4,5 @@ export * from './objects/opportunity.object';
 export * from './objects/product.object';
 export * from './objects/order.object';
 export * from './objects/user.object';
+export * from './objects/project.object';
 export { default as config } from '../objectstack.config';

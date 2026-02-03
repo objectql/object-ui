@@ -3,8 +3,9 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { ObjectGrid } from '@object-ui/plugin-grid';
 import { ObjectKanban } from '@object-ui/plugin-kanban';
 import { ObjectCalendar } from '@object-ui/plugin-calendar';
+import { ObjectGantt } from '@object-ui/plugin-gantt';
 import { Button, Tabs, TabsList, TabsTrigger } from '@object-ui/components';
-import { Plus, Calendar as CalendarIcon, Kanban as KanbanIcon, Table as TableIcon } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, Kanban as KanbanIcon, Table as TableIcon, AlignLeft } from 'lucide-react';
 
 export function ObjectView({ dataSource, objects, onEdit }: any) {
     const { objectName } = useParams();
@@ -110,8 +111,31 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                             dateField: activeView.dateField || 'due_date',
                             endField: activeView.endField,
                             titleField: activeView.titleField || 'name',
+                            colorField: activeView.colorField,
                         }}
                        {...interactionProps}
+                    />
+                );
+            case 'gantt':
+                return (
+                    <ObjectGantt
+                        key={key}
+                        {...commonProps}
+                        schema={{
+                            type: 'gantt',
+                            objectName: objectDef.name,
+                            filter: {
+                                gantt: {
+                                    startDateField: activeView.startDateField || 'start_date',
+                                    endDateField: activeView.endDateField || 'end_date',
+                                    titleField: activeView.titleField || 'name',
+                                    progressField: activeView.progressField || 'progress',
+                                    dependenciesField: activeView.dependenciesField,
+                                    colorField: activeView.colorField,
+                                }
+                            }
+                        }}
+                        {...interactionProps}
                     />
                 );
             case 'grid':
@@ -160,6 +184,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                                             {v.type === 'kanban' && <KanbanIcon className="mr-2 h-3.5 w-3.5" />}
                                             {v.type === 'calendar' && <CalendarIcon className="mr-2 h-3.5 w-3.5" />}
                                             {v.type === 'grid' && <TableIcon className="mr-2 h-3.5 w-3.5" />}
+                                            {v.type === 'gantt' && <AlignLeft className="mr-2 h-3.5 w-3.5" />}
                                             {v.label}
                                         </TabsTrigger>
                                     ))}

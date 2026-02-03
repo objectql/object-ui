@@ -210,6 +210,9 @@ importers:
       '@object-ui/plugin-form':
         specifier: workspace:*
         version: link:../../packages/plugin-form
+      '@object-ui/plugin-gantt':
+        specifier: workspace:*
+        version: link:../../packages/plugin-gantt
       '@object-ui/plugin-grid':
         specifier: workspace:*
         version: link:../../packages/plugin-grid

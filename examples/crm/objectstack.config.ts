@@ -6,6 +6,7 @@ import { OpportunityObject } from './src/objects/opportunity.object';
 import { ProductObject } from './src/objects/product.object';
 import { OrderObject } from './src/objects/order.object';
 import { UserObject } from './src/objects/user.object';
+import { ProjectObject } from './src/objects/project.object';
 
 export default defineStack({
   objects: [
@@ -14,7 +15,8 @@ export default defineStack({
     OpportunityObject,
     ProductObject,
     OrderObject,
-    UserObject
+    UserObject,
+    ProjectObject
   ],
   apps: [
     App.create({
@@ -46,6 +48,12 @@ export default defineStack({
           type: 'object',
           objectName: 'opportunity',
           label: 'Opportunities'
+        },
+        {
+          id: 'nav_projects',
+          type: 'object',
+          objectName: 'project_task',
+          label: 'Projects'
         },
         {
           id: 'nav_sales',
