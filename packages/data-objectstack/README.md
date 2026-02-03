@@ -49,7 +49,11 @@ const dataSource = createObjectStackAdapter({
   cache: {
     maxSize: 100,      // Maximum number of cached schemas (default: 100)
     ttl: 5 * 60 * 1000 // Time to live in ms (default: 5 minutes)
-  }
+  },
+  // Configure auto-reconnect
+  autoReconnect: true,           // Enable auto-reconnect (default: true)
+  maxReconnectAttempts: 5,       // Max reconnection attempts (default: 3)
+  reconnectDelay: 2000           // Initial delay between reconnects in ms (default: 1000)
 });
 ```
 
@@ -61,6 +65,9 @@ const dataSource = createObjectStackAdapter({
 - ✅ **Query Translation**: Converts Object UI's OData-like query parameters to ObjectStack's native query format.
 - ✅ **Bulk Operations**: Supports optimized batch create/update/delete with detailed error reporting.
 - ✅ **Error Handling**: Comprehensive error hierarchy with unique error codes and debugging details.
+- ✅ **Connection Monitoring**: Real-time connection state tracking with event listeners.
+- ✅ **Auto-Reconnect**: Automatic reconnection with exponential backoff on connection failures.
+- ✅ **Batch Progress**: Progress events for tracking bulk operation status.
 
 ## Metadata Caching
 
@@ -87,6 +94,77 @@ dataSource.clearCache();
   - Note: TTL is fixed from creation time, not sliding based on access
 - **Memory Limits**: Configurable maximum cache size (default: 100 entries)
 - **Concurrent Access**: Handles async operations safely. Note that concurrent requests for the same uncached key may result in multiple fetcher calls.
+
+## Connection State Monitoring
+
+The adapter provides real-time connection state monitoring with automatic reconnection:
+
+```typescript
+// Monitor connection state changes
+const unsubscribe = dataSource.onConnectionStateChange((event) => {
+  console.log('Connection state:', event.state);
+  console.log('Timestamp:', new Date(event.timestamp));
+  
+  if (event.error) {
+    console.error('Connection error:', event.error);
+  }
+});
+
+// Check current connection state
+console.log(dataSource.getConnectionState()); // 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error'
+
+// Check if connected
+if (dataSource.isConnected()) {
+  console.log('Adapter is connected');
+}
+
+// Unsubscribe from events when done
+unsubscribe();
+```
+
+### Connection States
+
+- `disconnected` - Not connected to server
+- `connecting` - Attempting initial connection
+- `connected` - Successfully connected
+- `reconnecting` - Attempting to reconnect after failure
+- `error` - Connection failed (check event.error for details)
+
+### Auto-Reconnect
+
+The adapter automatically attempts to reconnect on connection failures:
+
+- **Exponential Backoff**: Delay increases with each attempt (delay × 2^(attempts-1))
+- **Configurable Attempts**: Set `maxReconnectAttempts` (default: 3)
+- **Configurable Delay**: Set `reconnectDelay` for initial delay (default: 1000ms)
+- **Automatic**: Enabled by default, disable with `autoReconnect: false`
+
+## Batch Operation Progress
+
+Track progress of bulk operations in real-time:
+
+```typescript
+// Monitor batch operation progress
+const unsubscribe = dataSource.onBatchProgress((event) => {
+  console.log(`${event.operation}: ${event.percentage.toFixed(1)}%`);
+  console.log(`Completed: ${event.completed}/${event.total}`);
+  console.log(`Failed: ${event.failed}`);
+});
+
+// Perform bulk operation
+const users = await dataSource.bulk('users', 'create', largeDataset);
+
+// Unsubscribe when done
+unsubscribe();
+```
+
+### Progress Event Properties
+
+- `operation` - Operation type ('create' | 'update' | 'delete')
+- `total` - Total number of items
+- `completed` - Number of successfully completed items
+- `failed` - Number of failed items
+- `percentage` - Completion percentage (0-100)
 
 ## Error Handling
 
@@ -209,6 +287,9 @@ new ObjectStackAdapter(config: {
     maxSize?: number;
     ttl?: number;
   };
+  autoReconnect?: boolean;
+  maxReconnectAttempts?: number;
+  reconnectDelay?: number;
 })
 ```
 
@@ -226,6 +307,10 @@ new ObjectStackAdapter(config: {
 - `invalidateCache(key?)` - Invalidate cache entries
 - `clearCache()` - Clear all cache entries
 - `getClient()` - Access underlying ObjectStack client
+- `getConnectionState()` - Get current connection state
+- `isConnected()` - Check if adapter is connected
+- `onConnectionStateChange(listener)` - Subscribe to connection state changes (returns unsubscribe function)
+- `onBatchProgress(listener)` - Subscribe to batch operation progress (returns unsubscribe function)
 
 ## Best Practices
 
@@ -234,6 +319,9 @@ new ObjectStackAdapter(config: {
 3. **Batch Operations**: Use bulk methods for large datasets
 4. **Monitor Cache**: Check cache hit rates in production
 5. **Invalidate Wisely**: Clear cache after schema changes
+6. **Connection Monitoring**: Subscribe to connection state changes for better UX
+7. **Auto-Reconnect**: Use default auto-reconnect settings for resilient applications
+8. **Batch Progress**: Monitor progress for long-running bulk operations
 
 ## Troubleshooting
 

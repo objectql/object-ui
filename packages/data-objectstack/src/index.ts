@@ -19,6 +19,41 @@ import {
 } from './errors';
 
 /**
+ * Connection state for monitoring
+ */
+export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
+
+/**
+ * Connection state change event
+ */
+export interface ConnectionStateEvent {
+  state: ConnectionState;
+  timestamp: number;
+  error?: Error;
+}
+
+/**
+ * Batch operation progress event
+ */
+export interface BatchProgressEvent {
+  operation: 'create' | 'update' | 'delete';
+  total: number;
+  completed: number;
+  failed: number;
+  percentage: number;
+}
+
+/**
+ * Event listener type for connection state changes
+ */
+export type ConnectionStateListener = (event: ConnectionStateEvent) => void;
+
+/**
+ * Event listener type for batch operation progress
+ */
+export type BatchProgressListener = (event: BatchProgressEvent) => void;
+
+/**
  * ObjectStack Data Source Adapter
  * 
  * Bridges the ObjectStack Client SDK with the ObjectUI DataSource interface.
@@ -31,7 +66,14 @@ import {
  * 
  * const dataSource = new ObjectStackAdapter({
  *   baseUrl: 'https://api.example.com',
- *   token: 'your-api-token'
+ *   token: 'your-api-token',
+ *   autoReconnect: true,
+ *   maxReconnectAttempts: 5
+ * });
+ * 
+ * // Monitor connection state
+ * dataSource.onConnectionStateChange((event) => {
+ *   console.log('Connection state:', event.state);
  * });
  * 
  * const users = await dataSource.find('users', {
@@ -44,6 +86,13 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   private client: ObjectStackClient;
   private connected: boolean = false;
   private metadataCache: MetadataCache;
+  private connectionState: ConnectionState = 'disconnected';
+  private connectionStateListeners: ConnectionStateListener[] = [];
+  private batchProgressListeners: BatchProgressListener[] = [];
+  private autoReconnect: boolean;
+  private maxReconnectAttempts: number;
+  private reconnectDelay: number;
+  private reconnectAttempts: number = 0;
 
   constructor(config: {
     baseUrl: string;
@@ -53,9 +102,15 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       maxSize?: number;
       ttl?: number;
     };
+    autoReconnect?: boolean;
+    maxReconnectAttempts?: number;
+    reconnectDelay?: number;
   }) {
     this.client = new ObjectStackClient(config);
     this.metadataCache = new MetadataCache(config.cache);
+    this.autoReconnect = config.autoReconnect ?? true;
+    this.maxReconnectAttempts = config.maxReconnectAttempts ?? 3;
+    this.reconnectDelay = config.reconnectDelay ?? 1000;
   }
 
   /**
@@ -64,18 +119,125 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    */
   async connect(): Promise<void> {
     if (!this.connected) {
+      this.setConnectionState('connecting');
+      
       try {
         await this.client.connect();
         this.connected = true;
+        this.reconnectAttempts = 0;
+        this.setConnectionState('connected');
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to connect to ObjectStack server';
-        throw new ConnectionError(
+        const connectionError = new ConnectionError(
           errorMessage,
           undefined,
           { originalError: error }
         );
+        
+        this.setConnectionState('error', connectionError);
+        
+        // Attempt auto-reconnect if enabled
+        if (this.autoReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+          await this.attemptReconnect();
+        } else {
+          throw connectionError;
+        }
       }
     }
+  }
+
+  /**
+   * Attempt to reconnect to the server with exponential backoff
+   */
+  private async attemptReconnect(): Promise<void> {
+    this.reconnectAttempts++;
+    this.setConnectionState('reconnecting');
+    
+    // Exponential backoff: delay * 2^(attempts-1)
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+    
+    await new Promise(resolve => setTimeout(resolve, delay));
+    
+    this.connected = false;
+    await this.connect();
+  }
+
+  /**
+   * Get the current connection state
+   */
+  getConnectionState(): ConnectionState {
+    return this.connectionState;
+  }
+
+  /**
+   * Check if the adapter is currently connected
+   */
+  isConnected(): boolean {
+    return this.connected && this.connectionState === 'connected';
+  }
+
+  /**
+   * Register a listener for connection state changes
+   */
+  onConnectionStateChange(listener: ConnectionStateListener): () => void {
+    this.connectionStateListeners.push(listener);
+    
+    // Return unsubscribe function
+    return () => {
+      const index = this.connectionStateListeners.indexOf(listener);
+      if (index > -1) {
+        this.connectionStateListeners.splice(index, 1);
+      }
+    };
+  }
+
+  /**
+   * Register a listener for batch operation progress
+   */
+  onBatchProgress(listener: BatchProgressListener): () => void {
+    this.batchProgressListeners.push(listener);
+    
+    // Return unsubscribe function
+    return () => {
+      const index = this.batchProgressListeners.indexOf(listener);
+      if (index > -1) {
+        this.batchProgressListeners.splice(index, 1);
+      }
+    };
+  }
+
+  /**
+   * Set connection state and notify listeners
+   */
+  private setConnectionState(state: ConnectionState, error?: Error): void {
+    this.connectionState = state;
+    
+    const event: ConnectionStateEvent = {
+      state,
+      timestamp: Date.now(),
+      error,
+    };
+    
+    this.connectionStateListeners.forEach(listener => {
+      try {
+        listener(event);
+      } catch (err) {
+        console.error('Error in connection state listener:', err);
+      }
+    });
+  }
+
+  /**
+   * Emit batch progress event to listeners
+   */
+  private emitBatchProgress(event: BatchProgressEvent): void {
+    this.batchProgressListeners.forEach(listener => {
+      try {
+        listener(event);
+      } catch (err) {
+        console.error('Error in batch progress listener:', err);
+      }
+    });
   }
 
   /**
@@ -155,6 +317,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
 
   /**
    * Bulk operations with optimized batch processing and error handling.
+   * Emits progress events for tracking operation status.
    * 
    * @param resource - Resource name
    * @param operation - Operation type (create, update, delete)
@@ -168,10 +331,29 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       return [];
     }
 
+    const total = data.length;
+    let completed = 0;
+    let failed = 0;
+
+    const emitProgress = () => {
+      this.emitBatchProgress({
+        operation,
+        total,
+        completed,
+        failed,
+        percentage: total > 0 ? (completed + failed) / total * 100 : 0,
+      });
+    };
+
     try {
       switch (operation) {
         case 'create':
-          return await this.client.data.createMany<T>(resource, data);
+          emitProgress();
+          const created = await this.client.data.createMany<T>(resource, data);
+          completed = created.length;
+          failed = total - completed;
+          emitProgress();
+          return created;
         
         case 'delete': {
           const ids = data.map(item => (item as Record<string, unknown>).id).filter(Boolean) as string[];
@@ -183,10 +365,17 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
               error: `Missing ID for item at index ${index}`
             }));
             
+            failed = data.length;
+            emitProgress();
+            
             throw new BulkOperationError('delete', 0, data.length, errors);
           }
           
+          emitProgress();
           await this.client.data.deleteMany(resource, ids);
+          completed = ids.length;
+          failed = total - completed;
+          emitProgress();
           return [] as T[];
         }
         
@@ -195,16 +384,21 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if (typeof (this.client.data as any).updateMany === 'function') {
             try {
+              emitProgress();
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const updateMany = (this.client.data as any).updateMany;
-              return await updateMany(resource, data) as T[];
+              const updated = await updateMany(resource, data) as T[];
+              completed = updated.length;
+              failed = total - completed;
+              emitProgress();
+              return updated;
             } catch {
               // If updateMany is not supported, fall back to individual updates
               // Silently fallback without logging
             }
           }
           
-          // Fallback: Process updates individually with detailed error tracking
+          // Fallback: Process updates individually with detailed error tracking and progress
           const results: T[] = [];
           const errors: Array<{ index: number; error: unknown }> = [];
           
@@ -214,15 +408,21 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
             
             if (!id) {
               errors.push({ index: i, error: 'Missing ID' });
+              failed++;
+              emitProgress();
               continue;
             }
             
             try {
               const result = await this.client.data.update<T>(resource, String(id), item);
               results.push(result);
+              completed++;
+              emitProgress();
             } catch (error: unknown) {
               const errorMessage = error instanceof Error ? error.message : String(error);
               errors.push({ index: i, error: errorMessage });
+              failed++;
+              emitProgress();
             }
           }
           
@@ -248,6 +448,9 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
           );
       }
     } catch (error: unknown) {
+      // Emit final progress with failure
+      emitProgress();
+      
       // If it's already a BulkOperationError, re-throw it
       if (error instanceof BulkOperationError) {
         throw error;
@@ -393,7 +596,9 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
  * const dataSource = createObjectStackAdapter({
  *   baseUrl: process.env.API_URL,
  *   token: process.env.API_TOKEN,
- *   cache: { maxSize: 100, ttl: 300000 }
+ *   cache: { maxSize: 100, ttl: 300000 },
+ *   autoReconnect: true,
+ *   maxReconnectAttempts: 5
  * });
  * ```
  */
@@ -405,6 +610,9 @@ export function createObjectStackAdapter<T = unknown>(config: {
     maxSize?: number;
     ttl?: number;
   };
+  autoReconnect?: boolean;
+  maxReconnectAttempts?: number;
+  reconnectDelay?: number;
 }): DataSource<T> {
   return new ObjectStackAdapter<T>(config);
 }

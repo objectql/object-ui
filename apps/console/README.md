@@ -4,7 +4,7 @@ The standard runtime UI for ObjectStack applications. This package provides the 
 
 ## Features
 
-- **Spec-Compliant**: Fully implements ObjectStack Spec v0.8.2
+- **Spec-Compliant**: Fully implements ObjectStack Spec v0.9.0
 - **Dynamic UI**: Renders Dashboards, Grids, and Forms based on JSON schemas
 - **Multi-App Support**: Switch between different apps defined in your stack
 - **Plugin Architecture**: Can be loaded as a static plugin in the ObjectStack Runtime
@@ -27,8 +27,8 @@ This console implements the following ObjectStack Spec features:
 
 ### Navigation Support
 - ✅ `object` - Navigate to object list views
-- ✅ `dashboard` - Navigate to dashboards (planned)
-- ✅ `page` - Navigate to custom pages (planned)
+- ✅ `dashboard` - Navigate to dashboards
+- ✅ `page` - Navigate to custom pages
 - ✅ `url` - External URL navigation with target support
 - ✅ `group` - Nested navigation groups
 - ✅ Navigation item visibility conditions

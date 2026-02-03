@@ -5,11 +5,11 @@ import appConfig from '../../objectstack.config';
 /**
  * Spec Compliance Tests
  * 
- * These tests verify that the console properly implements the ObjectStack Spec v0.8.2
+ * These tests verify that the console properly implements the ObjectStack Spec v0.9.0
  * See: apps/console/SPEC_ALIGNMENT.md for full compliance details
  */
 
-describe('ObjectStack Spec v0.8.2 Compliance', () => {
+describe('ObjectStack Spec v0.9.0 Compliance', () => {
 
     describe('AppSchema Validation', () => {
         it('should have at least one app defined', () => {
