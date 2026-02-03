@@ -1,7 +1,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import React from 'react';
 import { ObjectKanban } from '@object-ui/plugin-kanban';
 
 // We perform Integration Testing on the REAL component to verify display.
