@@ -174,7 +174,11 @@ ComponentRegistry.register(
         enum: [
           { label: 'Bar', value: 'bar' },
           { label: 'Line', value: 'line' },
-          { label: 'Area', value: 'area' }
+          { label: 'Area', value: 'area' },
+          { label: 'Pie', value: 'pie' },
+          { label: 'Donut', value: 'donut' },
+          { label: 'Radar', value: 'radar' },
+          { label: 'Scatter', value: 'scatter' }
         ],
         defaultValue: 'bar'
       },
@@ -221,5 +225,50 @@ ComponentRegistry.register(
     label: 'Bar Chart (Alias)',
     category: 'plugin',
     defaultProps: { chartType: 'bar' }
+  }
+);
+
+// Register specific chart type aliases
+ComponentRegistry.register(
+  'pie-chart',
+  ChartRenderer,
+  {
+    namespace: 'plugin-charts',
+    label: 'Pie Chart',
+    category: 'plugin',
+    defaultProps: { chartType: 'pie' }
+  }
+);
+
+ComponentRegistry.register(
+  'donut-chart',
+  ChartRenderer,
+  {
+    namespace: 'plugin-charts',
+    label: 'Donut Chart',
+    category: 'plugin',
+    defaultProps: { chartType: 'donut' }
+  }
+);
+
+ComponentRegistry.register(
+  'radar-chart',
+  ChartRenderer,
+  {
+    namespace: 'plugin-charts',
+    label: 'Radar Chart',
+    category: 'plugin',
+    defaultProps: { chartType: 'radar' }
+  }
+);
+
+ComponentRegistry.register(
+  'scatter-chart',
+  ChartRenderer,
+  {
+    namespace: 'plugin-charts',
+    label: 'Scatter Chart',
+    category: 'plugin',
+    defaultProps: { chartType: 'scatter' }
   }
 );
