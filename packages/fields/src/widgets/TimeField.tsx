@@ -7,13 +7,16 @@ export function TimeField({ value, onChange, field, readonly, ...props }: FieldW
     return <span className="text-sm">{value || '-'}</span>;
   }
 
+  // Filter out non-DOM props
+  const { inputType, ...domProps } = props as any;
+
   return (
     <Input
-      {...props}
+      {...domProps}
       type="time"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
-      disabled={readonly || props.disabled}
+      disabled={readonly || domProps.disabled}
     />
   );
 }

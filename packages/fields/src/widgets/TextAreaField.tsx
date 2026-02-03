@@ -15,14 +15,17 @@ export function TextAreaField({ value, onChange, field, readonly, errorMessage, 
   const rows = textareaField?.rows || 4;
   const maxLength = textareaField?.max_length;
 
+  // Filter out non-DOM props
+  const { inputType, ...domProps } = props as any;
+
   return (
     <div className="relative">
       <Textarea
-        {...props}
+        {...domProps}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         placeholder={textareaField?.placeholder}
-        disabled={readonly || props.disabled}
+        disabled={readonly || domProps.disabled}
         rows={rows}
         maxLength={maxLength}
         aria-invalid={!!errorMessage}

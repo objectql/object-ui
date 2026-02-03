@@ -16,14 +16,17 @@ export function PhoneField({ value, onChange, field, readonly, errorMessage, ...
     );
   }
 
+  // Filter out non-DOM props
+  const { inputType, ...domProps } = props as any;
+
   return (
     <Input
-      {...props}
+      {...domProps}
       type="tel"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       placeholder={config?.placeholder || '(555) 123-4567'}
-      disabled={readonly || props.disabled}
+      disabled={readonly || domProps.disabled}
       aria-invalid={!!errorMessage}
     />
   );

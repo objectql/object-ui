@@ -7,13 +7,16 @@ export function DateField({ value, onChange, field, readonly, ...props }: FieldW
     return <span className="text-sm">{value ? new Date(value).toLocaleDateString() : '-'}</span>;
   }
 
+  // Filter out non-DOM props
+  const { inputType, ...domProps } = props as any;
+
   return (
     <Input
-      {...props}
+      {...domProps}
       type="date"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
-      disabled={readonly || props.disabled}
+      disabled={readonly || domProps.disabled}
     />
   );
 }

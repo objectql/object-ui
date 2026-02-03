@@ -12,15 +12,18 @@ export function PasswordField({ value, onChange, field, readonly, className, ...
     return <span className="text-sm">••••••••</span>;
   }
 
+  // Filter out non-DOM props
+  const { inputType, ...domProps } = props as any;
+
   return (
     <div className="relative">
       <Input
-        {...props}
+        {...domProps}
         type={showPassword ? 'text' : 'password'}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         placeholder={config?.placeholder}
-        disabled={readonly || props.disabled}
+        disabled={readonly || domProps.disabled}
         className={`pr-10 ${className || ''}`}
       />
       <Button
