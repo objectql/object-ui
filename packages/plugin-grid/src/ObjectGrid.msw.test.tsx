@@ -7,7 +7,6 @@ import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { registerAllFields } from '@object-ui/fields';
 import React from 'react';
-// @ts-expect-error - Import from examples
 import { ContactObject } from '../../../examples/crm/src/objects/contact.object';
 
 registerAllFields();

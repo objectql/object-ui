@@ -4,7 +4,7 @@ import { ObjectGrid } from '@object-ui/plugin-grid';
 import { ObjectKanban } from '@object-ui/plugin-kanban';
 import { ObjectCalendar } from '@object-ui/plugin-calendar';
 import { ObjectGantt } from '@object-ui/plugin-gantt';
-import { Button, Tabs, TabsList, TabsTrigger } from '@object-ui/components';
+import { Button } from '@object-ui/components';
 import { Plus, Calendar as CalendarIcon, Kanban as KanbanIcon, Table as TableIcon, AlignLeft } from 'lucide-react';
 
 export function ObjectView({ dataSource, objects, onEdit }: any) {
@@ -122,19 +122,17 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                         key={key}
                         {...commonProps}
                         schema={{
-                            type: 'gantt',
+                            type: 'object-grid',
                             objectName: objectDef.name,
-                            filter: {
-                                gantt: {
-                                    startDateField: activeView.startDateField || 'start_date',
-                                    endDateField: activeView.endDateField || 'end_date',
-                                    titleField: activeView.titleField || 'name',
-                                    progressField: activeView.progressField || 'progress',
-                                    dependenciesField: activeView.dependenciesField,
-                                    colorField: activeView.colorField,
-                                }
+                            gantt: {
+                                startDateField: activeView.startDateField || 'start_date',
+                                endDateField: activeView.endDateField || 'end_date',
+                                titleField: activeView.titleField || 'name',
+                                progressField: activeView.progressField || 'progress',
+                                dependenciesField: activeView.dependenciesField,
+                                colorField: activeView.colorField,
                             }
-                        }}
+                        } as any}
                         {...interactionProps}
                     />
                 );

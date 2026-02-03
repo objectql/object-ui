@@ -85,47 +85,43 @@ export default defineStack({
         // --- KPI Row ---
         {
           type: 'metric',
-          component: {
-            type: 'metric',
+          layout: { x: 0, y: 0, w: 1, h: 1 },
+          options: {
             label: 'Total Revenue',
             value: '$1,245,000',
             trend: { value: 12.5, direction: 'up', label: 'vs last month' },
             icon: 'DollarSign'
-          },
-          layout: { x: 0, y: 0, w: 1, h: 1 }
+          }
         },
         {
           type: 'metric',
-          component: {
-            type: 'metric',
+          layout: { x: 1, y: 0, w: 1, h: 1 },
+          options: {
             label: 'Active Deals',
             value: '45',
             trend: { value: 2.1, direction: 'down', label: 'vs last month' },
             icon: 'Briefcase'
-          },
-          layout: { x: 1, y: 0, w: 1, h: 1 }
+          }
         },
         {
           type: 'metric',
-          component: {
-            type: 'metric',
+          layout: { x: 2, y: 0, w: 1, h: 1 },
+          options: {
             label: 'Win Rate',
             value: '68%',
             trend: { value: 4.3, direction: 'up', label: 'vs last month' },
             icon: 'Trophy'
-          },
-          layout: { x: 2, y: 0, w: 1, h: 1 }
+          }
         },
         {
           type: 'metric',
-          component: {
-            type: 'metric',
+          layout: { x: 3, y: 0, w: 1, h: 1 },
+          options: {
             label: 'Avg Deal Size',
             value: '$24,000',
             trend: { value: 1.2, direction: 'up', label: 'vs last month' },
             icon: 'BarChart3'
-          },
-          layout: { x: 3, y: 0, w: 1, h: 1 }
+          }
         },
 
         // --- Row 2: Charts ---
