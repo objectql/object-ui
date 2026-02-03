@@ -70,8 +70,8 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
     };
 
     const renderCurrentView = () => {
+        const key = `${objectName}-${activeView.id}-${refreshKey}`;
         const commonProps = {
-            key: `${objectName}-${activeView.id}-${refreshKey}`,
             dataSource,
             className: "h-full border-none"
         };
@@ -86,6 +86,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
             case 'kanban':
                 return (
                     <ObjectKanban 
+                        key={key}
                         {...commonProps}
                         schema={{
                             type: 'kanban',
@@ -101,6 +102,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
             case 'calendar':
                 return (
                     <ObjectCalendar 
+                        key={key}
                         {...commonProps}
                         schema={{
                             type: 'calendar',
@@ -116,6 +118,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
             default:
                 return (
                     <ObjectGrid
+                        key={key}
                         {...commonProps}
                         schema={{
                             type: 'object-grid',
