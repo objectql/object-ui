@@ -17,10 +17,14 @@ export interface ReportRendererProps {
 
 export const ReportRenderer: React.FC<ReportRendererProps> = ({ schema }) => {
   const { title, description, data, columns } = schema;
-  const ChartComponent = schema.chart ? ComponentRegistry.get(schema.chart.type || 'chart') : null;
+  
+  // Get chart component type but don't store the component itself
+  const chartType = schema.chart?.type || 'chart';
+  const hasChart = !!schema.chart;
+  
   // In test environment, force fallback to simple table to avoid AG Grid complexity in JSDOM
   const isTest = process.env.NODE_ENV === 'test';
-  const GridComponent = isTest ? null : (ComponentRegistry.get('aggrid') || ComponentRegistry.get('table'));
+  const showGrid = !isTest;
 
   return (
     <Card className={`h-full flex flex-col ${schema.className || ''}`}>
@@ -30,47 +34,53 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({ schema }) => {
       </CardHeader>
       <CardContent className="flex-1 overflow-auto space-y-4">
         {/* Render Chart Section if present */}
-        {schema.chart && ChartComponent && (
-          <div className="min-h-[300px] border rounded-md p-4 bg-white/50">
-            <ChartComponent schema={{ ...schema.chart, data }} />
-          </div>
-        )}
+        {hasChart && (() => {
+          const ChartComponent = ComponentRegistry.get(chartType);
+          return ChartComponent ? (
+            <div className="min-h-[300px] border rounded-md p-4 bg-white/50">
+              <ChartComponent schema={{ ...schema.chart, data }} />
+            </div>
+          ) : null;
+        })()}
 
         {/* Render Data Grid Section */}
         {data && data.length > 0 && (
           <div className="border rounded-md">
-             {GridComponent ? (
-                 <GridComponent 
+             {(() => {
+               const GridComponent = showGrid ? (ComponentRegistry.get('aggrid') || ComponentRegistry.get('table')) : null;
+               return GridComponent ? (
+                  <GridComponent 
                     schema={{ 
-                        type: 'aggrid', 
-                        rowData: data, 
-                        columnDefs: columns,
-                        domLayout: 'autoHeight'
-                    }} 
-                 />
-             ) : (
-                // Simple Fallback Table if Grid plugin missing
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="text-xs uppercase bg-gray-50">
-                            <tr>
-                                {columns?.map((col: any) => (
-                                    <th key={col.field} className="px-6 py-3">{col.headerName || col.label || col.field}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.map((row: any, i: number) => (
-                                <tr key={i} className="bg-white border-b">
-                                    {columns?.map((col: any) => (
-                                        <td key={col.field} className="px-6 py-4">{row[col.field]}</td>
-                                    ))}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-             )}
+                      type: 'aggrid', 
+                      rowData: data, 
+                      columnDefs: columns,
+                      domLayout: 'autoHeight'
+                    }}
+                  />
+              ) : (
+                 // Simple Fallback Table if Grid plugin missing
+                 <div className="overflow-x-auto">
+                     <table className="w-full text-sm text-left">
+                         <thead className="text-xs uppercase bg-gray-50">
+                             <tr>
+                                 {columns?.map((col: any) => (
+                                     <th key={col.field} className="px-6 py-3">{col.headerName || col.label || col.field}</th>
+                                 ))}
+                             </tr>
+                         </thead>
+                         <tbody>
+                             {data.map((row: any, i: number) => (
+                                 <tr key={i} className="bg-white border-b">
+                                     {columns?.map((col: any) => (
+                                         <td key={col.field} className="px-6 py-4">{row[col.field]}</td>
+                                     ))}
+                                 </tr>
+                             ))}
+                         </tbody>
+                     </table>
+                 </div>
+              );
+             })()}
           </div>
         )}
       </CardContent>

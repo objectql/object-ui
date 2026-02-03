@@ -6,7 +6,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry } from '@object-ui/core';
 import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { SchemaRenderer } from '@object-ui/react';
 import { cn } from '@object-ui/components';

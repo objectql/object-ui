@@ -2,7 +2,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import React from 'react';
 
 // -----------------------------------------------------------------------------
 // SYSTEM INTEGRATION TEST: Console Application
@@ -225,9 +224,9 @@ describe('Console Application Simulation', () => {
             name: 'kitchen_sink',
             fields: {
                 name: { type: 'text', label: 'Name Field' },
-                amount: { type: 'number', label: 'Amount Field' }
+                amount: { type: 'number', label: 'Amount Field', scale: 0 }
             }
-        });
+        } as any);
 
         renderApp('/kitchen_sink');
         await waitFor(() => {
@@ -424,7 +423,7 @@ describe('Kanban Integration', () => {
             }
         };
         
-        vi.spyOn(mocks.MockDataSource.prototype, 'getObjectSchema').mockResolvedValue(mockSchema);
+        vi.spyOn(mocks.MockDataSource.prototype, 'getObjectSchema').mockResolvedValue(mockSchema as any);
         
         // Mock data for the kanban
         const mockTaskData = [
@@ -433,7 +432,7 @@ describe('Kanban Integration', () => {
             { id: '3', title: 'Task 3', description: 'Third task', status: 'done', priority: 'low' }
         ];
         
-        vi.spyOn(mocks.MockDataSource.prototype, 'find').mockResolvedValue({ data: mockTaskData });
+        vi.spyOn(mocks.MockDataSource.prototype, 'find').mockResolvedValue({ data: mockTaskData } as any);
 
         // Create a mock data source
         const dataSource = new mocks.MockDataSource();
@@ -538,7 +537,7 @@ describe('Kanban Integration', () => {
             }
         ];
 
-        vi.spyOn(mocks.MockDataSource.prototype, 'find').mockResolvedValue({ data: seedData });
+        vi.spyOn(mocks.MockDataSource.prototype, 'find').mockResolvedValue({ data: seedData } as any);
         vi.spyOn(mocks.MockDataSource.prototype, 'getObjectSchema').mockResolvedValue({
             name: 'project_task',
             fields: {
@@ -547,7 +546,7 @@ describe('Kanban Integration', () => {
                 status: { type: 'picklist', label: 'Status' },
                 priority: { type: 'picklist', label: 'Priority' }
             }
-        });
+        } as any);
 
         // Create a mock data source
         const dataSource = new mocks.MockDataSource();
@@ -588,7 +587,6 @@ describe('Kanban Integration', () => {
         const { KanbanRenderer } = await import('@object-ui/plugin-kanban');
         
         // Setup: Spy on update method (though drag-drop in JSDOM is complex)
-        const updateSpy = vi.fn().mockResolvedValue({ id: 'task-1', status: 'done' });
         const onCardMoveSpy = vi.fn();
 
         // Simple static data test with event binding
@@ -689,7 +687,7 @@ describe('Kanban Integration', () => {
 
         const findSpy = vi.spyOn(mocks.MockDataSource.prototype, 'find').mockResolvedValue({ 
             data: initialData 
-        });
+        } as any);
 
         vi.spyOn(mocks.MockDataSource.prototype, 'getObjectSchema').mockResolvedValue({
             name: 'project_task',
@@ -698,11 +696,11 @@ describe('Kanban Integration', () => {
                 status: { type: 'picklist', label: 'Status' },
                 priority: { type: 'picklist', label: 'Priority' }
             }
-        });
+        } as any);
 
         const dataSource = new mocks.MockDataSource();
 
-        const { rerender } = render(
+        render(
             <ObjectKanban
                 schema={{
                     type: 'kanban',
@@ -812,6 +810,7 @@ describe('Dashboard Integration', () => {
     });
 
     it('Scenario C: Component Registry Check', async () => {
+        // @ts-expect-error - Importing from transitive dependency for testing
         const { ComponentRegistry } = await import('@object-ui/core');
         
         const dashboardRenderer = ComponentRegistry.get('dashboard');
