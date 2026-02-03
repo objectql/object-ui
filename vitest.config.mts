@@ -48,6 +48,7 @@ export default defineConfig({
       '@object-ui/fields': path.resolve(__dirname, './packages/fields/src'),
       '@object-ui/plugin-dashboard': path.resolve(__dirname, './packages/plugin-dashboard/src'),
       '@object-ui/plugin-grid': path.resolve(__dirname, './packages/plugin-grid/src'),
+      '@object-ui/plugin-kanban': path.resolve(__dirname, './packages/plugin-kanban/src'),
       '@': path.resolve(__dirname, './packages/components/src'),
       '@object-ui/ui': path.resolve(__dirname, './packages/ui/src'),
     },

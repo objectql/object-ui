@@ -60,6 +60,8 @@ describe('ObjectKanban Todo Example Display', () => {
         );
 
         // Wait for data to appear
+        // If logic is wrong, it will look for 'name', find undefined, show 'Untitled'.
+        // This assertion checks 'Task A' is visible.
         await waitFor(() => expect(screen.getByText('Task A')).toBeInTheDocument());
 
         // Verify Column Headers (H3 in real component)

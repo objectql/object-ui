@@ -104,26 +104,26 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
 
     // Fallback: Try to infer from object definition
     if (!titleField && objectDef) {
-       // 1. Check for standard NAME_FIELD_KEY
-       if (objectDef.NAME_FIELD_KEY) {
-           titleField = objectDef.NAME_FIELD_KEY;
-       } 
-       // 2. Check for titleFormat like "{subject}"
-       else if (objectDef.titleFormat) {
+       // 1. Check for titleFormat like "{subject}" first (Higher priority for Cards)
+       if (objectDef.titleFormat) {
            const match = /\{(.+?)\}/.exec(objectDef.titleFormat);
            if (match) titleField = match[1];
        }
+       // 2. Check for standard NAME_FIELD_KEY
+       if (!titleField && objectDef.NAME_FIELD_KEY) {
+           titleField = objectDef.NAME_FIELD_KEY;
+       } 
     }
 
     // Default to 'name'
-    titleField = titleField || 'name';
+    const finalTitleField = titleField || 'name';
     
     return rawData.map(item => ({
       ...item,
       // Ensure id exists
       id: item.id || item._id,
       // Map title
-      title: item[titleField] || item.title || 'Untitled',
+      title: item[finalTitleField] || item.title || 'Untitled',
     }));
   }, [rawData, schema, objectDef]);
 
