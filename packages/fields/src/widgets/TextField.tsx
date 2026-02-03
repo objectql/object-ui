@@ -13,26 +13,29 @@ export function TextField({ value, onChange, field, readonly, ...props }: FieldW
   // Cast for rows property
   const rows = (fieldData as unknown as TextareaFieldMetadata)?.rows;
 
+  // Filter out non-DOM props
+  const { inputType, ...domProps } = props as any;
+
   if (rows && rows > 1) {
     return (
       <Textarea
-        {...props}
+        {...domProps}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         placeholder={fieldData?.placeholder}
-        disabled={readonly || props.disabled}
+        disabled={readonly || domProps.disabled}
       />
     );
   }
 
   return (
     <Input
-      {...props}
+      {...domProps}
       type={fieldData?.type === 'password' ? 'password' : 'text'}
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       placeholder={fieldData?.placeholder}
-      disabled={readonly || props.disabled}
+      disabled={readonly || domProps.disabled}
     />
   );
 }

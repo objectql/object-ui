@@ -16,14 +16,17 @@ export function EmailField({ value, onChange, field, readonly, errorMessage, ...
     );
   }
 
+  // Filter out non-DOM props
+  const { inputType, ...domProps } = props as any;
+
   return (
     <Input
-      {...props}
+      {...domProps}
       type="email"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       placeholder={config?.placeholder || 'email@example.com'}
-      disabled={readonly || props.disabled}
+      disabled={readonly || domProps.disabled}
       aria-invalid={!!errorMessage}
     />
   );

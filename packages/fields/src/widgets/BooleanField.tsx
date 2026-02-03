@@ -15,15 +15,18 @@ export function BooleanField({ value, onChange, field, readonly, ...props }: Fie
     return <span className="text-sm">{value ? 'Yes' : 'No'}</span>;
   }
 
+  // Filter out non-DOM props
+  const { inputType, ...domProps } = props as any;
+
   if (widget === 'checkbox') {
      return (
         <div className="flex items-center space-x-2">
             <Checkbox 
-                {...props}
+                {...domProps}
                 id={id}
                 checked={!!value}
                 onCheckedChange={(checked) => onChange(!!checked)}
-                disabled={readonly || props.disabled}
+                disabled={readonly || domProps.disabled}
             />
             <Label htmlFor={id}>{label}</Label>
         </div>
@@ -33,11 +36,11 @@ export function BooleanField({ value, onChange, field, readonly, ...props }: Fie
   return (
     <div className="flex items-center space-x-2">
         <Switch 
-            {...props}
+            {...domProps}
             id={id} 
             checked={!!value} 
             onCheckedChange={onChange}
-            disabled={readonly || props.disabled}
+            disabled={readonly || domProps.disabled}
         />
         <Label htmlFor={id}>{label}</Label>
     </div>

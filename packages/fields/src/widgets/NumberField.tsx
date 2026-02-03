@@ -11,9 +11,12 @@ export function NumberField({ value, onChange, field, readonly, ...props }: Fiel
   const numberField = (field || (props as any).schema) as NumberFieldMetadata;
   const precision = numberField?.precision;
 
+  // Filter out non-DOM props
+  const { inputType, ...domProps } = props as any;
+
   return (
     <Input
-      {...props}
+      {...domProps}
       type="number"
       value={value ?? ''}
       onChange={(e) => {
@@ -21,7 +24,7 @@ export function NumberField({ value, onChange, field, readonly, ...props }: Fiel
         onChange(val === '' ? (null as any) : Number(val));
       }}
       placeholder={numberField?.placeholder}
-      disabled={readonly || props.disabled}
+      disabled={readonly || domProps.disabled}
       step={precision ? Math.pow(10, -precision) : 'any'}
     />
   );

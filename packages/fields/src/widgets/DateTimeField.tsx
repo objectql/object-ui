@@ -13,13 +13,16 @@ export function DateTimeField({ value, onChange, field, readonly, ...props }: Fi
     );
   }
 
+  // Filter out non-DOM props
+  const { inputType, ...domProps } = props as any;
+
   return (
     <Input
-      {...props}
+      {...domProps}
       type="datetime-local"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
-      disabled={readonly || props.disabled}
+      disabled={readonly || domProps.disabled}
     />
   );
 }

@@ -25,14 +25,17 @@ export function UrlField({ value, onChange, field, readonly, errorMessage, ...pr
     );
   }
 
+  // Filter out non-DOM props
+  const { inputType, ...domProps } = props as any;
+
   return (
     <Input
-      {...props}
+      {...domProps}
       type="url"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       placeholder={config?.placeholder || 'https://example.com'}
-      disabled={readonly || props.disabled}
+      disabled={readonly || domProps.disabled}
       aria-invalid={!!errorMessage}
     />
   );
