@@ -1,6 +1,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { ObjectKanban } from '@object-ui/plugin-kanban';
 import type { DataSource } from '@object-ui/types';
 
