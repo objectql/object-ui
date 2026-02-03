@@ -9,7 +9,16 @@
 @source '../../../packages/plugin-dashboard/src/**/*.{ts,tsx}';
 @source '../../../packages/plugin-form/src/**/*.{ts,tsx}';
 @source '../../../packages/plugin-grid/src/**/*.{ts,tsx}';
-@source '../../../packages/plugin-grid/src/**/*.{ts,tsx}';
+@source '../../../packages/plugin-calendar/src/**/*.{ts,tsx}';
+@source '../../../packages/plugin-kanban/src/**/*.{ts,tsx}';
+@source '../../../packages/plugin-gantt/src/**/*.{ts,tsx}';
+@source '../../../packages/plugin-timeline/src/**/*.{ts,tsx}';
+@source '../../../packages/plugin-markdown/src/**/*.{ts,tsx}';
+@source '../../../packages/plugin-map/src/**/*.{ts,tsx}';
+@source '../../../packages/plugin-charts/src/**/*.{ts,tsx}';
+@source '../../../packages/plugin-chatbot/src/**/*.{ts,tsx}';
+@source '../../../packages/plugin-editor/src/**/*.{ts,tsx}';
+@source '../../../packages/plugin-view/src/**/*.{ts,tsx}';
 
 /* Tailwind plugin for animations remove
 @plugin 'tailwindcss-animate';
