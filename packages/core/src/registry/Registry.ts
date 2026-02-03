@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { SchemaNode } from '../types';
+import type { SchemaNode } from '../types/index.js';
 
 export type ComponentRenderer<T = any> = T;
 
