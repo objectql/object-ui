@@ -234,7 +234,19 @@ describe('Console Application Simulation', () => {
             expect(screen.getByRole('heading', { name: /Kitchen Sink/i })).toBeInTheDocument();
         });
         
-        expect(document.body).toBeInTheDocument();
+        // Verify the form can be opened (showing metadata was loaded)
+        const newButton = screen.getByRole('button', { name: /New Kitchen Sink/i });
+        fireEvent.click(newButton);
+        
+        // Verify form loaded with schema-based fields
+        await waitFor(() => {
+            expect(screen.getByRole('dialog')).toBeInTheDocument();
+        });
+        
+        // Form should render based on mocked schema
+        // The actual field labels might differ based on implementation
+        // but the form should render without errors
+        expect(screen.queryByText(/error/i)).not.toBeInTheDocument();
     });
 
     // -----------------------------------------------------------------------------
@@ -257,7 +269,7 @@ describe('Console Application Simulation', () => {
             { id: '2', name: 'Item 2', amount: 200 }
         ];
 
-        vi.spyOn(mocks.MockDataSource.prototype, 'find')
+        const findSpy = vi.spyOn(mocks.MockDataSource.prototype, 'find')
             .mockResolvedValue({ data: seedData });
 
         renderApp('/kitchen_sink');
@@ -265,6 +277,17 @@ describe('Console Application Simulation', () => {
         await waitFor(() => {
             expect(screen.getByRole('heading', { name: /Kitchen Sink/i })).toBeInTheDocument();
         });
+        
+        // Verify data source was called to load grid data
+        await waitFor(() => {
+            expect(findSpy).toHaveBeenCalledWith('kitchen_sink', expect.any(Object));
+        });
+        
+        // Verify grid displays the loaded data
+        await waitFor(() => {
+            expect(screen.getByText('Item 1')).toBeInTheDocument();
+        });
+        expect(screen.getByText('Item 2')).toBeInTheDocument();
     });
 
 });
@@ -728,7 +751,17 @@ describe('Fields Integration', () => {
         expect(mapFieldTypeToFormType('number')).toBe('field:number');
         expect(mapFieldTypeToFormType('boolean')).toBe('field:boolean');
         expect(mapFieldTypeToFormType('select')).toBe('field:select');
-        expect(mapFieldTypeToFormType('unknown_type')).toBe('field:text'); // default fallback
+    });
+    
+    it('Scenario A.2: Unknown Field Type Fallback in Form', async () => {
+        const { mapFieldTypeToFormType } = await import('@object-ui/fields');
+        
+        // Verify unknown types fallback to text
+        expect(mapFieldTypeToFormType('unknown_type')).toBe('field:text');
+        expect(mapFieldTypeToFormType('custom_widget')).toBe('field:text');
+        
+        // This ensures forms don't break when encountering unknown field types
+        // The actual rendering is tested via the full form integration tests
     });
 
     it('Scenario B: Field Formatting Utilities', async () => {
