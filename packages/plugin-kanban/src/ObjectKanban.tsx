@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import type { DataSource } from '@object-ui/types';
 import { useDataScope } from '@object-ui/react';
 import { KanbanRenderer } from './index';
@@ -24,12 +24,27 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
   className,
 }) => {
   const [fetchedData, setFetchedData] = useState<any[]>([]);
+  const [objectDef, setObjectDef] = useState<any>(null);
   // loading state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   // Resolve bound data if 'bind' property exists
   const boundData = useDataScope(schema.bind);
+
+  // Fetch object definition for metadata (labels, options)
+  useEffect(() => {
+    const fetchMeta = async () => {
+        if (!dataSource || !schema.objectName) return;
+        try {
+            const def = await dataSource.getObject(schema.objectName);
+            setObjectDef(def);
+        } catch (e) {
+            console.warn("Failed to fetch object def", e);
+        }
+    };
+    fetchMeta();
+  }, [schema.objectName, dataSource]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -68,12 +83,64 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
   }, [schema.objectName, dataSource, boundData, schema.data]);
 
   // Determine which data to use: bound -> inline -> fetched
-  const effectiveData = boundData || schema.data || fetchedData;
+  const rawData = boundData || schema.data || fetchedData;
+
+  // Enhance data with title mapping and ensure IDs
+  const effectiveData = useMemo(() => {
+    if (!Array.isArray(rawData)) return [];
+    
+    // Support cardTitle property from schema (passed by ObjectView)
+    // @ts-ignore - cardTitle might not be in KanbanSchema type definition yet
+    const titleField = schema.cardTitle || (schema as any).titleField || 'name'; 
+    
+    return rawData.map(item => ({
+      ...item,
+      // Ensure id exists
+      id: item.id || item._id,
+      // Map title
+      title: item[titleField] || item.title || 'Untitled',
+    }));
+  }, [rawData, schema]);
+
+  // Generate columns if missing but groupBy is present
+  const effectiveColumns = useMemo(() => {
+    // If columns exist, returns them (normalized)
+    if (schema.columns && schema.columns.length > 0) {
+        // If columns is array of strings, normalize to objects
+        if (typeof schema.columns[0] === 'string') {
+             return (schema.columns as unknown as string[]).map(val => ({
+                 id: val,
+                 title: val
+             }));
+        }
+        return schema.columns;
+    }
+
+    // Try to get options from metadata
+    if (schema.groupBy && objectDef?.fields?.[schema.groupBy]?.options) {
+        return objectDef.fields[schema.groupBy].options.map((opt: any) => ({
+            id: opt.value,
+            title: opt.label
+        }));
+    }
+
+    // If no columns, but we have groupBy and data, generate from data
+    if (schema.groupBy && effectiveData.length > 0) {
+        const groups = new Set(effectiveData.map(item => item[schema.groupBy!]));
+        return Array.from(groups).map(g => ({
+            id: String(g),
+            title: String(g)
+        }));
+    }
+
+    return [];
+  }, [schema.columns, schema.groupBy, effectiveData, objectDef]);
 
   // Clone schema to inject data and className
   const effectiveSchema = {
       ...schema,
       data: effectiveData,
+      columns: effectiveColumns,
       className: className || schema.className
   };
 

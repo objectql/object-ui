@@ -101,6 +101,16 @@ function getCalendarConfig(schema: ObjectGridSchema): CalendarConfig | null {
     return (schema as any).calendar as CalendarConfig;
   }
   
+  // Check for flat properties (used by ObjectView)
+  if ((schema as any).dateField) {
+      return {
+          startDateField: (schema as any).dateField,
+          endDateField: (schema as any).endField,
+          titleField: (schema as any).titleField || 'name',
+          colorField: (schema as any).colorField
+      } as CalendarConfig;
+  }
+
   return null;
 }
 
@@ -111,6 +121,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
   onEventClick,
   onDateClick,
 }) => {
+  console.log('ObjectCalendar Schema:', JSON.stringify(schema)); 
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
