@@ -16,6 +16,14 @@ import {
   AreaChart,
   Pie,
   PieChart,
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Scatter,
+  ScatterChart,
+  ZAxis,
   Cell,
   XAxis,
   YAxis,
@@ -62,7 +70,7 @@ const TW_COLORS: Record<string, string> = {
 const resolveColor = (color: string) => TW_COLORS[color] || color;
 
 export interface AdvancedChartImplProps {
-  chartType?: 'bar' | 'line' | 'area' | 'pie';
+  chartType?: 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'radar' | 'scatter';
   data?: Array<Record<string, any>>;
   config?: ChartConfig;
   xAxisKey?: string;
@@ -87,11 +95,25 @@ export default function AdvancedChartImpl({
     line: LineChart,
     area: AreaChart,
     pie: PieChart,
+    donut: PieChart,
+    radar: RadarChart,
+    scatter: ScatterChart,
   }[chartType] || BarChart;
 
   console.log('📈 Rendering Chart:', { chartType, dataLength: data.length, config, series, xAxisKey });
 
-  if (chartType === 'pie') {
+  // Helper function to get color palette
+  const getPalette = () => [
+    'hsl(var(--chart-1))', 
+    'hsl(var(--chart-2))', 
+    'hsl(var(--chart-3))', 
+    'hsl(var(--chart-4))',
+    'hsl(var(--chart-5))'
+  ];
+
+  // Pie and Donut charts
+  if (chartType === 'pie' || chartType === 'donut') {
+    const innerRadius = chartType === 'donut' ? 60 : 0;
     return (
       <ChartContainer config={config} className={className}>
         <PieChart>
@@ -100,7 +122,7 @@ export default function AdvancedChartImpl({
             data={data}
             dataKey={series[0]?.dataKey || 'value'}
             nameKey={xAxisKey || 'name'}
-            innerRadius={60}
+            innerRadius={innerRadius}
             strokeWidth={5}
             paddingAngle={2}
             outerRadius={80}
@@ -109,22 +131,9 @@ export default function AdvancedChartImpl({
                 // 1. Try config by nameKey (category)
                 let c = config[entry[xAxisKey]]?.color;
                 
-                // 2. Try series config (if only 1 series defined with color list, logic fails here usually)
+                // 2. Fallback to palette
                 if (!c) {
-                   // Fallback: If 'colors' array was passed in schema, my adapter put it in config[seriesKey]?
-                   // Actually my adapter logic in index.tsx was: config[seriesKey].color = colors[idx]
-                   // But here we are iterating DATA items, not SERIES.
-                   // So we need a cycling palette.
-                   // Let's assume the user didn't provide per-category config here, so we cycle default colors.
-                   const palette = [
-                     'hsl(var(--chart-1))', 
-                     'hsl(var(--chart-2))', 
-                     'hsl(var(--chart-3))', 
-                     'hsl(var(--chart-4))',
-                     'hsl(var(--chart-5))'
-                   ];
-                   // Check if we can get colors from the first series config?
-                   // No, let's just use the palette or resolveColor from entry if provided in data.
+                   const palette = getPalette();
                    c = palette[index % palette.length];
                 }
                 
@@ -133,6 +142,73 @@ export default function AdvancedChartImpl({
           </Pie>
           <ChartLegend content={<ChartLegendContent nameKey={xAxisKey} />} />
         </PieChart>
+      </ChartContainer>
+    );
+  }
+
+  // Radar chart
+  if (chartType === 'radar') {
+    return (
+      <ChartContainer config={config} className={className}>
+        <RadarChart data={data}>
+          <PolarGrid />
+          <PolarAngleAxis dataKey={xAxisKey} />
+          <PolarRadiusAxis />
+          <ChartTooltip content={<ChartTooltipContent />} />
+          <ChartLegend content={<ChartLegendContent />} />
+          {series.map((s: any) => {
+            const color = resolveColor(config[s.dataKey]?.color || DEFAULT_CHART_COLOR);
+            return (
+              <Radar
+                key={s.dataKey}
+                dataKey={s.dataKey}
+                stroke={color}
+                fill={color}
+                fillOpacity={0.6}
+              />
+            );
+          })}
+        </RadarChart>
+      </ChartContainer>
+    );
+  }
+
+  // Scatter chart
+  if (chartType === 'scatter') {
+    return (
+      <ChartContainer config={config} className={className}>
+        <ScatterChart>
+          <CartesianGrid vertical={false} />
+          <XAxis 
+            type="number" 
+            dataKey={xAxisKey}
+            name={String(config[xAxisKey]?.label || xAxisKey)}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis 
+            type="number"
+            dataKey={series[0]?.dataKey || 'value'}
+            name={String(config[series[0]?.dataKey]?.label || series[0]?.dataKey)}
+            tickLine={false}
+            axisLine={false}
+          />
+          <ZAxis type="number" range={[60, 400]} />
+          <ChartTooltip content={<ChartTooltipContent />} />
+          <ChartLegend content={<ChartLegendContent />} />
+          {series.map((s: any, index: number) => {
+            const palette = getPalette();
+            const color = resolveColor(config[s.dataKey]?.color || palette[index % palette.length]);
+            return (
+              <Scatter
+                key={s.dataKey}
+                name={config[s.dataKey]?.label || s.dataKey}
+                data={data}
+                fill={color}
+              />
+            );
+          })}
+        </ScatterChart>
       </ChartContainer>
     );
   }

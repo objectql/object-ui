@@ -111,3 +111,85 @@ export const AreaChart: Story = {
     ]
   } as any,
 };
+
+export const PieChart: Story = {
+  render: renderStory,
+  args: {
+    type: 'pie-chart',
+    data: [
+      { name: 'Chrome', value: 65 },
+      { name: 'Firefox', value: 20 },
+      { name: 'Safari', value: 10 },
+      { name: 'Edge', value: 5 },
+    ],
+    xAxisKey: 'name',
+    series: [{ dataKey: 'value' }],
+    config: {
+      Chrome: { label: 'Chrome', color: 'hsl(var(--chart-1))' },
+      Firefox: { label: 'Firefox', color: 'hsl(var(--chart-2))' },
+      Safari: { label: 'Safari', color: 'hsl(var(--chart-3))' },
+      Edge: { label: 'Edge', color: 'hsl(var(--chart-4))' },
+    }
+  } as any,
+};
+
+export const DonutChart: Story = {
+  render: renderStory,
+  args: {
+    type: 'donut-chart',
+    data: [
+      { category: 'Electronics', revenue: 45000 },
+      { category: 'Clothing', revenue: 32000 },
+      { category: 'Food', revenue: 28000 },
+      { category: 'Books', revenue: 15000 },
+    ],
+    xAxisKey: 'category',
+    series: [{ dataKey: 'revenue' }],
+    config: {
+      Electronics: { label: 'Electronics', color: '#3b82f6' },
+      Clothing: { label: 'Clothing', color: '#10b981' },
+      Food: { label: 'Food', color: '#f59e0b' },
+      Books: { label: 'Books', color: '#ef4444' },
+    }
+  } as any,
+};
+
+export const RadarChart: Story = {
+  render: renderStory,
+  args: {
+    type: 'radar-chart',
+    data: [
+      { skill: 'React', score: 90 },
+      { skill: 'TypeScript', score: 85 },
+      { skill: 'Node.js', score: 80 },
+      { skill: 'Python', score: 70 },
+      { skill: 'Docker', score: 75 },
+      { skill: 'AWS', score: 65 },
+    ],
+    xAxisKey: 'skill',
+    series: [{ dataKey: 'score' }],
+    config: {
+      score: { label: 'Skill Level', color: 'hsl(var(--chart-1))' }
+    }
+  } as any,
+};
+
+export const ScatterChart: Story = {
+  render: renderStory,
+  args: {
+    type: 'scatter-chart',
+    data: [
+      { height: 160, weight: 65 },
+      { height: 165, weight: 70 },
+      { height: 170, weight: 75 },
+      { height: 175, weight: 80 },
+      { height: 180, weight: 85 },
+      { height: 185, weight: 90 },
+    ],
+    xAxisKey: 'height',
+    series: [{ dataKey: 'weight' }],
+    config: {
+      weight: { label: 'Weight (kg)', color: 'hsl(var(--chart-1))' }
+    }
+  } as any,
+};
