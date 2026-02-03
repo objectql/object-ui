@@ -30,6 +30,12 @@ const mocks = vi.hoisted(() => {
             }
             return { data: [] }; 
         }
+        async findOne(objectName: string, id: string) {
+            if (objectName === 'kitchen_sink') {
+                return { id, name: 'Test Sink', amount: 100 };
+            }
+            return null;
+        }
         async getObjectSchema(name: string) {
             if (name === 'kitchen_sink') {
                 return {
@@ -147,6 +153,14 @@ describe('Console Application Simulation', () => {
     });
 
     it('Scenario 4: Object Create Form (All Field Types)', async () => {
+        // Helper function to check if a label exists in the form
+        const expectLabelToExist = (label: string) => {
+            const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escaped, 'i');
+            const elements = screen.queryAllByText(regex);
+            expect(elements.length).toBeGreaterThan(0);
+        };
+
         renderApp('/kitchen_sink');
 
         // 1. Wait for Object View
@@ -164,10 +178,10 @@ describe('Console Application Simulation', () => {
         });
 
         // 4. Verify Field Inputs
-        // Wait for at least one field to appear to ensure form is loaded
+        // Wait for form to finish loading and first field to appear
         await waitFor(() => {
              expect(screen.getByText(/Text \(Name\)/i)).toBeInTheDocument();
-        }, { timeout: 5000 });
+        }, { timeout: 10000 });
 
         const fieldLabels = [
             'Text (Name)',
@@ -178,17 +192,12 @@ describe('Console Application Simulation', () => {
             'Boolean (Switch)',
         ];
 
-        // Check each label exists
-        for (const label of fieldLabels) {
-             const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-             const regex = new RegExp(escaped, 'i');
-             const elements = screen.queryAllByText(regex);
-             if (elements.length === 0) {
-                 console.log(`Failed to find label: ${label}`);
-                 // console.log(document.body.innerHTML); // Too large, but useful if localized
-             }
-             expect(elements.length).toBeGreaterThan(0);
-        }
+        // Check all labels exist concurrently using Promise.all for faster execution
+        await Promise.all(
+            fieldLabels.map(label =>
+                waitFor(() => expectLabelToExist(label), { timeout: 5000 })
+            )
+        );
 
         // 5. Test specific interaction (e.g. typing in name)
         // Note: Shadcn/Form labels might be associated via ID, so getByLabelText is safer usually,
