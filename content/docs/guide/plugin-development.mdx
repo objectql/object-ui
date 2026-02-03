@@ -1,0 +1,654 @@
+---
+title: "Plugin Development"
+description: "Learn how to create and publish ObjectUI plugins"
+---
+
+# Plugin Development
+
+Create reusable plugins to extend ObjectUI with new components, fields, and functionality. This guide covers the complete plugin development workflow.
+
+## What is a Plugin?
+
+An ObjectUI plugin is a collection of:
+- **Components** - UI building blocks
+- **Fields** - Form input widgets
+- **Utilities** - Helper functions
+- **Styles** - Tailwind CSS configurations
+- **Documentation** - Usage guides and examples
+
+Popular plugins include `plugin-kanban`, `plugin-charts`, `plugin-grid`, and more.
+
+## Quick Start with CLI
+
+The fastest way to create a plugin:
+
+```bash
+npx @object-ui/create-plugin my-awesome-plugin
+cd my-awesome-plugin
+pnpm install
+pnpm dev
+```
+
+This scaffolds a complete plugin structure with:
+- TypeScript configuration
+- Vite build setup
+- Storybook integration
+- Testing framework
+- Example components
+
+## Plugin Structure
+
+```
+my-plugin/
+├── src/
+│   ├── components/
+│   │   ├── MyComponent.tsx
+│   │   ├── MyComponent.stories.tsx
+│   │   └── my-component.schema.ts
+│   ├── fields/
+│   │   ├── MyField.tsx
+│   │   └── my-field.schema.ts
+│   ├── utils/
+│   │   └── helpers.ts
+│   ├── index.ts              # Main entry point
+│   └── register.ts           # Component registration
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+├── tailwind.config.js
+└── README.md
+```
+
+## Step-by-Step: Creating a Chart Plugin
+
+Let's create a plugin for data visualization charts.
+
+### Step 1: Initialize Plugin
+
+```bash
+npx @object-ui/create-plugin plugin-charts
+cd plugin-charts
+```
+
+### Step 2: Define Component Schema
+
+```typescript title="src/components/line-chart/line-chart.schema.ts"
+import { ComponentSchema } from '@object-ui/types';
+
+export interface LineChartSchema extends ComponentSchema {
+  type: 'line-chart';
+  data: Array<{
+    label: string;
+    value: number;
+  }>;
+  title?: string;
+  xAxisLabel?: string;
+  yAxisLabel?: string;
+  color?: string;
+  showGrid?: boolean;
+  showLegend?: boolean;
+  height?: number;
+  dataSource?: {
+    api: string;
+    method?: 'GET' | 'POST';
+    transform?: string; // Expression to transform data
+  };
+}
+```
+
+### Step 3: Build the Component
+
+```tsx title="src/components/line-chart/LineChart.tsx"
+import React, { useEffect, useState } from 'react';
+import {
+  LineChart as RechartsLineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
+import { Card, CardHeader, CardTitle, CardContent } from '@object-ui/components';
+import { LineChartSchema } from './line-chart.schema';
+
+export interface LineChartProps {
+  schema: LineChartSchema;
+}
+
+export function LineChart({ schema }: LineChartProps) {
+  const {
+    data: initialData = [],
+    title,
+    xAxisLabel = 'X Axis',
+    yAxisLabel = 'Y Axis',
+    color = '#8884d8',
+    showGrid = true,
+    showLegend = true,
+    height = 300,
+    dataSource,
+    className,
+  } = schema;
+
+  const [data, setData] = useState(initialData);
+  const [loading, setLoading] = useState(!!dataSource);
+
+  useEffect(() => {
+    if (dataSource) {
+      fetchData();
+    }
+  }, [dataSource]);
+
+  const fetchData = async () => {
+    try {
+      const response = await fetch(dataSource!.api, {
+        method: dataSource!.method || 'GET',
+      });
+      const result = await response.json();
+      
+      // Transform data if transform expression provided
+      const transformedData = dataSource!.transform
+        ? transformDataWithExpression(result, dataSource!.transform)
+        : result;
+      
+      setData(transformedData);
+    } catch (error) {
+      console.error('Failed to fetch chart data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="animate-pulse">Loading chart...</div>;
+  }
+
+  const content = (
+    <ResponsiveContainer width="100%" height={height}>
+      <RechartsLineChart data={data}>
+        {showGrid && <CartesianGrid strokeDasharray="3 3" />}
+        <XAxis dataKey="label" label={{ value: xAxisLabel, position: 'insideBottom', offset: -5 }} />
+        <YAxis label={{ value: yAxisLabel, angle: -90, position: 'insideLeft' }} />
+        <Tooltip />
+        {showLegend && <Legend />}
+        <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} />
+      </RechartsLineChart>
+    </ResponsiveContainer>
+  );
+
+  return title ? (
+    <Card className={className}>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent>{content}</CardContent>
+    </Card>
+  ) : (
+    <div className={className}>{content}</div>
+  );
+}
+
+function transformDataWithExpression(data: any, expression: string): any {
+  // Simple expression evaluation (in production, use a safe evaluator)
+  // Example: "items.map(item => ({ label: item.name, value: item.count }))"
+  try {
+    const fn = new Function('data', `return ${expression}`);
+    return fn(data);
+  } catch (error) {
+    console.error('Failed to transform data:', error);
+    return data;
+  }
+}
+```
+
+### Step 4: Add Dependencies
+
+```json title="package.json"
+{
+  "name": "@object-ui/plugin-charts",
+  "version": "1.0.0",
+  "description": "Chart components for ObjectUI",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build && tsc --emitDeclarationOnly",
+    "test": "vitest",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
+  },
+  "dependencies": {
+    "recharts": "^2.10.0"
+  },
+  "peerDependencies": {
+    "@object-ui/core": "^0.4.0",
+    "@object-ui/react": "^0.4.0",
+    "@object-ui/components": "^0.4.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "@object-ui/types": "^0.4.0",
+    "@storybook/react": "^8.0.0",
+    "@storybook/react-vite": "^8.0.0",
+    "@types/react": "^18.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "keywords": [
+    "objectui",
+    "plugin",
+    "charts",
+    "visualization",
+    "react"
+  ]
+}
+```
+
+### Step 5: Create Registration Function
+
+```typescript title="src/register.ts"
+import { ComponentRegistry } from '@object-ui/core';
+import { LineChart } from './components/line-chart/LineChart';
+import { BarChart } from './components/bar-chart/BarChart';
+import { PieChart } from './components/pie-chart/PieChart';
+
+export function registerChartsPlugin() {
+  ComponentRegistry.register('line-chart', LineChart, {
+    namespace: 'charts',
+  });
+  
+  ComponentRegistry.register('bar-chart', BarChart, {
+    namespace: 'charts',
+  });
+  
+  ComponentRegistry.register('pie-chart', PieChart, {
+    namespace: 'charts',
+  });
+}
+```
+
+### Step 6: Export Everything
+
+```typescript title="src/index.ts"
+// Components
+export { LineChart } from './components/line-chart/LineChart';
+export { BarChart } from './components/bar-chart/BarChart';
+export { PieChart } from './components/pie-chart/PieChart';
+
+// Schemas
+export type { LineChartSchema } from './components/line-chart/line-chart.schema';
+export type { BarChartSchema } from './components/bar-chart/bar-chart.schema';
+export type { PieChartSchema } from './components/pie-chart/pie-chart.schema';
+
+// Registration
+export { registerChartsPlugin } from './register';
+```
+
+### Step 7: Configure Build
+
+```typescript title="vite.config.ts"
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
+import dts from 'vite-plugin-dts';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    dts({
+      insertTypesEntry: true,
+    }),
+  ],
+  build: {
+    lib: {
+      entry: resolve(__dirname, 'src/index.ts'),
+      name: 'ObjectUIPluginCharts',
+      formats: ['es', 'umd'],
+      fileName: (format) => `index.${format}.js`,
+    },
+    rollupOptions: {
+      external: [
+        'react',
+        'react-dom',
+        '@object-ui/core',
+        '@object-ui/react',
+        '@object-ui/components',
+      ],
+      output: {
+        globals: {
+          react: 'React',
+          'react-dom': 'ReactDOM',
+          '@object-ui/core': 'ObjectUICore',
+          '@object-ui/react': 'ObjectUIReact',
+          '@object-ui/components': 'ObjectUIComponents',
+        },
+      },
+    },
+  },
+});
+```
+
+## Testing Your Plugin
+
+### Unit Tests
+
+```tsx title="src/components/line-chart/LineChart.test.tsx"
+import { render, screen } from '@testing-library/react';
+import { LineChart } from './LineChart';
+import { LineChartSchema } from './line-chart.schema';
+
+describe('LineChart', () => {
+  it('renders with data', () => {
+    const schema: LineChartSchema = {
+      type: 'line-chart',
+      title: 'Sales Data',
+      data: [
+        { label: 'Jan', value: 100 },
+        { label: 'Feb', value: 150 },
+        { label: 'Mar', value: 200 },
+      ],
+    };
+
+    render(<LineChart schema={schema} />);
+    expect(screen.getByText('Sales Data')).toBeInTheDocument();
+  });
+
+  it('fetches data from API', async () => {
+    const schema: LineChartSchema = {
+      type: 'line-chart',
+      dataSource: {
+        api: '/api/chart-data',
+        method: 'GET',
+      },
+    };
+
+    // Mock fetch
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        json: () => Promise.resolve([
+          { label: 'A', value: 10 },
+          { label: 'B', value: 20 },
+        ]),
+      })
+    ) as any;
+
+    render(<LineChart schema={schema} />);
+    
+    await screen.findByText('A');
+    expect(screen.getByText('A')).toBeInTheDocument();
+  });
+});
+```
+
+### Storybook Stories
+
+```tsx title="src/components/line-chart/LineChart.stories.tsx"
+import type { Meta, StoryObj } from '@storybook/react';
+import { LineChart } from './LineChart';
+
+const meta: Meta<typeof LineChart> = {
+  title: 'Charts/LineChart',
+  component: LineChart,
+  tags: ['autodocs'],
+  parameters: {
+    layout: 'centered',
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof LineChart>;
+
+export const Default: Story = {
+  args: {
+    schema: {
+      type: 'line-chart',
+      title: 'Monthly Revenue',
+      data: [
+        { label: 'Jan', value: 4000 },
+        { label: 'Feb', value: 3000 },
+        { label: 'Mar', value: 2000 },
+        { label: 'Apr', value: 2780 },
+        { label: 'May', value: 1890 },
+        { label: 'Jun', value: 2390 },
+      ],
+      xAxisLabel: 'Month',
+      yAxisLabel: 'Revenue ($)',
+      color: '#8884d8',
+    },
+  },
+};
+
+export const WithoutGrid: Story = {
+  args: {
+    schema: {
+      ...Default.args.schema,
+      showGrid: false,
+    },
+  },
+};
+
+export const CustomColor: Story = {
+  args: {
+    schema: {
+      ...Default.args.schema,
+      color: '#ff6b6b',
+    },
+  },
+};
+```
+
+## Documentation
+
+Create comprehensive README:
+
+```markdown title="README.md"
+# @object-ui/plugin-charts
+
+Chart components for ObjectUI - Line, Bar, Pie, and more.
+
+## Installation
+
+\`\`\`bash
+npm install @object-ui/plugin-charts recharts
+\`\`\`
+
+## Usage
+
+\`\`\`tsx
+import { registerChartsPlugin } from '@object-ui/plugin-charts';
+import { SchemaRenderer } from '@object-ui/react';
+
+// Register the plugin
+registerChartsPlugin();
+
+const schema = {
+  type: 'line-chart',
+  title: 'Sales Trend',
+  data: [
+    { label: 'Jan', value: 100 },
+    { label: 'Feb', value: 150 },
+    { label: 'Mar', value: 200 },
+  ],
+};
+
+function App() {
+  return <SchemaRenderer schema={schema} />;
+}
+\`\`\`
+
+## Components
+
+### LineChart
+
+Display data as a line chart.
+
+**Schema Properties:**
+- `data` - Array of {label, value} objects
+- `title` - Chart title
+- `xAxisLabel` - X-axis label
+- `yAxisLabel` - Y-axis label
+- `color` - Line color (hex)
+- `showGrid` - Show grid lines (default: true)
+- `height` - Chart height in pixels (default: 300)
+
+[More documentation...]
+
+## License
+
+MIT
+```
+
+## Publishing to NPM
+
+### Step 1: Build
+
+```bash
+pnpm build
+```
+
+### Step 2: Test Locally
+
+```bash
+# In your plugin directory
+npm link
+
+# In your test project
+npm link @object-ui/plugin-charts
+```
+
+### Step 3: Publish
+
+```bash
+# Login to npm
+npm login
+
+# Publish (with public access for scoped packages)
+npm publish --access public
+```
+
+### Step 4: Version Management
+
+Use semantic versioning:
+
+```bash
+# Patch release (bug fixes)
+npm version patch
+
+# Minor release (new features)
+npm version minor
+
+# Major release (breaking changes)
+npm version major
+```
+
+## Plugin Best Practices
+
+### 1. Tree-Shaking Support
+
+Export individual components:
+
+```typescript
+// ✅ Good - Allows tree-shaking
+export { LineChart } from './components/line-chart/LineChart';
+export { BarChart } from './components/bar-chart/BarChart';
+
+// ❌ Bad - Bundles everything
+export * from './components';
+```
+
+### 2. Peer Dependencies
+
+Don't bundle React or ObjectUI core:
+
+```json
+{
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "@object-ui/core": "^0.4.0"
+  }
+}
+```
+
+### 3. Size Optimization
+
+- Use dynamic imports for large dependencies
+- Minimize bundle size
+- Provide both ESM and UMD builds
+
+```typescript
+// Lazy load heavy dependencies
+const HeavyChart = lazy(() => import('./components/HeavyChart'));
+```
+
+### 4. TypeScript Support
+
+Always export types:
+
+```typescript
+export type { LineChartSchema } from './components/line-chart/line-chart.schema';
+```
+
+### 5. Documentation
+
+- Include README with examples
+- Add Storybook stories
+- Document all schema properties
+- Provide migration guides
+
+## Plugin Examples
+
+Study these official plugins:
+
+- **[@object-ui/plugin-kanban](https://github.com/objectstack-ai/objectui/tree/main/packages/plugin-kanban)** - Kanban boards with drag-and-drop
+- **[@object-ui/plugin-grid](https://github.com/objectstack-ai/objectui/tree/main/packages/plugin-grid)** - Advanced data grids
+- **[@object-ui/plugin-charts](https://github.com/objectstack-ai/objectui/tree/main/packages/plugin-charts)** - Data visualization
+- **[@object-ui/plugin-form](https://github.com/objectstack-ai/objectui/tree/main/packages/plugin-form)** - Advanced forms
+
+## Troubleshooting
+
+### Peer dependency warnings
+
+Use `--legacy-peer-deps` when installing:
+
+```bash
+npm install --legacy-peer-deps
+```
+
+### Build errors
+
+Clear cache and rebuild:
+
+```bash
+rm -rf dist node_modules
+npm install
+npm run build
+```
+
+### TypeScript errors in consumers
+
+Ensure `types` field points to correct declaration file:
+
+```json
+{
+  "types": "dist/index.d.ts"
+}
+```
+
+## Next Steps
+
+- [Custom Component Development](/docs/guide/custom-components) - Build components
+- [Performance Optimization](/docs/guide/performance) - Optimize plugins
+- [API Reference](/docs/api) - Component API
+- [Publishing Guide](https://docs.npmjs.com/packages-and-modules) - NPM documentation
+
+## Community Plugins
+
+Share your plugin:
+- [Submit to Plugin Marketplace](https://github.com/objectstack-ai/objectui/discussions)
+- [Plugin Directory](/plugins)
+- [Awesome ObjectUI](https://github.com/objectstack-ai/awesome-objectui)

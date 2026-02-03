@@ -1,0 +1,711 @@
+---
+title: "Zero to Deployment"
+description: "Complete tutorial: Build and deploy a production-ready app with ObjectUI"
+---
+
+# Zero to Deployment
+
+Build and deploy a complete task management application using ObjectUI. This tutorial takes you from zero to a production-ready app deployed on Vercel.
+
+**What you'll build**: A full-featured task manager with:
+- ✅ Task creation and editing
+- ✅ Status management (Todo, In Progress, Done)
+- ✅ Priority levels
+- ✅ Filtering and search
+- ✅ Responsive design
+- ✅ Dark mode support
+
+**Time to complete**: ~30 minutes
+
+## Prerequisites
+
+- Node.js 18+ installed
+- Basic React knowledge
+- A GitHub account (for deployment)
+
+## Step 1: Project Setup (3 minutes)
+
+Create a new Vite project:
+
+```bash
+npm create vite@latest task-manager -- --template react-ts
+cd task-manager
+npm install
+```
+
+Install ObjectUI packages:
+
+```bash
+npm install @object-ui/react @object-ui/components @object-ui/fields @object-ui/core
+npm install -D tailwindcss postcss autoprefixer tailwindcss-animate
+npx tailwindcss init -p
+```
+
+## Step 2: Configure Tailwind (2 minutes)
+
+Update `tailwind.config.js`:
+
+```js title="tailwind.config.js"
+/** @type {import('tailwindcss').Config} */
+export default {
+  darkMode: ['class'],
+  content: [
+    './index.html',
+    './src/**/*.{js,ts,jsx,tsx}',
+    './node_modules/@object-ui/**/*.{js,ts,jsx,tsx}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+        },
+      },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+    },
+  },
+  plugins: [require('tailwindcss-animate')],
+}
+```
+
+Replace `src/index.css` with:
+
+```css title="src/index.css"
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+```
+
+## Step 3: Define the Schema (5 minutes)
+
+Create the task manager schema:
+
+```tsx title="src/schema.ts"
+export const taskManagerSchema = {
+  type: 'page',
+  className: 'min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-8',
+  children: [
+    {
+      type: 'container',
+      className: 'max-w-6xl mx-auto',
+      children: [
+        // Header
+        {
+          type: 'flex',
+          className: 'justify-between items-center mb-8',
+          children: [
+            {
+              type: 'flex',
+              direction: 'col',
+              children: [
+                {
+                  type: 'text',
+                  content: 'Task Manager',
+                  className: 'text-4xl font-bold text-gray-900 dark:text-white',
+                },
+                {
+                  type: 'text',
+                  content: 'Stay organized and productive',
+                  className: 'text-gray-600 dark:text-gray-400 mt-2',
+                },
+              ],
+            },
+            {
+              type: 'button',
+              text: 'New Task',
+              variant: 'default',
+              className: 'shadow-lg',
+              onClick: {
+                type: 'dialog',
+                title: 'Create New Task',
+                content: {
+                  type: 'form',
+                  fields: [
+                    {
+                      type: 'field',
+                      fieldType: 'text',
+                      name: 'title',
+                      label: 'Task Title',
+                      placeholder: 'Enter task title',
+                      required: true,
+                    },
+                    {
+                      type: 'field',
+                      fieldType: 'textarea',
+                      name: 'description',
+                      label: 'Description',
+                      placeholder: 'Task description...',
+                      rows: 3,
+                    },
+                    {
+                      type: 'field',
+                      fieldType: 'select',
+                      name: 'status',
+                      label: 'Status',
+                      options: [
+                        { label: 'Todo', value: 'todo' },
+                        { label: 'In Progress', value: 'in_progress' },
+                        { label: 'Done', value: 'done' },
+                      ],
+                      defaultValue: 'todo',
+                    },
+                    {
+                      type: 'field',
+                      fieldType: 'select',
+                      name: 'priority',
+                      label: 'Priority',
+                      options: [
+                        { label: 'Low', value: 'low' },
+                        { label: 'Medium', value: 'medium' },
+                        { label: 'High', value: 'high' },
+                      ],
+                      defaultValue: 'medium',
+                    },
+                    {
+                      type: 'field',
+                      fieldType: 'date',
+                      name: 'dueDate',
+                      label: 'Due Date',
+                    },
+                  ],
+                  onSubmit: {
+                    type: 'notification',
+                    message: 'Task created successfully!',
+                  },
+                },
+              },
+            },
+          ],
+        },
+
+        // Filters
+        {
+          type: 'card',
+          className: 'mb-6',
+          children: [
+            {
+              type: 'flex',
+              gap: 4,
+              className: 'flex-wrap',
+              children: [
+                {
+                  type: 'field',
+                  fieldType: 'text',
+                  name: 'search',
+                  placeholder: 'Search tasks...',
+                  className: 'flex-1 min-w-64',
+                },
+                {
+                  type: 'field',
+                  fieldType: 'select',
+                  name: 'statusFilter',
+                  placeholder: 'All Statuses',
+                  options: [
+                    { label: 'All', value: '' },
+                    { label: 'Todo', value: 'todo' },
+                    { label: 'In Progress', value: 'in_progress' },
+                    { label: 'Done', value: 'done' },
+                  ],
+                },
+                {
+                  type: 'field',
+                  fieldType: 'select',
+                  name: 'priorityFilter',
+                  placeholder: 'All Priorities',
+                  options: [
+                    { label: 'All', value: '' },
+                    { label: 'Low', value: 'low' },
+                    { label: 'Medium', value: 'medium' },
+                    { label: 'High', value: 'high' },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+
+        // Task Grid
+        {
+          type: 'grid',
+          cols: 3,
+          gap: 6,
+          className: 'mb-8',
+          children: [
+            // Todo Column
+            {
+              type: 'card',
+              title: 'Todo',
+              className: 'bg-white dark:bg-gray-800',
+              children: [
+                {
+                  type: 'flex',
+                  direction: 'col',
+                  gap: 3,
+                  children: [
+                    {
+                      type: 'card',
+                      className: 'bg-gray-50 dark:bg-gray-700 hover:shadow-md transition-shadow cursor-pointer',
+                      children: [
+                        {
+                          type: 'flex',
+                          justify: 'between',
+                          className: 'mb-2',
+                          children: [
+                            {
+                              type: 'text',
+                              content: 'Setup project',
+                              className: 'font-semibold',
+                            },
+                            {
+                              type: 'badge',
+                              text: 'High',
+                              variant: 'destructive',
+                            },
+                          ],
+                        },
+                        {
+                          type: 'text',
+                          content: 'Initialize repository and setup CI/CD',
+                          className: 'text-sm text-gray-600 dark:text-gray-400 mb-3',
+                        },
+                        {
+                          type: 'text',
+                          content: 'Due: Jan 15, 2024',
+                          className: 'text-xs text-gray-500',
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+
+            // In Progress Column
+            {
+              type: 'card',
+              title: 'In Progress',
+              className: 'bg-white dark:bg-gray-800',
+              children: [
+                {
+                  type: 'flex',
+                  direction: 'col',
+                  gap: 3,
+                  children: [
+                    {
+                      type: 'card',
+                      className: 'bg-blue-50 dark:bg-blue-900/20 hover:shadow-md transition-shadow cursor-pointer',
+                      children: [
+                        {
+                          type: 'flex',
+                          justify: 'between',
+                          className: 'mb-2',
+                          children: [
+                            {
+                              type: 'text',
+                              content: 'Build UI components',
+                              className: 'font-semibold',
+                            },
+                            {
+                              type: 'badge',
+                              text: 'Medium',
+                              variant: 'secondary',
+                            },
+                          ],
+                        },
+                        {
+                          type: 'text',
+                          content: 'Create reusable React components',
+                          className: 'text-sm text-gray-600 dark:text-gray-400 mb-3',
+                        },
+                        {
+                          type: 'progress',
+                          value: 65,
+                          className: 'mb-2',
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+
+            // Done Column
+            {
+              type: 'card',
+              title: 'Done',
+              className: 'bg-white dark:bg-gray-800',
+              children: [
+                {
+                  type: 'flex',
+                  direction: 'col',
+                  gap: 3,
+                  children: [
+                    {
+                      type: 'card',
+                      className: 'bg-green-50 dark:bg-green-900/20 hover:shadow-md transition-shadow cursor-pointer',
+                      children: [
+                        {
+                          type: 'flex',
+                          justify: 'between',
+                          className: 'mb-2',
+                          children: [
+                            {
+                              type: 'text',
+                              content: 'Design mockups',
+                              className: 'font-semibold line-through text-gray-500',
+                            },
+                            {
+                              type: 'badge',
+                              text: 'Low',
+                              variant: 'outline',
+                            },
+                          ],
+                        },
+                        {
+                          type: 'text',
+                          content: 'Completed Jan 10, 2024',
+                          className: 'text-xs text-gray-500',
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+
+        // Stats
+        {
+          type: 'grid',
+          cols: 3,
+          gap: 4,
+          children: [
+            {
+              type: 'card',
+              className: 'text-center',
+              children: [
+                {
+                  type: 'text',
+                  content: '12',
+                  className: 'text-3xl font-bold text-blue-600',
+                },
+                {
+                  type: 'text',
+                  content: 'Total Tasks',
+                  className: 'text-sm text-gray-600 dark:text-gray-400',
+                },
+              ],
+            },
+            {
+              type: 'card',
+              className: 'text-center',
+              children: [
+                {
+                  type: 'text',
+                  content: '5',
+                  className: 'text-3xl font-bold text-green-600',
+                },
+                {
+                  type: 'text',
+                  content: 'Completed',
+                  className: 'text-sm text-gray-600 dark:text-gray-400',
+                },
+              ],
+            },
+            {
+              type: 'card',
+              className: 'text-center',
+              children: [
+                {
+                  type: 'text',
+                  content: '42%',
+                  className: 'text-3xl font-bold text-purple-600',
+                },
+                {
+                  type: 'text',
+                  content: 'Progress',
+                  className: 'text-sm text-gray-600 dark:text-gray-400',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+```
+
+## Step 4: Build the App (3 minutes)
+
+Update `src/App.tsx`:
+
+```tsx title="src/App.tsx"
+import { SchemaRenderer } from '@object-ui/react';
+import { ComponentRegistry } from '@object-ui/core';
+import { registerAllComponents } from '@object-ui/components';
+import { registerAllFields } from '@object-ui/fields';
+import { taskManagerSchema } from './schema';
+import './index.css';
+
+// Register components
+registerAllComponents(ComponentRegistry);
+registerAllFields();
+
+function App() {
+  return <SchemaRenderer schema={taskManagerSchema} />;
+}
+
+export default App;
+```
+
+## Step 5: Test Locally (2 minutes)
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173) to see your app! 🎉
+
+## Step 6: Add Dark Mode Toggle (5 minutes)
+
+Create a theme toggle:
+
+```tsx title="src/App.tsx"
+import { useState, useEffect } from 'react';
+import { SchemaRenderer } from '@object-ui/react';
+import { ComponentRegistry } from '@object-ui/core';
+import { registerAllComponents } from '@object-ui/components';
+import { registerAllFields } from '@object-ui/fields';
+import { taskManagerSchema } from './schema';
+import './index.css';
+
+registerAllComponents(ComponentRegistry);
+registerAllFields();
+
+function App() {
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDark]);
+
+  return (
+    <div>
+      <button
+        onClick={() => setIsDark(!isDark)}
+        className="fixed top-4 right-4 p-2 rounded-lg bg-white dark:bg-gray-800 shadow-lg z-50"
+      >
+        {isDark ? '☀️' : '🌙'}
+      </button>
+      <SchemaRenderer schema={taskManagerSchema} />
+    </div>
+  );
+}
+
+export default App;
+```
+
+## Step 7: Build for Production (2 minutes)
+
+```bash
+npm run build
+```
+
+This creates an optimized production build in the `dist` folder.
+
+## Step 8: Deploy to Vercel (5 minutes)
+
+### Option A: Deploy via CLI
+
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Deploy
+vercel
+```
+
+### Option B: Deploy via GitHub
+
+1. Push your code to GitHub:
+
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/yourusername/task-manager.git
+git push -u origin main
+```
+
+2. Go to [vercel.com](https://vercel.com)
+3. Click "New Project"
+4. Import your GitHub repository
+5. Click "Deploy"
+
+That's it! Your app is now live! 🚀
+
+## Step 9: Add Backend Integration (Optional)
+
+To connect to a real API:
+
+```tsx title="src/schema.ts"
+// Update the task grid to use a data source
+{
+  type: 'data-table',
+  dataSource: {
+    api: '/api/tasks',
+    method: 'GET',
+  },
+  columns: [
+    { key: 'title', title: 'Task' },
+    { key: 'status', title: 'Status' },
+    { key: 'priority', title: 'Priority' },
+    { key: 'dueDate', title: 'Due Date' },
+  ],
+}
+```
+
+## What You've Learned
+
+✅ Setting up a new ObjectUI project  
+✅ Configuring Tailwind CSS  
+✅ Defining schemas for complex UIs  
+✅ Using components (cards, grids, forms, buttons)  
+✅ Implementing dark mode  
+✅ Building and deploying to production  
+
+## Next Steps
+
+- [Component Documentation](/docs/components) - Explore all available components
+- [Advanced Guides](/docs/guide/custom-components) - Build custom components
+- [Plugin Development](/docs/guide/plugin-development) - Extend ObjectUI
+- [Performance Optimization](/docs/guide/performance) - Optimize your app
+
+## Complete Example
+
+The full source code is available at:
+- [GitHub Repository](https://github.com/objectstack-ai/objectui/tree/main/examples/todo)
+- [Live Demo](https://objectui-todo.vercel.app)
+
+## Troubleshooting
+
+### Build fails with "Cannot find module"
+
+Clear cache and reinstall:
+
+```bash
+rm -rf node_modules package-lock.json
+npm install
+```
+
+### Vercel deployment fails
+
+Ensure `dist` is in `.gitignore` but build command is set:
+
+```json title="package.json"
+{
+  "scripts": {
+    "build": "vite build"
+  }
+}
+```
+
+### Styles not loading in production
+
+Check `tailwind.config.js` includes ObjectUI in content array.
+
+## Support
+
+Need help? Check out:
+- [Documentation](/docs)
+- [GitHub Issues](https://github.com/objectstack-ai/objectui/issues)
+- [Community Discussions](https://github.com/objectstack-ai/objectui/discussions)

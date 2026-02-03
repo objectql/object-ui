@@ -1,0 +1,615 @@
+---
+title: "Custom Component Development"
+description: "Learn how to create custom components for ObjectUI"
+---
+
+# Custom Component Development
+
+Extend ObjectUI with your own custom components. This guide covers everything from basic components to advanced patterns with full TypeScript support.
+
+## Overview
+
+Creating custom components in ObjectUI involves three main steps:
+
+1. **Define the component schema types** - TypeScript interfaces for configuration
+2. **Build the React component** - The actual UI implementation
+3. **Register the component** - Make it available to the schema renderer
+
+## Basic Custom Component
+
+Let's create a simple "Counter" component.
+
+### Step 1: Define the Schema Type
+
+```typescript title="src/components/counter/counter.schema.ts"
+import { ComponentSchema } from '@object-ui/types';
+
+export interface CounterSchema extends ComponentSchema {
+  type: 'counter';
+  initialValue?: number;
+  step?: number;
+  min?: number;
+  max?: number;
+  label?: string;
+  onValueChange?: {
+    type: 'log' | 'notify' | 'api';
+    message?: string;
+  };
+}
+```
+
+### Step 2: Build the Component
+
+```tsx title="src/components/counter/Counter.tsx"
+import React, { useState } from 'react';
+import { Button } from '@object-ui/components';
+import { CounterSchema } from './counter.schema';
+
+export interface CounterProps {
+  schema: CounterSchema;
+}
+
+export function Counter({ schema }: CounterProps) {
+  const {
+    initialValue = 0,
+    step = 1,
+    min = -Infinity,
+    max = Infinity,
+    label = 'Counter',
+    className,
+  } = schema;
+
+  const [value, setValue] = useState(initialValue);
+
+  const increment = () => {
+    const newValue = Math.min(value + step, max);
+    setValue(newValue);
+    handleValueChange(newValue);
+  };
+
+  const decrement = () => {
+    const newValue = Math.max(value - step, min);
+    setValue(newValue);
+    handleValueChange(newValue);
+  };
+
+  const handleValueChange = (newValue: number) => {
+    if (schema.onValueChange) {
+      // Handle the action
+      if (schema.onValueChange.type === 'log') {
+        console.log(`Counter value: ${newValue}`);
+      }
+    }
+  };
+
+  return (
+    <div className={`flex items-center gap-4 ${className || ''}`}>
+      <span className="text-sm font-medium">{label}:</span>
+      <div className="flex items-center gap-2">
+        <Button onClick={decrement} disabled={value <= min} size="sm">
+          -
+        </Button>
+        <span className="text-2xl font-bold w-16 text-center">{value}</span>
+        <Button onClick={increment} disabled={value >= max} size="sm">
+          +
+        </Button>
+      </div>
+    </div>
+  );
+}
+```
+
+### Step 3: Register the Component
+
+```typescript title="src/components/counter/index.ts"
+import { ComponentRegistry } from '@object-ui/core';
+import { Counter } from './Counter';
+import { CounterSchema } from './counter.schema';
+
+export function registerCounter() {
+  ComponentRegistry.register<CounterSchema>('counter', Counter);
+}
+
+export { Counter, type CounterSchema };
+```
+
+### Step 4: Use the Component
+
+```tsx title="src/App.tsx"
+import { SchemaRenderer } from '@object-ui/react';
+import { registerCounter } from './components/counter';
+
+// Register your custom component
+registerCounter();
+
+const schema = {
+  type: 'page',
+  children: [
+    {
+      type: 'counter',
+      label: 'Quantity',
+      initialValue: 5,
+      step: 1,
+      min: 0,
+      max: 100,
+      onValueChange: {
+        type: 'log',
+      },
+    },
+  ],
+};
+
+function App() {
+  return <SchemaRenderer schema={schema} />;
+}
+```
+
+## Advanced Component with Children
+
+Create a component that can contain other components:
+
+```typescript title="src/components/panel/panel.schema.ts"
+import { ComponentSchema } from '@object-ui/types';
+
+export interface PanelSchema extends ComponentSchema {
+  type: 'panel';
+  title: string;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
+  icon?: string;
+  variant?: 'default' | 'bordered' | 'elevated';
+  children?: ComponentSchema[];
+}
+```
+
+```tsx title="src/components/panel/Panel.tsx"
+import React, { useState } from 'react';
+import { SchemaRenderer } from '@object-ui/react';
+import { Card, CardHeader, CardTitle, CardContent } from '@object-ui/components';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { PanelSchema } from './panel.schema';
+
+export interface PanelProps {
+  schema: PanelSchema;
+}
+
+export function Panel({ schema }: PanelProps) {
+  const {
+    title,
+    collapsible = false,
+    defaultExpanded = true,
+    icon,
+    variant = 'default',
+    children = [],
+    className,
+  } = schema;
+
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
+  const variantClasses = {
+    default: '',
+    bordered: 'border-2 border-primary',
+    elevated: 'shadow-lg',
+  };
+
+  return (
+    <Card className={`${variantClasses[variant]} ${className || ''}`}>
+      <CardHeader
+        className={collapsible ? 'cursor-pointer' : ''}
+        onClick={() => collapsible && setExpanded(!expanded)}
+      >
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {icon && <span>{icon}</span>}
+            <span>{title}</span>
+          </div>
+          {collapsible && (
+            <span>{expanded ? <ChevronUp /> : <ChevronDown />}</span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      {expanded && (
+        <CardContent>
+          {children.map((child, index) => (
+            <SchemaRenderer key={index} schema={child} />
+          ))}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+```
+
+## Component with Data Fetching
+
+Create a component that fetches and displays data:
+
+```tsx title="src/components/user-list/UserList.tsx"
+import React, { useEffect, useState } from 'react';
+import { Card } from '@object-ui/components';
+
+export interface UserListSchema extends ComponentSchema {
+  type: 'user-list';
+  apiUrl: string;
+  pageSize?: number;
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export function UserList({ schema }: { schema: UserListSchema }) {
+  const { apiUrl, pageSize = 10 } = schema;
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(apiUrl)
+      .then((res) => res.json())
+      .then((data) => {
+        setUsers(data.slice(0, pageSize));
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error('Failed to fetch users:', error);
+        setLoading(false);
+      });
+  }, [apiUrl, pageSize]);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {users.map((user) => (
+        <Card key={user.id} className="p-4">
+          <h3 className="font-semibold">{user.name}</h3>
+          <p className="text-sm text-gray-600">{user.email}</p>
+        </Card>
+      ))}
+    </div>
+  );
+}
+```
+
+## Component with Context
+
+Share state across multiple components:
+
+```tsx title="src/components/theme-provider/ThemeProvider.tsx"
+import React, { createContext, useContext, useState } from 'react';
+import { ComponentSchema } from '@object-ui/types';
+import { SchemaRenderer } from '@object-ui/react';
+
+interface ThemeContextType {
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
+}
+
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+
+export function useTheme() {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error('useTheme must be used within ThemeProvider');
+  }
+  return context;
+}
+
+export interface ThemeProviderSchema extends ComponentSchema {
+  type: 'theme-provider';
+  defaultTheme?: 'light' | 'dark';
+  children?: ComponentSchema[];
+}
+
+export function ThemeProvider({ schema }: { schema: ThemeProviderSchema }) {
+  const { defaultTheme = 'light', children = [] } = schema;
+  const [theme, setTheme] = useState<'light' | 'dark'>(defaultTheme);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  };
+
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      <div className={theme}>
+        {children.map((child, index) => (
+          <SchemaRenderer key={index} schema={child} />
+        ))}
+      </div>
+    </ThemeContext.Provider>
+  );
+}
+```
+
+## Best Practices
+
+### 1. Use TypeScript
+
+Always define proper types for your schema:
+
+```typescript
+// ✅ Good
+export interface MyComponentSchema extends ComponentSchema {
+  type: 'my-component';
+  requiredProp: string;
+  optionalProp?: number;
+}
+
+// ❌ Bad
+export interface MyComponentSchema {
+  type: string;
+  [key: string]: any;
+}
+```
+
+### 2. Handle Default Values
+
+```tsx
+// ✅ Good
+export function MyComponent({ schema }: MyComponentProps) {
+  const {
+    title = 'Default Title',
+    variant = 'default',
+    size = 'medium',
+  } = schema;
+  // ...
+}
+
+// ❌ Bad
+export function MyComponent({ schema }: MyComponentProps) {
+  // Accessing properties without defaults
+  return <div>{schema.title}</div>;
+}
+```
+
+### 3. Validate Props
+
+```tsx
+export function MyComponent({ schema }: MyComponentProps) {
+  // Validate required props
+  if (!schema.dataSource) {
+    console.error('MyComponent requires a dataSource');
+    return null;
+  }
+  
+  // Validate prop values
+  if (schema.columns && schema.columns.length === 0) {
+    console.warn('MyComponent has no columns defined');
+  }
+  
+  // Continue with rendering...
+}
+```
+
+### 4. Use Composition
+
+Reuse existing components:
+
+```tsx
+import { Card, Button, Badge } from '@object-ui/components';
+
+export function ProductCard({ schema }: { schema: ProductCardSchema }) {
+  return (
+    <Card className={schema.className}>
+      <CardHeader>
+        <CardTitle>{schema.title}</CardTitle>
+        <Badge>{schema.category}</Badge>
+      </CardHeader>
+      <CardContent>
+        <p>{schema.description}</p>
+        <Button onClick={() => handleClick()}>
+          Add to Cart
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+### 5. Export Everything
+
+```typescript title="src/components/my-component/index.ts"
+export { MyComponent } from './MyComponent';
+export { type MyComponentSchema } from './my-component.schema';
+export { registerMyComponent } from './register';
+```
+
+## Component Naming Conventions
+
+Follow these naming conventions:
+
+- **Component File**: `MyComponent.tsx` (PascalCase)
+- **Schema File**: `my-component.schema.ts` (kebab-case)
+- **Schema Type**: `MyComponentSchema` (PascalCase + Schema suffix)
+- **Schema Type Value**: `'my-component'` (kebab-case)
+- **Register Function**: `registerMyComponent` (camelCase)
+
+## Testing Custom Components
+
+```tsx title="src/components/counter/Counter.test.tsx"
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Counter } from './Counter';
+import { CounterSchema } from './counter.schema';
+
+describe('Counter', () => {
+  it('renders with initial value', () => {
+    const schema: CounterSchema = {
+      type: 'counter',
+      initialValue: 5,
+      label: 'Test Counter',
+    };
+
+    render(<Counter schema={schema} />);
+    expect(screen.getByText('5')).toBeInTheDocument();
+  });
+
+  it('increments value when + button clicked', () => {
+    const schema: CounterSchema = {
+      type: 'counter',
+      initialValue: 0,
+      step: 1,
+    };
+
+    render(<Counter schema={schema} />);
+    const incrementButton = screen.getByText('+');
+    fireEvent.click(incrementButton);
+    expect(screen.getByText('1')).toBeInTheDocument();
+  });
+
+  it('respects max value', () => {
+    const schema: CounterSchema = {
+      type: 'counter',
+      initialValue: 9,
+      max: 10,
+      step: 1,
+    };
+
+    render(<Counter schema={schema} />);
+    const incrementButton = screen.getByText('+');
+    fireEvent.click(incrementButton);
+    expect(screen.getByText('10')).toBeInTheDocument();
+    
+    // Should not increment beyond max
+    fireEvent.click(incrementButton);
+    expect(screen.getByText('10')).toBeInTheDocument();
+  });
+});
+```
+
+## Storybook Documentation
+
+Create stories for your component:
+
+```tsx title="src/components/counter/Counter.stories.tsx"
+import type { Meta, StoryObj } from '@storybook/react';
+import { Counter } from './Counter';
+import { CounterSchema } from './counter.schema';
+
+const meta: Meta<typeof Counter> = {
+  title: 'Components/Counter',
+  component: Counter,
+  tags: ['autodocs'],
+};
+
+export default meta;
+type Story = StoryObj<typeof Counter>;
+
+export const Default: Story = {
+  args: {
+    schema: {
+      type: 'counter',
+      label: 'Default Counter',
+      initialValue: 0,
+    },
+  },
+};
+
+export const WithMinMax: Story = {
+  args: {
+    schema: {
+      type: 'counter',
+      label: 'Limited Counter',
+      initialValue: 5,
+      min: 0,
+      max: 10,
+      step: 1,
+    },
+  },
+};
+
+export const LargeStep: Story = {
+  args: {
+    schema: {
+      type: 'counter',
+      label: 'Count by 5',
+      initialValue: 0,
+      step: 5,
+    },
+  },
+};
+```
+
+## Component Namespaces
+
+Avoid naming conflicts with namespaces:
+
+```typescript
+import { ComponentRegistry } from '@object-ui/core';
+
+// Register with namespace
+ComponentRegistry.register('counter', Counter, {
+  namespace: 'myapp'
+});
+
+// Use in schema
+const schema = {
+  type: 'myapp:counter', // Namespace prefix
+  initialValue: 0,
+};
+```
+
+## Distribution
+
+### 1. Create a Plugin Package
+
+```json title="package.json"
+{
+  "name": "@myorg/objectui-counter",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "peerDependencies": {
+    "@object-ui/core": "^0.4.0",
+    "@object-ui/react": "^0.4.0",
+    "react": "^18.0.0"
+  }
+}
+```
+
+### 2. Build Configuration
+
+```typescript title="vite.config.ts"
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    lib: {
+      entry: resolve(__dirname, 'src/index.ts'),
+      name: 'ObjectUICounter',
+      fileName: 'index',
+    },
+    rollupOptions: {
+      external: ['react', 'react-dom', '@object-ui/core', '@object-ui/react'],
+    },
+  },
+});
+```
+
+### 3. Publish to NPM
+
+```bash
+npm run build
+npm publish --access public
+```
+
+## Next Steps
+
+- [Plugin Development](/docs/guide/plugin-development) - Package multiple components
+- [Performance Optimization](/docs/guide/performance) - Optimize component rendering
+- [Component Gallery](/docs/components) - Browse existing components
+- [API Reference](/docs/api) - Component API documentation
+
+## Examples
+
+See complete examples:
+- [Counter Component](https://github.com/objectstack-ai/objectui/tree/main/examples/custom-components/counter)
+- [Panel Component](https://github.com/objectstack-ai/objectui/tree/main/examples/custom-components/panel)
+- [User List Component](https://github.com/objectstack-ai/objectui/tree/main/examples/custom-components/user-list)

@@ -1,0 +1,413 @@
+---
+title: "Installation"
+description: "Complete installation guide for ObjectUI"
+---
+
+# Installation
+
+This guide covers everything you need to install and configure ObjectUI in your project.
+
+## System Requirements
+
+- **Node.js**: 18.0 or later
+- **Package Manager**: pnpm (recommended), npm, or yarn
+- **React**: 18.0 or later
+- **TypeScript**: 5.0 or later (optional but recommended)
+
+## Installation Methods
+
+### Method 1: Fresh React Project with Vite
+
+Create a new React + TypeScript project with Vite:
+
+```bash
+# Create new Vite project
+npm create vite@latest my-objectui-app -- --template react-ts
+cd my-objectui-app
+
+# Install ObjectUI packages
+npm install @object-ui/react @object-ui/components @object-ui/fields @object-ui/core
+
+# Install Tailwind CSS
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+```
+
+### Method 2: Add to Existing Next.js App
+
+```bash
+# Install ObjectUI packages
+npm install @object-ui/react @object-ui/components @object-ui/fields @object-ui/core
+
+# Tailwind CSS (if not already installed)
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+```
+
+### Method 3: Clone and Use Development Build
+
+For testing or contributing:
+
+```bash
+git clone https://github.com/objectstack-ai/objectui.git
+cd objectui
+pnpm install
+pnpm build
+```
+
+## Core Packages
+
+ObjectUI is split into focused packages for optimal tree-shaking:
+
+### Required Packages
+
+| Package | Purpose | Size |
+|---------|---------|------|
+| `@object-ui/core` | Schema engine and registry | ~15KB |
+| `@object-ui/react` | React bindings and renderer | ~8KB |
+| `@object-ui/components` | UI component library | ~120KB |
+| `@object-ui/fields` | Form field widgets | ~80KB |
+
+### Optional Packages
+
+| Package | Purpose | When to Use |
+|---------|---------|-------------|
+| `@object-ui/layout` | Layout components | Building full applications |
+| `@object-ui/plugin-form` | Advanced forms | Multi-step forms, validation |
+| `@object-ui/plugin-grid` | Data grids | Tables with sorting/filtering |
+| `@object-ui/plugin-kanban` | Kanban boards | Project management UIs |
+| `@object-ui/plugin-charts` | Charts & graphs | Data visualization |
+| `@object-ui/plugin-dashboard` | Dashboards | Analytics interfaces |
+| `@object-ui/plugin-calendar` | Calendar views | Event scheduling |
+| `@object-ui/plugin-gantt` | Gantt charts | Project timelines |
+| `@object-ui/plugin-map` | Maps | Location-based features |
+| `@object-ui/plugin-editor` | Rich text editor | Content editing |
+| `@object-ui/plugin-markdown` | Markdown renderer | Documentation |
+| `@object-ui/plugin-chatbot` | Chat interface | Conversational UIs |
+| `@object-ui/data-objectstack` | ObjectStack integration | Using ObjectStack backend |
+
+## Tailwind CSS Configuration
+
+ObjectUI requires Tailwind CSS. Here's the complete setup:
+
+### 1. Install Tailwind
+
+```bash
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+```
+
+### 2. Configure Tailwind
+
+Update `tailwind.config.js`:
+
+```js title="tailwind.config.js"
+/** @type {import('tailwindcss').Config} */
+export default {
+  darkMode: ['class'],
+  content: [
+    './pages/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    './app/**/*.{ts,tsx}',
+    './src/**/*.{ts,tsx}',
+    // Include ObjectUI packages
+    './node_modules/@object-ui/**/*.{js,ts,jsx,tsx}',
+  ],
+  theme: {
+    container: {
+      center: true,
+      padding: '2rem',
+      screens: {
+        '2xl': '1400px',
+      },
+    },
+    extend: {
+      colors: {
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+      },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+      keyframes: {
+        'accordion-down': {
+          from: { height: '0' },
+          to: { height: 'var(--radix-accordion-content-height)' },
+        },
+        'accordion-up': {
+          from: { height: 'var(--radix-accordion-content-height)' },
+          to: { height: '0' },
+        },
+      },
+      animation: {
+        'accordion-down': 'accordion-down 0.2s ease-out',
+        'accordion-up': 'accordion-up 0.2s ease-out',
+      },
+    },
+  },
+  plugins: [require('tailwindcss-animate')],
+}
+```
+
+### 3. Add CSS Variables
+
+Create or update your global CSS file:
+
+```css title="src/index.css"
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+```
+
+### 4. Install Required Plugin
+
+```bash
+npm install -D tailwindcss-animate
+```
+
+## Component Registration
+
+ObjectUI uses a registry pattern. Components must be registered before use:
+
+### Option 1: Register All Components (Easiest)
+
+```tsx
+import { ComponentRegistry } from '@object-ui/core';
+import { registerAllComponents } from '@object-ui/components';
+import { registerAllFields } from '@object-ui/fields';
+
+// Register everything (larger bundle)
+registerAllComponents(ComponentRegistry);
+registerAllFields();
+```
+
+### Option 2: Lazy Registration (Recommended)
+
+For smaller bundles, register only what you need:
+
+```tsx
+import { ComponentRegistry } from '@object-ui/core';
+import { registerField } from '@object-ui/fields';
+
+// Register specific components
+ComponentRegistry.register('button', ButtonComponent);
+ComponentRegistry.register('card', CardComponent);
+
+// Register specific fields
+registerField('text');
+registerField('number');
+registerField('email');
+```
+
+**Bundle size impact**: Lazy registration can reduce bundle size by 30-50%!
+
+## TypeScript Configuration
+
+For the best developer experience, configure TypeScript:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    /* Path aliases (optional) */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+```
+
+## Verification
+
+Test your installation:
+
+```tsx title="src/App.tsx"
+import { SchemaRenderer } from '@object-ui/react';
+import { ComponentRegistry } from '@object-ui/core';
+import { registerAllComponents } from '@object-ui/components';
+
+registerAllComponents(ComponentRegistry);
+
+const schema = {
+  type: 'card',
+  title: '✅ ObjectUI is installed!',
+  children: [
+    {
+      type: 'text',
+      content: 'If you can see this card, everything is working correctly.',
+    },
+  ],
+};
+
+function App() {
+  return <SchemaRenderer schema={schema} />;
+}
+
+export default App;
+```
+
+## Next Steps
+
+- [Quick Start](/docs/guide/quick-start) - Build your first component
+- [Zero to Deployment](/docs/guide/zero-to-deployment) - Complete tutorial
+- [Schema Overview](/docs/guide/schema-overview) - Learn the schema structure
+- [Component Registry](/docs/guide/component-registry) - Advanced registration
+
+## Troubleshooting
+
+### Issue: Styles not applying
+
+**Solution**: Ensure Tailwind content includes ObjectUI:
+
+```js
+content: [
+  "./node_modules/@object-ui/**/*.{js,ts,jsx,tsx}",
+]
+```
+
+### Issue: Module not found
+
+**Solution**: Check package.json includes all required dependencies:
+
+```json
+{
+  "dependencies": {
+    "@object-ui/react": "latest",
+    "@object-ui/components": "latest",
+    "@object-ui/fields": "latest",
+    "@object-ui/core": "latest"
+  }
+}
+```
+
+### Issue: TypeScript errors
+
+**Solution**: Ensure `skipLibCheck: true` in tsconfig.json
+
+### Issue: Dark mode not working
+
+**Solution**: Add dark mode toggle:
+
+```tsx
+// Add to your root component
+<div className="dark"> {/* or light */}
+  <SchemaRenderer schema={schema} />
+</div>
+```
+
+## Support
+
+- [GitHub Issues](https://github.com/objectstack-ai/objectui/issues)
+- [Discussions](https://github.com/objectstack-ai/objectui/discussions)
+- [Documentation](/docs)

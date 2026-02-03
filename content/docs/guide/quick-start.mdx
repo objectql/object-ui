@@ -1,0 +1,205 @@
+---
+title: "Quick Start"
+description: "Get up and running with ObjectUI in 5 minutes"
+---
+
+# Quick Start
+
+Get your first ObjectUI application running in just 5 minutes! This guide will walk you through the fastest path to see ObjectUI in action.
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+- **Node.js 18+** installed
+- **pnpm** package manager (recommended) or npm
+- Basic knowledge of React and TypeScript
+
+## Option 1: Try the Live Demo (0 minutes)
+
+The fastest way to see ObjectUI in action:
+
+```bash
+# Clone the repository
+git clone https://github.com/objectstack-ai/objectui.git
+cd objectui
+
+# Install dependencies
+pnpm install
+
+# Start the development console
+pnpm dev
+```
+
+Open [http://localhost:5173](http://localhost:5173) to see the ObjectUI console with live examples!
+
+## Option 2: Add to Existing React App (5 minutes)
+
+### Step 1: Install Core Packages
+
+```bash
+npm install @object-ui/react @object-ui/components @object-ui/fields
+```
+
+### Step 2: Setup Tailwind CSS
+
+ObjectUI requires Tailwind CSS. Add it to your project:
+
+```bash
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+```
+
+Update your `tailwind.config.js`:
+
+```js title="tailwind.config.js"
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+    // Include ObjectUI components
+    "./node_modules/@object-ui/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+```
+
+Add Tailwind directives to your CSS:
+
+```css title="src/index.css"
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+
+### Step 3: Render Your First Schema
+
+Create a simple form schema:
+
+```tsx title="src/App.tsx"
+import { SchemaRenderer } from '@object-ui/react';
+import { ComponentRegistry } from '@object-ui/core';
+import { registerAllComponents } from '@object-ui/components';
+import { registerAllFields } from '@object-ui/fields';
+
+// Register components
+registerAllComponents(ComponentRegistry);
+registerAllFields();
+
+const schema = {
+  type: 'card',
+  title: 'Contact Form',
+  children: [
+    {
+      type: 'field',
+      fieldType: 'text',
+      name: 'name',
+      label: 'Full Name',
+      placeholder: 'John Doe',
+      required: true,
+    },
+    {
+      type: 'field',
+      fieldType: 'email',
+      name: 'email',
+      label: 'Email',
+      placeholder: 'john@example.com',
+      required: true,
+    },
+    {
+      type: 'field',
+      fieldType: 'textarea',
+      name: 'message',
+      label: 'Message',
+      placeholder: 'Your message here...',
+      rows: 4,
+    },
+    {
+      type: 'button',
+      text: 'Submit',
+      variant: 'default',
+      onClick: {
+        type: 'log',
+        message: 'Form submitted!',
+      },
+    },
+  ],
+};
+
+function App() {
+  return (
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-2xl mx-auto">
+        <SchemaRenderer schema={schema} />
+      </div>
+    </div>
+  );
+}
+
+export default App;
+```
+
+### Step 4: Run Your App
+
+```bash
+npm run dev
+```
+
+🎉 **Congratulations!** You've just rendered your first schema-driven UI component!
+
+## What Just Happened?
+
+1. **Schema Definition**: You defined a form using plain JSON/JavaScript objects
+2. **Component Registration**: You registered ObjectUI's component library
+3. **Schema Rendering**: The `<SchemaRenderer>` transformed your schema into React components
+
+## Next Steps
+
+Now that you have ObjectUI running, explore these guides:
+
+- [**Installation Guide**](/docs/guide/installation) - Complete setup with all features
+- [**Zero to Deployment**](/docs/guide/zero-to-deployment) - Build and deploy a complete app
+- [**Schema Overview**](/docs/guide/schema-overview) - Understand the schema structure
+- [**Component Gallery**](/docs/components) - Browse all 35+ available components
+
+## Common Issues
+
+### Tailwind styles not loading?
+
+Make sure you've added ObjectUI to your `content` array in `tailwind.config.js`:
+
+```js
+content: [
+  "./node_modules/@object-ui/**/*.{js,ts,jsx,tsx}",
+]
+```
+
+### Components not rendering?
+
+Ensure you've registered the components before rendering:
+
+```tsx
+import { registerAllComponents } from '@object-ui/components';
+import { ComponentRegistry } from '@object-ui/core';
+
+registerAllComponents(ComponentRegistry);
+```
+
+### TypeScript errors?
+
+Install type definitions:
+
+```bash
+npm install -D @types/react @types/react-dom
+```
+
+## Resources
+
+- [GitHub Repository](https://github.com/objectstack-ai/objectui)
+- [Component Documentation](/docs/components)
+- [API Reference](/docs/core)
+- [Examples](https://github.com/objectstack-ai/objectui/tree/main/examples)

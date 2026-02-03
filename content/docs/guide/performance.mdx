@@ -1,0 +1,562 @@
+---
+title: "Performance Optimization"
+description: "Optimize your ObjectUI applications for maximum performance"
+---
+
+# Performance Optimization
+
+Learn how to build lightning-fast ObjectUI applications with optimal bundle sizes and rendering performance.
+
+## Bundle Size Optimization
+
+### 1. Lazy Field Registration
+
+Register only the fields you need:
+
+```tsx
+import { registerField } from '@object-ui/fields';
+
+// ❌ Bad - Registers all 37 fields (~80KB)
+import { registerAllFields } from '@object-ui/fields';
+registerAllFields();
+
+// ✅ Good - Register only what you use (~20KB)
+registerField('text');
+registerField('number');
+registerField('email');
+registerField('select');
+```
+
+**Impact**: 60-70% reduction in field bundle size!
+
+### 2. Selective Component Registration
+
+```tsx
+import { ComponentRegistry } from '@object-ui/core';
+import { Button, Card, Input } from '@object-ui/components';
+
+// ❌ Bad - Registers all 47 components
+import { registerAllComponents } from '@object-ui/components';
+registerAllComponents(ComponentRegistry);
+
+// ✅ Good - Register only what you use
+ComponentRegistry.register('button', Button);
+ComponentRegistry.register('card', Card);
+ComponentRegistry.register('input', Input);
+```
+
+**Impact**: 30-50% reduction in component bundle size!
+
+### 3. Plugin Code Splitting
+
+Load plugins only when needed:
+
+```tsx
+import { lazy, Suspense } from 'react';
+
+// Lazy load heavy plugins
+const KanbanBoard = lazy(() => import('@object-ui/plugin-kanban'));
+const DataGrid = lazy(() => import('@object-ui/plugin-grid'));
+const ChartDashboard = lazy(() => import('@object-ui/plugin-charts'));
+
+function App() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SchemaRenderer schema={schema} />
+    </Suspense>
+  );
+}
+```
+
+### 4. Analyze Bundle Size
+
+Use bundle analyzers to identify bloat:
+
+```bash
+# Install analyzer
+npm install -D rollup-plugin-visualizer
+
+# Add to vite.config.ts
+import { visualizer } from 'rollup-plugin-visualizer';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    visualizer({
+      open: true,
+      gzipSize: true,
+      brotliSize: true,
+    }),
+  ],
+});
+
+# Build and analyze
+npm run build
+```
+
+## Rendering Performance
+
+### 1. Memoize Components
+
+Prevent unnecessary re-renders:
+
+```tsx
+import { memo } from 'react';
+
+export const ExpensiveComponent = memo(({ schema }: ExpensiveComponentProps) => {
+  // Component implementation
+}, (prevProps, nextProps) => {
+  // Custom comparison
+  return prevProps.schema === nextProps.schema;
+});
+```
+
+### 2. Use React.memo for Schema Renderer
+
+```tsx
+import { memo } from 'react';
+import { SchemaRenderer } from '@object-ui/react';
+
+const MemoizedSchemaRenderer = memo(SchemaRenderer, (prevProps, nextProps) => {
+  return JSON.stringify(prevProps.schema) === JSON.stringify(nextProps.schema);
+});
+
+function App() {
+  return <MemoizedSchemaRenderer schema={schema} />;
+}
+```
+
+### 3. Virtual Scrolling for Large Lists
+
+Use virtualization for long lists:
+
+```tsx
+import { FixedSizeList } from 'react-window';
+
+export function VirtualList({ schema }: { schema: ListSchema }) {
+  const { items, height = 400, itemHeight = 50 } = schema;
+
+  return (
+    <FixedSizeList
+      height={height}
+      itemCount={items.length}
+      itemSize={itemHeight}
+      width="100%"
+    >
+      {({ index, style }) => (
+        <div style={style}>
+          <SchemaRenderer schema={items[index]} />
+        </div>
+      )}
+    </FixedSizeList>
+  );
+}
+```
+
+### 4. Debounce Expensive Operations
+
+```tsx
+import { useMemo, useState } from 'react';
+import { debounce } from 'lodash-es';
+
+export function SearchComponent({ schema }: SearchComponentProps) {
+  const [query, setQuery] = useState('');
+
+  const debouncedSearch = useMemo(
+    () =>
+      debounce((value: string) => {
+        // Expensive search operation
+        performSearch(value);
+      }, 300),
+    []
+  );
+
+  return (
+    <input
+      type="text"
+      onChange={(e) => {
+        setQuery(e.target.value);
+        debouncedSearch(e.target.value);
+      }}
+      value={query}
+    />
+  );
+}
+```
+
+### 5. Optimize Re-renders with Keys
+
+Always use stable keys:
+
+```tsx
+// ❌ Bad - Index as key causes unnecessary re-renders
+{items.map((item, index) => (
+  <SchemaRenderer key={index} schema={item} />
+))}
+
+// ✅ Good - Stable unique key
+{items.map((item) => (
+  <SchemaRenderer key={item.id} schema={item} />
+))}
+```
+
+## Data Fetching Optimization
+
+### 1. Implement Caching
+
+```tsx
+import { useQuery } from '@tanstack/react-query';
+
+export function DataComponent({ schema }: DataComponentProps) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['data', schema.dataSource.api],
+    queryFn: () => fetch(schema.dataSource.api).then(res => res.json()),
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    cacheTime: 10 * 60 * 1000,
+  });
+
+  if (isLoading) return <div>Loading...</div>;
+  return <div>{/* Render data */}</div>;
+}
+```
+
+### 2. Pagination
+
+Implement server-side pagination:
+
+```tsx
+const paginatedSchema = {
+  type: 'data-table',
+  dataSource: {
+    api: '/api/users',
+    method: 'GET',
+    params: {
+      page: 1,
+      pageSize: 20, // Load only 20 items at a time
+    },
+  },
+  pagination: {
+    enabled: true,
+    pageSize: 20,
+    showSizeChanger: true,
+  },
+};
+```
+
+### 3. Incremental Loading
+
+Load data as needed:
+
+```tsx
+import { useInfiniteQuery } from '@tanstack/react-query';
+
+export function InfiniteList({ schema }: InfiniteListProps) {
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['items'],
+    queryFn: ({ pageParam = 0 }) =>
+      fetch(`/api/items?page=${pageParam}`).then(res => res.json()),
+    getNextPageParam: (lastPage, pages) => lastPage.nextPage,
+  });
+
+  return (
+    <div>
+      {data?.pages.map((page) =>
+        page.items.map((item) => (
+          <SchemaRenderer key={item.id} schema={item} />
+        ))
+      )}
+      {hasNextPage && (
+        <button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+          Load More
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
+## Image Optimization
+
+### 1. Lazy Load Images
+
+```tsx
+export function ImageComponent({ schema }: ImageSchema) {
+  return (
+    <img
+      src={schema.src}
+      alt={schema.alt}
+      loading="lazy" // Native lazy loading
+      width={schema.width}
+      height={schema.height}
+    />
+  );
+}
+```
+
+### 2. Use Modern Formats
+
+```tsx
+<picture>
+  <source srcSet={`${image}.avif`} type="image/avif" />
+  <source srcSet={`${image}.webp`} type="image/webp" />
+  <img src={`${image}.jpg`} alt={alt} />
+</picture>
+```
+
+### 3. Responsive Images
+
+```tsx
+export function ResponsiveImage({ schema }: ImageSchema) {
+  return (
+    <img
+      src={schema.src}
+      srcSet={`
+        ${schema.src}?w=320 320w,
+        ${schema.src}?w=640 640w,
+        ${schema.src}?w=1024 1024w
+      `}
+      sizes="(max-width: 320px) 320px, (max-width: 640px) 640px, 1024px"
+      alt={schema.alt}
+      loading="lazy"
+    />
+  );
+}
+```
+
+## CSS Optimization
+
+### 1. Purge Unused Tailwind CSS
+
+Configure Tailwind to remove unused styles:
+
+```js title="tailwind.config.js"
+export default {
+  content: [
+    './src/**/*.{js,jsx,ts,tsx}',
+    './node_modules/@object-ui/**/*.{js,ts,jsx,tsx}',
+  ],
+  // Tailwind will purge unused classes in production
+}
+```
+
+### 2. Use CSS Containment
+
+```tsx
+export function CardComponent({ schema }: CardSchema) {
+  return (
+    <div
+      className={schema.className}
+      style={{ contain: 'layout style paint' }} // CSS containment
+    >
+      {/* Card content */}
+    </div>
+  );
+}
+```
+
+## Runtime Performance
+
+### 1. Use Production Build
+
+Always use production builds:
+
+```bash
+# Development (larger, slower)
+npm run dev
+
+# Production (optimized)
+npm run build
+npm run preview
+```
+
+### 2. Enable Compression
+
+Configure your server for gzip/brotli:
+
+```js title="vite.config.ts"
+import { defineConfig } from 'vite';
+import viteCompression from 'vite-plugin-compression';
+
+export default defineConfig({
+  plugins: [
+    viteCompression({
+      algorithm: 'brotliCompress',
+      ext: '.br',
+    }),
+  ],
+});
+```
+
+### 3. Tree Shaking
+
+Ensure tree shaking is enabled:
+
+```json title="package.json"
+{
+  "sideEffects": false
+}
+```
+
+## Monitoring Performance
+
+### 1. Use React DevTools Profiler
+
+```tsx
+import { Profiler } from 'react';
+
+function App() {
+  const onRenderCallback = (
+    id,
+    phase,
+    actualDuration,
+    baseDuration,
+    startTime,
+    commitTime
+  ) => {
+    console.log(`${id} (${phase}) took ${actualDuration}ms`);
+  };
+
+  return (
+    <Profiler id="App" onRender={onRenderCallback}>
+      <SchemaRenderer schema={schema} />
+    </Profiler>
+  );
+}
+```
+
+### 2. Web Vitals
+
+Monitor Core Web Vitals:
+
+```tsx
+import { onCLS, onFID, onFCP, onLCP, onTTFB } from 'web-vitals';
+
+onCLS(console.log);
+onFID(console.log);
+onFCP(console.log);
+onLCP(console.log);
+onTTFB(console.log);
+```
+
+### 3. Lighthouse Audits
+
+Run regular Lighthouse audits:
+
+```bash
+# Install Lighthouse
+npm install -g @lhci/cli
+
+# Run audit
+lhci autorun --collect.url=http://localhost:3000
+```
+
+## Performance Checklist
+
+✅ **Bundle Size**
+- [ ] Use lazy field registration
+- [ ] Register only needed components
+- [ ] Code split heavy plugins
+- [ ] Analyze bundle with visualizer
+- [ ] Keep total bundle < 500KB gzipped
+
+✅ **Rendering**
+- [ ] Memoize expensive components
+- [ ] Use stable keys for lists
+- [ ] Implement virtual scrolling for long lists
+- [ ] Debounce expensive operations
+- [ ] Avoid inline function creation in render
+
+✅ **Data Fetching**
+- [ ] Implement caching
+- [ ] Use pagination for large datasets
+- [ ] Implement incremental loading
+- [ ] Optimize API responses
+
+✅ **Images**
+- [ ] Use lazy loading
+- [ ] Serve modern formats (WebP, AVIF)
+- [ ] Implement responsive images
+- [ ] Optimize image sizes
+
+✅ **CSS**
+- [ ] Purge unused Tailwind classes
+- [ ] Use CSS containment
+- [ ] Minimize custom CSS
+
+✅ **Build**
+- [ ] Use production builds
+- [ ] Enable compression
+- [ ] Configure tree shaking
+
+✅ **Monitoring**
+- [ ] Set up performance monitoring
+- [ ] Track Core Web Vitals
+- [ ] Run regular Lighthouse audits
+
+## Performance Targets
+
+Aim for these metrics:
+
+| Metric | Target | Good | Needs Improvement |
+|--------|--------|------|-------------------|
+| **First Contentful Paint (FCP)** | < 1.8s | < 3.0s | > 3.0s |
+| **Largest Contentful Paint (LCP)** | < 2.5s | < 4.0s | > 4.0s |
+| **Total Blocking Time (TBT)** | < 200ms | < 600ms | > 600ms |
+| **Cumulative Layout Shift (CLS)** | < 0.1 | < 0.25 | > 0.25 |
+| **Speed Index** | < 3.4s | < 5.8s | > 5.8s |
+| **Bundle Size (gzipped)** | < 300KB | < 500KB | > 500KB |
+
+## Common Performance Issues
+
+### Issue: Large Bundle Size
+
+**Diagnosis**: Run `npm run build` and check output size.
+
+**Solution**:
+```tsx
+// Before: 500KB
+import { registerAllComponents } from '@object-ui/components';
+import { registerAllFields } from '@object-ui/fields';
+
+// After: 200KB
+import { registerField } from '@object-ui/fields';
+registerField('text');
+registerField('number');
+```
+
+### Issue: Slow Initial Load
+
+**Diagnosis**: Check Network tab in DevTools.
+
+**Solution**: Implement code splitting:
+```tsx
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Reports = lazy(() => import('./pages/Reports'));
+```
+
+### Issue: Janky Scrolling
+
+**Diagnosis**: Use DevTools Performance tab.
+
+**Solution**: Implement virtual scrolling:
+```tsx
+import { FixedSizeList } from 'react-window';
+```
+
+## Next Steps
+
+- [Security Best Practices](/docs/guide/security) - Secure your app
+- [Custom Components](/docs/guide/custom-components) - Build optimized components
+- [Plugin Development](/docs/guide/plugin-development) - Create performant plugins
+
+## Resources
+
+- [Web.dev Performance](https://web.dev/performance/)
+- [React Performance Optimization](https://react.dev/learn/render-and-commit)
+- [Vite Performance](https://vitejs.dev/guide/performance.html)
+- [Tailwind CSS Optimization](https://tailwindcss.com/docs/optimizing-for-production)

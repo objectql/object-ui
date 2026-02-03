@@ -1,6 +1,10 @@
 {
   "title": "Guide",
   "pages": [
+    "quick-start",
+    "installation",
+    "zero-to-deployment",
+    "video-tutorials",
     "architecture",
     "schema-rendering",
     "layout",
