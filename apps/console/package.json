@@ -33,6 +33,7 @@
     "@object-ui/plugin-dashboard": "workspace:*",
     "@object-ui/plugin-form": "workspace:*",
     "@object-ui/plugin-grid": "workspace:*",
+    "@object-ui/plugin-kanban": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@objectstack/client": "^0.9.0",

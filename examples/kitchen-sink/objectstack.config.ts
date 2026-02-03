@@ -126,6 +126,43 @@ export default defineStack({
           ]
         }
       ]
+    },
+    {
+      name: 'kanban_test',
+      label: 'Kanban Test',
+      type: 'app',
+      regions: [
+        {
+          name: 'main',
+          components: [
+            {
+              type: 'kanban',
+              properties: {
+                objectName: 'project_task',
+                groupBy: 'status',
+                columns: [
+                  { 
+                    id: 'todo', 
+                    title: 'To Do', 
+                    cards: [] 
+                  },
+                  { 
+                    id: 'in_progress', 
+                    title: 'In Progress', 
+                    limit: 3, 
+                    cards: [] 
+                  },
+                  { 
+                    id: 'done', 
+                    title: 'Done', 
+                    cards: [] 
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   manifest: {

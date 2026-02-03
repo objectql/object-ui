@@ -210,6 +210,9 @@ importers:
       '@object-ui/plugin-grid':
         specifier: workspace:*
         version: link:../../packages/plugin-grid
+      '@object-ui/plugin-kanban':
+        specifier: workspace:*
+        version: link:../../packages/plugin-kanban
       '@object-ui/react':
         specifier: workspace:*
         version: link:../../packages/react

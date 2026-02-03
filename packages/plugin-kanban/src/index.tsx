@@ -12,6 +12,8 @@ import { Skeleton } from '@object-ui/components';
 
 // Export types for external use
 export type { KanbanSchema, KanbanCard, KanbanColumn } from './types';
+export { ObjectKanban } from './ObjectKanban';
+export type { ObjectKanbanProps } from './ObjectKanban';
 
 // 🚀 Lazy load the implementation file
 // This ensures @dnd-kit is only loaded when the component is actually rendered
