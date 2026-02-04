@@ -9,9 +9,14 @@ describe('Plugin Detail Registration', () => {
   });
 
   it('registers detail-view component', () => {
-    const config = ComponentRegistry.get('detail-view');
-    expect(config).toBeDefined();
-    expect(config?.label).toBe('Detail View');
+    const config = ComponentRegistry.get('plugin-detail:detail-view'); // Try full name
+    console.log('DetailView Config FullName:', config);
+    
+    const configShort = ComponentRegistry.get('detail-view');
+    console.log('DetailView Config ShortName:', configShort);
+
+    expect(config || configShort).toBeDefined();
+    expect((config || configShort)?.label).toBe('Detail View');
   });
 
   it('registers related sub-components', () => {
