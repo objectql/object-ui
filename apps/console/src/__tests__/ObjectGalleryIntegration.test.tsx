@@ -2,8 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { ListView } from '@object-ui/plugin-list'; 
-import { ObjectGallery } from '@object-ui/plugin-list/ObjectGallery';
+import { ListView, ObjectGallery } from '@object-ui/plugin-list'; 
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRendererProvider } from '@object-ui/react';
 

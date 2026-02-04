@@ -256,11 +256,6 @@ export const ListView: React.FC<ListViewProps> = ({
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-           schema={viewComponentSchema} 
-           {...props} 
-           data={data} // Pass data to children to avoid double-fetch
-           loading={loading}
-       
               placeholder={`Search ${schema.objectName}...`}
               value={searchTerm}
               onChange={(e) => handleSearchChange(e.target.value)}
