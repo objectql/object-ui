@@ -8,6 +8,7 @@
 
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import { useSchemaContext } from '@object-ui/react';
 import { ObjectMap } from './ObjectMap';
 import type { ObjectMapProps } from './ObjectMap';
 
@@ -16,7 +17,8 @@ export type { ObjectMapProps };
 
 // Register component
 const ObjectMapRenderer: React.FC<{ schema: any }> = ({ schema }) => {
-  return <ObjectMap schema={schema} dataSource={null as any} />;
+  const { dataSource } = useSchemaContext();
+  return <ObjectMap schema={schema} dataSource={dataSource} />;
 };
 
 ComponentRegistry.register('object-map', ObjectMapRenderer, {
