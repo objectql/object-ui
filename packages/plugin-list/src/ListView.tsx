@@ -20,6 +20,7 @@ export interface ListViewProps {
   onFilterChange?: (filters: any) => void;
   onSortChange?: (sort: any) => void;
   onSearchChange?: (search: string) => void;
+  [key: string]: any;
 }
 
 export const ListView: React.FC<ListViewProps> = ({
@@ -29,6 +30,7 @@ export const ListView: React.FC<ListViewProps> = ({
   onFilterChange: _onFilterChange,
   onSortChange,
   onSearchChange,
+  ...props
 }) => {
   const [currentView, setCurrentView] = React.useState<ViewType>(
     (schema.viewType as ViewType) || 'grid'
@@ -209,7 +211,7 @@ export const ListView: React.FC<ListViewProps> = ({
 
       {/* View Content */}
       <div className="flex-1">
-        <SchemaRenderer schema={viewComponentSchema} />
+        <SchemaRenderer schema={viewComponentSchema} {...props} />
       </div>
     </div>
   );

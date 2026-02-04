@@ -1,11 +1,14 @@
 import { useState, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { ObjectGrid } from '@object-ui/plugin-grid';
-import { ObjectKanban } from '@object-ui/plugin-kanban';
-import { ObjectCalendar } from '@object-ui/plugin-calendar';
 import { ObjectGantt } from '@object-ui/plugin-gantt';
+import { ListView } from '@object-ui/plugin-list';
+// Import plugins for side-effects (registration)
+import '@object-ui/plugin-grid';
+import '@object-ui/plugin-kanban';
+import '@object-ui/plugin-calendar';
 import { Button, Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { Plus, Calendar as CalendarIcon, Kanban as KanbanIcon, Table as TableIcon, AlignLeft } from 'lucide-react';
+import type { ListViewSchema } from '@object-ui/types';
 
 export function ObjectView({ dataSource, objects, onEdit }: any) {
     const { objectName } = useParams();
@@ -85,85 +88,59 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
             onRowClick: (record: any) => onEdit(record), // Default to edit on click
         };
 
-        switch (activeView.type) {
-            case 'kanban':
-                return (
-                    <ObjectKanban 
-                        key={key}
-                        {...commonProps}
-                        schema={{
-                            type: 'kanban',
-                            objectName: objectDef.name,
-                            groupBy: activeView.groupBy || 'status',
-                            columns: activeView.columns,
-                            cardTitle: objectDef.titleField || 'name', // Default title field
-                            cardFields: activeView.columns
-                        }}
-                        {...interactionProps}
-                    />
-                );
-            case 'calendar':
-                return (
-                    <ObjectCalendar 
-                        key={key}
-                        {...commonProps}
-                        schema={{
-                            type: 'calendar',
-                            objectName: objectDef.name,
-                            dateField: activeView.dateField || 'due_date',
-                            endField: activeView.endField,
+        // Gantt is not yet supported by ListView, handle separately
+        if (activeView.type === 'gantt') {
+           return (
+                <ObjectGantt
+                    key={key}
+                    {...commonProps}
+                    schema={{
+                        type: 'object-grid',
+                        objectName: objectDef.name,
+                        gantt: {
+                            startDateField: activeView.startDateField || 'start_date',
+                            endDateField: activeView.endDateField || 'end_date',
                             titleField: activeView.titleField || 'name',
+                            progressField: activeView.progressField || 'progress',
+                            dependenciesField: activeView.dependenciesField,
                             colorField: activeView.colorField,
-                        }}
-                       {...interactionProps}
-                    />
-                );
-            case 'gantt':
-                return (
-                    <ObjectGantt
-                        key={key}
-                        {...commonProps}
-                        schema={{
-                            type: 'object-grid',
-                            objectName: objectDef.name,
-                            // Gantt config is read by ObjectGantt via getGanttConfig helper
-                            // TypeScript workaround: gantt property not in ObjectGridSchema but supported by implementation
-                            gantt: {
-                                startDateField: activeView.startDateField || 'start_date',
-                                endDateField: activeView.endDateField || 'end_date',
-                                titleField: activeView.titleField || 'name',
-                                progressField: activeView.progressField || 'progress',
-                                dependenciesField: activeView.dependenciesField,
-                                colorField: activeView.colorField,
-                            }
-                        } as any}
-                        {...interactionProps}
-                    />
-                );
-            case 'grid':
-            default:
-                return (
-                    <ObjectGrid
-                        key={key}
-                        {...commonProps}
-                        schema={{
-                            type: 'object-grid',
-                            objectName: objectDef.name,
-                            filterable: true,
-                            columns: getGridColumns(activeView),
-                            filter: activeView.filter,
-                            sort: activeView.sort
-                        }}
-                        {...interactionProps}
-                        onDelete={async (record: any) => {
-                            if (confirm(`Delete record?`)) {
-                                await dataSource.delete(objectName, record.id || record._id);
-                                setRefreshKey(k => k + 1);
-                            }
-                        }}
-                    />
-                );
+                        }
+                    } as any}
+                    {...interactionProps}
+                />
+            );
         }
+
+        // Use standard ListView for supported types
+        const listViewSchema: ListViewSchema = {
+            type: 'list-view',
+            objectName: objectDef.name,
+            viewType: activeView.type,
+            fields: activeView.columns,
+            filters: activeView.filter,
+            sort: activeView.sort,
+            options: {
+                kanban: {
+                     groupField: activeView.groupBy || 'status',
+                     titleField: objectDef.titleField || 'name',
+                     cardFields: activeView.columns
+                },
+                calendar: {
+                    startDateField: activeView.dateField || 'due_date',
+                    endDateField: activeView.endField,
+                    titleField: activeView.titleField || 'name',
+                }
+            }
+        };
+
+        return (
+            <ListView
+                key={key}
+                schema={listViewSchema}
+                className="h-full"
+                {...interactionProps}
+            />
+        );
     };
 
     return (
@@ -217,12 +194,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
 
                  {/* Right: View Options (Placeholder for now) */}
                  <div className="flex items-center gap-2 hidden md:flex">
-                     <Button variant="ghost" size="sm" className="h-8 text-muted-foreground">
-                        <span className="text-xs">Filter</span>
-                     </Button>
-                     <Button variant="ghost" size="sm" className="h-8 text-muted-foreground">
-                        <span className="text-xs">Sort</span>
-                     </Button>
+                     {/* Filter/Sort are handled by ListView now */}
                  </div>
              </div>
 
