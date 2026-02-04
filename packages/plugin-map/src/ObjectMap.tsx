@@ -240,8 +240,18 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
         setLoading(true);
         
         // Prioritize data passed via props (from ListView)
-        if ((schema as any).data || (rest as any).data) {
-             const passed = (schema as any).data || (rest as any).data;
+        if ((rest as any).data) { // Check props.data directly first
+             const passed = (rest as any).data;
+             if (Array.isArray(passed)) {
+                 setData(passed);
+                 setLoading(false);
+                 return;
+             }
+        }
+
+        // Check schema.data next
+        if ((schema as any).data) {
+             const passed = (schema as any).data;
              if (Array.isArray(passed)) {
                  setData(passed);
                  setLoading(false);
