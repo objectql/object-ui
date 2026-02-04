@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { useLocation, Link } from 'react-router-dom';
+import * as LucideIcons from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -42,21 +43,27 @@ import {
 } from 'lucide-react';
 import appConfig from '../../objectstack.config';
 
-// Icon Map
-const ICONS: Record<string, any> = {
-  'dashboard': LayoutDashboard,
-  'users': Users,
-  'user': Users,
-  'check-square': CheckSquare,
-  'activity': Activity,
-  'briefcase': Briefcase,
-  'file-text': FileText,
-  'database': Database,
-};
-
+// Helper to get icon from Lucide
 function getIcon(name?: string) {
-  if (!name) return Database;
-  return ICONS[name] || Database;
+  if (!name) return LucideIcons.Database;
+  
+  // 1. Try direct match (e.g. if user passed "User")
+  if ((LucideIcons as any)[name]) {
+      return (LucideIcons as any)[name];
+  }
+
+  // 2. Try converting kebab-case to PascalCase (e.g. "shopping-cart" -> "ShoppingCart")
+  const pascalName = name
+    .split('-')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
+    
+  if ((LucideIcons as any)[pascalName]) {
+      return (LucideIcons as any)[pascalName];
+  }
+
+  // 3. Fallback
+  return LucideIcons.Database;
 }
 
 export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: string, onAppChange: (name: string) => void }) {
@@ -89,10 +96,8 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                      {/* App Logo - use branding logo if available */}
                      {logo ? (
                        <img src={logo} alt={activeApp.label} className="size-6 object-contain" />
-                     ) : activeApp.icon ? (
-                       React.createElement(getIcon(activeApp.icon), { className: "size-4" })
                      ) : (
-                       <Database className="size-4" />
+                       React.createElement(getIcon(activeApp.icon), { className: "size-4" })
                      )}
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
