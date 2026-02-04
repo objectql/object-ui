@@ -83,6 +83,7 @@ export function AppContent() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     initializeClient();
@@ -179,7 +180,7 @@ export function AppContent() {
             />
         } />
         <Route path="/:objectName/:recordId" element={
-            <RecordDetailView dataSource={dataSource} objects={allObjects} onEdit={handleEdit} />
+            <RecordDetailView key={refreshKey} dataSource={dataSource} objects={allObjects} onEdit={handleEdit} />
         } />
         <Route path="/dashboard/:dashboardName" element={
             <DashboardView />
@@ -208,12 +209,13 @@ export function AppContent() {
                             recordId: editingRecord?.id,
                             layout: 'vertical',
                             columns: 1,
-                            // FIX: fields property should be array of strings, but currentObjectDef.fields might be an object
-                            // Explicitly map all keys to ensure we include all fields
-                            fields: currentObjectDef.fields && !Array.isArray(currentObjectDef.fields)
-                                ? Object.keys(currentObjectDef.fields)
-                                : (currentObjectDef.fields || []).map((f: any) => typeof f === 'string' ? f : f.name),
-                            onSuccess: () => { setIsDialogOpen(false); navigate(location.pathname); }, 
+                            // Support both KV object and array format for fields
+                            fields: currentObjectDef.fields 
+                                ? (Array.isArray(currentObjectDef.fields) 
+                                    ? currentObjectDef.fields.map((f: any) => typeof f === 'string' ? f : f.name)
+                                    : Object.keys(currentObjectDef.fields))
+                                : [],
+                            onSuccess: () => { setIsDialogOpen(false); setRefreshKey(k => k + 1); }, 
                             onCancel: () => setIsDialogOpen(false),
                             showSubmit: true,
                             showCancel: true,
