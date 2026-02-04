@@ -3,7 +3,7 @@ import { ObjectSchema, Field } from '@objectstack/spec/data';
 export const TodoTask = ObjectSchema.create({
   name: 'todo_task',
   label: 'Todo Task',
-  icon: 'check-square',
+  icon: 'check-circle-2',
   titleFormat: '{subject}',
   compactLayout: ['subject', 'due_date', 'priority', 'is_completed'],
   enable: {

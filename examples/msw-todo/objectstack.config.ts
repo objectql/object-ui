@@ -46,12 +46,14 @@ export default defineStack({
       id: 'group_tasks',
       type: 'group',
       label: 'Tasks',
+      icon: 'list-todo',
       children: [
         { 
           id: 'nav_tasks',
           type: 'object', 
           objectName: 'task',
-          label: 'My Tasks'
+          label: 'My Tasks',
+          icon: 'check-circle-2'
         }
       ]
     }

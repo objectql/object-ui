@@ -3,6 +3,7 @@ import { ObjectSchema, Field } from '@objectstack/spec/data';
 export const KitchenSinkObject = ObjectSchema.create({
   name: 'kitchen_sink',
   label: 'Kitchen Sink',
+  icon: 'utensils',
   description: 'Shows all available field types for testing',
   fields: {
     // Basic Text

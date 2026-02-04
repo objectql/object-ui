@@ -3,7 +3,7 @@ import { ObjectSchema, Field } from '@objectstack/spec/data';
 export const AccountObject = ObjectSchema.create({
   name: 'account',
   label: 'Account',
-  icon: 'building',
+  icon: 'building-2',
   fields: {
     name: Field.text({ label: 'Account Name', required: true, searchable: true }),
     industry: Field.select(['Technology', 'Finance', 'Healthcare', 'Retail', 'Manufacturing'], { label: 'Industry' }),

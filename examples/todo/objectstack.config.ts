@@ -13,19 +13,20 @@ export default defineStack({
       icon: 'check-square',
       branding: {
         primaryColor: '#10B981',
-        logo: '/assets/todo-logo.png',
       },
       navigation: [
         {
           id: 'group_tasks',
           type: 'group',
           label: 'Tasks',
+          icon: 'list-todo',
           children: [
             { 
               id: 'nav_todo_task',
               type: 'object', 
               objectName: 'todo_task',
-              label: 'My Tasks'
+              label: 'My Tasks',
+              icon: 'check-circle-2'
             }
           ]
         }

@@ -3,7 +3,7 @@ import { ObjectSchema, Field } from '@objectstack/spec/data';
 export const ProjectObject = ObjectSchema.create({
   name: 'project_task',
   label: 'Project Task',
-  icon: 'clipboard-list',
+  icon: 'kanban-square',
   fields: {
     name: Field.text({ label: 'Task Name', required: true, searchable: true }),
     start_date: Field.date({ label: 'Start Date', required: true }),

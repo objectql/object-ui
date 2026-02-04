@@ -24,7 +24,7 @@ export default defineStack({
     App.create({
       name: 'crm_app',
       label: 'CRM',
-      icon: 'users',
+      icon: 'briefcase',
       navigation: [
         {
           id: 'nav_dashboard',
@@ -37,48 +37,56 @@ export default defineStack({
           id: 'nav_contacts',
           type: 'object',
           objectName: 'contact',
-          label: 'Contacts'
+          label: 'Contacts',
+          icon: 'users'
         },
         {
           id: 'nav_accounts',
           type: 'object',
           objectName: 'account',
-          label: 'Accounts'
+          label: 'Accounts',
+          icon: 'building-2'
         },
         {
           id: 'nav_opportunities',
           type: 'object',
           objectName: 'opportunity',
-          label: 'Opportunities'
+          label: 'Opportunities',
+          icon: 'trending-up'
         },
         {
           id: 'nav_projects',
           type: 'object',
           objectName: 'project_task',
-          label: 'Projects'
+          label: 'Projects',
+          icon: 'kanban-square'
         },
         {
           id: 'nav_events',
           type: 'object',
           objectName: 'event',
-          label: 'Calendar'
+          label: 'Calendar',
+          icon: 'calendar'
         },
         {
           id: 'nav_sales',
           type: 'group',
           label: 'Sales',
+          icon: 'banknote',
           children: [
              {
                 id: 'nav_orders',
                 type: 'object',
                 objectName: 'order',
-                label: 'Orders'
+                label: 'Orders',
+                icon: 'shopping-cart'
              },
              {
                 id: 'nav_products',
                 type: 'object',
                 objectName: 'product',
-                label: 'Products'
+                label: 'Products',
+                icon: 'package'
              }
           ]
         }

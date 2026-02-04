@@ -18,31 +18,36 @@ export default defineStack({
           id: 'nav_kitchen_sink',
           type: 'object',
           objectName: 'kitchen_sink',
-          label: 'Kitchen Sink'
+          label: 'Kitchen Sink',
+          icon: 'utensils'
         },
         {
           id: 'nav_dash',
           type: 'dashboard',
           dashboardName: 'sales_dashboard',
-          label: 'Sales Overview'
+          label: 'Sales Overview',
+          icon: 'layout-dashboard'
         },
         {
           id: 'nav_help',
           type: 'page',
           pageName: 'help_page',
-          label: 'Help & Resources'
+          label: 'Help & Resources',
+          icon: 'help-circle'
         },
         {
           id: 'nav_listview',
           type: 'page',
           pageName: 'list_view_demo',
-          label: 'ListView Demo'
+          label: 'ListView Demo',
+          icon: 'table'
         },
         {
           id: 'nav_detailview',
           type: 'page',
           pageName: 'detail_view_demo',
-          label: 'DetailView Demo'
+          label: 'DetailView Demo',
+          icon: 'file-text'
         }
       ]
     })
