@@ -205,3 +205,114 @@ export const WithChartsAndMetrics: Story = {
     ]
   } as any,
 };
+
+export const WithGridLayout: Story = {
+  render: renderStory,
+  args: {
+    type: 'dashboard',
+    name: 'sales_dashboard',
+    title: 'Sales Analytics Dashboard',
+    enableGridLayout: true,
+    persistLayout: true,
+    widgets: [
+      {
+        id: 'total-revenue',
+        type: 'metric-card',
+        title: 'Total Revenue',
+        value: '$142,892',
+        change: '+12.5%',
+        trend: 'up',
+        layout: { x: 0, y: 0, w: 3, h: 2 },
+      },
+      {
+        id: 'new-customers',
+        type: 'metric-card',
+        title: 'New Customers',
+        value: '847',
+        change: '+8.2%',
+        trend: 'up',
+        layout: { x: 3, y: 0, w: 3, h: 2 },
+      },
+      {
+        id: 'conversion-rate',
+        type: 'metric-card',
+        title: 'Conversion Rate',
+        value: '3.24%',
+        change: '-0.5%',
+        trend: 'down',
+        layout: { x: 6, y: 0, w: 3, h: 2 },
+      },
+      {
+        id: 'revenue-chart',
+        type: 'bar',
+        title: 'Monthly Revenue',
+        data: [
+          { month: 'Jan', revenue: 12000 },
+          { month: 'Feb', revenue: 15000 },
+          { month: 'Mar', revenue: 18000 },
+          { month: 'Apr', revenue: 14000 },
+          { month: 'May', revenue: 20000 },
+          { month: 'Jun', revenue: 22000 },
+        ],
+        xAxisKey: 'month',
+        series: [{ dataKey: 'revenue' }],
+        layout: { x: 0, y: 2, w: 6, h: 4 },
+      },
+      {
+        id: 'top-products',
+        type: 'table',
+        title: 'Top Products',
+        columns: ['Product', 'Sales', 'Revenue'],
+        data: [
+          { Product: 'Product A', Sales: 245, Revenue: '$12,450' },
+          { Product: 'Product B', Sales: 189, Revenue: '$9,450' },
+          { Product: 'Product C', Sales: 156, Revenue: '$7,800' },
+        ],
+        layout: { x: 6, y: 2, w: 3, h: 4 },
+      },
+    ],
+  } as any,
+};
+
+export const EditableLayout: Story = {
+  render: renderStory,
+  args: {
+    type: 'dashboard',
+    name: 'custom_dashboard',
+    title: 'Customizable Dashboard',
+    enableGridLayout: true,
+    enableEditMode: true,
+    persistLayout: true,
+    widgets: [
+      {
+        id: 'widget-1',
+        type: 'metric-card',
+        title: 'Metric 1',
+        value: '1,234',
+        layout: { x: 0, y: 0, w: 3, h: 2 },
+      },
+      {
+        id: 'widget-2',
+        type: 'metric-card',
+        title: 'Metric 2',
+        value: '5,678',
+        layout: { x: 3, y: 0, w: 3, h: 2 },
+      },
+      {
+        id: 'widget-3',
+        type: 'line',
+        title: 'Trend Chart',
+        data: [
+          { date: 'Mon', value: 100 },
+          { date: 'Tue', value: 150 },
+          { date: 'Wed', value: 130 },
+          { date: 'Thu', value: 180 },
+          { date: 'Fri', value: 200 },
+        ],
+        xAxisKey: 'date',
+        series: [{ dataKey: 'value' }],
+        layout: { x: 0, y: 2, w: 6, h: 3 },
+      },
+    ],
+  } as any,
+};

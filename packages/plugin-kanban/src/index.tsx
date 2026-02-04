@@ -9,15 +9,16 @@
 import React, { Suspense } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { Skeleton } from '@object-ui/components';
+import { ObjectKanban } from './ObjectKanban';
 
 // Export types for external use
 export type { KanbanSchema, KanbanCard, KanbanColumn } from './types';
-export { ObjectKanban } from './ObjectKanban';
+export { ObjectKanban };
 export type { ObjectKanbanProps } from './ObjectKanban';
 
-// 🚀 Lazy load the implementation file
-// This ensures @dnd-kit is only loaded when the component is actually rendered
+// 🚀 Lazy load the implementation files
 const LazyKanban = React.lazy(() => import('./KanbanImpl'));
+const LazyKanbanEnhanced = React.lazy(() => import('./KanbanEnhanced'));
 
 export interface KanbanRendererProps {
   schema: {
@@ -176,4 +177,62 @@ ComponentRegistry.register(
 // Standard Export Protocol - for manual integration
 export const kanbanComponents = {
   'kanban': KanbanRenderer,
+  'kanban-enhanced': LazyKanbanEnhanced,
+  'object-kanban': ObjectKanban,
 };
+
+// Register enhanced Kanban
+ComponentRegistry.register(
+  'kanban-enhanced',
+  ({ schema }: { schema: any }) => {
+    const processedColumns = React.useMemo(() => {
+      const { columns = [], data, groupBy } = schema;
+      if (data && groupBy && Array.isArray(data)) {
+        const groups = data.reduce((acc, item) => {
+          const key = item[groupBy];
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(item);
+          return acc;
+        }, {} as Record<string, any[]>);
+        return columns.map((col: any) => ({
+          ...col,
+          cards: [...(col.cards || []), ...(groups[col.id] || [])]
+        }));
+      }
+      return columns;
+    }, [schema]);
+
+    return (
+      <Suspense fallback={<Skeleton className="w-full h-[600px]" />}>
+        <LazyKanbanEnhanced
+          columns={processedColumns}
+          onCardMove={schema.onCardMove}
+          onColumnToggle={schema.onColumnToggle}
+          enableVirtualScrolling={schema.enableVirtualScrolling}
+          virtualScrollThreshold={schema.virtualScrollThreshold}
+          className={schema.className}
+        />
+      </Suspense>
+    );
+  },
+  {
+    namespace: 'plugin-kanban',
+    label: 'Kanban Board (Enhanced)',
+    icon: 'LayoutGrid',
+    category: 'plugin',
+    inputs: [
+      { name: 'columns', type: 'array', label: 'Columns', required: true },
+      { name: 'enableVirtualScrolling', type: 'boolean', label: 'Virtual Scrolling', defaultValue: false },
+      { name: 'virtualScrollThreshold', type: 'number', label: 'Virtual Scroll Threshold', defaultValue: 50 },
+      { name: 'onCardMove', type: 'code', label: 'On Card Move', advanced: true },
+      { name: 'onColumnToggle', type: 'code', label: 'On Column Toggle', advanced: true },
+      { name: 'className', type: 'string', label: 'CSS Class' }
+    ],
+    defaultProps: {
+      columns: [],
+      enableVirtualScrolling: false,
+      virtualScrollThreshold: 50,
+      className: 'w-full'
+    }
+  }
+);

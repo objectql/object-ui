@@ -8,13 +8,14 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import { DashboardRenderer } from './DashboardRenderer';
+import { DashboardGridLayout } from './DashboardGridLayout';
 import { MetricWidget } from './MetricWidget';
 import { MetricCard } from './MetricCard';
 import { ReportRenderer } from './ReportRenderer';
 import { ReportViewer } from './ReportViewer';
 import { ReportBuilder } from './ReportBuilder';
 
-export { DashboardRenderer, MetricWidget, MetricCard, ReportRenderer, ReportViewer, ReportBuilder };
+export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, ReportRenderer, ReportViewer, ReportBuilder };
 
 // Register dashboard component
 ComponentRegistry.register(
@@ -130,13 +131,36 @@ ComponentRegistry.register(
   }
 );
 
-// Export all components
+// Register dashboard grid layout component
+ComponentRegistry.register(
+  'dashboard-grid',
+  DashboardGridLayout,
+  {
+    namespace: 'plugin-dashboard',
+    label: 'Dashboard Grid (Editable)',
+    category: 'Complex',
+    icon: 'layout-grid',
+    inputs: [
+      { name: 'title', type: 'string', label: 'Title' },
+      { name: 'persistLayoutKey', type: 'string', label: 'Layout Storage Key', defaultValue: 'dashboard-layout' },
+      { name: 'className', type: 'string', label: 'CSS Class' }
+    ],
+    defaultProps: {
+        title: 'Dashboard',
+        widgets: [],
+        persistLayoutKey: 'dashboard-layout',
+    }
+  }
+);
+
+// Standard Export Protocol - for manual integration
 export const dashboardComponents = {
-  'dashboard': DashboardRenderer,
-  'metric': MetricWidget,
-  'metric-card': MetricCard,
-  'report': ReportRenderer,
-  'report-viewer': ReportViewer,
-  'report-builder': ReportBuilder,
+  DashboardRenderer,
+  DashboardGridLayout,
+  MetricWidget,
+  MetricCard,
+  ReportRenderer,
+  ReportViewer,
+  ReportBuilder,
 };
 

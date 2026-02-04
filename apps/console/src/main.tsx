@@ -12,6 +12,8 @@ import { startMockServer } from './mocks/browser';
 
 // Register plugins
 import '@object-ui/plugin-charts';
+import '@object-ui/plugin-list';
+import '@object-ui/plugin-detail';
 
 // Start MSW before rendering the app
 async function bootstrap() {

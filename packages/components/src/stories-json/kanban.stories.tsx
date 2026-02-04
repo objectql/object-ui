@@ -165,3 +165,131 @@ export const ProjectManagement: Story = {
     className: 'w-full'
   } as any,
 };
+
+export const WithVirtualScrolling: Story = {
+  render: renderStory,
+  args: {
+    type: 'kanban',
+    enableVirtualScrolling: true,
+    columns: [
+      {
+        id: 'backlog',
+        title: 'Backlog',
+        cards: Array.from({ length: 100 }, (_, i) => ({
+          id: `card-${i}`,
+          title: `Task ${i + 1}`,
+          description: `Description for task ${i + 1}`,
+          badges: [
+            { label: i % 3 === 0 ? 'Bug' : i % 2 === 0 ? 'Feature' : 'Enhancement', variant: 'default' }
+          ]
+        }))
+      },
+      {
+        id: 'in-progress',
+        title: 'In Progress',
+        limit: 5,
+        cards: []
+      },
+      {
+        id: 'done',
+        title: 'Done',
+        cards: []
+      }
+    ],
+    className: 'w-full'
+  } as any,
+};
+
+export const WithColumnLimits: Story = {
+  render: renderStory,
+  args: {
+    type: 'kanban',
+    columns: [
+      {
+        id: 'todo',
+        title: 'To Do',
+        cards: [
+          { id: '1', title: 'Task 1', badges: [{ label: 'P1', variant: 'destructive' }] },
+          { id: '2', title: 'Task 2', badges: [{ label: 'P2', variant: 'default' }] },
+        ]
+      },
+      {
+        id: 'in-progress',
+        title: 'In Progress (80% Full)',
+        limit: 5,
+        cards: [
+          { id: '3', title: 'Task 3', description: 'Working on this' },
+          { id: '4', title: 'Task 4', description: 'Almost done' },
+          { id: '5', title: 'Task 5', description: 'In review' },
+          { id: '6', title: 'Task 6', description: 'Testing' },
+        ]
+      },
+      {
+        id: 'blocked',
+        title: 'Blocked (Over Limit)',
+        limit: 2,
+        cards: [
+          { id: '7', title: 'Task 7', description: 'Waiting for API', badges: [{ label: 'Blocked', variant: 'destructive' }] },
+          { id: '8', title: 'Task 8', description: 'Dependency issue', badges: [{ label: 'Blocked', variant: 'destructive' }] },
+          { id: '9', title: 'Task 9', description: 'Needs approval', badges: [{ label: 'Blocked', variant: 'destructive' }] },
+        ]
+      },
+      {
+        id: 'done',
+        title: 'Done',
+        cards: [
+          { id: '10', title: 'Task 10', badges: [{ label: 'Completed', variant: 'outline' }] },
+        ]
+      }
+    ],
+    className: 'w-full'
+  } as any,
+};
+
+export const WithCollapsibleColumns: Story = {
+  render: renderStory,
+  args: {
+    type: 'kanban',
+    enableCollapse: true,
+    columns: [
+      {
+        id: 'backlog',
+        title: 'Backlog',
+        collapsed: false,
+        cards: [
+          { id: '1', title: 'Feature Request 1', description: 'Add dark mode support' },
+          { id: '2', title: 'Feature Request 2', description: 'Export to PDF' },
+          { id: '3', title: 'Bug Fix 1', description: 'Fix login issue' },
+        ]
+      },
+      {
+        id: 'todo',
+        title: 'To Do',
+        collapsed: false,
+        cards: [
+          { id: '4', title: 'Update documentation', badges: [{ label: 'Docs', variant: 'secondary' }] },
+          { id: '5', title: 'Write tests', badges: [{ label: 'Testing', variant: 'default' }] },
+        ]
+      },
+      {
+        id: 'in-progress',
+        title: 'In Progress',
+        collapsed: false,
+        cards: [
+          { id: '6', title: 'Implement API', description: 'RESTful endpoints' },
+        ]
+      },
+      {
+        id: 'done',
+        title: 'Done',
+        collapsed: true,
+        cards: [
+          { id: '7', title: 'Setup project', badges: [{ label: 'Done', variant: 'outline' }] },
+          { id: '8', title: 'Configure CI/CD', badges: [{ label: 'Done', variant: 'outline' }] },
+          { id: '9', title: 'Deploy to staging', badges: [{ label: 'Done', variant: 'outline' }] },
+        ]
+      }
+    ],
+    className: 'w-full'
+  } as any,
+};

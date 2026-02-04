@@ -31,6 +31,18 @@ export default defineStack({
           type: 'page',
           pageName: 'help_page',
           label: 'Help & Resources'
+        },
+        {
+          id: 'nav_listview',
+          type: 'page',
+          pageName: 'list_view_demo',
+          label: 'ListView Demo'
+        },
+        {
+          id: 'nav_detailview',
+          type: 'page',
+          pageName: 'detail_view_demo',
+          label: 'DetailView Demo'
         }
       ]
     })
@@ -164,6 +176,95 @@ export default defineStack({
                     cards: [] 
                   }
                 ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      name: 'list_view_demo',
+      label: 'ListView Demo',
+      type: 'app',
+      regions: [
+        {
+          name: 'main',
+          components: [
+            {
+              type: 'list-view',
+              properties: {
+                objectName: 'contacts',
+                viewType: 'grid',
+                fields: ['name', 'email', 'phone', 'company'],
+                sort: [{ field: 'name', order: 'asc' }],
+                options: {
+                  grid: {
+                    columns: ['name', 'email', 'phone', 'company'],
+                    pageSize: 25,
+                  },
+                  kanban: {
+                    groupField: 'status',
+                    titleField: 'name',
+                  },
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      name: 'detail_view_demo',
+      label: 'DetailView Demo',
+      type: 'app',
+      regions: [
+        {
+          name: 'main',
+          components: [
+            {
+              type: 'detail-view',
+              properties: {
+                title: 'Contact Details',
+                objectName: 'contacts',
+                resourceId: '1',
+                sections: [
+                  {
+                    title: 'Basic Information',
+                    icon: '👤',
+                    fields: [
+                      { name: 'name', label: 'Full Name' },
+                      { name: 'email', label: 'Email' },
+                      { name: 'phone', label: 'Phone' },
+                      { name: 'company', label: 'Company' },
+                    ],
+                    columns: 2,
+                  },
+                  {
+                    title: 'Additional Details',
+                    collapsible: true,
+                    defaultCollapsed: false,
+                    fields: [
+                      { name: 'title', label: 'Job Title' },
+                      { name: 'department', label: 'Department' },
+                    ],
+                    columns: 2,
+                  }
+                ],
+                tabs: [
+                  {
+                    key: 'details',
+                    label: 'Details',
+                    icon: '📋',
+                  },
+                  {
+                    key: 'activity',
+                    label: 'Activity',
+                    badge: '5',
+                  }
+                ],
+                showBack: true,
+                showEdit: true,
+                showDelete: true,
               }
             }
           ]

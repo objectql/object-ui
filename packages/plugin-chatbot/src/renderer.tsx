@@ -9,6 +9,8 @@
 import { ComponentRegistry } from '@object-ui/core';
 import type { ChatbotSchema, ChatMessage } from '@object-ui/types';
 import { Chatbot } from './index';
+import { ChatbotEnhanced } from './ChatbotEnhanced';
+import { generateUniqueId } from './utils';
 import { useState } from 'react';
 
 /**
@@ -41,7 +43,7 @@ ComponentRegistry.register('chatbot',
     const handleSendMessage = (content: string) => {
       // Create user message with robust ID generation
       const userMessage: ChatMessage = {
-        id: crypto?.randomUUID?.() || `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        id: generateUniqueId('msg'),
         role: 'user',
         content,
         timestamp: schema.showTimestamp ? new Date().toLocaleTimeString() : undefined,
@@ -59,7 +61,7 @@ ComponentRegistry.register('chatbot',
       if (schema.autoResponse) {
         setTimeout(() => {
           const assistantMessage: ChatMessage = {
-            id: crypto?.randomUUID?.() || `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            id: generateUniqueId('msg'),
             role: 'assistant',
             content: schema.autoResponseText || 'Thank you for your message!',
             timestamp: schema.showTimestamp ? new Date().toLocaleTimeString() : undefined,
@@ -182,6 +184,124 @@ ComponentRegistry.register('chatbot',
       placeholder: 'Type your message...',
       showTimestamp: false,
       disabled: false,
+      userAvatarFallback: 'You',
+      assistantAvatarFallback: 'AI',
+      maxHeight: '500px',
+      autoResponse: true,
+      autoResponseText: 'Thank you for your message! This is an automated response.',
+      autoResponseDelay: 1000,
+      className: 'w-full max-w-2xl'
+    }
+  }
+);
+
+// Register Enhanced Chatbot
+ComponentRegistry.register('chatbot-enhanced', 
+  ({ schema, className, ...props }: { schema: ChatbotSchema & { 
+    enableMarkdown?: boolean; 
+    enableFileUpload?: boolean;
+    onClear?: () => void;
+  }; className?: string; [key: string]: any }) => {
+    const [messages, setMessages] = useState<ChatMessage[]>(
+      schema.messages?.map((msg: any, idx: number) => ({
+        id: msg.id || `msg-${idx}`,
+        role: msg.role || 'user',
+        content: msg.content || '',
+        timestamp: typeof msg.timestamp === 'string' ? msg.timestamp : (msg.timestamp instanceof Date ? msg.timestamp.toISOString() : undefined),
+        avatar: msg.avatar,
+        avatarFallback: msg.avatarFallback,
+      })) || []
+    );
+
+    const handleSendMessage = (content: string, _files?: File[]) => {
+      const userMessage: ChatMessage = {
+        id: generateUniqueId('msg'),
+        role: 'user',
+        content,
+        timestamp: schema.showTimestamp ? new Date().toLocaleTimeString() : undefined,
+      };
+
+      const updatedMessages = [...messages, userMessage];
+      setMessages(updatedMessages);
+
+      if (schema.onSend) {
+        schema.onSend(content, updatedMessages);
+      }
+
+      // Auto-response with streaming simulation
+      if (schema.autoResponse) {
+        setTimeout(() => {
+          const assistantMessage: ChatMessage = {
+            id: generateUniqueId('msg'),
+            role: 'assistant',
+            content: schema.autoResponseText || 'Thank you for your message!',
+            timestamp: schema.showTimestamp ? new Date().toLocaleTimeString() : undefined,
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+        }, schema.autoResponseDelay || 1000);
+      }
+    };
+
+    const handleClear = () => {
+      setMessages([]);
+      if (schema.onClear) {
+        schema.onClear();
+      }
+    };
+
+    return (
+      <ChatbotEnhanced
+        messages={messages as any}
+        placeholder={schema.placeholder}
+        onSendMessage={handleSendMessage}
+        onClear={handleClear}
+        disabled={schema.disabled}
+        showTimestamp={schema.showTimestamp}
+        userAvatarUrl={schema.userAvatarUrl}
+        userAvatarFallback={schema.userAvatarFallback}
+        assistantAvatarUrl={schema.assistantAvatarUrl}
+        assistantAvatarFallback={schema.assistantAvatarFallback}
+        maxHeight={schema.maxHeight}
+        enableMarkdown={schema.enableMarkdown ?? true}
+        enableFileUpload={schema.enableFileUpload ?? false}
+        className={className}
+        {...props}
+      />
+    );
+  },
+  {
+    namespace: 'plugin-chatbot',
+    label: 'Chatbot (Enhanced)',
+    inputs: [
+      { name: 'messages', type: 'array', label: 'Initial Messages' },
+      { name: 'placeholder', type: 'string', label: 'Input Placeholder', defaultValue: 'Type your message...' },
+      { name: 'showTimestamp', type: 'boolean', label: 'Show Timestamps', defaultValue: false },
+      { name: 'disabled', type: 'boolean', label: 'Disabled', defaultValue: false },
+      { name: 'enableMarkdown', type: 'boolean', label: 'Enable Markdown', defaultValue: true },
+      { name: 'enableFileUpload', type: 'boolean', label: 'Enable File Upload', defaultValue: false },
+      { name: 'userAvatarUrl', type: 'string', label: 'User Avatar URL' },
+      { name: 'userAvatarFallback', type: 'string', label: 'User Avatar Fallback', defaultValue: 'You' },
+      { name: 'assistantAvatarUrl', type: 'string', label: 'Assistant Avatar URL' },
+      { name: 'assistantAvatarFallback', type: 'string', label: 'Assistant Avatar Fallback', defaultValue: 'AI' },
+      { name: 'maxHeight', type: 'string', label: 'Max Height', defaultValue: '500px' },
+      { name: 'autoResponse', type: 'boolean', label: 'Enable Auto Response (Demo)', defaultValue: false },
+      { name: 'autoResponseText', type: 'string', label: 'Auto Response Text', defaultValue: 'Thank you for your message!' },
+      { name: 'autoResponseDelay', type: 'number', label: 'Auto Response Delay (ms)', defaultValue: 1000 },
+      { name: 'className', type: 'string', label: 'CSS Class' }
+    ],
+    defaultProps: {
+      messages: [
+        {
+          id: 'welcome',
+          role: 'assistant',
+          content: 'Hello! How can I help you today?',
+        }
+      ],
+      placeholder: 'Type your message...',
+      showTimestamp: false,
+      disabled: false,
+      enableMarkdown: true,
+      enableFileUpload: false,
       userAvatarFallback: 'You',
       assistantAvatarFallback: 'AI',
       maxHeight: '500px',

@@ -43,7 +43,8 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, { schema: DashboardS
                 if (widget.component) return widget.component;
 
                 // Handle Shorthand Registry Mappings
-                if (widget.type === 'bar' || widget.type === 'line' || widget.type === 'area' || widget.type === 'pie' || widget.type === 'donut') {
+                const widgetType = (widget as any).type;
+                if (widgetType === 'bar' || widgetType === 'line' || widgetType === 'area' || widgetType === 'pie' || widgetType === 'donut') {
                     // Extract data from 'data.items' or 'data' array
                     const dataItems = Array.isArray((widget as any).data) ? (widget as any).data : (widget as any).data?.items || [];
                     
@@ -54,7 +55,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, { schema: DashboardS
                     
                     return {
                         type: 'chart',
-                        chartType: widget.type,
+                        chartType: widgetType,
                         data: dataItems,
                         xAxisKey: xAxisKey,
                         series: [{ dataKey: yField }],
@@ -63,7 +64,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, { schema: DashboardS
                     };
                 }
 
-                if (widget.type === 'table') {
+                if (widgetType === 'table') {
                     // Map to ObjectGrid
                     return {
                         type: 'data-table',
@@ -79,7 +80,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, { schema: DashboardS
             }, [widget]);
 
             // Check if the widget is self-contained (like a Metric Card) to avoid double borders
-            const isSelfContained = widget.type === 'metric';
+            const isSelfContained = (widget as any).type === 'metric';
 
             if (isSelfContained) {
                 return (
