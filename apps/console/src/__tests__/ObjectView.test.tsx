@@ -67,7 +67,7 @@ describe('ObjectView Component', () => {
         ComponentRegistry.register('object-grid', (props: any) => <div data-testid="object-grid">Grid View: {props.schema.objectName}</div>);
         ComponentRegistry.register('object-kanban', (props: any) => <div data-testid="object-kanban">Kanban View: {props.schema.groupField}</div>);
         ComponentRegistry.register('object-calendar', (props: any) => <div data-testid="object-calendar">Calendar View: {props.schema.startDateField}</div>);
-        ComponentRegistry.register('list-view', (props: any) => <div data-testid="list-view">List View</div>); 
+        ComponentRegistry.register('list-view', (_props: any) => <div data-testid="list-view">List View</div>); 
     });
 
     const mockDataSource = {

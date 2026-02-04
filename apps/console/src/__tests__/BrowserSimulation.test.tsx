@@ -825,7 +825,6 @@ describe('Dashboard Integration', () => {
     });
 
     it('Scenario C: Component Registry Check', async () => {
-        // @ts-expect-error - Importing from transitive dependency for testing
         const { ComponentRegistry } = await import('@object-ui/core');
         
         const dashboardRenderer = ComponentRegistry.get('dashboard');

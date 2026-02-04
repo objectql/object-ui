@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@object-ui/components": "workspace:*",
+    "@object-ui/core": "workspace:*",
     "@object-ui/example-crm": "workspace:*",
     "@object-ui/example-kitchen-sink": "workspace:*",
     "@object-ui/example-todo": "workspace:*",
