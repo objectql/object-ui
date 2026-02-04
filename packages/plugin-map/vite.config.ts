@@ -24,6 +24,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
+      '@object-ui/core': resolve(__dirname, '../core/src/index.ts'),
     },
   },
   build: {

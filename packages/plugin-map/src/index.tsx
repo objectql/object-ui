@@ -16,11 +16,12 @@ export { ObjectMap };
 export type { ObjectMapProps };
 
 // Register component
-const ObjectMapRenderer: React.FC<{ schema: any }> = ({ schema }) => {
+export const ObjectMapRenderer: React.FC<{ schema: any }> = ({ schema }) => {
   const { dataSource } = useSchemaContext();
   return <ObjectMap schema={schema} dataSource={dataSource} />;
 };
 
+console.log('Registering object-map...');
 ComponentRegistry.register('object-map', ObjectMapRenderer, {
   namespace: 'plugin-map',
   label: 'Object Map',

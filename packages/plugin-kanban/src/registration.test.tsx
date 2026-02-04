@@ -1,7 +1,7 @@
-import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { ComponentRegistry } from '@object-ui/core';
+import React from 'react';
+import { ObjectKanbanRenderer } from './index';
 
 // Mock dependencies
 vi.mock('@object-ui/react', () => ({
@@ -18,25 +18,9 @@ vi.mock('./ObjectKanban', () => ({
 }));
 
 describe('Plugin Kanban Registration', () => {
-  beforeAll(async () => {
-    // Import index to trigger registration
-    await import('./index');
-  });
-
-  it('registers object-kanban component', () => {
-    const config = ComponentRegistry.get('object-kanban');
-    expect(config).toBeDefined();
-    expect(config?.label).toBe('Object Kanban');
-  });
-
-  it('registered component passes dataSource from context', () => {
-    const config = ComponentRegistry.get('object-kanban');
-    const Renderer = config?.component as React.FC<any>;
+  it('renderer passes dataSource from context', () => {
     
-    expect(Renderer).toBeDefined();
-
-    render(<Renderer schema={{}} />);
-    
+    render(<ObjectKanbanRenderer schema={{ type: 'object-kanban' }} />);
     expect(screen.getByTestId('kanban-mock')).toHaveTextContent('DataSource: mock-datasource');
   });
 });

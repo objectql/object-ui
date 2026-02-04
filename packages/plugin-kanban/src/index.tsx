@@ -239,7 +239,7 @@ ComponentRegistry.register(
 );
 
 // Register object-kanban for ListView integration
-const ObjectKanbanRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
+export const ObjectKanbanRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
   const { dataSource } = useSchemaContext() || {};
   return <ObjectKanban schema={schema} dataSource={dataSource} {...props} />;
 };

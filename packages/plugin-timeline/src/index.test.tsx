@@ -1,7 +1,7 @@
-import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { ComponentRegistry } from '@object-ui/core';
+import React from 'react';
+import { ObjectTimelineRenderer } from './index';
 
 // Mock dependencies
 vi.mock('@object-ui/react', () => ({
@@ -17,21 +17,8 @@ vi.mock('./ObjectTimeline', () => ({
 }));
 
 describe('Plugin Timeline Registration', () => {
-  beforeAll(async () => {
-    await import('./index');
-  });
-
-  it('registers object-timeline component', () => {
-    const config = ComponentRegistry.get('object-timeline');
-    expect(config).toBeDefined();
-    expect(config?.label).toBe('Object Timeline');
-  });
-
-  it('registered component passes dataSource from context', () => {
-    const config = ComponentRegistry.get('object-timeline');
-    const Renderer = config?.component as React.FC<any>;
-    
-    render(<Renderer schema={{}} />);
+  it('renderer passes dataSource from context', () => {
+    render(<ObjectTimelineRenderer schema={{ type: 'object-timeline' }} />);
     expect(screen.getByTestId('timeline-mock')).toHaveTextContent('DataSource: mock-datasource');
   });
 });

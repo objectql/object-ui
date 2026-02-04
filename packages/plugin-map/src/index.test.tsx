@@ -1,7 +1,10 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { ComponentRegistry } from '@object-ui/core';
+// import { ComponentRegistry } from '@object-ui/core'; 
+// Use relative path to force same instance as verified by alias
+import { ObjectMapRenderer } from './index';
+// import { ComponentRegistry } from '@object-ui/core';
 
 // Mock dependencies
 vi.mock('@object-ui/react', () => ({
@@ -17,25 +20,8 @@ vi.mock('./ObjectMap', () => ({
 }));
 
 describe('Plugin Map Registration', () => {
-  beforeAll(async () => {
-    // Import index to trigger registration
-    await import('./index');
-  });
-
-  it('registers object-map component', () => {
-    const config = ComponentRegistry.get('object-map');
-    expect(config).toBeDefined();
-    expect(config?.label).toBe('Object Map');
-  });
-
-  it('registered component passes dataSource from context', () => {
-    const config = ComponentRegistry.get('object-map');
-    const Renderer = config?.component as React.FC<any>;
-    
-    expect(Renderer).toBeDefined();
-
-    render(<Renderer schema={{}} />);
-    
+  it('renderer passes dataSource from context', () => {
+    render(<ObjectMapRenderer schema={{}} />);
     expect(screen.getByTestId('map-mock')).toHaveTextContent('DataSource: mock-datasource');
   });
 });

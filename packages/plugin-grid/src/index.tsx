@@ -17,7 +17,7 @@ export type { ObjectGridProps } from './ObjectGrid';
 export type { VirtualGridProps, VirtualGridColumn } from './VirtualGrid';
 
 // Register object-grid component
-const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
+export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
   const { dataSource } = useSchemaContext() || {};
   return <ObjectGrid schema={schema} dataSource={dataSource} {...props} />;
 };

@@ -19,7 +19,7 @@ export { GanttView } from './GanttView';
 export type { GanttViewProps, GanttTask, GanttViewMode } from './GanttView';
 
 // Register component
-const ObjectGanttRenderer: React.FC<{ schema: any }> = ({ schema }) => {
+export const ObjectGanttRenderer: React.FC<{ schema: any }> = ({ schema }) => {
   const { dataSource } = useSchemaContext();
   return <ObjectGantt schema={schema} dataSource={dataSource} />;
 };

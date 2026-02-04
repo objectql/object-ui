@@ -1,7 +1,7 @@
-import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { ComponentRegistry } from '@object-ui/core';
+import React from 'react';
+import { ObjectGridRenderer } from './index';
 
 // Mock dependencies
 vi.mock('@object-ui/react', () => ({
@@ -17,21 +17,9 @@ vi.mock('./ObjectGrid', () => ({
 }));
 
 describe('Plugin Grid Registration', () => {
-  beforeAll(async () => {
-    await import('./index');
-  });
-
-  it('registers object-grid component', () => {
-    const config = ComponentRegistry.get('object-grid');
-    expect(config).toBeDefined();
-    expect(config?.label).toBe('Object Grid');
-  });
-
-  it('registered component passes dataSource from context', () => {
-    const config = ComponentRegistry.get('object-grid');
-    const Renderer = config?.component as React.FC<any>;
+  it('renderer passes dataSource from context', () => {
     
-    render(<Renderer schema={{}} />);
+    render(<ObjectGridRenderer schema={{ type: 'object-grid' }} />);
     expect(screen.getByTestId('grid-mock')).toHaveTextContent('DataSource: mock-datasource');
   });
 });

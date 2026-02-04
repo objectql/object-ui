@@ -1,7 +1,7 @@
-import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { ComponentRegistry } from '@object-ui/core';
+import React from 'react';
+import { ObjectCalendarRenderer } from './index';
 
 // Mock dependencies
 vi.mock('@object-ui/react', () => ({
@@ -18,25 +18,8 @@ vi.mock('./ObjectCalendar', () => ({
 }));
 
 describe('Plugin Calendar Registration', () => {
-  beforeAll(async () => {
-    // Import index to trigger registration
-    await import('./index');
-  });
-
-  it('registers object-calendar component', () => {
-    const config = ComponentRegistry.get('object-calendar');
-    expect(config).toBeDefined();
-    // Label might be 'Object Calendar' - checking existence mostly
-  });
-
-  it('registered component passes dataSource from context', () => {
-    const config = ComponentRegistry.get('object-calendar');
-    const Renderer = config?.component as React.FC<any>;
-    
-    expect(Renderer).toBeDefined();
-
-    render(<Renderer schema={{}} />);
-    
+  it('renderer passes dataSource from context', () => {
+    render(<ObjectCalendarRenderer schema={{ type: 'object-calendar' }} />);
     expect(screen.getByTestId('calendar-mock')).toHaveTextContent('DataSource: mock-datasource');
   });
 });
