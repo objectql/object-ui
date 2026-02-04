@@ -118,12 +118,13 @@ function getCalendarConfig(schema: ObjectGridSchema | CalendarSchema): CalendarC
   }
   
   // Check for flat properties (used by ObjectView)
-  if ((schema as any).dateField) {
+  if ((schema as any).startDateField || (schema as any).dateField) {
       return {
-          startDateField: (schema as any).dateField,
-          endDateField: (schema as any).endField,
+          startDateField: (schema as any).startDateField || (schema as any).dateField,
+          endDateField: (schema as any).endDateField || (schema as any).endField,
           titleField: (schema as any).titleField || 'name',
-          colorField: (schema as any).colorField
+          colorField: (schema as any).colorField,
+          allDayField: (schema as any).allDayField
       } as CalendarConfig;
   }
 

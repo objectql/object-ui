@@ -44,7 +44,7 @@ export const TodoTask = ObjectSchema.create({
     calendar: {
       label: 'Calendar',
       type: 'calendar',
-      dateField: 'due_date',
+      startDateField: 'due_date',
       titleField: 'subject'
     },
     board: {

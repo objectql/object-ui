@@ -108,9 +108,11 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                      cardFields: activeView.columns
                 },
                 calendar: {
-                    startDateField: activeView.dateField || 'due_date',
-                    endDateField: activeView.endField,
+                    startDateField: activeView.startDateField || activeView.dateField || 'due_date',
+                    endDateField: activeView.endDateField || activeView.endField,
                     titleField: activeView.titleField || 'name',
+                    colorField: activeView.colorField,
+                    allDayField: activeView.allDayField,
                 }
             }
         };
