@@ -429,6 +429,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     reorderableColumns: schema.reorderableColumns ?? false,
     className: schema.className,
     onSelectionChange: onRowSelect,
+    onRowClick: onRowClick,
   };
 
   return <SchemaRenderer schema={dataTableSchema} />;

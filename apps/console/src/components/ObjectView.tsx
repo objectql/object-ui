@@ -10,7 +10,7 @@ import { Button, Empty, EmptyTitle, EmptyDescription } from '@object-ui/componen
 import { Plus, Calendar as CalendarIcon, Kanban as KanbanIcon, Table as TableIcon, AlignLeft } from 'lucide-react';
 import type { ListViewSchema } from '@object-ui/types';
 
-export function ObjectView({ dataSource, objects, onEdit }: any) {
+export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     const { objectName } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
     
@@ -63,8 +63,8 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
         // Helper to pass dataSource if component needs it
         const interactionProps = {
             onEdit,
-            onRowClick: (record: any) => onEdit(record), // Default to edit on click
-            dataSource // Ensure ListView gets dataSource if it needs to pass it down
+            onRowClick: onRowClick || ((record: any) => onEdit(record)), 
+            dataSource
         };
 
         if (activeView.type === 'chart') {

@@ -8,6 +8,7 @@
 
 // Enterprise-level DataTable Component (Airtable-like)
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { cn } from '../../lib/utils';
 import { ComponentRegistry } from '@object-ui/core';
 import type { DataTableSchema } from '@object-ui/types';
 import { 
@@ -486,7 +487,26 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                   const isSelected = selectedRowIds.has(rowId);
                   
                   return (
-                    <TableRow key={rowId} data-state={isSelected ? 'selected' : undefined}>
+                    <TableRow 
+                      key={rowId} 
+                      data-state={isSelected ? 'selected' : undefined}
+                      className={cn(
+                        // @ts-ignore
+                        schema.onRowClick && "cursor-pointer"
+                      )}
+                      onClick={(e) => {
+                        // @ts-ignore
+                        if (schema.onRowClick && !e.defaultPrevented) {
+                           // Simple heuristic to avoid triggering on interactive elements if they didn't stop propagation
+                           const target = e.target as HTMLElement;
+                           if (target.closest('button') || target.closest('[role="checkbox"]') || target.closest('a')) {
+                             return;
+                           }
+                           // @ts-ignore
+                           schema.onRowClick(row);
+                        }
+                      }}
+                    >
                       {selectable && (
                         <TableCell>
                           <Checkbox
