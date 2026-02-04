@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSe
 import { useState, useEffect } from 'react';
 import { ObjectStackClient } from '@objectstack/client';
 import { ObjectForm } from '@object-ui/plugin-form';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Empty, EmptyTitle } from '@object-ui/components';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Empty, EmptyTitle } from '@object-ui/components';
 import { SchemaRendererProvider } from '@object-ui/react';
 import { ObjectStackDataSource } from './dataSource';
 import appConfig from '../objectstack.config';
@@ -72,7 +72,7 @@ export function AppContent() {
   // App Selection
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [, setSearchParams] = useSearchParams();
   const { appName } = useParams();
   const apps = appConfig.apps || [];
   

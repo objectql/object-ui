@@ -7,7 +7,7 @@ import { DetailView } from '@object-ui/plugin-detail';
 import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-calendar';
-import { Button, Empty, EmptyTitle, EmptyDescription, Sheet, SheetContent, SheetHeader, SheetTitle } from '@object-ui/components';
+import { Button, Empty, EmptyTitle, EmptyDescription, Sheet, SheetContent } from '@object-ui/components';
 import { Plus, Calendar as CalendarIcon, Kanban as KanbanIcon, Table as TableIcon, AlignLeft } from 'lucide-react';
 import type { ListViewSchema } from '@object-ui/types';
 

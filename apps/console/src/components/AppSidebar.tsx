@@ -32,13 +32,7 @@ import {
   Plus, 
   Settings, 
   LogOut, 
-  LayoutDashboard,
   Database,
-  Users,
-  CheckSquare,
-  Activity,
-  Briefcase,
-  FileText,
   ChevronRight,
 } from 'lucide-react';
 import appConfig from '../../objectstack.config';
