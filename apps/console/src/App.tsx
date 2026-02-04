@@ -210,7 +210,7 @@ export function AppContent() {
                             columns: 1,
                             fields: Array.isArray(currentObjectDef.fields) 
                                 ? currentObjectDef.fields.map((f: any) => f.name)
-                                : Object.keys(currentObjectDef.fields || {}),
+                                : Object.keys(currentObjectDef.fields || {}).map(k => k), /* Ensure all keys are mapped */
                             onSuccess: () => { setIsDialogOpen(false); navigate(location.pathname); }, 
                             onCancel: () => setIsDialogOpen(false),
                             showSubmit: true,

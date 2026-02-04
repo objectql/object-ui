@@ -23,7 +23,12 @@ export class ObjectStackDataSource implements DataSource {
   }
 
   async findOne(objectName: string, id: string): Promise<any> {
-    const result = await this.client.data.get(objectName, id);
+    const result: any = await this.client.data.get(objectName, id);
+    // Unwrap 'record' or 'value' property if present (common in wrapped responses)
+    if (result && typeof result === 'object') {
+       if (result.record) return result.record;
+       if (result.value) return result.value;
+    }
     return result;
   }
 
