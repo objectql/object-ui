@@ -325,6 +325,111 @@ export {
 } from './views.zod.js';
 
 // ============================================================================
+// Functional Design Schemas - FUNCTIONAL_DESIGN.md Component Specifications
+// ============================================================================
+export {
+  // Foundation Components
+  TextSchema as FDTextSchema,
+  EnhancedButtonSchema,
+  IconSchema as FDIconSchema,
+  ImageSchema as FDImageSchema,
+  SeparatorSchema as FDSeparatorSchema,
+  
+  // Layout Components
+  ContainerSchema as FDContainerSchema,
+  FlexSchema as FDFlexSchema,
+  GridSchema as FDGridSchema,
+  CardSchema as FDCardSchema,
+  TabItemSchema as FDTabItemSchema,
+  TabsSchema as FDTabsSchema,
+  
+  // Form Components
+  ValidationRuleSchema as FDValidationRuleSchema,
+  EnhancedInputSchema,
+  TextareaSchema as FDTextareaSchema,
+  SelectOptionSchema as FDSelectOptionSchema,
+  EnhancedSelectSchema,
+  CheckboxSchema as FDCheckboxSchema,
+  RadioOptionSchema as FDRadioOptionSchema,
+  RadioGroupSchema as FDRadioGroupSchema,
+  SwitchSchema as FDSwitchSchema,
+  SliderSchema as FDSliderSchema,
+  DatePickerSchema as FDDatePickerSchema,
+  FileMetadataSchema,
+  FileUploadSchema as FDFileUploadSchema,
+  FormFieldSchema as FDFormFieldSchema,
+  FormSchema as FDFormSchema,
+  
+  // Data Display Components
+  TableColumnSchema as FDTableColumnSchema,
+  TablePaginationSchema,
+  TableSchema as FDTableSchema,
+  ListSchema as FDListSchema,
+  BadgeSchema as FDBadgeSchema,
+  AvatarSchema as FDAvatarSchema,
+  StatisticSchema as FDStatisticSchema,
+  AlertSchema as FDAlertSchema,
+  TimelineEventSchema as FDTimelineEventSchema,
+  TimelineSchema as FDTimelineSchema,
+  
+  // Feedback Components
+  ToastSchema as FDToastSchema,
+  ProgressSchema as FDProgressSchema,
+  SpinnerSchema as FDSpinnerSchema,
+  SkeletonSchema as FDSkeletonSchema,
+  EmptySchema as FDEmptySchema,
+  
+  // Disclosure Components
+  AccordionItemSchema as FDAccordionItemSchema,
+  AccordionSchema as FDAccordionSchema,
+  CollapsibleSchema as FDCollapsibleSchema,
+  ToggleItemSchema,
+  ToggleGroupSchema as FDToggleGroupSchema,
+  
+  // Overlay Components
+  DialogSchema as FDDialogSchema,
+  SheetSchema as FDSheetSchema,
+  PopoverSchema as FDPopoverSchema,
+  TooltipSchema as FDTooltipSchema,
+  MenuItemSchema as FDMenuItemSchema,
+  DropdownMenuSchema as FDDropdownMenuSchema,
+  
+  // Navigation Components
+  BreadcrumbItemSchema as FDBreadcrumbItemSchema,
+  BreadcrumbSchema,
+  PaginationSchema as FDPaginationSchema,
+  NavLinkSchema as FDNavLinkSchema,
+  SidebarSchema as FDSidebarSchema,
+  HeaderBarSchema as FDHeaderBarSchema,
+  
+  // Complex Components
+  DashboardWidgetLayoutSchema as FDDashboardWidgetLayoutSchema,
+  DashboardWidgetSchema as FDDashboardWidgetSchema,
+  DashboardSchema as FDDashboardSchema,
+  KanbanCardSchema as FDKanbanCardSchema,
+  KanbanColumnSchema as FDKanbanColumnSchema,
+  KanbanSchema as FDKanbanSchema,
+  CalendarEventSchema as FDCalendarEventSchema,
+  CalendarViewSchema as FDCalendarViewSchema,
+  ChatMessageSchema as FDChatMessageSchema,
+  ChatbotSchema as FDChatbotSchema,
+  
+  // Business Components
+  ListColumnSchema as FDListColumnSchema,
+  AdvancedFilterConditionSchema,
+  QuerySortConfigSchema,
+  ObjectGridSchema as FDObjectGridSchema,
+  ObjectFormSchema as FDObjectFormSchema,
+  ListViewSchema as FDListViewSchema,
+  
+  // Complete schema union
+  FunctionalDesignComponentSchema,
+  CompleteFunctionalDesignSchema,
+  type FunctionalDesignComponent,
+  type CompleteFunctionalDesignComponent,
+} from './functional-design.zod.js';
+
+// ============================================================================
 // Union Types - All Component Schemas
 // ============================================================================
 
