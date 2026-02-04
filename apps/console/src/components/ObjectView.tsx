@@ -96,6 +96,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
         // Use standard ListView for supported types
         const listViewSchema: ListViewSchema = {
             type: 'list-view',
+            id: activeView.id, // Pass the View ID to the schema
             objectName: objectDef.name,
             viewType: activeView.type,
             fields: activeView.columns,
