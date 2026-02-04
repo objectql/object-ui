@@ -1,8 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { ObjectStackClient } from '@objectstack/client';
 import { ObjectForm } from '@object-ui/plugin-form';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Empty, EmptyTitle } from '@object-ui/components';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Empty, EmptyTitle } from '@object-ui/components';
 import { SchemaRendererProvider } from '@object-ui/react';
 import { ObjectStackDataSource } from './dataSource';
 import appConfig from '../objectstack.config';
@@ -72,14 +72,13 @@ export function AppContent() {
   // App Selection
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { appName } = useParams();
   const apps = appConfig.apps || [];
   
-  // Determine active app based on URL or default
+  // Determine active app based on URL
   const activeApps = apps.filter((a: any) => a.active !== false);
-  const defaultApp = activeApps.find((a: any) => a.isDefault === true) || activeApps[0];
-  const [activeAppName, setActiveAppName] = useState<string>(defaultApp?.name || 'default');
-
-  const activeApp = apps.find((a: any) => a.name === activeAppName) || apps[0];
+  const activeApp = apps.find((a: any) => a.name === appName) || activeApps.find((a: any) => a.isDefault === true) || activeApps[0];
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
@@ -89,7 +88,7 @@ export function AppContent() {
     initializeClient();
   }, []);
 
-  // Apply favicon from app branding
+  // Sync title
   useEffect(() => {
     const favicon = activeApp?.branding?.favicon;
     if (favicon) {
@@ -98,7 +97,6 @@ export function AppContent() {
         link.href = favicon;
       }
     }
-    // Update document title with app label
     if (activeApp?.label) {
       document.title = `${activeApp.label} - ObjectStack Console`;
     }
@@ -118,9 +116,18 @@ export function AppContent() {
 
   const allObjects = appConfig.objects || [];
   
-  // Find current object definition for Dialog (Create/Edit)
+  // Find current object for Dialog
+  // Path is now relative to /apps/:appName/
+  // e.g. /apps/crm/contact -> contact is at index 3 (0=, 1=apps, 2=crm, 3=contact)
   const pathParts = location.pathname.split('/');
-  const objectNameFromPath = pathParts[1]; // /contact -> contact
+  // Filter out empty parts
+  const cleanParts = pathParts.filter(p => p);
+  // [apps, crm, contact]
+  let objectNameFromPath = cleanParts[2];
+  if (objectNameFromPath === 'view' || objectNameFromPath === 'record' || objectNameFromPath === 'page' || objectNameFromPath === 'dashboard') {
+      objectNameFromPath = ''; // Not an object root
+  }
+
   const currentObjectDef = allObjects.find((o: any) => o.name === objectNameFromPath);
 
   const handleEdit = (record: any) => {
@@ -129,25 +136,19 @@ export function AppContent() {
   };
   
   const handleRowClick = (record: any) => {
-     // Check for both string ID and Mongo/ObjectQL _id
      const id = record._id || record.id;
-     if (id && currentObjectDef) {
-        navigate(`/${currentObjectDef.name}/${id}`);
+     if (id) {
+        // Open Drawer
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set('recordId', id);
+            return next;
+        });
      }
   };
 
-  const handleAppChange = (appName: string) => {
-      setActiveAppName(appName);
-      const app = apps.find((a: any) => a.name === appName);
-      if (app) {
-         // Navigate to homePageId if defined in spec, otherwise first nav item
-         if (app.homePageId) {
-             navigate(app.homePageId);
-         } else {
-             const firstRoute = findFirstRoute(app.navigation);
-             navigate(firstRoute);
-         }
-      }
+  const handleAppChange = (newAppName: string) => {
+      navigate(`/apps/${newAppName}`);
   };
 
   if (!client || !dataSource) return <LoadingScreen />;
@@ -161,7 +162,7 @@ export function AppContent() {
 
   return (
     <ConsoleLayout
-        activeAppName={activeAppName}
+        activeAppName={activeApp.name}
         activeApp={activeApp}
         onAppChange={handleAppChange}
         objects={allObjects}
@@ -169,9 +170,12 @@ export function AppContent() {
       <SchemaRendererProvider dataSource={dataSource || {}}>
       <Routes>
         <Route path="/" element={
+            // Redirect to first route within the app
              <Navigate to={findFirstRoute(activeApp.navigation)} replace />
         } />
-        <Route path="/:objectName" element={
+        
+        {/* List View */}
+        <Route path=":objectName" element={
             <ObjectView 
                 dataSource={dataSource} 
                 objects={allObjects} 
@@ -179,13 +183,26 @@ export function AppContent() {
                 onRowClick={handleRowClick}
             />
         } />
-        <Route path="/:objectName/:recordId" element={
+
+          {/* List View with specific view */}
+        <Route path=":objectName/view/:viewId" element={
+             <ObjectView 
+                dataSource={dataSource} 
+                objects={allObjects} 
+                onEdit={handleEdit} 
+                onRowClick={handleRowClick}
+            />
+        } />
+        
+        {/* Detail Page */}
+        <Route path=":objectName/record/:recordId" element={
             <RecordDetailView key={refreshKey} dataSource={dataSource} objects={allObjects} onEdit={handleEdit} />
         } />
-        <Route path="/dashboard/:dashboardName" element={
+
+        <Route path="dashboard/:dashboardName" element={
             <DashboardView />
         } />
-        <Route path="/page/:pageName" element={
+        <Route path="page/:pageName" element={
             <PageView />
         } />
       </Routes>
@@ -209,7 +226,6 @@ export function AppContent() {
                             recordId: editingRecord?.id,
                             layout: 'vertical',
                             columns: 1,
-                            // Support both KV object and array format for fields
                             fields: currentObjectDef.fields 
                                 ? (Array.isArray(currentObjectDef.fields) 
                                     ? currentObjectDef.fields.map((f: any) => typeof f === 'string' ? f : f.name)
@@ -235,18 +251,30 @@ export function AppContent() {
 
 // Helper to find first valid route in navigation tree
 function findFirstRoute(items: any[]): string {
-    if (!items || items.length === 0) return '/';
+    if (!items || items.length === 0) return '';
     for (const item of items) {
-        if (item.type === 'object') return `/${item.objectName}`;
-        if (item.type === 'page') return item.pageName ? `/page/${item.pageName}` : '/';
-        if (item.type === 'dashboard') return item.dashboardName ? `/dashboard/${item.dashboardName}` : '/';
+        if (item.type === 'object') return `${item.objectName}`;
+        if (item.type === 'page') return item.pageName ? `page/${item.pageName}` : '';
+        if (item.type === 'dashboard') return item.dashboardName ? `dashboard/${item.dashboardName}` : '';
         if (item.type === 'url') continue; // Skip external URLs
         if (item.type === 'group' && item.children) {
             const childRoute = findFirstRoute(item.children); // Recurse
-            if (childRoute !== '/') return childRoute;
+            if (childRoute !== '') return childRoute;
         }
     }
-    return '/';
+    return '';
+}
+
+// Redirect root to default app
+function RootRedirect() {
+    const apps = appConfig.apps || [];
+    const activeApps = apps.filter((a: any) => a.active !== false);
+    const defaultApp = activeApps.find((a: any) => a.isDefault === true) || activeApps[0];
+    
+    if (defaultApp) {
+        return <Navigate to={`/apps/${defaultApp.name}`} replace />;
+    }
+    return <LoadingScreen />;
 }
 
 import { ThemeProvider } from './components/theme-provider';
@@ -255,7 +283,10 @@ export function App() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="object-ui-theme">
       <BrowserRouter>
-          <AppContent />
+          <Routes>
+              <Route path="/apps/:appName/*" element={<AppContent />} />
+              <Route path="/" element={<RootRedirect />} />
+          </Routes>
       </BrowserRouter>
     </ThemeProvider>
   );

@@ -1,17 +1,19 @@
 import { useMemo } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { ObjectChart } from '@object-ui/plugin-charts';
 import { ListView } from '@object-ui/plugin-list';
+import { DetailView } from '@object-ui/plugin-detail';
 // Import plugins for side-effects (registration)
 import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-calendar';
-import { Button, Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
+import { Button, Empty, EmptyTitle, EmptyDescription, Sheet, SheetContent, SheetHeader, SheetTitle } from '@object-ui/components';
 import { Plus, Calendar as CalendarIcon, Kanban as KanbanIcon, Table as TableIcon, AlignLeft } from 'lucide-react';
 import type { ListViewSchema } from '@object-ui/types';
 
 export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
-    const { objectName } = useParams();
+    const navigate = useNavigate();
+    const { objectName, viewId } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
     
     // Get Object Definition
@@ -50,11 +52,25 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     }, [objectDef]);
 
     // Active View State
-    const activeViewId = searchParams.get('view') || views[0]?.id;
+    const activeViewId = viewId || searchParams.get('view') || views[0]?.id;
     const activeView = views.find((v: any) => v.id === activeViewId) || views[0];
 
-    const handleViewChange = (viewId: string) => {
-        setSearchParams({ view: viewId });
+    const handleViewChange = (newViewId: string) => {
+        if (viewId) {
+             // In view route, replace last segment
+             navigate(`../view/${newViewId}`, { relative: "path" });
+        } else {
+             // In root route, append view
+             navigate(`view/${newViewId}`);
+        }
+    };
+    
+    // Drawer Logic
+    const drawerRecordId = searchParams.get('recordId');
+    const handleDrawerClose = () => {
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('recordId');
+        setSearchParams(newParams);
     };
 
     const renderCurrentView = () => {
@@ -220,6 +236,39 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                     {renderCurrentView()}
                 </div>
              </div>
+
+             {/* Drawer for Record Details */}
+             <Sheet open={!!drawerRecordId} onOpenChange={(open) => !open && handleDrawerClose()}>
+                <SheetContent side="right" className="w-[85vw] sm:w-[600px] sm:max-w-none p-0 overflow-hidden">
+                    {drawerRecordId && (
+                        <div className="h-full bg-background overflow-auto p-4 lg:p-6">
+                            <DetailView
+                                schema={{
+                                    type: 'detail-view',
+                                    objectName: objectDef.name,
+                                    resourceId: drawerRecordId,
+                                    showBack: false, // No back button in drawer
+                                    showEdit: true,
+                                    title: objectDef.label,
+                                    sections: [
+                                        {
+                                            title: 'Details',
+                                            fields: Object.keys(objectDef.fields || {}).map(key => ({
+                                                name: key,
+                                                label: objectDef.fields[key].label || key,
+                                                type: objectDef.fields[key].type || 'text'
+                                            })),
+                                            columns: 1
+                                        }
+                                    ]
+                                }}
+                                dataSource={dataSource}
+                                onEdit={() => onEdit({ _id: drawerRecordId, id: drawerRecordId })}
+                            />
+                        </div>
+                    )}
+                </SheetContent>
+             </Sheet>
         </div>
     );
 }

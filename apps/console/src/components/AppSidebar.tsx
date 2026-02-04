@@ -145,7 +145,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
       </SidebarHeader>
 
       <SidebarContent>
-         <NavigationTree items={activeApp.navigation || []} />
+         <NavigationTree items={activeApp.navigation || []} activeAppName={activeAppName} />
       </SidebarContent>
 
       <SidebarFooter>
@@ -207,7 +207,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   );
 }
 
-function NavigationTree({ items }: { items: any[] }) {
+function NavigationTree({ items, activeAppName }: { items: any[], activeAppName: string }) {
     const hasGroups = items.some(i => i.type === 'group');
 
     // If no explicit groups, wrap everything in one default group
@@ -216,7 +216,7 @@ function NavigationTree({ items }: { items: any[] }) {
             <SidebarGroup>
                 <SidebarGroupContent>
                     <SidebarMenu>
-                        {items.map(item => <NavigationItemRenderer key={item.id} item={item} />)}
+                        {items.map(item => <NavigationItemRenderer key={item.id} item={item} activeAppName={activeAppName} />)}
                     </SidebarMenu>
                 </SidebarGroupContent>
             </SidebarGroup>
@@ -236,7 +236,7 @@ function NavigationTree({ items }: { items: any[] }) {
                 <SidebarGroupContent>
                      <SidebarMenu>
                         {currentBuffer.map(item => (
-                            <NavigationItemRenderer key={item.id} item={item} />
+                            <NavigationItemRenderer key={item.id} item={item} activeAppName={activeAppName} />
                         ))}
                     </SidebarMenu>
                 </SidebarGroupContent>
@@ -248,7 +248,7 @@ function NavigationTree({ items }: { items: any[] }) {
     items.forEach((item, index) => {
         if (item.type === 'group') {
             flushBuffer(`auto-${index}`);
-            renderedItems.push(<NavigationItemRenderer key={item.id} item={item} />);
+            renderedItems.push(<NavigationItemRenderer key={item.id} item={item} activeAppName={activeAppName} />);
         } else {
             currentBuffer.push(item);
         }
@@ -259,7 +259,7 @@ function NavigationTree({ items }: { items: any[] }) {
     return <>{renderedItems}</>;
 }
 
-function NavigationItemRenderer({ item }: { item: any }) {
+function NavigationItemRenderer({ item, activeAppName }: { item: any, activeAppName: string }) {
     const Icon = getIcon(item.icon);
     const location = useLocation();
     const [isOpen, setIsOpen] = React.useState(item.expanded !== false);
@@ -285,7 +285,7 @@ function NavigationItemRenderer({ item }: { item: any }) {
                         <SidebarGroupContent>
                             <SidebarMenu>
                                 {item.children?.map((child: any) => (
-                                    <NavigationItemRenderer key={child.id} item={child} />
+                                    <NavigationItemRenderer key={child.id} item={child} activeAppName={activeAppName} />
                                 ))}
                             </SidebarMenu>
                         </SidebarGroupContent>
@@ -298,28 +298,29 @@ function NavigationItemRenderer({ item }: { item: any }) {
     // Determine href based on navigation item type
     let href = '#';
     let isExternal = false;
+    const baseUrl = `/apps/${activeAppName}`;
     
     if (item.type === 'object') {
-        href = `/${item.objectName}`;
+        href = `${baseUrl}/${item.objectName}`;
         // Add view parameter if specified
         if (item.viewName) {
-            href += `?view=${item.viewName}`;
+            href += `/view/${item.viewName}`;
         }
     } else if (item.type === 'page') {
-        href = item.pageName ? `/page/${item.pageName}` : '#';
+        href = item.pageName ? `${baseUrl}/page/${item.pageName}` : '#';
         // Add URL parameters if specified
         if (item.params) {
             const params = new URLSearchParams(item.params);
             href += `?${params.toString()}`;
         }
     } else if (item.type === 'dashboard') {
-        href = item.dashboardName ? `/dashboard/${item.dashboardName}` : '#';
+        href = item.dashboardName ? `${baseUrl}/dashboard/${item.dashboardName}` : '#';
     } else if (item.type === 'url') {
         href = item.url || '#';
         isExternal = item.target === '_blank';
     }
 
-    const isActive = location.pathname === href; // Simple active check
+    const isActive = location.pathname.startsWith(href) && href !== '#';
 
     return (
         <SidebarMenuItem>
