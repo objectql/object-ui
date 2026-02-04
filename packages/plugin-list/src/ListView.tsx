@@ -147,9 +147,11 @@ export const ListView: React.FC<ListViewProps> = ({
         }
         
         // Convert sort to query format
-        // ObjectQL uses simple object: { field: 'asc' }
-        const sort: any = currentSort.length > 0 
-          ? currentSort.reduce((acc, item) => ({ ...acc, [item.field]: item.order }), {})
+        // Use array format to ensure order is preserved (Object keys are not guaranteed ordered)
+        const sort: any = currentSort.length > 0
+          ? currentSort
+              .filter(item => item.field) // Ensure field is selected
+              .map(item => ({ field: item.field, order: item.order }))
           : undefined;
 
         const results = await dataSource.find(schema.objectName, {

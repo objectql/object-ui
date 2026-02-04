@@ -505,10 +505,22 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
 
     // Sorting - convert to ObjectStack format
     if (params.$orderby) {
-      const sortArray = Object.entries(params.$orderby).map(([field, order]) => {
-        return order === 'desc' ? `-${field}` : field;
-      });
-      options.sort = sortArray;
+      if (Array.isArray(params.$orderby)) {
+        // Handle array format ['name', '-age'] or [{ field: 'name', order: 'asc' }]
+        options.sort = params.$orderby.map(item => {
+          if (typeof item === 'string') return item;
+          // Handle object format { field: 'name', order: 'desc' }
+          const field = item.field;
+          const order = item.order || 'asc';
+          return order === 'desc' ? `-${field}` : field;
+        });
+      } else {
+        // Handle Record format { name: 'asc', age: 'desc' }
+        const sortArray = Object.entries(params.$orderby).map(([field, order]) => {
+          return order === 'desc' ? `-${field}` : field;
+        });
+        options.sort = sortArray;
+      }
     }
 
     // Pagination

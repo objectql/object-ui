@@ -35,9 +35,11 @@ export interface QueryParams {
 
   /**
    * Sort order
+   * Can be a Map { field: 'asc' }, an Array of strings ['field', '-field'], or Array of sort objects
    * @example { createdAt: 'desc', name: 'asc' }
+   * @example ['name', '-createdAt']
    */
-  $orderby?: Record<string, 'asc' | 'desc'>;
+  $orderby?: Record<string, 'asc' | 'desc'> | string[] | Array<{ field: string; order?: 'asc' | 'desc' }>;
 
   /**
    * Number of records to skip (for pagination)
