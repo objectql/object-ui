@@ -1,8 +1,6 @@
 import { useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { ObjectGantt } from '@object-ui/plugin-gantt';
-import { ObjectTimeline } from '@object-ui/plugin-timeline';
-import { ObjectMap } from '@object-ui/plugin-map';
+import { ObjectChart } from '@object-ui/plugin-charts';
 import { ListView } from '@object-ui/plugin-list';
 // Import plugins for side-effects (registration)
 import '@object-ui/plugin-grid';
@@ -62,12 +60,32 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
     const renderCurrentView = () => {
         const key = `${objectName}-${activeView.id}`;
         
-        // Define onRowClick/Edit handlers
+        // Helper to pass dataSource if component needs it
         const interactionProps = {
             onEdit,
             onRowClick: (record: any) => onEdit(record), // Default to edit on click
             dataSource // Ensure ListView gets dataSource if it needs to pass it down
         };
+
+        if (activeView.type === 'chart') {
+             return (
+                 <ObjectChart 
+                     key={key}
+                     dataSource={dataSource}
+                     schema={{
+                         type: 'object-chart',
+                         objectName: objectDef.name,
+                         chartType: activeView.chartType,
+                         xAxisField: activeView.xAxisField,
+                         yAxisFields: activeView.yAxisFields,
+                         aggregation: activeView.aggregation,
+                         series: activeView.series,
+                         config: activeView.config,
+                         filter: activeView.filter
+                     } as any}
+                 />
+             );
+        }
 
         // Use standard ListView for supported types
         // Mapped options to ensure plugin components receive correct configuration

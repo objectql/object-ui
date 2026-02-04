@@ -10,10 +10,8 @@ import * as React from 'react';
 import { cn, ToggleGroup, ToggleGroupItem } from '@object-ui/components';
 import { 
   Grid, 
-  List, 
   LayoutGrid, 
   Calendar, 
-  BarChart3, 
   Images,    // gallery
   Activity,  // timeline
   GanttChartSquare, // gantt
@@ -22,11 +20,9 @@ import {
 
 export type ViewType = 
   | 'grid' 
-  | 'list' 
   | 'kanban' 
+  | 'gallery' 
   | 'calendar' 
-  | 'chart'
-  | 'gallery'
   | 'timeline'
   | 'gantt'
   | 'map';
@@ -40,11 +36,9 @@ export interface ViewSwitcherProps {
 
 const VIEW_ICONS: Record<ViewType, React.ReactNode> = {
   grid: <Grid className="h-4 w-4" />,
-  list: <List className="h-4 w-4" />,
   kanban: <LayoutGrid className="h-4 w-4" />,
-  calendar: <Calendar className="h-4 w-4" />,
-  chart: <BarChart3 className="h-4 w-4" />,
   gallery: <Images className="h-4 w-4" />,
+  calendar: <Calendar className="h-4 w-4" />,
   timeline: <Activity className="h-4 w-4" />,
   gantt: <GanttChartSquare className="h-4 w-4" />,
   map: <Map className="h-4 w-4" />,
@@ -52,11 +46,9 @@ const VIEW_ICONS: Record<ViewType, React.ReactNode> = {
 
 const VIEW_LABELS: Record<ViewType, string> = {
   grid: 'Grid',
-  list: 'List',
   kanban: 'Kanban',
-  calendar: 'Calendar',
-  chart: 'Chart',
   gallery: 'Gallery',
+  calendar: 'Calendar',
   timeline: 'Timeline',
   gantt: 'Gantt',
   map: 'Map',
@@ -64,7 +56,7 @@ const VIEW_LABELS: Record<ViewType, string> = {
 
 export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
   currentView,
-  availableViews = ['grid', 'list', 'kanban'],
+  availableViews = ['grid', 'kanban'],
   onViewChange,
   className,
 }) => {

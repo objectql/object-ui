@@ -50,7 +50,7 @@ export const ListView: React.FC<ListViewProps> = ({
   React.useEffect(() => {
     try {
       const savedView = localStorage.getItem(storageKey);
-      if (savedView && ['grid', 'list', 'kanban', 'calendar', 'chart'].includes(savedView)) {
+      if (savedView && ['grid', 'kanban', 'calendar', 'timeline', 'gantt', 'map', 'gallery'].includes(savedView)) {
         setCurrentView(savedView as ViewType);
       }
     } catch (error) {
@@ -96,14 +96,6 @@ export const ListView: React.FC<ListViewProps> = ({
           columns: schema.fields,
           ...(schema.options?.grid || {}),
         };
-      case 'list':
-        return {
-          type: 'object-grid',
-          ...baseProps,
-          columns: schema.fields,
-          compact: true,
-          ...(schema.options?.list || {}),
-        };
       case 'kanban':
         return {
           type: 'object-kanban',
@@ -122,15 +114,6 @@ export const ListView: React.FC<ListViewProps> = ({
           endDateField: schema.options?.calendar?.endDateField || 'end_date',
           titleField: schema.options?.calendar?.titleField || 'name',
           ...(schema.options?.calendar || {}),
-        };
-      case 'chart':
-        return {
-          type: 'object-chart',
-          ...baseProps,
-          chartType: schema.options?.chart?.chartType || 'bar',
-          xAxisField: schema.options?.chart?.xAxisField || 'name',
-          yAxisFields: schema.options?.chart?.yAxisFields || ['value'],
-          ...(schema.options?.chart || {}),
         };
       case 'gallery':
         return {
@@ -173,7 +156,7 @@ export const ListView: React.FC<ListViewProps> = ({
 
   // Available view types based on schema configuration
   const availableViews = React.useMemo(() => {
-    const views: ViewType[] = ['grid', 'list'];
+    const views: ViewType[] = ['grid'];
     
     // Check for Kanban capabilities
     if (schema.options?.kanban?.groupField) {
@@ -200,15 +183,10 @@ export const ListView: React.FC<ListViewProps> = ({
       views.push('map');
     }
     
-    // Check for Chart capabilities
-    if (schema.options?.chart) {
-      views.push('chart');
-    }
-
     // Always allow switching back to the viewType defined in schema if it's one of the supported types
     // This ensures that if a view is configured as "map", the map button is shown even if we missed the options check above
     if (schema.viewType && !views.includes(schema.viewType as ViewType) && 
-       ['grid', 'list', 'kanban', 'calendar', 'timeline', 'gantt', 'map', 'chart', 'gallery'].includes(schema.viewType)) {
+       ['grid', 'kanban', 'calendar', 'timeline', 'gantt', 'map', 'gallery'].includes(schema.viewType)) {
       views.push(schema.viewType as ViewType);
     }
     

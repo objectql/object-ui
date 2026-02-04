@@ -1,5 +1,5 @@
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 
 // Import all plugins to ensure they register their components

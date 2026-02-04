@@ -13,6 +13,7 @@ import './ObjectChart'; // Import for side-effects (registration of object-chart
 // Export types for external use
 export type { BarChartSchema } from './types';
 export { ChartBarRenderer, ChartRenderer };
+export { ObjectChart } from './ObjectChart';
 
 // Register the component with the ComponentRegistry
 ComponentRegistry.register(
