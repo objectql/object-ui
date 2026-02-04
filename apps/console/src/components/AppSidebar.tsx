@@ -210,23 +210,53 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
 function NavigationTree({ items }: { items: any[] }) {
     const hasGroups = items.some(i => i.type === 'group');
 
-    if (hasGroups) {
+    // If no explicit groups, wrap everything in one default group
+    if (!hasGroups) {
         return (
-            <>
-                {items.map(item => <NavigationItemRenderer key={item.id} item={item} />)}
-            </>
+            <SidebarGroup>
+                <SidebarGroupContent>
+                    <SidebarMenu>
+                        {items.map(item => <NavigationItemRenderer key={item.id} item={item} />)}
+                    </SidebarMenu>
+                </SidebarGroupContent>
+            </SidebarGroup>
         );
     }
 
-    return (
-        <SidebarGroup>
-            <SidebarGroupContent>
-                <SidebarMenu>
-                    {items.map(item => <NavigationItemRenderer key={item.id} item={item} />)}
-                </SidebarMenu>
-            </SidebarGroupContent>
-        </SidebarGroup>
-    );
+    // If there are groups, we need to handle mixed content
+    // We group consecutive non-group items into an implicit SidebarGroup
+    const renderedItems: React.ReactNode[] = [];
+    let currentBuffer: any[] = [];
+    
+    // Helper to flush buffer
+    const flushBuffer = (keyPrefix: string) => {
+        if (currentBuffer.length === 0) return;
+        renderedItems.push(
+            <SidebarGroup key={`${keyPrefix}-group`}>
+                <SidebarGroupContent>
+                     <SidebarMenu>
+                        {currentBuffer.map(item => (
+                            <NavigationItemRenderer key={item.id} item={item} />
+                        ))}
+                    </SidebarMenu>
+                </SidebarGroupContent>
+            </SidebarGroup>
+        );
+        currentBuffer = [];
+    };
+
+    items.forEach((item, index) => {
+        if (item.type === 'group') {
+            flushBuffer(`auto-${index}`);
+            renderedItems.push(<NavigationItemRenderer key={item.id} item={item} />);
+        } else {
+            currentBuffer.push(item);
+        }
+    });
+    
+    flushBuffer('auto-end');
+
+    return <>{renderedItems}</>;
 }
 
 function NavigationItemRenderer({ item }: { item: any }) {
