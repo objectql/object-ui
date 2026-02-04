@@ -9,6 +9,7 @@
 import { ComponentRegistry } from '@object-ui/core';
 import { ListView } from './ListView';
 import { ViewSwitcher } from './ViewSwitcher';
+import './ObjectGallery';
 import type { ListViewSchema } from '@object-ui/types';
 
 export { ListView, ViewSwitcher };
