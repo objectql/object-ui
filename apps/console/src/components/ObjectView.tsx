@@ -61,73 +61,16 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
 
     const renderCurrentView = () => {
         const key = `${objectName}-${activeView.id}`;
-        const commonProps = {
-            dataSource,
-            className: "h-full border-none"
-        };
         
         // Define onRowClick/Edit handlers
         const interactionProps = {
             onEdit,
             onRowClick: (record: any) => onEdit(record), // Default to edit on click
+            dataSource // Ensure ListView gets dataSource if it needs to pass it down
         };
 
-        // Explicitly handle Timeline and Map to ensure dataSource is passed correctly
-        if (activeView.type === 'timeline') {
-            return (
-                <ObjectTimeline
-                    key={key}
-                    {...commonProps}
-                    schema={{
-                        type: 'object-timeline',
-                        objectName: objectDef.name,
-                        dateField: activeView.dateField || activeView.startDateField || 'due_date',
-                        titleField: activeView.titleField || objectDef.titleField || 'name',
-                        descriptionField: activeView.descriptionField,
-                    } as any}
-                />
-            );
-        }
-
-        if (activeView.type === 'map') {
-            return (
-                <ObjectMap
-                    key={key}
-                    {...commonProps}
-                    schema={{
-                        type: 'object-map',
-                        objectName: objectDef.name,
-                        locationField: activeView.locationField || 'location',
-                        titleField: activeView.titleField || objectDef.titleField || 'name',
-                    } as any}
-                />
-            );
-        }
-
-        // Gantt is not yet supported by ListView, handle separately
-        if (activeView.type === 'gantt') {
-           return (
-                <ObjectGantt
-                    key={key}
-                    {...commonProps}
-                    schema={{
-                        type: 'object-grid',
-                        objectName: objectDef.name,
-                        gantt: {
-                            startDateField: activeView.startDateField || 'start_date',
-                            endDateField: activeView.endDateField || 'end_date',
-                            titleField: activeView.titleField || 'name',
-                            progressField: activeView.progressField || 'progress',
-                            dependenciesField: activeView.dependenciesField,
-                            colorField: activeView.colorField,
-                        }
-                    } as any}
-                    {...interactionProps}
-                />
-            );
-        }
-
         // Use standard ListView for supported types
+        // Mapped options to ensure plugin components receive correct configuration
         const listViewSchema: ListViewSchema = {
             type: 'list-view',
             id: activeView.id, // Pass the View ID to the schema
@@ -138,16 +81,18 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
             sort: activeView.sort,
             options: {
                 kanban: {
-                     groupField: activeView.groupBy || 'status',
-                     titleField: objectDef.titleField || 'name',
-                     cardFields: activeView.columns
+                     groupBy: activeView.groupBy || activeView.groupField || 'status',
+                     groupField: activeView.groupBy || activeView.groupField || 'status',
+                     titleField: activeView.titleField || objectDef.titleField || 'name',
+                     cardFields: activeView.columns || activeView.cardFields
                 },
                 calendar: {
                     startDateField: activeView.startDateField || activeView.dateField || 'due_date',
                     endDateField: activeView.endDateField || activeView.endField,
-                    titleField: activeView.titleField || 'name',
+                    titleField: activeView.titleField || activeView.subjectField || 'name',
                     colorField: activeView.colorField,
                     allDayField: activeView.allDayField,
+                    defaultView: activeView.defaultView
                 },
                 timeline: {
                     dateField: activeView.dateField || activeView.startDateField || 'due_date',
@@ -157,12 +102,31 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                 map: {
                     locationField: activeView.locationField || 'location',
                     titleField: activeView.titleField || objectDef.titleField || 'name',
+                    latitudeField: activeView.latitudeField,
+                    longitudeField: activeView.longitudeField,
+                    zoom: activeView.zoom,
+                    center: activeView.center
                 },
                 gantt: {
                     startDateField: activeView.startDateField || 'start_date',
                     endDateField: activeView.endDateField || 'end_date',
+                    titleField: activeView.titleField || 'name',
                     progressField: activeView.progressField,
                     dependenciesField: activeView.dependenciesField,
+                    colorField: activeView.colorField
+                },
+                chart: {
+                    chartType: activeView.chartType,
+                    xAxisField: activeView.xAxisField,
+                    yAxisFields: activeView.yAxisFields,
+                    aggregation: activeView.aggregation,
+                    series: activeView.series,
+                    config: activeView.config,
+                },
+                gallery: {
+                    imageField: activeView.imageField,
+                    titleField: activeView.titleField || 'name',
+                    subtitleField: activeView.subtitleField
                 }
             }
         };

@@ -91,16 +91,25 @@ function convertSortToQueryParams(sort: string | any[] | undefined): Record<stri
 /**
  * Helper to get gantt configuration from schema
  */
-function getGanttConfig(schema: ObjectGridSchema): GanttConfig | null {
+function getGanttConfig(schema: ObjectGridSchema | any): GanttConfig | null {
   let config: GanttConfig | null = null;
-  // Check if schema has gantt configuration
-  if (schema.filter && typeof schema.filter === 'object' && 'gantt' in schema.filter) {
-    config = (schema.filter as any).gantt as GanttConfig;
-  }
   
-  // For backward compatibility, check if schema has gantt config at root
-  else if ((schema as any).gantt) {
-    config = (schema as any).gantt as GanttConfig;
+  // 1. Check top-level properties (ObjectGanttSchema style)
+  if (schema.startDateField && schema.endDateField) {
+      config = {
+          startDateField: schema.startDateField,
+          endDateField: schema.endDateField,
+          titleField: schema.titleField || 'name',
+          progressField: schema.progressField,
+          dependenciesField: schema.dependenciesField || schema.dependencyField,
+          colorField: schema.colorField
+      };
+      return config;
+  }
+
+  // 2. Check schema.gantt (ObjectGridSchema style)
+  if (schema.gantt) {
+    config = schema.gantt as GanttConfig;
   }
 
   if (config) {

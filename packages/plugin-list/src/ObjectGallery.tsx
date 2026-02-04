@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { useDataScope } from '@object-ui/react';
+import React, { useState, useEffect } from 'react';
+import { useDataScope, useSchemaContext } from '@object-ui/react';
 import { ComponentRegistry } from '@object-ui/core';
 
 // Utility for class merging (assuming it's available in plugin context, 
@@ -10,15 +10,57 @@ import { cn } from '@object-ui/components';
 
 export const ObjectGallery = (props: any) => {
     const { schema } = props;
-    const { data, isLoading } = useDataScope();
-    const items = data?.value || [];
+    const context = useSchemaContext();
+    const dataSource = props.dataSource || context.dataSource;
+    const boundData = useDataScope(schema.bind);
+
+    const [fetchedData, setFetchedData] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        let isMounted = true;
+        const fetchData = async () => {
+            if (!dataSource || !schema.objectName) return;
+            if (isMounted) setLoading(true);
+            try {
+                // Apply filtering?
+                const results = await dataSource.find(schema.objectName, {
+                   $filter: schema.filter
+                });
+                
+                let data: any[] = [];
+                if (Array.isArray(results)) {
+                    data = results;
+                } else if (results && typeof results === 'object') {
+                    if (Array.isArray((results as any).value)) {
+                        data = (results as any).value;
+                    }
+                }
+    
+                if (isMounted) {
+                    setFetchedData(data);
+                }
+            } catch (e) {
+                console.error('[ObjectGallery] Fetch error:', e);
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
+    
+        if (schema.objectName && !boundData && !schema.data) {
+            fetchData();
+        }
+        return () => { isMounted = false; };
+      }, [schema.objectName, dataSource, boundData, schema.data, schema.filter]);
+
+    const items = boundData || schema.data || fetchedData || [];
     
     // Config
     const imageField = schema.imageField || 'image';
     const titleField = schema.titleField || 'name';
     const subtitleField = schema.subtitleField;
 
-    if (isLoading && !items.length) return <div className="p-4 text-sm text-muted-foreground">Loading Gallery...</div>;
+    if (loading && !items.length) return <div className="p-4 text-sm text-muted-foreground">Loading Gallery...</div>;
     if (!items.length) return <div className="p-4 text-sm text-muted-foreground">No items to display</div>;
 
     return (

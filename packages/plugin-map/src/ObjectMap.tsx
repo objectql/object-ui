@@ -119,7 +119,20 @@ function convertSortToQueryParams(sort: string | any[] | undefined): Record<stri
 /**
  * Helper to get map configuration from schema
  */
-function getMapConfig(schema: ObjectGridSchema): MapConfig {
+function getMapConfig(schema: ObjectGridSchema | any): MapConfig {
+  // 1. Check top-level properties (ObjectMapSchema style)
+  if (schema.locationField || schema.latitudeField) {
+      return {
+          locationField: schema.locationField,
+          latitudeField: schema.latitudeField,
+          longitudeField: schema.longitudeField,
+          titleField: schema.titleField || 'name',
+          descriptionField: schema.descriptionField,
+          zoom: schema.zoom,
+          center: schema.center
+      };
+  }
+
   let config: MapConfig | null = null;
   // Check if schema has map configuration
   if (schema.filter && typeof schema.filter === 'object' && 'map' in schema.filter) {
