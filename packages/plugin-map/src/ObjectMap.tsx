@@ -26,6 +26,17 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData } from '@object-ui/types';
+import { z } from 'zod';
+
+const MapConfigSchema = z.object({
+  latitudeField: z.string().optional(),
+  longitudeField: z.string().optional(),
+  locationField: z.string().optional(),
+  titleField: z.string().optional(),
+  descriptionField: z.string().optional(),
+  zoom: z.number().optional(),
+  center: z.tuple([z.number(), z.number()]).optional(),
+});
 
 export interface ObjectMapProps {
   schema: ObjectGridSchema;
@@ -109,14 +120,23 @@ function convertSortToQueryParams(sort: string | any[] | undefined): Record<stri
  * Helper to get map configuration from schema
  */
 function getMapConfig(schema: ObjectGridSchema): MapConfig {
+  let config: MapConfig | null = null;
   // Check if schema has map configuration
   if (schema.filter && typeof schema.filter === 'object' && 'map' in schema.filter) {
-    return (schema.filter as any).map as MapConfig;
+    config = (schema.filter as any).map as MapConfig;
   }
   
   // For backward compatibility, check if schema has map config at root
-  if ((schema as any).map) {
-    return (schema as any).map as MapConfig;
+  else if ((schema as any).map) {
+    config = (schema as any).map as MapConfig;
+  }
+
+  if (config) {
+     const result = MapConfigSchema.safeParse(config);
+     if (!result.success) {
+       console.warn(`[ObjectMap] Invalid map configuration:`, result.error.format());
+     }
+     return config;
   }
   
   // Default configuration

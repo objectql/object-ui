@@ -24,6 +24,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
+import { GanttConfigSchema } from '@objectstack/spec/ui';
 import { GanttView, type GanttTask } from './GanttView';
 
 export interface ObjectGanttProps {
@@ -91,14 +92,23 @@ function convertSortToQueryParams(sort: string | any[] | undefined): Record<stri
  * Helper to get gantt configuration from schema
  */
 function getGanttConfig(schema: ObjectGridSchema): GanttConfig | null {
+  let config: GanttConfig | null = null;
   // Check if schema has gantt configuration
   if (schema.filter && typeof schema.filter === 'object' && 'gantt' in schema.filter) {
-    return (schema.filter as any).gantt as GanttConfig;
+    config = (schema.filter as any).gantt as GanttConfig;
   }
   
   // For backward compatibility, check if schema has gantt config at root
-  if ((schema as any).gantt) {
-    return (schema as any).gantt as GanttConfig;
+  else if ((schema as any).gantt) {
+    config = (schema as any).gantt as GanttConfig;
+  }
+
+  if (config) {
+    const result = GanttConfigSchema.safeParse(config);
+    if (!result.success) {
+      console.warn(`[ObjectGantt] Invalid gantt configuration:`, result.error.format());
+    }
+    return config;
   }
   
   return null;

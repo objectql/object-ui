@@ -35,7 +35,9 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "lucide-react": "^0.563.0"
+    "@objectstack/spec": "^0.9.2",
+    "lucide-react": "^0.563.0",
+    "zod": "^4.3.6"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

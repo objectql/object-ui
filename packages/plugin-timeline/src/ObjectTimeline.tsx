@@ -9,7 +9,23 @@
 import React, { useEffect, useState } from 'react';
 import type { DataSource, TimelineSchema } from '@object-ui/types';
 import { useDataScope } from '@object-ui/react';
+import { z } from 'zod';
 import { TimelineRenderer } from './renderer';
+
+const TimelineMappingSchema = z.object({
+  title: z.string().optional(),
+  date: z.string().optional(),
+  description: z.string().optional(),
+  variant: z.string().optional(),
+});
+
+const TimelineExtensionSchema = z.object({
+   mapping: TimelineMappingSchema.optional(),
+   objectName: z.string().optional(),
+   titleField: z.string().optional(),
+   dateField: z.string().optional(),
+   descriptionField: z.string().optional(),
+});
 
 export interface ObjectTimelineProps {
   schema: TimelineSchema & {
@@ -37,6 +53,13 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   const [fetchedData, setFetchedData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    const result = TimelineExtensionSchema.safeParse(schema);
+    if (!result.success) {
+      console.warn(`[ObjectTimeline] Invalid timeline configuration:`, result.error.format());
+    }
+  }, [schema]);
 
   const boundData = useDataScope(schema.bind);
 
