@@ -14,6 +14,56 @@ import { ObjectView } from './components/ObjectView';
 import { DashboardView } from './components/DashboardView';
 import { PageView } from './components/PageView';
 
+import { DetailView } from '@object-ui/plugin-detail';
+import { useParams } from 'react-router-dom';
+
+// ... existing imports ...
+
+// Detail View Component
+function RecordDetailView({ dataSource, objects, onEdit }: any) {
+  const { objectName, recordId } = useParams();
+  const objectDef = objects.find((o: any) => o.name === objectName);
+
+  if (!objectDef) {
+    return (
+      <div className="flex h-full items-center justify-center p-4">
+        <Empty>
+          <EmptyTitle>Object Not Found</EmptyTitle>
+          <p>Object "{objectName}" definition missing.</p>
+        </Empty>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full bg-background overflow-auto">
+       <DetailView 
+         schema={{
+           type: 'detail-view',
+           objectName: objectDef.name,
+           resourceId: recordId,
+           showBack: true,
+           onBack: 'history',
+           showEdit: true,
+           sections: [
+              {
+                 title: 'Details',
+                 fields: Object.keys(objectDef.fields || {}).map(key => ({
+                    name: key, 
+                    label: objectDef.fields[key].label,
+                    type: objectDef.fields[key].type
+                 })),
+                 columns: 2
+              }
+           ]
+         }}
+         dataSource={dataSource}
+         onEdit={() => onEdit({ _id: recordId, id: recordId })} 
+       />
+    </div>
+  )
+}
+
 export function AppContent() {
   const [client, setClient] = useState<ObjectStackClient | null>(null);
   const [dataSource, setDataSource] = useState<ObjectStackDataSource | null>(null);
@@ -75,6 +125,14 @@ export function AppContent() {
     setEditingRecord(record);
     setIsDialogOpen(true);
   };
+  
+  const handleRowClick = (record: any) => {
+     // Check for both string ID and Mongo/ObjectQL _id
+     const id = record._id || record.id;
+     if (id && currentObjectDef) {
+        navigate(`/${currentObjectDef.name}/${id}`);
+     }
+  };
 
   const handleAppChange = (appName: string) => {
       setActiveAppName(appName);
@@ -112,7 +170,15 @@ export function AppContent() {
              <Navigate to={findFirstRoute(activeApp.navigation)} replace />
         } />
         <Route path="/:objectName" element={
-            <ObjectView dataSource={dataSource} objects={allObjects} onEdit={handleEdit} />
+            <ObjectView 
+                dataSource={dataSource} 
+                objects={allObjects} 
+                onEdit={handleEdit} 
+                onRowClick={handleRowClick}
+            />
+        } />
+        <Route path="/:objectName/:recordId" element={
+            <RecordDetailView dataSource={dataSource} objects={allObjects} onEdit={handleEdit} />
         } />
         <Route path="/dashboard/:dashboardName" element={
             <DashboardView />

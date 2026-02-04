@@ -59,7 +59,7 @@ function convertFilterGroupToAST(group: FilterGroup): any[] {
 }
 
 export const ListView: React.FC<ListViewProps> = ({
-  schema,
+  schema: propSchema,
   className,
   onViewChange,
   onFilterChange,
@@ -67,8 +67,14 @@ export const ListView: React.FC<ListViewProps> = ({
   onSearchChange,
   ...props
 }) => {
+  // Kernel level default: Ensure viewType is always defined (default to 'grid')
+  const schema = React.useMemo(() => ({
+    ...propSchema,
+    viewType: propSchema.viewType || 'grid'
+  }), [propSchema]);
+
   const [currentView, setCurrentView] = React.useState<ViewType>(
-    (schema.viewType as ViewType) || 'grid'
+    (schema.viewType as ViewType)
   );
   const [searchTerm, setSearchTerm] = React.useState('');
   
