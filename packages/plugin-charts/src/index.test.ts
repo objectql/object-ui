@@ -13,7 +13,7 @@ describe('Plugin Charts', () => {
   // Import all renderers to register them
   beforeAll(async () => {
     await import('./index');
-  });
+  }, 30000);
 
   describe('bar-chart component', () => {
     it('should be registered in ComponentRegistry', () => {

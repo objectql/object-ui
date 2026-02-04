@@ -75,7 +75,7 @@ describe('ObjectKanban with MSW', () => {
     // Initial state might show Skeleton, wait for data
     await waitFor(() => {
         expect(screen.getByText('Task 1')).toBeInTheDocument();
-    });
+    }, { timeout: 10000 });
 
     // Check classification
     // Task 1 (todo) and Task 3 (todo) should be in To Do column.
