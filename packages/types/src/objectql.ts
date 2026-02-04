@@ -688,7 +688,7 @@ export interface ListViewSchema extends BaseSchema {
   objectName: string;
   
   /** View Type (grid, kanban, etc) */
-  viewType?: 'grid' | 'list' | 'kanban' | 'calendar' | 'gantt' | 'map' | 'chart' | 'spreadsheet' | 'gallery' | 'timeline';
+  viewType?: 'grid' | 'list' | 'kanban' | 'calendar' | 'gantt' | 'map' | 'chart' | 'gallery' | 'timeline';
   
   /** Fields to fetch/display */
   fields?: string[];

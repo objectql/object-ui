@@ -14,7 +14,6 @@ import {
   LayoutGrid, 
   Calendar, 
   BarChart3, 
-  Table2,    // spreadsheet
   Images,    // gallery
   Activity,  // timeline
   GanttChartSquare, // gantt
@@ -27,7 +26,6 @@ export type ViewType =
   | 'kanban' 
   | 'calendar' 
   | 'chart'
-  | 'spreadsheet'
   | 'gallery'
   | 'timeline'
   | 'gantt'
@@ -46,7 +44,6 @@ const VIEW_ICONS: Record<ViewType, React.ReactNode> = {
   kanban: <LayoutGrid className="h-4 w-4" />,
   calendar: <Calendar className="h-4 w-4" />,
   chart: <BarChart3 className="h-4 w-4" />,
-  spreadsheet: <Table2 className="h-4 w-4" />,
   gallery: <Images className="h-4 w-4" />,
   timeline: <Activity className="h-4 w-4" />,
   gantt: <GanttChartSquare className="h-4 w-4" />,
@@ -59,7 +56,6 @@ const VIEW_LABELS: Record<ViewType, string> = {
   kanban: 'Kanban',
   calendar: 'Calendar',
   chart: 'Chart',
-  spreadsheet: 'Spreadsheet',
   gallery: 'Gallery',
   timeline: 'Timeline',
   gantt: 'Gantt',

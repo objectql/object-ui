@@ -46,7 +46,7 @@ export const PlaceholderRenderer = ({ schema, className }: any) => {
 const PROTOCOL_COMPONENTS = [
   // 1. Views (List)
   'view:grid', 'view:kanban', 'view:map', 'view:calendar', 'view:gantt', 
-  'view:timeline', 'view:gallery', 'view:spreadsheet',
+  'view:timeline', 'view:gallery',
   
   // 2. Views (Form)
   'view:simple', 'view:wizard', 'view:tabbed', 'view:drawer', 'view:modal', 'view:split',

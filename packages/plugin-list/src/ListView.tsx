@@ -132,12 +132,6 @@ export const ListView: React.FC<ListViewProps> = ({
           yAxisFields: schema.options?.chart?.yAxisFields || ['value'],
           ...(schema.options?.chart || {}),
         };
-      case 'spreadsheet':
-        return {
-          type: 'object-spreadsheet',
-          ...baseProps,
-          ...(schema.options?.spreadsheet || {}),
-        };
       case 'gallery':
         return {
           type: 'object-gallery',
@@ -179,7 +173,7 @@ export const ListView: React.FC<ListViewProps> = ({
 
   // Available view types based on schema configuration
   const availableViews = React.useMemo(() => {
-    const views: ViewType[] = ['grid', 'list', 'spreadsheet'];
+    const views: ViewType[] = ['grid', 'list'];
     
     // Check for Kanban capabilities
     if (schema.options?.kanban?.groupField) {
@@ -214,7 +208,7 @@ export const ListView: React.FC<ListViewProps> = ({
     // Always allow switching back to the viewType defined in schema if it's one of the supported types
     // This ensures that if a view is configured as "map", the map button is shown even if we missed the options check above
     if (schema.viewType && !views.includes(schema.viewType as ViewType) && 
-       ['grid', 'list', 'kanban', 'calendar', 'spreadsheet', 'timeline', 'gantt', 'map', 'chart', 'gallery'].includes(schema.viewType)) {
+       ['grid', 'list', 'kanban', 'calendar', 'timeline', 'gantt', 'map', 'chart', 'gallery'].includes(schema.viewType)) {
       views.push(schema.viewType as ViewType);
     }
     
