@@ -37,7 +37,10 @@ vi.mock('@object-ui/components', async () => {
             <button data-testid="tabs-trigger" data-tab-value={value}>
                 {children}
             </button>
-        )
+        ),
+        Empty: ({ children }: any) => <div data-testid="empty">{children}</div>,
+        EmptyTitle: ({ children }: any) => <div data-testid="empty-title">{children}</div>,
+        EmptyDescription: ({ children }: any) => <div data-testid="empty-description">{children}</div>
     };
 });
 
