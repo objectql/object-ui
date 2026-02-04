@@ -60,9 +60,11 @@ export const DetailView: React.FC<DetailViewProps> = ({
       onEdit();
     } else if (schema.editUrl) {
       window.location.href = schema.editUrl;
-    } else {
-      setEditMode(true);
     }
+    // TODO: Implement inline edit mode
+    // else {
+    //   setEditMode(true);
+    // }
   }, [onEdit, schema.editUrl]);
 
   const handleDelete = React.useCallback(() => {

@@ -89,7 +89,8 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
   const getComponentSchema = React.useCallback((widget: DashboardWidgetSchema) => {
     if (widget.component) return widget.component;
 
-    if (widget.type === 'bar' || widget.type === 'line' || widget.type === 'area' || widget.type === 'pie' || widget.type === 'donut') {
+    const widgetType = (widget as any).type;
+    if (widgetType === 'bar' || widgetType === 'line' || widgetType === 'area' || widgetType === 'pie' || widgetType === 'donut') {
       const dataItems = Array.isArray((widget as any).data) ? (widget as any).data : (widget as any).data?.items || [];
       const options = (widget as any).options || {};
       const xAxisKey = options.xField || 'name';
@@ -97,7 +98,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
       
       return {
         type: 'chart',
-        chartType: widget.type,
+        chartType: widgetType,
         data: dataItems,
         xAxisKey: xAxisKey,
         series: [{ dataKey: yField }],
@@ -106,7 +107,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
       };
     }
 
-    if (widget.type === 'table') {
+    if (widgetType === 'table') {
       return {
         type: 'data-table',
         ...(widget as any).options,
@@ -162,7 +163,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         {schema.widgets?.map((widget, index) => {
           const widgetId = widget.id || `widget-${index}`;
           const componentSchema = getComponentSchema(widget);
-          const isSelfContained = widget.type === 'metric';
+          const isSelfContained = (widget as any).type === 'metric';
 
           return (
             <div key={widgetId} className="h-full">

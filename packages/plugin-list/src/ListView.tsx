@@ -26,7 +26,7 @@ export const ListView: React.FC<ListViewProps> = ({
   schema,
   className,
   onViewChange,
-  onFilterChange,
+  onFilterChange: _onFilterChange,
   onSortChange,
   onSearchChange,
 }) => {

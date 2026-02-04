@@ -99,7 +99,7 @@ function SortableCard({ card }: { card: KanbanCard }) {
   )
 }
 
-function VirtualizedCardList({ cards, parentRef }: { cards: KanbanCard[]; parentRef: React.RefObject<HTMLDivElement> }) {
+function VirtualizedCardList({ cards, parentRef }: { cards: KanbanCard[]; parentRef: React.RefObject<HTMLDivElement | null> }) {
   const rowVirtualizer = useVirtualizer({
     count: cards.length,
     getScrollElement: () => parentRef.current,

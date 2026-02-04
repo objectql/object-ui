@@ -213,7 +213,7 @@ ComponentRegistry.register('chatbot-enhanced',
       })) || []
     );
 
-    const handleSendMessage = (content: string, files?: File[]) => {
+    const handleSendMessage = (content: string, _files?: File[]) => {
       const userMessage: ChatMessage = {
         id: generateUniqueId('msg'),
         role: 'user',

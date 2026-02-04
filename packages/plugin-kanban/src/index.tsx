@@ -9,10 +9,11 @@
 import React, { Suspense } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { Skeleton } from '@object-ui/components';
+import { ObjectKanban } from './ObjectKanban';
 
 // Export types for external use
 export type { KanbanSchema, KanbanCard, KanbanColumn } from './types';
-export { ObjectKanban } from './ObjectKanban';
+export { ObjectKanban };
 export type { ObjectKanbanProps } from './ObjectKanban';
 
 // 🚀 Lazy load the implementation files
