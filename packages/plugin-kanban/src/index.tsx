@@ -8,6 +8,7 @@
 
 import React, { Suspense } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import { useSchemaContext } from '@object-ui/react';
 import { Skeleton } from '@object-ui/components';
 import { ObjectKanban } from './ObjectKanban';
 
@@ -234,5 +235,25 @@ ComponentRegistry.register(
       virtualScrollThreshold: 50,
       className: 'w-full'
     }
+  }
+);
+
+// Register object-kanban for ListView integration
+const ObjectKanbanRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
+  const { dataSource } = useSchemaContext() || {};
+  return <ObjectKanban schema={schema} dataSource={dataSource} {...props} />;
+};
+
+ComponentRegistry.register(
+  'object-kanban',
+  ObjectKanbanRenderer,
+  {
+    namespace: 'plugin-kanban',
+    label: 'Object Kanban',
+    category: 'plugin',
+    inputs: [
+      { name: 'objectName', type: 'string', label: 'Object Name', required: true },
+      { name: 'columns', type: 'array', label: 'Columns' }
+    ]
   }
 );

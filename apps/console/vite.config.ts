@@ -18,6 +18,21 @@ export default defineConfig({
       '@object-ui/react': path.resolve(__dirname, '../../packages/react/src'),
       '@object-ui/types': path.resolve(__dirname, '../../packages/types/src'),
       '@object-ui/data-objectstack': path.resolve(__dirname, '../../packages/data-objectstack/src'),
+      
+      // Missing Plugin Aliases
+      '@object-ui/plugin-aggrid': path.resolve(__dirname, '../../packages/plugin-aggrid/src'),
+      '@object-ui/plugin-calendar': path.resolve(__dirname, '../../packages/plugin-calendar/src'),
+      '@object-ui/plugin-charts': path.resolve(__dirname, '../../packages/plugin-charts/src'),
+      '@object-ui/plugin-chatbot': path.resolve(__dirname, '../../packages/plugin-chatbot/src'),
+      '@object-ui/plugin-detail': path.resolve(__dirname, '../../packages/plugin-detail/src'),
+      '@object-ui/plugin-editor': path.resolve(__dirname, '../../packages/plugin-editor/src'),
+      '@object-ui/plugin-gantt': path.resolve(__dirname, '../../packages/plugin-gantt/src'),
+      '@object-ui/plugin-kanban': path.resolve(__dirname, '../../packages/plugin-kanban/src'),
+      '@object-ui/plugin-list': path.resolve(__dirname, '../../packages/plugin-list/src'),
+      '@object-ui/plugin-map': path.resolve(__dirname, '../../packages/plugin-map/src'),
+      '@object-ui/plugin-markdown': path.resolve(__dirname, '../../packages/plugin-markdown/src'),
+      '@object-ui/plugin-timeline': path.resolve(__dirname, '../../packages/plugin-timeline/src'),
+      '@object-ui/plugin-view': path.resolve(__dirname, '../../packages/plugin-view/src'),
     },
   },
   optimizeDeps: {
