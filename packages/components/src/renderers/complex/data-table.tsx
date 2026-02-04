@@ -360,50 +360,54 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     return selectedRowIds.has(rowId);
   }) && !allPageRowsSelected;
 
+  const showToolbar = searchable || exportable || (selectable && selectedRowIds.size > 0);
+
   return (
-    <div className={`space-y-4 ${className || ''}`}>
+    <div className={`flex flex-col h-full gap-4 ${className || ''}`}>
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2 flex-1">
-          {searchable && (
-            <div className="relative max-w-sm flex-1">
-              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="pl-8"
-              />
-            </div>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-2">
-          {exportable && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              disabled={sortedData.length === 0}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
-          )}
+      {showToolbar && (
+        <div className="flex items-center justify-between gap-4 flex-none">
+          <div className="flex items-center gap-2 flex-1">
+            {searchable && (
+              <div className="relative max-w-sm flex-1">
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="pl-8"
+                />
+              </div>
+            )}
+          </div>
           
-          {selectable && selectedRowIds.size > 0 && (
-            <div className="text-sm text-muted-foreground">
-              {selectedRowIds.size} selected
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {exportable && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={sortedData.length === 0}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+            )}
+            
+            {selectable && selectedRowIds.size > 0 && (
+              <div className="text-sm text-muted-foreground">
+                {selectedRowIds.size} selected
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Table */}
-      <div className="rounded-md border max-h-[600px] overflow-auto relative">
+      <div className="rounded-md border flex-1 min-h-0 overflow-auto relative bg-background">
         <Table>
           {caption && <TableCaption>{caption}</TableCaption>}
           <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
