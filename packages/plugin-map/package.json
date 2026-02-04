@@ -37,6 +37,8 @@
     "@object-ui/types": "workspace:*",
     "@objectstack/spec": "^0.9.2",
     "lucide-react": "^0.563.0",
+    "maplibre-gl": "^5.17.0",
+    "react-map-gl": "^8.1.0",
     "zod": "^4.3.6"
   },
   "peerDependencies": {
