@@ -299,6 +299,11 @@ export const ListView: React.FC<ListViewProps> = ({
     if (schema.options?.kanban?.groupField) {
       views.push('kanban');
     }
+
+    // Check for Gallery capabilities
+    if (schema.options?.gallery?.imageField) {
+      views.push('gallery');
+    }
     
     // Check for Calendar capabilities
     if (schema.options?.calendar?.startDateField) {

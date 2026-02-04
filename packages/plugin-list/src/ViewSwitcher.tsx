@@ -7,7 +7,7 @@
  */
 
 import * as React from 'react';
-import { cn, ToggleGroup, ToggleGroupItem } from '@object-ui/components';
+import { cn } from '@object-ui/components';
 import { 
   Grid, 
   LayoutGrid, 
@@ -61,26 +61,32 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
   className,
 }) => {
   return (
-    <ToggleGroup 
-      type="single" 
-      value={currentView} 
-      onValueChange={(value) => value && onViewChange(value as ViewType)}
-      className={cn("bg-transparent gap-1", className)}
-    >
-      {availableViews.map((view) => (
-        <ToggleGroupItem
-          key={view}
-          value={view}
-          aria-label={VIEW_LABELS[view]}
-          title={VIEW_LABELS[view]}
-          className="gap-2 px-3 data-[state=on]:bg-background data-[state=on]:shadow-sm border-transparent border data-[state=on]:border-border/50"
-        >
-          {VIEW_ICONS[view]}
-          <span className="hidden sm:inline-block text-xs font-medium">
-            {VIEW_LABELS[view]}
-          </span>
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
+    <div className={cn("flex items-center gap-1 bg-transparent", className)}>
+      {availableViews.map((view) => {
+        const isActive = currentView === view;
+        return (
+          <button
+            key={view}
+            type="button"
+            onClick={() => onViewChange(view)}
+            aria-label={VIEW_LABELS[view]}
+            title={VIEW_LABELS[view]}
+            aria-pressed={isActive}
+            data-state={isActive ? 'on' : 'off'}
+            className={cn(
+              "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+              "hover:bg-muted hover:text-muted-foreground",
+              "gap-2 px-3 py-2",
+              "data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm border-transparent border data-[state=on]:border-border/50",
+            )}
+          >
+            {VIEW_ICONS[view]}
+            <span className="hidden sm:inline-block text-xs font-medium">
+              {VIEW_LABELS[view]}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 };
