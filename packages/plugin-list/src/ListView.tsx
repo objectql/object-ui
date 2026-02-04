@@ -7,8 +7,9 @@
  */
 
 import * as React from 'react';
-import { cn, Button, Input } from '@object-ui/components';
+import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder } from '@object-ui/components';
 import { Search, SlidersHorizontal, ArrowUpDown, X } from 'lucide-react';
+import type { FilterGroup } from '@object-ui/components';
 import { ViewSwitcher, ViewType } from './ViewSwitcher';
 import { SchemaRenderer } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
@@ -21,6 +22,39 @@ export interface ListViewProps {
   onSortChange?: (sort: any) => void;
   onSearchChange?: (search: string) => void;
   [key: string]: any;
+}
+
+// Helper to convert FilterBuilder group to ObjectStack AST
+function mapOperator(op: string) {
+  switch (op) {
+    case 'equals': return '=';
+    case 'notEquals': return '!=';
+    case 'contains': return 'contains';
+    case 'notContains': return 'notcontains';
+    case 'greaterThan': return '>';
+    case 'greaterOrEqual': return '>=';
+    case 'lessThan': return '<';
+    case 'lessOrEqual': return '<=';
+    case 'in': return 'in';
+    case 'notIn': return 'not in';
+    case 'before': return '<';
+    case 'after': return '>';
+    default: return '=';
+  }
+}
+
+function convertFilterGroupToAST(group: FilterGroup): any[] {
+  if (!group || !group.conditions || group.conditions.length === 0) return [];
+
+  const conditions = group.conditions.map(c => {
+    if (c.operator === 'isEmpty') return [c.field, '=', null];
+    if (c.operator === 'isNotEmpty') return [c.field, '!=', null];
+    return [c.field, mapOperator(c.operator), c.value];
+  });
+
+  if (conditions.length === 1) return conditions[0];
+  
+  return [group.logic, ...conditions];
 }
 
 export const ListView: React.FC<ListViewProps> = ({
@@ -40,16 +74,41 @@ export const ListView: React.FC<ListViewProps> = ({
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>(schema.sort?.[0]?.order || 'asc');
   const [showFilters, setShowFilters] = React.useState(false);
   
+  const [currentFilters, setCurrentFilters] = React.useState<FilterGroup>({
+    id: 'root',
+    logic: 'and',
+    conditions: []
+  });
+
   // Data State
   const dataSource = props.dataSource;
   const [data, setData] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const [objectDef, setObjectDef] = React.useState<any>(null);
 
   const storageKey = React.useMemo(() => {
     return schema.id 
       ? `listview-${schema.objectName}-${schema.id}-view`
       : `listview-${schema.objectName}-view`;
   }, [schema.objectName, schema.id]);
+
+  // Fetch object definition
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchObjectDef = async () => {
+      if (!dataSource || !schema.objectName) return;
+      try {
+        const def = await dataSource.getObjectSchema(schema.objectName);
+        if (isMounted) {
+          setObjectDef(def);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch object schema for ListView:", err);
+      }
+    };
+    fetchObjectDef();
+    return () => { isMounted = false; };
+  }, [schema.objectName, dataSource]);
 
   // Fetch data effect
   React.useEffect(() => {
@@ -61,16 +120,25 @@ export const ListView: React.FC<ListViewProps> = ({
       setLoading(true);
       try {
         // Construct filter
-        let filter: any = schema.filters || [];
-        // TODO: Merge with searchTerm and user filters
-        // For now, we rely on the backend/driver to handle $filter
+        let finalFilter: any = [];
+        const baseFilter = schema.filters || [];
+        const userFilter = convertFilterGroupToAST(currentFilters);
+        
+        // Merge base filters and user filters
+        if (baseFilter.length > 0 && userFilter.length > 0) {
+            finalFilter = ['and', baseFilter, userFilter];
+        } else if (userFilter.length > 0) {
+            finalFilter = userFilter;
+        } else {
+            finalFilter = baseFilter;
+        }
         
         // Convert sort to query format
         // ObjectQL uses simple object: { field: 'asc' }
         const sort: any = sortField ? { [sortField]: sortOrder } : undefined;
 
         const results = await dataSource.find(schema.objectName, {
-           $filter: filter,
+           $filter: finalFilter,
            $orderby: sort,
            $top: 100 // Default pagination limit
         });
@@ -99,7 +167,7 @@ export const ListView: React.FC<ListViewProps> = ({
     fetchData();
     
     return () => { isMounted = false; };
-  }, [schema.objectName, dataSource, schema.filters, sortField, sortOrder]); // Re-fetch on filter/sort change
+  }, [schema.objectName, dataSource, schema.filters, sortField, sortOrder, currentFilters]); // Re-fetch on filter/sort change
 
   // Load saved view preference
   React.useEffect(() => {
@@ -251,6 +319,30 @@ export const ListView: React.FC<ListViewProps> = ({
     return views;
   }, [schema.options, schema.viewType]);
 
+  const hasFilters = currentFilters.conditions && currentFilters.conditions.length > 0;
+
+  const filterFields = React.useMemo(() => {
+    if (!objectDef?.fields) {
+        // Fallback to schema fields if objectDef not loaded yet
+        return (schema.fields || []).map((f: any) => {
+           if (typeof f === 'string') return { value: f, label: f, type: 'text' };
+           return {
+              value: f.name || f.fieldName,
+              label: f.label || f.name,
+              type: f.type || 'text',
+              options: f.options
+           };
+        });
+    }
+    
+    return Object.entries(objectDef.fields).map(([key, field]: [string, any]) => ({
+        value: key,
+        label: field.label || key,
+        type: field.type || 'text',
+        options: field.options
+    }));
+  }, [objectDef, schema.fields]);
+
   return (
     <div className={cn('flex flex-col h-full bg-background', className)}>
       {/* Airtable-style Toolbar */}
@@ -267,15 +359,45 @@ export const ListView: React.FC<ListViewProps> = ({
 
           {/* Action Tools */}
           <div className="flex items-center gap-1">
-             <Button
-                variant={showFilters ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-                className="h-8 px-2 lg:px-3 text-muted-foreground hover:text-primary"
-              >
-                <SlidersHorizontal className="h-4 w-4 mr-2" />
-                <span className="hidden lg:inline">Filter</span>
-              </Button>
+             <Popover open={showFilters} onOpenChange={setShowFilters}>
+               <PopoverTrigger asChild>
+                  <Button
+                    variant={hasFilters ? "secondary" : "ghost"}
+                    size="sm"
+                    className={cn(
+                      "h-8 px-2 lg:px-3 text-muted-foreground hover:text-primary",
+                      hasFilters && "text-primary bg-secondary/50"
+                    )}
+                  >
+                    <SlidersHorizontal className="h-4 w-4 mr-2" />
+                    <span className="hidden lg:inline">Filter</span>
+                    {hasFilters && (
+                      <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary/10 text-[10px] font-medium text-primary">
+                        {currentFilters.conditions?.length || 0}
+                      </span>
+                    )}
+                  </Button>
+               </PopoverTrigger>
+               <PopoverContent align="start" className="w-[600px] p-4">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <h4 className="font-medium text-sm">Filter Records</h4>
+                    </div>
+                    <FilterBuilder
+                      fields={filterFields}
+                      value={currentFilters}
+                      onChange={(newFilters) => {
+                        console.log('Filter Changed:', newFilters);
+                        setCurrentFilters(newFilters);
+                        // Convert FilterBuilder format to OData $filter string if needed
+                        // For now we just update state and notify listener
+                        // In a real app, this would likely build an OData string
+                        onFilterChange?.(newFilters);
+                      }}
+                    />
+                  </div>
+               </PopoverContent>
+             </Popover>
             
             {sortField && (
                <Button 
@@ -318,15 +440,7 @@ export const ListView: React.FC<ListViewProps> = ({
       </div>
 
 
-      {/* Filters Panel */}
-      {showFilters && (
-        <div className="p-4 border rounded-lg bg-muted/30">
-          <div className="text-sm font-medium mb-2">Filters</div>
-          <div className="text-xs text-muted-foreground">
-            Advanced filter UI coming soon. Current filters: {JSON.stringify(schema.filters || [])}
-          </div>
-        </div>
-      )}
+      {/* Filters Panel - Removed as it is now in Popover */}
 
       {/* View Content */}
       <div className="flex-1 min-h-0 bg-background relative overflow-hidden">
