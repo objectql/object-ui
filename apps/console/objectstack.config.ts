@@ -34,6 +34,7 @@ class PatchedMSWPlugin extends MSWPlugin {
 class PatchedHonoServerPlugin extends HonoServerPlugin {
     constructor(...args: any[]) {
         super(...args);
+        console.log('DEBUG: PatchedHonoServerPlugin instantiated');
         // @ts-ignore
         this.init = this.init.bind(this);
         
@@ -44,24 +45,45 @@ class PatchedHonoServerPlugin extends HonoServerPlugin {
         // Override start with custom logic
         // @ts-ignore
         this.start = async (ctx: any) => {
-            // Call original start
+            // Call original start first to ensure server is created and listening
             if (originalStart) {
                 await originalStart(ctx);
             }
-            
-            // SPA Fallback: Serve index.html for unknown routes (excluding /api)
+
+            console.log('DEBUG: Attempting to register SPA routes...');
+            console.log('DEBUG: Plugin keys:', Object.keys(this));
             // @ts-ignore
-            const app = this.server.getRawApp();
+            if (this.app) console.log('DEBUG: Found this.app');
             // @ts-ignore
-            const staticRoot = this.options.staticRoot;
+            if (this.server) console.log('DEBUG: Found this.server');
+
+            // Try to find the app from various sources
+            // @ts-ignore
+            let app = this.server?.getRawApp?.(); // If this.server exists
             
-            if (staticRoot) {
+            // If not found, try to get from service
+            if (!app && ctx.getService) {
+                const httpService = ctx.getService('http-server') || ctx.getService('http.server');
+                if (httpService) {
+                     // console.log('DEBUG: Found http-server service keys:', Object.keys(httpService));
+                     if (httpService.getRawApp) app = httpService.getRawApp();
+                     else if (httpService.app) app = httpService.app;
+                }
+            }
+
+            // @ts-ignore
+            const staticRoot = this.options?.staticRoot || './dist';
+            
+            if (app && staticRoot) {
                 const fs = require('fs');
                 const path = require('path');
                 
+                console.log('DEBUG: Registering SPA routes for ' + staticRoot);
+
                 // Manual Asset Handler to ensure assets are served
                 app.get('/console/assets/*', async (c: any) => {
                     const filePath = path.join(path.resolve(staticRoot), c.req.path.replace('/console', ''));
+                    // console.log('DEBUG: Asset Request:', c.req.path, '->', filePath);
                     if (fs.existsSync(filePath)) {
                         const ext = path.extname(filePath);
                         let contentType = 'application/octet-stream';
@@ -82,7 +104,7 @@ class PatchedHonoServerPlugin extends HonoServerPlugin {
                     return c.redirect('/console/');
                 });
 
-                // Register fallback after serveStatic (which is added in listen/originalStart)
+                // Register fallback 
                 app.get('/console/*', async (c: any) => {
                     // Ignore API calls -> let them 404
                     if (c.req.path.startsWith('/api')) {
@@ -90,19 +112,25 @@ class PatchedHonoServerPlugin extends HonoServerPlugin {
                     }
                     
                     try {
-                        // Try to serve index.html
-                        // Ensure we resolve relative to CWD or config location
+                        // Debugging path resolution
                         const indexPath = path.resolve(staticRoot, 'index.html');
+                        console.log('DEBUG: Request Path:', c.req.path);
+                        console.log('DEBUG: Serving index from:', indexPath);
+                        console.log('DEBUG: File exists?', fs.existsSync(indexPath));
+
                         if (fs.existsSync(indexPath)) {
                              const indexContent = fs.readFileSync(indexPath, 'utf-8');
                              return c.html(indexContent);
                         }
-                        return c.text('SPA Index Not Found', 404);
+                        return c.text('SPA Index Not Found at ' + indexPath, 404);
                     } catch (e: any) {
+                        console.error('DEBUG: Error serving index:', e);
                         return c.text('Server Error: ' + e.message, 500);
                     }
                 });
                 console.log('SPA Fallback route registered for ' + staticRoot);
+            } else {
+                 console.log("DEBUG: failed to register routes. app found:", !!app, "staticRoot:", staticRoot);
             }
         };
     }
@@ -110,7 +138,52 @@ class PatchedHonoServerPlugin extends HonoServerPlugin {
 
 const FixedConsolePlugin = {
     ...ConsolePluginConfig,
-    init: () => {}
+    init: () => {},
+    start: async (ctx: any) => {
+        const httpService = ctx.getService('http-server') || ctx.getService('http.server');
+        if (httpService) {
+            const app = httpService.app || httpService.getRawApp?.();
+            
+            if (app) {
+                const fs = require('fs');
+                const path = require('path');
+                const staticRoot = './dist'; 
+
+                // Manual Asset Handler
+                app.get('/console/assets/*', async (c: any) => {
+                    const filePath = path.join(path.resolve(staticRoot), c.req.path.replace('/console', ''));
+                    if (fs.existsSync(filePath)) {
+                        const ext = path.extname(filePath);
+                        let contentType = 'application/octet-stream';
+                         if (ext === '.css') contentType = 'text/css';
+                        else if (ext === '.js') contentType = 'application/javascript';
+                        else if (ext === '.json') contentType = 'application/json';
+                        else if (ext === '.png') contentType = 'image/png';
+                        else if (ext === '.svg') contentType = 'image/svg+xml';
+                        
+                        const content = fs.readFileSync(filePath);
+                        return c.body(content, 200, { 'Content-Type': contentType });
+                    }
+                    return c.text('Asset Not Found', 404);
+                });
+
+                // Server-side Redirect
+                app.get('/', (c: any) => c.redirect('/console/'));
+                app.get('/console', (c: any) => c.redirect('/console/'));
+
+                // SPA Fallback
+                app.get('/console/*', async (c: any) => {
+                     if (c.req.path.startsWith('/api')) return c.text('Not Found', 404);
+                     const indexPath = path.resolve(staticRoot, 'index.html');
+                     if (fs.existsSync(indexPath)) {
+                         return c.html(fs.readFileSync(indexPath, 'utf-8'));
+                     }
+                     return c.text('SPA Index Not Found', 404);
+                });
+                console.log('SPA routes registered for Console');
+            }
+        }
+    }
 };
 
 // Workaround: Override the built-in api-registry plugin which fails due to async service issue
