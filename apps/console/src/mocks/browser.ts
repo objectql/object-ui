@@ -49,11 +49,22 @@ export async function startMockServer() {
   await kernel.use(new AppPlugin(appConfig))
     
   // MSW Plugin (intercepts network requests)
-  await kernel.use(new MSWPlugin({
+  const mswPlugin = new MSWPlugin({
     enableBrowser: true,
     baseUrl: '/api/v1',
     logRequests: true
-  }));
+  });
+
+  // WORKAROUND: ObjectRuntime's PluginLoader spreads the plugin object ({ ...plugin }),
+  // which strips methods from class instances (prototype methods).
+  // We must bind 'init' and 'start' as own properties.
+  const fixedMswPlugin = {
+    ...mswPlugin,
+    init: mswPlugin.init.bind(mswPlugin),
+    start: mswPlugin.start ? mswPlugin.start.bind(mswPlugin) : undefined
+  };
+
+  await kernel.use(fixedMswPlugin);
   
   await kernel.bootstrap();
 
