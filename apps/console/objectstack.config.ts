@@ -120,25 +120,25 @@ const DummyApiRegistryPlugin = {
     init: (ctx: any) => {
         // Polyfill missing critical services to pass the Runtime health check
         
-        ctx.registerService('metadata', {
-            getApp: () => null,
-            getObject: () => null,
-            getObjects: () => []
-        });
+        // ctx.registerService('metadata', {
+        //     getApp: () => null,
+        //     getObject: () => null,
+        //     getObjects: () => []
+        // });
 
-        ctx.registerService('data', {
-            find: async () => [],
-            findOne: async () => null,
-            insert: async () => {},
-            update: async () => {},
-            delete: async () => {},
-            count: async () => 0
-        });
+        // ctx.registerService('data', {
+        //     find: async () => [],
+        //     findOne: async () => null,
+        //     insert: async () => {},
+        //     update: async () => {},
+        //     delete: async () => {},
+        //     count: async () => 0
+        // });
 
-        ctx.registerService('auth', {
-            validate: async () => true,
-            getSession: async () => ({ userId: 'mock-user', username: 'mock' })
-        });
+        // ctx.registerService('auth', {
+        //     validate: async () => true,
+        //     getSession: async () => ({ userId: 'mock-user', username: 'mock' })
+        // });
 
         // Mock API Registry Service
         const apiEndpoints: any[] = [];

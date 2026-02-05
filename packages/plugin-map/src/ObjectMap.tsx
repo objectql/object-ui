@@ -215,6 +215,8 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
   dataSource,
   className,
   onMarkerClick,
+  onEdit,
+  onDelete,
   ...rest
 }) => {
   const [data, setData] = useState<any[]>([]);
