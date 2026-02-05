@@ -59,10 +59,28 @@ class PatchedHonoServerPlugin extends HonoServerPlugin {
                 const fs = require('fs');
                 const path = require('path');
                 
+                // Manual Asset Handler to ensure assets are served
+                app.get('/assets/*', async (c: any) => {
+                    const filePath = path.join(path.resolve(staticRoot), c.req.path);
+                    if (fs.existsSync(filePath)) {
+                        const ext = path.extname(filePath);
+                        let contentType = 'application/octet-stream';
+                        if (ext === '.css') contentType = 'text/css';
+                        else if (ext === '.js') contentType = 'application/javascript';
+                        else if (ext === '.json') contentType = 'application/json';
+                        else if (ext === '.png') contentType = 'image/png';
+                        else if (ext === '.svg') contentType = 'image/svg+xml';
+                        
+                        const content = fs.readFileSync(filePath);
+                        return c.body(content, 200, { 'Content-Type': contentType });
+                    }
+                    return c.text('Asset Not Found', 404);
+                });
+
                 // Register fallback after serveStatic (which is added in listen/originalStart)
                 app.get('*', async (c: any) => {
                     // Ignore API calls -> let them 404
-                    if (c.req.path.startsWith('/api') || c.req.path.startsWith('/assets')) {
+                    if (c.req.path.startsWith('/api')) {
                         return c.text('Not Found', 404);
                     }
                     
