@@ -11,19 +11,23 @@ const BASE_URL = 'http://localhost';
 
 // --- Mock Data ---
 
+// Create a stable date at noon to avoid day-spanning issues when tests run late at night
+const todayAtNoon = new Date();
+todayAtNoon.setHours(12, 0, 0, 0);
+
 const mockEvents = {
   value: [
     { 
       _id: '1', 
       title: 'Meeting with Client', 
-      start: new Date().toISOString(), 
-      end: new Date(Date.now() + 3600000).toISOString(),
+      start: todayAtNoon.toISOString(), 
+      end: new Date(todayAtNoon.getTime() + 3600000).toISOString(),
       type: 'business'
     },
     { 
       _id: '2', 
       title: 'Team Lunch', 
-      start: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
+      start: new Date(todayAtNoon.getTime() + 86400000).toISOString(), // Tomorrow
       type: 'personal'
     }
   ]
