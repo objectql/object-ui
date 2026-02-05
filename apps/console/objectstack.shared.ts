@@ -1,7 +1,19 @@
 import { defineConfig } from './src/config';
-import crmConfig from '@object-ui/example-crm/objectstack.config';
-import todoConfig from '@object-ui/example-todo/objectstack.config';
-import kitchenSinkConfig from '@object-ui/example-kitchen-sink/objectstack.config';
+import crmConfigImport from '@object-ui/example-crm/objectstack.config';
+import todoConfigImport from '@object-ui/example-todo/objectstack.config';
+import kitchenSinkConfigImport from '@object-ui/example-kitchen-sink/objectstack.config';
+
+const crmConfig = (crmConfigImport as any).default || crmConfigImport;
+const todoConfig = (todoConfigImport as any).default || todoConfigImport;
+const kitchenSinkConfig = (kitchenSinkConfigImport as any).default || kitchenSinkConfigImport;
+
+// Debug check for definition loading
+console.log('DEBUG: CRM Objects Count:', crmConfig.objects?.length);
+if (crmConfig.objects?.length) {
+    console.log('DEBUG: CRM Objects:', crmConfig.objects.map((o: any) => o.name || o.id));
+} else {
+    // console.log('DEBUG: CRM Config content:', JSON.stringify(crmConfig, null, 2));
+}
 
 export const sharedConfig = {
   // ============================================================================

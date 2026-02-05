@@ -18,6 +18,7 @@ export * from './SidebarNav';
 
 export function registerLayout() {
   ComponentRegistry.register('page-header', PageHeader, {
+      namespace: 'layout',
       label: 'Page Header',
       category: 'Layout',
       inputs: [
@@ -27,22 +28,25 @@ export function registerLayout() {
   });
 
   // Alias for protocol compliance
-  ComponentRegistry.register('page:header', PageHeader);
+  ComponentRegistry.register('page:header', PageHeader, { namespace: 'layout' });
 
   // Page Card
   ComponentRegistry.register('page:card', PageCard, {
+    namespace: 'layout',
     label: 'Page Card',
     category: 'Layout',
     isContainer: true
   });
 
   ComponentRegistry.register('app-shell', AppShell, {
-      label: 'App Shell',
-      category: 'Layout',
+    namespace: 'layout',
+    label: 'App Shell',
+    category: 'Layout',
   });
 
   // Core Page Renderer
   ComponentRegistry.register('page', Page, {
+    namespace: 'layout',
     label: 'Standard Page',
     category: 'Layout',
     isContainer: true

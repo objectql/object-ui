@@ -75,6 +75,7 @@ ComponentRegistry.register('sidebar-header',
     <SidebarHeader {...props}>{renderChildren(schema.body)}</SidebarHeader>
   ),
   { 
+    namespace: 'ui',
     label: 'Sidebar Header',
     defaultChildren: [
       { type: 'text', content: 'Sidebar Header' }
@@ -87,6 +88,7 @@ ComponentRegistry.register('sidebar-content',
     <SidebarContent {...props}>{renderChildren(schema.body)}</SidebarContent>
   ),
   { 
+    namespace: 'ui',
     label: 'Sidebar Content',
     defaultChildren: [
       { type: 'sidebar-group' }
@@ -123,6 +125,7 @@ ComponentRegistry.register('sidebar-menu',
     <SidebarMenu {...props}>{renderChildren(schema.body)}</SidebarMenu>
   ),
   { 
+    namespace: 'ui',
     label: 'Sidebar Menu',
     defaultChildren: [
       { type: 'sidebar-menu-item' },
@@ -136,6 +139,7 @@ ComponentRegistry.register('sidebar-menu-item',
     <SidebarMenuItem {...props}>{renderChildren(schema.body)}</SidebarMenuItem>
   ),
   { 
+    namespace: 'ui',
     label: 'Sidebar Menu Item',
     defaultChildren: [
       { type: 'sidebar-menu-button' }
@@ -171,6 +175,7 @@ ComponentRegistry.register('sidebar-footer',
     <SidebarFooter {...props}>{renderChildren(schema.body)}</SidebarFooter>
   ),
   { 
+    namespace: 'ui',
     label: 'Sidebar Footer',
     defaultChildren: [
       { type: 'text', content: 'Footer' }
@@ -183,6 +188,7 @@ ComponentRegistry.register('sidebar-inset',
     <SidebarInset {...props}>{renderChildren(schema.body)}</SidebarInset>
   ),
   { 
+    namespace: 'ui',
     label: 'Sidebar Inset',
     defaultChildren: [
       { type: 'div', className: 'p-4', body: [{ type: 'text', content: 'Main content area' }] }
