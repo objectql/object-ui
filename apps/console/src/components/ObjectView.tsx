@@ -58,7 +58,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     const handleViewChange = (newViewId: string) => {
         if (viewId) {
              // In view route, replace last segment
-             navigate(`../view/${newViewId}`, { relative: "path" });
+             navigate(`../${newViewId}`, { relative: "path" });
         } else {
              // In root route, append view
              navigate(`view/${newViewId}`);

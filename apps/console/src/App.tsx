@@ -104,9 +104,16 @@ export function AppContent() {
 
   async function initializeClient() {
     try {
-      const stackClient = new ObjectStackClient({ baseUrl: '/api/v1' });
+      const stackClient = new ObjectStackClient({ baseUrl: '' });
       await new Promise(resolve => setTimeout(resolve, 500));
       await stackClient.connect();
+      
+      // FIX: MSW Mock Server returns incorrect 'endpoints' in discovery.
+      // The 'routes' property has the correct paths with /v1 prefix.
+      if (stackClient.discoveryInfo && stackClient.discoveryInfo.routes) {
+        stackClient.discoveryInfo.endpoints = stackClient.discoveryInfo.routes;
+      }
+
       setClient(stackClient);
       setDataSource(new ObjectStackDataSource(stackClient));
     } catch (err) {
