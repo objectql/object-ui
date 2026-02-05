@@ -9,6 +9,7 @@ import { ObjectKernel, DriverPlugin, AppPlugin } from '@objectstack/runtime';
 import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { MSWPlugin } from '@objectstack/plugin-msw';
+import { setupWorker } from 'msw/browser';
 import appConfig from '../../objectstack.shared';
 
 let kernel: ObjectKernel | null = null;
@@ -49,8 +50,9 @@ export async function startMockServer() {
   await kernel.use(new AppPlugin(appConfig))
     
   // MSW Plugin (intercepts network requests)
+  // Disable auto-start to manually control worker registration with correct path
   const mswPlugin = new MSWPlugin({
-    enableBrowser: true,
+    enableBrowser: false, 
     baseUrl: '/api/v1',
     logRequests: true
   });
@@ -61,12 +63,34 @@ export async function startMockServer() {
   const fixedMswPlugin = {
     ...mswPlugin,
     init: mswPlugin.init.bind(mswPlugin),
-    start: mswPlugin.start ? mswPlugin.start.bind(mswPlugin) : undefined
+    start: mswPlugin.start ? mswPlugin.start.bind(mswPlugin) : undefined,
+    getHandlers: mswPlugin.getHandlers.bind(mswPlugin) // Bind getHandlers too
   };
 
   await kernel.use(fixedMswPlugin);
   
   await kernel.bootstrap();
+
+  // Manually start MSW worker with correct service worker path
+  if (typeof window !== 'undefined') {
+    const handlers = mswPlugin.getHandlers();
+    const worker = setupWorker(...handlers);
+    
+    // Check if we are served under a base path (e.g. /console/)
+    const isConsolePath = window.location.pathname.startsWith('/console/');
+    // If the app is at /console/, the mockServiceWorker.js is likely served at /console/mockServiceWorker.js
+    // unless vite base is handled strangely. But typically public assets follow base.
+    const swUrl = isConsolePath ? '/console/mockServiceWorker.js' : '/mockServiceWorker.js';
+
+    console.log(`[MSW] Starting worker with script at: ${swUrl}`);
+    
+    await worker.start({
+      onUnhandledRequest: 'bypass',
+      serviceWorker: {
+        url: swUrl
+      }
+    });
+  }
 
   // Initialize default data from manifest if available
   const manifest = (appConfig as any).manifest;
