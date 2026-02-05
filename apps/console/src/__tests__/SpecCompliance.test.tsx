@@ -1,6 +1,6 @@
 
 import { describe, it, expect } from 'vitest';
-import appConfig from '../../objectstack.shared';
+import appConfig from '../../objectstack.config';
 
 /**
  * Spec Compliance Tests
