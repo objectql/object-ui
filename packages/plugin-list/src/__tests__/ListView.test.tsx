@@ -75,7 +75,7 @@ describe('ListView', () => {
     };
 
     renderWithProvider(<ListView schema={schema} />);
-    const searchInput = screen.getByPlaceholderText(/search/i);
+    const searchInput = screen.getByPlaceholderText(/find/i);
     expect(searchInput).toBeInTheDocument();
   });
 
@@ -89,7 +89,7 @@ describe('ListView', () => {
     };
 
     renderWithProvider(<ListView schema={schema} onSearchChange={onSearchChange} />);
-    const searchInput = screen.getByPlaceholderText(/search/i);
+    const searchInput = screen.getByPlaceholderText(/find/i);
     
     fireEvent.change(searchInput, { target: { value: 'test' } });
     expect(onSearchChange).toHaveBeenCalledWith('test');
@@ -101,22 +101,24 @@ describe('ListView', () => {
       objectName: 'contacts',
       viewType: 'grid',
       fields: ['name', 'email'],
+      options: {
+        kanban: {
+          groupField: 'status',
+        },
+      },
     };
 
     renderWithProvider(<ListView schema={schema} />);
     
-    // Find list view button and click it
-    // Using getAllByRole because there might be multiple buttons
-    const buttons = screen.getAllByRole('radio'); // ToggleGroup usually uses radio role if type="single"
-    // However, if it's implemented as buttons using ToggleGroup which is roving tabindex...
-    // Let's try finding by aria-label which ViewSwitcher sets
-    const listButton = screen.getByLabelText('List');
+    // Find kanban view button and click it
+    // ViewSwitcher uses buttons with aria-label
+    const kanbanButton = screen.getByLabelText('Kanban');
 
-    fireEvent.click(listButton);
+    fireEvent.click(kanbanButton);
     
     // localStorage should be set with new view
     const storageKey = 'listview-contacts-view';
-    expect(localStorageMock.getItem(storageKey)).toBe('list');
+    expect(localStorageMock.getItem(storageKey)).toBe('kanban');
   });
 
   it('should call onViewChange when view is changed', () => {
@@ -194,7 +196,7 @@ describe('ListView', () => {
     };
 
     renderWithProvider(<ListView schema={schema} />);
-    const searchInput = screen.getByPlaceholderText(/search/i) as HTMLInputElement;
+    const searchInput = screen.getByPlaceholderText(/find/i) as HTMLInputElement;
     
     // Type in search
     fireEvent.change(searchInput, { target: { value: 'test' } });
