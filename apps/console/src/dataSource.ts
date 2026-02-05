@@ -11,8 +11,9 @@ export class ObjectStackDataSource implements DataSource {
   constructor(private client: ObjectStackClient) {}
 
   async getObjectSchema(objectName: string): Promise<any> {
-    // Fetch object metadata from ObjectStack
-    const metadata: any = await this.client.meta.getObject(objectName);
+    // Fetch object metadata from ObjectStack using standard getItem API
+    // Note: getObject() is deprecated and might use legacy routes
+    const metadata: any = await this.client.meta.getItem('object', objectName);
     
     // Unwrap 'item' property if present (API response wrapper)
     if (metadata && metadata.item) {
