@@ -41,6 +41,7 @@ let mockSearchParams = new URLSearchParams();
 vi.mock('react-router-dom', () => ({
     useParams: () => ({ objectName: 'project_task' }),
     useSearchParams: () => [mockSearchParams, mockSetSearchParams],
+    useNavigate: () => vi.fn(),
 }));
 
 const mockDataSource = {

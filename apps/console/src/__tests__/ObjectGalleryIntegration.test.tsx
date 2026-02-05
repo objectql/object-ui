@@ -7,8 +7,10 @@ import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRendererProvider } from '@object-ui/react';
 
 // Mock UI components
-vi.mock('@object-ui/components', async () => {
+vi.mock('@object-ui/components', async (importOriginal) => {
+    const actual = await importOriginal<any>();
     return {
+        ...actual,
         cn: (...inputs: any[]) => inputs.filter(Boolean).join(' '),
         Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
         Input: (props: any) => <input {...props} data-testid="mock-input" />,
@@ -18,6 +20,9 @@ vi.mock('@object-ui/components', async () => {
         TabsList: ({ children }: any) => <div>{children}</div>,
         TabsTrigger: ({ children }: any) => <button>{children}</button>,
         Empty: ({ children }: any) => <div>{children}</div>,
+        Popover: ({ children }: any) => <div>{children}</div>,
+        PopoverTrigger: ({ children }: any) => <div>{children}</div>,
+        PopoverContent: ({ children }: any) => <div>{children}</div>,
     };
 });
 

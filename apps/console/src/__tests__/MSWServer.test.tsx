@@ -23,7 +23,7 @@ describe('MSW Server Integration', () => {
     
     // Check that initial data was loaded
     const contacts = await driver!.find('contact', { object: 'contact' });
-    expect(contacts).toHaveLength(3);
+    expect(contacts).toHaveLength(7);
     expect(contacts[0].name).toBe('Alice Johnson');
   });
 

@@ -27,8 +27,10 @@ vi.mock('@object-ui/plugin-list', () => ({
 }));
 
 // Mock UI Components
-vi.mock('@object-ui/components', async () => {
+vi.mock('@object-ui/components', async (importOriginal) => {
+    const actual = await importOriginal<any>();
     return {
+        ...actual,
         Button: ({ children, onClick, className }: any) => (
             <button onClick={onClick} className={className} data-testid="ui-button">
                 {children}
@@ -36,7 +38,11 @@ vi.mock('@object-ui/components', async () => {
         ),
         Empty: ({ children }: any) => <div>{children}</div>,
         EmptyTitle: ({ children }: any) => <div>{children}</div>,
-        EmptyDescription: ({ children }: any) => <div>{children}</div>
+        EmptyDescription: ({ children }: any) => <div>{children}</div>,
+        Sheet: ({ children }: any) => <div>{children}</div>,
+        SheetContent: ({ children }: any) => <div data-testid="sheet-content">{children}</div>,
+        SheetHeader: ({ children }: any) => <div>{children}</div>,
+        SheetTitle: ({ children }: any) => <div>{children}</div>,
     };
 });
 
