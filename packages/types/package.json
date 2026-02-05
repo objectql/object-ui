@@ -81,7 +81,7 @@
     "directory": "packages/types"
   },
   "dependencies": {
-    "@objectstack/spec": "^1.0.9",
+    "@objectstack/spec": "^1.0.10",
     "zod": "^4.3.6"
   },
   "devDependencies": {

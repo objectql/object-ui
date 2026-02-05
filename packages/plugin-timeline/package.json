@@ -35,7 +35,7 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/spec": "^1.0.9",
+    "@objectstack/spec": "^1.0.10",
     "zod": "^4.3.6"
   },
   "peerDependencies": {
