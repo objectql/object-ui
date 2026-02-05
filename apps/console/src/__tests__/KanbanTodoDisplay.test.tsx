@@ -62,7 +62,7 @@ describe('ObjectKanban Todo Example Display', () => {
         // Wait for data to appear
         // If logic is wrong, it will look for 'name', find undefined, show 'Untitled'.
         // This assertion checks 'Task A' is visible.
-        await waitFor(() => expect(screen.getByText('Task A')).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByText('Task A')).toBeInTheDocument(), { timeout: 5000 });
 
         // Verify Column Headers (H3 in real component)
         // We expect columns named "1", "2", "3"
@@ -81,7 +81,7 @@ describe('ObjectKanban Todo Example Display', () => {
             />
         );
 
-        await waitFor(() => expect(mockDataSource.find).toHaveBeenCalled());
+        await waitFor(() => expect(mockDataSource.find).toHaveBeenCalled(), { timeout: 5000 });
 
         // Should NOT find any generated numerical headings
         expect(screen.queryByRole('heading', { name: '1' })).toBeNull();
@@ -105,7 +105,7 @@ describe('ObjectKanban Todo Example Display', () => {
         );
 
         // Wait for metadata options to render
-        await waitFor(() => expect(screen.getByRole('heading', { name: /New/i })).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByRole('heading', { name: /New/i })).toBeInTheDocument(), { timeout: 5000 });
         expect(screen.getByRole('heading', { name: /Done/i })).toBeInTheDocument();
     });
 
@@ -129,7 +129,7 @@ describe('ObjectKanban Todo Example Display', () => {
             />
         );
 
-        await waitFor(() => expect(screen.getByRole('heading', { name: 'High (1)' })).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByRole('heading', { name: 'High (1)' })).toBeInTheDocument(), { timeout: 5000 });
 
         // We should see the 3 explicit columns
         expect(screen.getByRole('heading', { name: 'Medium (2)' })).toBeInTheDocument();

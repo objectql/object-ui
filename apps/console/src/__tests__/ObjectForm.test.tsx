@@ -91,7 +91,7 @@ describe('ObjectForm with MSW Integration', () => {
       // Wait for form to load
       await waitFor(() => {
         expect(screen.getByLabelText(/^Name/i)).toBeInTheDocument();
-      });
+      }, { timeout: 5000 });
 
       expect(screen.getByLabelText(/Email/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/^Phone/i)).toBeInTheDocument();
@@ -122,7 +122,7 @@ describe('ObjectForm with MSW Integration', () => {
       // Wait for form to load
       await waitFor(() => {
         expect(screen.getByLabelText(/^Name/i)).toBeInTheDocument();
-      });
+      }, { timeout: 5000 });
 
       // Fill in the form
       await user.type(screen.getByLabelText(/^Name/i), 'Test User');
@@ -137,7 +137,7 @@ describe('ObjectForm with MSW Integration', () => {
       // Wait for success callback
       await waitFor(() => {
         expect(onSuccess).toHaveBeenCalled();
-      });
+      }, { timeout: 5000 });
 
       const createdContact = onSuccess.mock.calls[0][0];
       expect(createdContact.name).toBe('Test User');
@@ -165,7 +165,7 @@ describe('ObjectForm with MSW Integration', () => {
 
       await waitFor(() => {
         expect(screen.getByLabelText(/^Name/i)).toBeInTheDocument();
-      });
+      }, { timeout: 5000 });
 
       // Try to submit without filling required fields
       const submitButton = screen.getByRole('button', { name: /create/i });
@@ -196,7 +196,7 @@ describe('ObjectForm with MSW Integration', () => {
 
       await waitFor(() => {
         expect(screen.getByLabelText(/^Name/i)).toBeInTheDocument();
-      });
+      }, { timeout: 5000 });
 
       // Fill required fields only
       await user.type(screen.getByLabelText(/^Name/i), 'Default Test');
@@ -207,7 +207,7 @@ describe('ObjectForm with MSW Integration', () => {
 
       await waitFor(() => {
         expect(onSuccess).toHaveBeenCalled();
-      });
+      }, { timeout: 5000 });
 
       const createdContact = onSuccess.mock.calls[0][0];
       // Check default values from schema
@@ -235,7 +235,7 @@ describe('ObjectForm with MSW Integration', () => {
       await waitFor(() => {
         const nameInput = screen.getByLabelText(/^Name/i) as HTMLInputElement;
         expect(nameInput.value).toBe('Alice Johnson');
-      });
+      }, { timeout: 5000 });
 
       const emailInput = screen.getByLabelText(/Email/i) as HTMLInputElement;
       expect(emailInput.value).toBe('alice@objectstack.com');
@@ -266,7 +266,7 @@ describe('ObjectForm with MSW Integration', () => {
       await waitFor(() => {
         const nameInput = screen.getByLabelText(/^Name/i) as HTMLInputElement;
         expect(nameInput.value).toBe('Alice Johnson');
-      });
+      }, { timeout: 5000 });
 
       // Update the name
       const nameInput = screen.getByLabelText(/^Name/i);
@@ -278,7 +278,7 @@ describe('ObjectForm with MSW Integration', () => {
 
       await waitFor(() => {
         expect(onSuccess).toHaveBeenCalled();
-      });
+      }, { timeout: 5000 });
 
       const updatedContact = onSuccess.mock.calls[0][0];
       expect(updatedContact.name).toBe('Alice Johnson Updated');

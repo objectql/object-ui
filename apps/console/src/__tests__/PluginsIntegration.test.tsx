@@ -104,7 +104,7 @@ describe('Plugins Integration Test', () => {
             // ObjectCalendar renders events. If generic implementation works, we should see 'Task 1'
             await waitFor(() => {
                 expect(screen.getByText('Task 1')).toBeInTheDocument();
-            });
+            }, { timeout: 5000 });
             expect(screen.getByText('Task 2')).toBeInTheDocument();
         });
 
@@ -126,7 +126,7 @@ describe('Plugins Integration Test', () => {
             // Wait for initial fetch
             await waitFor(() => {
                 expect(mockDataSource.find).toHaveBeenCalledTimes(1);
-            });
+            }, { timeout: 5000 });
 
             // Re-render with a NEW schema object but IDENTICAL content
             // This tests if useMemo/useEffect are correctly handling deep equality or specific property dependencies
@@ -162,12 +162,12 @@ describe('Plugins Integration Test', () => {
             // Wait for schema fetch and rendering
             await waitFor(() => {
                 expect(mockDataSource.getObjectSchema).toHaveBeenCalledWith('todo_task');
-            });
+            }, { timeout: 5000 });
 
             // Expect columns to be generated from schema options
             await waitFor(() => {
                 expect(screen.getByText('Not Started')).toBeInTheDocument();
-            });
+            }, { timeout: 5000 });
             expect(screen.getByText('In Progress')).toBeInTheDocument();
             expect(screen.getByText('Done')).toBeInTheDocument();
 

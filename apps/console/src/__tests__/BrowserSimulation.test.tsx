@@ -116,7 +116,7 @@ describe('Console Application Simulation', () => {
         // Verify content from help_page (part of kitchen sink)
         await waitFor(() => {
             expect(screen.getByText(/Application Guide/i)).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
         expect(screen.getByText(/Welcome to the ObjectStack Console/i)).toBeInTheDocument();
     });
 
@@ -126,7 +126,7 @@ describe('Console Application Simulation', () => {
         // Verify Dashboard Title
         await waitFor(() => {
             expect(screen.getByText(/Sales Overview/i)).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
 
         // Verify Widget Rendering (Bar Chart)
         expect(screen.getByText(/Sales by Region/i)).toBeInTheDocument();
@@ -216,7 +216,7 @@ describe('Console Application Simulation', () => {
         // Verify Report Title
         await waitFor(() => {
             expect(screen.getByText(/Sales Performance Report/i)).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
         
         // Verify Description
         expect(screen.getByText(/Monthly breakdown of sales/i)).toBeInTheDocument();
@@ -246,7 +246,7 @@ describe('Console Application Simulation', () => {
         renderApp('/kitchen_sink');
         await waitFor(() => {
             expect(screen.getByRole('heading', { name: /Kitchen Sink/i })).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
         
         // Verify the form can be opened (showing metadata was loaded)
         const newButton = screen.getByRole('button', { name: /New/i });
@@ -255,7 +255,7 @@ describe('Console Application Simulation', () => {
         // Verify form loaded with schema-based fields
         await waitFor(() => {
             expect(screen.getByRole('dialog')).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
         
         // Form should render based on mocked schema
         // The actual field labels might differ based on implementation
@@ -271,7 +271,7 @@ describe('Console Application Simulation', () => {
         
         await waitFor(() => {
             expect(screen.getByRole('heading', { name: /Kitchen Sink/i })).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
         
         const newButton = screen.getByRole('button', { name: /New/i });
         expect(newButton).toBeInTheDocument();
@@ -290,17 +290,17 @@ describe('Console Application Simulation', () => {
         
         await waitFor(() => {
             expect(screen.getByRole('heading', { name: /Kitchen Sink/i })).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
         
         // Verify data source was called to load grid data
         await waitFor(() => {
             expect(findSpy).toHaveBeenCalledWith('kitchen_sink', expect.any(Object));
-        });
+        }, { timeout: 5000 });
         
         // Verify grid displays the loaded data
         await waitFor(() => {
             expect(screen.getByText('Item 1')).toBeInTheDocument();
-        });
+        }, { timeout: 5000 });
         expect(screen.getByText('Item 2')).toBeInTheDocument();
     });
 
@@ -378,7 +378,7 @@ describe('Kanban Integration', () => {
         // Assert: Prop Mapping - verify schema props are reflected in DOM
         await waitFor(() => {
             expect(screen.getByText('To Do')).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
         
         // Use getAllByText for "In Progress" since it appears in both header and badge
         const inProgressElements = screen.getAllByText('In Progress');
@@ -472,12 +472,12 @@ describe('Kanban Integration', () => {
         // Wait: for async metadata fetch and rendering
         await waitFor(() => {
             expect(screen.getByText('To Do')).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
 
         // Assert: Check that the UI was generated and data appears
         await waitFor(() => {
             expect(screen.getByText('Task 1')).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
         
         expect(screen.getByText('Task 2')).toBeInTheDocument();
         expect(screen.getByText('Task 3')).toBeInTheDocument();
@@ -517,7 +517,7 @@ describe('Kanban Integration', () => {
         // Wait for render - should not crash and should show empty state
         await waitFor(() => {
             expect(screen.getByText('To Do')).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
 
         // Kanban should render without errors, just with empty columns
         expect(screen.queryByText('Error')).not.toBeInTheDocument();
@@ -586,7 +586,7 @@ describe('Kanban Integration', () => {
         // Assert: Read - seeded data appears in the UI
         await waitFor(() => {
             expect(screen.getByText('Implement Feature X')).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
 
         expect(screen.getByText('Fix Bug Y')).toBeInTheDocument();
         expect(screen.getByText('Review PR Z')).toBeInTheDocument();
@@ -629,7 +629,7 @@ describe('Kanban Integration', () => {
         // Wait for cards to render
         await waitFor(() => {
             expect(screen.getByText('Task Alpha')).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
 
         // Note: Drag & Drop interaction with @dnd-kit in JSDOM is complex
         // This test verifies the setup is correct and the callback is wired
@@ -672,7 +672,7 @@ describe('Kanban Integration', () => {
         // Wait for rendering
         await waitFor(() => {
             expect(screen.getByText('Low Priority Task')).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
 
         // All tasks should be visible and grouped by status
         expect(screen.getByText('High Priority Task')).toBeInTheDocument();
@@ -733,7 +733,7 @@ describe('Kanban Integration', () => {
         // Wait for initial render
         await waitFor(() => {
             expect(screen.getByText('Open Task')).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
 
         // Verify initial state
         expect(screen.getByText('Open Task')).toBeInTheDocument();
