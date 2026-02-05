@@ -45,8 +45,8 @@ const handlers = [
     return HttpResponse.json({ status: 'ok', version: '1.0.0' });
   }),
 
-  // Mock Schema Fetch: GET /api/v1/meta/object/:name
-  http.get(`${BASE_URL}/api/v1/meta/object/:name`, ({ params }) => {
+  // Mock Schema Fetch: GET /api/v1/metadata/object/:name
+  http.get(`${BASE_URL}/api/v1/metadata/object/:name`, ({ params }) => {
     const { name } = params;
     if (name === 'contact') {
       return HttpResponse.json(mockSchema);

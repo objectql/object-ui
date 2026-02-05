@@ -48,7 +48,7 @@ async function startServer() {
 
     // 5. Console Plugin
     const consolePlugin = new ConsolePlugin();
-    kernel.use(consolePlugin);
+    await kernel.use(consolePlugin);
 
     // Bootstrap
     await kernel.bootstrap();

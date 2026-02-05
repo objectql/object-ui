@@ -644,4 +644,4 @@ export type {
  * const component: UI.Component = { type: 'button', label: 'Click me' };
  * ```
  */
-export type { Data, UI, System, AI, API, Auth, Hub, Automation, Permission, Shared, QA } from '@objectstack/spec';
+export type { Data, UI, System, AI, API, Hub, Automation, Shared, QA } from '@objectstack/spec';

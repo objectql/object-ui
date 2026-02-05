@@ -46,7 +46,7 @@ const handlers = [
   }),
 
   // Metadata Query
-  http.get(`${BASE_URL}/api/v1/meta/object/events`, () => {
+  http.get(`${BASE_URL}/api/v1/metadata/object/events`, () => {
     return HttpResponse.json({ fields: {} });
   })
 ];

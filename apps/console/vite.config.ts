@@ -4,6 +4,11 @@ import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  define: {
+    'process.env': {},
+    'process.platform': '"browser"',
+    'process.version': '"0.0.0"',
+  },
   plugins: [react()],
   resolve: {
     extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'],

@@ -143,7 +143,7 @@ Your ObjectStack backend should provide:
 
 1. **Metadata Endpoint**: Returns object schema with field definitions
    ```typescript
-   GET /api/meta/objects/{objectName}
+   GET /api/v1/metadata/object/{objectName}
    ```
 
 2. **Data Endpoint**: Returns paginated data
