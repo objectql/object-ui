@@ -76,7 +76,7 @@ jobs:
         run: pnpm lint
 
   build:
-    name: Build
+    name: Build Core
     runs-on: ubuntu-latest
 
     steps:
@@ -103,8 +103,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages
-        run: pnpm build
+      - name: Build Core & Console
+        run: pnpm turbo run build --filter='./packages/*' --filter='./apps/console'
 
       - name: Check for build artifacts
         run: |
@@ -113,3 +113,36 @@ jobs:
             exit 1
           fi
           echo "All packages built successfully"
+
+  docs:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    # Optional: Only run if related files change (requires strict path filtering logic or reliance on turbo cache)
+    # For now, we run it but as a separate parallel job so it doesn't block 'Build Core'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Turbo Cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Site
+        run: pnpm turbo run build --filter='@object-ui/site'
