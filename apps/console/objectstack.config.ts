@@ -14,9 +14,15 @@ import * as MSWPluginPkg from '@objectstack/plugin-msw';
 import * as ObjectQLPluginPkg from '@objectstack/objectql';
 // @ts-ignore
 import * as HonoServerPluginPkg from '@objectstack/plugin-hono-server';
+// @ts-ignore
+import * as DriverMemoryPkg from '@objectstack/driver-memory';
+// @ts-ignore
+import * as RuntimePkg from '@objectstack/runtime';
 
 const MSWPlugin = MSWPluginPkg.MSWPlugin || (MSWPluginPkg as any).default?.MSWPlugin || (MSWPluginPkg as any).default;
 const ObjectQLPlugin = ObjectQLPluginPkg.ObjectQLPlugin || (ObjectQLPluginPkg as any).default?.ObjectQLPlugin || (ObjectQLPluginPkg as any).default;
+const InMemoryDriver = DriverMemoryPkg.InMemoryDriver || (DriverMemoryPkg as any).default?.InMemoryDriver || (DriverMemoryPkg as any).default;
+const DriverPlugin = RuntimePkg.DriverPlugin || (RuntimePkg as any).default?.DriverPlugin || (RuntimePkg as any).default;
 // const HonoServerPlugin = HonoServerPluginPkg.HonoServerPlugin || (HonoServerPluginPkg as any).default?.HonoServerPlugin || (HonoServerPluginPkg as any).default;
 
 import ConsolePluginConfig from './plugin.js';
@@ -100,6 +106,7 @@ const FixedConsolePlugin = {
 
 const plugins: any[] = [
     new ObjectQLPlugin(),
+    new DriverPlugin(new InMemoryDriver(), 'memory'),
     // new MSWPlugin(), // Disabled in production mode
     // HonoServerPlugin is auto-detected
     FixedConsolePlugin
