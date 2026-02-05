@@ -1,10 +1,8 @@
 {
   "name": "@object-ui/console",
   "version": "0.5.0",
+  "private": true,
   "description": "ObjectStack Console - The standard runtime UI for ObjectStack applications",
-  "publishConfig": {
-    "access": "public"
-  },
   "type": "module",
   "main": "./plugin.js",
   "exports": {
