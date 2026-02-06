@@ -65,6 +65,14 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // Track component lifecycle
+  useEffect(() => {
+    console.log('[ObjectForm] MOUNT - objectName:', schema.objectName, 'hasDataSource:', !!dataSource);
+    return () => {
+      console.log('[ObjectForm] UNMOUNT - objectName:', schema.objectName);
+    };
+  }, []);
+
   // Check if using inline fields (fields defined as objects, not just names)
   const hasInlineFields = schema.customFields && schema.customFields.length > 0;
 
