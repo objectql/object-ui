@@ -29,17 +29,6 @@ ComponentRegistry.register('object-form', ObjectFormRenderer, {
   ]
 });
 
-// Alias for view namespace - this allows using { type: 'view:form' } in schemas
-ComponentRegistry.register('form', ObjectFormRenderer, {
-  namespace: 'view',
-  label: 'Data Form',
-  category: 'view',
-  inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'fields', type: 'array', label: 'Fields' },
-    { name: 'mode', type: 'enum', label: 'Mode', enum: ['create', 'edit', 'view'] },
-  ]
-});
-
 // Note: 'form' type is handled by @object-ui/components Form component
 // This plugin only handles 'object-form' which integrates with ObjectQL/ObjectStack
+// Do NOT register as 'form' - that would conflict with the low-level Form renderer
