@@ -26,6 +26,7 @@
     "./style.css": "./dist/index.css"
   },
   "scripts": {
+    "test:compliance": "vitest run src/__tests__/compliance.test.tsx",
     "build": "vite build",
     "prebuild": "pnpm --filter @object-ui/types build && pnpm --filter @object-ui/core build && pnpm --filter @object-ui/react build",
     "pretest": "pnpm run prebuild",
