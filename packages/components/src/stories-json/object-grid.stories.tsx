@@ -155,3 +155,40 @@ export const OpportunitiesGrid: Story = {
     className: 'w-full'
   } as any,
 };
+
+/**
+ * Editable Grid - Inline cell editing example
+ * 
+ * This story demonstrates inline editing capabilities:
+ * - Double-click or press Enter to edit a cell
+ * - Press Enter to save, Escape to cancel
+ * - ID column is read-only (editable: false)
+ */
+export const EditableGrid: Story = {
+  render: renderStory,
+  args: {
+    type: 'object-grid',
+    objectName: 'User',
+    columns: [
+      { field: 'id', header: 'ID', width: 80, editable: false },
+      { field: 'name', header: 'Name', sortable: true },
+      { field: 'email', header: 'Email', sortable: true },
+      { field: 'role', header: 'Role', sortable: true },
+      { field: 'status', header: 'Status', sortable: true }
+    ],
+    data: [
+      { id: 1, name: 'John Doe', email: 'john@example.com', role: 'Admin', status: 'Active' },
+      { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'User', status: 'Active' },
+      { id: 3, name: 'Bob Johnson', email: 'bob@example.com', role: 'User', status: 'Inactive' }
+    ],
+    editable: true,
+    pagination: false,
+    className: 'w-full',
+    onCellChange: (rowIndex: number, columnKey: string, newValue: any, row: any) => {
+      console.log('Cell changed:', { rowIndex, columnKey, newValue, row });
+      // In a real application, you would update your data source here
+      // Example: await dataSource.update(row.id, { [columnKey]: newValue });
+    }
+  } as any,
+};
+

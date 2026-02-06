@@ -244,6 +244,46 @@ const schema = {
 };
 ```
 
+### Inline Editing
+
+Enable inline cell editing for quick updates:
+
+```typescript
+const schema = {
+  type: 'object-grid',
+  objectName: 'users',
+  columns: [
+    { header: 'ID', accessorKey: 'id', editable: false },  // Read-only column
+    { header: 'Name', accessorKey: 'name' },  // Editable
+    { header: 'Email', accessorKey: 'email' },  // Editable
+    { header: 'Status', accessorKey: 'status' }  // Editable
+  ],
+  editable: true,  // Enable editing globally
+  onCellChange: (rowIndex, columnKey, newValue, row) => {
+    console.log(`Cell at row ${rowIndex}, column ${columnKey} changed to:`, newValue);
+    console.log('Full row data:', row);
+    // Update your data source here
+    // Example: await dataSource.update(row.id, { [columnKey]: newValue });
+  }
+};
+```
+
+**Inline Editing Features:**
+- **Double-click to edit**: Double-click any editable cell to enter edit mode
+- **Keyboard shortcuts**: 
+  - Press `Enter` on a focused cell to start editing
+  - Press `Enter` while editing to save changes
+  - Press `Escape` to cancel editing
+- **Column-level control**: Set `editable: false` on specific columns to prevent editing
+- **Visual feedback**: Editable cells show hover state to indicate they can be edited
+- **Automatic focus**: Input field is automatically focused and selected when entering edit mode
+
+**Use Cases:**
+- Quick data corrections
+- Batch data entry
+- Spreadsheet-like editing experience
+- Real-time updates with backend synchronization
+
 ## TypeScript Support
 
 ```typescript

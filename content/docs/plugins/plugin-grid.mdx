@@ -228,6 +228,41 @@ Add action buttons to each row:
 }
 ```
 
+### Inline Editing
+
+Enable inline cell editing for quick data updates:
+
+```json
+{
+  "type": "object-grid",
+  "objectName": "users",
+  "columns": [
+    { "header": "ID", "accessorKey": "id", "editable": false },
+    { "header": "Name", "accessorKey": "name" },
+    { "header": "Email", "accessorKey": "email" },
+    { "header": "Status", "accessorKey": "status" }
+  ],
+  "editable": true,
+  "onCellChange": "handleCellChange"
+}
+```
+
+**Features:**
+- Double-click or press Enter on a cell to start editing
+- Press Enter to save changes
+- Press Escape to cancel editing
+- Column-level control: Set `editable: false` on specific columns to prevent editing
+- Callback support: Use `onCellChange` to handle cell value updates
+
+**Example Handler:**
+```javascript
+function handleCellChange(rowIndex, columnKey, newValue, row) {
+  console.log(`Cell at row ${rowIndex}, column ${columnKey} changed to:`, newValue);
+  console.log('Full row data:', row);
+  // Update your data source here
+}
+```
+
 ## TypeScript Support
 
 ```plaintext

@@ -58,3 +58,31 @@ export const FullFeatures: Story = {
     },
     render: (args) => <SchemaRenderer schema={args} />
   };
+
+export const EditableTable: Story = {
+    args: {
+      type: 'data-table',
+      caption: 'Editable Product Inventory',
+      searchable: false,
+      pagination: false,
+      editable: true,
+      columns: [
+          { header: 'SKU', accessorKey: 'sku', width: '100px', editable: false },
+          { header: 'Product Name', accessorKey: 'name' },
+          { header: 'Price', accessorKey: 'price' },
+          { header: 'Stock', accessorKey: 'stock' }
+      ],
+      data: [
+          { sku: 'PROD-001', name: 'Laptop', price: '$1299.99', stock: 15 },
+          { sku: 'PROD-002', name: 'Mouse', price: '$29.99', stock: 120 },
+          { sku: 'PROD-003', name: 'Keyboard', price: '$79.99', stock: 45 },
+          { sku: 'PROD-004', name: 'Monitor', price: '$399.99', stock: 22 }
+      ],
+      onCellChange: (rowIndex: number, columnKey: string, newValue: any, row: any) => {
+        console.log('Cell edited:', { rowIndex, columnKey, newValue, row });
+        alert(`Updated ${columnKey} to "${newValue}" for ${row.name}`);
+      }
+    },
+    render: (args) => <SchemaRenderer schema={args} />
+  };
+
