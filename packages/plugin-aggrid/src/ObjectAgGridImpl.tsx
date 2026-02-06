@@ -24,6 +24,7 @@ import type {
 import type { DataSource, FieldMetadata, ObjectSchemaMetadata } from '@object-ui/types';
 import type { ObjectAgGridImplProps } from './object-aggrid.types';
 import { FIELD_TYPE_TO_FILTER_TYPE } from './object-aggrid.types';
+import { createFieldCellRenderer, createFieldCellEditor } from './field-renderers';
 
 /**
  * ObjectAgGridImpl - Metadata-driven AG Grid implementation
@@ -438,166 +439,62 @@ function getFilterType(field: FieldMetadata): string | boolean {
 
 /**
  * Apply field type-specific formatting to column definition
+ * Uses field widgets from @object-ui/fields for consistent rendering
  */
 function applyFieldTypeFormatting(colDef: ColDef, field: FieldMetadata): void {
-  switch (field.type) {
-    case 'boolean':
-      colDef.cellRenderer = (params: any) => {
-        if (params.value === true) return '✓ Yes';
-        if (params.value === false) return '✗ No';
-        return '';
-      };
-      break;
+  // Define field types that should use field widgets for rendering
+  const fieldWidgetTypes = [
+    'text', 'textarea', 'number', 'currency', 'percent',
+    'boolean', 'select', 'date', 'datetime', 'time',
+    'email', 'phone', 'url', 'password', 'color',
+    'rating', 'image', 'avatar', 'lookup', 'slider', 'code'
+  ];
+
+  // Use field widget renderer if the type is supported
+  if (fieldWidgetTypes.includes(field.type)) {
+    colDef.cellRenderer = createFieldCellRenderer(field);
+    
+    // Add cell editor for editable fields
+    if (colDef.editable) {
+      colDef.cellEditor = createFieldCellEditor(field);
       
-    case 'currency':
-      colDef.valueFormatter = (params: any) => {
-        if (params.value == null) return '';
-        const currency = (field as any).currency || 'USD';
-        const precision = (field as any).precision || 2;
-        return new Intl.NumberFormat('en-US', {
-          style: 'currency',
-          currency,
-          minimumFractionDigits: precision,
-          maximumFractionDigits: precision,
-        }).format(params.value);
-      };
-      break;
-      
-    case 'percent':
-      colDef.valueFormatter = (params: any) => {
-        if (params.value == null) return '';
-        const precision = (field as any).precision || 2;
-        return `${(params.value * 100).toFixed(precision)}%`;
-      };
-      break;
-      
-    case 'date':
-      colDef.valueFormatter = (params: any) => {
-        if (!params.value) return '';
-        try {
-          const date = new Date(params.value);
-          if (isNaN(date.getTime())) return '';
-          return date.toLocaleDateString();
-        } catch {
-          return '';
-        }
-      };
-      break;
-      
-    case 'datetime':
-      colDef.valueFormatter = (params: any) => {
-        if (!params.value) return '';
-        try {
-          const date = new Date(params.value);
-          if (isNaN(date.getTime())) return '';
-          return date.toLocaleString();
-        } catch {
-          return '';
-        }
-      };
-      break;
-      
-    case 'time':
-      colDef.valueFormatter = (params: any) => {
-        if (!params.value) return '';
-        return params.value;
-      };
-      break;
-      
-    case 'email':
-      colDef.cellRenderer = (params: any) => {
-        if (!params.value) return '';
-        const escaped = escapeHtml(params.value);
-        return `<a href="mailto:${escaped}" class="text-blue-600 hover:underline">${escaped}</a>`;
-      };
-      break;
-      
-    case 'url':
-      colDef.cellRenderer = (params: any) => {
-        if (!params.value) return '';
-        const escaped = escapeHtml(params.value);
-        return `<a href="${escaped}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">${escaped}</a>`;
-      };
-      break;
-      
-    case 'phone':
-      colDef.cellRenderer = (params: any) => {
-        if (!params.value) return '';
-        const escaped = escapeHtml(params.value);
-        return `<a href="tel:${escaped}" class="text-blue-600 hover:underline">${escaped}</a>`;
-      };
-      break;
-      
-    case 'select':
-      colDef.valueFormatter = (params: any) => {
-        if (!params.value) return '';
-        const options = (field as any).options || [];
-        const option = options.find((opt: any) => opt.value === params.value);
-        return option?.label || params.value;
-      };
-      break;
-      
-    case 'lookup':
-    case 'master_detail':
-      colDef.valueFormatter = (params: any) => {
-        if (!params.value) return '';
-        // Handle lookup values - could be an object or just an ID
-        if (typeof params.value === 'object') {
-          return params.value.name || params.value.label || params.value.id || '';
-        }
-        return String(params.value);
-      };
-      break;
-      
-    case 'number': {
-      const precision = (field as any).precision;
-      if (precision !== undefined) {
-        colDef.valueFormatter = (params: any) => {
-          if (params.value == null) return '';
-          return Number(params.value).toFixed(precision);
-        };
+      // Configure editor based on field type
+      if (['date', 'datetime', 'select', 'lookup', 'color'].includes(field.type)) {
+        colDef.cellEditorPopup = true;
       }
-      break;
     }
-      
-    case 'color':
-      colDef.cellRenderer = (params: any) => {
-        if (!params.value) return '';
-        const escaped = escapeHtml(params.value);
-        return `<div class="flex items-center gap-2">
-          <div style="width: 16px; height: 16px; background-color: ${escaped}; border: 1px solid #ccc; border-radius: 2px;"></div>
-          <span>${escaped}</span>
-        </div>`;
-      };
-      break;
-      
-    case 'rating':
-      colDef.cellRenderer = (params: any) => {
-        if (params.value == null) return '';
-        const max = (field as any).max || 5;
-        const stars = '⭐'.repeat(Math.min(params.value, max));
-        return stars;
-      };
-      break;
-      
-    case 'image':
-      colDef.cellRenderer = (params: any) => {
-        if (!params.value) return '';
-        const url = typeof params.value === 'string' ? params.value : params.value.url;
-        if (!url) return '';
-        const escapedUrl = escapeHtml(url);
-        return `<img src="${escapedUrl}" alt="" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" />`;
-      };
-      break;
-      
-    case 'avatar':
-      colDef.cellRenderer = (params: any) => {
-        if (!params.value) return '';
-        const url = typeof params.value === 'string' ? params.value : params.value.url;
-        if (!url) return '';
-        const escapedUrl = escapeHtml(url);
-        return `<img src="${escapedUrl}" alt="" style="width: 32px; height: 32px; object-fit: cover; border-radius: 50%;" />`;
-      };
-      break;
+  } else {
+    // Fallback to simple rendering for unsupported types
+    switch (field.type) {
+      case 'lookup':
+      case 'master_detail':
+        colDef.valueFormatter = (params: any) => {
+          if (!params.value) return '';
+          // Handle lookup values - could be an object or just an ID
+          if (typeof params.value === 'object') {
+            return params.value.name || params.value.label || params.value.id || '';
+          }
+          return String(params.value);
+        };
+        break;
+        
+      case 'object':
+        colDef.cellRenderer = () => '<span class="text-gray-500 italic">[Object]</span>';
+        break;
+        
+      case 'vector':
+        colDef.cellRenderer = () => '<span class="text-gray-500 italic">[Vector]</span>';
+        break;
+        
+      case 'grid':
+        colDef.cellRenderer = () => '<span class="text-gray-500 italic">[Grid]</span>';
+        break;
+        
+      default:
+        // Default text rendering
+        colDef.valueFormatter = (params: any) => {
+          return params.value != null ? String(params.value) : '';
+        };
+    }
   }
 }

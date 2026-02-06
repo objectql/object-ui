@@ -34,6 +34,7 @@
   "dependencies": {
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
+    "@object-ui/fields": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@object-ui/data-objectstack": "workspace:*"
