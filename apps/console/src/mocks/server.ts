@@ -88,7 +88,16 @@ export function getDriver(): InMemoryDriver | null {
 function createHandlers(baseUrl: string, kernel: ObjectKernel, driver: InMemoryDriver) {
   const protocol = kernel.getService('protocol') as any;
   
+  // Extract origin from baseUrl for .well-known endpoint
+  const origin = new URL(baseUrl).origin;
+  
   return [
+    // .well-known discovery endpoint (probed first by client.connect())
+    http.get(`${origin}/.well-known/objectstack`, async () => {
+      const response = await protocol.getDiscovery();
+      return HttpResponse.json(response, { status: 200 });
+    }),
+
     // Discovery endpoint - Handle both with and without trailing slash
     http.get(`${baseUrl}`, async () => {
       const response = await protocol.getDiscovery();
