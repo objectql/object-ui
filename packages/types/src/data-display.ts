@@ -254,6 +254,11 @@ export interface TableColumn {
    */
   resizable?: boolean;
   /**
+   * Whether column is editable (for inline editing)
+   * @default true
+   */
+  editable?: boolean;
+  /**
    * Custom cell renderer function
    */
   cell?: (value: any, row: any) => any;
@@ -377,6 +382,22 @@ export interface DataTableSchema extends BaseSchema {
    * Columns reorder handler
    */
   onColumnsReorder?: (columns: TableColumn[]) => void;
+  /**
+   * Enable inline cell editing
+   * When true, cells become editable on double-click or Enter key
+   * @default false
+   */
+  editable?: boolean;
+  /**
+   * Cell value change handler
+   * Called when a cell value is edited
+   */
+  onCellChange?: (rowIndex: number, columnKey: string, newValue: any, row: any) => void;
+  /**
+   * Row click handler
+   * Called when a row is clicked
+   */
+  onRowClick?: (row: any) => void;
 }
 
 /**

@@ -97,6 +97,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     rowActions = false,
     resizableColumns = true,
     reorderableColumns = true,
+    editable = false,
     className,
   } = schema;
 
@@ -120,11 +121,14 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [draggedColumn, setDraggedColumn] = useState<number | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<number | null>(null);
+  const [editingCell, setEditingCell] = useState<{ rowIndex: number; columnKey: string } | null>(null);
+  const [editValue, setEditValue] = useState<any>('');
   
   // Refs for column resizing
   const resizingColumn = useRef<string | null>(null);
   const startX = useRef<number>(0);
   const startWidth = useRef<number>(0);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   // Update columns when schema changes
   useEffect(() => {
@@ -340,6 +344,66 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     setDragOverColumn(null);
   };
 
+  // Cell editing handlers
+  const startEdit = (rowIndex: number, columnKey: string, currentValue: any) => {
+    if (!editable) return;
+    
+    const column = columns.find(col => col.accessorKey === columnKey);
+    if (column?.editable === false) return;
+    
+    setEditingCell({ rowIndex, columnKey });
+    setEditValue(currentValue ?? '');
+  };
+
+  const saveEdit = () => {
+    if (!editingCell) return;
+    
+    const { rowIndex, columnKey } = editingCell;
+    const globalIndex = (currentPage - 1) * pageSize + rowIndex;
+    const row = sortedData[globalIndex];
+    
+    // Call the callback with the new value
+    if (schema.onCellChange) {
+      schema.onCellChange(globalIndex, columnKey, editValue, row);
+    }
+    
+    setEditingCell(null);
+    setEditValue('');
+  };
+
+  const cancelEdit = () => {
+    setEditingCell(null);
+    setEditValue('');
+  };
+
+  const handleCellKeyDown = (e: React.KeyboardEvent, rowIndex: number, columnKey: string) => {
+    if (!editable) return;
+    
+    if (e.key === 'Enter' && !editingCell) {
+      e.preventDefault();
+      const value = paginatedData[rowIndex][columnKey];
+      startEdit(rowIndex, columnKey, value);
+    }
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveEdit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEdit();
+    }
+  };
+
+  // Auto-focus on edit input when entering edit mode
+  useEffect(() => {
+    if (editingCell && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingCell]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -491,18 +555,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       key={rowId} 
                       data-state={isSelected ? 'selected' : undefined}
                       className={cn(
-                        // @ts-expect-error - onRowClick might not be in schema type definition
                         schema.onRowClick && "cursor-pointer"
                       )}
                       onClick={(e) => {
-                        // @ts-expect-error - onRowClick might not be in schema type definition
                         if (schema.onRowClick && !e.defaultPrevented) {
                            // Simple heuristic to avoid triggering on interactive elements if they didn't stop propagation
                            const target = e.target as HTMLElement;
                            if (target.closest('button') || target.closest('[role="checkbox"]') || target.closest('a')) {
                              return;
                            }
-                           // @ts-expect-error - onRowClick might not be in schema type definition
                            schema.onRowClick(row);
                         }
                       }}
@@ -517,17 +578,38 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       )}
                       {columns.map((col, colIndex) => {
                         const columnWidth = columnWidths[col.accessorKey] || col.width;
+                        const cellValue = row[col.accessorKey];
+                        const isEditing = editingCell?.rowIndex === rowIndex && editingCell?.columnKey === col.accessorKey;
+                        const isEditable = editable && col.editable !== false;
+                        
                         return (
                           <TableCell 
                             key={colIndex} 
-                            className={col.cellClassName}
+                            className={cn(
+                              col.cellClassName,
+                              isEditable && !isEditing && "cursor-text hover:bg-muted/50"
+                            )}
                             style={{
                               width: columnWidth,
                               minWidth: columnWidth,
                               maxWidth: columnWidth
                             }}
+                            onDoubleClick={() => isEditable && startEdit(rowIndex, col.accessorKey, cellValue)}
+                            onKeyDown={(e) => handleCellKeyDown(e, rowIndex, col.accessorKey)}
+                            tabIndex={isEditable ? 0 : -1}
                           >
-                            {row[col.accessorKey]}
+                            {isEditing ? (
+                              <Input
+                                ref={editInputRef}
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onKeyDown={handleEditKeyDown}
+                                onBlur={saveEdit}
+                                className="h-8 px-2 py-1"
+                              />
+                            ) : (
+                              cellValue
+                            )}
                           </TableCell>
                         );
                       })}
