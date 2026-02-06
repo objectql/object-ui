@@ -8,7 +8,7 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import { ChartBarRenderer, ChartRenderer } from './ChartRenderer';
-import './ObjectChart'; // Import for side-effects (registration of object-chart)
+import { ObjectChart } from './ObjectChart';
 
 // Export types for external use
 export type { BarChartSchema } from './types';
@@ -51,7 +51,18 @@ ComponentRegistry.register(
     },
   }
 );
-
+// Alias for generic view
+ComponentRegistry.register('chart', ObjectChart, {
+  namespace: 'view',
+  category: 'view',
+  label: 'Chart',
+  inputs: [
+    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
+    { name: 'type', type: 'string', label: 'Chart Type' },
+    { name: 'categoryField', type: 'string', label: 'Category Field' },
+    { name: 'valueField', type: 'string', label: 'Value Field' },
+  ]
+});
 // Register the advanced chart component
 ComponentRegistry.register(
   'chart',

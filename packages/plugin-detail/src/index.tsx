@@ -84,3 +84,16 @@ ComponentRegistry.register('related-list', RelatedList, {
     { name: 'columns', type: 'array', label: 'Columns' },
   ],
 });
+
+// Alias for generic view
+ComponentRegistry.register('detail', DetailView, {
+  namespace: 'view',
+  category: 'view',
+  label: 'Detail',
+  icon: 'FileText',
+  inputs: [
+    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
+    { name: 'recordId', type: 'string', label: 'Record ID' },
+    { name: 'fields', type: 'array', label: 'Fields' },
+  ]
+});

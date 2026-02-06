@@ -32,7 +32,7 @@ ComponentRegistry.register('object-map', ObjectMapRenderer, {
   ],
 });
 
-ComponentRegistry.register('view:map', ObjectMapRenderer, {
+ComponentRegistry.register('map', ObjectMapRenderer, {
   namespace: 'view',
   label: 'Map View',
   category: 'view',

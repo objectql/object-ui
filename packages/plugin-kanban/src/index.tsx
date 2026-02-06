@@ -79,7 +79,7 @@ export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema }) => {
 
 // Register the component with the ComponentRegistry
 ComponentRegistry.register(
-  'kanban',
+  'kanban-ui',
   KanbanRenderer,
   {
     namespace: 'plugin-kanban',
@@ -259,7 +259,7 @@ ComponentRegistry.register(
 );
 
 ComponentRegistry.register(
-  'view:kanban',
+  'kanban',
   ObjectKanbanRenderer,
   {
     namespace: 'view',

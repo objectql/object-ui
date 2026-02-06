@@ -21,5 +21,18 @@ const ObjectFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
 ComponentRegistry.register('object-form', ObjectFormRenderer, {
   namespace: 'plugin-form'
 });
+
+// Alias for generic view
+ComponentRegistry.register('form', ObjectFormRenderer, {
+  namespace: 'view',
+  category: 'view',
+  label: 'Form',
+  inputs: [
+    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
+    { name: 'recordId', type: 'string', label: 'Record ID' },
+    { name: 'layout', type: 'string', label: 'Layout' },
+  ]
+});
+
 // Note: 'form' type is handled by @object-ui/components Form component
 // This plugin only handles 'object-form' which integrates with ObjectQL/ObjectStack

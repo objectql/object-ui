@@ -34,7 +34,7 @@ ComponentRegistry.register('object-gantt', ObjectGanttRenderer, {
   ],
 });
 
-ComponentRegistry.register('view:gantt', ObjectGanttRenderer, {
+ComponentRegistry.register('gantt', ObjectGanttRenderer, {
   namespace: 'view',
   label: 'Gantt View',
   category: 'view',

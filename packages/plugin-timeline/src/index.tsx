@@ -300,7 +300,7 @@ ComponentRegistry.register('object-timeline', ObjectTimelineRenderer, {
   ]
 });
 
-ComponentRegistry.register('view:timeline', ObjectTimelineRenderer, {
+ComponentRegistry.register('timeline', ObjectTimelineRenderer, {
   namespace: 'view',
   label: 'Timeline View',
   category: 'view',

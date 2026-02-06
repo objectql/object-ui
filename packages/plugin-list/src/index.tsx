@@ -45,3 +45,25 @@ ComponentRegistry.register('list-view', ListView, {
     options: {},
   }
 });
+
+// Alias for generic view
+ComponentRegistry.register('list', ListView, {
+  namespace: 'view',
+  category: 'view',
+  label: 'List',
+  icon: 'LayoutList',
+  inputs: [
+    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
+    { name: 'viewType', type: 'enum', label: 'Default View', enum: [
+      { label: 'Grid', value: 'grid' },
+      { label: 'List', value: 'list' },
+      { label: 'Kanban', value: 'kanban' },
+      { label: 'Calendar', value: 'calendar' },
+      { label: 'Chart', value: 'chart' }
+    ], defaultValue: 'grid' },
+    { name: 'fields', type: 'array', label: 'Fields' },
+    { name: 'filters', type: 'array', label: 'Filters' },
+    { name: 'sort', type: 'array', label: 'Sort' },
+    { name: 'options', type: 'object', label: 'View Options' },
+  ]
+});

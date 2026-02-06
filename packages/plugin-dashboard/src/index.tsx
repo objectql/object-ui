@@ -19,7 +19,7 @@ ComponentRegistry.register(
   'dashboard',
   DashboardRenderer,
   {
-    namespace: 'plugin-dashboard',
+    namespace: 'view',
     label: 'Dashboard',
     category: 'Complex',
     icon: 'layout-dashboard',

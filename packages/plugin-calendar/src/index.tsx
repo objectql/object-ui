@@ -39,7 +39,7 @@ ComponentRegistry.register('object-calendar', ObjectCalendarRenderer, {
   ],
 });
 
-ComponentRegistry.register('view:calendar', ObjectCalendarRenderer, {
+ComponentRegistry.register('calendar', ObjectCalendarRenderer, {
   namespace: 'view',
   label: 'Calendar View',
   category: 'view',
