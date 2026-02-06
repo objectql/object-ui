@@ -1,0 +1,352 @@
+# ObjectUI Roadmap
+
+> Aligning ObjectUI with `@objectstack/spec` UI Protocol
+
+## Current Status
+
+**Version:** v0.5.x  
+**Spec Version:** @objectstack/spec v1.0.11  
+**Overall Spec Coverage:** ~75%
+
+## Package Maturity Matrix
+
+| Package | Status | Spec Coverage | Notes |
+|---------|--------|--------------|-------|
+| @object-ui/types | ✅ Complete | 100% | Full spec re-export + local types |
+| @object-ui/core | ✅ Complete | 95% | Registry, Plugin, Expression, Action, Validation |
+| @object-ui/components | ✅ Complete | 100% | 80+ renderers, 50 Shadcn primitives |
+| @object-ui/fields | ✅ Complete | 95% | 36 widgets, 20+ cell renderers |
+| @object-ui/layout | 🟡 Partial | 60% | Basic layouts, missing responsive grid |
+| @object-ui/react | ✅ Complete | 100% | SchemaRenderer, hooks, providers |
+| @object-ui/plugin-form | 🟡 Partial | 30% | Only `simple` form, missing 5 variants |
+| @object-ui/plugin-grid | ✅ Complete | 95% | Full ListView support |
+| @object-ui/plugin-aggrid | ✅ Complete | 100% | AG Grid integration |
+| @object-ui/plugin-kanban | ✅ Complete | 100% | Kanban board |
+| @object-ui/plugin-calendar | ✅ Complete | 100% | Calendar view |
+| @object-ui/plugin-gantt | ✅ Complete | 100% | Gantt chart |
+| @object-ui/plugin-charts | ✅ Complete | 100% | 7 chart types |
+| @object-ui/plugin-dashboard | ✅ Complete | 100% | Dashboard layout |
+| @object-ui/plugin-detail | ✅ Complete | 100% | Record detail view |
+| @object-ui/plugin-list | ✅ Complete | 100% | List with view switching |
+| @object-ui/plugin-view | 🟡 Partial | 50% | Basic container only |
+| @object-ui/plugin-object | ⚪ Prebuilt | N/A | No source, has dist |
+| @object-ui/plugin-report | 🟡 Partial | 60% | Basic report rendering |
+| @object-ui/plugin-timeline | ✅ Complete | 100% | 3 timeline variants |
+| @object-ui/plugin-map | ✅ Complete | 100% | Map view |
+| @object-ui/plugin-editor | ✅ Complete | 100% | Monaco editor |
+| @object-ui/plugin-markdown | ✅ Complete | 100% | Markdown rendering |
+| @object-ui/plugin-chatbot | ✅ Complete | 100% | Chat interface |
+| @object-ui/data-objectql | ⚪ Prebuilt | N/A | No source, has dist |
+| @object-ui/data-objectstack | ✅ Complete | 100% | Full DataSource adapter |
+| @object-ui/runner | ✅ Complete | 100% | App runner |
+| @object-ui/cli | ✅ Complete | 100% | 15 commands |
+
+---
+
+## Gap Analysis
+
+### 🔴 Critical Gaps (High Priority)
+
+#### 1. Form Variants (plugin-form)
+
+**Spec Requirement:**
+```typescript
+FormView.type: 'simple' | 'tabbed' | 'wizard' | 'split' | 'drawer' | 'modal'
+```
+
+**Current State:** Only `simple` form implemented.
+
+**Missing Features:**
+- [ ] Tabbed Form - Fields organized in tab groups
+- [ ] Wizard Form - Multi-step form with navigation
+- [ ] Split Form - Side-by-side panels
+- [ ] Drawer Form - Slide-out form panel
+- [ ] Modal Form - Dialog-based form
+- [ ] Section/Group support (collapsible, columns per section)
+- [ ] FormField.colSpan support
+- [ ] FormField.dependsOn (field dependencies)
+- [ ] FormField.widget (custom widget override)
+
+---
+
+#### 2. Action System Runtime
+
+**Spec Requirement:**
+```typescript
+Action.type: 'script' | 'url' | 'modal' | 'flow' | 'api'
+Action.locations: ('list_toolbar' | 'list_item' | 'record_header' | 'record_more' | 'record_related' | 'global_nav')[]
+Action.component: 'action:button' | 'action:icon' | 'action:menu' | 'action:group'
+Action.params: ActionParam[]
+```
+
+**Current State:** ActionRunner only handles `api` (partially) and `navigation`.
+
+**Missing Features:**
+- [ ] `script` action type - Execute client-side code
+- [ ] `modal` action type - Open modal dialog
+- [ ] `flow` action type - Trigger automation workflow
+- [ ] `api` action type - Full HttpRequest support (headers, body, method)
+- [ ] Action location-based rendering (toolbar, item, header, etc.)
+- [ ] Action component variants (button, icon, menu, group)
+- [ ] ActionParam UI collection (before execution)
+- [ ] successMessage display
+- [ ] refreshAfter behavior
+
+---
+
+#### 3. NavigationConfig
+
+**Spec Requirement:**
+```typescript
+NavigationConfig: {
+  mode: 'page' | 'drawer' | 'modal' | 'split' | 'popover' | 'new_window' | 'none'
+  view?: string
+  preventNavigation?: boolean
+  openNewTab?: boolean
+}
+```
+
+**Current State:** Not implemented. No TypeScript interface in @object-ui/types.
+
+**Missing Features:**
+- [ ] Add NavigationConfig to @object-ui/types
+- [ ] Implement in plugin-grid (row click behavior)
+- [ ] Implement in plugin-list (item click behavior)
+- [ ] Implement in plugin-detail (related list navigation)
+- [ ] Drawer navigation mode
+- [ ] Modal navigation mode
+- [ ] Split view navigation mode
+- [ ] Popover preview mode
+
+---
+
+### 🟡 Medium Priority Gaps
+
+#### 4. ListColumn Extensions
+
+**Spec Requirement:**
+```typescript
+ListColumn.link: boolean    // Primary navigation column
+ListColumn.action: string   // Associated action ID
+```
+
+**Current State:** Not in types, not rendered.
+
+**Tasks:**
+- [ ] Add `link` and `action` to ListColumnSchema
+- [ ] Render link columns with navigation behavior
+- [ ] Render action columns with ActionRunner integration
+
+---
+
+#### 5. Page System
+
+**Spec Requirement:**
+```typescript
+Page: {
+  type: 'record' | 'home' | 'app' | 'utility'
+  variables: PageVariable[]
+  template: string
+  object?: string
+  regions: PageRegion[]
+}
+```
+
+**Current State:** Basic PageSchema exists but missing type differentiation.
+
+**Tasks:**
+- [ ] Add Page.type to PageSchema
+- [ ] Add Page.variables support (page-level state)
+- [ ] Add Page.template support (layout templates)
+- [ ] Add Page.object binding
+- [ ] PageRenderer type-aware rendering (record vs home vs app vs utility)
+- [ ] PageVariable initialization and context injection
+
+---
+
+#### 6. Widget System (WidgetManifest)
+
+**Spec Requirement:**
+```typescript
+WidgetManifest: {
+  lifecycle: { onMount, onUpdate, onUnmount, ... }
+  events: WidgetEvent[]
+  properties: WidgetProperty[]
+  implementation: 'npm' | 'remote' | 'inline'
+}
+```
+
+**Current State:** Not implemented. Static ComponentRegistry only.
+
+**Tasks:**
+- [ ] Add WidgetManifest types to @object-ui/types
+- [ ] Implement dynamic widget loading (npm, remote, inline)
+- [ ] Widget lifecycle hooks
+- [ ] Widget property validation
+- [ ] Widget event system
+
+---
+
+#### 7. Theme System Alignment
+
+**Spec Requirement:** Full theme schema with ColorPalette, Typography, Spacing, BorderRadius, Shadow, Breakpoints, Animation, ZIndex.
+
+**Current State:** Simplified ThemeDefinition, missing half the spec.
+
+**Tasks:**
+- [ ] Add Shadow, Breakpoints, Animation, ZIndex to ThemeDefinition
+- [ ] Align ColorPalette with spec (surface, textSecondary, primaryLight/Dark)
+- [ ] Add ThemeProvider to @object-ui/react or @object-ui/layout
+- [ ] Theme inheritance (extends)
+- [ ] Branding (logo, darkLogo, favicon)
+
+---
+
+#### 8. ViewData API Provider
+
+**Spec Requirement:**
+```typescript
+{ provider: 'api', read?: HttpRequest, write?: HttpRequest }
+```
+
+**Current State:** Type defined but not fully implemented in plugin-form.
+
+**Tasks:**
+- [ ] Full HttpRequest support (method, url, headers, body)
+- [ ] API read integration in plugin-form
+- [ ] API write integration in plugin-form
+- [ ] Error handling and loading states
+
+---
+
+### 🟢 Low Priority / Future
+
+#### 9. Expression System Enhancements
+
+- [ ] Formula functions (SUM, AVG, TODAY, NOW, IF, etc.)
+- [ ] Standardized context protocol (data, record, user, form)
+
+#### 10. Report System
+
+- [ ] Report export (PDF, Excel)
+- [ ] Report scheduling
+- [ ] Aggregation formula engine
+
+#### 11. Layout System
+
+- [ ] Responsive grid layout
+- [ ] Multi-column layout components
+- [ ] Layout templates
+
+---
+
+## Implementation Phases
+
+### Phase 1: Form Variants (v0.6.0)
+
+**Timeline:** 2-3 weeks
+
+**Scope:**
+1. Refactor ObjectForm to support FormView.type
+2. Implement TabbedForm component
+3. Implement WizardForm component
+4. Add section/group support
+5. Add FormField.colSpan, dependsOn, widget
+
+**Deliverables:**
+- [ ] packages/plugin-form/src/TabbedForm.tsx
+- [ ] packages/plugin-form/src/WizardForm.tsx
+- [ ] packages/plugin-form/src/FormSection.tsx
+- [ ] Updated ObjectForm with type routing
+
+---
+
+### Phase 2: Action System (v0.7.0)
+
+**Timeline:** 2-3 weeks
+
+**Scope:**
+1. Extend ActionRunner for all action types
+2. Implement action location-based rendering
+3. Add ActionButton, ActionMenu, ActionGroup components
+4. ActionParam collection UI
+
+**Deliverables:**
+- [ ] packages/core/src/action/handlers/ (script, modal, flow, api)
+- [ ] packages/components/src/custom/action-button.tsx
+- [ ] packages/components/src/custom/action-menu.tsx
+- [ ] ActionLocationRenderer utility
+
+---
+
+### Phase 3: Navigation System (v0.8.0)
+
+**Timeline:** 1-2 weeks
+
+**Scope:**
+1. Add NavigationConfig to types
+2. Implement all navigation modes in grid/list/detail plugins
+3. Create NavigationProvider for centralized control
+
+**Deliverables:**
+- [ ] packages/types/src/navigation.ts
+- [ ] packages/react/src/NavigationProvider.tsx
+- [ ] Updated plugin-grid, plugin-list, plugin-detail
+
+---
+
+### Phase 4: Page & Theme (v0.9.0)
+
+**Timeline:** 2 weeks
+
+**Scope:**
+1. Full Page system implementation
+2. Theme system alignment with spec
+3. ThemeProvider for runtime theming
+
+**Deliverables:**
+- [ ] packages/types/src/page.ts (enhanced)
+- [ ] packages/types/src/theme.ts (aligned)
+- [ ] packages/layout/src/PageRenderer.tsx
+- [ ] packages/react/src/ThemeProvider.tsx
+
+---
+
+### Phase 5: Widget System & Polish (v1.0.0)
+
+**Timeline:** 2-3 weeks
+
+**Scope:**
+1. WidgetManifest implementation
+2. Dynamic widget loading
+3. Documentation completion
+4. Full spec compliance audit
+
+**Deliverables:**
+- [ ] packages/core/src/widget/ (loader, lifecycle, registry)
+- [ ] Full documentation update
+- [ ] Spec compliance test suite
+
+---
+
+## Success Metrics
+
+- [ ] All `@objectstack/spec/ui` types have corresponding runtime implementations
+- [ ] All 6 form variants working with examples
+- [ ] All 5 action types executable
+- [ ] All 7 navigation modes functional
+- [ ] 100% spec coverage in automated tests
+- [ ] Complete Storybook examples for all components
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for development guidelines.
+
+When implementing spec features:
+1. Reference the Zod schema in `@objectstack/spec/ui`
+2. Update types in `@object-ui/types` first
+3. Implement in appropriate package
+4. Add Storybook story
+5. Update documentation in `content/docs/`
