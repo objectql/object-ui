@@ -20,6 +20,51 @@ export default defineStack({
     ProjectObject,
     EventObject
   ],
+  reports: [
+    {
+      name: 'sales_performance_q1',
+      label: 'Q1 Sales Performance',
+      description: 'Quarterly analysis of sales revenue by region and product line',
+      type: 'report',
+      title: 'Q1 Sales Performance Report',
+      sections: [
+        {
+          type: 'header',
+          title: 'Executive Summary',
+          subtitle: 'Generated on Feb 6, 2026' 
+        },
+        {
+          type: 'summary',
+          title: 'Key Metrics',
+          metrics: [
+             { label: 'Total Revenue', value: '$1,240,000', change: 12, trend: 'up' },
+             { label: 'Deals Closed', value: '45', change: 5, trend: 'up' },
+             { label: 'Avg Deal Size', value: '$27,500', change: -2, trend: 'down' }
+          ]
+        },
+        {
+          type: 'chart',
+          title: 'Revenue Trend',
+          chart: {
+             chartType: 'line',
+             title: 'Monthly Revenue',
+             xAxisField: 'month',
+             yAxisFields: ['revenue'],
+             data: [
+                { month: 'Jan', revenue: 320000 },
+                { month: 'Feb', revenue: 450000 },
+                { month: 'Mar', revenue: 470000 }
+             ]
+          }
+        },
+        {
+          type: 'section',
+          title: 'Regional Breakdown',
+          content: 'North America continues to lead with 45% of total revenue, followed by EMEA at 30%.'
+        }
+      ]
+    }
+  ],
   apps: [
     App.create({
       name: 'crm_app',
@@ -32,6 +77,13 @@ export default defineStack({
           dashboardName: 'crm_dashboard',
           label: 'Dashboard',
           icon: 'layout-dashboard'
+        },
+        {
+          id: 'nav_sales_report',
+          type: 'report',
+          reportName: 'sales_performance_q1',
+          label: 'Sales Report',
+          icon: 'file-bar-chart'
         },
         {
           id: 'nav_contacts',

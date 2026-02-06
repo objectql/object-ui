@@ -27,6 +27,7 @@ export interface ObjectStackConfig {
   objects?: any[];
   apps?: any[];
   dashboards?: any[];
+  reports?: any[];
   pages?: any[];
   manifest?: {
     data?: any[];

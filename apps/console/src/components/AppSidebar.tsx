@@ -309,6 +309,8 @@ function NavigationItemRenderer({ item, activeAppName }: { item: any, activeAppN
         }
     } else if (item.type === 'dashboard') {
         href = item.dashboardName ? `${baseUrl}/dashboard/${item.dashboardName}` : '#';
+    } else if (item.type === 'report') {
+        href = item.reportName ? `${baseUrl}/report/${item.reportName}` : '#';
     } else if (item.type === 'url') {
         href = item.url || '#';
         isExternal = item.target === '_blank';

@@ -14,6 +14,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { ObjectView } from './components/ObjectView';
 import { DashboardView } from './components/DashboardView';
 import { PageView } from './components/PageView';
+import { ReportView } from './components/ReportView';
 
 import { DetailView } from '@object-ui/plugin-detail';
 import { useParams } from 'react-router-dom';
@@ -248,6 +249,9 @@ export function AppContent() {
 
         <Route path="dashboard/:dashboardName" element={
             <DashboardView />
+        } />
+        <Route path="report/:reportName" element={
+            <ReportView />
         } />
         <Route path="page/:pageName" element={
             <PageView />

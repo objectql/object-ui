@@ -42,6 +42,9 @@ export const sharedConfig = {
     ...(todoConfig.dashboards || []),
     ...(kitchenSinkConfig.dashboards || [])
   ],
+  reports: [
+    ...(crmConfig.reports || [])
+  ],
   pages: [
     ...(crmConfig.pages || []),
     ...(todoConfig.pages || []),
