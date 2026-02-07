@@ -57,15 +57,16 @@ export async function startMockServer() {
     logRequests: true
   });
 
-  // WORKAROUND: ObjectRuntime's PluginLoader spreads the plugin object ({ ...plugin }),
-  // which strips methods from class instances (prototype methods).
-  // We must bind 'init' and 'start' as own properties.
-  const fixedMswPlugin = {
-    ...mswPlugin,
-    init: mswPlugin.init.bind(mswPlugin),
-    start: mswPlugin.start ? mswPlugin.start.bind(mswPlugin) : undefined,
-    getHandlers: mswPlugin.getHandlers.bind(mswPlugin) // Bind getHandlers too
-  };
+  // WORKAROUND: ObjectKernel's PluginLoader uses object spread ({ ...plugin })
+  // which copies only own-enumerable properties, stripping prototype methods.
+  // This binds all prototype methods so they survive the spread.
+  // TODO: Remove once @objectstack/runtime fixes PluginLoader to preserve prototypes.
+  const fixedMswPlugin = { ...mswPlugin } as any;
+  for (const key of Object.getOwnPropertyNames(Object.getPrototypeOf(mswPlugin))) {
+    if (typeof (mswPlugin as any)[key] === 'function' && key !== 'constructor') {
+      fixedMswPlugin[key] = (mswPlugin as any)[key].bind(mswPlugin);
+    }
+  }
 
   await kernel.use(fixedMswPlugin);
   
@@ -90,17 +91,19 @@ export async function startMockServer() {
   }
 
   // Initialize default data from manifest if available
+  // Seed initial data from manifest.data[] into the in-memory driver
   const manifest = (appConfig as any).manifest;
   if (manifest && Array.isArray(manifest.data)) {
-    console.log('[MSW] Loading initial data...');
+    const totals: string[] = [];
     for (const dataset of manifest.data) {
       if (dataset.object && Array.isArray(dataset.records)) {
         for (const record of dataset.records) {
-          await driver.create(dataset.object, record);
+          await driver!.create(dataset.object, record);
         }
-        console.log(`[MSW] Loaded ${dataset.records.length} records for ${dataset.object}`);
+        totals.push(`${dataset.object}(${dataset.records.length})`);
       }
     }
+    console.log(`[MSW] Seeded: ${totals.join(', ')}`);
   }
   
   console.log('[MSW] ObjectStack Runtime ready');

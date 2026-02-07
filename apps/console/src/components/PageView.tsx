@@ -9,7 +9,7 @@ import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import appConfig from '../../objectstack.shared';
 
-export function PageView() {
+export function PageView({ dataSource }: { dataSource?: any }) {
   const { pageName } = useParams<{ pageName: string }>();
   const [searchParams] = useSearchParams();
   const { showDebug, toggleDebug } = useMetadataInspector();

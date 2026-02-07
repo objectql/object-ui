@@ -9,15 +9,34 @@ import appConfig from '../objectstack.shared';
 
 // Components
 import { ConsoleLayout } from './components/ConsoleLayout';
+import { CommandPalette } from './components/CommandPalette';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
 import { ObjectView } from './components/ObjectView';
 import { DashboardView } from './components/DashboardView';
 import { PageView } from './components/PageView';
 import { ReportView } from './components/ReportView';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './components/MetadataInspector';
+import { useBranding } from './hooks/useBranding';
 
 import { DetailView } from '@object-ui/plugin-detail';
 import { useParams } from 'react-router-dom';
+
+/**
+ * Patch: MSW discovery response uses 'routes' instead of 'endpoints'.
+ * This normalizes the shape until @objectstack/plugin-msw is fixed upstream.
+ */
+function patchDiscoveryEndpoints(adapter: ObjectStackAdapter) {
+  try {
+    const client = adapter.getClient();
+    const info = (client as any).discoveryInfo;
+    if (info?.routes && !info.endpoints) {
+      info.endpoints = info.routes;
+    }
+  } catch {
+    // Silently ignore — adapter may not expose getClient()
+  }
+}
 
 // Detail View Component
 function RecordDetailView({ dataSource, objects, onEdit }: any) {
@@ -99,23 +118,12 @@ export function AppContent() {
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Apply app branding (primaryColor, favicon, title)
+  useBranding(activeApp);
+
   useEffect(() => {
     initializeDataSource();
   }, []);
-
-  // Sync title
-  useEffect(() => {
-    const favicon = activeApp?.branding?.favicon;
-    if (favicon) {
-      const link = document.querySelector<HTMLLinkElement>('#favicon');
-      if (link) {
-        link.href = favicon;
-      }
-    }
-    if (activeApp?.label) {
-      document.title = `${activeApp.label} - ObjectStack Console`;
-    }
-  }, [activeApp]);
 
   async function initializeDataSource() {
     try {
@@ -135,17 +143,11 @@ export function AppContent() {
         }
       });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
       await adapter.connect();
 
-      // FIX: MSW Mock Server returns incorrect 'endpoints' in discovery.
-      // The 'routes' property has the correct paths with /v1 prefix.
-      const client = adapter.getClient();
-      // @ts-ignore - accessing private property for fix
-      if (client.discoveryInfo && client.discoveryInfo.routes) {
-        // @ts-ignore - accessing private property for fix
-        client.discoveryInfo.endpoints = client.discoveryInfo.routes;
-      }
+      // Patch: MSW discovery returns 'routes' instead of 'endpoints'.
+      // TODO: Fix in @objectstack/plugin-msw to emit correct discovery shape.
+      patchDiscoveryEndpoints(adapter);
 
       setDataSource(adapter);
     } catch (err) {
@@ -208,7 +210,14 @@ export function AppContent() {
         objects={allObjects}
         connectionState={connectionState}
     >
+      <CommandPalette
+        apps={apps}
+        activeApp={activeApp}
+        objects={allObjects}
+        onAppChange={handleAppChange}
+      />
       <SchemaRendererProvider dataSource={dataSource || {}}>
+      <ErrorBoundary>
       <Routes>
         <Route path="/" element={
             // Redirect to first route within the app
@@ -241,15 +250,16 @@ export function AppContent() {
         } />
 
         <Route path="dashboard/:dashboardName" element={
-            <DashboardView />
+            <DashboardView dataSource={dataSource} />
         } />
         <Route path="report/:reportName" element={
-            <ReportView />
+            <ReportView dataSource={dataSource} />
         } />
         <Route path="page/:pageName" element={
-            <PageView />
+            <PageView dataSource={dataSource} />
         } />
       </Routes>
+      </ErrorBoundary>
 
        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden">

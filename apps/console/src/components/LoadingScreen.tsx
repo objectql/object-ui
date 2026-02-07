@@ -9,7 +9,7 @@ export function LoadingScreen() {
         {/* Logo/Icon */}
         <div className="relative">
           <div className="absolute inset-0 bg-primary/20 rounded-2xl blur-xl animate-pulse" />
-          <div className="relative bg-gradient-to-br from-primary to-primary/80 p-4 rounded-2xl shadow-lg">
+          <div className="relative bg-linear-to-br from-primary to-primary/80 p-4 rounded-2xl shadow-lg">
             <Database className="h-10 w-10 text-primary-foreground" />
           </div>
         </div>

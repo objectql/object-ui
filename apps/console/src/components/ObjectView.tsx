@@ -1,17 +1,18 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { ObjectChart } from '@object-ui/plugin-charts';
 import { ListView } from '@object-ui/plugin-list';
 import { DetailView } from '@object-ui/plugin-detail';
-import { ViewSwitcher } from '@object-ui/plugin-view';
+import { ViewSwitcher, FilterUI, SortUI } from '@object-ui/plugin-view';
 // Import plugins for side-effects (registration)
 import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-calendar';
 import { Button, Empty, EmptyTitle, EmptyDescription, Sheet, SheetContent } from '@object-ui/components';
 import { Plus, Table as TableIcon } from 'lucide-react';
-import type { ListViewSchema, ViewSwitcherSchema, ViewType } from '@object-ui/types';
+import type { ListViewSchema, ViewSwitcherSchema, FilterUISchema, SortUISchema, ViewType } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
+import { useObjectActions } from '../hooks/useObjectActions';
 
 export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     const navigate = useNavigate();
@@ -96,6 +97,91 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
             handleViewChange(matchedView.id);
         }
     };
+
+    // --- Filter & Sort State ---
+    const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+    const [sortConfig, setSortConfig] = useState<Array<{ field: string; direction: 'asc' | 'desc' }>>(activeView.sort || []);
+
+    // Build FilterUI schema from object field definitions
+    const filterSchema: FilterUISchema = useMemo(() => {
+        const fields = objectDef.fields || {};
+        const filterableFields = Object.entries(fields)
+            .filter(([, f]: [string, any]) => !f.hidden)
+            .slice(0, 8) // Limit to 8 most relevant fields
+            .map(([key, f]: [string, any]) => {
+                const fieldType = f.type || 'text';
+                let filterType: 'text' | 'number' | 'select' | 'date' | 'boolean' = 'text';
+                let options: Array<{ label: string; value: any }> | undefined;
+
+                if (fieldType === 'number' || fieldType === 'currency' || fieldType === 'percent') {
+                    filterType = 'number';
+                } else if (fieldType === 'boolean' || fieldType === 'toggle') {
+                    filterType = 'boolean';
+                } else if (fieldType === 'date' || fieldType === 'datetime') {
+                    filterType = 'date';
+                } else if (fieldType === 'select' || f.options) {
+                    filterType = 'select';
+                    options = (f.options || []).map((o: any) =>
+                        typeof o === 'string' ? { label: o, value: o } : { label: o.label, value: o.value }
+                    );
+                }
+
+                return {
+                    field: key,
+                    label: f.label || key,
+                    type: filterType,
+                    placeholder: `Filter ${f.label || key}...`,
+                    ...(options ? { options } : {}),
+                };
+            });
+
+        return {
+            type: 'filter-ui' as const,
+            layout: 'popover' as const,
+            showClear: true,
+            showApply: true,
+            filters: filterableFields,
+            values: filterValues,
+        };
+    }, [objectDef, filterValues]);
+
+    // Build SortUI schema from object field definitions
+    const sortSchema: SortUISchema = useMemo(() => {
+        const fields = objectDef.fields || {};
+        const sortableFields = Object.entries(fields)
+            .filter(([, f]: [string, any]) => !f.hidden)
+            .slice(0, 10)
+            .map(([key, f]: [string, any]) => ({
+                field: key,
+                label: f.label || key,
+            }));
+
+        return {
+            type: 'sort-ui' as const,
+            variant: 'dropdown' as const,
+            multiple: false,
+            fields: sortableFields,
+            sort: sortConfig,
+        };
+    }, [objectDef, sortConfig]);
+
+    const handleFilterChange = useCallback((values: Record<string, any>) => {
+        setFilterValues(values);
+    }, []);
+
+    const handleSortChange = useCallback((sort: SortUISchema['sort']) => {
+        setSortConfig(sort || []);
+    }, []);
+
+    // Action system for toolbar operations
+    const [refreshKey, setRefreshKey] = useState(0);
+    const actions = useObjectActions({
+        objectName: objectDef.name,
+        objectLabel: objectDef.label,
+        dataSource,
+        onEdit,
+        onRefresh: () => setRefreshKey(k => k + 1),
+    });
     
     // Drawer Logic
     const drawerRecordId = searchParams.get('recordId');
@@ -106,7 +192,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     };
 
     const renderCurrentView = () => {
-        const key = `${objectName}-${activeView.id}`;
+        const key = `${objectName}-${activeView.id}-${refreshKey}`;
         
         // Helper to pass dataSource if component needs it
         const interactionProps = {
@@ -137,14 +223,22 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
 
         // Use standard ListView for supported types
         // Mapped options to ensure plugin components receive correct configuration
+        // Merge user filter/sort selections with the view's default filter/sort
+        const mergedFilters = Object.keys(filterValues).length > 0
+            ? Object.entries(filterValues)
+                .filter(([, v]) => v !== undefined && v !== '' && v !== null)
+                .map(([field, value]) => ({ field, operator: 'equals' as const, value }))
+            : activeView.filter;
+        const mergedSort = sortConfig.length > 0 ? sortConfig : activeView.sort;
+
         const listViewSchema: ListViewSchema = {
             type: 'list-view',
             id: activeView.id, // Pass the View ID to the schema
             objectName: objectDef.name,
             viewType: activeView.type,
             fields: activeView.columns,
-            filters: activeView.filter,
-            sort: activeView.sort,
+            filters: mergedFilters,
+            sort: mergedSort,
             options: {
                 kanban: {
                      groupBy: activeView.groupBy || activeView.groupField || 'status',
@@ -222,7 +316,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                  
                  <div className="flex items-center gap-2">
                     <MetadataToggle open={showDebug} onToggle={toggleDebug} className="hidden sm:flex" />
-                    <Button size="sm" onClick={() => onEdit(null)} className="shadow-none gap-2">
+                    <Button size="sm" onClick={actions.create} className="shadow-none gap-2">
                         <Plus className="h-4 w-4" /> 
                         <span className="hidden sm:inline">New</span>
                     </Button>
@@ -237,8 +331,16 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                      className="overflow-x-auto no-scrollbar"
                  />
 
-                 {/* Right: Placeholder for FilterUI / SortUI */}
+                 {/* Right: Filter & Sort Controls */}
                  <div className="hidden md:flex items-center gap-2">
+                     <FilterUI
+                         schema={filterSchema}
+                         onChange={handleFilterChange}
+                     />
+                     <SortUI
+                         schema={sortSchema}
+                         onChange={handleSortChange}
+                     />
                  </div>
              </div>
 
@@ -260,7 +362,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
 
              {/* Drawer for Record Details */}
              <Sheet open={!!drawerRecordId} onOpenChange={(open) => !open && handleDrawerClose()}>
-                <SheetContent side="right" className="w-[85vw] sm:w-[600px] sm:max-w-none p-0 overflow-hidden">
+                <SheetContent side="right" className="w-[85vw] sm:w-150 sm:max-w-none p-0 overflow-hidden">
                     {drawerRecordId && (
                         <div className="h-full bg-background overflow-auto p-4 lg:p-6">
                             <DetailView

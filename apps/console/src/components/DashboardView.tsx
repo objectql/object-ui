@@ -9,7 +9,7 @@ import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import appConfig from '../../objectstack.shared';
 
-export function DashboardView() {
+export function DashboardView({ dataSource }: { dataSource?: any }) {
   const { dashboardName } = useParams<{ dashboardName: string }>();
   const { showDebug, toggleDebug } = useMetadataInspector();
   
@@ -42,7 +42,7 @@ export function DashboardView() {
 
       <div className="flex-1 overflow-hidden flex flex-row relative">
          <div className="flex-1 overflow-auto p-6">
-            <DashboardRenderer schema={dashboard} />
+            <DashboardRenderer schema={dashboard} dataSource={dataSource} />
          </div>
 
          <MetadataPanel

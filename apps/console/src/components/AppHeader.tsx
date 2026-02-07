@@ -7,7 +7,6 @@ import {
   BreadcrumbPage, 
   BreadcrumbSeparator,
   SidebarTrigger,
-  Input,
   Button,
   Separator,
 } from '@object-ui/components';
@@ -91,7 +90,7 @@ export function AppHeader({ appName, objects, connectionState }: { appName: stri
                 </Breadcrumb>
                 
                 {/* Mobile: Just show current page */}
-                <span className="text-sm font-medium sm:hidden truncate max-w-[150px]">
+                <span className="text-sm font-medium sm:hidden truncate max-w-37.5">
                   {breadcrumbItems[breadcrumbItems.length - 1]?.label || appName}
                 </span>
              </div>
@@ -100,17 +99,25 @@ export function AppHeader({ appName, objects, connectionState }: { appName: stri
                 {/* Connection Status */}
                 {connectionState && <ConnectionStatus state={connectionState} />}
                 
-                {/* Search - Desktop */}
-                <div className="hidden lg:flex relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    placeholder="Search..." 
-                    className="w-[200px] xl:w-[280px] pl-8 h-8 bg-muted/50"
-                  />
-                </div>
+                {/* Search - Desktop — opens ⌘K command palette */}
+                <button
+                  onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
+                  className="hidden lg:flex relative items-center gap-2 w-50 xl:w-70 h-8 px-3 text-sm rounded-md border bg-muted/50 text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  <Search className="h-4 w-4" />
+                  <span className="flex-1 text-left">Search...</span>
+                  <kbd className="pointer-events-none inline-flex h-5 items-center gap-0.5 rounded border bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
+                    <span className="text-xs">⌘</span>K
+                  </kbd>
+                </button>
                 
                 {/* Search button - Mobile/Tablet */}
-                <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="lg:hidden h-8 w-8"
+                  onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
+                >
                   <Search className="h-4 w-4" />
                 </Button>
                 
