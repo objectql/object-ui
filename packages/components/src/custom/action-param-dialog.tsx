@@ -140,7 +140,7 @@ export const ActionParamDialog: React.FC<ActionParamDialogProps> = ({
               id={param.name}
               type="number"
               value={value ?? ''}
-              onChange={(e) => handleChange(param.name, e.target.valueAsNumber || '')}
+              onChange={(e) => handleChange(param.name, Number.isNaN(e.target.valueAsNumber) ? '' : e.target.valueAsNumber)}
               placeholder={param.placeholder}
             />
             {param.helpText && (

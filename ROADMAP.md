@@ -64,7 +64,7 @@ FormView.type: 'simple' | 'tabbed' | 'wizard' | 'split' | 'drawer' | 'modal'
 - [x] Modal Form - Dialog-based form (Dialog)
 - [x] Section/Group support (collapsible, columns per section)
 - [x] FormField.colSpan support
-- [ ] FormField.dependsOn (field dependencies) — type defined, runtime evaluation pending
+- [x] FormField.dependsOn (field dependencies) — runtime evaluation in FormSectionRenderer
 - [x] FormField.widget (custom widget override)
 
 ---
@@ -97,8 +97,9 @@ Action.params: ActionParam[]
 - [x] Conditional visibility & enabled state (via expression evaluation)
 
 **Remaining:**
-- [ ] ActionParam UI collection (before execution) — param form dialog
-- [ ] FormField.dependsOn (field dependencies) — type defined, runtime evaluation pending
+- [x] ActionParam UI collection (before execution) — ActionParamDialog + ParamCollectionHandler
+- [x] FormField.dependsOn (field dependencies) — runtime evaluation in FormSectionRenderer
+- [x] FormField.visibleOn (expression-based visibility) — evaluated via ExpressionEvaluator
 
 ---
 
@@ -135,8 +136,6 @@ Reusable `useNavigationOverlay` hook in @object-ui/react + `NavigationOverlay` c
 **Remaining:**
 - [ ] `navigation.view` property — target view/form schema lookup (currently renders field list)
 - [ ] ObjectForm integration in overlay content (render forms when editing)
-- [ ] ActionParam UI collection (before execution) — param form dialog
-- [ ] FormField.dependsOn (field dependencies) — type defined, runtime evaluation pending
 
 ---
 
@@ -198,7 +197,7 @@ PageRenderer supports four page types with region-based layouts and page-level v
 - [x] 36 PageRenderer tests + 23 usePageVariables tests, all passing
 
 **Remaining:**
-- [ ] Page.template support (predefined layout templates)
+- [x] Page.template support (predefined layout templates: default, header-sidebar-main, three-column, dashboard)
 - [ ] Page.object data binding (auto-fetch record data)
 
 ---
@@ -283,7 +282,7 @@ WidgetManifest: {
 
 - [ ] Responsive grid layout
 - [ ] Multi-column layout components
-- [ ] Layout templates
+- [x] Layout templates (4 predefined: default, header-sidebar-main, three-column, dashboard)
 
 ---
 

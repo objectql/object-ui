@@ -193,8 +193,10 @@ const FormSectionRenderer: React.FC<FormSectionRendererProps> = ({
   }, [section.fields]);
 
   // Watch form values for conditional field evaluation
-  // When there are conditional fields (visibleOn/dependsOn), watch all form values
-  const formValues = methods.watch();
+  // Only watch when there are fields with dependsOn or visibleOn to avoid
+  // unnecessary re-renders in forms without conditional fields.
+  const allFormValues = methods.watch();
+  const formValues = hasConditionalFields ? allFormValues : undefined;
 
   const handleToggleCollapse = () => {
     if (section.collapsible) {
@@ -228,10 +230,7 @@ const FormSectionRenderer: React.FC<FormSectionRendererProps> = ({
             const fieldConfig = typeof field === 'string' ? { field: fieldName } : field;
 
             // Evaluate visibility: static hidden, visibleOn expression, dependsOn parent
-            const currentValues = hasConditionalFields
-              ? (formValues as Record<string, any>) || {}
-              : {};
-            if (!evaluateFieldVisibility(fieldConfig, currentValues)) {
+            if (!evaluateFieldVisibility(fieldConfig, formValues || {})) {
               return null;
             }
 
