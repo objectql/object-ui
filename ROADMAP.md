@@ -6,18 +6,18 @@
 
 **Version:** v0.5.x  
 **Spec Version:** @objectstack/spec v1.1.0  
-**Overall Spec Coverage:** ~75%
+**Overall Spec Coverage:** ~80%
 
 ## Package Maturity Matrix
 
 | Package | Status | Spec Coverage | Notes |
 |---------|--------|--------------|-------|
 | @object-ui/types | ✅ Complete | 100% | Full spec re-export + local types |
-| @object-ui/core | ✅ Complete | 95% | Registry, Plugin, Expression, Action, Validation |
+| @object-ui/core | ✅ Complete | 98% | Registry, Plugin, Expression, Action, Validation, ThemeEngine |
 | @object-ui/components | ✅ Complete | 100% | 80+ renderers, 50 Shadcn primitives |
 | @object-ui/fields | ✅ Complete | 95% | 36 widgets, 20+ cell renderers |
 | @object-ui/layout | 🟡 Partial | 60% | Basic layouts, missing responsive grid |
-| @object-ui/react | ✅ Complete | 100% | SchemaRenderer, hooks, providers |
+| @object-ui/react | ✅ Complete | 100% | SchemaRenderer, hooks, providers, ThemeProvider |
 | @object-ui/plugin-form | ✅ Complete | 90% | All 6 variants (simple/tabbed/wizard/split/drawer/modal), FormField enhancements |
 | @object-ui/plugin-grid | ✅ Complete | 95% | Full ListView support |
 | @object-ui/plugin-aggrid | ✅ Complete | 100% | AG Grid integration |
@@ -226,18 +226,25 @@ WidgetManifest: {
 
 ---
 
-#### 7. Theme System Alignment
+#### 7. Theme System Alignment ✅
 
 **Spec Requirement:** Full theme schema with ColorPalette, Typography, Spacing, BorderRadius, Shadow, Breakpoints, Animation, ZIndex.
 
-**Current State:** Simplified ThemeDefinition, missing half the spec.
+**Current State:** Fully aligned with @objectstack/spec v1.1.0. Complete ThemeEngine in core + ThemeProvider/useTheme in react.
 
-**Tasks:**
-- [ ] Add Shadow, Breakpoints, Animation, ZIndex to ThemeDefinition
-- [ ] Align ColorPalette with spec (surface, textSecondary, primaryLight/Dark)
-- [ ] Add ThemeProvider to @object-ui/react or @object-ui/layout
-- [ ] Theme inheritance (extends)
-- [ ] Branding (logo, darkLogo, favicon)
+**Completed:**
+- [x] Realigned `Theme` interface with spec (name, label, mode, colors, typography, spacing, borderRadius, shadows, breakpoints, animation, zIndex, customVars, logo, extends)
+- [x] Added `Shadow`, `Breakpoints`, `Animation`, `ZIndex`, `ThemeLogo` types to @object-ui/types
+- [x] Aligned `ColorPalette` with spec (primary required, surface, textSecondary, primaryLight/Dark, secondaryLight/Dark, disabled)
+- [x] Aligned `Typography` with spec (nested fontFamily/fontSize/fontWeight/lineHeight/letterSpacing)
+- [x] Aligned `Spacing` with spec (explicit '0'–'24' scale keys)
+- [x] Aligned `BorderRadius` with spec (none/sm/base/md/lg/xl/2xl/full)
+- [x] Updated all Zod schemas (ColorPaletteSchema, TypographySchema, SpacingSchema, ShadowSchema, BreakpointsSchema, AnimationSchema, ZIndexSchema, ThemeDefinitionSchema)
+- [x] `ThemeEngine` in @object-ui/core — `generateThemeVars()` converts Theme → CSS custom properties, `mergeThemes()`, `resolveThemeInheritance()`, `resolveMode()`, `hexToHSL()`/`toCSSColor()`
+- [x] `ThemeProvider` + `useTheme()` + `useOptionalTheme()` in @object-ui/react — CSS var injection, mode class toggling, system preference detection, localStorage persistence, theme inheritance resolution
+- [x] Branding support (logo.light, logo.dark, logo.favicon)
+- [x] Legacy aliases (`ThemeDefinition` → `Theme`, `SpacingScale` → `Spacing`) for backward compatibility
+- [x] Full test coverage: 57 ThemeEngine tests + 28 ThemeProvider tests (85 total)
 
 ---
 
