@@ -596,4 +596,149 @@ describe('FormRenderer', () => {
       expect(textarea.tagName).toBe('TEXTAREA');
     });
   });
+
+  // ==========================================================================
+  // FormField.dependsOn — conditional field visibility based on parent value
+  // ==========================================================================
+
+  describe('FormField.dependsOn', () => {
+    it('should hide fields with dependsOn when parent has no value', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Cascading Fields',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'country',
+                label: 'Country',
+                widget: 'text',
+              },
+              {
+                field: 'state',
+                label: 'State',
+                widget: 'text',
+                dependsOn: 'country',
+              },
+            ],
+          },
+        ],
+      };
+
+      render(<FormRenderer schema={schema} />);
+
+      // Parent field is always visible
+      expect(screen.getByLabelText('Country')).toBeInTheDocument();
+      // Dependent field is hidden when parent has no value
+      expect(screen.queryByLabelText('State')).not.toBeInTheDocument();
+    });
+
+    it('should show fields with dependsOn when parent has a value', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Cascading Fields',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'country',
+                label: 'Country',
+                widget: 'text',
+              },
+              {
+                field: 'state',
+                label: 'State',
+                widget: 'text',
+                dependsOn: 'country',
+              },
+            ],
+          },
+        ],
+      };
+
+      // When country has an initial value, state should be visible
+      render(<FormRenderer schema={schema} data={{ country: 'USA' }} />);
+
+      expect(screen.getByLabelText('Country')).toBeInTheDocument();
+      expect(screen.getByLabelText('State')).toBeInTheDocument();
+    });
+  });
+
+  // ==========================================================================
+  // FormField.visibleOn — expression-based visibility
+  // ==========================================================================
+
+  describe('FormField.visibleOn', () => {
+    it('should hide fields when visibleOn evaluates to false', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Conditional Fields',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'status',
+                label: 'Status',
+                widget: 'text',
+              },
+              {
+                field: 'price',
+                label: 'Price',
+                widget: 'currency',
+                visibleOn: "${data.status === 'active'}",
+              },
+            ],
+          },
+        ],
+      };
+
+      // Status is 'draft', so price should be hidden
+      render(<FormRenderer schema={schema} data={{ status: 'draft' }} />);
+
+      expect(screen.getByLabelText('Status')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Price')).not.toBeInTheDocument();
+    });
+
+    it('should show fields when visibleOn evaluates to true', () => {
+      const schema: FormView = {
+        type: 'simple',
+        sections: [
+          {
+            label: 'Conditional Fields',
+            collapsible: false,
+            collapsed: false,
+            columns: 1,
+            fields: [
+              {
+                field: 'status',
+                label: 'Status',
+                widget: 'text',
+              },
+              {
+                field: 'price',
+                label: 'Price',
+                widget: 'currency',
+                visibleOn: "${data.status === 'active'}",
+              },
+            ],
+          },
+        ],
+      };
+
+      // Status is 'active', so price should be visible
+      render(<FormRenderer schema={schema} data={{ status: 'active' }} />);
+
+      expect(screen.getByLabelText('Status')).toBeInTheDocument();
+      expect(screen.getByLabelText('Price')).toBeInTheDocument();
+    });
+  });
 });

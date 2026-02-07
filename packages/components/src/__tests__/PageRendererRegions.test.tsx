@@ -519,3 +519,150 @@ describe('PageRenderer — Registry Integration', () => {
     expect(container).toBeDefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Page Templates — predefined layout templates
+// ---------------------------------------------------------------------------
+
+describe('PageRenderer — Templates', () => {
+  it('should use header-sidebar-main template when specified', () => {
+    const schema: any = {
+      type: 'page',
+      title: 'Template Page',
+      template: 'header-sidebar-main',
+      regions: [
+        {
+          name: 'header',
+          components: [{ type: 'text', value: 'Header Content' }],
+        },
+        {
+          name: 'sidebar',
+          components: [{ type: 'text', value: 'Sidebar Content' }],
+        },
+        {
+          name: 'main',
+          components: [{ type: 'text', value: 'Main Content' }],
+        },
+      ],
+    };
+
+    const { container } = render(<PageRenderer schema={schema} />);
+
+    expect(screen.getByText('Header Content')).toBeDefined();
+    expect(screen.getByText('Sidebar Content')).toBeDefined();
+    expect(screen.getByText('Main Content')).toBeDefined();
+    expect(container.querySelector('[data-template="header-sidebar-main"]')).toBeDefined();
+  });
+
+  it('should use three-column template when specified', () => {
+    const schema: any = {
+      type: 'page',
+      title: 'Three Column',
+      template: 'three-column',
+      regions: [
+        {
+          name: 'sidebar',
+          components: [{ type: 'text', value: 'Left Sidebar' }],
+        },
+        {
+          name: 'main',
+          components: [{ type: 'text', value: 'Center Main' }],
+        },
+        {
+          name: 'aside',
+          components: [{ type: 'text', value: 'Right Aside' }],
+        },
+      ],
+    };
+
+    const { container } = render(<PageRenderer schema={schema} />);
+
+    expect(screen.getByText('Left Sidebar')).toBeDefined();
+    expect(screen.getByText('Center Main')).toBeDefined();
+    expect(screen.getByText('Right Aside')).toBeDefined();
+    expect(container.querySelector('[data-template="three-column"]')).toBeDefined();
+  });
+
+  it('should use dashboard template with grid layout', () => {
+    const schema: any = {
+      type: 'page',
+      title: 'Dashboard',
+      template: 'dashboard',
+      regions: [
+        {
+          name: 'header',
+          components: [{ type: 'text', value: 'Dashboard Header' }],
+        },
+        {
+          name: 'widget1',
+          components: [{ type: 'text', value: 'Widget 1' }],
+        },
+        {
+          name: 'widget2',
+          components: [{ type: 'text', value: 'Widget 2' }],
+        },
+      ],
+    };
+
+    const { container } = render(<PageRenderer schema={schema} />);
+
+    expect(screen.getByText('Dashboard Header')).toBeDefined();
+    expect(screen.getByText('Widget 1')).toBeDefined();
+    expect(screen.getByText('Widget 2')).toBeDefined();
+    expect(container.querySelector('[data-template="dashboard"]')).toBeDefined();
+  });
+
+  it('should fall back to page type layout when template is unknown', () => {
+    const schema: any = {
+      type: 'page',
+      title: 'Unknown Template',
+      template: 'nonexistent-template',
+      pageType: 'home',
+      body: [{ type: 'text', value: 'Fallback Content' }],
+    };
+
+    const { container } = render(<PageRenderer schema={schema} />);
+
+    expect(screen.getByText('Unknown Template')).toBeDefined();
+    expect(screen.getByText('Fallback Content')).toBeDefined();
+    // Should fall back to home page layout
+    expect(container.querySelector('[data-page-type="home"]')).toBeDefined();
+  });
+
+  it('should use default template when template is "default"', () => {
+    const schema: any = {
+      type: 'page',
+      title: 'Default Template',
+      template: 'default',
+      regions: [
+        {
+          name: 'main',
+          components: [{ type: 'text', value: 'Default Content' }],
+        },
+      ],
+    };
+
+    const { container } = render(<PageRenderer schema={schema} />);
+    expect(screen.getByText('Default Content')).toBeDefined();
+    expect(container).toBeDefined();
+  });
+
+  it('should prioritize template over pageType', () => {
+    const schema: any = {
+      type: 'page',
+      title: 'Template Priority',
+      template: 'dashboard',
+      pageType: 'record',
+      regions: [
+        {
+          name: 'panel1',
+          components: [{ type: 'text', value: 'Panel 1' }],
+        },
+      ],
+    };
+
+    const { container } = render(<PageRenderer schema={schema} />);
+    // Should use dashboard template, not record layout
+    expect(container.querySelector('[data-template="dashboard"]')).toBeDefined();
+  });
+});
