@@ -228,15 +228,53 @@ export const AspectRatioSchema = BaseSchema.extend({
 });
 
 /**
+ * Page Region Width Schema
+ */
+export const PageRegionWidthSchema = z.enum(['small', 'medium', 'large', 'full']);
+
+/**
+ * Page Region Schema
+ */
+export const PageRegionSchema = z.object({
+  name: z.string().describe('Region name (e.g. "sidebar", "main", "header")'),
+  type: z.enum(['header', 'sidebar', 'main', 'footer', 'aside']).optional().describe('Semantic region type'),
+  width: z.union([PageRegionWidthSchema, z.string()]).optional().describe('Region width'),
+  components: z.array(SchemaNodeSchema).describe('Components in this region'),
+  className: z.string().optional().describe('CSS class overrides'),
+});
+
+/**
+ * Page Variable Schema
+ */
+export const PageVariableSchema = z.object({
+  name: z.string().describe('Variable name'),
+  type: z.enum(['string', 'number', 'boolean', 'object', 'array']).optional().default('string').describe('Variable type'),
+  defaultValue: z.any().optional().describe('Default value'),
+});
+
+/**
+ * Page Type Schema
+ */
+export const PageTypeSchema = z.enum(['record', 'home', 'app', 'utility']);
+
+/**
  * Page Schema - Top-level page layout
+ * Aligned with @objectstack/spec PageSchema
  */
 export const PageSchema = BaseSchema.extend({
   type: z.literal('page'),
   title: z.string().optional().describe('Page title'),
   icon: z.string().optional().describe('Page icon (Lucide icon name)'),
   description: z.string().optional().describe('Page description'),
+  pageType: PageTypeSchema.optional().describe('Page type (record, home, app, utility)'),
+  object: z.string().optional().describe('Bound object name (for record pages)'),
+  template: z.string().optional().default('default').describe('Layout template name'),
+  variables: z.array(PageVariableSchema).optional().describe('Local page state variables'),
+  regions: z.array(PageRegionSchema).optional().describe('Page layout regions'),
   body: z.array(SchemaNodeSchema).optional().describe('Main content array'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Alternative content prop'),
+  isDefault: z.boolean().optional().default(false).describe('Whether this is the default page'),
+  assignedProfiles: z.array(z.string()).optional().describe('Profiles that can access this page'),
 });
 
 /**

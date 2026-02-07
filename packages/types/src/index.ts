@@ -94,6 +94,10 @@ export type {
   AspectRatioSchema,
   LayoutSchema,
   PageSchema,
+  PageType,
+  PageRegion,
+  PageRegionWidth,
+  PageVariable,
 } from './layout';
 
 // ============================================================================

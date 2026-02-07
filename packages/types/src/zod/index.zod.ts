@@ -78,6 +78,10 @@ export {
   ResizablePanelSchema,
   ResizableSchema,
   AspectRatioSchema,
+  PageRegionWidthSchema,
+  PageRegionSchema,
+  PageVariableSchema,
+  PageTypeSchema,
   PageSchema,
   LayoutSchema,
 } from './layout.zod.js';

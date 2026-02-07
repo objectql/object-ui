@@ -9,4 +9,5 @@
 export * from './useExpression';
 export * from './useActionRunner';
 export * from './useNavigationOverlay';
+export * from './usePageVariables';
 

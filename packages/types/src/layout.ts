@@ -425,34 +425,63 @@ export interface AspectRatioSchema extends BaseSchema {
 }
 
 /**
+ * Page Type
+ * Determines page behavior and default layout template.
+ * Aligned with @objectstack/spec Page.type
+ */
+export type PageType = 'record' | 'home' | 'app' | 'utility';
+
+/**
+ * Page Variable
+ * Local page state that can be read/written by components and expressions.
+ * Aligned with @objectstack/spec PageVariableSchema
+ */
+export interface PageVariable {
+  /** Variable name */
+  name: string;
+  /** Variable type @default 'string' */
+  type?: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  /** Default value for initialization */
+  defaultValue?: any;
+}
+
+/**
+ * Page Region Size
+ * Aligned with @objectstack/spec PageRegionSchema.width
+ */
+export type PageRegionWidth = 'small' | 'medium' | 'large' | 'full';
+
+/**
  * Page Region (Header, Sidebar, Main, etc)
+ * Aligned with @objectstack/spec PageRegionSchema
  */
 export interface PageRegion {
   /**
-   * Region name/id
+   * Region name/id (e.g. "sidebar", "main", "header")
    */
   name: string;
   /**
-   * Region type
+   * Region type — semantic role for layout rendering
    */
   type?: 'header' | 'sidebar' | 'main' | 'footer' | 'aside';
   /**
-   * Width (flex basis)
+   * Region width (spec-aligned enum)
    */
-  width?: string;
+  width?: PageRegionWidth | string;
   /**
    * Components in this region
    */
   components: SchemaNode[];
   /**
-   * CSS class
+   * CSS class overrides
    */
   className?: string;
 }
 
 /**
  * Page layout component
- * Top-level container for a page route
+ * Top-level container for a page route.
+ * Aligned with @objectstack/spec PageSchema
  */
 export interface PageSchema extends BaseSchema {
   type: 'page';
@@ -461,13 +490,33 @@ export interface PageSchema extends BaseSchema {
    */
   title?: string;
   /**
-    * Page icon (Lucide icon name)
-    */
+   * Page icon (Lucide icon name)
+   */
   icon?: string;
   /**
    * Page description
    */
   description?: string;
+  /**
+   * Page type — determines default layout and behavior
+   * @default 'record'
+   */
+  pageType?: PageType;
+  /**
+   * Bound object name (for record pages)
+   * Provides record context to components in regions
+   */
+  object?: string;
+  /**
+   * Layout template name (e.g. "default", "header-sidebar-main")
+   * @default 'default'
+   */
+  template?: string;
+  /**
+   * Local page state variables
+   * Initialized on mount and available to all components via context
+   */
+  variables?: PageVariable[];
   /**
    * Page layout regions
    * (Aligned with @objectstack/spec Page.regions)
@@ -481,6 +530,15 @@ export interface PageSchema extends BaseSchema {
    * Alternative content prop
    */
   children?: SchemaNode | SchemaNode[];
+  /**
+   * Whether this is the default page for the object/app
+   * @default false
+   */
+  isDefault?: boolean;
+  /**
+   * Profiles that can access this page
+   */
+  assignedProfiles?: string[];
 }
 
 /**
