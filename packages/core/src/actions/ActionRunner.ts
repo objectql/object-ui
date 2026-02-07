@@ -101,6 +101,8 @@ export interface ActionDef {
   refreshAfter?: boolean;
   /** Params object (for custom handlers) */
   params?: Record<string, any>;
+  /** ActionParam definitions to collect from user before execution (from spec ActionSchema.params) */
+  actionParams?: ActionParamDef[];
   /** Script/expression to execute (for type: 'script') */
   execute?: string;
   /** Target URL or identifier (for type: 'url', 'modal', 'flow') */
@@ -156,6 +158,29 @@ export type NavigationHandler = (url: string, options?: {
   replace?: boolean;
 }) => void;
 
+/**
+ * Param collection handler — consumers provide to show a dialog
+ * for collecting ActionParam values before action execution.
+ * Returns collected values, or null if cancelled.
+ */
+export type ParamCollectionHandler = (params: ActionParamDef[]) => Promise<Record<string, any> | null>;
+
+/**
+ * ActionParam definition accepted by the runner.
+ * Compatible with @objectstack/spec ActionParam.
+ */
+export interface ActionParamDef {
+  name: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  options?: Array<{ label: string; value: string }>;
+  defaultValue?: unknown;
+  helpText?: string;
+  placeholder?: string;
+  validation?: string;
+}
+
 export class ActionRunner {
   private handlers = new Map<string, ActionHandler>();
   private evaluator: ExpressionEvaluator;
@@ -164,6 +189,7 @@ export class ActionRunner {
   private toastHandler: ToastHandler | null;
   private modalHandler: ModalHandler | null;
   private navigationHandler: NavigationHandler | null;
+  private paramCollectionHandler: ParamCollectionHandler | null;
 
   constructor(context: ActionContext = {}) {
     this.context = context;
@@ -173,6 +199,7 @@ export class ActionRunner {
     this.toastHandler = null;
     this.modalHandler = null;
     this.navigationHandler = null;
+    this.paramCollectionHandler = null;
   }
 
   /**
@@ -201,6 +228,14 @@ export class ActionRunner {
    */
   setNavigationHandler(handler: NavigationHandler): void {
     this.navigationHandler = handler;
+  }
+
+  /**
+   * Set a param collection handler — shows a dialog to collect
+   * ActionParam values before action execution.
+   */
+  setParamCollectionHandler(handler: ParamCollectionHandler): void {
+    this.paramCollectionHandler = handler;
   }
 
   registerHandler(actionName: string, handler: ActionHandler): void {
@@ -247,6 +282,19 @@ export class ActionRunner {
         );
         if (!confirmed) {
           return { success: false, error: 'Action cancelled by user' };
+        }
+      }
+
+      // Param collection: if the action defines ActionParam[] to collect,
+      // show a dialog to gather user input before executing.
+      if (action.actionParams && Array.isArray(action.actionParams) && action.actionParams.length > 0) {
+        if (this.paramCollectionHandler) {
+          const collected = await this.paramCollectionHandler(action.actionParams);
+          if (collected === null) {
+            return { success: false, error: 'Action cancelled by user (params)' };
+          }
+          // Merge collected params into action.params
+          action.params = { ...(action.params || {}), ...collected };
         }
       }
 

@@ -185,6 +185,123 @@ const FlatContent: React.FC<{ schema: PageSchema }> = ({ schema }) => {
 };
 
 // ---------------------------------------------------------------------------
+// Template layouts — predefined layout templates
+// ---------------------------------------------------------------------------
+
+/** Template: full-width single column */
+const FullWidthTemplate: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+  if (schema.regions && schema.regions.length > 0) {
+    return <RegionLayout regions={schema.regions} pageType={schema.pageType} />;
+  }
+  return <FlatContent schema={schema} />;
+};
+
+/** Template: header-sidebar-main — header spanning full width, sidebar + main below */
+const HeaderSidebarMainTemplate: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+  const regions = schema.regions || [];
+  if (regions.length === 0) return <FlatContent schema={schema} />;
+
+  const header = findRegion(regions, 'header');
+  const sidebar = findRegion(regions, 'sidebar');
+  const main = findRegion(regions, 'main');
+  const extras = getRemainingRegions(regions, ['header', 'sidebar', 'main']);
+
+  return (
+    <div className="flex flex-col gap-6" data-template="header-sidebar-main">
+      {header && <RegionContent region={header} />}
+      <div className="flex flex-1 gap-6">
+        {sidebar && (
+          <aside className={cn('shrink-0', getRegionWidthClass(sidebar.width as string || 'medium'))}>
+            <RegionContent region={sidebar} />
+          </aside>
+        )}
+        <div className="flex-1 min-w-0 space-y-6">
+          {main && <RegionContent region={main} />}
+          {extras.map((region, idx) => (
+            <RegionContent key={region.name || `extra-${idx}`} region={region} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** Template: three-column — sidebar + main + aside */
+const ThreeColumnTemplate: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+  const regions = schema.regions || [];
+  if (regions.length === 0) return <FlatContent schema={schema} />;
+
+  const header = findRegion(regions, 'header');
+  const sidebar = findRegion(regions, 'sidebar');
+  const main = findRegion(regions, 'main');
+  const aside = findRegion(regions, 'aside');
+  const footer = findRegion(regions, 'footer');
+  const extras = getRemainingRegions(regions, ['header', 'sidebar', 'main', 'aside', 'footer']);
+
+  return (
+    <div className="flex flex-col gap-6" data-template="three-column">
+      {header && <RegionContent region={header} />}
+      <div className="flex flex-1 gap-6">
+        {sidebar && (
+          <aside className={cn('shrink-0', getRegionWidthClass(sidebar.width as string || 'small'))}>
+            <RegionContent region={sidebar} />
+          </aside>
+        )}
+        <div className="flex-1 min-w-0 space-y-6">
+          {main && <RegionContent region={main} />}
+          {extras.map((region, idx) => (
+            <RegionContent key={region.name || `extra-${idx}`} region={region} />
+          ))}
+        </div>
+        {aside && (
+          <aside className={cn('shrink-0', getRegionWidthClass(aside.width as string || 'small'))}>
+            <RegionContent region={aside} />
+          </aside>
+        )}
+      </div>
+      {footer && <RegionContent region={footer} />}
+    </div>
+  );
+};
+
+/** Template: dashboard — 2x2 grid of regions */
+const DashboardTemplate: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+  const regions = schema.regions || [];
+  if (regions.length === 0) return <FlatContent schema={schema} />;
+
+  const header = findRegion(regions, 'header');
+  const footer = findRegion(regions, 'footer');
+  const contentRegions = getRemainingRegions(regions, ['header', 'footer']);
+
+  return (
+    <div className="flex flex-col gap-6" data-template="dashboard">
+      {header && <RegionContent region={header} />}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {contentRegions.map((region, idx) => (
+          <RegionContent key={region.name || `region-${idx}`} region={region} />
+        ))}
+      </div>
+      {footer && <RegionContent region={footer} />}
+    </div>
+  );
+};
+
+/** Template registry — maps template names to layout components */
+const TEMPLATE_REGISTRY: Record<string, React.FC<{ schema: PageSchema }>> = {
+  'default': FullWidthTemplate,
+  'full-width': FullWidthTemplate,
+  'header-sidebar-main': HeaderSidebarMainTemplate,
+  'three-column': ThreeColumnTemplate,
+  'dashboard': DashboardTemplate,
+};
+
+/** Resolve template: if the schema specifies a template name, use the matching layout */
+function resolveTemplate(schema: PageSchema): React.FC<{ schema: PageSchema }> | null {
+  if (!schema.template) return null;
+  return TEMPLATE_REGISTRY[schema.template] || null;
+}
+
+// ---------------------------------------------------------------------------
 // Page type variant layouts
 // ---------------------------------------------------------------------------
 
@@ -239,22 +356,29 @@ export const PageRenderer: React.FC<{
     ...pageProps
   } = props;
 
-  // Select the layout variant based on page type
+  // Select the layout variant based on template or page type
+  const TemplateLayout = resolveTemplate(schema);
   let LayoutVariant: React.FC<{ schema: PageSchema }>;
-  switch (pageType) {
-    case 'home':
-      LayoutVariant = HomePageLayout;
-      break;
-    case 'app':
-      LayoutVariant = AppPageLayout;
-      break;
-    case 'utility':
-      LayoutVariant = UtilityPageLayout;
-      break;
-    case 'record':
-    default:
-      LayoutVariant = RecordPageLayout;
-      break;
+
+  if (TemplateLayout) {
+    // Template takes priority over page type
+    LayoutVariant = TemplateLayout;
+  } else {
+    switch (pageType) {
+      case 'home':
+        LayoutVariant = HomePageLayout;
+        break;
+      case 'app':
+        LayoutVariant = AppPageLayout;
+        break;
+      case 'utility':
+        LayoutVariant = UtilityPageLayout;
+        break;
+      case 'record':
+      default:
+        LayoutVariant = RecordPageLayout;
+        break;
+    }
   }
 
   const pageContent = (

@@ -59,6 +59,9 @@ apps/site/.source
 # Test artifacts
 test-screenshots
 
+# Vite timestamp files
+*.timestamp-*.mjs
+
 # Backup files
 *.bak
 *.backup

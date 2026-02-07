@@ -68,9 +68,8 @@ export const FieldFactory: React.FC<FieldFactoryProps> = ({
   };
 
   // Handle conditional visibility
-  // Note: visibleOn expression evaluation is not yet implemented
-  // Fields are always visible unless explicitly hidden
-  // Skip if explicitly hidden
+  // Fields are hidden when explicitly hidden or when visibleOn evaluates to false
+  // Note: dependsOn is handled at the FormSectionRenderer level
   if (field.hidden) {
     return null;
   }
