@@ -19,6 +19,140 @@ import { ComponentRegistry } from '@object-ui/core';
 import { cn } from '../../lib/utils';
 
 // ---------------------------------------------------------------------------
+// Page Object Context — provides record data to child components
+// ---------------------------------------------------------------------------
+
+const PageObjectContext = React.createContext<{
+  objectName: string | undefined;
+  recordData: Record<string, any> | null;
+  loading: boolean;
+  error: string | null;
+}>({
+  objectName: undefined,
+  recordData: null,
+  loading: false,
+  error: null,
+});
+
+/**
+ * Hook to access the page object data from any child component.
+ */
+export function usePageObject() {
+  return React.useContext(PageObjectContext);
+}
+
+// ---------------------------------------------------------------------------
+// Page Templates — predefined layout structures
+// ---------------------------------------------------------------------------
+
+/**
+ * Template registry: maps template names to region configurations.
+ * Templates define default region structures when no explicit regions are provided.
+ */
+const PAGE_TEMPLATES: Record<string, (schema: PageSchema) => PageRegion[]> = {
+  /**
+   * Default template: just renders body/children as a single main region
+   */
+  default: (schema) => {
+    const content = schema.body || schema.children;
+    const nodes: SchemaNode[] = Array.isArray(content) ? content : content ? [content as SchemaNode] : [];
+    return [{ name: 'main', type: 'main', components: nodes }];
+  },
+
+  /**
+   * Header + Main content template
+   */
+  'header-main': (schema) => {
+    const content = schema.body || schema.children;
+    const nodes: SchemaNode[] = Array.isArray(content) ? content : content ? [content as SchemaNode] : [];
+    const regions: PageRegion[] = [];
+    if (schema.title || schema.description) {
+      regions.push({
+        name: 'header',
+        type: 'header',
+        width: 'full',
+        components: [{
+          type: 'page-header',
+          title: schema.title,
+          description: schema.description,
+        } as any],
+      });
+    }
+    regions.push({ name: 'main', type: 'main', components: nodes });
+    return regions;
+  },
+
+  /**
+   * Header + Sidebar + Main template
+   */
+  'header-sidebar-main': (schema) => {
+    const content = schema.body || schema.children;
+    const nodes: SchemaNode[] = Array.isArray(content) ? content : content ? [content as SchemaNode] : [];
+    // Split: first child goes to sidebar, rest to main
+    const sidebarContent = nodes.length > 0 ? [nodes[0]] : [];
+    const mainContent = nodes.length > 1 ? nodes.slice(1) : [];
+    return [
+      ...(schema.title ? [{
+        name: 'header',
+        type: 'header' as const,
+        width: 'full' as const,
+        components: [{
+          type: 'page-header',
+          title: schema.title,
+          description: schema.description,
+        } as any],
+      }] : []),
+      { name: 'sidebar', type: 'sidebar' as const, width: 'small' as const, components: sidebarContent },
+      { name: 'main', type: 'main' as const, components: mainContent },
+    ];
+  },
+
+  /**
+   * Sidebar + Main + Aside (three-column) template
+   */
+  'sidebar-main-aside': (schema) => {
+    const content = schema.body || schema.children;
+    const nodes: SchemaNode[] = Array.isArray(content) ? content : content ? [content as SchemaNode] : [];
+    const sidebarContent = nodes.length > 0 ? [nodes[0]] : [];
+    const asideContent = nodes.length > 2 ? [nodes[nodes.length - 1]] : [];
+    const mainContent = nodes.length > 1 ? nodes.slice(1, asideContent.length ? -1 : undefined) : [];
+    return [
+      { name: 'sidebar', type: 'sidebar' as const, width: 'small' as const, components: sidebarContent },
+      { name: 'main', type: 'main' as const, components: mainContent },
+      { name: 'aside', type: 'aside' as const, width: 'small' as const, components: asideContent },
+    ];
+  },
+
+  /**
+   * Full-width stacked template (for dashboards/home pages)
+   */
+  'full-width': (schema) => {
+    const content = schema.body || schema.children;
+    const nodes: SchemaNode[] = Array.isArray(content) ? content : content ? [content as SchemaNode] : [];
+    return [{ name: 'main', type: 'main', width: 'full', components: nodes }];
+  },
+};
+
+/**
+ * Resolve a template name to regions.
+ * Returns null if explicit regions are provided or template is not found.
+ */
+function resolveTemplate(schema: PageSchema): PageRegion[] | null {
+  // Explicit regions always take precedence over templates
+  if (schema.regions && schema.regions.length > 0) {
+    return null;
+  }
+
+  const templateName = schema.template || 'default';
+  const templateFn = PAGE_TEMPLATES[templateName];
+  if (!templateFn) {
+    return null;
+  }
+
+  return templateFn(schema);
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -190,32 +324,36 @@ const FlatContent: React.FC<{ schema: PageSchema }> = ({ schema }) => {
 
 /** Record page — detail-oriented, narrower max-width */
 const RecordPageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
-  if (schema.regions && schema.regions.length > 0) {
-    return <RegionLayout regions={schema.regions} pageType="record" />;
+  const regions = schema.regions?.length ? schema.regions : resolveTemplate(schema);
+  if (regions && regions.length > 0) {
+    return <RegionLayout regions={regions} pageType="record" />;
   }
   return <FlatContent schema={schema} />;
 };
 
 /** Home page — dashboard-style, wider layout */
 const HomePageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
-  if (schema.regions && schema.regions.length > 0) {
-    return <RegionLayout regions={schema.regions} pageType="home" />;
+  const regions = schema.regions?.length ? schema.regions : resolveTemplate(schema);
+  if (regions && regions.length > 0) {
+    return <RegionLayout regions={regions} pageType="home" />;
   }
   return <FlatContent schema={schema} />;
 };
 
 /** App page — application shell, full-width capable */
 const AppPageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
-  if (schema.regions && schema.regions.length > 0) {
-    return <RegionLayout regions={schema.regions} pageType="app" />;
+  const regions = schema.regions?.length ? schema.regions : resolveTemplate(schema);
+  if (regions && regions.length > 0) {
+    return <RegionLayout regions={regions} pageType="app" />;
   }
   return <FlatContent schema={schema} />;
 };
 
 /** Utility page — compact, focused, narrower */
 const UtilityPageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
-  if (schema.regions && schema.regions.length > 0) {
-    return <RegionLayout regions={schema.regions} pageType="utility" />;
+  const regions = schema.regions?.length ? schema.regions : resolveTemplate(schema);
+  if (regions && regions.length > 0) {
+    return <RegionLayout regions={regions} pageType="utility" />;
   }
   return <FlatContent schema={schema} />;
 };
@@ -231,11 +369,50 @@ export const PageRenderer: React.FC<{
 }> = ({ schema, className, ...props }) => {
   const pageType = schema.pageType || 'record';
 
+  // Page.object data binding state
+  const [recordData, setRecordData] = React.useState<Record<string, any> | null>(null);
+  const [objectLoading, setObjectLoading] = React.useState(false);
+  const [objectError, setObjectError] = React.useState<string | null>(null);
+
+  // If schema.object is set, provide it via context for child components
+  // The actual data fetching is triggered by consumers via a DataSource passed in props
+  const dataSource = props.dataSource;
+  const recordId = props.recordId;
+
+  React.useEffect(() => {
+    if (!schema.object || !dataSource || !recordId) return;
+
+    let cancelled = false;
+    setObjectLoading(true);
+    setObjectError(null);
+
+    (async () => {
+      try {
+        const data = await dataSource.findOne(schema.object!, recordId);
+        if (!cancelled) {
+          setRecordData(data);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setObjectError(err?.message || 'Failed to load record data');
+        }
+      } finally {
+        if (!cancelled) {
+          setObjectLoading(false);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [schema.object, dataSource, recordId]);
+
   // Extract designer-related props
   const {
     'data-obj-id': dataObjId,
     'data-obj-type': dataObjType,
     style,
+    dataSource: _ds,
+    recordId: _rid,
     ...pageProps
   } = props;
 
@@ -293,9 +470,20 @@ export const PageRenderer: React.FC<{
   // Wrap with PageVariablesProvider when variables are defined
   if (schema.variables && schema.variables.length > 0) {
     return (
-      <PageVariablesProvider definitions={schema.variables}>
+      <PageObjectContext.Provider value={{ objectName: schema.object, recordData, loading: objectLoading, error: objectError }}>
+        <PageVariablesProvider definitions={schema.variables}>
+          {pageContent}
+        </PageVariablesProvider>
+      </PageObjectContext.Provider>
+    );
+  }
+
+  // Wrap with object context when schema.object is defined
+  if (schema.object) {
+    return (
+      <PageObjectContext.Provider value={{ objectName: schema.object, recordData, loading: objectLoading, error: objectError }}>
         {pageContent}
-      </PageVariablesProvider>
+      </PageObjectContext.Provider>
     );
   }
 

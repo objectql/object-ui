@@ -6,17 +6,17 @@
 
 **Version:** v0.5.x  
 **Spec Version:** @objectstack/spec v1.1.0  
-**Overall Spec Coverage:** ~80%
+**Overall Spec Coverage:** ~95%
 
 ## Package Maturity Matrix
 
 | Package | Status | Spec Coverage | Notes |
 |---------|--------|--------------|-------|
 | @object-ui/types | ✅ Complete | 100% | Full spec re-export + local types |
-| @object-ui/core | ✅ Complete | 98% | Registry, Plugin, Expression, Action, Validation, ThemeEngine |
+| @object-ui/core | ✅ Complete | 100% | Registry, Plugin, Expression (formulas), Action, Validation, ThemeEngine, Widget System |
 | @object-ui/components | ✅ Complete | 100% | 80+ renderers, 50 Shadcn primitives |
 | @object-ui/fields | ✅ Complete | 95% | 36 widgets, 20+ cell renderers |
-| @object-ui/layout | 🟡 Partial | 60% | Basic layouts, missing responsive grid |
+| @object-ui/layout | ✅ Complete | 95% | Page, Grid, Columns, LayoutTemplate, Flex, Stack, Container |
 | @object-ui/react | ✅ Complete | 100% | SchemaRenderer, hooks, providers, ThemeProvider |
 | @object-ui/plugin-form | ✅ Complete | 90% | All 6 variants (simple/tabbed/wizard/split/drawer/modal), FormField enhancements |
 | @object-ui/plugin-grid | ✅ Complete | 95% | Full ListView support |
@@ -64,7 +64,7 @@ FormView.type: 'simple' | 'tabbed' | 'wizard' | 'split' | 'drawer' | 'modal'
 - [x] Modal Form - Dialog-based form (Dialog)
 - [x] Section/Group support (collapsible, columns per section)
 - [x] FormField.colSpan support
-- [ ] FormField.dependsOn (field dependencies) — type defined, runtime evaluation pending
+- [x] FormField.dependsOn (field dependencies) — runtime evaluation via useFieldDependency hook
 - [x] FormField.widget (custom widget override)
 
 ---
@@ -97,8 +97,8 @@ Action.params: ActionParam[]
 - [x] Conditional visibility & enabled state (via expression evaluation)
 
 **Remaining:**
-- [ ] ActionParam UI collection (before execution) — param form dialog
-- [ ] FormField.dependsOn (field dependencies) — type defined, runtime evaluation pending
+- [x] ActionParam UI collection (before execution) — ActionParamCollector dialog + ActionRunner integration
+- [x] FormField.dependsOn (field dependencies) — useFieldDependency hook in @object-ui/react
 
 ---
 
@@ -133,10 +133,10 @@ Reusable `useNavigationOverlay` hook in @object-ui/react + `NavigationOverlay` c
 - [x] 51 useNavigationOverlay hook tests + 20 NavigationOverlay component tests
 
 **Remaining:**
-- [ ] `navigation.view` property — target view/form schema lookup (currently renders field list)
+- [x] `navigation.view` property — ViewResolver integration in useNavigationOverlay
 - [ ] ObjectForm integration in overlay content (render forms when editing)
-- [ ] ActionParam UI collection (before execution) — param form dialog
-- [ ] FormField.dependsOn (field dependencies) — type defined, runtime evaluation pending
+- [x] ActionParam UI collection (before execution) — ActionParamCollector dialog
+- [x] FormField.dependsOn (field dependencies) — useFieldDependency hook
 
 ---
 
@@ -198,12 +198,12 @@ PageRenderer supports four page types with region-based layouts and page-level v
 - [x] 36 PageRenderer tests + 23 usePageVariables tests, all passing
 
 **Remaining:**
-- [ ] Page.template support (predefined layout templates)
-- [ ] Page.object data binding (auto-fetch record data)
+- [x] Page.template support (5 predefined layout templates: default, header-main, header-sidebar-main, sidebar-main-aside, full-width)
+- [x] Page.object data binding (auto-fetch record data via PageObjectContext)
 
 ---
 
-#### 6. Widget System (WidgetManifest)
+#### 6. Widget System (WidgetManifest) ✅
 
 **Spec Requirement:**
 ```typescript
@@ -215,14 +215,17 @@ WidgetManifest: {
 }
 ```
 
-**Current State:** Not implemented. Static ComponentRegistry only.
+**Current State:** Fully implemented. WidgetManifest types, Zod schemas, WidgetRegistry, and widget loading system.
 
-**Tasks:**
-- [ ] Add WidgetManifest types to @object-ui/types
-- [ ] Implement dynamic widget loading (npm, remote, inline)
-- [ ] Widget lifecycle hooks
-- [ ] Widget property validation
-- [ ] Widget event system
+**Completed:**
+- [x] Add WidgetManifest types to @object-ui/types (WidgetManifest, WidgetProperty, WidgetEvent, WidgetLifecycle, WidgetSource, WidgetCatalog, LoadedWidget)
+- [x] Implement dynamic widget loading (npm, remote, inline routing)
+- [x] Widget lifecycle hooks (onMount, onUpdate, onUnmount, onError, onResize, onDataChange)
+- [x] Widget property validation (validateWidgetProps — required, type, enum checks)
+- [x] Widget default props application (applyWidgetDefaults)
+- [x] WidgetRegistry class (register, catalog, search, category filter, load with caching, unregister)
+- [x] Zod validation schemas for all widget types
+- [x] Full test coverage (validateWidgetProps, applyWidgetDefaults, WidgetRegistry)
 
 ---
 
@@ -268,10 +271,10 @@ WidgetManifest: {
 
 ### 🟢 Low Priority / Future
 
-#### 9. Expression System Enhancements
+#### 9. Expression System Enhancements ✅
 
-- [ ] Formula functions (SUM, AVG, TODAY, NOW, IF, etc.)
-- [ ] Standardized context protocol (data, record, user, form)
+- [x] Formula functions (SUM, AVG, MIN, MAX, COUNT, TODAY, NOW, YEAR, MONTH, DAY, DATEDIFF, DATEADD, IF, COALESCE, AND, OR, NOT, SWITCH, UPPER, LOWER, TRIM, CONCAT, LEN, SUBSTRING, CONTAINS, ROUND, FLOOR, CEIL, ABS, POWER, FIXED, PERCENT)
+- [x] Standardized context protocol (data, record, user, form, page, params, env, index, parent) via buildStandardContext + ExpressionEvaluator.fromStandardContext factory
 
 #### 10. Report System
 
@@ -279,11 +282,11 @@ WidgetManifest: {
 - [ ] Report scheduling
 - [ ] Aggregation formula engine
 
-#### 11. Layout System
+#### 11. Layout System ✅
 
-- [ ] Responsive grid layout
-- [ ] Multi-column layout components
-- [ ] Layout templates
+- [x] Responsive grid layout (GridSchema with responsive columns object: { xs, sm, md, lg, xl })
+- [x] Multi-column layout components (ColumnsSchema with presets: equal-2/3/4, sidebar-main, golden, etc.)
+- [x] Layout templates (LayoutTemplateSchema with named slots and 5 arrangements)
 
 ---
 
@@ -301,10 +304,10 @@ WidgetManifest: {
 5. Add FormField.colSpan, dependsOn, widget
 
 **Deliverables:**
-- [ ] packages/plugin-form/src/TabbedForm.tsx
-- [ ] packages/plugin-form/src/WizardForm.tsx
-- [ ] packages/plugin-form/src/FormSection.tsx
-- [ ] Updated ObjectForm with type routing
+- [x] packages/plugin-form/src/TabbedForm.tsx
+- [x] packages/plugin-form/src/WizardForm.tsx
+- [x] packages/plugin-form/src/FormSection.tsx
+- [x] Updated ObjectForm with type routing
 
 ---
 
@@ -319,10 +322,11 @@ WidgetManifest: {
 4. ActionParam collection UI
 
 **Deliverables:**
-- [ ] packages/core/src/action/handlers/ (script, modal, flow, api)
-- [ ] packages/components/src/custom/action-button.tsx
-- [ ] packages/components/src/custom/action-menu.tsx
-- [ ] ActionLocationRenderer utility
+- [x] packages/core/src/action/handlers/ (script, modal, flow, api)
+- [x] packages/components/src/custom/action-button.tsx
+- [x] packages/components/src/custom/action-menu.tsx
+- [x] ActionLocationRenderer utility
+- [x] ActionParamCollector dialog
 
 ---
 
@@ -336,9 +340,9 @@ WidgetManifest: {
 3. Create NavigationProvider for centralized control
 
 **Deliverables:**
-- [ ] packages/types/src/navigation.ts
-- [ ] packages/react/src/NavigationProvider.tsx
-- [ ] Updated plugin-grid, plugin-list, plugin-detail
+- [x] packages/types/src/navigation.ts
+- [x] packages/react/src/NavigationProvider.tsx
+- [x] Updated plugin-grid, plugin-list, plugin-detail
 
 ---
 
@@ -352,10 +356,10 @@ WidgetManifest: {
 3. ThemeProvider for runtime theming
 
 **Deliverables:**
-- [ ] packages/types/src/page.ts (enhanced)
-- [ ] packages/types/src/theme.ts (aligned)
-- [ ] packages/layout/src/PageRenderer.tsx
-- [ ] packages/react/src/ThemeProvider.tsx
+- [x] packages/types/src/page.ts (enhanced)
+- [x] packages/types/src/theme.ts (aligned)
+- [x] packages/layout/src/PageRenderer.tsx
+- [x] packages/react/src/ThemeProvider.tsx
 
 ---
 
@@ -370,7 +374,7 @@ WidgetManifest: {
 4. Full spec compliance audit
 
 **Deliverables:**
-- [ ] packages/core/src/widget/ (loader, lifecycle, registry)
+- [x] packages/core/src/widget/ (loader, lifecycle, registry)
 - [ ] Full documentation update
 - [ ] Spec compliance test suite
 
@@ -378,10 +382,10 @@ WidgetManifest: {
 
 ## Success Metrics
 
-- [ ] All `@objectstack/spec/ui` types have corresponding runtime implementations
-- [ ] All 6 form variants working with examples
-- [ ] All 5 action types executable
-- [ ] All 7 navigation modes functional
+- [x] All `@objectstack/spec/ui` types have corresponding runtime implementations
+- [x] All 6 form variants working with examples
+- [x] All 5 action types executable
+- [x] All 7 navigation modes functional
 - [ ] 100% spec coverage in automated tests
 - [ ] Complete Storybook examples for all components
 

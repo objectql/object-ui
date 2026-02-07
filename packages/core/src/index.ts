@@ -18,6 +18,7 @@ export * from './actions/index.js';
 export * from './query/index.js';
 export * from './adapters/index.js';
 export * from './theme/index.js';
+export * from './widget/index.js';
 // export * from './data-scope'; // TODO
 // export * from './validators'; // TODO
 

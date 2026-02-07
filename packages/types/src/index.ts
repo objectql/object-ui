@@ -92,6 +92,10 @@ export type {
   ResizableSchema,
   ResizablePanel,
   AspectRatioSchema,
+  ResponsiveValue,
+  ColumnDef,
+  ColumnsSchema,
+  LayoutTemplateSchema,
   LayoutSchema,
   PageSchema,
   PageType,
@@ -660,3 +664,21 @@ export type {
  * ```
  */
 export type { Data, UI, System, AI, API, Hub, Automation, Shared, QA } from '@objectstack/spec';
+
+// ============================================================================
+// Widget System - Dynamic Component Loading
+// ============================================================================
+export type {
+  WidgetPropertyType,
+  WidgetProperty,
+  WidgetEvent,
+  WidgetLifecycle,
+  WidgetImplementation,
+  NpmWidgetSource,
+  RemoteWidgetSource,
+  InlineWidgetSource,
+  WidgetSource,
+  WidgetManifest,
+  LoadedWidget,
+  WidgetCatalog,
+} from './widget';

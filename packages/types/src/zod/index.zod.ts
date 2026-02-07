@@ -434,3 +434,19 @@ export function safeValidateSchema(schema: unknown) {
  * Version information
  */
 export const SCHEMA_VERSION = '1.0.0';
+
+// ============================================================================
+// Widget System - Dynamic Component Loading
+// ============================================================================
+export {
+  WidgetPropertyTypeSchema,
+  WidgetPropertySchema,
+  WidgetEventSchema,
+  WidgetLifecycleSchema,
+  NpmWidgetSourceSchema,
+  RemoteWidgetSourceSchema,
+  InlineWidgetSourceSchema,
+  WidgetSourceSchema,
+  WidgetManifestSchema,
+  WidgetCatalogSchema,
+} from './widget.zod.js';

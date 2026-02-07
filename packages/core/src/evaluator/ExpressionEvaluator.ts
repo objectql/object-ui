@@ -18,6 +18,9 @@
 
 import { ExpressionContext } from './ExpressionContext.js';
 import { ExpressionCache } from './ExpressionCache.js';
+import { FORMULA_FUNCTIONS } from './FormulaFunctions.js';
+import type { BuildContextOptions, StandardExpressionContext } from './StandardContext.js';
+import { buildStandardContext } from './StandardContext.js';
 
 /**
  * Options for expression evaluation
@@ -47,8 +50,13 @@ export interface EvaluationOptions {
 export class ExpressionEvaluator {
   private context: ExpressionContext;
   private cache: ExpressionCache;
+  private formulaFunctions: Record<string, (...args: any[]) => any>;
 
-  constructor(context?: ExpressionContext | Record<string, any>, cache?: ExpressionCache) {
+  constructor(
+    context?: ExpressionContext | Record<string, any>,
+    cache?: ExpressionCache,
+    formulaFunctions?: Record<string, (...args: any[]) => any>
+  ) {
     if (context instanceof ExpressionContext) {
       this.context = context;
     } else {
@@ -57,6 +65,34 @@ export class ExpressionEvaluator {
     
     // Use provided cache or create a new one
     this.cache = cache || new ExpressionCache();
+    
+    // Use provided formula functions or built-in defaults
+    this.formulaFunctions = formulaFunctions ?? FORMULA_FUNCTIONS;
+  }
+
+  /**
+   * Create an evaluator using the standardized context protocol.
+   * 
+   * This is the recommended way to create evaluators for consistent
+   * variable naming across the entire UI.
+   * 
+   * @example
+   * ```ts
+   * const evaluator = ExpressionEvaluator.fromStandardContext({
+   *   data: { name: 'Alice', amount: 500 },
+   *   user: { id: '1', name: 'Admin' },
+   * });
+   * evaluator.evaluate('${data.name}');     // 'Alice'
+   * evaluator.evaluate('${user.name}');     // 'Admin'
+   * evaluator.evaluate('${SUM([1,2,3])}'); // 6
+   * ```
+   */
+  static fromStandardContext(
+    options: BuildContextOptions = {},
+    cache?: ExpressionCache,
+  ): ExpressionEvaluator {
+    const ctx = buildStandardContext(options);
+    return new ExpressionEvaluator(ctx as unknown as Record<string, any>, cache);
   }
 
   /**
@@ -139,9 +175,13 @@ export class ExpressionEvaluator {
       // Create a safe evaluation function
       const contextObj = this.context.toObject();
       
+      // Merge formula functions into the evaluation scope
+      // Formula functions are available as top-level names (SUM, IF, TODAY, etc.)
+      const evalScope = { ...this.formulaFunctions, ...contextObj };
+      
       // Build safe function with context variables
-      const varNames = Object.keys(contextObj);
-      const varValues = Object.values(contextObj);
+      const varNames = Object.keys(evalScope);
+      const varValues = Object.values(evalScope);
       
       // Use cached compilation
       const compiled = this.cache.compile(expression, varNames);
@@ -219,8 +259,8 @@ export class ExpressionEvaluator {
    * Create a new evaluator with additional context data
    */
   withContext(data: Record<string, any>): ExpressionEvaluator {
-    // Share the cache with the new evaluator for maximum efficiency
-    return new ExpressionEvaluator(this.context.createChild(data), this.cache);
+    // Share the cache and formula functions with the new evaluator for maximum efficiency
+    return new ExpressionEvaluator(this.context.createChild(data), this.cache, this.formulaFunctions);
   }
   
   /**

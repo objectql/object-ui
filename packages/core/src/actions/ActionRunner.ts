@@ -156,6 +156,24 @@ export type NavigationHandler = (url: string, options?: {
   replace?: boolean;
 }) => void;
 
+/**
+ * Param collector handler — consumers provide to collect action parameters via UI.
+ * Returns collected param values, or throws/rejects if user cancels.
+ */
+export type ParamCollectorHandler = (
+  params: Array<{
+    name: string;
+    label: string;
+    type: string;
+    required?: boolean;
+    options?: Array<{ label: string; value: string }>;
+    defaultValue?: unknown;
+    helpText?: string;
+    placeholder?: string;
+  }>,
+  actionLabel?: string
+) => Promise<Record<string, unknown>>;
+
 export class ActionRunner {
   private handlers = new Map<string, ActionHandler>();
   private evaluator: ExpressionEvaluator;
@@ -164,6 +182,7 @@ export class ActionRunner {
   private toastHandler: ToastHandler | null;
   private modalHandler: ModalHandler | null;
   private navigationHandler: NavigationHandler | null;
+  private paramCollectorHandler: ParamCollectorHandler | null;
 
   constructor(context: ActionContext = {}) {
     this.context = context;
@@ -173,6 +192,7 @@ export class ActionRunner {
     this.toastHandler = null;
     this.modalHandler = null;
     this.navigationHandler = null;
+    this.paramCollectorHandler = null;
   }
 
   /**
@@ -201,6 +221,14 @@ export class ActionRunner {
    */
   setNavigationHandler(handler: NavigationHandler): void {
     this.navigationHandler = handler;
+  }
+
+  /**
+   * Set a param collector handler (e.g., dialog-based param form).
+   * When set, actions with `params` will trigger this handler before execution.
+   */
+  setParamCollectorHandler(handler: ParamCollectorHandler): void {
+    this.paramCollectorHandler = handler;
   }
 
   registerHandler(actionName: string, handler: ActionHandler): void {
@@ -247,6 +275,33 @@ export class ActionRunner {
         );
         if (!confirmed) {
           return { success: false, error: 'Action cancelled by user' };
+        }
+      }
+
+      // Collect action parameters if the action defines params and a collector is available
+      if (action.params && Array.isArray(action.params) && action.params.length > 0 && this.paramCollectorHandler) {
+        try {
+          const collectedParams = await this.paramCollectorHandler(
+            action.params as Array<{
+              name: string;
+              label: string;
+              type: string;
+              required?: boolean;
+              options?: Array<{ label: string; value: string }>;
+              defaultValue?: unknown;
+              helpText?: string;
+              placeholder?: string;
+            }>,
+            action.label || action.name,
+          );
+          // Merge collected params into action context
+          this.context = { ...this.context, params: collectedParams };
+          this.evaluator.updateContext({ params: collectedParams });
+          // Also attach collected params to the action for handlers to consume
+          action = { ...action, collectedParams };
+        } catch {
+          // User cancelled param collection
+          return { success: false, error: 'Parameter collection cancelled' };
         }
       }
 

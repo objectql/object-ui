@@ -20,6 +20,8 @@ import type {
   TabsSchema,
   ScrollAreaSchema,
   ResizableSchema,
+  ColumnsSchema,
+  LayoutTemplateSchema,
   PageSchema,
 } from './layout';
 
@@ -115,6 +117,8 @@ export interface SchemaRegistry {
   'tabs': TabsSchema;
   'scroll-area': ScrollAreaSchema;
   'resizable': ResizableSchema;
+  'columns': ColumnsSchema;
+  'layout-template': LayoutTemplateSchema;
   'page': PageSchema;
 
   // Form

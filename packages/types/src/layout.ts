@@ -542,6 +542,177 @@ export interface PageSchema extends BaseSchema {
 }
 
 /**
+ * Responsive breakpoint values for layout properties.
+ * Follows Tailwind CSS breakpoint naming.
+ */
+export interface ResponsiveValue<T> {
+  /** Base / mobile-first value */
+  xs?: T;
+  /** ≥640px */
+  sm?: T;
+  /** ≥768px */
+  md?: T;
+  /** ≥1024px */
+  lg?: T;
+  /** ≥1280px */
+  xl?: T;
+  /** ≥1536px */
+  '2xl'?: T;
+}
+
+/**
+ * Column definition for the Columns layout component.
+ * Each column can have a fixed or responsive width.
+ */
+export interface ColumnDef {
+  /**
+   * Unique column identifier
+   */
+  id?: string;
+  /**
+   * Column width — can be a fraction string ('1/3'), 'auto', 'fill',
+   * a pixel value, or a Tailwind class reference.
+   * Responsive object is also supported.
+   * @default 'fill'
+   */
+  width?: string | ResponsiveValue<string>;
+  /**
+   * Minimum column width (CSS value, e.g. '200px')
+   */
+  minWidth?: string;
+  /**
+   * Maximum column width (CSS value, e.g. '400px')
+   */
+  maxWidth?: string;
+  /**
+   * Column content
+   */
+  children?: SchemaNode | SchemaNode[];
+  /**
+   * CSS class overrides for this column
+   */
+  className?: string;
+}
+
+/**
+ * Multi-column layout component.
+ *
+ * Provides a higher-level abstraction over CSS Grid specifically
+ * for common 2-column, 3-column, sidebar+main patterns.
+ *
+ * @example
+ * ```json
+ * {
+ *   "type": "columns",
+ *   "preset": "sidebar-main",
+ *   "gap": 4,
+ *   "columns": [
+ *     { "width": "1/4", "children": [{ "type": "text", "value": "Sidebar" }] },
+ *     { "width": "3/4", "children": [{ "type": "text", "value": "Main" }] }
+ *   ]
+ * }
+ * ```
+ */
+export interface ColumnsSchema extends BaseSchema {
+  type: 'columns';
+
+  /**
+   * Column definitions.
+   * Each entry describes one column with its width and content.
+   */
+  columns: ColumnDef[];
+
+  /**
+   * Gap between columns (Tailwind scale 0-12)
+   * @default 4
+   */
+  gap?: number;
+
+  /**
+   * Preset layout name for common patterns.
+   * When set, column widths are auto-derived and the `columns` array
+   * only needs to provide `children`.
+   *
+   * - `equal-2`: Two equal-width columns
+   * - `equal-3`: Three equal-width columns
+   * - `equal-4`: Four equal-width columns
+   * - `sidebar-main`: 1/4 sidebar + 3/4 main
+   * - `main-sidebar`: 3/4 main + 1/4 sidebar
+   * - `sidebar-main-aside`: 1/5 + 3/5 + 1/5
+   * - `golden`: Golden ratio (~38% / ~62%)
+   */
+  preset?: 'equal-2' | 'equal-3' | 'equal-4' | 'sidebar-main' | 'main-sidebar' | 'sidebar-main-aside' | 'golden';
+
+  /**
+   * Stack columns vertically on small screens
+   * @default true
+   */
+  stackOnMobile?: boolean;
+
+  /**
+   * Vertical alignment of columns
+   * @default 'stretch'
+   */
+  align?: 'start' | 'end' | 'center' | 'baseline' | 'stretch';
+}
+
+/**
+ * Named layout template definition.
+ *
+ * Layout templates are reusable page skeletons with named slots.
+ * They can be referenced by name from Page.template or used standalone.
+ *
+ * @example
+ * ```json
+ * {
+ *   "type": "layout-template",
+ *   "name": "dashboard",
+ *   "slots": {
+ *     "header": [{ "type": "page-header", "title": "Dashboard" }],
+ *     "sidebar": [{ "type": "nav", "items": [...] }],
+ *     "main": [{ "type": "grid", "columns": 3, "children": [...] }]
+ *   }
+ * }
+ * ```
+ */
+export interface LayoutTemplateSchema extends BaseSchema {
+  type: 'layout-template';
+
+  /**
+   * Template name (for registration and reference)
+   */
+  name: string;
+
+  /**
+   * Template label for display
+   */
+  label?: string;
+
+  /**
+   * Template description
+   */
+  description?: string;
+
+  /**
+   * Layout arrangement — defines how slots are placed.
+   * @default 'header-main'
+   */
+  arrangement?: 'header-main' | 'header-sidebar-main' | 'sidebar-main' | 'sidebar-main-aside' | 'full' | 'custom';
+
+  /**
+   * Named slots and their default content.
+   * Slots are placeholders that can be overridden when the template is used.
+   */
+  slots: Record<string, SchemaNode[]>;
+
+  /**
+   * Custom CSS grid template (only used when arrangement='custom').
+   * e.g. '"header header" "sidebar main" / 250px 1fr'
+   */
+  gridTemplate?: string;
+}
+
+/**
  * Union type of all layout schemas
  */
 export type LayoutSchema =
@@ -560,5 +731,7 @@ export type LayoutSchema =
   | ScrollAreaSchema
   | ResizableSchema
   | AspectRatioSchema
+  | ColumnsSchema
+  | LayoutTemplateSchema
   | PageSchema;
 

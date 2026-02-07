@@ -34,6 +34,15 @@ export interface NavigationConfig {
 
 export type NavigationMode = NavigationConfig['mode'];
 
+/**
+ * View resolver function — given a view name, returns a schema node to render.
+ * Used when NavigationConfig.view is set.
+ */
+export type ViewResolver = (
+  viewName: string,
+  record: Record<string, unknown>
+) => any | null;
+
 export interface UseNavigationOverlayOptions {
   /** The navigation configuration from the schema */
   navigation?: NavigationConfig;
@@ -43,6 +52,8 @@ export interface UseNavigationOverlayOptions {
   onNavigate?: (recordId: string | number, action?: string) => void;
   /** External onRowClick callback — if set, takes full priority */
   onRowClick?: (record: Record<string, unknown>) => void;
+  /** View resolver — resolves navigation.view to a renderable schema */
+  viewResolver?: ViewResolver;
 }
 
 export interface NavigationOverlayState {
@@ -64,6 +75,10 @@ export interface NavigationOverlayState {
   width: string | number | undefined;
   /** Whether navigation is an overlay mode (drawer/modal/split/popover) */
   isOverlay: boolean;
+  /** The resolved view name from navigation.view */
+  viewName: string | undefined;
+  /** The resolved view schema (from viewResolver) for the current record */
+  resolvedViewSchema: any | null;
 }
 
 /**
@@ -96,13 +111,20 @@ export interface NavigationOverlayState {
 export function useNavigationOverlay(
   options: UseNavigationOverlayOptions
 ): NavigationOverlayState {
-  const { navigation, objectName, onNavigate, onRowClick } = options;
+  const { navigation, objectName, onNavigate, onRowClick, viewResolver } = options;
   const [isOpen, setIsOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<Record<string, unknown> | null>(null);
 
   const mode: NavigationMode = navigation?.mode ?? 'page';
   const width = navigation?.width;
+  const viewName = navigation?.view;
   const isOverlay = mode === 'drawer' || mode === 'modal' || mode === 'split' || mode === 'popover';
+
+  // Resolve the view schema when a record is selected and navigation.view is set
+  const resolvedViewSchema = useMemo(() => {
+    if (!viewName || !selectedRecord || !viewResolver) return null;
+    return viewResolver(viewName, selectedRecord);
+  }, [viewName, selectedRecord, viewResolver]);
 
   const close = useCallback(() => {
     setIsOpen(false);
@@ -174,7 +196,9 @@ export function useNavigationOverlay(
       handleClick,
       width,
       isOverlay,
+      viewName,
+      resolvedViewSchema,
     }),
-    [isOpen, selectedRecord, mode, close, open, handleClick, width, isOverlay]
+    [isOpen, selectedRecord, mode, close, open, handleClick, width, isOverlay, viewName, resolvedViewSchema]
   );
 }

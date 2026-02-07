@@ -6,8 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-export * from './ExpressionContext.js';
-export * from './ExpressionEvaluator.js';
-export * from './ExpressionCache.js';
-export * from './FormulaFunctions.js';
-export * from './StandardContext.js';
+export {
+  WidgetRegistry,
+  validateWidgetProps,
+  applyWidgetDefaults,
+  loadWidget,
+} from './WidgetSystem.js';

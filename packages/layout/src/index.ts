@@ -47,6 +47,9 @@ export function registerLayout() {
   // NOTE: 'page' registration is handled by @object-ui/components PageRenderer.
   // That renderer supports page types (record/home/app/utility), named regions,
   // and PageVariablesProvider. Do NOT re-register 'page' here to avoid conflicts.
+
+  // NOTE: 'columns' and 'layout-template' are registered by
+  // @object-ui/components/renderers/layout. No need to re-register here.
 }
 
 // Keep backward compatibility for now if called directly

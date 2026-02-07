@@ -23,6 +23,7 @@ import {
   type ToastHandler,
   type ModalHandler,
   type NavigationHandler,
+  type ParamCollectorHandler,
 } from '@object-ui/core';
 
 export interface ActionProviderProps {
@@ -37,6 +38,8 @@ export interface ActionProviderProps {
   onModal?: ModalHandler;
   /** Custom navigation handler — SPA-aware routing (e.g., React Router navigate) */
   onNavigate?: NavigationHandler;
+  /** Custom param collector handler — collect params before action execution */
+  onCollectParams?: ParamCollectorHandler;
   /** Pre-registered custom action handlers */
   handlers?: Record<string, (action: ActionDef, ctx: ActionCtx) => Promise<ActionResult>>;
 }
@@ -82,6 +85,7 @@ export const ActionProvider: React.FC<ActionProviderProps> = ({
   onToast,
   onModal,
   onNavigate,
+  onCollectParams,
   handlers,
 }) => {
   const [loading, setLoading] = useState(false);
@@ -94,6 +98,7 @@ export const ActionProvider: React.FC<ActionProviderProps> = ({
     if (onToast) r.setToastHandler(onToast);
     if (onModal) r.setModalHandler(onModal);
     if (onNavigate) r.setNavigationHandler(onNavigate);
+    if (onCollectParams) r.setParamCollectorHandler(onCollectParams);
     if (handlers) {
       Object.entries(handlers).forEach(([name, handler]) => {
         r.registerHandler(name, handler);

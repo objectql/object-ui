@@ -10,6 +10,10 @@ import React from 'react';
 import { useForm, FormProvider, UseFormReturn } from 'react-hook-form';
 import type { FormView, FormSection } from '@objectstack/spec/ui';
 import { FieldFactory } from './FieldFactory';
+import {
+  useFieldDependency,
+  type FieldDependencyConfig,
+} from '../../hooks/useFieldDependency';
 
 export interface FormRendererProps {
   /**
@@ -150,6 +154,47 @@ const FormSectionRenderer: React.FC<FormSectionRendererProps> = ({
   // Determine grid columns based on section.columns
   const gridCols = GRID_COLS[section.columns || 1];
 
+  // Watch all form values for dependency evaluation
+  const watchedValues = methods.watch();
+
+  // Build dependency configs from section fields
+  const depConfigs: FieldDependencyConfig[] = React.useMemo(() => {
+    return section.fields.map((field) => {
+      const fieldConfig = typeof field === 'string' ? { field } : field;
+      const fieldName = typeof field === 'string' ? field : field.field;
+      return {
+        name: fieldName,
+        dependsOn: (fieldConfig as any).dependsOn,
+        visibleOn: (fieldConfig as any).visibleOn,
+        hidden: fieldConfig.hidden,
+      };
+    });
+  }, [section.fields]);
+
+  const { getFieldVisibility, getDependentFields } = useFieldDependency({
+    fields: depConfigs,
+    formData: watchedValues,
+  });
+
+  // Track parent changes and reset dependent fields
+  const prevParentValues = React.useRef<Record<string, unknown>>({});
+  React.useEffect(() => {
+    for (const config of depConfigs) {
+      if (config.dependsOn) {
+        const parentValue = watchedValues[config.dependsOn];
+        const prevValue = prevParentValues.current[config.dependsOn];
+        if (prevValue !== undefined && prevValue !== parentValue) {
+          // Parent changed — reset all dependent fields
+          const dependents = getDependentFields(config.dependsOn);
+          for (const depField of dependents) {
+            methods.setValue(depField, undefined);
+          }
+        }
+        prevParentValues.current[config.dependsOn] = parentValue;
+      }
+    }
+  }, [watchedValues, depConfigs, getDependentFields, methods]);
+
   const handleToggleCollapse = () => {
     if (section.collapsible) {
       setIsCollapsed(!isCollapsed);
@@ -183,6 +228,11 @@ const FormSectionRenderer: React.FC<FormSectionRendererProps> = ({
 
             // Skip hidden fields
             if (fieldConfig.hidden) {
+              return null;
+            }
+
+            // Evaluate dependsOn/visibleOn visibility
+            if (!getFieldVisibility(fieldName)) {
               return null;
             }
 

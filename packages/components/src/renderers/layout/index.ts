@@ -12,6 +12,8 @@ import './grid';
 import './flex';
 import './stack';
 import './container';
+import './columns';
+import './layout-template';
 import './page';
 import './semantic';
 import './aspect-ratio';
