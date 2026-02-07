@@ -15,13 +15,13 @@
     "start": "tsx server.ts"
   },
   "dependencies": {
-    "@objectstack/core": "^1.0.11",
-    "@objectstack/runtime": "^1.0.11",
-    "@objectstack/spec": "^1.0.11",
+    "@objectstack/core": "^1.1.0",
+    "@objectstack/runtime": "^1.1.0",
+    "@objectstack/spec": "^1.1.0",
     "pino": "^8.21.0"
   },
   "devDependencies": {
-    "@objectstack/cli": "^1.0.11",
+    "@objectstack/cli": "^1.1.0",
     "typescript": "^5.0.0"
   }
 }

@@ -279,8 +279,8 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     await this.connect();
 
     try {
-      const record = await this.client.data.get<T>(resource, String(id));
-      return record;
+      const result = await this.client.data.get<T>(resource, String(id));
+      return result.record;
     } catch (error: unknown) {
       // If record not found, return null instead of throwing
       if ((error as Record<string, unknown>)?.status === 404) {
@@ -295,7 +295,8 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    */
   async create(resource: string, data: Partial<T>): Promise<T> {
     await this.connect();
-    return this.client.data.create<T>(resource, data);
+    const result = await this.client.data.create<T>(resource, data);
+    return result.record;
   }
 
   /**
@@ -303,7 +304,8 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    */
   async update(resource: string, id: string | number, data: Partial<T>): Promise<T> {
     await this.connect();
-    return this.client.data.update<T>(resource, String(id), data);
+    const result = await this.client.data.update<T>(resource, String(id), data);
+    return result.record;
   }
 
   /**
@@ -312,7 +314,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   async delete(resource: string, id: string | number): Promise<boolean> {
     await this.connect();
     const result = await this.client.data.delete(resource, String(id));
-    return result.success;
+    return result.deleted;
   }
 
   /**
@@ -416,7 +418,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
             
             try {
               const result = await this.client.data.update<T>(resource, String(id), item);
-              results.push(result);
+              results.push(result.record);
               completed++;
               emitProgress();
             } catch (error: unknown) {

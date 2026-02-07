@@ -5,7 +5,7 @@
 ## Current Status
 
 **Version:** v0.5.x  
-**Spec Version:** @objectstack/spec v1.0.11  
+**Spec Version:** @objectstack/spec v1.1.0  
 **Overall Spec Coverage:** ~75%
 
 ## Package Maturity Matrix
