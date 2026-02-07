@@ -1009,6 +1009,9 @@ importers:
       '@object-ui/data-objectstack':
         specifier: workspace:*
         version: link:../data-objectstack
+      '@object-ui/fields':
+        specifier: workspace:*
+        version: link:../fields
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
