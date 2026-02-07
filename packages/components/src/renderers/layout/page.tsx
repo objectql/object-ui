@@ -1,53 +1,276 @@
 /**
- * ObjectUI
+ * ObjectUI — Page Renderer
  * Copyright (c) 2024-present ObjectStack Inc.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
+ *
+ * The Page renderer interprets PageSchema into structured layouts.
+ * It supports four page types (record, home, app, utility) and
+ * renders named regions (header, sidebar, main, footer, aside) with
+ * configurable widths. When no regions are defined, it falls back to
+ * body/children for backward compatibility.
  */
 
 import React from 'react';
-import { PageSchema } from '@object-ui/types';
-import { SchemaRenderer } from '@object-ui/react';
+import type { PageSchema, PageRegion, SchemaNode } from '@object-ui/types';
+import { SchemaRenderer, PageVariablesProvider } from '@object-ui/react';
 import { ComponentRegistry } from '@object-ui/core';
-import { cn } from '../../lib/utils'; // Keep internal import for utils
+import { cn } from '../../lib/utils';
 
-export const PageRenderer: React.FC<{ schema: PageSchema; className?: string; [key: string]: any }> = ({ 
-  schema, 
-  className,
-  ...props 
-}) => {
-  // Support regions (spec compliant), body (legacy), and children
-  let nodes: any[] = [];
-  
-  if (schema.regions && schema.regions.length > 0) {
-    // If regions are present, flatten their components into the main flow
-    // Ideally, we might want a grid layout here, but linear stacking works for simple single-region pages
-    nodes = schema.regions.flatMap(r => r.components || []);
-  } else {
-    // Fallback to direct children/body
-    const content = schema.body || schema.children;
-    nodes = Array.isArray(content) ? content : (content ? [content] : []);
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Map region width enum values to Tailwind width classes */
+function getRegionWidthClass(width?: string): string {
+  switch (width) {
+    case 'small':
+      return 'w-64';
+    case 'medium':
+      return 'w-80';
+    case 'large':
+      return 'w-96';
+    case 'full':
+      return 'w-full';
+    default:
+      return width ? width : 'w-full';
   }
+}
 
-  // Extract designer-related props
-  const { 
-      'data-obj-id': dataObjId, 
-      'data-obj-type': dataObjType,
-      style, 
-      ...pageProps 
-  } = props;
+/** Max-width constraint by page type */
+function getPageMaxWidth(pageType?: string): string {
+  switch (pageType) {
+    case 'utility':
+      return 'max-w-4xl';
+    case 'home':
+      return 'max-w-screen-2xl';
+    case 'app':
+      return 'max-w-screen-xl';
+    case 'record':
+    default:
+      return 'max-w-7xl';
+  }
+}
+
+/** Find a named region (case-insensitive) */
+function findRegion(regions: PageRegion[] | undefined, name: string): PageRegion | undefined {
+  return regions?.find((r) => r.name?.toLowerCase() === name.toLowerCase());
+}
+
+/** Get all regions that are NOT in the named set */
+function getRemainingRegions(regions: PageRegion[] | undefined, exclude: string[]): PageRegion[] {
+  if (!regions) return [];
+  const lowerSet = new Set(exclude.map((n) => n.toLowerCase()));
+  return regions.filter((r) => !lowerSet.has(r.name?.toLowerCase() ?? ''));
+}
+
+// ---------------------------------------------------------------------------
+// RegionContent — renders all components inside a single region
+// ---------------------------------------------------------------------------
+
+const RegionContent: React.FC<{
+  region: PageRegion;
+  className?: string;
+}> = ({ region, className }) => {
+  const components = region.components || [];
+  if (components.length === 0) return null;
 
   return (
-    <div 
-      className={cn("min-h-full w-full bg-background p-4 md:p-6 lg:p-8", className)}
-      {...pageProps}
-      // Apply designer props
+    <div
+      className={cn('space-y-4', region.className, className)}
+      data-region={region.name}
+    >
+      {components.map((node: SchemaNode, idx: number) => (
+        <SchemaRenderer key={(node as any)?.id || `${region.name}-${idx}`} schema={node} />
+      ))}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// RegionLayout — structured layout with named slots
+// ---------------------------------------------------------------------------
+
+const RegionLayout: React.FC<{
+  regions: PageRegion[];
+  pageType?: string;
+  className?: string;
+}> = ({ regions, pageType, className }) => {
+  const header = findRegion(regions, 'header');
+  const sidebar = findRegion(regions, 'sidebar');
+  const main = findRegion(regions, 'main');
+  const aside = findRegion(regions, 'aside');
+  const footer = findRegion(regions, 'footer');
+
+  // Remaining regions that don't match named slots → append below main
+  const extras = getRemainingRegions(regions, ['header', 'sidebar', 'main', 'aside', 'footer']);
+
+  // If there's no named layout structure, just stack everything
+  const hasStructure = header || sidebar || main || aside || footer;
+  if (!hasStructure) {
+    return (
+      <div className={cn('space-y-6', className)} data-page-layout={pageType}>
+        {regions.map((region, idx) => (
+          <RegionContent key={region.name || idx} region={region} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn('flex flex-col gap-6', className)} data-page-layout={pageType}>
+      {/* Header region */}
+      {header && (
+        <RegionContent
+          region={header}
+          className={cn(getRegionWidthClass(header.width as string))}
+        />
+      )}
+
+      {/* Body: sidebar + main + aside */}
+      <div className="flex flex-1 gap-6">
+        {sidebar && (
+          <aside className={cn('shrink-0', getRegionWidthClass(sidebar.width as string || 'small'))}>
+            <RegionContent region={sidebar} />
+          </aside>
+        )}
+
+        <div className="flex-1 min-w-0 space-y-6">
+          {main && <RegionContent region={main} />}
+          {extras.map((region, idx) => (
+            <RegionContent key={region.name || `extra-${idx}`} region={region} />
+          ))}
+        </div>
+
+        {aside && (
+          <aside className={cn('shrink-0', getRegionWidthClass(aside.width as string || 'small'))}>
+            <RegionContent region={aside} />
+          </aside>
+        )}
+      </div>
+
+      {/* Footer region */}
+      {footer && (
+        <RegionContent
+          region={footer}
+          className={cn(getRegionWidthClass(footer.width as string))}
+        />
+      )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// FlatContent — legacy body/children fallback
+// ---------------------------------------------------------------------------
+
+const FlatContent: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+  const content = schema.body || schema.children;
+  const nodes: SchemaNode[] = Array.isArray(content)
+    ? content
+    : content
+      ? [content as SchemaNode]
+      : [];
+
+  if (nodes.length === 0) return null;
+
+  return (
+    <div className="space-y-6">
+      {nodes.map((node: any, index: number) => (
+        <SchemaRenderer key={node?.id || index} schema={node} />
+      ))}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Page type variant layouts
+// ---------------------------------------------------------------------------
+
+/** Record page — detail-oriented, narrower max-width */
+const RecordPageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+  if (schema.regions && schema.regions.length > 0) {
+    return <RegionLayout regions={schema.regions} pageType="record" />;
+  }
+  return <FlatContent schema={schema} />;
+};
+
+/** Home page — dashboard-style, wider layout */
+const HomePageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+  if (schema.regions && schema.regions.length > 0) {
+    return <RegionLayout regions={schema.regions} pageType="home" />;
+  }
+  return <FlatContent schema={schema} />;
+};
+
+/** App page — application shell, full-width capable */
+const AppPageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+  if (schema.regions && schema.regions.length > 0) {
+    return <RegionLayout regions={schema.regions} pageType="app" />;
+  }
+  return <FlatContent schema={schema} />;
+};
+
+/** Utility page — compact, focused, narrower */
+const UtilityPageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
+  if (schema.regions && schema.regions.length > 0) {
+    return <RegionLayout regions={schema.regions} pageType="utility" />;
+  }
+  return <FlatContent schema={schema} />;
+};
+
+// ---------------------------------------------------------------------------
+// Main PageRenderer
+// ---------------------------------------------------------------------------
+
+export const PageRenderer: React.FC<{
+  schema: PageSchema;
+  className?: string;
+  [key: string]: any;
+}> = ({ schema, className, ...props }) => {
+  const pageType = schema.pageType || 'record';
+
+  // Extract designer-related props
+  const {
+    'data-obj-id': dataObjId,
+    'data-obj-type': dataObjType,
+    style,
+    ...pageProps
+  } = props;
+
+  // Select the layout variant based on page type
+  let LayoutVariant: React.FC<{ schema: PageSchema }>;
+  switch (pageType) {
+    case 'home':
+      LayoutVariant = HomePageLayout;
+      break;
+    case 'app':
+      LayoutVariant = AppPageLayout;
+      break;
+    case 'utility':
+      LayoutVariant = UtilityPageLayout;
+      break;
+    case 'record':
+    default:
+      LayoutVariant = RecordPageLayout;
+      break;
+  }
+
+  const pageContent = (
+    <div
+      className={cn(
+        'min-h-full w-full bg-background p-4 md:p-6 lg:p-8',
+        className,
+      )}
+      data-page-type={pageType}
       data-obj-id={dataObjId}
       data-obj-type={dataObjType}
       style={style}
+      {...pageProps}
     >
-      <div className="mx-auto max-w-7xl space-y-8">
+      <div className={cn('mx-auto space-y-8', getPageMaxWidth(pageType))}>
+        {/* Page header */}
         {(schema.title || schema.description) && (
           <div className="space-y-2">
             {schema.title && (
@@ -56,26 +279,32 @@ export const PageRenderer: React.FC<{ schema: PageSchema; className?: string; [k
               </h1>
             )}
             {schema.description && (
-              <p className="text-muted-foreground">
-                {schema.description}
-              </p>
+              <p className="text-muted-foreground">{schema.description}</p>
             )}
           </div>
         )}
-        
-        <div className="space-y-6">
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          {nodes.map((node: any, index: number) => (
-            <SchemaRenderer 
-              key={node?.id || index} 
-              schema={node} 
-            />
-          ))}
-        </div>
+
+        {/* Page body — type-specific layout */}
+        <LayoutVariant schema={schema} />
       </div>
     </div>
   );
+
+  // Wrap with PageVariablesProvider when variables are defined
+  if (schema.variables && schema.variables.length > 0) {
+    return (
+      <PageVariablesProvider definitions={schema.variables}>
+        {pageContent}
+      </PageVariablesProvider>
+    );
+  }
+
+  return pageContent;
 };
+
+// ---------------------------------------------------------------------------
+// ComponentRegistry registration
+// ---------------------------------------------------------------------------
 
 const pageMeta: any = {
   namespace: 'ui',
@@ -85,13 +314,28 @@ const pageMeta: any = {
   inputs: [
     { name: 'title', type: 'string', label: 'Title' },
     { name: 'description', type: 'string', label: 'Description' },
-    { 
-      name: 'body', 
-      type: 'array', 
-      label: 'Content',
-      itemType: 'component' 
-    }
-  ]
+    { name: 'pageType', type: 'string', label: 'Page Type' },
+    { name: 'object', type: 'string', label: 'Object Name' },
+    { name: 'template', type: 'string', label: 'Template' },
+    {
+      name: 'regions',
+      type: 'array',
+      label: 'Regions',
+      itemType: 'object',
+    },
+    {
+      name: 'variables',
+      type: 'array',
+      label: 'Variables',
+      itemType: 'object',
+    },
+    {
+      name: 'body',
+      type: 'array',
+      label: 'Content (Legacy)',
+      itemType: 'component',
+    },
+  ],
 };
 
 ComponentRegistry.register('page', PageRenderer, pageMeta);

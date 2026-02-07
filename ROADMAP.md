@@ -164,7 +164,7 @@ ListColumn.action: string   // Associated action ID
 
 ---
 
-#### 5. Page System
+#### 5. Page System ✅
 
 **Spec Requirement:**
 ```typescript
@@ -177,15 +177,29 @@ Page: {
 }
 ```
 
-**Current State:** Basic PageSchema exists but missing type differentiation.
+**Current State:** ✅ Complete — PageSchema fully aligned with @objectstack/spec.
+PageRenderer supports four page types with region-based layouts and page-level variables.
 
-**Tasks:**
-- [ ] Add Page.type to PageSchema
-- [ ] Add Page.variables support (page-level state)
-- [ ] Add Page.template support (layout templates)
-- [ ] Add Page.object binding
-- [ ] PageRenderer type-aware rendering (record vs home vs app vs utility)
-- [ ] PageVariable initialization and context injection
+**Completed:**
+- [x] Add `PageType` = 'record' | 'home' | 'app' | 'utility' to @object-ui/types
+- [x] Add `PageVariable` interface (name, type, defaultValue) to @object-ui/types
+- [x] Add `PageRegionWidth` = 'small' | 'medium' | 'large' | 'full' to @object-ui/types
+- [x] Enhanced `PageRegion` (name, width, components, className) in @object-ui/types
+- [x] Enhanced `PageSchema` with pageType, object, template, variables, regions, isDefault, assignedProfiles
+- [x] Full Zod schemas: PageTypeSchema, PageVariableSchema, PageRegionSchema, PageRegionWidthSchema
+- [x] `PageVariablesProvider` + `usePageVariables` hook in @object-ui/react
+- [x] `useHasPageVariables` hook for context detection
+- [x] Upgraded PageRenderer with type-aware routing (Record / Home / App / Utility layouts)
+- [x] Region-based layout engine: header, sidebar, main, aside, footer named slots
+- [x] Region width mapping (small→w-64, medium→w-80, large→w-96, full→w-full)
+- [x] Page max-width by type (record→7xl, home→screen-2xl, app→screen-xl, utility→4xl)
+- [x] Legacy body/children fallback for backward compatibility
+- [x] Resolved duplicate 'page' registration between @object-ui/components and @object-ui/layout
+- [x] 36 PageRenderer tests + 23 usePageVariables tests, all passing
+
+**Remaining:**
+- [ ] Page.template support (predefined layout templates)
+- [ ] Page.object data binding (auto-fetch record data)
 
 ---
 

@@ -44,13 +44,9 @@ export function registerLayout() {
     category: 'Layout',
   });
 
-  // Core Page Renderer
-  ComponentRegistry.register('page', Page, {
-    namespace: 'layout',
-    label: 'Standard Page',
-    category: 'Layout',
-    isContainer: true
-  });
+  // NOTE: 'page' registration is handled by @object-ui/components PageRenderer.
+  // That renderer supports page types (record/home/app/utility), named regions,
+  // and PageVariablesProvider. Do NOT re-register 'page' here to avoid conflicts.
 }
 
 // Keep backward compatibility for now if called directly
