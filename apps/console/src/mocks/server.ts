@@ -192,7 +192,8 @@ function createHandlers(baseUrl: string, kernel: ObjectKernel, driver: InMemoryD
         ) : null;
         
         console.log('MSW: getData result', JSON.stringify(record));
-        return HttpResponse.json(record, { status: record ? 200 : 404 });
+        // Wrap in record property to match ObjectStack API response format
+        return HttpResponse.json({ record }, { status: record ? 200 : 404 });
       } catch (e) {
         console.error('MSW: getData error', e); 
         return HttpResponse.json({ error: String(e) }, { status: 500 });
@@ -205,7 +206,8 @@ function createHandlers(baseUrl: string, kernel: ObjectKernel, driver: InMemoryD
       console.log('MSW: createData', params.objectName, JSON.stringify(body));
       const response = await driver.create(params.objectName as string, body as any);
       console.log('MSW: createData result', JSON.stringify(response));
-      return HttpResponse.json(response, { status: 201 });
+      // Wrap in record property
+      return HttpResponse.json({ record: response }, { status: 201 });
     }),
 
     // Data endpoints - Update
@@ -214,7 +216,8 @@ function createHandlers(baseUrl: string, kernel: ObjectKernel, driver: InMemoryD
       console.log('MSW: updateData', params.objectName, params.id, JSON.stringify(body));
       const response = await driver.update(params.objectName as string, params.id as string, body as any);
       console.log('MSW: updateData result', JSON.stringify(response));
-      return HttpResponse.json(response, { status: 200 });
+      // Wrap in record property
+      return HttpResponse.json({ record: response }, { status: 200 });
     }),
 
     // Data endpoints - Delete
