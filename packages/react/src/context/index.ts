@@ -7,3 +7,4 @@
  */
 
 export * from './SchemaRendererContext';
+export * from './ActionContext';

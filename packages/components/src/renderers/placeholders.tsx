@@ -90,8 +90,8 @@ const PROTOCOL_COMPONENTS = [
   'widget:metric', 'widget:bar', 'widget:line', 'widget:pie', 'widget:funnel', 
   'widget:radar', 'widget:scatter', 'widget:heatmap', 'widget:pivot', 'widget:table', 'widget:text', 'widget:image',
 
-  // 14. Smart Actions
-  'action:button', 'action:group', 'action:menu', 'action:icon',
+  // 14. Smart Actions (implemented in ./action/)
+  // 'action:button', 'action:group', 'action:menu', 'action:icon',
 
   // 15. AI
   'ai:chat_window', 'ai:input', 'ai:suggestion', 'ai:feedback'

@@ -15,3 +15,4 @@ import './feedback';
 import './overlay';
 import './disclosure';
 import './complex';
+import './action';

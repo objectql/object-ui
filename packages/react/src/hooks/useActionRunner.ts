@@ -14,6 +14,8 @@ import {
   type ActionResult,
   type ConfirmationHandler,
   type ToastHandler,
+  type ModalHandler,
+  type NavigationHandler,
 } from '@object-ui/core';
 
 export interface UseActionRunnerOptions {
@@ -22,6 +24,10 @@ export interface UseActionRunnerOptions {
   onConfirm?: ConfirmationHandler;
   /** Custom toast handler — wire to Sonner or similar */
   onToast?: ToastHandler;
+  /** Custom modal handler — render modals in response to modal actions */
+  onModal?: ModalHandler;
+  /** Custom navigation handler — SPA-aware routing */
+  onNavigate?: NavigationHandler;
 }
 
 /**
@@ -51,7 +57,7 @@ export function useActionRunner(
     ? optionsOrContext as UseActionRunnerOptions
     : { context: optionsOrContext as ActionContext };
 
-  const { context = {}, onConfirm, onToast } = options;
+  const { context = {}, onConfirm, onToast, onModal, onNavigate } = options;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +67,8 @@ export function useActionRunner(
     const r = new ActionRunner(context);
     if (onConfirm) r.setConfirmHandler(onConfirm);
     if (onToast) r.setToastHandler(onToast);
+    if (onModal) r.setModalHandler(onModal);
+    if (onNavigate) r.setNavigationHandler(onNavigate);
     return r;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(context)]);

@@ -10,8 +10,9 @@
  * @object-ui/core - Action Runner
  * 
  * Executes actions defined in ActionSchema and EventHandler.
- * Supports typed action dispatch, conditional execution, confirmation,
- * toast notifications, redirect handling, and custom handler registration.
+ * Supports all spec v0.7.1 action types: script, url, modal, flow, api.
+ * Features: conditional execution, confirmation, toast notifications,
+ * redirect handling, action chaining, custom handler registration.
  */
 
 import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
@@ -23,13 +24,34 @@ export interface ActionResult {
   reload?: boolean;
   close?: boolean;
   redirect?: string;
+  /** Modal schema to render (for type: 'modal') */
+  modal?: any;
 }
 
 export interface ActionContext {
   data?: Record<string, any>;
   record?: any;
+  selectedRecords?: Record<string, any>[];
   user?: any;
   [key: string]: any;
+}
+
+/**
+ * API configuration for complex requests.
+ */
+export interface ApiConfig {
+  /** API endpoint URL */
+  url: string;
+  /** HTTP method */
+  method?: string;
+  /** Request headers */
+  headers?: Record<string, string>;
+  /** Request body (will be JSON-stringified if object) */
+  body?: any;
+  /** Query parameters */
+  queryParams?: Record<string, string>;
+  /** Response type */
+  responseType?: 'json' | 'text' | 'blob';
 }
 
 /**
@@ -37,12 +59,14 @@ export interface ActionContext {
  * Compatible with both UIActionSchema (spec v0.7.1) and legacy crud.ts ActionSchema.
  */
 export interface ActionDef {
-  /** Action type identifier (e.g., 'create', 'delete', 'navigate', 'api', 'script', 'url') */
+  /** Action type identifier: 'script' | 'url' | 'modal' | 'flow' | 'api' | 'navigation' | custom */
   type?: string;
   /** Legacy action type field */
   actionType?: string;
   /** Action name (from UIActionSchema) */
   name?: string;
+  /** Display label */
+  label?: string;
   /** Confirmation text — shows a confirm dialog before executing */
   confirmText?: string;
   /** Structured confirmation (from crud.ts) */
@@ -51,8 +75,10 @@ export interface ActionDef {
   condition?: string;
   /** Disabled expression — if truthy, skip action */
   disabled?: string | boolean;
-  /** API endpoint */
-  api?: string;
+  /** API endpoint (string URL or complex config) */
+  api?: string | ApiConfig;
+  /** API endpoint URL (spec v0.7.1 alias) */
+  endpoint?: string;
   /** HTTP method */
   method?: string;
   /** Navigation target */
@@ -75,6 +101,20 @@ export interface ActionDef {
   refreshAfter?: boolean;
   /** Params object (for custom handlers) */
   params?: Record<string, any>;
+  /** Script/expression to execute (for type: 'script') */
+  execute?: string;
+  /** Target URL or identifier (for type: 'url', 'modal', 'flow') */
+  target?: string;
+  /** Modal schema to open (for type: 'modal') */
+  modal?: any;
+  /** Chained actions to execute after this one */
+  chain?: ActionDef[];
+  /** Chain execution mode */
+  chainMode?: 'sequential' | 'parallel';
+  /** Callback on success */
+  onSuccess?: ActionDef | ActionDef[];
+  /** Callback on failure */
+  onFailure?: ActionDef | ActionDef[];
   /** Any additional properties */
   [key: string]: any;
 }
@@ -102,12 +142,28 @@ export type ToastHandler = (message: string, options?: {
   duration?: number;
 }) => void;
 
+/**
+ * Modal handler — consumers provide to render modal dialogs.
+ */
+export type ModalHandler = (schema: any, context: ActionContext) => Promise<ActionResult>;
+
+/**
+ * Navigation handler — consumers provide for SPA-aware routing.
+ */
+export type NavigationHandler = (url: string, options?: {
+  external?: boolean;
+  newTab?: boolean;
+  replace?: boolean;
+}) => void;
+
 export class ActionRunner {
   private handlers = new Map<string, ActionHandler>();
   private evaluator: ExpressionEvaluator;
   private context: ActionContext;
   private confirmHandler: ConfirmationHandler;
   private toastHandler: ToastHandler | null;
+  private modalHandler: ModalHandler | null;
+  private navigationHandler: NavigationHandler | null;
 
   constructor(context: ActionContext = {}) {
     this.context = context;
@@ -115,6 +171,8 @@ export class ActionRunner {
     // Default confirmation: window.confirm (can be overridden)
     this.confirmHandler = async (message: string) => window.confirm(message);
     this.toastHandler = null;
+    this.modalHandler = null;
+    this.navigationHandler = null;
   }
 
   /**
@@ -131,8 +189,26 @@ export class ActionRunner {
     this.toastHandler = handler;
   }
 
+  /**
+   * Set a modal handler (e.g., render a Dialog via React state).
+   */
+  setModalHandler(handler: ModalHandler): void {
+    this.modalHandler = handler;
+  }
+
+  /**
+   * Set a navigation handler (e.g., React Router navigate).
+   */
+  setNavigationHandler(handler: NavigationHandler): void {
+    this.navigationHandler = handler;
+  }
+
   registerHandler(actionName: string, handler: ActionHandler): void {
     this.handlers.set(actionName, handler);
+  }
+
+  unregisterHandler(actionName: string): void {
+    this.handlers.delete(actionName);
   }
 
   async execute(action: ActionDef): Promise<ActionResult> {
@@ -178,63 +254,249 @@ export class ActionRunner {
       if (actionType && this.handlers.has(actionType)) {
         const handler = this.handlers.get(actionType)!;
         const result = await handler(action, this.context);
-        this.handlePostExecution(action, result);
+        await this.handlePostExecution(action, result);
         return result;
       }
 
-      // Built-in action execution
+      // Built-in action execution by type
       let result: ActionResult;
 
-      if (actionType === 'navigation' || action.navigate) {
-        result = await this.executeNavigation(action);
-      } else if (actionType === 'api' || action.api) {
-        result = await this.executeAPI(action);
-      } else if (action.onClick) {
-        await action.onClick();
-        result = { success: true };
-      } else {
-        // Try as a generic action with API
-        result = await this.executeActionSchema(action);
+      switch (actionType) {
+        case 'script':
+          result = await this.executeScript(action);
+          break;
+        case 'url':
+          result = await this.executeUrl(action);
+          break;
+        case 'modal':
+          result = await this.executeModal(action);
+          break;
+        case 'flow':
+          result = await this.executeFlow(action);
+          break;
+        case 'api':
+          result = await this.executeAPI(action);
+          break;
+        case 'navigation':
+          result = await this.executeNavigation(action);
+          break;
+        default:
+          // Legacy fallback: check for navigate, api, or onClick
+          if (action.navigate) {
+            result = await this.executeNavigation(action);
+          } else if (action.api || action.endpoint) {
+            result = await this.executeAPI(action);
+          } else if (action.onClick) {
+            await action.onClick();
+            result = { success: true };
+          } else {
+            result = await this.executeActionSchema(action);
+          }
       }
 
-      this.handlePostExecution(action, result);
+      await this.handlePostExecution(action, result);
       return result;
     } catch (error) {
       const result: ActionResult = { success: false, error: (error as Error).message };
-      this.handlePostExecution(action, result);
+      await this.handlePostExecution(action, result);
       return result;
     }
   }
 
   /**
-   * Post-execution: emit toast notifications, set reload/redirect.
+   * Execute multiple actions in sequence or parallel.
    */
-  private handlePostExecution(action: ActionDef, result: ActionResult): void {
-    if (!this.toastHandler) return;
-
-    const showToast = action.toast ?? { showOnSuccess: true, showOnError: true };
-    const duration = action.toast?.duration;
-
-    if (result.success && showToast.showOnSuccess !== false) {
-      const message = action.successMessage || 'Action completed successfully';
-      this.toastHandler(message, { type: 'success', duration });
+  async executeChain(
+    actions: ActionDef[],
+    mode: 'sequential' | 'parallel' = 'sequential'
+  ): Promise<ActionResult> {
+    if (actions.length === 0) {
+      return { success: true };
     }
 
-    if (!result.success && showToast.showOnError !== false && result.error) {
-      const message = action.errorMessage || result.error;
-      this.toastHandler(message, { type: 'error', duration });
+    if (mode === 'parallel') {
+      const results = await Promise.allSettled(
+        actions.map(a => this.execute(a))
+      );
+      const failures = results.filter(
+        r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)
+      );
+      if (failures.length > 0) {
+        const firstFail = results.find(
+          r => r.status === 'fulfilled' && !r.value.success
+        ) as PromiseFulfilledResult<ActionResult> | undefined;
+        return {
+          success: false,
+          error: firstFail?.value?.error || 'One or more parallel actions failed',
+        };
+      }
+      const lastResult = results[results.length - 1];
+      return lastResult.status === 'fulfilled'
+        ? lastResult.value
+        : { success: false, error: 'Action failed' };
+    }
+
+    // Sequential execution — stop on first failure
+    let lastResult: ActionResult = { success: true };
+    for (const action of actions) {
+      lastResult = await this.execute(action);
+      if (!lastResult.success) {
+        return lastResult;
+      }
+    }
+    return lastResult;
+  }
+
+  /**
+   * Post-execution: emit toast notifications, handle chaining, callbacks.
+   */
+  private async handlePostExecution(action: ActionDef, result: ActionResult): Promise<void> {
+    // Toast notifications
+    if (this.toastHandler) {
+      const showToast = action.toast ?? { showOnSuccess: true, showOnError: true };
+      const duration = action.toast?.duration;
+
+      if (result.success && showToast.showOnSuccess !== false) {
+        const message = action.successMessage || 'Action completed successfully';
+        this.toastHandler(message, { type: 'success', duration });
+      }
+
+      if (!result.success && showToast.showOnError !== false && result.error) {
+        const message = action.errorMessage || result.error;
+        this.toastHandler(message, { type: 'error', duration });
+      }
     }
 
     // Apply refreshAfter from UIActionSchema
     if (action.refreshAfter && result.success) {
       result.reload = true;
     }
+
+    // Execute chained actions
+    if (action.chain && action.chain.length > 0 && result.success) {
+      const chainResult = await this.executeChain(
+        action.chain,
+        action.chainMode || 'sequential'
+      );
+      // Merge chain result
+      if (!chainResult.success) {
+        result.success = false;
+        result.error = chainResult.error;
+      }
+      if (chainResult.data) result.data = chainResult.data;
+      if (chainResult.redirect) result.redirect = chainResult.redirect;
+      if (chainResult.reload) result.reload = true;
+    }
+
+    // Execute onSuccess/onFailure callbacks
+    if (result.success && action.onSuccess) {
+      const callbacks = Array.isArray(action.onSuccess) ? action.onSuccess : [action.onSuccess];
+      await this.executeChain(callbacks, 'sequential');
+    }
+    if (!result.success && action.onFailure) {
+      const callbacks = Array.isArray(action.onFailure) ? action.onFailure : [action.onFailure];
+      await this.executeChain(callbacks, 'sequential');
+    }
+  }
+
+  /**
+   * Execute script action — evaluates client-side expression via ExpressionEvaluator.
+   * Supports ${} template expressions referencing data, record, user context.
+   */
+  private async executeScript(action: ActionDef): Promise<ActionResult> {
+    const script = action.execute || action.target;
+    if (!script) {
+      return { success: false, error: 'No script provided for script action' };
+    }
+
+    try {
+      const result = this.evaluator.evaluate(`\${${script}}`);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: `Script execution failed: ${(error as Error).message}` };
+    }
+  }
+
+  /**
+   * Execute URL action — navigate to a URL.
+   * Uses navigationHandler for SPA routing, falls back to window.location.
+   */
+  private async executeUrl(action: ActionDef): Promise<ActionResult> {
+    const rawUrl = action.target || action.redirect;
+    if (!rawUrl) {
+      return { success: false, error: 'No URL provided for url action' };
+    }
+
+    const url = this.evaluator.evaluate(rawUrl) as string;
+
+    if (!this.isValidUrl(url)) {
+      return {
+        success: false,
+        error: 'Invalid URL scheme. Only http://, https://, and relative URLs are allowed.',
+      };
+    }
+
+    const isExternal = url.startsWith('http://') || url.startsWith('https://');
+    const newTab = action.params?.newTab ?? isExternal;
+
+    if (this.navigationHandler) {
+      this.navigationHandler(url, { external: isExternal, newTab });
+      return { success: true };
+    }
+
+    if (newTab) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      return { success: true, redirect: url };
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Execute modal action — open a dialog.
+   * Delegates to the registered modalHandler; returns modal schema if no handler.
+   */
+  private async executeModal(action: ActionDef): Promise<ActionResult> {
+    const modalSchema = action.modal || action.target || action.params?.schema;
+    if (!modalSchema) {
+      return { success: false, error: 'No modal schema or target provided for modal action' };
+    }
+
+    if (this.modalHandler) {
+      return await this.modalHandler(modalSchema, this.context);
+    }
+
+    // Return the modal schema for the consumer to render
+    return { success: true, modal: modalSchema };
+  }
+
+  /**
+   * Execute flow action — trigger a workflow/automation.
+   * Delegates to a registered 'flow' handler; otherwise returns not-implemented.
+   */
+  private async executeFlow(action: ActionDef): Promise<ActionResult> {
+    const flowName = action.target || action.name;
+    if (!flowName) {
+      return { success: false, error: 'No flow target provided for flow action' };
+    }
+
+    // Check for a registered flow handler (consumers register via registerHandler)
+    if (this.handlers.has('flow')) {
+      const handler = this.handlers.get('flow')!;
+      return await handler(action, this.context);
+    }
+
+    return {
+      success: false,
+      error: `Flow handler not registered. Cannot execute flow: ${flowName}`,
+    };
   }
 
   private async executeActionSchema(action: ActionDef): Promise<ActionResult> {
     const result: ActionResult = { success: true };
 
-    if (action.api) {
+    if (action.api || action.endpoint) {
       const apiResult = await this.executeAPI(action);
       if (!apiResult.success) return apiResult;
       result.data = apiResult.data;
@@ -259,24 +521,29 @@ export class ActionRunner {
    */
   private async executeNavigation(action: ActionDef): Promise<ActionResult> {
     const nav = action.navigate || action;
-    const to = this.evaluator.evaluate(nav.to) as string;
+    const to = this.evaluator.evaluate(nav.to || nav.target) as string;
 
-    // Validate URL to prevent javascript: or data: schemes
-    const isValidUrl = typeof to === 'string' && (
-      to.startsWith('http://') || 
-      to.startsWith('https://') || 
-      to.startsWith('/') || 
-      to.startsWith('./')
-    );
-
-    if (!isValidUrl) {
+    if (!this.isValidUrl(to)) {
       return {
         success: false,
-        error: 'Invalid URL scheme. Only http://, https://, and relative URLs are allowed.'
+        error: 'Invalid URL scheme. Only http://, https://, and relative URLs are allowed.',
       };
     }
 
-    if (nav.external) {
+    const isExternal = nav.external || (typeof to === 'string' && (
+      to.startsWith('http://') || to.startsWith('https://')
+    ));
+
+    if (this.navigationHandler) {
+      this.navigationHandler(to, {
+        external: isExternal,
+        newTab: nav.newTab ?? isExternal,
+        replace: nav.replace,
+      });
+      return { success: true };
+    }
+
+    if (isExternal) {
       window.open(to, '_blank', 'noopener,noreferrer');
     } else {
       return { success: true, redirect: to };
@@ -285,29 +552,92 @@ export class ActionRunner {
     return { success: true };
   }
 
+  /**
+   * Execute API action — supports both simple string endpoint and complex ApiConfig.
+   */
   private async executeAPI(action: ActionDef): Promise<ActionResult> {
-    const apiConfig = action.api;
-    
-    if (typeof apiConfig === 'string') {
-      try {
-        const response = await fetch(apiConfig, {
-          method: action.method || 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.context.data || {})
-        });
+    // Resolve the endpoint: api (string/object), endpoint, or target
+    const apiConfig = action.api || action.endpoint || action.target;
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        return { success: true, data };
-      } catch (error) {
-        return { success: false, error: (error as Error).message };
-      }
+    if (!apiConfig) {
+      return { success: false, error: 'No API endpoint provided' };
     }
 
-    return { success: false, error: 'Complex API configuration not yet implemented' };
+    try {
+      let url: string;
+      let method: string;
+      let headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      let body: any = undefined;
+      let responseType: 'json' | 'text' | 'blob' = 'json';
+
+      if (typeof apiConfig === 'string') {
+        // Simple string endpoint
+        url = apiConfig;
+        method = action.method || 'POST';
+        body = JSON.stringify(action.params || this.context.data || {});
+      } else {
+        // Complex ApiConfig
+        const config = apiConfig as ApiConfig;
+        url = config.url;
+        method = config.method || action.method || 'POST';
+        headers = { ...headers, ...config.headers };
+        responseType = config.responseType || 'json';
+
+        // Build query params
+        if (config.queryParams) {
+          const searchParams = new URLSearchParams(config.queryParams);
+          url = `${url}${url.includes('?') ? '&' : '?'}${searchParams.toString()}`;
+        }
+
+        // Build body
+        if (config.body) {
+          body = typeof config.body === 'string'
+            ? config.body
+            : JSON.stringify(config.body);
+        } else if (method !== 'GET' && method !== 'HEAD') {
+          body = JSON.stringify(action.params || this.context.data || {});
+        }
+      }
+
+      const fetchInit: RequestInit = { method, headers };
+      if (body && method !== 'GET' && method !== 'HEAD') {
+        fetchInit.body = body;
+      }
+
+      const response = await fetch(url, fetchInit);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      let data: any;
+      switch (responseType) {
+        case 'text':
+          data = await response.text();
+          break;
+        case 'blob':
+          data = await response.blob();
+          break;
+        default:
+          data = await response.json();
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  /**
+   * Validate URL to prevent javascript: or data: protocol injection.
+   */
+  private isValidUrl(url: unknown): boolean {
+    return typeof url === 'string' && (
+      url.startsWith('http://') ||
+      url.startsWith('https://') ||
+      url.startsWith('/') ||
+      url.startsWith('./')
+    );
   }
 
   updateContext(newContext: Partial<ActionContext>): void {
@@ -318,8 +648,18 @@ export class ActionRunner {
   getContext(): ActionContext {
     return this.context;
   }
+
+  /**
+   * Get the expression evaluator (for components that need to evaluate visibility, etc.)
+   */
+  getEvaluator(): ExpressionEvaluator {
+    return this.evaluator;
+  }
 }
 
+/**
+ * Convenience function to execute a single action with a one-off runner.
+ */
 export async function executeAction(
   action: ActionDef,
   context: ActionContext = {}
