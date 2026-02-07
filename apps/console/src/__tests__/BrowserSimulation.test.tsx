@@ -56,6 +56,9 @@ const mocks = vi.hoisted(() => {
         async create(_: string, data: any) { return { ...data, id: 'new_id' }; }
         async update(_: string, id: string, data: any) { return { ...data, id }; }
         async delete() { return true; }
+        async connect() { return true; }
+        onConnectionStateChange() {}
+        discovery = {};
     }
 
     class MockClient {
@@ -93,7 +96,8 @@ vi.mock('@objectstack/client', () => ({
 
 // Important: Mock relative import used by App.tsx
 vi.mock('../dataSource', () => ({
-    ObjectStackDataSource: mocks.MockDataSource
+    ObjectStackAdapter: mocks.MockDataSource,
+    ObjectStackDataSource: mocks.MockDataSource,
 }));
 
 // --- 2. Import AppContent ---

@@ -51,7 +51,7 @@ import { useExpressionContext, evaluateVisibility } from '../context/ExpressionP
  * Resolve a Lucide icon component by name string.
  * Supports camelCase, PascalCase, and kebab-case icon names.
  */
-function getIconComponent(name?: string): React.ComponentType<any> {
+function getIcon(name?: string): React.ComponentType<any> {
   if (!name) return LucideIcons.Database;
 
   // 1. Direct match (PascalCase or camelCase)

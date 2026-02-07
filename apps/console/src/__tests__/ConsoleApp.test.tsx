@@ -43,14 +43,19 @@ vi.mock('@objectstack/client', () => {
 });
 
 vi.mock('../dataSource', () => {
+    const MockAdapter = class {
+        find = vi.fn().mockResolvedValue([]);
+        findOne = vi.fn();
+        create = vi.fn();
+        update = vi.fn();
+        delete = vi.fn();
+        connect = vi.fn().mockResolvedValue(true);
+        onConnectionStateChange = vi.fn();
+        discovery = {};
+    };
     return {
-        ObjectStackDataSource: class {
-            find = vi.fn().mockResolvedValue([]);
-            findOne = vi.fn();
-            create = vi.fn();
-            update = vi.fn();
-            delete = vi.fn();
-        }
+        ObjectStackAdapter: MockAdapter,
+        ObjectStackDataSource: MockAdapter,
     };
 });
 
