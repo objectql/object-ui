@@ -18,7 +18,7 @@ const MOCK_FIELDS = [
   { name: 'amount', label: 'Amount', type: 'currency' },
 ];
 
-export function ReportView({ dataSource }: { dataSource?: any }) {
+export function ReportView({ dataSource: _dataSource }: { dataSource?: any }) {
   const { reportName } = useParams<{ reportName: string }>();
   const { showDebug, toggleDebug } = useMetadataInspector();
   const [isEditing, setIsEditing] = useState(false);
@@ -99,7 +99,7 @@ export function ReportView({ dataSource }: { dataSource?: any }) {
       <div className="flex-1 overflow-hidden flex flex-row relative">
          <div className="flex-1 overflow-auto p-8 bg-muted/5">
             <div className="max-w-5xl mx-auto shadow-sm border rounded-xl bg-background overflow-hidden min-h-150">
-                <ReportViewer schema={viewerSchema} dataSource={dataSource} />
+                <ReportViewer schema={viewerSchema} />
             </div>
          </div>
 

@@ -270,7 +270,7 @@ describe('Error Helpers', () => {
 
       expect(error).toBeInstanceOf(MetadataNotFoundError);
       expect(error.statusCode).toBe(404);
-      expect((error as MetadataNotFoundError).details.objectName).toBe('users');
+      expect((error as MetadataNotFoundError).details?.objectName).toBe('users');
     });
 
     it('should create generic error for 404 without metadata context', () => {

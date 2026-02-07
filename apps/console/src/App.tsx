@@ -17,7 +17,6 @@ import { RecordDetailView } from './components/RecordDetailView';
 import { DashboardView } from './components/DashboardView';
 import { PageView } from './components/PageView';
 import { ReportView } from './components/ReportView';
-import { MetadataToggle, MetadataPanel, useMetadataInspector } from './components/MetadataInspector';
 import { ExpressionProvider } from './context/ExpressionProvider';
 
 /**
@@ -164,7 +163,7 @@ export function AppContent() {
       <Routes>
         <Route path="/" element={
             // Redirect to first route within the app
-             <Navigate to={findFirstRoute(activeApp.navigation)} replace />
+             <Navigate to={findFirstRoute(activeApp.navigation || [])} replace />
         } />
         
         {/* List View */}
@@ -199,7 +198,7 @@ export function AppContent() {
             <ReportView dataSource={dataSource} />
         } />
         <Route path="page/:pageName" element={
-            <PageView dataSource={dataSource} />
+            <PageView />
         } />
       </Routes>
       </ErrorBoundary>
