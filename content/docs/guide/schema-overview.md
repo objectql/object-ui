@@ -173,13 +173,13 @@ ObjectUI also includes enhanced view components:
 ### [Detail View](/docs/components/detail-view)
 Rich detail pages with sections, tabs, and related records.
 
-### [View Switcher](/docs/components/view-switcher)
+### [View Switcher](/docs/components/complex/view-switcher)
 Toggle between list, grid, kanban, calendar, timeline, and map views.
 
-### [Filter UI](/docs/components/filter-ui)
+### [Filter UI](/docs/components/complex/filter-ui)
 Advanced filtering interface with multiple field types.
 
-### [Sort UI](/docs/components/sort-ui)
+### [Sort UI](/docs/components/complex/sort-ui)
 Sort configuration with multiple fields.
 
 ## Installation & Setup

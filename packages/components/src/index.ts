@@ -14,6 +14,7 @@ import './renderers';
 // Export utils
 export { cn } from './lib/utils';
 export { renderChildren } from './lib/utils';
+export { cva } from 'class-variance-authority';
 
 // Export placeholder registration
 export { registerPlaceholders } from './renderers/placeholders';

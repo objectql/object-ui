@@ -1,0 +1,76 @@
+---
+title: "Filter UI"
+description: "Build flexible filter panels for list and view toolbars"
+---
+
+import { ComponentDemo } from '@/app/components/ComponentDemo';
+
+The Filter UI component renders configurable filters with text, select, date, and boolean inputs.
+
+## JSON Configuration
+
+```plaintext
+{
+  type: 'filter-ui',
+  layout: 'popover',
+  showApply: true,
+  showClear: true,
+  filters: [
+    { field: 'name', label: 'Name', type: 'text', placeholder: 'Search name' },
+    { field: 'status', label: 'Status', type: 'select', options: [
+      { label: 'Open', value: 'open' },
+      { label: 'Closed', value: 'closed' }
+    ] },
+    { field: 'created_at', label: 'Created', type: 'date-range' }
+  ]
+}
+```
+
+## Basic Usage
+
+<ComponentDemo
+  schema={{
+    type: 'filter-ui',
+    layout: 'popover',
+    showApply: true,
+    showClear: true,
+    filters: [
+      { field: 'name', label: 'Name', type: 'text', placeholder: 'Search name' },
+      {
+        field: 'status',
+        label: 'Status',
+        type: 'select',
+        options: [
+          { label: 'Open', value: 'open' },
+          { label: 'Closed', value: 'closed' },
+          { label: 'In Progress', value: 'in_progress' }
+        ]
+      },
+      { field: 'priority', label: 'Priority', type: 'number' },
+      { field: 'created_at', label: 'Created', type: 'date-range' }
+    ]
+  }}
+  title="Filter UI"
+  description="Popover-based filters with apply and clear actions."
+/>
+
+## Schema
+
+```plaintext
+interface FilterUISchema {
+  type: 'filter-ui';
+  filters: Array<{
+    field: string;
+    label?: string;
+    type: 'text' | 'number' | 'select' | 'date' | 'date-range' | 'boolean';
+    operator?: 'equals' | 'contains' | 'startsWith' | 'gt' | 'lt' | 'between' | 'in';
+    options?: Array<{ label: string; value: any }>;
+    placeholder?: string;
+  }>;
+  values?: Record<string, any>;
+  onChange?: string;
+  showClear?: boolean;
+  showApply?: boolean;
+  layout?: 'inline' | 'popover' | 'drawer';
+}
+```

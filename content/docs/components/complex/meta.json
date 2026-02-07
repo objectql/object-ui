@@ -6,6 +6,9 @@
     "carousel",
     "scroll-area",
     "resizable",
-    "filter-builder"
+    "filter-builder",
+    "view-switcher",
+    "filter-ui",
+    "sort-ui"
   ]
 }

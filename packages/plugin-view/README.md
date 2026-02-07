@@ -11,6 +11,7 @@ Object View plugin for Object UI - Unified component for displaying and managing
 - **Field Mapping** - Automatic field type detection
 - **Validation** - Schema-based validation
 - **ObjectQL Integration** - Native ObjectStack support
+- **View Controls** - View switcher, filter UI, and sort UI components
 
 ## Installation
 
@@ -63,6 +64,63 @@ Unified view component for ObjectQL objects:
   onUpdate?: (id, data) => void,
   onDelete?: (id) => void,
   className?: string
+}
+```
+
+### ViewSwitcher
+
+Toggle between multiple view configurations:
+
+```typescript
+{
+  type: 'view-switcher',
+  views: [
+    { type: 'grid', label: 'Grid', schema: { type: 'text', content: 'Grid content' } },
+    { type: 'kanban', label: 'Kanban', schema: { type: 'text', content: 'Kanban content' } }
+  ],
+  defaultView: 'grid',
+  variant: 'tabs',
+  position: 'top',
+  persistPreference: true,
+  storageKey: 'my-view-switcher'
+}
+```
+
+### FilterUI
+
+Render a filter toolbar with multiple field types:
+
+```typescript
+{
+  type: 'filter-ui',
+  layout: 'popover',
+  showApply: true,
+  showClear: true,
+  filters: [
+    { field: 'name', label: 'Name', type: 'text', placeholder: 'Search name' },
+    { field: 'status', label: 'Status', type: 'select', options: [
+      { label: 'Open', value: 'open' },
+      { label: 'Closed', value: 'closed' }
+    ] },
+    { field: 'created_at', label: 'Created', type: 'date-range' }
+  ]
+}
+```
+
+### SortUI
+
+Configure sorting with dropdowns or buttons:
+
+```typescript
+{
+  type: 'sort-ui',
+  variant: 'dropdown',
+  multiple: true,
+  fields: [
+    { field: 'name', label: 'Name' },
+    { field: 'created_at', label: 'Created At' }
+  ],
+  sort: [{ field: 'name', direction: 'asc' }]
 }
 ```
 

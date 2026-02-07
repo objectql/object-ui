@@ -26,6 +26,7 @@
     "@object-ui/plugin-grid": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
+    "class-variance-authority": "^0.7.1",
     "lucide-react": "^0.563.0"
   },
   "peerDependencies": {
