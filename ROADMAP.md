@@ -79,18 +79,26 @@ Action.component: 'action:button' | 'action:icon' | 'action:menu' | 'action:grou
 Action.params: ActionParam[]
 ```
 
-**Current State:** ActionRunner only handles `api` (partially) and `navigation`.
+**Current State:** ActionRunner handles all 5 spec action types + navigation. Action components implemented.
 
-**Missing Features:**
-- [ ] `script` action type - Execute client-side code
-- [ ] `modal` action type - Open modal dialog
-- [ ] `flow` action type - Trigger automation workflow
-- [ ] `api` action type - Full HttpRequest support (headers, body, method)
-- [ ] Action location-based rendering (toolbar, item, header, etc.)
-- [ ] Action component variants (button, icon, menu, group)
-- [ ] ActionParam UI collection (before execution)
-- [ ] successMessage display
-- [ ] refreshAfter behavior
+**Completed Features:**
+- [x] `script` action type - Execute client-side expressions via ExpressionEvaluator
+- [x] `modal` action type - Open modal dialog (via ModalHandler or schema return)
+- [x] `flow` action type - Trigger automation workflow (via registered handler)
+- [x] `api` action type - Full HttpRequest support (headers, body, method, queryParams, responseType)
+- [x] `url` action type - URL navigation (via NavigationHandler or redirect)
+- [x] Action location-based rendering (toolbar, item, header, etc.)
+- [x] Action component variants: `action:button`, `action:icon`, `action:menu`, `action:group`
+- [x] successMessage display (via ToastHandler)
+- [x] refreshAfter behavior
+- [x] Action chaining (sequential + parallel)
+- [x] onSuccess / onFailure callbacks
+- [x] ActionProvider context (shared runner for component tree)
+- [x] Conditional visibility & enabled state (via expression evaluation)
+
+**Remaining:**
+- [ ] ActionParam UI collection (before execution) — param form dialog
+- [ ] FormField.dependsOn (field dependencies) — type defined, runtime evaluation pending
 
 ---
 
