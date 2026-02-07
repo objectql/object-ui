@@ -28,7 +28,7 @@ describe('ObjectForm with MSW Integration', () => {
     client = new ObjectStackClient({ baseUrl: 'http://localhost:3000' } as any);
     await client.connect();
     
-    dataSource = new ObjectStackDataSource(client as any);
+    dataSource = new ObjectStackDataSource({ baseUrl: 'http://localhost:3000' });
 
     // Get a valid contact ID for edit tests
     const driver = getDriver();

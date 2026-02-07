@@ -20,7 +20,7 @@ describe('ObjectGrid MSW Integration', () => {
     await startMockServer();
     client = new ObjectStackClient({ baseUrl: 'http://localhost:3000' } as any);
     await client.connect();
-    dataSource = new ObjectStackDataSource(client as any);
+    dataSource = new ObjectStackDataSource({ baseUrl: 'http://localhost:3000' });
   });
 
   afterAll(() => {

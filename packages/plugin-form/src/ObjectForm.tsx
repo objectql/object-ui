@@ -402,8 +402,14 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
     });
 
     setFormFields(generatedFields);
-    setLoading(false);
-  }, [objectSchema, schema.fields, schema.customFields, schema.readOnly, schema.mode, hasInlineFields]);
+
+    // Only set loading to false if we are not going to fetch data
+    // This prevents a flash of empty form before data is loaded in edit mode
+    const willFetchData = !hasInlineFields && (schema.recordId && schema.mode !== 'create' && dataSource);
+    if (!willFetchData) {
+      setLoading(false);
+    }
+  }, [objectSchema, schema.fields, schema.customFields, schema.readOnly, schema.mode, hasInlineFields, schema.recordId, dataSource]);
 
   // Handle form submission
   const handleSubmit = useCallback(async (formData: any, e?: any) => {
