@@ -11,7 +11,7 @@ export default defineConfig({
     environment: 'happy-dom',
     testTimeout: 15000, // Increase default timeout for integration tests with MSW
     setupFiles: [path.resolve(__dirname, 'vitest.setup.tsx')],
-    exclude: ['**/node_modules/**', '**/dist/**', '**/cypress/**', '**/.{idea,git,cache,output,temp}/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/cypress/**', '**/e2e/**', '**/.{idea,git,cache,output,temp}/**'],
     passWithNoTests: true,
     coverage: {
       provider: 'v8',

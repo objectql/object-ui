@@ -6,13 +6,86 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, Component } from 'react';
 
 export interface LazyPluginOptions {
   /**
    * Fallback component to show while loading
    */
   fallback?: React.ReactNode;
+  /**
+   * Number of retry attempts on load failure (default: 2)
+   */
+  retries?: number;
+  /**
+   * Delay in ms between retries (default: 1000)
+   */
+  retryDelay?: number;
+  /**
+   * Custom error fallback component
+   */
+  errorFallback?: React.ComponentType<{ error: Error; retry: () => void }>;
+}
+
+/**
+ * Error boundary for lazy-loaded plugins
+ */
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class PluginErrorBoundary extends Component<
+  { fallback?: React.ComponentType<{ error: Error; retry: () => void }>; children: React.ReactNode },
+  ErrorBoundaryState
+> {
+  state: ErrorBoundaryState = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError && this.state.error) {
+      const FallbackComponent = this.props.fallback;
+      if (FallbackComponent) {
+        return React.createElement(FallbackComponent, {
+          error: this.state.error,
+          retry: this.handleRetry,
+        });
+      }
+      return null;
+    }
+    return this.props.children;
+  }
+}
+
+/**
+ * Create a lazy-loaded import function with retry support
+ */
+function createRetryImport<P extends object>(
+  importFn: () => Promise<{ default: React.ComponentType<P> }>,
+  retries: number,
+  retryDelay: number,
+): () => Promise<{ default: React.ComponentType<P> }> {
+  return () => {
+    let attempt = 0;
+    const tryImport = (): Promise<{ default: React.ComponentType<P> }> =>
+      importFn().catch((err) => {
+        attempt++;
+        if (attempt <= retries) {
+          return new Promise((resolve) =>
+            setTimeout(() => resolve(tryImport()), retryDelay),
+          );
+        }
+        throw err;
+      });
+    return tryImport();
+  };
 }
 
 /**
@@ -34,19 +107,71 @@ export interface LazyPluginOptions {
  *   () => import('@object-ui/plugin-grid'),
  *   { fallback: <div>Loading grid...</div> }
  * );
+ * 
+ * // With retry and error handling
+ * const ObjectGrid = createLazyPlugin(
+ *   () => import('@object-ui/plugin-grid'),
+ *   {
+ *     retries: 3,
+ *     errorFallback: ({ error, retry }) => (
+ *       <div>
+ *         <p>Failed to load: {error.message}</p>
+ *         <button onClick={retry}>Retry</button>
+ *       </div>
+ *     ),
+ *   }
+ * );
  * ```
  */
 export function createLazyPlugin<P extends object = any>(
   importFn: () => Promise<{ default: React.ComponentType<P> }>,
   options?: LazyPluginOptions
 ): React.ComponentType<P> {
-  const LazyComponent = lazy(importFn);
+  const { retries = 2, retryDelay = 1000, errorFallback } = options || {};
+
+  const retryImport = retries > 0
+    ? createRetryImport(importFn, retries, retryDelay)
+    : importFn;
+
+  const LazyComponent = lazy(retryImport);
   
-  const PluginWrapper: React.FC<P> = (props) => (
-    <Suspense fallback={options?.fallback || null}>
-      <LazyComponent {...props} />
-    </Suspense>
-  );
+  const PluginWrapper: React.FC<P> = (props) => {
+    const content = React.createElement(
+      Suspense,
+      { fallback: options?.fallback || null },
+      React.createElement(LazyComponent, props),
+    );
+
+    if (errorFallback) {
+      return React.createElement(
+        PluginErrorBoundary,
+        { fallback: errorFallback },
+        content,
+      );
+    }
+
+    return content;
+  };
   
   return PluginWrapper;
+}
+
+/**
+ * Preload a plugin module without rendering it.
+ * Useful for preloading plugins that will be needed soon.
+ *
+ * @param importFn - Dynamic import function
+ * @returns Promise that resolves when the module is loaded
+ *
+ * @example
+ * ```tsx
+ * // Preload on hover
+ * const loadGrid = () => import('@object-ui/plugin-grid');
+ * <button onMouseEnter={() => preloadPlugin(loadGrid)}>Show Grid</button>
+ * ```
+ */
+export function preloadPlugin<T = unknown>(
+  importFn: () => Promise<T>,
+): Promise<T> {
+  return importFn();
 }
