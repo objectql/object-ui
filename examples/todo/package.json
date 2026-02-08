@@ -9,7 +9,7 @@
   },
   "scripts": {
     "serve": "objectstack serve objectstack.config.ts",
-    "build": "objectstack compile objectstack.config.ts dist/objectstack.json"
+    "build": "objectstack compile objectstack.config.ts"
   },
   "dependencies": {
     "@objectstack/client": "^1.1.0",
