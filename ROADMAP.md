@@ -1,398 +1,324 @@
-# ObjectUI Roadmap
+# ObjectUI Development Roadmap
 
-> Aligning ObjectUI with `@objectstack/spec` UI Protocol
-
-## Current Status
-
-**Version:** v0.5.x  
-**Spec Version:** @objectstack/spec v1.1.0  
-**Overall Spec Coverage:** ~80%
-
-## Package Maturity Matrix
-
-| Package | Status | Spec Coverage | Notes |
-|---------|--------|--------------|-------|
-| @object-ui/types | ✅ Complete | 100% | Full spec re-export + local types |
-| @object-ui/core | ✅ Complete | 98% | Registry, Plugin, Expression, Action, Validation, ThemeEngine |
-| @object-ui/components | ✅ Complete | 100% | 80+ renderers, 50 Shadcn primitives |
-| @object-ui/fields | ✅ Complete | 95% | 36 widgets, 20+ cell renderers |
-| @object-ui/layout | 🟡 Partial | 60% | Basic layouts, missing responsive grid |
-| @object-ui/react | ✅ Complete | 100% | SchemaRenderer, hooks, providers, ThemeProvider |
-| @object-ui/plugin-form | ✅ Complete | 90% | All 6 variants (simple/tabbed/wizard/split/drawer/modal), FormField enhancements |
-| @object-ui/plugin-grid | ✅ Complete | 95% | Full ListView support |
-| @object-ui/plugin-aggrid | ✅ Complete | 100% | AG Grid integration |
-| @object-ui/plugin-kanban | ✅ Complete | 100% | Kanban board |
-| @object-ui/plugin-calendar | ✅ Complete | 100% | Calendar view |
-| @object-ui/plugin-gantt | ✅ Complete | 100% | Gantt chart |
-| @object-ui/plugin-charts | ✅ Complete | 100% | 7 chart types |
-| @object-ui/plugin-dashboard | ✅ Complete | 100% | Dashboard layout |
-| @object-ui/plugin-detail | ✅ Complete | 100% | Record detail view |
-| @object-ui/plugin-list | ✅ Complete | 100% | List with view switching |
-| @object-ui/plugin-view | ✅ Complete | 90% | Multi-view rendering, named listViews, NavigationConfig |
-| @object-ui/plugin-object | ⚪ Prebuilt | N/A | No source, has dist |
-| @object-ui/plugin-report | 🟡 Partial | 60% | Basic report rendering |
-| @object-ui/plugin-timeline | ✅ Complete | 100% | 3 timeline variants |
-| @object-ui/plugin-map | ✅ Complete | 100% | Map view |
-| @object-ui/plugin-editor | ✅ Complete | 100% | Monaco editor |
-| @object-ui/plugin-markdown | ✅ Complete | 100% | Markdown rendering |
-| @object-ui/plugin-chatbot | ✅ Complete | 100% | Chat interface |
-| @object-ui/data-objectql | ⚪ Prebuilt | N/A | No source, has dist |
-| @object-ui/data-objectstack | ✅ Complete | 100% | Full DataSource adapter |
-| @object-ui/runner | ✅ Complete | 100% | App runner |
-| @object-ui/cli | ✅ Complete | 100% | 15 commands |
+> **Last Updated:** February 8, 2026  
+> **Current Version:** v0.5.x  
+> **Target Version:** v2.0.0  
+> **Spec Version:** @objectstack/spec v1.1.0
 
 ---
 
-## Gap Analysis
+## 📋 Executive Summary
 
-### 🔴 Critical Gaps (High Priority)
+ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn, designed to become the world's most popular enterprise management software platform framework. This roadmap consolidates all development plans, including spec alignment, ObjectOS integration, and ecosystem expansion.
 
-#### 1. Form Variants (plugin-form)
-
-**Spec Requirement:**
-```typescript
-FormView.type: 'simple' | 'tabbed' | 'wizard' | 'split' | 'drawer' | 'modal'
-```
-
-**Current State:** Only `simple` form implemented.
-
-**Missing Features:**
-- [x] Tabbed Form - Fields organized in tab groups
-- [x] Wizard Form - Multi-step form with navigation
-- [x] Split Form - Side-by-side panels (ResizablePanelGroup)
-- [x] Drawer Form - Slide-out form panel (Sheet)
-- [x] Modal Form - Dialog-based form (Dialog)
-- [x] Section/Group support (collapsible, columns per section)
-- [x] FormField.colSpan support
-- [x] FormField.dependsOn (field dependencies) — runtime evaluation in FormSectionRenderer
-- [x] FormField.widget (custom widget override)
+**Strategic Goals:**
+- **Technical Excellence:** 100% @objectstack/spec compatibility, 80%+ test coverage, world-class performance
+- **Enterprise-Ready:** Multi-tenancy, RBAC, workflow engine, real-time collaboration
+- **Global Reach:** 10+ languages, 10,000+ GitHub stars, 50,000+ weekly NPM downloads
+- **Commercial Success:** ObjectUI Cloud platform, 100+ enterprise customers, $2M+ annual revenue
 
 ---
 
-#### 2. Action System Runtime
+## 🎯 Current Status (February 2026)
 
-**Spec Requirement:**
-```typescript
-Action.type: 'script' | 'url' | 'modal' | 'flow' | 'api'
-Action.locations: ('list_toolbar' | 'list_item' | 'record_header' | 'record_more' | 'record_related' | 'global_nav')[]
-Action.component: 'action:button' | 'action:icon' | 'action:menu' | 'action:group'
-Action.params: ActionParam[]
-```
+### Achievements ✅
 
-**Current State:** ActionRunner handles all 5 spec action types + navigation. Action components implemented.
+**Architecture & Quality:**
+- ✅ 28 packages in monorepo (15 plugins, 4 core, 9 tools)
+- ✅ 91+ components fully documented
+- ✅ 57+ Storybook stories with interactive demos
+- ✅ TypeScript 5.9+ strict mode (100%)
+- ✅ React 19 + Tailwind CSS + Shadcn UI
+- ✅ ~80% @objectstack/spec v1.1.0 coverage
 
-**Completed Features:**
-- [x] `script` action type - Execute client-side expressions via ExpressionEvaluator
-- [x] `modal` action type - Open modal dialog (via ModalHandler or schema return)
-- [x] `flow` action type - Trigger automation workflow (via registered handler)
-- [x] `api` action type - Full HttpRequest support (headers, body, method, queryParams, responseType)
-- [x] `url` action type - URL navigation (via NavigationHandler or redirect)
-- [x] Action location-based rendering (toolbar, item, header, etc.)
-- [x] Action component variants: `action:button`, `action:icon`, `action:menu`, `action:group`
-- [x] successMessage display (via ToastHandler)
-- [x] refreshAfter behavior
-- [x] Action chaining (sequential + parallel)
-- [x] onSuccess / onFailure callbacks
-- [x] ActionProvider context (shared runner for component tree)
-- [x] Conditional visibility & enabled state (via expression evaluation)
+**Recent Completions (v0.5.0):**
+- ✅ Form variants (simple, tabbed, wizard, split, drawer, modal)
+- ✅ NavigationConfig (7 modes: page, drawer, modal, split, popover, new_window, none)
+- ✅ Action System (5 types: script, url, modal, flow, api)
+- ✅ Theme System (aligned with spec, CSS custom properties, dark mode)
+- ✅ Page System (4 types: record, home, app, utility with region-based layouts)
+- ✅ ViewData API Provider (api, value, object providers)
+- ✅ AG Grid advanced features (inline editing, CSV export, status bar, context menu)
 
-**Remaining:**
-- [x] ActionParam UI collection (before execution) — ActionParamDialog + ParamCollectionHandler
-- [x] FormField.dependsOn (field dependencies) — runtime evaluation in FormSectionRenderer
-- [x] FormField.visibleOn (expression-based visibility) — evaluated via ExpressionEvaluator
+### Current Gaps & Priorities ⚠️
 
----
+**Critical Gaps (P0):**
+- ⚠️ Test coverage: 62% lines, 43% functions (Target: 80%+)
+- ⚠️ Internationalization: No built-in i18n support
+- ⚠️ Performance: Bundle size 200KB, LCP 1.2s (Target: 150KB, 600ms)
 
-#### 3. NavigationConfig ✅ (v0.5.0)
+**ObjectOS Integration Gaps (P1):**
+- 🔲 Multi-tenant architecture support
+- 🔲 RBAC integration (object/field/row-level permissions)
+- 🔲 System objects (sys_user, sys_org, sys_role, sys_permission, sys_audit_log)
+- 🔲 Workflow engine integration
+- 🔲 Real-time collaboration (WebSocket, presence, comments)
 
-**Spec Requirement:**
-```typescript
-NavigationConfig: {
-  mode: 'page' | 'drawer' | 'modal' | 'split' | 'popover' | 'new_window' | 'none'
-  view?: string
-  preventNavigation?: boolean
-  openNewTab?: boolean
-}
-```
-
-**Current State:** Fully implemented. `ViewNavigationConfig` interface in @object-ui/types.
-Reusable `useNavigationOverlay` hook in @object-ui/react + `NavigationOverlay` component in @object-ui/components.
-
-**Completed:**
-- [x] `ViewNavigationConfig` interface in @object-ui/types (7 modes, width, view, preventNavigation, openNewTab)
-- [x] `navigation?: ViewNavigationConfig` on ObjectGridSchema, ListViewSchema, ObjectViewSchema
-- [x] `onNavigate` callback on ObjectGridSchema, ListViewSchema, DetailViewSchema
-- [x] `useNavigationOverlay` hook (state management, click handler, overlay control)
-- [x] `NavigationOverlay` component (Sheet/Dialog/Popover/ResizablePanelGroup rendering)
-- [x] Implement in plugin-grid (row click → drawer/modal/split/popover/page/new_window/none)
-- [x] Implement in plugin-list (onRowClick passthrough to child views + overlay rendering)
-- [x] Implement in plugin-detail (SPA-aware back/edit/delete navigation via onNavigate)
-- [x] Drawer navigation mode (Sheet, right-side panel)
-- [x] Modal navigation mode (Dialog, center overlay)
-- [x] Split view navigation mode (ResizablePanelGroup, side-by-side)
-- [x] Popover preview mode (Popover, hover/click card)
-- [x] 51 useNavigationOverlay hook tests + 20 NavigationOverlay component tests
-
-**Remaining:**
-- [ ] `navigation.view` property — target view/form schema lookup (currently renders field list)
-- [ ] ObjectForm integration in overlay content (render forms when editing)
+**Spec Alignment Gaps (P1):**
+- 🔲 Widget System (WidgetManifest, dynamic loading)
+- 🔲 Formula functions (SUM, AVG, TODAY, NOW, IF)
+- 🔲 Report export (PDF, Excel)
 
 ---
 
-### 🟡 Medium Priority Gaps
+## 🗺️ 2026 Development Roadmap
 
-#### 4. ListColumn Extensions ✅
+### Q1 2026: Foundation Strengthening (Jan-Mar) ✅ In Progress
 
-**Spec Requirement:**
-```typescript
-ListColumn.link: boolean    // Primary navigation column
-ListColumn.action: string   // Associated action ID
-```
+**Goal:** Solidify infrastructure, improve quality, and establish global reach
 
-**Current State:** ✅ Complete — types aligned with @objectstack/spec, rendering implemented.
+#### 1.1 Test System Enhancement (4 weeks)
+**Target:** 80%+ test coverage
 
-**Completed:**
-- [x] Add `link` and `action` to ListColumn interface + Zod schema
-- [x] Add `col.cell()` custom renderer support to data-table
-- [x] Render link columns with navigation behavior (triggers useNavigationOverlay)
-- [x] Render action columns with ActionRunner integration (dispatches registered handler)
-- [x] Support `hidden` columns (filtered out of data-table)
-- [x] Support `type` columns (getCellRenderer for typed cell rendering)
-- [x] Support `wrap` and `resizable` passthrough
-- [x] 28 plugin-grid tests + 4 data-table cell renderer tests, all passing
+- [ ] Add tests for all core modules (@object-ui/core)
+- [ ] Add tests for all components (@object-ui/components)
+- [ ] Add E2E test framework (Playwright)
+- [ ] Add performance benchmark suite
+- [ ] Visual regression tests (Storybook snapshot + Chromatic)
 
----
+#### 1.2 Internationalization (i18n) Support (3 weeks)
+**Target:** 10+ languages, RTL layout
 
-#### 5. Page System ✅
+- [ ] Create @object-ui/i18n package
+- [ ] Integrate i18next library
+- [ ] Add translation support to all components
+- [ ] Provide 10+ language packs (zh, en, ja, ko, de, fr, es, pt, ru, ar)
+- [ ] RTL layout support
+- [ ] Date/currency formatting utilities
 
-**Spec Requirement:**
-```typescript
-Page: {
-  type: 'record' | 'home' | 'app' | 'utility'
-  variables: PageVariable[]
-  template: string
-  object?: string
-  regions: PageRegion[]
-}
-```
+#### 1.3 Documentation System Upgrade (2 weeks)
+**Target:** World-class documentation
 
-**Current State:** ✅ Complete — PageSchema fully aligned with @objectstack/spec.
-PageRenderer supports four page types with region-based layouts and page-level variables.
+- [ ] 5-minute quick start guide
+- [ ] Complete zero-to-deployment tutorial
+- [ ] Video tutorial series
+- [ ] Complete case studies (CRM, E-commerce, Analytics, Workflow)
+- [ ] Multi-language documentation (Chinese, English, Japanese)
 
-**Completed:**
-- [x] Add `PageType` = 'record' | 'home' | 'app' | 'utility' to @object-ui/types
-- [x] Add `PageVariable` interface (name, type, defaultValue) to @object-ui/types
-- [x] Add `PageRegionWidth` = 'small' | 'medium' | 'large' | 'full' to @object-ui/types
-- [x] Enhanced `PageRegion` (name, width, components, className) in @object-ui/types
-- [x] Enhanced `PageSchema` with pageType, object, template, variables, regions, isDefault, assignedProfiles
-- [x] Full Zod schemas: PageTypeSchema, PageVariableSchema, PageRegionSchema, PageRegionWidthSchema
-- [x] `PageVariablesProvider` + `usePageVariables` hook in @object-ui/react
-- [x] `useHasPageVariables` hook for context detection
-- [x] Upgraded PageRenderer with type-aware routing (Record / Home / App / Utility layouts)
-- [x] Region-based layout engine: header, sidebar, main, aside, footer named slots
-- [x] Region width mapping (small→w-64, medium→w-80, large→w-96, full→w-full)
-- [x] Page max-width by type (record→7xl, home→screen-2xl, app→screen-xl, utility→4xl)
-- [x] Legacy body/children fallback for backward compatibility
-- [x] Resolved duplicate 'page' registration between @object-ui/components and @object-ui/layout
-- [x] 36 PageRenderer tests + 23 usePageVariables tests, all passing
+#### 1.4 Performance Optimization (3 weeks)
+**Target:** 50%+ performance improvement
 
-**Remaining:**
-- [x] Page.template support (predefined layout templates: default, header-sidebar-main, three-column, dashboard)
-- [ ] Page.object data binding (auto-fetch record data)
+**Performance Targets:**
+- First Contentful Paint: 800ms → 400ms
+- Largest Contentful Paint: 1.2s → 600ms
+- Bundle Size: 200KB → 140KB (gzipped)
+
+**Q1 Milestone:**
+- **v0.6.0 Release (March 2026):** Infrastructure Complete
 
 ---
 
-#### 6. Widget System (WidgetManifest)
+### Q2 2026: Feature Enhancement & ObjectOS Integration (Apr-Jun)
 
-**Spec Requirement:**
-```typescript
-WidgetManifest: {
-  lifecycle: { onMount, onUpdate, onUnmount, ... }
-  events: WidgetEvent[]
-  properties: WidgetProperty[]
-  implementation: 'npm' | 'remote' | 'inline'
-}
-```
+**Goal:** Complete @objectstack/spec alignment and enterprise features
 
-**Current State:** Not implemented. Static ComponentRegistry only.
+#### 2.1 Complete @objectstack/spec v1.1.0 Alignment (6 weeks)
 
-**Tasks:**
-- [ ] Add WidgetManifest types to @object-ui/types
-- [ ] Implement dynamic widget loading (npm, remote, inline)
-- [ ] Widget lifecycle hooks
-- [ ] Widget property validation
-- [ ] Widget event system
+- [ ] ObjectQL deep integration (JOIN, aggregation, subqueries)
+- [ ] Complete ViewSchema implementation
+- [ ] ActionSchema enhancement (batch ops, transactions, undo/redo)
+- [ ] Permission System (RBAC, field/row-level)
+- [ ] Validation System enhancement
 
----
+#### 2.2 Multi-Tenancy & RBAC Integration (4 weeks)
 
-#### 7. Theme System Alignment ✅
-
-**Spec Requirement:** Full theme schema with ColorPalette, Typography, Spacing, BorderRadius, Shadow, Breakpoints, Animation, ZIndex.
-
-**Current State:** Fully aligned with @objectstack/spec v1.1.0. Complete ThemeEngine in core + ThemeProvider/useTheme in react.
-
-**Completed:**
-- [x] Realigned `Theme` interface with spec (name, label, mode, colors, typography, spacing, borderRadius, shadows, breakpoints, animation, zIndex, customVars, logo, extends)
-- [x] Added `Shadow`, `Breakpoints`, `Animation`, `ZIndex`, `ThemeLogo` types to @object-ui/types
-- [x] Aligned `ColorPalette` with spec (primary required, surface, textSecondary, primaryLight/Dark, secondaryLight/Dark, disabled)
-- [x] Aligned `Typography` with spec (nested fontFamily/fontSize/fontWeight/lineHeight/letterSpacing)
-- [x] Aligned `Spacing` with spec (explicit '0'–'24' scale keys)
-- [x] Aligned `BorderRadius` with spec (none/sm/base/md/lg/xl/2xl/full)
-- [x] Updated all Zod schemas (ColorPaletteSchema, TypographySchema, SpacingSchema, ShadowSchema, BreakpointsSchema, AnimationSchema, ZIndexSchema, ThemeDefinitionSchema)
-- [x] `ThemeEngine` in @object-ui/core — `generateThemeVars()` converts Theme → CSS custom properties, `mergeThemes()`, `resolveThemeInheritance()`, `resolveMode()`, `hexToHSL()`/`toCSSColor()`
-- [x] `ThemeProvider` + `useTheme()` + `useOptionalTheme()` in @object-ui/react — CSS var injection, mode class toggling, system preference detection, localStorage persistence, theme inheritance resolution
-- [x] Branding support (logo.light, logo.dark, logo.favicon)
-- [x] Legacy aliases (`ThemeDefinition` → `Theme`, `SpacingScale` → `Spacing`) for backward compatibility
-- [x] Full test coverage: 57 ThemeEngine tests + 28 ThemeProvider tests (85 total)
-
----
-
-#### 8. ViewData API Provider ✅
-
-**Spec Requirement:**
-```typescript
-{ provider: 'api', read?: HttpRequest, write?: HttpRequest }
-```
-
-**Current State:** Fully implemented with three DataSource adapters and a unified React hook.
-
-**Completed:**
-- [x] `ApiDataSource` — HTTP-based adapter for `provider: 'api'` (GET/POST/PATCH/DELETE, URL building, response normalization for array/{data}/{items}/{results}/{records}/{value} shapes, header merging, configurable fetch)
-- [x] `ValueDataSource` — In-memory adapter for `provider: 'value'` (filtering with $gt/$gte/$lt/$lte/$ne/$in/$contains, sorting, pagination, $search, full CRUD, auto-ID generation)
-- [x] `resolveDataSource()` — Factory routing `ViewData.provider` → correct adapter (`'api'` → ApiDataSource, `'value'` → ValueDataSource, `'object'` → context fallback)
-- [x] `useViewData` hook — React hook bridging ViewData → DataSource → reactive {data, loading, error, totalCount, refresh, fetchOne, hasMore}
-- [x] Full test coverage: 26 ApiDataSource + 34 ValueDataSource + 13 resolveDataSource + 15 useViewData tests (88 total)
-
----
-
-### 🟢 Low Priority / Future
-
-#### 9. Expression System Enhancements
-
-- [ ] Formula functions (SUM, AVG, TODAY, NOW, IF, etc.)
-- [ ] Standardized context protocol (data, record, user, form)
-
-#### 10. Report System
-
-- [ ] Report export (PDF, Excel)
-- [ ] Report scheduling
-- [ ] Aggregation formula engine
-
-#### 11. Layout System
-
-- [ ] Responsive grid layout
-- [ ] Multi-column layout components
-- [x] Layout templates (4 predefined: default, header-sidebar-main, three-column, dashboard)
-
----
-
-## Implementation Phases
-
-### Phase 1: Form Variants (v0.6.0)
-
-**Timeline:** 2-3 weeks
-
-**Scope:**
-1. Refactor ObjectForm to support FormView.type
-2. Implement TabbedForm component
-3. Implement WizardForm component
-4. Add section/group support
-5. Add FormField.colSpan, dependsOn, widget
+- [ ] Tenant Context Provider
+- [ ] Tenant isolation and scoped queries
+- [ ] Custom branding per tenant
+- [ ] Object/field/row-level permissions
+- [ ] Permission guards and hooks
 
 **Deliverables:**
-- [ ] packages/plugin-form/src/TabbedForm.tsx
-- [ ] packages/plugin-form/src/WizardForm.tsx
-- [ ] packages/plugin-form/src/FormSection.tsx
-- [ ] Updated ObjectForm with type routing
+- @object-ui/tenant package
+- @object-ui/permissions package
+
+#### 2.3 System Objects Integration (2 weeks)
+
+- [ ] sys_user, sys_organization, sys_role, sys_permission, sys_audit_log
+- [ ] Pre-built UI components (user profile, org tree, role assignment)
+- [ ] Admin console example
+
+#### 2.4 Enterprise-Grade Features (4 weeks)
+
+- [ ] Advanced Grid (tree grid, grouping, Excel export)
+- [ ] Reporting Engine (visual designer, PDF export, scheduling)
+- [ ] Workflow Engine (visual designer, approval processes)
+- [ ] AI Integration (form filling, recommendations, NL queries)
+
+#### 2.5 Mobile Optimization (3 weeks)
+
+- [ ] Mobile-responsive components
+- [ ] PWA support (Service Worker, offline caching)
+- [ ] Touch gesture support
+
+**Q2 Milestone:**
+- **v1.0.0 Release (June 2026):** Feature Complete
 
 ---
 
-### Phase 2: Action System (v0.7.0)
+### Q3 2026: Ecosystem Building (Jul-Sep)
 
-**Timeline:** 2-3 weeks
+**Goal:** Build thriving ecosystem and add collaboration features
 
-**Scope:**
-1. Extend ActionRunner for all action types
-2. Implement action location-based rendering
-3. Add ActionButton, ActionMenu, ActionGroup components
-4. ActionParam collection UI
+#### 3.1 Real-time Collaboration (4 weeks)
+
+- [ ] WebSocket integration
+- [ ] Live cursors and presence indicators
+- [ ] Comment threads and @mentions
+- [ ] Conflict resolution and version history
 
 **Deliverables:**
-- [ ] packages/core/src/action/handlers/ (script, modal, flow, api)
-- [ ] packages/components/src/custom/action-button.tsx
-- [ ] packages/components/src/custom/action-menu.tsx
-- [ ] ActionLocationRenderer utility
+- @object-ui/collaboration package
+
+#### 3.2 Plugin Marketplace (8 weeks)
+
+- [ ] Plugin marketplace website
+- [ ] Plugin publishing platform
+- [ ] 20+ official plugins (WeChat, DingTalk, Stripe, OAuth, etc.)
+- [ ] Plugin development guide
+
+#### 3.3 Visual Designer Upgrade (6 weeks)
+
+- [ ] Drag-and-drop page designer
+- [ ] Data model designer (ER diagrams)
+- [ ] Process designer (BPMN 2.0)
+- [ ] Report designer
+- [ ] Multi-user collaborative editing
+
+#### 3.4 Community Building (Ongoing)
+
+- [ ] Official website (www.objectui.org)
+- [ ] Discord community
+- [ ] Monthly webinars
+- [ ] Technical blog (weekly posts)
+- [ ] YouTube tutorials (weekly)
+
+**Q3 Milestone:**
+- **v1.5.0 Release (September 2026):** Ecosystem Thriving
+  - 30+ plugins
+  - 5,000+ GitHub stars
+  - 1,000+ community members
 
 ---
 
-### Phase 3: Navigation System (v0.8.0)
+### Q4 2026: Commercialization & Cloud Platform (Oct-Dec)
 
-**Timeline:** 1-2 weeks
+**Goal:** Launch ObjectUI Cloud and achieve commercial success
 
-**Scope:**
-1. Add NavigationConfig to types
-2. Implement all navigation modes in grid/list/detail plugins
-3. Create NavigationProvider for centralized control
+#### 4.1 ObjectUI Cloud (8 weeks)
 
-**Deliverables:**
-- [ ] packages/types/src/navigation.ts
-- [ ] packages/react/src/NavigationProvider.tsx
-- [ ] Updated plugin-grid, plugin-list, plugin-detail
+- [ ] Project hosting and online editor
+- [ ] Database as a Service
+- [ ] One-click deployment
+- [ ] Performance monitoring and alerts
+- [ ] Billing system (Free, Pro $49/mo, Enterprise $299/mo)
 
----
+#### 4.2 Industry Solutions (Ongoing)
 
-### Phase 4: Page & Theme (v0.9.0)
+- [ ] CRM System
+- [ ] ERP System
+- [ ] HRM System
+- [ ] E-commerce Backend
+- [ ] Project Management
 
-**Timeline:** 2 weeks
+#### 4.3 Partner Ecosystem (Ongoing)
 
-**Scope:**
-1. Full Page system implementation
-2. Theme system alignment with spec
-3. ThemeProvider for runtime theming
+- [ ] Technology partnerships (AWS, Alibaba Cloud, MongoDB)
+- [ ] Channel partnerships (system integrators, consulting firms)
+- [ ] 10+ strategic partners
 
-**Deliverables:**
-- [ ] packages/types/src/page.ts (enhanced)
-- [ ] packages/types/src/theme.ts (aligned)
-- [ ] packages/layout/src/PageRenderer.tsx
-- [ ] packages/react/src/ThemeProvider.tsx
-
----
-
-### Phase 5: Widget System & Polish (v1.0.0)
-
-**Timeline:** 2-3 weeks
-
-**Scope:**
-1. WidgetManifest implementation
-2. Dynamic widget loading
-3. Documentation completion
-4. Full spec compliance audit
-
-**Deliverables:**
-- [ ] packages/core/src/widget/ (loader, lifecycle, registry)
-- [ ] Full documentation update
-- [ ] Spec compliance test suite
+**Q4 Milestone:**
+- **v2.0.0 Release (December 2026):** Commercial Success
+  - 1,000+ cloud users
+  - 50+ enterprise customers
+  - $500k annual revenue
 
 ---
 
-## Success Metrics
+## 📈 2026 Annual Targets
 
-- [ ] All `@objectstack/spec/ui` types have corresponding runtime implementations
-- [ ] All 6 form variants working with examples
-- [ ] All 5 action types executable
-- [ ] All 7 navigation modes functional
-- [ ] 100% spec coverage in automated tests
-- [ ] Complete Storybook examples for all components
+| Metric | Q1 | Q2 | Q3 | Q4 |
+|--------|-----|-----|-----|-----|
+| **Test Coverage** | 80% | 85% | 90% | 90% |
+| **Spec Alignment** | 85% | 100% | 100% | 100% |
+| **Performance (LCP)** | 0.6s | 0.5s | 0.5s | 0.4s |
+| **GitHub Stars** | 1K | 2.5K | 5K | 10K |
+| **NPM Downloads/week** | 5K | 10K | 20K | 50K |
+| **Plugins** | 17 | 20 | 30 | 35 |
+| **Enterprise Customers** | - | 5 | 25 | 50 |
+| **Annual Revenue** | - | - | $100K | $500K |
 
 ---
 
-## Contributing
+## 💰 Resource Requirements
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for development guidelines.
+### Team Structure (15 people)
+- Senior Full-Stack Engineer: 3
+- Frontend Engineer: 4
+- Backend Engineer: 2
+- QA Engineer: 2
+- DevOps Engineer: 1
+- Technical Writer: 1
+- Product Manager: 1
+- UI/UX Designer: 1
 
-When implementing spec features:
-1. Reference the Zod schema in `@objectstack/spec/ui`
-2. Update types in `@object-ui/types` first
-3. Implement in appropriate package
-4. Add Storybook story
-5. Update documentation in `content/docs/`
+### Budget (12 months)
+- Personnel: $1,200,000
+- Infrastructure: $60,000
+- Tools & Software: $30,000
+- Marketing: $140,000
+- Contingency (10%): $143,000
+- **Total: $1,573,000**
+
+### Expected ROI
+- Year 1 Revenue: $550K
+- Year 2 Revenue: $2.2M
+
+---
+
+## ⚠️ Risk Management
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| Spec Changes | Medium | High | Regular sync with ObjectStack team |
+| Performance Issues | Medium | Medium | Early testing, optimization sprints |
+| Security Vulnerabilities | Low | High | Security audits, bug bounty |
+| Competition | High | Medium | Differentiation, rapid iteration |
+| Low Adoption | Medium | High | Enhanced marketing, lower barriers |
+
+---
+
+## 📚 Reference Documents
+
+This roadmap consolidates information from:
+
+1. **IMPROVEMENT_PLAN.md** - Comprehensive 12-month improvement plan
+2. **OBJECTOS_INTEGRATION_ROADMAP.md** - ObjectOS integration specifications
+3. **apps/console/DEVELOPMENT_PLAN.md** - Console development plan
+4. **UPDATE_SUMMARY.md** - Recent updates summary
+5. **.github/copilot-instructions.md** - Architectural guidelines
+
+For detailed technical specifications, implementation patterns, and historical context, please refer to these source documents.
+
+---
+
+## 🎯 Getting Involved
+
+### For Contributors
+- Review [CONTRIBUTING.md](./CONTRIBUTING.md)
+- Join our [Discord](https://discord.gg/objectui)
+- Check [Good First Issues](https://github.com/objectstack-ai/objectui/labels/good%20first%20issue)
+
+### For Enterprise Users
+- Explore [Enterprise Services](https://www.objectui.org/enterprise)
+- Request a demo: hello@objectui.org
+
+### For Plugin Developers
+- Read [Plugin Development Guide](./content/docs/guide/plugin-development.mdx)
+- Submit plugins to the marketplace
+
+---
+
+**Roadmap Status:** ✅ Active  
+**Next Review:** March 1, 2026  
+**Contact:** hello@objectui.org | https://github.com/objectstack-ai/objectui
