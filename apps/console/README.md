@@ -1,69 +1,27 @@
 # ObjectStack Console
 
-The standard runtime UI for ObjectStack applications. This package provides the "Console" interface that allows users to interact with objects and apps defined in the ObjectStack protocol.
+The standard runtime UI for ObjectStack applications. This package provides the **Console** — a full-featured enterprise admin interface that renders from JSON metadata alone, requiring zero custom pages.
+
+> **Version:** 0.5.1 &nbsp;|&nbsp; **Spec:** @objectstack/spec v1.1.0 &nbsp;|&nbsp; [Full Roadmap →](./CONSOLE_ROADMAP.md)
 
 ## Features
 
-- **Spec-Compliant**: Fully implements ObjectStack Spec v0.9.0
-- **Dynamic UI**: Renders Dashboards, Grids, and Forms based on JSON schemas
-- **Multi-App Support**: Switch between different apps defined in your stack
-- **Plugin Architecture**: Can be loaded as a static plugin in the ObjectStack Runtime
-- **Flexible Navigation**: Supports object, dashboard, page, url, and group navigation types
-- **App Branding**: Supports custom logos, colors, and theming per app
-- **Permission-Aware**: Respects app-level permission requirements
+- **Server-Driven UI**: Renders objects, views, dashboards, reports, and pages from JSON schemas
+- **Multi-App Support**: Switch between apps defined in your stack, each with its own branding
+- **Plugin Architecture**: 15+ view plugins (grid, kanban, calendar, timeline, chart, map, gantt, gallery, etc.)
+- **Expression Engine**: Dynamic visibility, disabled, and hidden expressions evaluated at runtime
+- **CRUD Operations**: Create, edit, delete records via schema-driven forms and dialogs
+- **Command Palette**: `⌘+K` for quick navigation across apps and objects
+- **Dark/Light Theme**: System-aware theme with per-app branding (logo, colors, favicon)
+- **Developer Tools**: Built-in metadata inspector for debugging schema definitions
 
-## ObjectStack Spec Compliance
-
-This console implements the following ObjectStack Spec features:
-
-### AppSchema Support
-- ✅ `name`, `label`, `icon` - Basic app metadata
-- ✅ `description`, `version` - Optional app information
-- ✅ `homePageId` - Custom landing page configuration
-- ✅ `requiredPermissions` - Permission-based access control
-- ✅ `branding.logo` - Custom app logo display
-- ✅ `branding.primaryColor` - Custom theme color
-- ✅ `branding.favicon` - App-specific favicon
-
-### Navigation Support
-- ✅ `object` - Navigate to object list views
-- ✅ `dashboard` - Navigate to dashboards
-- ✅ `page` - Navigate to custom pages
-- ✅ `url` - External URL navigation with target support
-- ✅ `group` - Nested navigation groups
-- ✅ Navigation item visibility conditions
-- ✅ Recursive navigation tree rendering
-
-### Object Operations
-- ✅ Create, Read, Update, Delete (CRUD)
-- ✅ ObjectGrid with filtering and sorting
-- ✅ ObjectForm with field type mapping
-- ✅ Dynamic field rendering based on ObjectSchema
-
-## Usage as a Plugin
-
-You can include the console in your ObjectStack Runtime server by installing this package and registering it as a static asset plugin.
-
-```typescript
-import ConsolePlugin from '@object-ui/console';
-
-// In your objectstack.config.ts
-export default defineConfig({
-  plugins: [
-    ConsolePlugin
-  ]
-});
-```
-
-The console will be available at `/` in your ObjectStack application.
-
-## Development
+## Quick Start
 
 ```bash
-# Install dependencies
+# From the repository root
 pnpm install
 
-# Start development server
+# Start development server (with MSW mock backend)
 pnpm dev
 
 # Build for production
@@ -73,14 +31,63 @@ pnpm build
 pnpm test
 ```
 
+The console opens at **http://localhost:5175** with a simulated backend (CRM + Todo + Kitchen Sink demo data).
+
+## ObjectStack Spec Compliance
+
+### AppSchema Support
+- ✅ `name`, `label`, `icon` — Basic app metadata
+- ✅ `description`, `version` — Optional app information
+- ✅ `homePageId` — Custom landing page configuration
+- ✅ `requiredPermissions` — Permission-based access control
+- ✅ `branding.logo`, `branding.primaryColor`, `branding.favicon` — App branding
+
+### Navigation Support
+- ✅ `object` — Navigate to object list views
+- ✅ `dashboard` — Navigate to dashboards
+- ✅ `page` — Navigate to custom pages
+- ✅ `report` — Navigate to reports
+- ✅ `url` — External URL navigation with target support
+- ✅ `group` — Nested navigation groups with collapse
+- ✅ `visible` / `visibleOn` — Expression-based visibility conditions
+
+### Object Operations
+- ✅ Multi-view switching (grid, kanban, calendar, timeline, chart, map, gantt, gallery)
+- ✅ Create / Read / Update / Delete via ObjectForm
+- ✅ Search, filter, sort across all view types
+- ✅ Record detail page and drawer preview
+- ✅ Metadata inspector for developers
+
 ## Architecture
 
-The console is built on top of ObjectUI components:
-- `@object-ui/react` - Core rendering engine
-- `@object-ui/components` - Shadcn/UI components
-- `@object-ui/layout` - App shell and layout components
-- `@object-ui/plugin-grid` - Data grid component
-- `@object-ui/plugin-form` - Form rendering component
+The console is a thin orchestration layer on top of the ObjectUI plugin system:
+
+```
+Console App
+├── @object-ui/react          — SchemaRenderer (JSON → Component)
+├── @object-ui/components     — Shadcn UI primitives
+├── @object-ui/layout         — AppShell, Sidebar
+├── @object-ui/core           — ExpressionEvaluator, ActionRunner
+├── @object-ui/data-objectstack — API adapter (auto-reconnect, caching)
+├── @object-ui/plugin-view    — ObjectView (multi-view container)
+├── @object-ui/plugin-form    — ObjectForm (CRUD forms)
+├── @object-ui/plugin-grid    — DataGrid (AG Grid)
+├── @object-ui/plugin-kanban  — Kanban board
+├── @object-ui/plugin-calendar— Calendar view
+├── @object-ui/plugin-dashboard — Dashboard renderer
+├── @object-ui/plugin-report  — Report viewer/builder
+└── 8 more view plugins...
+```
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Console Roadmap](./CONSOLE_ROADMAP.md) | Full development plan with phases and timeline |
+| [Getting Started Guide](../../content/docs/guide/console.md) | User-facing documentation |
+| [Architecture Guide](../../content/docs/guide/console-architecture.md) | Technical deep-dive |
+| [Development Plan](./DEVELOPMENT_PLAN.md) | Completed phases 1-10 |
+| [Next Steps](./NEXT_STEPS.md) | Tactical next tasks |
 
 ## License
 
