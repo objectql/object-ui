@@ -23,13 +23,17 @@ export type { SortUIProps } from './SortUI';
  * SchemaRendererContext is created by @object-ui/react.
  * We import it dynamically to avoid a circular dependency.
  * The context value provides { dataSource }.
+ * A fallback context is created so hooks are never called conditionally.
  */
-let SchemaRendererContext: React.Context<any> | null = null;
+const FallbackContext = React.createContext<any>(null);
+let SchemaRendererContext: React.Context<any> = FallbackContext;
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const mod = require('@object-ui/react');
   // The context is re-exported from @object-ui/react
-  SchemaRendererContext = mod.SchemaRendererContext || null;
+  if (mod.SchemaRendererContext) {
+    SchemaRendererContext = mod.SchemaRendererContext;
+  }
 } catch {
   // @object-ui/react not available — registry-based dataSource only
 }
@@ -37,7 +41,7 @@ try {
 // Register object-view component
 const ObjectViewRenderer: React.FC<{ schema: any }> = ({ schema }) => {
   // Resolve dataSource from SchemaRendererProvider context
-  const ctx = SchemaRendererContext ? useContext(SchemaRendererContext) : null;
+  const ctx = useContext(SchemaRendererContext);
   const dataSource = ctx?.dataSource ?? null;
 
   return <ObjectView schema={schema} dataSource={dataSource} />;

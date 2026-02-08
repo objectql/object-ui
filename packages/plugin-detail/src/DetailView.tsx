@@ -75,7 +75,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
     } else {
       window.history.back();
     }
-  }, [onBack, schema.backUrl, schema.onNavigate, schema.objectName]);
+  }, [onBack, schema]);
 
   const handleEdit = React.useCallback(() => {
     if (onEdit) {
@@ -89,7 +89,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
     } else if (schema.editUrl) {
       window.location.href = schema.editUrl;
     }
-  }, [onEdit, schema.editUrl, schema.onNavigate, schema.objectName, schema.resourceId]);
+  }, [onEdit, schema]);
 
   const handleDelete = React.useCallback(() => {
     const confirmMessage = schema.deleteConfirmation || 'Are you sure you want to delete this record?';
@@ -102,7 +102,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
         schema.onNavigate(`/${schema.objectName}`, { replace: true });
       }
     }
-  }, [onDelete, schema.deleteConfirmation, schema.onNavigate, schema.objectName]);
+  }, [onDelete, schema]);
 
   if (loading || schema.loading) {
     return (

@@ -19,7 +19,7 @@
     "build": "vite build",
     "clean": "rm -rf dist",
     "test": "vitest run",
-    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint ."
   },
   "peerDependencies": {
     "react": "^18.0.0",
