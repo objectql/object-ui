@@ -30,7 +30,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Turbo Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: node_modules/.cache/turbo
           key: turbo-${{ runner.os }}-${{ github.sha }}
