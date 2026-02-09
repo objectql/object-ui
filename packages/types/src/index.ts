@@ -513,6 +513,23 @@ export type {
 } from './reports';
 
 export type {
+  // Workflow System
+  WorkflowStatus,
+  WorkflowNodeType,
+  WorkflowEdgeType,
+  WorkflowNode,
+  WorkflowNodeAction,
+  WorkflowEdge,
+  ApprovalRule,
+  WorkflowVariable,
+  WorkflowSchema,
+  WorkflowDesignerSchema,
+  ApprovalHistoryItem,
+  ApprovalProcessSchema,
+  WorkflowInstanceSchema,
+} from './workflow';
+
+export type {
   // Block System
   BlockSchema,
   BlockMetadata,
