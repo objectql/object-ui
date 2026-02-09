@@ -92,5 +92,18 @@ export default defineConfig({
     }
   },
   server: {
+    // Proxy API requests to the real ObjectStack server when running in server mode.
+    // In MSW mode, MSW intercepts requests at the service worker level before they
+    // reach the network, so these proxies are effectively bypassed.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/.well-known/objectstack': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
   }
 });
