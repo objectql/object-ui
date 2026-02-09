@@ -530,6 +530,20 @@ export type {
 } from './workflow';
 
 export type {
+  // AI System
+  AIProvider,
+  AIModelType,
+  AIConfig,
+  AIFieldSuggestion,
+  AIFormAssistSchema,
+  AIRecommendationItem,
+  AIRecommendationsSchema,
+  NLQueryResult,
+  NLQuerySchema,
+  AIInsightsSchema,
+} from './ai';
+
+export type {
   // Block System
   BlockSchema,
   BlockMetadata,
