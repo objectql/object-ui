@@ -29,7 +29,7 @@ pnpm add @object-ui/types
 Object UI follows a strict **"Protocol First"** approach with a clear inheritance hierarchy:
 
 ```
-@objectstack/spec (v0.1.2)          ← The "Highest Law" - Universal protocol
+@objectstack/spec (v2.0.1)          ← The "Highest Law" - Universal protocol
     ↓
 UIComponent                         ← Base interface for all UI components
     ↓
