@@ -1078,6 +1078,58 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4(@types/node@25.2.0)(rollup@4.57.1)(typescript@5.9.3)(vite@7.3.1(@types/node@25.2.0)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
 
+  packages/plugin-ai:
+    dependencies:
+      '@object-ui/components':
+        specifier: workspace:*
+        version: link:../components
+      '@object-ui/core':
+        specifier: workspace:*
+        version: link:../core
+      '@object-ui/react':
+        specifier: workspace:*
+        version: link:../react
+      '@object-ui/types':
+        specifier: workspace:*
+        version: link:../types
+      clsx:
+        specifier: ^2.1.0
+        version: 2.1.1
+      lucide-react:
+        specifier: ^0.344.0
+        version: 0.344.0(react@19.2.4)
+      react:
+        specifier: 19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: 19.2.4
+        version: 19.2.4(react@19.2.4)
+      tailwind-merge:
+        specifier: ^2.2.1
+        version: 2.6.1
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.24
+        version: 20.19.32
+      '@types/react':
+        specifier: 19.2.13
+        version: 19.2.13
+      '@types/react-dom':
+        specifier: 19.2.3
+        version: 19.2.3(@types/react@19.2.13)
+      '@vitejs/plugin-react':
+        specifier: ^5.1.3
+        version: 5.1.3(vite@7.3.1(@types/node@20.19.32)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
+      vite:
+        specifier: ^7.3.1
+        version: 7.3.1(@types/node@20.19.32)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)
+      vite-plugin-dts:
+        specifier: ^4.5.4
+        version: 4.5.4(@types/node@20.19.32)(rollup@4.57.1)(typescript@5.9.3)(vite@7.3.1(@types/node@20.19.32)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@types/node@20.19.32)(@vitest/ui@4.0.18)(happy-dom@20.5.3)(jiti@2.6.1)(jsdom@28.0.0(@noble/hashes@1.8.0))(lightningcss@1.30.2)(msw@2.12.9(@types/node@20.19.32)(typescript@5.9.3))(tsx@4.21.0)
+
   packages/plugin-calendar:
     dependencies:
       '@object-ui/components':
