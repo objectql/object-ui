@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Inpu
 import type { ReportBuilderSchema, ReportSchema, ReportField, ReportFilter, ReportGroupBy, ReportSection } from '@object-ui/types';
 import { Plus, Trash2, Save, X, Settings, Filter, Layers, Calendar } from 'lucide-react';
 import { ReportViewer } from './ReportViewer';
+import { ScheduleConfig } from './ScheduleConfig';
 
 export interface ReportBuilderProps {
   schema: ReportBuilderSchema;
@@ -170,7 +171,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="basic">
                 <Settings className="h-4 w-4 mr-2" />
                 Basic
@@ -190,6 +191,10 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
               <TabsTrigger value="sections">
                 <Layers className="h-4 w-4 mr-2" />
                 Sections
+              </TabsTrigger>
+              <TabsTrigger value="schedule">
+                <Calendar className="h-4 w-4 mr-2" />
+                Schedule
               </TabsTrigger>
             </TabsList>
 
@@ -591,6 +596,14 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
                      </div>
                   )}
                </div>
+            </TabsContent>
+
+            {/* Schedule Tab */}
+            <TabsContent value="schedule" className="space-y-4 mt-4">
+              <ScheduleConfig
+                schedule={report.schedule}
+                onChange={(schedule) => setReport({ ...report, schedule })}
+              />
             </TabsContent>
           </Tabs>
 

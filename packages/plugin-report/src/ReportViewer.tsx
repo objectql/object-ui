@@ -10,8 +10,9 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button } from '@object-ui/components';
 import { SchemaRenderer } from '@object-ui/react';
 import { ComponentRegistry } from '@object-ui/core';
-import type { ReportViewerSchema, ReportSection } from '@object-ui/types';
+import type { ReportViewerSchema, ReportSection, ReportExportFormat } from '@object-ui/types';
 import { Download, Printer, RefreshCw } from 'lucide-react';
+import { exportReport } from './ReportExportEngine';
 
 export interface ReportViewerProps {
   schema: ReportViewerSchema;
@@ -32,9 +33,13 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema }) => {
   } = schema;
 
   const handleExport = (format: string) => {
-    console.log('Export report as:', format);
-    // TODO: Implement export functionality
-    alert(`Export to ${format.toUpperCase()} - Feature coming soon!`);
+    if (!report) {
+      console.warn('ReportViewer: Cannot export, no report defined');
+      return;
+    }
+    exportReport(format as ReportExportFormat, report, data || [], 
+      report.exportConfigs?.[format as ReportExportFormat]
+    );
   };
 
   const handlePrint = () => {
@@ -82,16 +87,32 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema }) => {
               </Button>
             )}
             {allowExport && report.showExportButtons && (
-              <>
+              <div className="flex items-center gap-1">
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={() => handleExport(report.defaultExportFormat || 'pdf')}
+                  onClick={() => handleExport('pdf')}
                 >
                   <Download className="h-4 w-4 mr-2" />
-                  Export
+                  PDF
                 </Button>
-              </>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handleExport('excel')}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Excel
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handleExport('csv')}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  CSV
+                </Button>
+              </div>
             )}
           </div>
         </div>
