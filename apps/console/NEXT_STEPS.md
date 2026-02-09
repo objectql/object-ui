@@ -13,7 +13,7 @@ After completing the initial 10 phases, a deep audit revealed these **architectu
 | B | `useExpression` not used anywhere — `visible` fields do simple `=== false` checks instead of expression evaluation | High — conditional rendering broken |
 | C | `ContactList.tsx` + `types.ts` are hardcoded legacy components (`client.data.find` directly), unused by current routing | Medium — dead code |
 | D | `plugin-view/ObjectView` registration passes `dataSource={null}` — broken unless overridden | Medium — blocks adoption |
-| E | Two competing `ActionSchema` interfaces (`crud.ts` vs `ui-action.ts`) — spec v0.7.1 version is orphaned | High — type confusion |
+| E | Two competing `ActionSchema` interfaces (`crud.ts` vs `ui-action.ts`) — spec v2.0.1 version is orphaned | High — type confusion |
 | F | `ActionRunner.execute()` takes `any` — no typed action dispatch, no toast/redirect/dialog handling | Medium — action system is incomplete |
 | G | `DataSource` interface has no `getView`/`getApp` — can't fetch UI definitions from server | High — blocks server-driven UI |
 | H | `AppShell` has no branding props — `useBranding` hook works around this at app level | Low — works, not ideal |

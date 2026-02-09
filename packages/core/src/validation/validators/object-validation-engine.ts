@@ -9,7 +9,7 @@
 /**
  * @object-ui/core - Object-Level Validation Engine
  * 
- * ObjectStack Spec v0.7.1 compliant validation engine for object-level validation rules.
+ * ObjectStack Spec v2.0.1 compliant validation engine for object-level validation rules.
  * Supports all 9 validation types from the specification:
  * - ScriptValidation
  * - UniquenessValidation
@@ -256,7 +256,7 @@ class SimpleExpressionEvaluator implements ValidationExpressionEvaluator {
 
 /**
  * Object-Level Validation Engine
- * Implements ObjectStack Spec v0.7.1 validation framework
+ * Implements ObjectStack Spec v2.0.1 validation framework
  */
 export class ObjectValidationEngine {
   private expressionEvaluator: ValidationExpressionEvaluator;

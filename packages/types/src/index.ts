@@ -409,7 +409,7 @@ export type {
   ValidationContext,
   AdvancedValidationResult,
   AdvancedValidationError,
-  // ObjectStack Spec v0.7.1 Validation
+  // ObjectStack Spec v2.0.1 Validation
   BaseValidation,
   ScriptValidation,
   UniquenessValidation,
@@ -624,7 +624,7 @@ export type {
 } from './plugin-scope';
 
 // ============================================================================
-// UI Actions - Enhanced Action Schema (ObjectStack Spec v0.7.1)
+// UI Actions - Enhanced Action Schema (ObjectStack Spec v2.0.1)
 // ============================================================================
 /**
  * Enhanced action schema with location-based placement, parameter collection,
@@ -653,10 +653,64 @@ export type {
  * 
  * @example
  * ```typescript
- * import { Data, UI, System, AI, API } from '@object-ui/types';
+ * import { Data, UI, System, AI, API, Kernel } from '@object-ui/types';
  * 
  * const field: Data.Field = { name: 'task_name', type: 'text' };
- * const component: UI.Component = { type: 'button', label: 'Click me' };
+ * const view: UI.ListView = { name: 'all', label: 'All Records', ... };
  * ```
  */
-export type { Data, UI, System, AI, API, Hub, Automation, Shared, QA } from '@objectstack/spec';
+export type {
+  Data,
+  UI,
+  System,
+  AI,
+  API,
+  Hub,
+  Automation,
+  Shared,
+  QA,
+  Kernel,
+  Contracts,
+  Integration,
+  Studio,
+  Identity,
+  Security,
+} from '@objectstack/spec';
+
+// ============================================================================
+// ObjectStack Protocol Utilities - defineStack, definePlugin
+// ============================================================================
+/**
+ * Re-export ObjectStack Protocol utility functions and top-level types.
+ *
+ * @example
+ * ```typescript
+ * import { defineStack, definePlugin } from '@object-ui/types';
+ *
+ * export default defineStack({
+ *   manifest: { id: 'com.example.app', version: '1.0.0', type: 'app', name: 'My App' },
+ *   objects: [],
+ *   apps: [],
+ * });
+ * ```
+ */
+export {
+  defineStack,
+  definePlugin,
+  ObjectStackSchema,
+  ObjectStackDefinitionSchema,
+  ObjectStackCapabilitiesSchema,
+  ObjectOSCapabilitiesSchema,
+  ObjectQLCapabilitiesSchema,
+  ObjectUICapabilitiesSchema,
+} from '@objectstack/spec';
+
+export type {
+  PluginContext,
+  ObjectStack,
+  ObjectStackDefinition,
+  ObjectStackCapabilities,
+  ObjectOSCapabilities,
+  ObjectQLCapabilities,
+  ObjectUICapabilities,
+} from '@objectstack/spec';

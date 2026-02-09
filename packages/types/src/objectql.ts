@@ -22,123 +22,80 @@ import type { BaseSchema } from './base';
 import type { TableColumn } from './data-display';
 import type { FormField } from './form';
 
+// ============================================================================
+// Spec-Canonical Types — imported from @objectstack/spec/ui
+// Rule: "Never Redefine Types. ALWAYS import them."
+// ============================================================================
+
 /**
  * HTTP Method for API requests
+ * Canonical definition from @objectstack/spec/ui.
  */
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+export type { HttpMethod } from '@objectstack/spec/ui';
 
 /**
  * HTTP Request Configuration for API Provider
- * Aligned with @objectstack/spec HttpRequestSchema
+ * Canonical definition from @objectstack/spec/ui.
  */
-export interface HttpRequest {
-  /** API endpoint URL */
-  url: string;
-  /** HTTP method (default: GET) */
-  method?: HttpMethod;
-  /** Custom HTTP headers */
-  headers?: Record<string, string>;
-  /** Query parameters */
-  params?: Record<string, unknown>;
-  /** Request body for POST/PUT/PATCH - supports JSON objects, strings, FormData, or Blob */
-  body?: Record<string, unknown> | string | FormData | Blob;
-}
+export type { HttpRequest } from '@objectstack/spec/ui';
 
 /**
  * View Data Source Configuration
- * Aligned with @objectstack/spec ViewDataSchema
- * 
+ * Canonical definition from @objectstack/spec/ui.
+ *
  * Supports three modes:
  * 1. 'object': Standard Protocol - Auto-connects to ObjectStack Metadata and Data APIs
  * 2. 'api': Custom API - Explicitly provided API URLs
  * 3. 'value': Static Data - Hardcoded data array
  */
-export type ViewData =
-  | {
-      provider: 'object';
-      /** Target object name */
-      object: string;
-    }
-  | {
-      provider: 'api';
-      /** Configuration for fetching data */
-      read?: HttpRequest;
-      /** Configuration for submitting data (for forms/editable tables) */
-      write?: HttpRequest;
-    }
-  | {
-      provider: 'value';
-      /** Static data array */
-      items: unknown[];
-    };
+export type { ViewData } from '@objectstack/spec/ui';
 
 /**
  * List Column Configuration
- * Enhanced version aligned with @objectstack/spec ListColumnSchema
+ * Canonical definition from @objectstack/spec/ui.
  */
-export interface ListColumn {
-  /** Field name (snake_case) */
-  field: string;
-  /** Display label override */
-  label?: string;
-  /** Column width in pixels */
-  width?: number;
-  /** Text alignment */
-  align?: 'left' | 'center' | 'right';
-  /** Hide column by default */
-  hidden?: boolean;
-  /** Allow sorting by this column */
-  sortable?: boolean;
-  /** Allow resizing this column */
-  resizable?: boolean;
-  /** Allow text wrapping */
-  wrap?: boolean;
-  /** Renderer type override (e.g., "currency", "date") */
-  type?: string;
-  /** Functions as the primary navigation link (triggers View navigation) */
-  link?: boolean;
-  /** Registered Action ID to execute when clicked */
-  action?: string;
-}
+export type { ListColumn } from '@objectstack/spec/ui';
 
 /**
  * Selection Configuration
- * Aligned with @objectstack/spec SelectionConfigSchema
+ * Canonical definition from @objectstack/spec/ui.
  */
-export interface SelectionConfig {
-  /** Selection mode */
-  type?: 'none' | 'single' | 'multiple';
-}
+export type { SelectionConfig } from '@objectstack/spec/ui';
 
 /**
  * Pagination Configuration
- * Aligned with @objectstack/spec PaginationConfigSchema
+ * Canonical definition from @objectstack/spec/ui.
  */
-export interface PaginationConfig {
-  /** Number of records per page (default: 25) */
-  pageSize?: number;
-  /** Available page size options */
-  pageSizeOptions?: number[];
-}
+export type { PaginationConfig } from '@objectstack/spec/ui';
+
+// Import spec types for local use in interfaces below
+import type {
+  HttpMethod,
+  HttpRequest,
+  ViewData,
+  ListColumn,
+  SelectionConfig,
+  PaginationConfig,
+} from '@objectstack/spec/ui';
 
 /**
  * Kanban Configuration
- * Aligned with @objectstack/spec KanbanConfigSchema
+ * Canonical definition from @objectstack/spec/ui (KanbanConfigSchema).
  */
-export interface KanbanConfig {
+export type KanbanConfig = {
   /** Field to group columns by (usually status/select) */
   groupByField: string;
   /** Field to sum at top of column (e.g. amount) */
   summarizeField?: string;
   /** Fields to show on cards */
   columns: string[];
-}
+};
 
 /**
  * Calendar Configuration
- * Aligned with @objectstack/spec CalendarConfigSchema
+ * Canonical definition from @objectstack/spec/ui (CalendarConfigSchema).
  */
-export interface CalendarConfig {
+export type CalendarConfig = {
   /** Start date field */
   startDateField: string;
   /** End date field */
@@ -147,13 +104,13 @@ export interface CalendarConfig {
   titleField: string;
   /** Color field */
   colorField?: string;
-}
+};
 
 /**
  * Gantt Configuration
- * Aligned with @objectstack/spec GanttConfigSchema
+ * Canonical definition from @objectstack/spec/ui (GanttConfigSchema).
  */
-export interface GanttConfig {
+export type GanttConfig = {
   /** Start date field */
   startDateField: string;
   /** End date field */
@@ -166,7 +123,7 @@ export interface GanttConfig {
   dependenciesField?: string;
   /** Color field */
   colorField?: string;
-}
+};
 
 /**
  * Sort Configuration

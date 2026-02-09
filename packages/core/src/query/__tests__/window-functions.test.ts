@@ -9,7 +9,7 @@
 /**
  * @object-ui/core - Window Function Tests
  * 
- * Tests for ObjectStack Spec v0.7.1 window function support
+ * Tests for ObjectStack Spec v2.0.1 window function support
  */
 
 import { describe, it, expect } from 'vitest';

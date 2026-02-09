@@ -1,7 +1,7 @@
 /**
  * ObjectUI - Query AST Builder
  * Phase 3.3: QuerySchema AST implementation
- * ObjectStack Spec v0.7.1: Window functions support
+ * ObjectStack Spec v2.0.1: Window functions support
  */
 
 import type {
@@ -82,7 +82,7 @@ export class QueryASTBuilder {
       fields.push(...query.aggregations.map(agg => this.buildAggregation(agg)));
     }
 
-    // Add window functions (ObjectStack Spec v0.7.1)
+    // Add window functions (ObjectStack Spec v2.0.1)
     if (query.windows && query.windows.length > 0) {
       fields.push(...query.windows.map(win => this.buildWindow(win)));
     }
@@ -290,7 +290,7 @@ export class QueryASTBuilder {
   }
 
   /**
-   * Build window function node (ObjectStack Spec v0.7.1)
+   * Build window function node (ObjectStack Spec v2.0.1)
    */
   private buildWindow(config: WindowConfig): WindowNode {
     const node: WindowNode = {

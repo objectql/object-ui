@@ -10,7 +10,7 @@
  * @object-ui/core - Action Runner
  * 
  * Executes actions defined in ActionSchema and EventHandler.
- * Supports all spec v0.7.1 action types: script, url, modal, flow, api.
+ * Supports all spec v2.0.1 action types: script, url, modal, flow, api.
  * Features: conditional execution, confirmation, toast notifications,
  * redirect handling, action chaining, custom handler registration.
  */
@@ -56,7 +56,7 @@ export interface ApiConfig {
 
 /**
  * Action definition accepted by the runner.
- * Compatible with both UIActionSchema (spec v0.7.1) and legacy crud.ts ActionSchema.
+ * Compatible with both UIActionSchema (spec v2.0.1) and legacy crud.ts ActionSchema.
  */
 export interface ActionDef {
   /** Action type identifier: 'script' | 'url' | 'modal' | 'flow' | 'api' | 'navigation' | custom */
@@ -77,7 +77,7 @@ export interface ActionDef {
   disabled?: string | boolean;
   /** API endpoint (string URL or complex config) */
   api?: string | ApiConfig;
-  /** API endpoint URL (spec v0.7.1 alias) */
+  /** API endpoint URL (spec v2.0.1 alias) */
   endpoint?: string;
   /** HTTP method */
   method?: string;

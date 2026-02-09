@@ -21,7 +21,7 @@ import { BaseSchema } from './base.zod.js';
 
 /**
  * Color Palette Schema
- * Aligned with @objectstack/spec ColorPaletteSchema.
+ * Mirrors @objectstack/spec/ui ColorPaletteSchema.
  */
 export const ColorPaletteSchema = z.object({
   primary: z.string().describe('Primary brand color'),
@@ -45,7 +45,7 @@ export const ColorPaletteSchema = z.object({
 
 /**
  * Typography Schema
- * Aligned with @objectstack/spec TypographySchema.
+ * Mirrors @objectstack/spec/ui TypographySchema.
  */
 export const TypographySchema = z.object({
   fontFamily: z.object({
@@ -87,7 +87,7 @@ export const TypographySchema = z.object({
 
 /**
  * Spacing Scale Schema
- * Aligned with @objectstack/spec SpacingSchema.
+ * Mirrors @objectstack/spec/ui SpacingSchema.
  */
 export const SpacingSchema = z.object({
   '0': z.string().optional(),
@@ -107,7 +107,7 @@ export const SpacingSchema = z.object({
 
 /**
  * Border Radius Schema
- * Aligned with @objectstack/spec BorderRadiusSchema.
+ * Mirrors @objectstack/spec/ui BorderRadiusSchema.
  */
 export const BorderRadiusSchema = z.object({
   none: z.string().optional(),
@@ -122,7 +122,7 @@ export const BorderRadiusSchema = z.object({
 
 /**
  * Shadow Schema
- * Aligned with @objectstack/spec ShadowSchema.
+ * Mirrors @objectstack/spec/ui ShadowSchema.
  */
 export const ShadowSchema = z.object({
   none: z.string().optional(),
@@ -137,7 +137,7 @@ export const ShadowSchema = z.object({
 
 /**
  * Breakpoints Schema
- * Aligned with @objectstack/spec BreakpointsSchema.
+ * Mirrors @objectstack/spec/ui BreakpointsSchema.
  */
 export const BreakpointsSchema = z.object({
   xs: z.string().optional(),
@@ -150,7 +150,7 @@ export const BreakpointsSchema = z.object({
 
 /**
  * Animation Schema
- * Aligned with @objectstack/spec AnimationSchema.
+ * Mirrors @objectstack/spec/ui AnimationSchema.
  */
 export const AnimationSchema = z.object({
   duration: z.object({
@@ -169,7 +169,7 @@ export const AnimationSchema = z.object({
 
 /**
  * Z-Index Schema
- * Aligned with @objectstack/spec ZIndexSchema.
+ * Mirrors @objectstack/spec/ui ZIndexSchema.
  */
 export const ZIndexSchema = z.object({
   base: z.number().optional(),
@@ -183,7 +183,14 @@ export const ZIndexSchema = z.object({
 });
 
 /**
+ * Theme Mode Schema
+ * Mirrors @objectstack/spec/ui ThemeMode.
+ */
+export const ThemeModeSchema = z.enum(['light', 'dark', 'auto']).describe('Theme mode');
+
+/**
  * Theme Logo Schema
+ * Mirrors the inline logo object in @objectstack/spec ThemeSchema.
  */
 export const ThemeLogoSchema = z.object({
   light: z.string().optional().describe('Logo URL for light mode'),
@@ -192,14 +199,8 @@ export const ThemeLogoSchema = z.object({
 });
 
 /**
- * Theme Mode Schema
- * Aligned with @objectstack/spec ThemeMode.
- */
-export const ThemeModeSchema = z.enum(['light', 'dark', 'auto']).describe('Theme mode');
-
-/**
  * Theme Definition Schema
- * Aligned with @objectstack/spec ThemeSchema.
+ * Mirrors @objectstack/spec/ui ThemeSchema.
  */
 export const ThemeDefinitionSchema = z.object({
   name: z.string().describe('Theme identifier'),

@@ -66,13 +66,13 @@ export interface AppSchema extends BaseSchema {
   actions?: AppAction[];
 
   /**
-   * Home page ID (ObjectStack Spec v0.7.1)
+   * Home page ID (ObjectStack Spec v2.0.1)
    * Default page to navigate to after login
    */
   homePageId?: string;
 
   /**
-   * Required permissions (ObjectStack Spec v0.7.1)
+   * Required permissions (ObjectStack Spec v2.0.1)
    * Permissions required to access this application
    */
   requiredPermissions?: string[];

@@ -21,11 +21,13 @@ import { BaseSchema } from './base.zod.js';
 
 /**
  * HTTP Method Schema
+ * Mirrors @objectstack/spec/ui HttpMethodSchema.
  */
 export const HttpMethodSchema = z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 
 /**
  * HTTP Request Schema
+ * Mirrors @objectstack/spec/ui HttpRequestSchema.
  */
 export const HttpRequestSchema = z.object({
   url: z.string().describe('API endpoint URL'),
@@ -37,6 +39,7 @@ export const HttpRequestSchema = z.object({
 
 /**
  * View Data Source Schema
+ * Mirrors @objectstack/spec/ui ViewDataSchema.
  */
 export const ViewDataSchema = z.union([
   z.object({
@@ -56,6 +59,7 @@ export const ViewDataSchema = z.union([
 
 /**
  * List Column Schema
+ * Mirrors @objectstack/spec/ui ListColumnSchema.
  */
 export const ListColumnSchema = z.object({
   field: z.string().describe('Field name'),
@@ -73,6 +77,7 @@ export const ListColumnSchema = z.object({
 
 /**
  * Selection Config Schema
+ * Mirrors @objectstack/spec/ui SelectionConfigSchema.
  */
 export const SelectionConfigSchema = z.object({
   type: z.enum(['none', 'single', 'multiple']).optional().describe('Selection mode'),
@@ -80,6 +85,7 @@ export const SelectionConfigSchema = z.object({
 
 /**
  * Pagination Config Schema
+ * Mirrors @objectstack/spec/ui PaginationConfigSchema.
  */
 export const PaginationConfigSchema = z.object({
   pageSize: z.number().optional().describe('Page size'),

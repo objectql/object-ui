@@ -9,7 +9,7 @@
 /**
  * @object-ui/core - Object Validation Engine Tests
  * 
- * Tests for ObjectStack Spec v0.7.1 object-level validation
+ * Tests for ObjectStack Spec v2.0.1 object-level validation
  */
 
 import { describe, it, expect, vi } from 'vitest';

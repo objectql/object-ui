@@ -81,7 +81,7 @@ export interface WhereNode extends QueryASTNode {
 }
 
 /**
- * Join execution strategy hint (ObjectStack Spec v0.7.1)
+ * Join execution strategy hint (ObjectStack Spec v2.0.1)
  */
 export type JoinStrategy = 'auto' | 'database' | 'hash' | 'loop';
 
@@ -155,7 +155,7 @@ export interface AggregateNode extends QueryASTNode {
 }
 
 /**
- * Window function type (ObjectStack Spec v0.7.1)
+ * Window function type (ObjectStack Spec v2.0.1)
  */
 export type WindowFunction = 
   | 'row_number'
@@ -173,12 +173,12 @@ export type WindowFunction =
   | 'max';
 
 /**
- * Window frame unit (ObjectStack Spec v0.7.1)
+ * Window frame unit (ObjectStack Spec v2.0.1)
  */
 export type WindowFrameUnit = 'rows' | 'range';
 
 /**
- * Window frame boundary (ObjectStack Spec v0.7.1)
+ * Window frame boundary (ObjectStack Spec v2.0.1)
  */
 export type WindowFrameBoundary = 
   | 'unbounded_preceding'
@@ -188,7 +188,7 @@ export type WindowFrameBoundary =
   | { type: 'following'; offset: number };
 
 /**
- * Window frame specification (ObjectStack Spec v0.7.1)
+ * Window frame specification (ObjectStack Spec v2.0.1)
  */
 export interface WindowFrame {
   unit: WindowFrameUnit;
@@ -197,7 +197,7 @@ export interface WindowFrame {
 }
 
 /**
- * Window function node (ObjectStack Spec v0.7.1)
+ * Window function node (ObjectStack Spec v2.0.1)
  */
 export interface WindowNode extends QueryASTNode {
   type: 'window';
@@ -341,7 +341,7 @@ export interface QuerySchema {
   group_by?: string[];
   
   /**
-   * Window functions (ObjectStack Spec v0.7.1)
+   * Window functions (ObjectStack Spec v2.0.1)
    */
   windows?: WindowConfig[];
   
@@ -388,7 +388,7 @@ export interface AggregationConfig {
 }
 
 /**
- * Window function configuration (ObjectStack Spec v0.7.1)
+ * Window function configuration (ObjectStack Spec v2.0.1)
  */
 export interface WindowConfig {
   /** Window function name */
@@ -826,12 +826,12 @@ export interface AdvancedValidationError {
 
 /**
  * =============================================================================
- * ObjectStack Spec v0.7.1: Object-Level Validation Framework
+ * ObjectStack Spec v2.0.1: Object-Level Validation Framework
  * =============================================================================
  */
 
 /**
- * Base validation interface (ObjectStack Spec v0.7.1)
+ * Base validation interface (ObjectStack Spec v2.0.1)
  */
 export interface BaseValidation {
   /** Unique validation name (snake_case) */
@@ -860,7 +860,7 @@ export interface BaseValidation {
 }
 
 /**
- * Script-based validation (ObjectStack Spec v0.7.1)
+ * Script-based validation (ObjectStack Spec v2.0.1)
  * Uses expression language to define conditions
  */
 export interface ScriptValidation extends BaseValidation {
@@ -871,7 +871,7 @@ export interface ScriptValidation extends BaseValidation {
 }
 
 /**
- * Uniqueness validation (ObjectStack Spec v0.7.1)
+ * Uniqueness validation (ObjectStack Spec v2.0.1)
  * Ensures field combinations are unique
  */
 export interface UniquenessValidation extends BaseValidation {
@@ -888,7 +888,7 @@ export interface UniquenessValidation extends BaseValidation {
 }
 
 /**
- * State machine validation (ObjectStack Spec v0.7.1)
+ * State machine validation (ObjectStack Spec v2.0.1)
  * Enforces valid state transitions
  */
 export interface StateMachineValidation extends BaseValidation {
@@ -911,7 +911,7 @@ export interface StateMachineValidation extends BaseValidation {
 }
 
 /**
- * Cross-field validation (ObjectStack Spec v0.7.1)
+ * Cross-field validation (ObjectStack Spec v2.0.1)
  * Validates relationships between multiple fields
  */
 export interface CrossFieldValidation extends BaseValidation {
@@ -925,7 +925,7 @@ export interface CrossFieldValidation extends BaseValidation {
 }
 
 /**
- * Async/remote validation (ObjectStack Spec v0.7.1)
+ * Async/remote validation (ObjectStack Spec v2.0.1)
  * Calls external endpoint for validation
  */
 export interface AsyncValidation extends BaseValidation {
@@ -948,7 +948,7 @@ export interface AsyncValidation extends BaseValidation {
 }
 
 /**
- * Conditional validation (ObjectStack Spec v0.7.1)
+ * Conditional validation (ObjectStack Spec v2.0.1)
  * Applies nested rules only when condition is met
  */
 export interface ConditionalValidation extends BaseValidation {
@@ -962,7 +962,7 @@ export interface ConditionalValidation extends BaseValidation {
 }
 
 /**
- * Format validation (ObjectStack Spec v0.7.1)
+ * Format validation (ObjectStack Spec v2.0.1)
  * Validates field format using regex or predefined patterns
  */
 export interface FormatValidation extends BaseValidation {
@@ -982,7 +982,7 @@ export interface FormatValidation extends BaseValidation {
 }
 
 /**
- * Range validation (ObjectStack Spec v0.7.1)
+ * Range validation (ObjectStack Spec v2.0.1)
  * Validates numeric or date ranges
  */
 export interface RangeValidation extends BaseValidation {
@@ -1005,7 +1005,7 @@ export interface RangeValidation extends BaseValidation {
 }
 
 /**
- * Union type for all validation rules (ObjectStack Spec v0.7.1)
+ * Union type for all validation rules (ObjectStack Spec v2.0.1)
  */
 export type ObjectValidationRule = 
   | ScriptValidation

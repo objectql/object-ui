@@ -9,7 +9,7 @@
 /**
  * @object-ui/core - Validators
  * 
- * ObjectStack Spec v0.7.1 compliant validators
+ * ObjectStack Spec v2.0.1 compliant validators
  * 
  * @module validators
  * @packageDocumentation

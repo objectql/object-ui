@@ -20,207 +20,81 @@
 import type { BaseSchema } from './base';
 
 // ============================================================================
-// Spec-Aligned Theme Sub-types
+// Spec-Canonical Theme Sub-types — imported from @objectstack/spec/ui
+// Rule: "Never Redefine Types. ALWAYS import them."
 // ============================================================================
 
 /**
  * Color Palette Definition
- * Aligned with @objectstack/spec ColorPalette.
- *
- * Semantic color tokens for brand customization.
- * `primary` is the only required field.
+ * Canonical definition from @objectstack/spec/ui.
  */
-export interface ColorPalette {
-  /** Primary brand color (required) */
-  primary: string;
-  /** Secondary brand color */
-  secondary?: string;
-  /** Accent color */
-  accent?: string;
-  /** Success/positive color */
-  success?: string;
-  /** Warning/caution color */
-  warning?: string;
-  /** Error/danger color */
-  error?: string;
-  /** Informational color */
-  info?: string;
-  /** Page background color */
-  background?: string;
-  /** Surface/card background color */
-  surface?: string;
-  /** Primary text color */
-  text?: string;
-  /** Secondary/muted text color */
-  textSecondary?: string;
-  /** Default border color */
-  border?: string;
-  /** Disabled state color */
-  disabled?: string;
-  /** Lighter variant of primary */
-  primaryLight?: string;
-  /** Darker variant of primary */
-  primaryDark?: string;
-  /** Lighter variant of secondary */
-  secondaryLight?: string;
-  /** Darker variant of secondary */
-  secondaryDark?: string;
-}
+export type { ColorPalette } from '@objectstack/spec/ui';
 
 /**
  * Typography Configuration
- * Aligned with @objectstack/spec Typography.
+ * Canonical definition from @objectstack/spec/ui.
  */
-export interface Typography {
-  /** Font family definitions */
-  fontFamily?: {
-    /** Base body font family */
-    base?: string;
-    /** Heading font family */
-    heading?: string;
-    /** Monospace font family */
-    mono?: string;
-  };
-  /** Font size scale (string values, e.g. "0.75rem") */
-  fontSize?: {
-    xs?: string;
-    sm?: string;
-    base?: string;
-    lg?: string;
-    xl?: string;
-    '2xl'?: string;
-    '3xl'?: string;
-    '4xl'?: string;
-  };
-  /** Font weight scale (numeric values) */
-  fontWeight?: {
-    light?: number;
-    normal?: number;
-    medium?: number;
-    semibold?: number;
-    bold?: number;
-  };
-  /** Line height scale */
-  lineHeight?: {
-    tight?: string;
-    normal?: string;
-    relaxed?: string;
-    loose?: string;
-  };
-  /** Letter spacing scale */
-  letterSpacing?: {
-    tighter?: string;
-    tight?: string;
-    normal?: string;
-    wide?: string;
-    wider?: string;
-  };
-}
+export type { Typography } from '@objectstack/spec/ui';
 
 /**
  * Spacing Scale Configuration
- * Aligned with @objectstack/spec Spacing.
- *
- * Explicit scale keys '0' through '24' with string values (e.g. "0rem", "1.5rem").
+ * Canonical definition from @objectstack/spec/ui.
  */
-export interface Spacing {
-  '0'?: string;
-  '1'?: string;
-  '2'?: string;
-  '3'?: string;
-  '4'?: string;
-  '5'?: string;
-  '6'?: string;
-  '8'?: string;
-  '10'?: string;
-  '12'?: string;
-  '16'?: string;
-  '20'?: string;
-  '24'?: string;
-}
+export type { Spacing } from '@objectstack/spec/ui';
 
 /**
  * Border Radius Configuration
- * Aligned with @objectstack/spec BorderRadius.
+ * Canonical definition from @objectstack/spec/ui.
  */
-export interface BorderRadius {
-  none?: string;
-  sm?: string;
-  base?: string;
-  md?: string;
-  lg?: string;
-  xl?: string;
-  '2xl'?: string;
-  full?: string;
-}
+export type { BorderRadius } from '@objectstack/spec/ui';
 
 /**
  * Shadow Configuration
- * Aligned with @objectstack/spec Shadow.
+ * Canonical definition from @objectstack/spec/ui.
  */
-export interface Shadow {
-  none?: string;
-  sm?: string;
-  base?: string;
-  md?: string;
-  lg?: string;
-  xl?: string;
-  '2xl'?: string;
-  inner?: string;
-}
+export type { Shadow } from '@objectstack/spec/ui';
 
 /**
  * Responsive Breakpoints Configuration
- * Aligned with @objectstack/spec Breakpoints.
+ * Canonical definition from @objectstack/spec/ui.
  */
-export interface Breakpoints {
-  xs?: string;
-  sm?: string;
-  md?: string;
-  lg?: string;
-  xl?: string;
-  '2xl'?: string;
-}
+export type { Breakpoints } from '@objectstack/spec/ui';
 
 /**
  * Animation Configuration
- * Aligned with @objectstack/spec Animation.
+ * Canonical definition from @objectstack/spec/ui.
  */
-export interface Animation {
-  /** Duration presets */
-  duration?: {
-    fast?: string;
-    base?: string;
-    slow?: string;
-  };
-  /** Timing function presets */
-  timing?: {
-    linear?: string;
-    ease?: string;
-    easeIn?: string;
-    easeOut?: string;
-    easeInOut?: string;
-  };
-}
+export type { Animation } from '@objectstack/spec/ui';
 
 /**
  * Z-Index Layer Configuration
- * Aligned with @objectstack/spec ZIndex.
+ * Canonical definition from @objectstack/spec/ui.
  */
-export interface ZIndex {
-  base?: number;
-  dropdown?: number;
-  sticky?: number;
-  fixed?: number;
-  modalBackdrop?: number;
-  modal?: number;
-  popover?: number;
-  tooltip?: number;
-}
+export type { ZIndex } from '@objectstack/spec/ui';
+
+/**
+ * Theme Mode
+ * Canonical definition from @objectstack/spec/ui.
+ */
+export type { ThemeMode } from '@objectstack/spec/ui';
+
+// Import spec types for local use in interfaces below
+import type {
+  ColorPalette,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadow,
+  Breakpoints,
+  Animation,
+  ZIndex,
+  ThemeMode,
+} from '@objectstack/spec/ui';
 
 /**
  * Logo / Branding Assets
- * Aligned with @objectstack/spec Theme.logo.
+ * ObjectUI-specific convenience type matching the inline logo object
+ * in @objectstack/spec ThemeSchema.
  */
 export interface ThemeLogo {
   /** Logo URL for light mode */
@@ -232,14 +106,11 @@ export interface ThemeLogo {
 }
 
 /**
- * Theme Mode
- * Aligned with @objectstack/spec ThemeMode.
- */
-export type ThemeMode = 'light' | 'dark' | 'auto';
-
-/**
  * Complete Theme Definition
- * Aligned with @objectstack/spec Theme.
+ * Compatible with @objectstack/spec Theme (input shape).
+ *
+ * Note: The spec's z.infer<Theme> has `mode` required (via ZodDefault).
+ * ObjectUI uses the input shape where `mode` is optional (defaults to 'auto').
  *
  * This is the canonical JSON shape for a theme.
  * It can be serialized, stored, and applied at runtime via ThemeProvider.

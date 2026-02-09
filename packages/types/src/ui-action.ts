@@ -9,7 +9,7 @@
 /**
  * @object-ui/types - UI Action Schema
  * 
- * ObjectStack Spec v0.7.1 compliant action schema with enhanced capabilities:
+ * ObjectStack Spec v2.0.1 compliant action schema with enhanced capabilities:
  * - Location-based action placement
  * - Parameter collection
  * - Conditional visibility and enablement
@@ -19,9 +19,47 @@
  * @packageDocumentation
  */
 
+// ============================================================================
+// Spec-Canonical Action Sub-types — imported from @objectstack/spec/ui
+// ============================================================================
+
+/**
+ * Action placement locations
+ * Canonical definition from @objectstack/spec/ui ActionSchema.locations.
+ */
+export type ActionLocation = 
+  | 'list_toolbar'       // Top toolbar in list views
+  | 'list_item'          // Per-item actions in list
+  | 'record_header'      // Header area of record detail
+  | 'record_more'        // More menu in record detail
+  | 'record_related'     // Related lists section
+  | 'global_nav';        // Global navigation bar
+
+/**
+ * Visual component type for actions
+ * Canonical definition from @objectstack/spec/ui ActionSchema.component.
+ */
+export type ActionComponent = 
+  | 'action:button'      // Standard button
+  | 'action:icon'        // Icon-only button
+  | 'action:menu'        // Menu item
+  | 'action:group';      // Action group/dropdown
+
+/**
+ * Action execution type
+ * Canonical definition from @objectstack/spec/ui ActionSchema.type.
+ */
+export type ActionType = 
+  | 'script'             // Execute JavaScript/expression
+  | 'url'                // Navigate to URL
+  | 'modal'              // Open modal dialog
+  | 'flow'               // Start workflow/automation
+  | 'api';               // Call API endpoint
+
 /**
  * Field type for action parameters
- * Simplified type definition for parameter inputs
+ * Subset of field types commonly used in action parameter collection UIs.
+ * Aligned with the field types available in @objectstack/spec ActionParamSchema.
  */
 export type ActionParamFieldType =
   | 'text'
@@ -42,37 +80,7 @@ export type ActionParamFieldType =
   | 'rating';
 
 /**
- * Action placement locations (ObjectStack Spec v0.7.1)
- */
-export type ActionLocation = 
-  | 'list_toolbar'       // Top toolbar in list views
-  | 'list_item'          // Per-item actions in list
-  | 'record_header'      // Header area of record detail
-  | 'record_more'        // More menu in record detail
-  | 'record_related'     // Related lists section
-  | 'global_nav';        // Global navigation bar
-
-/**
- * Visual component type for actions (ObjectStack Spec v0.7.1)
- */
-export type ActionComponent = 
-  | 'action:button'      // Standard button
-  | 'action:icon'        // Icon-only button
-  | 'action:menu'        // Menu item
-  | 'action:group';      // Action group/dropdown
-
-/**
- * Action execution type (ObjectStack Spec v0.7.1)
- */
-export type ActionType = 
-  | 'script'             // Execute JavaScript/expression
-  | 'url'                // Navigate to URL
-  | 'modal'              // Open modal dialog
-  | 'flow'               // Start workflow/automation
-  | 'api';               // Call API endpoint
-
-/**
- * Action parameter definition (ObjectStack Spec v0.7.1)
+ * Action parameter definition (ObjectStack Spec v2.0.1)
  */
 export interface ActionParam {
   /** Parameter name (snake_case) */
@@ -104,7 +112,7 @@ export interface ActionParam {
 }
 
 /**
- * Enhanced Action Schema (ObjectStack Spec v0.7.1)
+ * Enhanced Action Schema (ObjectStack Spec v2.0.1)
  * 
  * This is the primary action schema that should be used for all new implementations.
  * The legacy ActionSchema in crud.ts is maintained for backward compatibility.
