@@ -7,7 +7,8 @@ const crmConfig = (crmConfigImport as any).default || crmConfigImport;
 const todoConfig = (todoConfigImport as any).default || todoConfigImport;
 const kitchenSinkConfig = (kitchenSinkConfigImport as any).default || kitchenSinkConfigImport;
 
-// Patch CRM App Navigation to include Report (since it was removed from CRM config for strict validation)
+// Patch CRM App Navigation to include Report using a supported navigation type
+// (type: 'url' passes schema validation while still routing correctly via React Router)
 const crmApps = crmConfig.apps ? JSON.parse(JSON.stringify(crmConfig.apps)) : [];
 if (crmApps.length > 0) {
     const crmApp = crmApps[0];
@@ -17,8 +18,8 @@ if (crmApps.length > 0) {
         const insertIdx = dashboardIdx !== -1 ? dashboardIdx + 1 : 0;
         crmApp.navigation.splice(insertIdx, 0, {
             id: 'nav_sales_report',
-            type: 'report',
-            reportName: 'sales_performance_q1',
+            type: 'url',
+            url: '/apps/crm_app/report/sales_performance_q1',
             label: 'Sales Report',
             icon: 'file-bar-chart'
         });

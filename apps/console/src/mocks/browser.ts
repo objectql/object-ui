@@ -52,8 +52,11 @@ export async function startMockServer() {
   await kernel.bootstrap();
 
   // Create MSW handlers that match the response format of HonoServerPlugin
-  const baseUrl = '/api/v1';
-  const handlers = createHandlers(baseUrl, kernel, driver);
+  // Include both /api/v1 and legacy /api paths so the ObjectStackClient can
+  // reach the mock server regardless of which base URL it probes.
+  const v1Handlers = createHandlers('/api/v1', kernel, driver);
+  const legacyHandlers = createHandlers('/api', kernel, driver);
+  const handlers = [...v1Handlers, ...legacyHandlers];
 
   // Start MSW service worker
   worker = setupWorker(...handlers);
