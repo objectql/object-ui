@@ -58,8 +58,8 @@ export type ActionType =
 
 /**
  * Field type for action parameters
- * Extended from @objectstack/spec/ui ActionParamSchema.type to include
- * ObjectUI-specific field types commonly used in parameter UIs.
+ * Subset of field types commonly used in action parameter collection UIs.
+ * Aligned with the field types available in @objectstack/spec ActionParamSchema.
  */
 export type ActionParamFieldType =
   | 'text'

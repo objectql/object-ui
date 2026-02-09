@@ -89,7 +89,6 @@ import type {
   Animation,
   ZIndex,
   ThemeMode,
-  Theme as SpecTheme,
 } from '@objectstack/spec/ui';
 
 /**
