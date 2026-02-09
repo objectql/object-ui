@@ -282,3 +282,134 @@ export type ActionExecutor = (
   context: ActionContext,
   params?: Record<string, any>
 ) => Promise<ActionResult>;
+
+// ============================================================================
+// Batch Operations (Q2 2026 - Spec v2.0.1 Enhancement)
+// ============================================================================
+
+/** Batch operation configuration */
+export interface BatchOperationConfig {
+  /** Operation name */
+  name: string;
+  /** Display label */
+  label: string;
+  /** Target action to execute on each record */
+  action: string;
+  /** Whether to run in parallel */
+  parallel?: boolean;
+  /** Maximum concurrent operations */
+  concurrency?: number;
+  /** Whether to continue on error */
+  continueOnError?: boolean;
+  /** Progress callback expression */
+  onProgress?: string;
+  /** Completion callback expression */
+  onComplete?: string;
+}
+
+/** Batch operation result */
+export interface BatchOperationResult {
+  /** Total items processed */
+  total: number;
+  /** Successfully processed count */
+  succeeded: number;
+  /** Failed count */
+  failed: number;
+  /** Individual results */
+  results: Array<{
+    recordId: string;
+    success: boolean;
+    error?: string;
+  }>;
+}
+
+// ============================================================================
+// Transaction Support (Q2 2026 - Spec v2.0.1 Enhancement)
+// ============================================================================
+
+/** Transaction isolation level */
+export type TransactionIsolationLevel = 'read-uncommitted' | 'read-committed' | 'repeatable-read' | 'serializable';
+
+/** Transaction configuration */
+export interface TransactionConfig {
+  /** Transaction name for identification */
+  name?: string;
+  /** Isolation level */
+  isolation?: TransactionIsolationLevel;
+  /** Timeout in milliseconds */
+  timeout?: number;
+  /** Actions to execute within the transaction */
+  actions: ActionSchema[];
+  /** Rollback action on failure */
+  rollbackAction?: string;
+  /** Whether to auto-retry on conflict */
+  retryOnConflict?: boolean;
+  /** Maximum retry attempts */
+  maxRetries?: number;
+}
+
+/** Transaction result */
+export interface TransactionResult {
+  /** Whether all actions succeeded */
+  success: boolean;
+  /** Transaction ID */
+  transactionId: string;
+  /** Individual action results */
+  actionResults: ActionResult[];
+  /** Error if transaction failed */
+  error?: string;
+  /** Whether the transaction was rolled back */
+  rolledBack?: boolean;
+}
+
+// ============================================================================
+// Undo/Redo Support (Q2 2026 - Spec v2.0.1 Enhancement)
+// ============================================================================
+
+/** Undo/redo operation entry */
+export interface UndoRedoEntry {
+  /** Entry identifier */
+  id: string;
+  /** Action that was performed */
+  action: string;
+  /** Description of the action */
+  description: string;
+  /** Timestamp */
+  timestamp: string;
+  /** Data before the action (for undo) */
+  previousState: Record<string, unknown>;
+  /** Data after the action (for redo) */
+  nextState: Record<string, unknown>;
+  /** Target object */
+  object?: string;
+  /** Target record ID */
+  recordId?: string;
+}
+
+/** Undo/redo configuration */
+export interface UndoRedoConfig {
+  /** Enable undo/redo */
+  enabled: boolean;
+  /** Maximum history size */
+  maxHistorySize?: number;
+  /** Actions that support undo */
+  undoableActions?: string[];
+  /** Whether to group rapid changes */
+  groupChanges?: boolean;
+  /** Group timeout in milliseconds */
+  groupTimeout?: number;
+}
+
+/** Undo/redo state */
+export interface UndoRedoState {
+  /** Whether undo is available */
+  canUndo: boolean;
+  /** Whether redo is available */
+  canRedo: boolean;
+  /** Undo stack */
+  undoStack: UndoRedoEntry[];
+  /** Redo stack */
+  redoStack: UndoRedoEntry[];
+  /** Current position in history */
+  currentIndex: number;
+}

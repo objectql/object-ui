@@ -1,0 +1,42 @@
+{
+  "name": "@object-ui/permissions",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "RBAC permission system for Object UI with object/field/row-level access control, permission guards, and hooks.",
+  "homepage": "https://www.objectui.org",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/objectstack-ai/objectui.git",
+    "directory": "packages/permissions"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "dependencies": {
+    "@object-ui/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.13",
+    "react": "^19.1.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

@@ -440,6 +440,87 @@ export type {
 } from './data-protocol';
 
 // ============================================================================
+// Permission & RBAC Types (Q2 2026)
+// ============================================================================
+export type {
+  PermissionAction,
+  PermissionEffect,
+  RoleDefinition,
+  ObjectLevelPermission,
+  FieldLevelPermission,
+  RowLevelPermission,
+  PermissionCondition,
+  ObjectPermissionConfig,
+  SharingRuleConfig,
+  PermissionCheckResult,
+  PermissionContext,
+  PermissionGuardConfig,
+} from './permissions';
+
+// ============================================================================
+// Multi-Tenancy Types (Q2 2026)
+// ============================================================================
+export type {
+  TenantIsolationStrategy,
+  TenantStatus,
+  TenantPlan,
+  TenantConfig,
+  TenantBranding,
+  TenantLimits,
+  TenantContext,
+  TenantResolutionStrategy,
+  TenantProviderConfig,
+  TenantScopedQueryConfig,
+} from './tenant';
+
+// ============================================================================
+// Mobile Optimization Types (Q2 2026)
+// ============================================================================
+export type {
+  BreakpointName,
+  ResponsiveValue,
+  ResponsiveConfig,
+  MobileOverrides,
+  PWAConfig,
+  PWAIcon,
+  CacheStrategy,
+  OfflineConfig,
+  OfflineRoute,
+  GestureType,
+  GestureConfig,
+  GestureContext,
+  MobileComponentConfig,
+} from './mobile';
+
+// ============================================================================
+// Visual Designer Types (Q2 2026)
+// ============================================================================
+export type {
+  DesignerPosition,
+  DesignerCanvasConfig,
+  DesignerComponent,
+  PageDesignerSchema,
+  DesignerPaletteCategory,
+  DesignerPaletteItem,
+  DataModelEntity,
+  DataModelField,
+  DataModelRelationship,
+  DataModelDesignerSchema,
+  BPMNNodeType,
+  BPMNNode,
+  BPMNEdge,
+  BPMNLane,
+  ProcessDesignerSchema,
+  ReportSectionType,
+  ReportDesignerElement,
+  ReportDesignerSection,
+  ReportDesignerSchema,
+  CollaborationPresence,
+  CollaborationOperation,
+  CollaborationConfig,
+} from './designer';
+
+// ============================================================================
 // API and Events - API Integration and Event Handling
 // ============================================================================
 export type {
@@ -671,6 +752,14 @@ export type {
   ActionContext,
   ActionResult,
   ActionExecutor,
+  BatchOperationConfig,
+  BatchOperationResult,
+  TransactionIsolationLevel,
+  TransactionConfig,
+  TransactionResult,
+  UndoRedoEntry,
+  UndoRedoConfig,
+  UndoRedoState,
 } from './ui-action';
 
 // ============================================================================
