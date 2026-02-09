@@ -16,7 +16,7 @@ export interface AgGridCallbacks {
   onRowClicked?: (event: RowClickedEvent) => void;
   onSelectionChanged?: (event: SelectionChangedEvent) => void;
   onCellValueChanged?: (event: CellValueChangedEvent) => void;
-  onExport?: (data: any[], format: 'csv') => void;
+  onExport?: (data: any[], format: 'csv' | 'excel') => void;
   onContextMenuAction?: (action: string, rowData: any) => void;
 }
 
@@ -29,6 +29,53 @@ export interface ExportConfig {
   skipColumnHeaders?: boolean;
   allColumns?: boolean;
   onlySelected?: boolean;
+  format?: 'csv' | 'excel';
+}
+
+/**
+ * Tree data configuration
+ */
+export interface TreeDataConfig {
+  enabled?: boolean;
+  /** Field that contains the hierarchy path (array of strings) */
+  pathField?: string;
+  /** Field that contains parent ID for parent-child relationships */
+  parentIdField?: string;
+  /** Field that contains the unique ID */
+  idField?: string;
+  /** Whether to expand all rows by default */
+  expandAll?: boolean;
+  /** Depth to expand to by default */
+  expandDepth?: number;
+}
+
+/**
+ * Row grouping configuration
+ */
+export interface RowGroupingConfig {
+  enabled?: boolean;
+  /** Fields to group by */
+  groupByFields?: string[];
+  /** Whether to show group row count */
+  showRowCount?: boolean;
+  /** Whether to allow user to change grouping */
+  userGroupable?: boolean;
+  /** Aggregation functions for grouped columns */
+  aggregations?: Record<string, 'sum' | 'avg' | 'count' | 'min' | 'max' | 'first' | 'last'>;
+}
+
+/**
+ * Excel export configuration
+ */
+export interface ExcelExportConfig {
+  enabled?: boolean;
+  fileName?: string;
+  sheetName?: string;
+  includeHeaders?: boolean;
+  includeGrouping?: boolean;
+  onlySelected?: boolean;
+  /** Custom column widths */
+  columnWidths?: Record<string, number>;
 }
 
 /**
@@ -104,6 +151,15 @@ export interface AgGridSchema {
   
   // Context menu
   contextMenu?: ContextMenuConfig;
+  
+  // Tree data
+  treeData?: TreeDataConfig;
+  
+  // Row grouping
+  rowGrouping?: RowGroupingConfig;
+  
+  // Excel export
+  excelExport?: ExcelExportConfig;
   
   // Event callbacks
   callbacks?: AgGridCallbacks;

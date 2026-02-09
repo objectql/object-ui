@@ -19,10 +19,10 @@ import 'ag-grid-community/styles/ag-theme-balham.css';
 import 'ag-grid-community/styles/ag-theme-material.css';
 
 // Export types for external use
-export type { AgGridSchema, SimpleColumnDef, AgGridCallbacks, ExportConfig, StatusBarConfig, ColumnConfig, ContextMenuConfig } from './types';
+export type { AgGridSchema, SimpleColumnDef, AgGridCallbacks, ExportConfig, StatusBarConfig, ColumnConfig, ContextMenuConfig, TreeDataConfig, RowGroupingConfig, ExcelExportConfig } from './types';
 export type { ObjectAgGridSchema } from './object-aggrid.types';
 
-import type { AgGridCallbacks, ExportConfig, StatusBarConfig, ColumnConfig, ContextMenuConfig } from './types';
+import type { AgGridCallbacks, ExportConfig, StatusBarConfig, ColumnConfig, ContextMenuConfig, TreeDataConfig, RowGroupingConfig, ExcelExportConfig } from './types';
 import type { DataSource } from '@object-ui/types';
 
 // 🚀 Lazy load the implementation file
@@ -56,6 +56,9 @@ export interface AgGridRendererProps {
     enableRangeSelection?: boolean;
     enableCharts?: boolean;
     contextMenu?: ContextMenuConfig;
+    treeData?: TreeDataConfig;
+    rowGrouping?: RowGroupingConfig;
+    excelExport?: ExcelExportConfig;
   };
 }
 
@@ -89,6 +92,9 @@ export const AgGridRenderer: React.FC<AgGridRendererProps> = ({ schema }) => {
         enableRangeSelection={schema.enableRangeSelection}
         enableCharts={schema.enableCharts}
         contextMenu={schema.contextMenu}
+        treeData={schema.treeData}
+        rowGrouping={schema.rowGrouping}
+        excelExport={schema.excelExport}
       />
     </Suspense>
   );
@@ -245,6 +251,27 @@ ComponentRegistry.register(
         type: 'code', 
         label: 'Context Menu Config (JSON)',
         description: 'Configure right-click menu: { enabled: true, items: ["copy", "export"] }',
+        advanced: true
+      },
+      { 
+        name: 'treeData', 
+        type: 'code', 
+        label: 'Tree Data Config (JSON)',
+        description: 'Configure tree data: { enabled: true, pathField: "orgHierarchy" }',
+        advanced: true
+      },
+      { 
+        name: 'rowGrouping', 
+        type: 'code', 
+        label: 'Row Grouping Config (JSON)',
+        description: 'Configure row grouping: { enabled: true, groupByFields: ["category"] }',
+        advanced: true
+      },
+      { 
+        name: 'excelExport', 
+        type: 'code', 
+        label: 'Excel Export Config (JSON)',
+        description: 'Configure Excel export: { enabled: true, fileName: "data.xlsx" }',
         advanced: true
       },
       { 
