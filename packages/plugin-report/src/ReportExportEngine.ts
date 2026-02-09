@@ -20,7 +20,8 @@ export function exportAsCSV(report: ReportSchema, data: any[], config?: ReportEx
   const fields = report.fields || [];
   const headers = fields.map(f => f.label || f.name);
   const rows = data.map(row => fields.map(f => {
-    const val = row[f.name];
+    let val = row[f.name];
+    val = sanitizeCSVValue(val);
     // Escape CSV values
     if (typeof val === 'string' && (val.includes(',') || val.includes('"') || val.includes('\n'))) {
       return `"${val.replace(/"/g, '""')}"`;
@@ -55,7 +56,8 @@ export function exportAsJSON(report: ReportSchema, data: any[], config?: ReportE
  */
 export function exportAsHTML(report: ReportSchema, data: any[], config?: ReportExportConfig): void {
   const fields = report.fields || [];
-  const orientation = config?.orientation || 'portrait';
+  const orientation = validateOrientation(config?.orientation);
+  const pageSize = validatePageSize(config?.pageSize);
   
   const html = `<!DOCTYPE html>
 <html>
@@ -63,7 +65,7 @@ export function exportAsHTML(report: ReportSchema, data: any[], config?: ReportE
 <meta charset="utf-8">
 <title>${escapeHTML(report.title || 'Report')}</title>
 <style>
-  @page { size: ${config?.pageSize || 'A4'} ${orientation}; margin: 20mm; }
+  @page { size: ${pageSize} ${orientation}; margin: 20mm; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #333; }
   h1 { font-size: 24px; margin-bottom: 8px; }
   .description { color: #666; margin-bottom: 24px; }
@@ -93,7 +95,8 @@ ${report.description ? `<p class="description">${escapeHTML(report.description)}
  */
 export function exportAsPDF(report: ReportSchema, data: any[], config?: ReportExportConfig): void {
   const fields = report.fields || [];
-  const orientation = config?.orientation || 'portrait';
+  const orientation = validateOrientation(config?.orientation);
+  const pageSize = validatePageSize(config?.pageSize);
   
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
@@ -113,7 +116,7 @@ export function exportAsPDF(report: ReportSchema, data: any[], config?: ReportEx
 <meta charset="utf-8">
 <title>${escapeHTML(report.title || 'Report')}</title>
 <style>
-  @page { size: ${config?.pageSize || 'A4'} ${orientation}; margin: 20mm; }
+  @page { size: ${pageSize} ${orientation}; margin: 20mm; }
   @media print { .no-print { display: none; } }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #333; }
   h1 { font-size: 24px; margin-bottom: 8px; }
@@ -149,7 +152,8 @@ export function exportAsExcel(report: ReportSchema, data: any[], config?: Report
   const fields = report.fields || [];
   const headers = fields.map(f => f.label || f.name);
   const rows = data.map(row => fields.map(f => {
-    const val = row[f.name];
+    let val = row[f.name];
+    val = sanitizeCSVValue(val);
     if (typeof val === 'string' && (val.includes(',') || val.includes('"') || val.includes('\n') || val.includes('\t'))) {
       return `"${val.replace(/"/g, '""')}"`;
     }
@@ -205,6 +209,35 @@ function escapeHTML(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+/**
+ * Sanitize CSV/Excel cell values to prevent formula injection.
+ * Prefixes values starting with formula characters (=, +, -, @, |) with a tab.
+ */
+function sanitizeCSVValue(val: any): any {
+  if (typeof val === 'string' && val.length > 0) {
+    const firstChar = val.charAt(0);
+    if (firstChar === '=' || firstChar === '+' || firstChar === '-' || firstChar === '@' || firstChar === '|') {
+      return `\t${val}`;
+    }
+  }
+  return val;
+}
+
+/**
+ * Validate page size against allowed values
+ */
+function validatePageSize(pageSize: string | undefined): string {
+  const allowed = ['A4', 'A3', 'Letter', 'Legal'];
+  return allowed.includes(pageSize || '') ? pageSize! : 'A4';
+}
+
+/**
+ * Validate orientation against allowed values
+ */
+function validateOrientation(orientation: string | undefined): string {
+  return orientation === 'landscape' ? 'landscape' : 'portrait';
 }
 
 /**
