@@ -119,17 +119,16 @@ export default function AgGridImpl({
     }
   }, [exportConfig, callbacks, rowData]);
 
-  // Excel Export handler
+  // Excel-compatible CSV Export handler
+  // Exports CSV format which can be opened directly in Excel
   const handleExportExcel = useCallback(() => {
     if (!gridRef.current?.api) return;
     
-    const fileName = excelExport?.fileName || exportConfig?.fileName || 'export.xlsx';
+    const fileName = excelExport?.fileName || exportConfig?.fileName || 'export.csv';
     const includeHeaders = excelExport?.includeHeaders !== false;
     
-    // Use AG Grid's built-in CSV export with .xlsx extension for basic Excel compatibility
-    // For full XLSX support, consumers should use a dedicated library
     const params = {
-      fileName: fileName.replace(/\.xlsx$/, '.csv'),
+      fileName,
       skipColumnHeaders: !includeHeaders,
       allColumns: true,
       onlySelected: excelExport?.onlySelected || false,
@@ -161,7 +160,7 @@ export default function AgGridImpl({
         });
       } else if (item === 'export-excel') {
         items.push({
-          name: 'Export Excel',
+          name: 'Export Excel (CSV)',
           icon: '<span>📊</span>',
           action: () => handleExportExcel(),
         });
@@ -385,7 +384,7 @@ export default function AgGridImpl({
               onClick={handleExportExcel}
               className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
             >
-              Export Excel
+              Export Excel (CSV)
             </button>
           )}
         </div>

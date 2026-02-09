@@ -162,7 +162,7 @@ export function exportAsExcel(report: ReportSchema, data: any[], config?: Report
     ...rows.map(r => r.join('\t'))
   ].join('\n');
 
-  downloadFile(tsvContent, config?.filename || `${report.title || 'report'}.xls`, 'application/vnd.ms-excel');
+  downloadFile(tsvContent, config?.filename || `${report.title || 'report'}.tsv`, 'text/tab-separated-values');
 }
 
 /**

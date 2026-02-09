@@ -143,10 +143,10 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 #### 2.4 Enterprise-Grade Features (4 weeks)
 
-- [ ] Advanced Grid (tree grid, grouping, Excel export)
-- [ ] Reporting Engine (visual designer, PDF export, scheduling)
-- [ ] Workflow Engine (visual designer, approval processes)
-- [ ] AI Integration (form filling, recommendations, NL queries)
+- [x] Advanced Grid (tree grid, grouping, Excel export)
+- [x] Reporting Engine (visual designer, PDF export, scheduling)
+- [x] Workflow Engine (visual designer, approval processes)
+- [x] AI Integration (form filling, recommendations, NL queries)
 
 #### 2.5 Mobile Optimization (3 weeks)
 
