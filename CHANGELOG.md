@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Upgraded all `@objectstack/*` packages from v2.0.0 to v2.0.1 (latest)
+- Updated spec version references in ROADMAP.md, CONSOLE_ROADMAP.md, and README files to reflect @objectstack/spec v2.0.1
+
 ---
 
 ## [0.3.1] - 2026-01-27

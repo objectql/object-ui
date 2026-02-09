@@ -1,9 +1,9 @@
 # ObjectUI Development Roadmap
 
-> **Last Updated:** February 8, 2026  
+> **Last Updated:** February 9, 2026  
 > **Current Version:** v0.5.x  
 > **Target Version:** v2.0.0  
-> **Spec Version:** @objectstack/spec v1.1.0
+> **Spec Version:** @objectstack/spec v2.0.1
 
 ---
 
@@ -29,7 +29,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - ✅ 57+ Storybook stories with interactive demos
 - ✅ TypeScript 5.9+ strict mode (100%)
 - ✅ React 19 + Tailwind CSS + Shadcn UI
-- ✅ ~80% @objectstack/spec v1.1.0 coverage
+- ✅ ~80% @objectstack/spec v2.0.1 coverage
 
 **Recent Completions (v0.5.0):**
 - ✅ Form variants (simple, tabbed, wizard, split, drawer, modal)
@@ -115,7 +115,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 **Goal:** Complete @objectstack/spec alignment and enterprise features
 
-#### 2.1 Complete @objectstack/spec v1.1.0 Alignment (6 weeks)
+#### 2.1 Complete @objectstack/spec v2.0.1 Alignment (6 weeks)
 
 - [ ] ObjectQL deep integration (JOIN, aggregation, subqueries)
 - [ ] Complete ViewSchema implementation

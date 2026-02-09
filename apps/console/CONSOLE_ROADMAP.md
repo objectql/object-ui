@@ -1,9 +1,9 @@
 # ObjectStack Console — Complete Development Roadmap
 
-> **Last Updated:** February 8, 2026
+> **Last Updated:** February 9, 2026
 > **Current Version:** v0.5.1
 > **Target Version:** v1.0.0 (GA)
-> **Spec Alignment:** @objectstack/spec v1.1.0
+> **Spec Alignment:** @objectstack/spec v2.0.1
 
 ---
 
@@ -22,7 +22,7 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 | Goal | Metric | Target |
 |------|--------|--------|
 | **Full SDUI** | % of UI driven by JSON schema | 100% |
-| **Spec Compliance** | @objectstack/spec v1.1.0 coverage | 100% |
+| **Spec Compliance** | @objectstack/spec v2.0.1 coverage | 100% |
 | **Performance** | Largest Contentful Paint (LCP) | < 600ms |
 | **Bundle Size** | Production JS (gzipped) | < 150KB |
 | **Test Coverage** | Line coverage | > 80% |
