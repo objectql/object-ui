@@ -70,26 +70,26 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 #### 1.1 Test System Enhancement (4 weeks)
 **Target:** 80%+ test coverage
 
-- [ ] Add tests for all core modules (@object-ui/core)
-- [ ] Add tests for all components (@object-ui/components)
-- [ ] Add E2E test framework (Playwright)
+- [x] Add tests for all core modules (@object-ui/core)
+- [x] Add tests for all components (@object-ui/components)
+- [x] Add E2E test framework (Playwright)
 - [ ] Add performance benchmark suite
 - [ ] Visual regression tests (Storybook snapshot + Chromatic)
 
 #### 1.2 Internationalization (i18n) Support (3 weeks)
 **Target:** 10+ languages, RTL layout
 
-- [ ] Create @object-ui/i18n package
-- [ ] Integrate i18next library
-- [ ] Add translation support to all components
-- [ ] Provide 10+ language packs (zh, en, ja, ko, de, fr, es, pt, ru, ar)
-- [ ] RTL layout support
-- [ ] Date/currency formatting utilities
+- [x] Create @object-ui/i18n package
+- [x] Integrate i18next library
+- [x] Add translation support to all components
+- [x] Provide 10+ language packs (zh, en, ja, ko, de, fr, es, pt, ru, ar)
+- [x] RTL layout support
+- [x] Date/currency formatting utilities
 
 #### 1.3 Documentation System Upgrade (2 weeks)
 **Target:** World-class documentation
 
-- [ ] 5-minute quick start guide
+- [x] 5-minute quick start guide
 - [ ] Complete zero-to-deployment tutorial
 - [ ] Video tutorial series
 - [ ] Complete case studies (CRM, E-commerce, Analytics, Workflow)
@@ -97,6 +97,9 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 #### 1.4 Performance Optimization (3 weeks)
 **Target:** 50%+ performance improvement
+
+- [x] Enhanced lazy loading with retry and error boundaries
+- [x] Plugin preloading utilities
 
 **Performance Targets:**
 - First Contentful Paint: 800ms → 400ms

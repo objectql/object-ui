@@ -58,6 +58,8 @@ apps/site/.source
 
 # Test artifacts
 test-screenshots
+test-results
+playwright-report
 
 # Vite timestamp files
 *.timestamp-*.mjs
