@@ -9,6 +9,7 @@ import { useState, useEffect, ReactNode } from 'react';
 import { ObjectStackAdapter } from './dataSource';
 import { AuthProvider } from '@object-ui/auth';
 import { LoadingScreen } from './components/LoadingScreen';
+import type { DiscoveryInfo } from '@object-ui/react';
 
 interface ConditionalAuthWrapperProps {
   children: ReactNode;
@@ -35,18 +36,20 @@ export function ConditionalAuthWrapper({ children, authUrl }: ConditionalAuthWra
     async function checkAuthStatus() {
       try {
         // Create a temporary adapter to fetch discovery
+        // Empty baseUrl allows the adapter to use browser-relative paths
+        // This works because the console app is served from the same origin as the API
         const adapter = new ObjectStackAdapter({
           baseUrl: '',
           autoReconnect: false,
         });
 
         await adapter.connect();
-        const discovery = await adapter.getDiscovery();
+        const discovery = await adapter.getDiscovery() as DiscoveryInfo | null;
 
         if (!cancelled) {
           // Check if auth is enabled in discovery
           // Default to true if discovery doesn't provide this information
-          const isAuthEnabled = (discovery as any)?.services?.auth?.enabled ?? true;
+          const isAuthEnabled = discovery?.services?.auth?.enabled ?? true;
           setAuthEnabled(isAuthEnabled);
         }
       } catch (error) {
