@@ -601,8 +601,8 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       // Access discovery data from the client
       // The ObjectStackClient caches discovery during connect()
       // This is an internal property, but documented for this use case
-      // @ts-expect-error - Accessing internal discovery property
-      return this.client.discovery || null;
+      // @ts-expect-error - Accessing internal discoveryInfo property
+      return this.client.discoveryInfo || null;
     } catch {
       return null;
     }

@@ -98,3 +98,44 @@ describe('Batch Progress Events', () => {
     unsubscribe();
   });
 });
+
+describe('getDiscovery', () => {
+  it('should return discoveryInfo from the underlying client after connect', async () => {
+    const mockDiscovery = {
+      name: 'test-server',
+      version: '1.0.0',
+      services: {
+        auth: { enabled: false, status: 'unavailable' },
+        data: { enabled: true, status: 'available' },
+      },
+    };
+
+    const adapter = new ObjectStackAdapter({
+      baseUrl: 'http://localhost:3000',
+      autoReconnect: false,
+    });
+
+    // Mock the underlying client's connect method and discoveryInfo property
+    const client = adapter.getClient();
+    vi.spyOn(client, 'connect').mockResolvedValue(mockDiscovery as any);
+    // Simulate what connect() does: sets discoveryInfo
+    (client as any).discoveryInfo = mockDiscovery;
+
+    const discovery = await adapter.getDiscovery();
+    expect(discovery).toEqual(mockDiscovery);
+    expect((discovery as any)?.services?.auth?.enabled).toBe(false);
+  });
+
+  it('should return null when connection fails', async () => {
+    const adapter = new ObjectStackAdapter({
+      baseUrl: 'http://localhost:3000',
+      autoReconnect: false,
+    });
+
+    const client = adapter.getClient();
+    vi.spyOn(client, 'connect').mockRejectedValue(new Error('Connection failed'));
+
+    const discovery = await adapter.getDiscovery();
+    expect(discovery).toBeNull();
+  });
+});
