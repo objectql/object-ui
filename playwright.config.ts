@@ -2,6 +2,11 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * Playwright E2E test configuration for Object UI
+ *
+ * Tests run against the **production build** of the console app so that
+ * deployment-time issues (blank pages, broken imports, missing polyfills)
+ * are caught before they reach Vercel / other hosting platforms.
+ *
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
@@ -18,8 +23,8 @@ export default defineConfig({
   reporter: process.env.CI ? 'github' : 'html',
   /* Shared settings for all projects */
   use: {
-    /* Base URL to use in actions like `await page.goto('/')` */
-    baseURL: 'http://localhost:5173',
+    /* Base URL – vite preview defaults to port 4173 */
+    baseURL: 'http://localhost:4173',
     /* Collect trace when retrying the failed test */
     trace: 'on-first-retry',
     /* Screenshot on failure */
@@ -51,11 +56,15 @@ export default defineConfig({
     },
   ],
 
-  /* Run your local dev server before starting the tests */
+  /**
+   * Build the console app and serve the production bundle via `vite preview`.
+   * This mirrors the Vercel deployment pipeline and catches blank-page issues
+   * caused by build-time errors (broken imports, missing polyfills, etc.).
+   */
   webServer: {
-    command: 'pnpm run dev:console',
-    url: 'http://localhost:5173',
+    command: 'pnpm --filter @object-ui/console build && pnpm --filter @object-ui/console preview --port 4173',
+    url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
+    timeout: 180 * 1000,
   },
 });

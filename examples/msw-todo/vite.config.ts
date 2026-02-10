@@ -3,7 +3,29 @@ import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  // @objectstack/core@2.0.4 statically imports Node.js crypto (for plugin hashing).
+  // The code already has a browser fallback, so we provide an empty stub instead of
+  // marking it as external (which emits a bare `import 'crypto'` that browsers reject).
+  // enforce: 'pre' ensures this runs before Vite's built-in browser-external resolve.
+  plugins: [
+    {
+      name: 'stub-crypto',
+      enforce: 'pre',
+      resolveId(id: string) {
+        if (id === 'crypto') return '\0crypto-stub';
+      },
+      load(id: string) {
+        if (id === '\0crypto-stub') {
+          return [
+            'export function createHash() { return { update() { return this; }, digest() { return ""; } }; }',
+            'export function createVerify() { return { update() { return this; }, end() {}, verify() { return false; } }; }',
+            'export default {};',
+          ].join('\n');
+        }
+      },
+    },
+    react(),
+  ],
   server: {
     port: 3000,
   },
@@ -35,14 +57,6 @@ export default defineConfig({
           return;
         }
         warn(warning);
-      },
-      // @objectstack/core@2.0.4 statically imports Node.js crypto (for plugin hashing).
-      // The code already has a browser fallback, so we treat it as external in the browser build.
-      external: ['crypto'],
-      output: {
-        globals: {
-          crypto: '{}',
-        },
       },
     }
   }
