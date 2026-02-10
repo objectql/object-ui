@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import appConfig from '../../objectstack.shared';
 import { useExpressionContext, evaluateVisibility } from '../context/ExpressionProvider';
+import { useAuth, getUserInitials } from '@object-ui/auth';
 
 /**
  * Resolve a Lucide icon component by name string.
@@ -75,6 +76,7 @@ function getIcon(name?: string): React.ComponentType<any> {
 
 export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: string, onAppChange: (name: string) => void }) {
   const { isMobile } = useSidebar();
+  const { user, signOut } = useAuth();
   
   const apps = appConfig.apps || [];
   // Filter out inactive apps
@@ -165,12 +167,14 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarImage src="/avatars/user.jpg" alt="User" />
-                    <AvatarFallback className="rounded-lg bg-primary text-primary-foreground">JD</AvatarFallback>
+                    <AvatarImage src={user?.image ?? '/avatars/user.jpg'} alt={user?.name ?? 'User'} />
+                    <AvatarFallback className="rounded-lg bg-primary text-primary-foreground">
+                      {getUserInitials(user)}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">John Doe</span>
-                    <span className="truncate text-xs text-muted-foreground">admin@example.com</span>
+                    <span className="truncate font-semibold">{user?.name ?? 'User'}</span>
+                    <span className="truncate text-xs text-muted-foreground">{user?.email ?? ''}</span>
                   </div>
                   <ChevronsUpDown className="ml-auto size-4" />
                 </SidebarMenuButton>
@@ -184,12 +188,14 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                 <DropdownMenuLabel className="p-0 font-normal">
                   <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                     <Avatar className="h-8 w-8 rounded-lg">
-                      <AvatarImage src="/avatars/user.jpg" alt="User" />
-                      <AvatarFallback className="rounded-lg bg-primary text-primary-foreground">JD</AvatarFallback>
+                      <AvatarImage src={user?.image ?? '/avatars/user.jpg'} alt={user?.name ?? 'User'} />
+                      <AvatarFallback className="rounded-lg bg-primary text-primary-foreground">
+                        {getUserInitials(user)}
+                      </AvatarFallback>
                     </Avatar>
                     <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">John Doe</span>
-                      <span className="truncate text-xs text-muted-foreground">admin@example.com</span>
+                      <span className="truncate font-semibold">{user?.name ?? 'User'}</span>
+                      <span className="truncate text-xs text-muted-foreground">{user?.email ?? ''}</span>
                     </div>
                   </div>
                 </DropdownMenuLabel>
@@ -201,7 +207,10 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive focus:text-destructive">
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => signOut()}
+                >
                   <LogOut className="mr-2 h-4 w-4" />
                   Log out
                 </DropdownMenuItem>

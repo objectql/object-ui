@@ -25,6 +25,7 @@
     "test:ui": "vitest --ui"
   },
   "dependencies": {
+    "@object-ui/auth": "workspace:*",
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/data-objectstack": "workspace:*",

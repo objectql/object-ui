@@ -26,6 +26,9 @@ export default defineConfig({
       '@object-ui/react': path.resolve(__dirname, '../../packages/react/src'),
       '@object-ui/types': path.resolve(__dirname, '../../packages/types/src'),
       '@object-ui/data-objectstack': path.resolve(__dirname, '../../packages/data-objectstack/src'),
+      '@object-ui/auth': path.resolve(__dirname, '../../packages/auth/src'),
+      '@object-ui/permissions': path.resolve(__dirname, '../../packages/permissions/src'),
+      '@object-ui/tenant': path.resolve(__dirname, '../../packages/tenant/src'),
       
       // Missing Plugin Aliases
       '@object-ui/plugin-aggrid': path.resolve(__dirname, '../../packages/plugin-aggrid/src'),
