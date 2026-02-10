@@ -13,6 +13,13 @@ import { createAuthClient } from './createAuthClient';
 
 export interface AuthProviderProps extends AuthProviderConfig {
   children: React.ReactNode;
+  /**
+   * Whether authentication is enabled.
+   * When false, the provider will skip authentication checks and treat all users as authenticated.
+   * Useful for development or demo environments where the server doesn't have authentication enabled.
+   * @default true
+   */
+  enabled?: boolean;
 }
 
 /**
@@ -27,11 +34,19 @@ export interface AuthProviderProps extends AuthProviderConfig {
  *   <App />
  * </AuthProvider>
  * ```
+ * 
+ * @example With disabled auth (development mode)
+ * ```tsx
+ * <AuthProvider authUrl="/api/auth" enabled={false}>
+ *   <App />
+ * </AuthProvider>
+ * ```
  */
 export function AuthProvider({
   authUrl,
   client: externalClient,
   onAuthStateChange,
+  enabled = true,
   children,
 }: AuthProviderProps) {
   const client = useMemo<AuthClient>(
@@ -44,10 +59,28 @@ export function AuthProvider({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const isAuthenticated = user !== null && session !== null;
+  // If auth is disabled, automatically set as authenticated with a guest user
+  const isAuthenticated = enabled 
+    ? user !== null && session !== null
+    : true;
 
-  // Load session on mount
+  // Load session on mount (only if auth is enabled)
   useEffect(() => {
+    if (!enabled) {
+      // When auth is disabled, set a guest user and mark as loaded
+      setUser({
+        id: 'guest',
+        email: 'guest@local',
+        name: 'Guest User',
+      });
+      setSession({
+        token: 'guest-token',
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+      });
+      setIsLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadSession() {
@@ -70,7 +103,7 @@ export function AuthProvider({
 
     loadSession();
     return () => { cancelled = true; };
-  }, [client]);
+  }, [client, enabled]);
 
   // Notify on auth state changes
   useEffect(() => {

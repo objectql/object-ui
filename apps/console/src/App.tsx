@@ -6,7 +6,7 @@ import { SchemaRendererProvider } from '@object-ui/react';
 import { ObjectStackAdapter } from './dataSource';
 import type { ConnectionState } from './dataSource';
 import appConfig from '../objectstack.shared';
-import { AuthProvider, AuthGuard, useAuth } from '@object-ui/auth';
+import { AuthGuard, useAuth } from '@object-ui/auth';
 
 // Components
 import { ConsoleLayout } from './components/ConsoleLayout';
@@ -19,6 +19,7 @@ import { DashboardView } from './components/DashboardView';
 import { PageView } from './components/PageView';
 import { ReportView } from './components/ReportView';
 import { ExpressionProvider } from './context/ExpressionProvider';
+import { ConditionalAuthWrapper } from './components/ConditionalAuthWrapper';
 
 // Auth Pages
 import { LoginPage } from './pages/LoginPage';
@@ -291,7 +292,7 @@ function RootRedirect() {
 export function App() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="object-ui-theme">
-      <AuthProvider authUrl="/api/auth">
+      <ConditionalAuthWrapper authUrl="/api/auth">
         <BrowserRouter basename="/">
             <Routes>
                 <Route path="/login" element={<LoginPage />} />
@@ -305,7 +306,7 @@ export function App() {
                 <Route path="/" element={<RootRedirect />} />
             </Routes>
         </BrowserRouter>
-      </AuthProvider>
+      </ConditionalAuthWrapper>
     </ThemeProvider>
   );
 }
