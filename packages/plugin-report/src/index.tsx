@@ -14,6 +14,17 @@ import { ReportBuilder } from './ReportBuilder';
 export { ReportRenderer, ReportViewer, ReportBuilder };
 export { exportReport, exportAsCSV, exportAsJSON, exportAsHTML, exportAsPDF, exportAsExcel } from './ReportExportEngine';
 export { ScheduleConfig } from './ScheduleConfig';
+export {
+  exportWithLiveData,
+  exportExcelWithFormulas,
+  createScheduleTrigger,
+} from './LiveReportExporter';
+export type {
+  LiveExportOptions,
+  LiveExportResult,
+  ExcelColumnConfig,
+  ScheduleTriggerCallback,
+} from './LiveReportExporter';
 
 // Register report component
 ComponentRegistry.register(
