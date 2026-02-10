@@ -120,7 +120,7 @@ export const ScheduleConfig: React.FC<ScheduleConfigProps> = ({ schedule: initia
                   min={1}
                   max={31}
                   value={schedule.dayOfMonth ?? 1}
-                  onChange={(e) => handleChange({ dayOfMonth: Number(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange({ dayOfMonth: Number(e.target.value) })}
                 />
               </div>
             )}
@@ -134,7 +134,7 @@ export const ScheduleConfig: React.FC<ScheduleConfigProps> = ({ schedule: initia
               <Input
                 type="time"
                 value={schedule.time || '09:00'}
-                onChange={(e) => handleChange({ time: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange({ time: e.target.value })}
               />
             </div>
 
@@ -143,7 +143,7 @@ export const ScheduleConfig: React.FC<ScheduleConfigProps> = ({ schedule: initia
               <Label>Timezone</Label>
               <Input
                 value={schedule.timezone || ''}
-                onChange={(e) => handleChange({ timezone: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange({ timezone: e.target.value })}
                 placeholder="e.g. America/New_York"
               />
             </div>
@@ -162,7 +162,7 @@ export const ScheduleConfig: React.FC<ScheduleConfigProps> = ({ schedule: initia
                         handleChange({
                           formats: e.target.checked
                             ? [...formats, opt.value]
-                            : formats.filter(f => f !== opt.value)
+                            : formats.filter((f: ReportExportFormat) => f !== opt.value)
                         });
                       }}
                       className="rounded"
@@ -182,8 +182,8 @@ export const ScheduleConfig: React.FC<ScheduleConfigProps> = ({ schedule: initia
               <Input
                 placeholder="email1@example.com, email2@example.com"
                 value={schedule.recipients?.join(', ') || ''}
-                onChange={(e) => handleChange({
-                  recipients: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange({
+                  recipients: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean)
                 })}
               />
             </div>
@@ -193,7 +193,7 @@ export const ScheduleConfig: React.FC<ScheduleConfigProps> = ({ schedule: initia
               <Label>Email Subject</Label>
               <Input
                 value={schedule.subject || ''}
-                onChange={(e) => handleChange({ subject: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange({ subject: e.target.value })}
                 placeholder="Scheduled Report: {report_title}"
               />
             </div>

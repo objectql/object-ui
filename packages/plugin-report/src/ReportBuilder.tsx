@@ -156,7 +156,8 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
 
   const handleCancel = () => {
     if (onCancel) {
-      onCancel();
+      console.log('Report cancelled:', onCancel);
+      // In a real implementation, this would trigger the action/script
     }
   };
 
@@ -205,7 +206,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
                   <Input
                     id="report-title"
                     value={report.title || ''}
-                    onChange={(e) => setReport({ ...report, title: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReport({ ...report, title: e.target.value })}
                     placeholder="Enter report title"
                   />
                 </div>
@@ -215,7 +216,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
                   <Input
                     id="report-description"
                     value={report.description || ''}
-                    onChange={(e) => setReport({ ...report, description: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReport({ ...report, description: e.target.value })}
                     placeholder="Enter report description"
                   />
                 </div>
@@ -302,7 +303,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
                         <Input
                           className="h-8 text-sm"
                           value={field.label || field.name}
-                          onChange={(e) => handleFieldChange(index, { ...field, label: e.target.value })}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFieldChange(index, { ...field, label: e.target.value })}
                         />
                       </div>
                       <div>
@@ -387,7 +388,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
                         <Input
                           className="h-8 text-sm"
                           value={String(filter.value)}
-                          onChange={(e) => handleFilterChange(index, { ...filter, value: e.target.value })}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFilterChange(index, { ...filter, value: e.target.value })}
                         />
                       </div>
                     </div>
@@ -511,7 +512,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
                                 <Input 
                                    className="h-8 text-sm"
                                    value={section.title || ''}
-                                   onChange={(e) => handleSectionChange(index, { ...section, title: e.target.value })}
+                                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSectionChange(index, { ...section, title: e.target.value })}
                                 />
                              </div>
                               {section.type === 'text' && (
@@ -520,7 +521,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
                                       <Input 
                                          className="h-8 text-sm"
                                          value={section.text || ''}
-                                         onChange={(e) => handleSectionChange(index, { ...section, text: e.target.value })}
+                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSectionChange(index, { ...section, text: e.target.value })}
                                       />
                                    </div>
                               )}
@@ -574,12 +575,12 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
                                           className="h-8 text-sm"
                                           placeholder="e.g. value, count"
                                           value={section.chart?.yAxisFields?.join(', ') || ''}
-                                          onChange={(e) => handleSectionChange(index, { 
+                                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSectionChange(index, { 
                                              ...section, 
                                              chart: { 
                                                 ...section.chart, 
                                                 type: 'chart',
-                                                yAxisFields: e.target.value.split(',').map(s => s.trim()).filter(Boolean) 
+                                                yAxisFields: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) 
                                              } as any
                                           })}
                                        />

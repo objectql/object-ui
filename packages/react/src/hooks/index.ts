@@ -13,5 +13,4 @@ export * from './usePageVariables';
 export * from './useViewData';
 export * from './useDynamicApp';
 export * from './useDiscovery';
-export * from './useTheme';
 

@@ -277,7 +277,7 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
               <table className="w-full text-sm">
                 <thead className="bg-muted">
                   <tr>
-                    {report.fields?.map((field, idx) => (
+                    {report.fields?.map((field: any, idx: number) => (
                       <th key={idx} className="px-4 py-2 text-left font-medium">
                         {field.label || field.name}
                       </th>
@@ -285,9 +285,9 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((row, rowIdx) => (
+                  {data.map((row: any, rowIdx: number) => (
                     <tr key={rowIdx} className="border-t">
-                      {report.fields?.map((field, colIdx) => (
+                      {report.fields?.map((field: any, colIdx: number) => (
                         <td key={colIdx} className="px-4 py-2">
                           {row[field.name]}
                         </td>
