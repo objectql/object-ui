@@ -189,6 +189,9 @@ importers:
 
   apps/console:
     dependencies:
+      '@object-ui/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@object-ui/components':
         specifier: workspace:*
         version: link:../../packages/components

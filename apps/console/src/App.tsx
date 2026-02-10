@@ -6,6 +6,7 @@ import { SchemaRendererProvider } from '@object-ui/react';
 import { ObjectStackAdapter } from './dataSource';
 import type { ConnectionState } from './dataSource';
 import appConfig from '../objectstack.shared';
+import { AuthProvider, AuthGuard, useAuth } from '@object-ui/auth';
 
 // Components
 import { ConsoleLayout } from './components/ConsoleLayout';
@@ -18,6 +19,18 @@ import { DashboardView } from './components/DashboardView';
 import { PageView } from './components/PageView';
 import { ReportView } from './components/ReportView';
 import { ExpressionProvider } from './context/ExpressionProvider';
+
+// Auth Pages
+import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+
+// System Admin Pages
+import { UserManagementPage } from './pages/system/UserManagementPage';
+import { OrgManagementPage } from './pages/system/OrgManagementPage';
+import { RoleManagementPage } from './pages/system/RoleManagementPage';
+import { AuditLogPage } from './pages/system/AuditLogPage';
+import { ProfilePage } from './pages/system/ProfilePage';
 
 import { useParams } from 'react-router-dom';
 import { ThemeProvider } from './components/theme-provider';
@@ -132,7 +145,10 @@ export function AppContent() {
   );
 
   // Expression context for dynamic visibility/disabled/hidden expressions
-  const expressionUser = { name: 'John Doe', email: 'admin@example.com', role: 'admin' };
+  const { user } = useAuth();
+  const expressionUser = user
+    ? { name: user.name, email: user.email, role: user.role ?? 'user' }
+    : { name: 'Anonymous', email: '', role: 'guest' };
 
   return (
     <ExpressionProvider user={expressionUser} app={activeApp} data={{}}>
@@ -191,6 +207,13 @@ export function AppContent() {
         <Route path="page/:pageName" element={
             <PageView />
         } />
+
+        {/* System Administration Routes */}
+        <Route path="system/users" element={<UserManagementPage />} />
+        <Route path="system/organizations" element={<OrgManagementPage />} />
+        <Route path="system/roles" element={<RoleManagementPage />} />
+        <Route path="system/audit-log" element={<AuditLogPage />} />
+        <Route path="system/profile" element={<ProfilePage />} />
       </Routes>
       </ErrorBoundary>
 
@@ -268,12 +291,21 @@ function RootRedirect() {
 export function App() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="object-ui-theme">
-      <BrowserRouter basename="/">
-          <Routes>
-              <Route path="/apps/:appName/*" element={<AppContent />} />
-              <Route path="/" element={<RootRedirect />} />
-          </Routes>
-      </BrowserRouter>
+      <AuthProvider authUrl="/api/auth">
+        <BrowserRouter basename="/">
+            <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/apps/:appName/*" element={
+                  <AuthGuard fallback={<Navigate to="/login" />} loadingFallback={<LoadingScreen />}>
+                    <AppContent />
+                  </AuthGuard>
+                } />
+                <Route path="/" element={<RootRedirect />} />
+            </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
