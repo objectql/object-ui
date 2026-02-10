@@ -437,6 +437,7 @@ This roadmap consolidates information from:
 5. **.github/copilot-instructions.md** - Architectural guidelines
 6. **CONSOLE_AUTH_PLAN.md** - Console authentication & full-flow development plan (@objectstack/client + better-auth)
 7. **OBJECTSTACK_CLIENT_EVALUATION.md** - Comprehensive evaluation of @objectstack/client for low-code app UI development (92% protocol coverage, 22/24 features)
+8. **SPEC_COMPLIANCE_EVALUATION.md** - Per-package @objectstack/spec compliance evaluation with 47 improvement items and prioritized roadmap (91% current compliance)
 
 For detailed technical specifications, implementation patterns, and historical context, please refer to these source documents.
 
