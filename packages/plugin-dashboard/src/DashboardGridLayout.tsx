@@ -195,7 +195,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
                       </CardHeader>
                     )}
                     <CardContent className="p-0 h-full">
-                      <div className={cn("h-full w-full overflow-auto", !widget.title ? "p-4" : "p-4")}>
+                      <div className={cn("h-full w-full overflow-auto p-4")}>
                         <SchemaRenderer schema={componentSchema} />
                       </div>
                     </CardContent>
