@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useContext, useCallback } from 'react';
+import { useContext } from 'react';
 import type { PermissionAction, PermissionCheckResult } from '@object-ui/types';
 import { PermCtx, type PermissionContextValue } from './PermissionContext';
 

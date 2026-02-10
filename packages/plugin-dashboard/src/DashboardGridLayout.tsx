@@ -1,12 +1,10 @@
 import * as React from 'react';
-import { Responsive, WidthProvider, Layout as RGLLayout } from 'react-grid-layout';
+import { ResponsiveGridLayout, useContainerWidth, type LayoutItem as RGLLayout, type Layout, type ResponsiveLayouts } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import { cn, Card, CardHeader, CardTitle, CardContent, Button } from '@object-ui/components';
 import { Edit, GripVertical, Save, X } from 'lucide-react';
 import { SchemaRenderer } from '@object-ui/react';
 import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
-
-const ResponsiveGridLayout = WidthProvider(Responsive);
 
 const CHART_COLORS = [
   'hsl(var(--chart-1))',
@@ -29,6 +27,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
   onLayoutChange,
   persistLayoutKey = 'dashboard-layout',
 }) => {
+  const { width, containerRef, mounted } = useContainerWidth();
   const [editMode, setEditMode] = React.useState(false);
   const [layouts, setLayouts] = React.useState<{ lg: RGLLayout[] }>(() => {
     // Try to load saved layout
@@ -56,9 +55,9 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
   });
 
   const handleLayoutChange = React.useCallback(
-    (layout: RGLLayout[], allLayouts: { lg: RGLLayout[] }) => {
-      setLayouts(allLayouts);
-      onLayoutChange?.(layout);
+    (layout: Layout, allLayouts: ResponsiveLayouts) => {
+      setLayouts(allLayouts as { lg: RGLLayout[] });
+      onLayoutChange?.(layout as RGLLayout[]);
     },
     [onLayoutChange]
   );
@@ -122,7 +121,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
   }, []);
 
   return (
-    <div className={cn("w-full", className)} data-testid="grid-layout">
+    <div ref={containerRef} className={cn("w-full", className)} data-testid="grid-layout">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-2xl font-bold">{schema.title || 'Dashboard'}</h2>
         <div className="flex gap-2">
@@ -149,62 +148,64 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         </div>
       </div>
 
-      <ResponsiveGridLayout
-        className="layout"
-        layouts={layouts}
-        breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-        cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-        rowHeight={60}
-        isDraggable={editMode}
-        isResizable={editMode}
-        onLayoutChange={handleLayoutChange}
-        draggableHandle=".drag-handle"
-      >
-        {schema.widgets?.map((widget, index) => {
-          const widgetId = widget.id || `widget-${index}`;
-          const componentSchema = getComponentSchema(widget);
-          const isSelfContained = (widget as any).type === 'metric';
+      {mounted && (
+        <ResponsiveGridLayout
+          className="layout"
+          width={width}
+          layouts={layouts}
+          breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+          cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+          rowHeight={60}
+          dragConfig={{ enabled: editMode, handle: ".drag-handle" }}
+          resizeConfig={{ enabled: editMode }}
+          onLayoutChange={handleLayoutChange}
+        >
+          {schema.widgets?.map((widget, index) => {
+            const widgetId = widget.id || `widget-${index}`;
+            const componentSchema = getComponentSchema(widget);
+            const isSelfContained = (widget as any).type === 'metric';
 
-          return (
-            <div key={widgetId} className="h-full">
-              {isSelfContained ? (
-                <div className="h-full w-full relative">
-                  {editMode && (
-                    <div className="drag-handle absolute top-2 right-2 z-10 cursor-move p-1 bg-background/80 rounded border border-border">
-                      <GripVertical className="h-4 w-4" />
-                    </div>
-                  )}
-                  <SchemaRenderer schema={componentSchema} className="h-full w-full" />
-                </div>
-              ) : (
-                <Card className={cn(
-                  "h-full overflow-hidden border-border/50 shadow-sm transition-all",
-                  "bg-card/50 backdrop-blur-sm",
-                  editMode && "ring-2 ring-primary/20"
-                )}>
-                  {widget.title && (
-                    <CardHeader className="pb-2 border-b border-border/40 bg-muted/20 flex flex-row items-center justify-between">
-                      <CardTitle className="text-base font-medium tracking-tight truncate" title={widget.title}>
-                        {widget.title}
-                      </CardTitle>
-                      {editMode && (
-                        <div className="drag-handle cursor-move p-1 hover:bg-muted/40 rounded">
-                          <GripVertical className="h-4 w-4" />
-                        </div>
-                      )}
-                    </CardHeader>
-                  )}
-                  <CardContent className="p-0 h-full">
-                    <div className={cn("h-full w-full overflow-auto", !widget.title ? "p-4" : "p-4")}>
-                      <SchemaRenderer schema={componentSchema} />
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          );
-        })}
-      </ResponsiveGridLayout>
+            return (
+              <div key={widgetId} className="h-full">
+                {isSelfContained ? (
+                  <div className="h-full w-full relative">
+                    {editMode && (
+                      <div className="drag-handle absolute top-2 right-2 z-10 cursor-move p-1 bg-background/80 rounded border border-border">
+                        <GripVertical className="h-4 w-4" />
+                      </div>
+                    )}
+                    <SchemaRenderer schema={componentSchema} className="h-full w-full" />
+                  </div>
+                ) : (
+                  <Card className={cn(
+                    "h-full overflow-hidden border-border/50 shadow-sm transition-all",
+                    "bg-card/50 backdrop-blur-sm",
+                    editMode && "ring-2 ring-primary/20"
+                  )}>
+                    {widget.title && (
+                      <CardHeader className="pb-2 border-b border-border/40 bg-muted/20 flex flex-row items-center justify-between">
+                        <CardTitle className="text-base font-medium tracking-tight truncate" title={widget.title}>
+                          {widget.title}
+                        </CardTitle>
+                        {editMode && (
+                          <div className="drag-handle cursor-move p-1 hover:bg-muted/40 rounded">
+                            <GripVertical className="h-4 w-4" />
+                          </div>
+                        )}
+                      </CardHeader>
+                    )}
+                    <CardContent className="p-0 h-full">
+                      <div className={cn("h-full w-full overflow-auto", !widget.title ? "p-4" : "p-4")}>
+                        <SchemaRenderer schema={componentSchema} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            );
+          })}
+        </ResponsiveGridLayout>
+      )}
     </div>
   );
 };

@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import type { CollaborationConfig, CollaborationPresence, CollaborationOperation } from '@object-ui/types';
 
 export interface CollaborationContextValue {
@@ -48,30 +48,19 @@ export function CollaborationProvider({
   onOperation,
   children,
 }: CollaborationProviderProps) {
-  const [users, setUsers] = useState<CollaborationPresence[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-
-  // Add current user to presence list
-  useEffect(() => {
-    if (!config.enabled || !user) return;
-
-    const currentUser: CollaborationPresence = {
+  const users = useMemo<CollaborationPresence[]>(() => {
+    if (!config.enabled || !user) return [];
+    return [{
       userId: user.id,
       userName: user.name,
       avatar: user.avatar,
       color: generateColor(user.id),
-      status: 'active',
+      status: 'active' as const,
       lastActivity: new Date().toISOString(),
-    };
-
-    setUsers([currentUser]);
-    setIsConnected(true);
-
-    return () => {
-      setIsConnected(false);
-      setUsers([]);
-    };
+    }];
   }, [config.enabled, user]);
+
+  const isConnected = config.enabled && !!user;
 
   const sendOperation = useCallback(
     (operation: Omit<CollaborationOperation, 'id' | 'timestamp' | 'version'>) => {

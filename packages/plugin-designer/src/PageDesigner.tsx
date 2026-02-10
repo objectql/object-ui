@@ -57,7 +57,7 @@ export function PageDesigner({
 }: PageDesignerProps) {
   const [components, setComponents] = useState<DesignerComponent[]>(initialComponents);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(canvas.zoom ?? 1);
+  const [zoom, _setZoom] = useState(canvas.zoom ?? 1);
 
   const selectedComponent = useMemo(
     () => components.find((c) => c.id === selectedId),
