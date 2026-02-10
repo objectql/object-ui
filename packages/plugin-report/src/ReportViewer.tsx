@@ -45,12 +45,26 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
   };
 
   const handlePrint = () => {
-    console.log('Print report');
     window.print();
   };
 
   const handleRefresh = () => {
     onRefresh?.();
+  };
+
+  const computeAggregation = (fieldName: string, aggregation?: string): string | number => {
+    if (!data) return 0;
+    const values = data.map(item => Number(item[fieldName]) || 0);
+    switch (aggregation) {
+      case 'count': return data.length;
+      case 'sum': return values.reduce((sum, v) => sum + v, 0);
+      case 'avg': return values.length > 0
+        ? (values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(2)
+        : 0;
+      case 'min': return values.length > 0 ? Math.min(...values) : 0;
+      case 'max': return values.length > 0 ? Math.max(...values) : 0;
+      default: return '';
+    }
   };
 
   if (!report) {
@@ -159,17 +173,7 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
                           <CardContent className="p-4">
                             <div className="text-sm text-muted-foreground">{field.label || field.name}</div>
                             <div className="text-2xl font-bold">
-                              {field.aggregation === 'count' && data?.length}
-                              {field.aggregation === 'sum' && data?.reduce((sum, item) => sum + (Number(item[field.name]) || 0), 0)}
-                              {field.aggregation === 'avg' && data && data.length > 0
-                                ? (data.reduce((sum, item) => sum + (Number(item[field.name]) || 0), 0) / data.length).toFixed(2)
-                                : field.aggregation === 'avg' ? 0 : null}
-                              {field.aggregation === 'min' && data && data.length > 0
-                                ? Math.min(...data.map(item => Number(item[field.name]) || 0))
-                                : field.aggregation === 'min' ? 0 : null}
-                              {field.aggregation === 'max' && data && data.length > 0
-                                ? Math.max(...data.map(item => Number(item[field.name]) || 0))
-                                : field.aggregation === 'max' ? 0 : null}
+                              {computeAggregation(field.name, field.aggregation)}
                             </div>
                           </CardContent>
                         </Card>

@@ -415,7 +415,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     <div className={className}>
       {invalidCount > 0 && (
         <div className="mb-2 p-2 text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded">
-          {invalidCount} record{invalidCount !== 1 ? 's' : ''} with missing or invalid coordinates {invalidCount !== 1 ? 'were' : 'was'} excluded from the map.
+          {`${invalidCount} record${invalidCount !== 1 ? 's' : ''} with missing or invalid coordinates excluded from the map.`}
         </div>
       )}
       <div className="relative border rounded-lg overflow-hidden bg-muted" style={{ height: '600px', width: '100%' }}>
