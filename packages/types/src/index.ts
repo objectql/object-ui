@@ -834,3 +834,23 @@ export type {
   ObjectQLCapabilities,
   ObjectUICapabilities,
 } from '@objectstack/spec';
+
+// ============================================================================
+// Widget System - Runtime Widget Registration (Section 1.6)
+// ============================================================================
+/**
+ * Widget manifest and registry types for runtime widget registration,
+ * plugin auto-discovery, and custom widget registry.
+ */
+export type {
+  WidgetManifest,
+  WidgetSource,
+  WidgetSourceModule,
+  WidgetSourceInline,
+  WidgetSourceRegistry,
+  WidgetInput,
+  WidgetCapabilities,
+  ResolvedWidget,
+  WidgetRegistryEvent,
+  WidgetRegistryListener,
+} from './widget';

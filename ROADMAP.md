@@ -79,26 +79,26 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 **Authentication & Console Gaps (P0):**
 - ✅ Authentication package (@object-ui/auth with AuthProvider, useAuth, AuthGuard, forms)
-- 🔲 Console integration (connect auth to routes, DataSource, and user context)
-- 🔲 Session management & token injection into @objectstack/client
-- 🔲 System admin UIs (sys_user, sys_org, sys_role, sys_audit_log)
+- ✅ Console integration (auth routes, AuthGuard, UserMenu in sidebar, real auth session)
+- ✅ Session management & token injection into @objectstack/client
+- ✅ System admin UIs (sys_user, sys_org, sys_role, sys_audit_log)
 
 **ObjectOS Integration Gaps (P1):**
 - ✅ Multi-tenant architecture support (@object-ui/tenant)
 - ✅ RBAC integration (object/field/row-level permissions) (@object-ui/permissions)
-- 🔲 System objects (sys_user, sys_org, sys_role, sys_permission, sys_audit_log)
+- ✅ System objects (sys_user, sys_org, sys_role, sys_permission, sys_audit_log)
 - ✅ Workflow engine integration
 - 🔲 Real-time collaboration (WebSocket, presence, comments)
 
 **@objectstack/client Integration Gaps (P1):**
-- 🔲 Dynamic app loading from server metadata via `adapter.getApp()`
-- 🔲 Widget manifest system for runtime widget registration
+- ✅ Dynamic app loading from server metadata via `adapter.getApp()` + `useDynamicApp` hook
+- ✅ Widget manifest system for runtime widget registration (WidgetManifest + WidgetRegistry)
 - 🔲 Formula functions in expression engine (SUM, AVG, TODAY, NOW, IF)
-- 🔲 Schema hot-reload via cache invalidation
+- ✅ Schema hot-reload via cache invalidation (`useDynamicApp.refresh()`)
 - 🔲 File upload integration via client file API
 
 **Spec Alignment Gaps (P1):**
-- 🔲 Widget System (WidgetManifest, dynamic loading)
+- ✅ Widget System (WidgetManifest, WidgetRegistry, dynamic loading)
 - 🔲 Formula functions (SUM, AVG, TODAY, NOW, IF)
 - 🔲 Report export (PDF, Excel)
 
@@ -162,19 +162,19 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Implement authenticated fetch wrapper for @objectstack/client token injection
 
 **Phase 2 — Console Integration (Week 3-4):**
-- [ ] Add /login, /register, /forgot-password routes to Console
-- [ ] Wrap app routes with AuthGuard (redirect unauthenticated users)
-- [ ] Connect AuthProvider → ExpressionProvider → PermissionProvider chain
-- [ ] Add UserMenu to AppHeader (profile, settings, sign out)
-- [ ] Replace hardcoded user context with real auth session
+- [x] Add /login, /register, /forgot-password routes to Console
+- [x] Wrap app routes with AuthGuard (redirect unauthenticated users)
+- [x] Connect AuthProvider → ExpressionProvider → PermissionProvider chain
+- [x] Add UserMenu to AppSidebar footer (profile, settings, sign out)
+- [x] Replace hardcoded user context with real auth session
 
 **Phase 3 — System Administration (Week 5-6):**
-- [ ] Define system objects (sys_user, sys_org, sys_role, sys_permission, sys_audit_log)
-- [ ] Build user management page (reuse plugin-grid + plugin-form)
-- [ ] Build organization management page with member management
-- [ ] Build role management page with permission assignment matrix
-- [ ] Build user profile page (profile edit, password change)
-- [ ] Build audit log viewer (read-only grid)
+- [x] Define system objects (sys_user, sys_org, sys_role, sys_permission, sys_audit_log)
+- [x] Build user management page (reuse plugin-grid + plugin-form)
+- [x] Build organization management page with member management
+- [x] Build role management page with permission assignment matrix
+- [x] Build user profile page (profile edit, password change)
+- [x] Build audit log viewer (read-only grid)
 
 #### 1.6 @objectstack/client Low-Code Integration (3 weeks)
 **Target:** Validate and enhance client SDK integration for full low-code platform capability
@@ -182,27 +182,27 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 > 📄 Full evaluation: [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md)
 
 **Dynamic App Loading (Week 1):**
-- [ ] Implement dynamic app configuration loading via `adapter.getApp(appId)`
-- [ ] Add server-side schema fetching with fallback to static config
-- [ ] Schema hot-reload via MetadataCache invalidation + re-render
+- [x] Implement dynamic app configuration loading via `adapter.getApp(appId)`
+- [x] Add server-side schema fetching with fallback to static config (`useDynamicApp` hook)
+- [x] Schema hot-reload via MetadataCache invalidation + re-render (`refresh()`)
 
 **Widget System Foundation (Week 2):**
-- [ ] Define WidgetManifest interface for runtime widget registration
-- [ ] Implement plugin auto-discovery from server metadata
-- [ ] Custom widget registry for user-defined components
+- [x] Define WidgetManifest interface for runtime widget registration
+- [x] Implement plugin auto-discovery from server metadata (WidgetRegistry)
+- [x] Custom widget registry for user-defined components
 
 **Data Integration Hardening (Week 3):**
 - [ ] File upload integration via extended ObjectStackAdapter
-- [ ] Connection resilience testing (auto-reconnect, error recovery)
+- [x] Connection resilience testing (auto-reconnect, error recovery)
 - [ ] End-to-end data flow validation with live ObjectStack backend
 
 **Deliverables:**
 - @object-ui/auth package ✅
-- Console login / register / password reset pages
-- System administration pages (users, orgs, roles, audit logs)
-- Dynamic app loading from server metadata
-- Widget manifest system
-- @objectstack/client integration hardening
+- Console login / register / password reset pages ✅
+- System administration pages (users, orgs, roles, audit logs) ✅
+- Dynamic app loading from server metadata ✅
+- Widget manifest system ✅
+- @objectstack/client integration hardening (in progress)
 
 **Q1 Milestone:**
 - **v0.6.0 Release (March 2026):** Infrastructure Complete + Auth Foundation + Client Integration Validated

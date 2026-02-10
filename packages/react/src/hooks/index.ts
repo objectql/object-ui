@@ -11,4 +11,5 @@ export * from './useActionRunner';
 export * from './useNavigationOverlay';
 export * from './usePageVariables';
 export * from './useViewData';
+export * from './useDynamicApp';
 
