@@ -204,6 +204,39 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - Widget manifest system ✅
 - @objectstack/client integration hardening (in progress)
 
+#### 1.7 Console UX Polish (2 weeks) ✅ Completed
+**Target:** Enterprise-grade UX across every console component
+
+**Loading & Connection (Completed):**
+- [x] Multi-step progress indicator on LoadingScreen (animated step transitions)
+- [x] Brief "Connected" flash on successful connection (auto-dismiss after 2s)
+
+**Navigation & Wayfinding (Completed):**
+- [x] Humanized breadcrumb labels (slug → Title Case, e.g. `crm_dashboard` → `Crm Dashboard`)
+- [x] System admin route support in breadcrumbs
+- [x] Improved record ID display in breadcrumbs (`#abc123…` format)
+
+**Empty States (Completed):**
+- [x] Contextual icons in all "Not Found" empty states (ObjectView, DashboardView, PageView, ReportView, RecordDetailView)
+- [x] Helpful descriptions guiding users on what to do next
+
+**Error Recovery (Completed):**
+- [x] Added "Go Home" recovery action alongside "Try Again" in ErrorBoundary
+
+**System Admin Pages (Completed):**
+- [x] ProfilePage: Migrated from raw HTML to Shadcn Card/Input/Label/Alert/Avatar/Badge components
+- [x] User/Org/Role/Audit pages: Shadcn Button/Card/Badge, contextual page icons, improved empty state visuals
+
+**Next Steps (Q2 2026):**
+- [ ] Skeleton loading states for all data-heavy views (grid, dashboard, detail)
+- [ ] Toast notifications for CRUD operations (create/update/delete success/error)
+- [ ] Keyboard shortcuts help dialog (? key)
+- [ ] Responsive sidebar auto-collapse on tablet
+- [ ] Onboarding walkthrough for first-time users
+- [ ] Notification center with unread count badge
+- [ ] Global search results page (beyond command palette)
+- [ ] Drag-and-drop sidebar navigation reordering
+
 **Q1 Milestone:**
 - **v0.6.0 Release (March 2026):** Infrastructure Complete + Auth Foundation + Client Integration Validated
 
@@ -281,6 +314,20 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [ ] Transaction wrapper for multi-step operations via @objectstack/client
 - [ ] Optimistic UI updates with rollback on failure
 - [ ] Batch operation progress tracking with connection-aware retry
+
+#### 2.7 Console UX Enhancement Phase 2 (3 weeks)
+**Target:** Production-grade console experience
+
+- [ ] Skeleton loading states for data-heavy views (grid, dashboard, detail)
+- [ ] Toast notifications for CRUD operations (create/update/delete)
+- [ ] Keyboard shortcuts help dialog (? key)
+- [ ] Responsive sidebar auto-collapse on tablet breakpoints
+- [ ] Onboarding walkthrough for first-time users
+- [ ] Notification center with unread count badge
+- [ ] Global search results page (beyond command palette)
+- [ ] Drag-and-drop sidebar navigation reordering
+- [ ] Breadcrumb-based quick navigation dropdown
+- [ ] Recent items / favorites in sidebar
 
 **Q2 Milestone:**
 - **v1.0.0 Release (June 2026):** Feature Complete + Full @objectstack/client Integration
