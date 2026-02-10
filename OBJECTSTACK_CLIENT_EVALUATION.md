@@ -1,8 +1,9 @@
 # @objectstack/client Evaluation for Low-Code App UI Development
 
 > **Date:** February 10, 2026  
-> **Spec Version:** @objectstack/spec v2.0.1  
-> **Client Version:** @objectstack/client v2.0.1  
+> **Spec Version:** @objectstack/spec v2.0.4  
+> **Client Version:** @objectstack/client v2.0.4  
+> **Auth Plugin Version:** @objectstack/plugin-auth v2.0.3  
 > **ObjectUI Version:** v0.5.x  
 > **Scope:** Evaluate whether @objectstack/client can fully support developing a complete low-code application UI based on the @objectstack/spec protocol
 
@@ -104,6 +105,7 @@ The @objectstack/spec defines `ActionSchema` with 5 action types:
 
 | Capability | Implementation | Client Dependency | Status |
 |------------|---------------|-------------------|--------|
+| **Server-Side Auth** | `@objectstack/plugin-auth` (AuthPlugin) | ObjectKernel plugin | ✅ Complete |
 | **Token Authentication** | `ObjectStackAdapter({ token })` | Client constructor | ✅ Complete |
 | **Dynamic Token Injection** | `ObjectStackAdapter({ fetch })` | Custom fetch wrapper | ✅ Complete |
 | **Session Management** | `@object-ui/auth` (AuthProvider) | better-auth integration | ✅ Complete |
@@ -114,7 +116,7 @@ The @objectstack/spec defines `ActionSchema` with 5 action types:
 | **OAuth/SSO** | better-auth plugins | External auth providers | ✅ Complete |
 | **Multi-Factor Auth** | better-auth 2FA plugin | External auth providers | ✅ Available |
 
-**Auth Assessment: 100% — Full auth stack is implemented via @object-ui/auth + better-auth.**
+**Auth Assessment: 100% — Full auth stack is implemented. Server-side via @objectstack/plugin-auth (better-auth powered, ObjectQL persistence). Client-side via @object-ui/auth + better-auth.**
 
 ### 2.6 Multi-Tenancy
 
@@ -170,6 +172,19 @@ A complete low-code app built on @objectstack/spec follows this data flow:
 │         │                                                            │
 │         ▼                                                            │
 │  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                   ObjectStack Server                          │   │
+│  │                                                               │   │
+│  │  ObjectKernel                                                 │   │
+│  │    ├── ObjectQLPlugin     (query engine)                      │   │
+│  │    ├── DriverPlugin       (data storage)                      │   │
+│  │    ├── AuthPlugin         (@objectstack/plugin-auth)          │   │
+│  │    │     └── better-auth  (session, OAuth, 2FA, passkeys)     │   │
+│  │    ├── HonoServerPlugin   (HTTP /api/v1/*)                    │   │
+│  │    └── AppPlugin          (stack config)                      │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│         │                                                            │
+│         ▼                                                            │
+│  ┌──────────────────────────────────────────────────────────────┐   │
 │  │                    ObjectUI Runtime                           │   │
 │  │                                                               │   │
 │  │  AuthProvider → PermissionProvider → TenantProvider            │   │
@@ -208,7 +223,7 @@ A complete low-code app built on @objectstack/spec follows this data flow:
 | **Validation Rules** | `Data.Validation` | Server + client-side | `@object-ui/core` | ✅ Yes |
 | **Permissions/RBAC** | `Security.RBAC` | Role data from server | `@object-ui/permissions` | ✅ Yes |
 | **Multi-Tenancy** | `System.Tenant` | X-Tenant-ID header | `@object-ui/tenant` | ✅ Yes |
-| **Authentication** | `Identity.Auth` | Token via custom fetch | `@object-ui/auth` | ✅ Yes |
+| **Authentication** | `Identity.Auth` | Token via custom fetch | `@object-ui/auth` + `@objectstack/plugin-auth` | ✅ Yes |
 | **i18n** | `Shared.i18n` | None (client-side) | `@object-ui/i18n` | ✅ Yes |
 | **Theming** | `UI.Theme` | None (client-side) | Theme Provider | ✅ Yes |
 | **AI Assistance** | `AI.Config` | AI API endpoints | `plugin-ai` | ✅ Yes |
@@ -291,7 +306,49 @@ export default defineStack({
 });
 ```
 
-### 5.2 Runtime Initialization
+### 5.2 Server-Side Setup (with @objectstack/plugin-auth)
+
+```typescript
+// server.ts — Bootstrap the ObjectStack server with authentication
+import { ObjectKernel } from '@objectstack/core';
+import { ObjectQLPlugin } from '@objectstack/objectql';
+import { AppPlugin, DriverPlugin } from '@objectstack/runtime';
+import { HonoServerPlugin } from '@objectstack/plugin-hono-server';
+import { InMemoryDriver } from '@objectstack/driver-memory';
+import { AuthPlugin } from '@objectstack/plugin-auth';
+import config from './objectstack.config';
+
+async function startServer() {
+  const kernel = new ObjectKernel();
+
+  // Core engine + data driver
+  await kernel.use(new ObjectQLPlugin());
+  await kernel.use(new DriverPlugin(new InMemoryDriver()));
+
+  // Application stack
+  await kernel.use(new AppPlugin(config));
+
+  // Authentication via @objectstack/plugin-auth
+  // Provides /api/v1/auth/* endpoints (sign-in, sign-up, session, OAuth, 2FA, etc.)
+  await kernel.use(new AuthPlugin({
+    secret: process.env.AUTH_SECRET || 'dev-secret',
+    baseUrl: 'http://localhost:3000',
+    providers: [
+      // Optional: OAuth providers
+      // { id: 'google', clientId: '...', clientSecret: '...' },
+    ],
+  }));
+
+  // HTTP server
+  await kernel.use(new HonoServerPlugin({ port: 3000 }));
+
+  await kernel.bootstrap();
+}
+
+startServer();
+```
+
+### 5.3 Runtime Initialization
 
 ```typescript
 // App.tsx — Bootstrap the low-code runtime
@@ -312,7 +369,7 @@ function App() {
   });
 
   return (
-    <AuthProvider authUrl="/api/auth">
+    <AuthProvider authUrl="/api/v1/auth">
       <TenantProvider>
         <PermissionProvider>
           <SchemaRenderer
@@ -326,7 +383,7 @@ function App() {
 }
 ```
 
-### 5.3 Object Definition
+### 5.4 Object Definition
 
 ```typescript
 // objects/task.object.ts — Spec-compliant object definition
@@ -382,7 +439,7 @@ export const TaskObject = ObjectSchema.create({
 The combination provides:
 - **Data Layer**: Complete CRUD, bulk ops, metadata, and caching via ObjectStackAdapter
 - **UI Layer**: 35 packages, 91+ components, 13+ view types covering all spec requirements
-- **Security**: Auth, RBAC, field/row-level permissions, multi-tenancy
+- **Security**: Server-side auth via @objectstack/plugin-auth, client-side via @object-ui/auth, RBAC, field/row-level permissions, multi-tenancy
 - **Developer Experience**: TypeScript-first, Shadcn design quality, expression engine
 - **Extensibility**: Plugin system, custom widgets, theme customization
 

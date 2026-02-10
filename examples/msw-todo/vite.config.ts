@@ -35,7 +35,15 @@ export default defineConfig({
           return;
         }
         warn(warning);
-      }
+      },
+      // @objectstack/core@2.0.4 statically imports Node.js crypto (for plugin hashing).
+      // The code already has a browser fallback, so we treat it as external in the browser build.
+      external: ['crypto'],
+      output: {
+        globals: {
+          crypto: '{}',
+        },
+      },
     }
   }
 });

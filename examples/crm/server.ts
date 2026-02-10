@@ -4,6 +4,7 @@ import { ObjectQLPlugin } from '@objectstack/objectql';
 import { AppPlugin, DriverPlugin } from '@objectstack/runtime';
 import { HonoServerPlugin } from '@objectstack/plugin-hono-server';
 import { InMemoryDriver } from '@objectstack/driver-memory';
+import { AuthPlugin } from '@objectstack/plugin-auth';
 import config from './objectstack.config';
 import { pino } from 'pino';
 import { ConsolePlugin } from './console-plugin';
@@ -42,11 +43,19 @@ async function startServer() {
     const appPlugin = new AppPlugin(config);
     await kernel.use(appPlugin);
 
-    // 4. HTTP Server
+    // 4. Authentication (via @objectstack/plugin-auth)
+    // NOTE: In production, always set AUTH_SECRET env var. The fallback is for local development only.
+    const authPlugin = new AuthPlugin({
+      secret: process.env.AUTH_SECRET || 'objectui-dev-secret',
+      baseUrl: 'http://localhost:3000',
+    });
+    await kernel.use(authPlugin);
+
+    // 5. HTTP Server
     const serverPlugin = new HonoServerPlugin({ port: 3000 });
     await kernel.use(serverPlugin);
 
-    // 5. Console Plugin
+    // 6. Console Plugin
     const consolePlugin = new ConsolePlugin();
     await kernel.use(consolePlugin);
 
