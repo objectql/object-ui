@@ -10,7 +10,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button } from '@object-ui/components';
 import { SchemaRenderer } from '@object-ui/react';
 import { ComponentRegistry } from '@object-ui/core';
-import type { ReportViewerSchema, ReportSection, ReportExportFormat } from '@object-ui/types';
+import type { ReportViewerSchema, ReportSection, ReportExportFormat, ReportField } from '@object-ui/types';
 import { Download, Printer, RefreshCw } from 'lucide-react';
 import { exportReport } from './ReportExportEngine';
 
@@ -277,7 +277,7 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
               <table className="w-full text-sm">
                 <thead className="bg-muted">
                   <tr>
-                    {report.fields?.map((field: any, idx: number) => (
+                    {report.fields?.map((field: ReportField, idx: number) => (
                       <th key={idx} className="px-4 py-2 text-left font-medium">
                         {field.label || field.name}
                       </th>
@@ -285,9 +285,9 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((row: any, rowIdx: number) => (
+                  {data.map((row: Record<string, any>, rowIdx: number) => (
                     <tr key={rowIdx} className="border-t">
-                      {report.fields?.map((field: any, colIdx: number) => (
+                      {report.fields?.map((field: ReportField, colIdx: number) => (
                         <td key={colIdx} className="px-4 py-2">
                           {row[field.name]}
                         </td>
