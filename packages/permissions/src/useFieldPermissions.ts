@@ -7,7 +7,6 @@
  */
 
 import { useMemo } from 'react';
-import type { FieldLevelPermission } from '@object-ui/types';
 import { usePermissions } from './usePermissions';
 
 /**

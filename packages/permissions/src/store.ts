@@ -36,7 +36,8 @@ export function createPermissionStore(config: {
   userRoles: string[];
   user?: { id: string; [key: string]: unknown };
 }): PermissionStore {
-  let { roles, permissions, userRoles, user } = config;
+  const { roles, user } = config;
+  let { permissions, userRoles } = config;
 
   return {
     check: (object, action, record) =>

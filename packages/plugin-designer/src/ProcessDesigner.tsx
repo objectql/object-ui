@@ -8,7 +8,7 @@
 
 import React, { useState, useCallback } from 'react';
 import type { BPMNNode, BPMNEdge, BPMNLane, DesignerCanvasConfig } from '@object-ui/types';
-import { Play, Square, Diamond, Plus, Trash2, GitBranch } from 'lucide-react';
+import { Play, Square, Diamond, Trash2, GitBranch } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
