@@ -10,6 +10,7 @@ export type { SchemaNode, ComponentRendererProps } from './types/index.js';
 export * from './registry/Registry.js';
 export * from './registry/PluginSystem.js';
 export * from './registry/PluginScopeImpl.js';
+export * from './registry/WidgetRegistry.js';
 export * from './validation/index.js';
 export * from './builder/schema-builder.js';
 export * from './utils/filter-converter.js';
