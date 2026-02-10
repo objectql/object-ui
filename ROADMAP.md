@@ -19,6 +19,35 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 ---
 
+## 🔍 @objectstack/client Evaluation Summary
+
+> 📄 Full evaluation: [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md)
+
+**Verdict: ✅ @objectstack/client can fully support developing a complete low-code app UI based on @objectstack/spec.**
+
+**Coverage Score: 22/24 protocol features (92%) implemented today.**
+
+| Domain | Client API Coverage | ObjectUI Implementation | Score |
+|--------|-------------------|------------------------|-------|
+| **Data CRUD** | `data.find/get/create/update/delete` | ObjectStackAdapter | ✅ 100% |
+| **Metadata** | `meta.getObject/getItem` | Schema-driven rendering | ✅ 100% |
+| **UI Views** | Schema → 13+ view types | 20 plugin packages | ✅ 100% |
+| **Actions** | 5 action types + batch ops | ActionExecutor | ✅ 95% |
+| **Auth** | Token + custom fetch | @object-ui/auth | ✅ 100% |
+| **Permissions** | Server-side role data | @object-ui/permissions | ✅ 100% |
+| **Multi-Tenancy** | X-Tenant-ID header | @object-ui/tenant | ✅ 100% |
+| **Advanced** | Workflow, AI, Reports | Plugin packages | ✅ 85% |
+| **Real-time** | WebSocket (planned) | 🔲 Q3 2026 | ⚠️ Gap |
+| **Offline** | Service Worker sync | 🔲 Q3 2026 | ⚠️ Gap |
+
+**Key Integration Points:**
+- **Dynamic Token Injection:** `ObjectStackAdapter({ fetch: createAuthenticatedFetch(authClient) })`
+- **Schema-Driven Rendering:** `meta.getObject()` → SchemaRenderer pipeline
+- **App Loading:** `meta.getItem('apps', id)` → Dynamic app configuration
+- **Metadata Caching:** Built-in MetadataCache with TTL + LRU eviction
+
+---
+
 ## 🎯 Current Status (February 2026)
 
 ### Achievements ✅
@@ -30,6 +59,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - ✅ TypeScript 5.9+ strict mode (100%)
 - ✅ React 19 + Tailwind CSS + Shadcn UI
 - ✅ ~100% @objectstack/spec v2.0.1 coverage
+- ✅ @objectstack/client integration validated (92% protocol coverage)
 
 **Recent Completions (v0.5.0):**
 - ✅ Form variants (simple, tabbed, wizard, split, drawer, modal)
@@ -48,10 +78,10 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - ⚠️ Performance: Bundle size 200KB, LCP 1.2s (Target: 150KB, 600ms)
 
 **Authentication & Console Gaps (P0):**
-- 🔲 Authentication system (@object-ui/auth with better-auth)
-- 🔲 Login / Register / Password Reset pages
+- ✅ Authentication package (@object-ui/auth with AuthProvider, useAuth, AuthGuard, forms)
+- 🔲 Console integration (connect auth to routes, DataSource, and user context)
 - 🔲 Session management & token injection into @objectstack/client
-- 🔲 Route guards (AuthGuard component)
+- 🔲 System admin UIs (sys_user, sys_org, sys_role, sys_audit_log)
 
 **ObjectOS Integration Gaps (P1):**
 - ✅ Multi-tenant architecture support (@object-ui/tenant)
@@ -59,6 +89,13 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - 🔲 System objects (sys_user, sys_org, sys_role, sys_permission, sys_audit_log)
 - ✅ Workflow engine integration
 - 🔲 Real-time collaboration (WebSocket, presence, comments)
+
+**@objectstack/client Integration Gaps (P1):**
+- 🔲 Dynamic app loading from server metadata via `adapter.getApp()`
+- 🔲 Widget manifest system for runtime widget registration
+- 🔲 Formula functions in expression engine (SUM, AVG, TODAY, NOW, IF)
+- 🔲 Schema hot-reload via cache invalidation
+- 🔲 File upload integration via client file API
 
 **Spec Alignment Gaps (P1):**
 - 🔲 Widget System (WidgetManifest, dynamic loading)
@@ -115,13 +152,14 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 #### 1.5 Console Authentication System (6 weeks)
 **Target:** Complete login-to-usage flow using @objectstack/client + better-auth
 
-> 📄 Detailed plan: [CONSOLE_AUTH_PLAN.md](./CONSOLE_AUTH_PLAN.md)
+> 📄 Detailed plan: [CONSOLE_AUTH_PLAN.md](./CONSOLE_AUTH_PLAN.md)  
+> 📄 Client evaluation: [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md)
 
 **Phase 1 — Auth Foundation (Week 1-2):**
-- [ ] Create `@object-ui/auth` package (AuthProvider, useAuth, AuthGuard)
-- [ ] Integrate better-auth client (`createAuthClient`, session management)
-- [ ] Implement LoginForm, RegisterForm, ForgotPasswordForm (Shadcn UI)
-- [ ] Implement authenticated fetch wrapper for @objectstack/client token injection
+- [x] Create `@object-ui/auth` package (AuthProvider, useAuth, AuthGuard)
+- [x] Integrate better-auth client (`createAuthClient`, session management)
+- [x] Implement LoginForm, RegisterForm, ForgotPasswordForm (Shadcn UI)
+- [x] Implement authenticated fetch wrapper for @objectstack/client token injection
 
 **Phase 2 — Console Integration (Week 3-4):**
 - [ ] Add /login, /register, /forgot-password routes to Console
@@ -138,13 +176,36 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [ ] Build user profile page (profile edit, password change)
 - [ ] Build audit log viewer (read-only grid)
 
+#### 1.6 @objectstack/client Low-Code Integration (3 weeks)
+**Target:** Validate and enhance client SDK integration for full low-code platform capability
+
+> 📄 Full evaluation: [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md)
+
+**Dynamic App Loading (Week 1):**
+- [ ] Implement dynamic app configuration loading via `adapter.getApp(appId)`
+- [ ] Add server-side schema fetching with fallback to static config
+- [ ] Schema hot-reload via MetadataCache invalidation + re-render
+
+**Widget System Foundation (Week 2):**
+- [ ] Define WidgetManifest interface for runtime widget registration
+- [ ] Implement plugin auto-discovery from server metadata
+- [ ] Custom widget registry for user-defined components
+
+**Data Integration Hardening (Week 3):**
+- [ ] File upload integration via extended ObjectStackAdapter
+- [ ] Connection resilience testing (auto-reconnect, error recovery)
+- [ ] End-to-end data flow validation with live ObjectStack backend
+
 **Deliverables:**
-- @object-ui/auth package
+- @object-ui/auth package ✅
 - Console login / register / password reset pages
 - System administration pages (users, orgs, roles, audit logs)
+- Dynamic app loading from server metadata
+- Widget manifest system
+- @objectstack/client integration hardening
 
 **Q1 Milestone:**
-- **v0.6.0 Release (March 2026):** Infrastructure Complete + Auth Foundation
+- **v0.6.0 Release (March 2026):** Infrastructure Complete + Auth Foundation + Client Integration Validated
 
 ---
 
@@ -199,8 +260,30 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 **Deliverables:**
 - @object-ui/mobile package ✅
 
+#### 2.6 @objectstack/client Full-Stack Integration (4 weeks)
+**Target:** Complete low-code platform capability validated by client evaluation
+
+> 📄 Based on: [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md)
+
+**Expression Engine Enhancement (Week 1-2):**
+- [ ] Formula functions: SUM, AVG, COUNT, MIN, MAX
+- [ ] Date functions: TODAY, NOW, DATEADD, DATEDIFF
+- [ ] Logic functions: IF, AND, OR, NOT, SWITCH
+- [ ] String functions: CONCAT, LEFT, RIGHT, TRIM, UPPER, LOWER
+- [ ] Integration with ObjectQL aggregation queries via @objectstack/client
+
+**Report Export Integration (Week 2-3):**
+- [ ] PDF export with live data from `adapter.find()` queries
+- [ ] Excel export with formatted columns and formulas
+- [ ] Scheduled report generation via workflow triggers
+
+**Server-Side Transaction Support (Week 3-4):**
+- [ ] Transaction wrapper for multi-step operations via @objectstack/client
+- [ ] Optimistic UI updates with rollback on failure
+- [ ] Batch operation progress tracking with connection-aware retry
+
 **Q2 Milestone:**
-- **v1.0.0 Release (June 2026):** Feature Complete
+- **v1.0.0 Release (June 2026):** Feature Complete + Full @objectstack/client Integration
 
 ---
 
@@ -210,10 +293,13 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 #### 3.1 Real-time Collaboration (4 weeks)
 
-- [ ] WebSocket integration
+> ⚠️ Identified as a gap in @objectstack/client evaluation — requires WebSocket infrastructure
+
+- [ ] WebSocket integration with @objectstack/client real-time channels
 - [ ] Live cursors and presence indicators
 - [ ] Comment threads and @mentions
 - [ ] Conflict resolution and version history
+- [ ] Offline queue with sync-on-reconnect via Service Worker
 
 **Deliverables:**
 - @object-ui/collaboration package
@@ -292,6 +378,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 |--------|-----|-----|-----|-----|
 | **Test Coverage** | 80% | 85% | 90% | 90% |
 | **Spec Alignment** | 85% | 100% | 100% | 100% |
+| **Client Integration** | 92% | 95% | 100% | 100% |
 | **Performance (LCP)** | 0.6s | 0.5s | 0.5s | 0.4s |
 | **GitHub Stars** | 1K | 2.5K | 5K | 10K |
 | **NPM Downloads/week** | 5K | 10K | 20K | 50K |
@@ -349,6 +436,7 @@ This roadmap consolidates information from:
 4. **UPDATE_SUMMARY.md** - Recent updates summary
 5. **.github/copilot-instructions.md** - Architectural guidelines
 6. **CONSOLE_AUTH_PLAN.md** - Console authentication & full-flow development plan (@objectstack/client + better-auth)
+7. **OBJECTSTACK_CLIENT_EVALUATION.md** - Comprehensive evaluation of @objectstack/client for low-code app UI development (92% protocol coverage, 22/24 features)
 
 For detailed technical specifications, implementation patterns, and historical context, please refer to these source documents.
 
