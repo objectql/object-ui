@@ -14,6 +14,7 @@ import type { ListViewSchema } from '@object-ui/types';
 
 export { ListView, ViewSwitcher, ObjectGallery };
 export type { ListViewProps } from './ListView';
+export type { ObjectGalleryProps } from './ObjectGallery';
 export type { ViewSwitcherProps, ViewType } from './ViewSwitcher';
 
 // Register ListView component
