@@ -56,7 +56,7 @@ describe('ListView Persistence', () => {
       },
     };
 
-    renderWithProvider(<ListView schema={schema} />);
+    renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
     
     // Simulate changing to kanban view
     const kanbanButton = screen.getByLabelText('Kanban'); 
@@ -89,7 +89,7 @@ describe('ListView Persistence', () => {
         },
      };
 
-     renderWithProvider(<ListView schema={viewB_Schema} />);
+     renderWithProvider(<ListView schema={viewB_Schema} showViewSwitcher={true} />);
      
      // Should use the schema default 'kanban' (since no storage exists for THIS view id)
      // It should NOT use 'grid' from the global/default view.
@@ -117,7 +117,7 @@ describe('ListView Persistence', () => {
           },
       };
       
-      renderWithProvider(<ListView schema={schema} />);
+      renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
       
       // Should respect schema ('grid') because storage persistence is currently disabled
       const kanbanButton = screen.getByLabelText('Kanban');

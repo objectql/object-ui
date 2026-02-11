@@ -108,7 +108,7 @@ describe('ListView', () => {
       },
     };
 
-    renderWithProvider(<ListView schema={schema} />);
+    renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
     
     // Find kanban view button and click it
     // ViewSwitcher uses buttons with aria-label
