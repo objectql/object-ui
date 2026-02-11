@@ -241,10 +241,10 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                       variant="outline"
                       onClick={() => navigate(viewId ? '../../views/new' : 'views/new')}
                       className="shadow-none gap-1.5 h-8 sm:h-9 hidden sm:flex"
-                      title="Create a new view"
+                      title="Add a view"
                     >
                       <Plus className="h-4 w-4" />
-                      <span className="hidden lg:inline">New View</span>
+                      <span className="hidden lg:inline">Add View</span>
                     </Button>
                     <Button size="sm" onClick={actions.create} className="shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9">
                         <Plus className="h-4 w-4" /> 
