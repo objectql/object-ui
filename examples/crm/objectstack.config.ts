@@ -90,6 +90,14 @@ export default defineStack({
           icon: 'trending-up'
         },
         {
+          id: 'nav_pipeline',
+          type: 'object',
+          objectName: 'opportunity',
+          viewName: 'pipeline',
+          label: 'Pipeline',
+          icon: 'kanban-square'
+        },
+        {
           id: 'nav_projects',
           type: 'object',
           objectName: 'project_task',
@@ -100,6 +108,7 @@ export default defineStack({
           id: 'nav_events',
           type: 'object',
           objectName: 'event',
+          viewName: 'calendar',
           label: 'Calendar',
           icon: 'calendar'
         },

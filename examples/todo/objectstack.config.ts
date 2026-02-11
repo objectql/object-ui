@@ -36,6 +36,22 @@ export default defineStack({
           icon: 'list-todo',
         },
         {
+          id: 'nav_todo_board',
+          type: 'object',
+          objectName: 'todo_task',
+          viewName: 'board',
+          label: 'Task Board',
+          icon: 'kanban-square',
+        },
+        {
+          id: 'nav_todo_calendar',
+          type: 'object',
+          objectName: 'todo_task',
+          viewName: 'calendar',
+          label: 'Calendar',
+          icon: 'calendar',
+        },
+        {
           id: 'nav_todo_help',
           type: 'page',
           pageName: 'todo_help',
