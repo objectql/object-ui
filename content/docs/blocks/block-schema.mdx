@@ -3,6 +3,8 @@ title: "Block Schema (BlockSchema)"
 description: "Reusable component blocks with variables, slots, and marketplace support"
 ---
 
+import { InteractiveDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
 # Block Schema
 
 The `BlockSchema` defines reusable component blocks that can be configured with variables, support content injection through slots, and shared via a marketplace.
@@ -16,6 +18,143 @@ BlockSchema enables:
 - **Block templates** - Predefined component trees
 - **Marketplace support** - Share and discover blocks
 - **Version control** - Track block versions
+
+## Interactive Examples
+
+### Feature Card Block
+
+<InteractiveDemo
+  title="Feature Card Block"
+  description="A reusable block with configurable icon, title, description, and CTA button"
+  schema={{
+    type: "card",
+    className: "max-w-sm mx-auto",
+    children: [
+      {
+        type: "stack",
+        spacing: 4,
+        className: "items-center text-center p-4",
+        children: [
+          {
+            type: "div",
+            className: "w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center",
+            children: [{ type: "icon", name: "Zap", className: "h-6 w-6 text-primary" }]
+          },
+          { type: "text", content: "Fast Performance", className: "text-lg font-semibold" },
+          { type: "text", content: "Lightning-fast response times with optimized bundle sizes and edge caching support.", className: "text-sm text-muted-foreground" },
+          { type: "button", label: "Learn More", variant: "outline", size: "sm" }
+        ]
+      }
+    ]
+  }}
+/>
+
+### Block Variations
+
+<InteractiveDemo
+  title="Block with Variable Overrides"
+  description="The same block template rendered with different variable values"
+  examples={[
+    {
+      label: "Security Feature",
+      schema: {
+        type: "card",
+        className: "max-w-sm",
+        children: [
+          {
+            type: "stack",
+            spacing: 3,
+            className: "items-center text-center p-4",
+            children: [
+              { type: "div", className: "w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center", children: [{ type: "icon", name: "Shield", className: "h-6 w-6 text-green-600" }] },
+              { type: "text", content: "Enterprise Security", className: "text-lg font-semibold" },
+              { type: "text", content: "Bank-grade encryption and SOC 2 compliance built in.", className: "text-sm text-muted-foreground" },
+              { type: "button", label: "See Certifications", variant: "outline", size: "sm" }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      label: "Analytics Feature",
+      schema: {
+        type: "card",
+        className: "max-w-sm",
+        children: [
+          {
+            type: "stack",
+            spacing: 3,
+            className: "items-center text-center p-4",
+            children: [
+              { type: "div", className: "w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center", children: [{ type: "icon", name: "BarChart3", className: "h-6 w-6 text-purple-600" }] },
+              { type: "text", content: "Advanced Analytics", className: "text-lg font-semibold" },
+              { type: "text", content: "Real-time dashboards and custom report builder included.", className: "text-sm text-muted-foreground" },
+              { type: "button", label: "View Demo", variant: "outline", size: "sm" }
+            ]
+          }
+        ]
+      }
+    }
+  ]}
+/>
+
+### Block Marketplace Card
+
+<InteractiveDemo
+  title="Block Marketplace Listing"
+  description="How blocks appear in the marketplace with metadata and ratings"
+  schema={{
+    type: "card",
+    className: "max-w-md mx-auto",
+    children: [
+      {
+        type: "div",
+        className: "h-32 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-t-lg flex items-center justify-center",
+        children: [{ type: "icon", name: "LayoutTemplate", className: "h-12 w-12 text-primary/60" }]
+      },
+      {
+        type: "stack",
+        spacing: 3,
+        className: "p-4",
+        children: [
+          {
+            type: "flex",
+            className: "items-start justify-between",
+            children: [
+              {
+                type: "stack",
+                spacing: 1,
+                children: [
+                  { type: "text", content: "Pricing Table Pro", className: "font-semibold" },
+                  { type: "text", content: "by ObjectUI Team", className: "text-xs text-muted-foreground" }
+                ]
+              },
+              { type: "badge", label: "v2.1.0", variant: "secondary" }
+            ]
+          },
+          { type: "text", content: "Professional pricing comparison table with toggle for monthly/yearly billing.", className: "text-sm text-muted-foreground" },
+          {
+            type: "flex",
+            className: "gap-2 flex-wrap",
+            children: [
+              { type: "badge", label: "Marketing", variant: "outline" },
+              { type: "badge", label: "SaaS", variant: "outline" },
+              { type: "badge", label: "Pricing", variant: "outline" }
+            ]
+          },
+          {
+            type: "flex",
+            className: "items-center justify-between pt-2 border-t",
+            children: [
+              { type: "text", content: "★ 4.9 (234 ratings) · 5.4k installs", className: "text-xs text-muted-foreground" },
+              { type: "button", label: "Install", variant: "default", size: "sm" }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
 
 ## Basic Usage
 

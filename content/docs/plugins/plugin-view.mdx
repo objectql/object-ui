@@ -15,6 +15,132 @@ npm install @object-ui/plugin-view
 
 <PluginLoader plugins={['view']}>
 
+## Interactive Examples
+
+### User Directory View
+
+<InteractiveDemo
+  schema={{
+    type: "card",
+    children: [
+      {
+        type: "flex",
+        className: "items-center justify-between mb-4",
+        children: [
+          { type: "text", content: "Users", className: "text-lg font-semibold" },
+          { type: "button", label: "Add User", variant: "default", size: "sm", icon: "Plus" }
+        ]
+      },
+      {
+        type: "table",
+        columns: [
+          { header: "Name", accessorKey: "name" },
+          { header: "Email", accessorKey: "email" },
+          { header: "Role", accessorKey: "role" },
+          { header: "Status", accessorKey: "status" }
+        ],
+        data: [
+          { name: "Alice Johnson", email: "alice@example.com", role: "Admin", status: "Active" },
+          { name: "Bob Smith", email: "bob@example.com", role: "Editor", status: "Active" },
+          { name: "Carol White", email: "carol@example.com", role: "Viewer", status: "Inactive" },
+          { name: "David Lee", email: "david@example.com", role: "Editor", status: "Active" }
+        ]
+      }
+    ]
+  }}
+  title="Grid View Mode"
+  description="Display objects in a sortable, searchable data grid"
+/>
+
+### Record Detail View
+
+<InteractiveDemo
+  schema={{
+    type: "card",
+    className: "max-w-lg mx-auto",
+    header: [
+      {
+        type: "flex",
+        className: "items-center gap-3",
+        children: [
+          { type: "avatar", fallback: "AJ", className: "h-12 w-12" },
+          {
+            type: "stack",
+            spacing: 1,
+            children: [
+              { type: "text", content: "Alice Johnson", className: "text-lg font-semibold" },
+              { type: "text", content: "Admin · Joined Jan 2024", className: "text-sm text-muted-foreground" }
+            ]
+          }
+        ]
+      }
+    ],
+    children: [
+      {
+        type: "stack",
+        spacing: 3,
+        children: [
+          { type: "flex", className: "items-center gap-2", children: [{ type: "text", content: "Email", className: "text-sm text-muted-foreground w-24" }, { type: "text", content: "alice@example.com", className: "text-sm" }] },
+          { type: "flex", className: "items-center gap-2", children: [{ type: "text", content: "Phone", className: "text-sm text-muted-foreground w-24" }, { type: "text", content: "+1 (555) 123-4567", className: "text-sm" }] },
+          { type: "flex", className: "items-center gap-2", children: [{ type: "text", content: "Department", className: "text-sm text-muted-foreground w-24" }, { type: "text", content: "Engineering", className: "text-sm" }] },
+          { type: "flex", className: "items-center gap-2", children: [{ type: "text", content: "Location", className: "text-sm text-muted-foreground w-24" }, { type: "text", content: "San Francisco, CA", className: "text-sm" }] }
+        ]
+      },
+      {
+        type: "flex",
+        className: "justify-end gap-2 pt-4 border-t mt-4",
+        children: [
+          { type: "button", label: "Edit", variant: "outline", size: "sm", icon: "Pencil" },
+          { type: "button", label: "Delete", variant: "destructive", size: "sm", icon: "Trash2" }
+        ]
+      }
+    ]
+  }}
+  title="Detail View Mode"
+  description="Display a single record with all its fields"
+/>
+
+### Form Create View
+
+<InteractiveDemo
+  schema={{
+    type: "card",
+    className: "max-w-lg mx-auto",
+    header: [
+      { type: "text", content: "Create New User", className: "text-lg font-semibold" }
+    ],
+    children: [
+      {
+        type: "stack",
+        spacing: 4,
+        children: [
+          {
+            type: "grid",
+            cols: 2,
+            gap: 4,
+            children: [
+              { type: "stack", spacing: 2, children: [{ type: "label", label: "First Name" }, { type: "input", placeholder: "Alice" }] },
+              { type: "stack", spacing: 2, children: [{ type: "label", label: "Last Name" }, { type: "input", placeholder: "Johnson" }] }
+            ]
+          },
+          { type: "stack", spacing: 2, children: [{ type: "label", label: "Email" }, { type: "input", inputType: "email", placeholder: "alice@example.com" }] },
+          { type: "stack", spacing: 2, children: [{ type: "label", label: "Role" }, { type: "select", options: [{ label: "Admin", value: "admin" }, { label: "Editor", value: "editor" }, { label: "Viewer", value: "viewer" }] }] },
+          {
+            type: "flex",
+            className: "justify-end gap-2 pt-2",
+            children: [
+              { type: "button", label: "Cancel", variant: "outline" },
+              { type: "button", label: "Create User", variant: "default", icon: "Plus" }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+  title="Form View Mode"
+  description="Auto-generated form for creating or editing records"
+/>
+
 ## Features
 
 - **Automatic Views** - Generate views from ObjectQL schemas

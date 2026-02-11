@@ -3,6 +3,8 @@ title: "Enhanced Actions"
 description: "Advanced action system with AJAX calls, chaining, conditions, and callbacks"
 ---
 
+import { InteractiveDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
 # Enhanced Actions
 
 ObjectUI's action system has been significantly enhanced to support complex workflows, including AJAX API calls, confirmation dialogs, action chaining, conditional execution, and comprehensive tracking.
@@ -16,6 +18,113 @@ The enhanced `ActionSchema` provides:
 - **Callbacks**: Success and failure handlers
 - **Tracking**: Event logging and analytics
 - **Retry logic**: Automatic retry with configurable backoff
+
+## Interactive Examples
+
+### Action Buttons
+
+<InteractiveDemo
+  title="Action Button Variants"
+  description="Different button styles for various action types"
+  schema={{
+    type: "stack",
+    spacing: 4,
+    children: [
+      {
+        type: "flex",
+        className: "gap-2 flex-wrap",
+        children: [
+          { type: "button", label: "Submit", variant: "default", icon: "Send" },
+          { type: "button", label: "Save Draft", variant: "outline", icon: "Save" },
+          { type: "button", label: "Delete", variant: "destructive", icon: "Trash2" },
+          { type: "button", label: "Cancel", variant: "ghost" }
+        ]
+      }
+    ]
+  }}
+/>
+
+### Confirmation Dialog Pattern
+
+<InteractiveDemo
+  title="Confirmation Dialog"
+  description="Safety confirmation before destructive operations"
+  schema={{
+    type: "card",
+    className: "max-w-md mx-auto",
+    header: [
+      {
+        type: "stack",
+        spacing: 2,
+        children: [
+          { type: "text", content: "Confirm Deletion", className: "text-lg font-semibold" },
+          { type: "text", content: "Are you sure you want to delete this record? This action cannot be undone.", className: "text-sm text-muted-foreground" }
+        ]
+      }
+    ],
+    children: [
+      {
+        type: "flex",
+        className: "justify-end gap-2 pt-4",
+        children: [
+          { type: "button", label: "Cancel", variant: "outline" },
+          { type: "button", label: "Yes, Delete", variant: "destructive", icon: "Trash2" }
+        ]
+      }
+    ]
+  }}
+/>
+
+### Action Toolbar
+
+<InteractiveDemo
+  title="Action Toolbar"
+  description="Grouped actions in a toolbar layout for record operations"
+  schema={{
+    type: "card",
+    children: [
+      {
+        type: "flex",
+        className: "items-center justify-between border-b pb-3 mb-4",
+        children: [
+          { type: "text", content: "Order #12345", className: "font-semibold" },
+          { type: "badge", label: "Pending", variant: "outline" }
+        ]
+      },
+      {
+        type: "stack",
+        spacing: 3,
+        children: [
+          {
+            type: "flex",
+            className: "gap-2 items-center",
+            children: [
+              { type: "text", content: "Customer:", className: "text-sm text-muted-foreground w-24" },
+              { type: "text", content: "Acme Corp", className: "text-sm font-medium" }
+            ]
+          },
+          {
+            type: "flex",
+            className: "gap-2 items-center",
+            children: [
+              { type: "text", content: "Amount:", className: "text-sm text-muted-foreground w-24" },
+              { type: "text", content: "$1,250.00", className: "text-sm font-medium" }
+            ]
+          }
+        ]
+      },
+      {
+        type: "flex",
+        className: "justify-end gap-2 pt-4 border-t mt-4",
+        children: [
+          { type: "button", label: "Reject", variant: "outline", size: "sm" },
+          { type: "button", label: "Request Review", variant: "secondary", size: "sm", icon: "Eye" },
+          { type: "button", label: "Approve", variant: "default", size: "sm", icon: "Check" }
+        ]
+      }
+    ]
+  }}
+/>
 
 ## Action Types
 

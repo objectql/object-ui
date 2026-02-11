@@ -3,6 +3,8 @@ title: "Application Schema (AppSchema)"
 description: "Configure your entire application with navigation, branding, and global settings"
 ---
 
+import { InteractiveDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
 # Application Schema
 
 The `AppSchema` defines the top-level configuration for your entire ObjectUI application, including navigation menus, branding, layout strategies, and global actions.
@@ -14,6 +16,123 @@ AppSchema provides a declarative way to configure:
 - **Branding** - Logo, title, favicon
 - **Layout strategies** - Sidebar, header, or empty layout
 - **Global actions** - User menu, global toolbar buttons
+
+## Interactive Examples
+
+### Navigation Menu Preview
+
+<InteractiveDemo
+  title="Sidebar Navigation"
+  description="A typical application sidebar menu structure with icons, groups, and badges"
+  schema={{
+    type: "card",
+    className: "w-64",
+    children: [
+      {
+        type: "stack",
+        spacing: 1,
+        children: [
+          {
+            type: "flex",
+            className: "items-center gap-2 px-3 py-2 rounded-md bg-accent text-accent-foreground",
+            children: [
+              { type: "icon", name: "LayoutDashboard", className: "h-4 w-4" },
+              { type: "text", content: "Dashboard", className: "text-sm font-medium" }
+            ]
+          },
+          {
+            type: "flex",
+            className: "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+            children: [
+              { type: "icon", name: "Users", className: "h-4 w-4 text-muted-foreground" },
+              { type: "text", content: "Contacts", className: "text-sm" },
+              { type: "badge", label: "128", variant: "secondary", className: "ml-auto text-xs" }
+            ]
+          },
+          {
+            type: "flex",
+            className: "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+            children: [
+              { type: "icon", name: "Target", className: "h-4 w-4 text-muted-foreground" },
+              { type: "text", content: "Opportunities", className: "text-sm" }
+            ]
+          },
+          { type: "separator", className: "my-2" },
+          { type: "text", content: "Marketing", className: "px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider" },
+          {
+            type: "flex",
+            className: "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+            children: [
+              { type: "icon", name: "Megaphone", className: "h-4 w-4 text-muted-foreground" },
+              { type: "text", content: "Campaigns", className: "text-sm" }
+            ]
+          },
+          {
+            type: "flex",
+            className: "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+            children: [
+              { type: "icon", name: "Mail", className: "h-4 w-4 text-muted-foreground" },
+              { type: "text", content: "Email Templates", className: "text-sm" }
+            ]
+          },
+          { type: "separator", className: "my-2" },
+          {
+            type: "flex",
+            className: "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+            children: [
+              { type: "icon", name: "Settings", className: "h-4 w-4 text-muted-foreground" },
+              { type: "text", content: "Settings", className: "text-sm" }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
+
+### Application Header Bar
+
+<InteractiveDemo
+  title="Application Header"
+  description="Top bar with branding, global search, and user actions"
+  schema={{
+    type: "flex",
+    className: "items-center justify-between p-3 border rounded-lg bg-background",
+    children: [
+      {
+        type: "flex",
+        className: "items-center gap-3",
+        children: [
+          { type: "icon", name: "Box", className: "h-6 w-6 text-primary" },
+          { type: "text", content: "Acme CRM", className: "font-semibold text-lg" }
+        ]
+      },
+      {
+        type: "flex",
+        className: "items-center gap-2",
+        children: [
+          { type: "button", label: "Quick Actions", variant: "outline", size: "sm", icon: "Zap" },
+          { type: "button", label: "Notifications", variant: "ghost", size: "sm", icon: "Bell" },
+          {
+            type: "flex",
+            className: "items-center gap-2 ml-2 pl-2 border-l",
+            children: [
+              { type: "avatar", fallback: "JD", className: "h-8 w-8" },
+              {
+                type: "stack",
+                spacing: 0,
+                children: [
+                  { type: "text", content: "John Doe", className: "text-sm font-medium leading-none" },
+                  { type: "text", content: "john@acme.com", className: "text-xs text-muted-foreground" }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }}
+/>
 
 ## Basic Usage
 

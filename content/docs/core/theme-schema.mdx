@@ -3,6 +3,8 @@ title: "Theme Schema (ThemeSchema)"
 description: "Dynamic theming with light/dark modes, color palettes, and typography"
 ---
 
+import { InteractiveDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
 # Theme Schema
 
 The `ThemeSchema` provides a comprehensive theming system for ObjectUI applications, supporting light/dark modes, custom color palettes, typography, and CSS variable integration.
@@ -16,6 +18,83 @@ ThemeSchema enables:
 - **Typography system** - Font families, sizes, weights, and line heights
 - **Tailwind integration** - Direct integration with Tailwind CSS
 - **CSS variables** - Custom CSS variable support
+
+## Interactive Examples
+
+### Color Palette Preview
+
+<InteractiveDemo
+  title="Semantic Color Palette"
+  description="Preview of semantic color tokens used across the theme system"
+  schema={{
+    type: "grid",
+    cols: 4,
+    gap: 3,
+    className: "p-4",
+    children: [
+      { type: "card", className: "p-4 text-center", children: [{ type: "div", className: "w-full h-12 rounded-md bg-primary mb-2" }, { type: "text", content: "Primary", className: "text-xs font-medium" }] },
+      { type: "card", className: "p-4 text-center", children: [{ type: "div", className: "w-full h-12 rounded-md bg-secondary mb-2" }, { type: "text", content: "Secondary", className: "text-xs font-medium" }] },
+      { type: "card", className: "p-4 text-center", children: [{ type: "div", className: "w-full h-12 rounded-md bg-accent mb-2" }, { type: "text", content: "Accent", className: "text-xs font-medium" }] },
+      { type: "card", className: "p-4 text-center", children: [{ type: "div", className: "w-full h-12 rounded-md bg-muted mb-2" }, { type: "text", content: "Muted", className: "text-xs font-medium" }] },
+      { type: "card", className: "p-4 text-center", children: [{ type: "div", className: "w-full h-12 rounded-md bg-destructive mb-2" }, { type: "text", content: "Destructive", className: "text-xs font-medium" }] },
+      { type: "card", className: "p-4 text-center", children: [{ type: "div", className: "w-full h-12 rounded-md bg-card border mb-2" }, { type: "text", content: "Card", className: "text-xs font-medium" }] },
+      { type: "card", className: "p-4 text-center", children: [{ type: "div", className: "w-full h-12 rounded-md bg-popover border mb-2" }, { type: "text", content: "Popover", className: "text-xs font-medium" }] },
+      { type: "card", className: "p-4 text-center", children: [{ type: "div", className: "w-full h-12 rounded-md border-2 border-border mb-2" }, { type: "text", content: "Border", className: "text-xs font-medium" }] }
+    ]
+  }}
+/>
+
+### Theme-Aware Components
+
+<InteractiveDemo
+  title="Theme-Aware UI Elements"
+  description="Components automatically adapt to the active theme's color palette"
+  schema={{
+    type: "stack",
+    spacing: 4,
+    children: [
+      {
+        type: "flex",
+        className: "gap-2 flex-wrap",
+        children: [
+          { type: "button", label: "Primary", variant: "default" },
+          { type: "button", label: "Secondary", variant: "secondary" },
+          { type: "button", label: "Outline", variant: "outline" },
+          { type: "button", label: "Ghost", variant: "ghost" },
+          { type: "button", label: "Destructive", variant: "destructive" }
+        ]
+      },
+      {
+        type: "flex",
+        className: "gap-2 flex-wrap",
+        children: [
+          { type: "badge", label: "Default", variant: "default" },
+          { type: "badge", label: "Secondary", variant: "secondary" },
+          { type: "badge", label: "Outline", variant: "outline" },
+          { type: "badge", label: "Destructive", variant: "destructive" }
+        ]
+      },
+      {
+        type: "grid",
+        cols: 2,
+        gap: 3,
+        children: [
+          {
+            type: "card",
+            header: [{ type: "text", content: "Card Title", className: "font-semibold" }],
+            children: [{ type: "text", content: "This card uses theme-aware background and foreground colors.", className: "text-sm text-muted-foreground" }]
+          },
+          {
+            type: "card",
+            className: "bg-muted",
+            header: [{ type: "text", content: "Muted Card", className: "font-semibold" }],
+            children: [{ type: "text", content: "A muted-background variant for subtle content areas.", className: "text-sm text-muted-foreground" }]
+          }
+        ]
+      }
+    ]
+  }}
+/>
 
 ## Basic Usage
 

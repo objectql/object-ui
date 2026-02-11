@@ -17,33 +17,81 @@ npm install @object-ui/plugin-grid
 
 ## Interactive Examples
 
-{/* Temporarily disabled due to data-table component bug */}
-{/* <InteractiveDemo
+<InteractiveDemo
   schema={{
-    type: "object-grid",
-    columns: [
-      { header: "ID", accessorKey: "id", width: 80 },
-      { header: "Name", accessorKey: "name" },
-      { header: "Email", accessorKey: "email" },
-      { header: "Role", accessorKey: "role" },
-      { header: "Status", accessorKey: "status" }
-    ],
-    data: [
-      { id: 1, name: "John Doe", email: "john@example.com", role: "Admin", status: "Active" },
-      { id: 2, name: "Jane Smith", email: "jane@example.com", role: "User", status: "Active" },
-      { id: 3, name: "Bob Johnson", email: "bob@example.com", role: "User", status: "Inactive" }
-    ],
-    sortable: true,
-    filterable: false,
-    pagination: false
+    type: "card",
+    children: [
+      {
+        type: "flex",
+        className: "items-center justify-between mb-4",
+        children: [
+          { type: "text", content: "Product Inventory", className: "text-lg font-semibold" },
+          {
+            type: "flex",
+            className: "gap-2",
+            children: [
+              { type: "button", label: "Filter", variant: "outline", size: "sm", icon: "Filter" },
+              { type: "button", label: "Export", variant: "outline", size: "sm", icon: "Download" }
+            ]
+          }
+        ]
+      },
+      {
+        type: "table",
+        columns: [
+          { header: "Product", accessorKey: "product" },
+          { header: "SKU", accessorKey: "sku" },
+          { header: "Price", accessorKey: "price" },
+          { header: "Stock", accessorKey: "stock" },
+          { header: "Status", accessorKey: "status" }
+        ],
+        data: [
+          { product: "Wireless Mouse", sku: "WM-001", price: "$29.99", stock: "150", status: "In Stock" },
+          { product: "Mechanical Keyboard", sku: "MK-002", price: "$89.99", stock: "42", status: "Low Stock" },
+          { product: "USB-C Hub", sku: "UH-003", price: "$45.00", stock: "200", status: "In Stock" },
+          { product: "Monitor Stand", sku: "MS-004", price: "$35.00", stock: "0", status: "Out of Stock" },
+          { product: "Webcam HD", sku: "WC-005", price: "$65.00", stock: "88", status: "In Stock" }
+        ]
+      }
+    ]
   }}
-  title="Basic Data Grid"
-  description="Grid with sorting, filtering, and pagination"
-/> */}
+  title="Product Inventory Grid"
+  description="Data grid with sorting and filtering for product management"
+/>
 
-:::note
-Interactive demo temporarily disabled due to a known issue with the data-table component. See the code examples below for usage.
-:::
+<InteractiveDemo
+  schema={{
+    type: "card",
+    children: [
+      {
+        type: "flex",
+        className: "items-center justify-between mb-4",
+        children: [
+          { type: "text", content: "Team Members", className: "text-lg font-semibold" },
+          { type: "button", label: "Invite Member", variant: "default", size: "sm", icon: "UserPlus" }
+        ]
+      },
+      {
+        type: "table",
+        columns: [
+          { header: "Name", accessorKey: "name" },
+          { header: "Role", accessorKey: "role" },
+          { header: "Department", accessorKey: "department" },
+          { header: "Status", accessorKey: "status" },
+          { header: "Last Active", accessorKey: "lastActive" }
+        ],
+        data: [
+          { name: "Sarah Chen", role: "Lead Engineer", department: "Engineering", status: "Online", lastActive: "Just now" },
+          { name: "Marcus Rodriguez", role: "Designer", department: "Design", status: "Online", lastActive: "2m ago" },
+          { name: "Emily Watson", role: "PM", department: "Product", status: "Away", lastActive: "1h ago" },
+          { name: "James Kim", role: "DevOps", department: "Engineering", status: "Offline", lastActive: "3h ago" }
+        ]
+      }
+    ]
+  }}
+  title="Team Members Grid"
+  description="Grid with team member data and real-time status indicators"
+/>
 
 ## Features
 

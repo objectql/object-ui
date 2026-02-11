@@ -3,6 +3,8 @@ title: "Building Blocks"
 description: "Clean, modern building blocks. Copy and paste into your apps. Open Source. Free forever."
 ---
 
+import { InteractiveDemo, DemoGrid } from '@/app/components/ComponentDemo';
+
 # Building Blocks for the Web
 
 Pre-built, production-ready UI blocks powered by ObjectUI's schema-driven architecture. Copy the JSON, paste into your application, and ship faster.
@@ -10,6 +12,89 @@ Pre-built, production-ready UI blocks powered by ObjectUI's schema-driven archit
 ## What are Blocks?
 
 Blocks are complete, ready-to-use UI patterns built with ObjectUI components. Unlike individual components, blocks are composed sections like login forms, pricing tables, dashboard cards, and more—ready to be dropped into your application.
+
+### Quick Preview
+
+<InteractiveDemo
+  title="Block Gallery"
+  description="A selection of ready-to-use blocks for rapid development"
+  examples={[
+    {
+      label: "Stats Card",
+      schema: {
+        type: "card",
+        className: "max-w-xs",
+        children: [
+          {
+            type: "stack",
+            spacing: 2,
+            className: "p-4",
+            children: [
+              {
+                type: "flex",
+                className: "items-center justify-between",
+                children: [
+                  { type: "text", content: "Total Revenue", className: "text-sm font-medium text-muted-foreground" },
+                  { type: "icon", name: "DollarSign", className: "h-4 w-4 text-muted-foreground" }
+                ]
+              },
+              { type: "text", content: "$45,231.89", className: "text-2xl font-bold" },
+              { type: "text", content: "+20.1% from last month", className: "text-xs text-muted-foreground" }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      label: "Login Card",
+      schema: {
+        type: "card",
+        className: "max-w-sm mx-auto",
+        header: [
+          {
+            type: "stack",
+            spacing: 1,
+            className: "text-center",
+            children: [
+              { type: "text", content: "Sign In", className: "text-xl font-bold" },
+              { type: "text", content: "Enter your credentials", className: "text-sm text-muted-foreground" }
+            ]
+          }
+        ],
+        children: [
+          {
+            type: "stack",
+            spacing: 3,
+            children: [
+              { type: "stack", spacing: 2, children: [{ type: "label", label: "Email" }, { type: "input", inputType: "email", placeholder: "you@example.com" }] },
+              { type: "stack", spacing: 2, children: [{ type: "label", label: "Password" }, { type: "input", inputType: "password", placeholder: "••••••••" }] },
+              { type: "button", label: "Sign In", variant: "default", className: "w-full" }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      label: "Notification Item",
+      schema: {
+        type: "flex",
+        className: "items-start gap-3 p-4 border rounded-lg max-w-md",
+        children: [
+          { type: "avatar", fallback: "JD", className: "h-10 w-10" },
+          {
+            type: "stack",
+            spacing: 1,
+            children: [
+              { type: "text", content: "John Doe commented on your post", className: "text-sm font-medium" },
+              { type: "text", content: "Great work on the new design! The color scheme looks amazing.", className: "text-sm text-muted-foreground" },
+              { type: "text", content: "2 minutes ago", className: "text-xs text-muted-foreground" }
+            ]
+          }
+        ]
+      }
+    }
+  ]}
+/>
 
 ### Why Use Blocks?
 

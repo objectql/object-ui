@@ -56,6 +56,102 @@ npm install @object-ui/plugin-dashboard
   description="Dashboard with metric cards showing KPIs"
 />
 
+<InteractiveDemo
+  schema={{
+    type: "dashboard",
+    columns: 4,
+    gap: 4,
+    widgets: [
+      {
+        type: "metric-card",
+        title: "Total Sales",
+        value: "$123,456",
+        icon: "shopping-cart",
+        trend: "up",
+        trendValue: "+15%",
+        description: "vs last quarter"
+      },
+      {
+        type: "metric-card",
+        title: "New Customers",
+        value: "856",
+        icon: "user-plus",
+        trend: "up",
+        trendValue: "+22%",
+        description: "vs last quarter"
+      },
+      {
+        type: "metric-card",
+        title: "Conversion Rate",
+        value: "3.2%",
+        icon: "trending-up",
+        trend: "up",
+        trendValue: "+0.8%",
+        description: "vs last quarter"
+      },
+      {
+        type: "metric-card",
+        title: "Avg. Order Value",
+        value: "$144.20",
+        icon: "dollar-sign",
+        trend: "up",
+        trendValue: "+8%",
+        description: "vs last quarter"
+      }
+    ]
+  }}
+  title="E-commerce Dashboard"
+  description="Four-column layout for e-commerce KPIs with trend indicators"
+/>
+
+<InteractiveDemo
+  schema={{
+    type: "dashboard",
+    columns: 2,
+    gap: 4,
+    widgets: [
+      {
+        type: "metric-card",
+        title: "Open Tickets",
+        value: "47",
+        icon: "ticket",
+        trend: "down",
+        trendValue: "-15%",
+        description: "less than yesterday"
+      },
+      {
+        type: "metric-card",
+        title: "Avg. Response Time",
+        value: "2.4h",
+        icon: "clock",
+        trend: "down",
+        trendValue: "-12%",
+        description: "faster than target"
+      },
+      {
+        type: "metric-card",
+        title: "Resolution Rate",
+        value: "94%",
+        icon: "check-circle",
+        trend: "up",
+        trendValue: "+3%",
+        description: "vs last week"
+      },
+      {
+        type: "metric-card",
+        title: "Customer Satisfaction",
+        value: "4.8/5",
+        icon: "star",
+        trend: "up",
+        trendValue: "+0.2",
+        description: "CSAT score"
+      }
+    ]
+  }}
+  title="Support Dashboard"
+  description="Two-column layout for support team metrics"
+/>
+
 ## Features
 
 - **Dashboard Layouts** - Responsive grid-based layouts

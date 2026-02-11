@@ -57,6 +57,67 @@ npm install @object-ui/plugin-form
   description="Form with validation and multiple field types"
 />
 
+<InteractiveDemo
+  schema={{
+    type: "form",
+    fields: [
+      {
+        name: "company",
+        type: "input",
+        label: "Company Name",
+        placeholder: "Acme Corp",
+        required: true
+      },
+      {
+        name: "website",
+        type: "input",
+        inputType: "url",
+        label: "Website",
+        placeholder: "https://example.com"
+      },
+      {
+        name: "industry",
+        type: "select",
+        label: "Industry",
+        options: [
+          { label: "Technology", value: "tech" },
+          { label: "Healthcare", value: "health" },
+          { label: "Finance", value: "finance" },
+          { label: "Education", value: "education" },
+          { label: "Retail", value: "retail" }
+        ]
+      },
+      {
+        name: "size",
+        type: "select",
+        label: "Company Size",
+        options: [
+          { label: "1-10 employees", value: "small" },
+          { label: "11-50 employees", value: "medium" },
+          { label: "51-200 employees", value: "large" },
+          { label: "200+ employees", value: "enterprise" }
+        ]
+      },
+      {
+        name: "message",
+        type: "textarea",
+        label: "Tell us about your needs",
+        placeholder: "What are you looking for?"
+      },
+      {
+        name: "terms",
+        type: "checkbox",
+        label: "I agree to the terms and conditions",
+        required: true
+      }
+    ],
+    submitLabel: "Request Demo",
+    cancelLabel: "Cancel"
+  }}
+  title="Contact Form"
+  description="Multi-field contact form with various input types"
+/>
+
 ## Features
 
 - **Form Builder** - Create complex forms from schemas
