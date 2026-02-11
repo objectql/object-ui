@@ -21,3 +21,4 @@ export * from './useAnimation';
 export * from './useColumnSummary';
 export * from './useDensityMode';
 export * from './useViewSharing';
+export * from './useClientNotifications';
