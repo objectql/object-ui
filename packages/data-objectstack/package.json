@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/data-objectstack",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "ObjectStack Data Adapter for Object UI",
   "license": "MIT",
   "type": "module",

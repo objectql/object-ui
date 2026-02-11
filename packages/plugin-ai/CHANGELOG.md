@@ -1,4 +1,4 @@
-# @object-ui/plugin-list
+# @object-ui/plugin-ai
 
 ## 2.0.0
 
@@ -13,9 +13,3 @@
   - @object-ui/core@2.0.0
   - @object-ui/react@2.0.0
   - @object-ui/components@2.0.0
-
-## 0.5.1
-
-### Patch Changes
-
-- Fixed ListView view preference persistence causing incorrect view rendering.
