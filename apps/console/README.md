@@ -33,6 +33,31 @@ pnpm test
 
 The console opens at **http://localhost:5175** with a simulated backend (CRM + Todo + Kitchen Sink demo data).
 
+## Running Modes
+
+The console supports two distinct running modes:
+
+### 1. Development Mode (Standalone)
+**Command:** `pnpm dev`
+
+- Runs Vite dev server directly with Hot Module Replacement (HMR)
+- Uses Mock Service Worker (MSW) to intercept API calls in the browser
+- Fast development cycle with instant feedback
+- Best for UI development and testing
+- Opens at http://localhost:5175
+
+### 2. Plugin Mode (Production-like)
+**Command:** `pnpm start`
+
+- Runs via `@objectstack/cli serve` with ObjectStack runtime
+- Serves the console as a UI plugin from `dist/` directory
+- Tests plugin integration and routing
+- Simulates production deployment pattern
+- Useful for testing the plugin architecture
+- Opens at http://localhost:3000 (default CLI port)
+
+Both modes support the same features and use the same codebase. Choose development mode for fast iteration, and plugin mode to verify deployment behavior.
+
 ## ObjectStack Spec Compliance
 
 ### AppSchema Support
