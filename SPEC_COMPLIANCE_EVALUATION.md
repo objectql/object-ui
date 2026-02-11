@@ -1,9 +1,10 @@
 # ObjectUI Spec Compliance Evaluation
 
-> **Date:** February 10, 2026
-> **Spec Version:** @objectstack/spec v2.0.1
+> **Date:** February 11, 2026
+> **Spec Version:** @objectstack/spec v2.0.7
 > **ObjectUI Version:** v0.5.x
 > **Scope:** All 35 packages — components, plugins, and infrastructure
+> **Build Status:** ✅ 41/41 build tasks pass | ✅ 2961/2961 tests pass
 
 ---
 
@@ -44,7 +45,7 @@ Each package is rated against three dimensions:
 
 | Dimension | Rating | Details |
 |-----------|--------|---------|
-| Functional Completeness | ✅ Complete | 800+ type exports across 16 categories; AnySchema discriminated union covers all component types |
+| Functional Completeness | ✅ Complete | 800+ type exports across 16 categories; AnySchema discriminated union covers all component types; 70+ new v2.0.7 UI types re-exported |
 | Spec UI Compliance | ✅ Complete | All theme tokens (ColorPalette, Typography, Spacing, etc.) imported directly from @objectstack/spec/ui — never redefined |
 | Spec API Compliance | ✅ Complete | HttpMethod, HttpRequest, ViewData, ListColumn, SelectionConfig, PaginationConfig all re-exported from spec |
 
@@ -53,15 +54,18 @@ Each package is rated against three dimensions:
 - Strict "never redefine, always import" rule for spec types
 - Comprehensive field metadata system (40+ field types)
 - Full action system (UIActionSchema with 5 action types, batch operations, transactions, undo/redo)
+- All 70+ new v2.0.7 spec UI types re-exported (accessibility, responsive, i18n, animation, DnD, gestures, focus, notifications, offline/sync, view enhancements, performance, page)
 
 **Gaps:**
 - Validators module referenced but commented out in index.ts
 - Some Phase 3 types (DriverInterface, ConnectionPool) defined but have no runtime consumers yet
+- New v2.0.7 types are re-exported but many lack runtime consumers (DnD, gestures, notifications, offline/sync, animation)
 
 **Improvement Plan:**
 1. **P1:** Uncomment and finalize validators module export — enables form/field runtime validation
 2. **P2:** Add Zod runtime validators for critical schemas (BaseSchema, ActionSchema, ViewData)
-3. **P3:** Audit Phase 3 types and remove or implement unused definitions
+3. **P2:** Add runtime consumers for v2.0.7 accessibility types (AriaPropsSchema, WcagContrastLevel)
+4. **P3:** Audit Phase 3 types and remove or implement unused definitions
 
 ---
 
@@ -108,6 +112,7 @@ Each package is rated against three dimensions:
 - Expression evaluation integrated into render cycle
 - React Hook Form integration for form state management
 - Comprehensive hooks: useActionRunner, useDiscovery, useExpression, useCondition, useViewData, useDynamicApp
+- `resolveI18nLabel()` utility handles v2.0.7 I18nLabel type (`string | { key, defaultValue?, params? }`) across all schemas
 
 **Gaps:**
 - usePageVariables hook referenced but implementation needs verification
@@ -163,7 +168,7 @@ Each package is rated against three dimensions:
 
 **Gaps:**
 - Field-level validation delegates entirely to ValidationEngine (no inline validation feedback)
-- No field-level i18n labels (relies on external i18n context)
+- ~~No field-level i18n labels (relies on external i18n context)~~ — **Resolved in v2.0.7:** I18nLabel type now supported via `resolveI18nLabel()` utility in @object-ui/react
 
 **Improvement Plan:**
 1. **P2:** Add inline validation message rendering (error text below field)
@@ -749,7 +754,7 @@ Each package is rated against three dimensions:
 | Dimension | Rating | Details |
 |-----------|--------|---------|
 | Functional Completeness | ✅ Complete | 10 language packs, RTL support, date/currency/number formatting |
-| Spec UI Compliance | ✅ Complete | i18next integration with auto browser detection |
+| Spec UI Compliance | ✅ Complete | i18next integration with auto browser detection; v2.0.7 I18nLabel type fully supported |
 | Spec API Compliance | ✅ Complete | Locale-aware formatting utilities |
 
 **Strengths:**
@@ -757,10 +762,12 @@ Each package is rated against three dimensions:
 - RTL layout support for Arabic
 - Formatting utilities: date, currency, number, relative time
 - Fallback language support
+- I18nLabel compatibility: `resolveI18nLabel()` in @object-ui/react handles `string | { key, defaultValue?, params? }` for label, placeholder, helpText, description fields
 
 **Gaps:**
-- No plural rules or context-specific translations documented
+- No plural rules or context-specific translations documented (v2.0.7 adds PluralRuleSchema — not yet consumed)
 - No dynamic language pack loading (all bundled)
+- New v2.0.7 i18n types (I18nObjectSchema, LocaleConfigSchema, DateFormatSchema, NumberFormatSchema) re-exported but lack dedicated runtime consumers
 
 **Improvement Plan:**
 1. **P2:** Add dynamic language pack loading (lazy import)
@@ -807,11 +814,15 @@ Each package is rated against three dimensions:
 - Pull-to-refresh with configurable threshold/resistance
 - PWA manifest generator and service worker with cache strategies
 
-**Gaps:** None critical
+**Gaps:**
+- v2.0.7 gesture/touch types (GestureConfigSchema, SwipeGestureConfigSchema, PinchGestureConfigSchema, LongPressGestureConfigSchema, TouchInteractionSchema, TouchTargetConfigSchema) not yet consumed
+- v2.0.7 responsive types (ResponsiveConfigSchema, BreakpointColumnMapSchema, BreakpointOrderMapSchema) not yet consumed
 
 **Improvement Plan:**
-1. **P3:** Add safe area inset support for notched devices
-2. **P3:** Add haptic feedback utilities
+1. **P2:** Integrate v2.0.7 GestureConfigSchema and TouchInteractionSchema into gesture hooks
+2. **P2:** Adopt ResponsiveConfigSchema and BreakpointColumnMapSchema for spec-aligned responsive layouts
+3. **P3:** Add safe area inset support for notched devices
+4. **P3:** Add haptic feedback utilities
 
 ---
 
@@ -827,6 +838,7 @@ Each package is rated against three dimensions:
 | View Types | ✅ Complete | All 7 view types (grid, kanban, calendar, gantt, timeline, map, gallery) |
 | Form System | ✅ Complete | 6 form variants; all field types mapped |
 | Permission UI | ✅ Complete | Guard components with hide/disable/redirect fallbacks |
+| I18nLabel (v2.0.7) | ✅ Complete | `resolveI18nLabel()` handles `string \| { key, defaultValue?, params? }` across all schemas |
 
 ### 6.2 Spec API Compliance Summary
 
@@ -841,7 +853,24 @@ Each package is rated against three dimensions:
 | Real-Time Sync | 🔲 Not Started | WebSocket infrastructure planned for Q3 2026 |
 | Offline Support | 🔲 Not Started | Service Worker caching available; sync-on-reconnect planned Q3 2026 |
 
-### 6.3 Critical Gaps Across All Packages
+### 6.3 Spec v2.0.7 New Protocol Areas
+
+| Area | Types Added | ObjectUI Status | Details |
+|------|-------------|-----------------|---------|
+| **I18n / Labels** | I18nLabelSchema, I18nObjectSchema, LocaleConfigSchema, DateFormatSchema, NumberFormatSchema, PluralRuleSchema | ✅ Implemented | `resolveI18nLabel()` utility handles I18nLabel; label/placeholder/helpText/description fields updated across schemas |
+| **Accessibility** | AriaPropsSchema, WcagContrastLevel | 🔲 Not Started | Types re-exported; no runtime ARIA prop injection or contrast checking |
+| **Responsive** | BreakpointColumnMapSchema, BreakpointName, BreakpointOrderMapSchema, ResponsiveConfigSchema | ⚠️ Partial | @object-ui/mobile has breakpoint system but does not consume these spec schemas |
+| **Animation / Motion** | ComponentAnimationSchema, AnimationTriggerSchema, EasingFunctionSchema, MotionConfigSchema, TransitionConfigSchema, TransitionPresetSchema, PageTransitionSchema | 🔲 Not Started | Types re-exported; no animation runtime or transition system implemented |
+| **Drag and Drop** | DndConfigSchema, DragConstraintSchema, DragHandleSchema, DragItemSchema, DropEffectSchema, DropZoneSchema | ⚠️ Partial | Kanban/dashboard have DnD but do not consume spec DnD schemas |
+| **Gestures / Touch** | GestureConfigSchema, GestureTypeSchema, SwipeDirectionSchema, SwipeGestureConfigSchema, PinchGestureConfigSchema, LongPressGestureConfigSchema, TouchInteractionSchema, TouchTargetConfigSchema | ⚠️ Partial | @object-ui/mobile has gesture hooks but does not consume spec gesture schemas |
+| **Focus / Keyboard** | FocusManagementSchema, FocusTrapConfigSchema, KeyboardNavigationConfigSchema, KeyboardShortcutSchema | 🔲 Not Started | Types re-exported; no focus management runtime |
+| **Notifications** | NotificationSchema, NotificationActionSchema, NotificationConfigSchema, NotificationPositionSchema, NotificationSeveritySchema, NotificationTypeSchema | 🔲 Not Started | Types re-exported; no notification system implemented |
+| **Offline / Sync** | OfflineCacheConfigSchema, OfflineConfigSchema, OfflineStrategySchema, SyncConfigSchema, ConflictResolutionSchema, PersistStorageSchema, EvictionPolicySchema | 🔲 Not Started | Service Worker caching in @object-ui/mobile; spec offline schemas not consumed |
+| **View Enhancements** | ColumnSummarySchema, GalleryConfigSchema, GroupingConfigSchema, GroupingFieldSchema, RowColorConfigSchema, RowHeightSchema, ViewSharingSchema, DensityMode | ⚠️ Partial | Some features exist in plugins (gallery in plugin-list, grouping in plugin-aggrid) but spec schemas not directly consumed |
+| **Performance** | PerformanceConfigSchema | 🔲 Not Started | Types re-exported; no performance monitoring runtime |
+| **Page** | PageComponentType, PageTransitionSchema | ⚠️ Partial | Page component exists with 4 variants; PageTransitionSchema not consumed |
+
+### 6.4 Critical Gaps Across All Packages
 
 | # | Gap | Priority | Affected Packages | Impact |
 |---|-----|----------|-------------------|--------|
@@ -881,51 +910,67 @@ Each package is rated against three dimensions:
 | 10 | Verify and document usePageVariables hook | react | 2 days | UI.PageSchema |
 | 11 | Add updateMany batch documentation in data adapter | data-objectstack | 1 day | API.BulkOperation |
 | 12 | Add useTheme hook for component-level theme access | react | 2 days | UI.Theme |
+| 13 | Implement AriaPropsSchema injection in component renderers | components, react | 1 week | v2.0.7 AriaPropsSchema |
+| 14 | Implement FocusManagementSchema and FocusTrapConfigSchema runtime | react | 1 week | v2.0.7 FocusManagementSchema |
 
 ### Priority 2 — Medium (Q2 2026)
 
 | # | Task | Package | Effort | Spec Reference |
 |---|------|---------|--------|----------------|
-| 13 | Add dashboard-level auto-refresh and cross-widget filtering | plugin-dashboard | 2 weeks | UI.DashboardSchema |
-| 14 | Add drag-to-reschedule for calendar events | plugin-calendar | 1 week | UI.CalendarConfig |
-| 15 | Add inline task editing for Gantt chart | plugin-gantt | 1 week | UI.GanttConfig |
-| 16 | Add marker clustering for map plugin | plugin-map | 1 week | UI.ObjectMapSchema |
-| 17 | Add combo chart support | plugin-charts | 1 week | UI.ObjectChartSchema |
-| 18 | Add form-level permission integration | plugin-form | 1 week | Security.FieldLevelPermission |
-| 19 | Add column reorder/resize persistence for grid | plugin-grid | 3 days | UI.ListColumn |
-| 20 | Add Zod runtime validators for critical schemas | types | 1 week | Data.ValidationRule |
-| 21 | Add OAuth provider management UI | auth | 2 weeks | Identity.OAuthProvider |
-| 22 | Add tenant session persistence | tenant | 3 days | Security.TenantConfig |
-| 23 | Add permission evaluation caching | permissions | 3 days | Security.PermissionConfig |
-| 24 | Add dynamic language pack loading | i18n | 1 week | System.I18nConfig |
-| 25 | Add ErrorBoundary wrapper to SchemaRenderer | components | 3 days | UI.BaseSchema |
-| 26 | Document AG Grid Community vs Enterprise boundaries | plugin-aggrid | 2 days | — |
-| 27 | Add live design preview mode | plugin-designer | 1 week | UI.DesignerComponent |
-| 28 | Add inline editing toggle for detail view | plugin-detail | 3 days | UI.DetailViewSchema |
-| 29 | Add AI endpoint adapter (OpenAI, Anthropic) | plugin-ai | 2 weeks | AI.AIConfig |
-| 30 | Add NLQuery → ObjectQL integration | plugin-ai | 1 week | AI.NLQuery |
-| 31 | Add saved view management | plugin-list | 1 week | UI.NamedListView |
-| 32 | Add custom validator registration API | core | 3 days | Data.ValidationRule |
+| 15 | Add dashboard-level auto-refresh and cross-widget filtering | plugin-dashboard | 2 weeks | UI.DashboardSchema |
+| 16 | Add drag-to-reschedule for calendar events | plugin-calendar | 1 week | UI.CalendarConfig |
+| 17 | Add inline task editing for Gantt chart | plugin-gantt | 1 week | UI.GanttConfig |
+| 18 | Add marker clustering for map plugin | plugin-map | 1 week | UI.ObjectMapSchema |
+| 19 | Add combo chart support | plugin-charts | 1 week | UI.ObjectChartSchema |
+| 20 | Add form-level permission integration | plugin-form | 1 week | Security.FieldLevelPermission |
+| 21 | Add column reorder/resize persistence for grid | plugin-grid | 3 days | UI.ListColumn |
+| 22 | Add Zod runtime validators for critical schemas | types | 1 week | Data.ValidationRule |
+| 23 | Add OAuth provider management UI | auth | 2 weeks | Identity.OAuthProvider |
+| 24 | Add tenant session persistence | tenant | 3 days | Security.TenantConfig |
+| 25 | Add permission evaluation caching | permissions | 3 days | Security.PermissionConfig |
+| 26 | Add dynamic language pack loading | i18n | 1 week | System.I18nConfig |
+| 27 | Add ErrorBoundary wrapper to SchemaRenderer | components | 3 days | UI.BaseSchema |
+| 28 | Document AG Grid Community vs Enterprise boundaries | plugin-aggrid | 2 days | — |
+| 29 | Add live design preview mode | plugin-designer | 1 week | UI.DesignerComponent |
+| 30 | Add inline editing toggle for detail view | plugin-detail | 3 days | UI.DetailViewSchema |
+| 31 | Add AI endpoint adapter (OpenAI, Anthropic) | plugin-ai | 2 weeks | AI.AIConfig |
+| 32 | Add NLQuery → ObjectQL integration | plugin-ai | 1 week | AI.NLQuery |
+| 33 | Add saved view management | plugin-list | 1 week | UI.NamedListView |
+| 34 | Add custom validator registration API | core | 3 days | Data.ValidationRule |
+| 35 | Implement DndConfigSchema-based drag-and-drop in Kanban and Dashboard | plugin-kanban, plugin-dashboard | 2 weeks | v2.0.7 DndConfigSchema |
+| 36 | Implement NotificationSchema system (toast/banner/snackbar) | components, react | 2 weeks | v2.0.7 NotificationSchema |
+| 37 | Integrate GestureConfigSchema and TouchInteractionSchema into mobile hooks | mobile | 1 week | v2.0.7 GestureConfigSchema |
+| 38 | Adopt ResponsiveConfigSchema and BreakpointColumnMapSchema in layouts | mobile, layout | 1 week | v2.0.7 ResponsiveConfigSchema |
+| 39 | Implement KeyboardShortcutSchema and KeyboardNavigationConfigSchema runtime | react | 1 week | v2.0.7 KeyboardShortcutSchema |
+| 40 | Consume ColumnSummarySchema, GroupingConfigSchema, RowColorConfigSchema in grid views | plugin-grid, plugin-aggrid | 1 week | v2.0.7 View Enhancement types |
+| 41 | Consume GalleryConfigSchema and ViewSharingSchema in list plugin | plugin-list | 1 week | v2.0.7 GalleryConfigSchema |
+| 42 | Consume I18nObjectSchema, LocaleConfigSchema, PluralRuleSchema in i18n package | i18n | 1 week | v2.0.7 I18n types |
 
 ### Priority 3 — Low (Q3-Q4 2026)
 
 | # | Task | Package | Effort |
 |---|------|---------|--------|
-| 33 | Add swimlane support to Kanban | plugin-kanban | 2 weeks |
-| 34 | Add drill-down interaction to charts | plugin-charts | 1 week |
-| 35 | Add table of contents for Markdown | plugin-markdown | 3 days |
-| 36 | Add diff editor mode | plugin-editor | 1 week |
-| 37 | Add Breadcrumb auto-generation | layout | 3 days |
-| 38 | Add statistical formulas (STDEV, VARIANCE, PERCENTILE) | core | 1 week |
-| 39 | Add view transition animations | plugin-view | 3 days |
-| 40 | Add interactive timeline zoom | plugin-timeline | 1 week |
-| 41 | Add critical path highlighting to Gantt | plugin-gantt | 1 week |
-| 42 | Add custom marker icons for map | plugin-map | 3 days |
-| 43 | Add conversation persistence for chatbot | plugin-chatbot | 1 week |
-| 44 | Add workflow simulation mode | plugin-workflow | 2 weeks |
-| 45 | Add design version history and rollback | plugin-designer | 2 weeks |
-| 46 | Audit and remove unused Phase 3 types | types | 3 days |
-| 47 | Add safe area inset support for mobile | mobile | 2 days |
+| 43 | Add swimlane support to Kanban | plugin-kanban | 2 weeks |
+| 44 | Add drill-down interaction to charts | plugin-charts | 1 week |
+| 45 | Add table of contents for Markdown | plugin-markdown | 3 days |
+| 46 | Add diff editor mode | plugin-editor | 1 week |
+| 47 | Add Breadcrumb auto-generation | layout | 3 days |
+| 48 | Add statistical formulas (STDEV, VARIANCE, PERCENTILE) | core | 1 week |
+| 49 | Add view transition animations | plugin-view | 3 days |
+| 50 | Add interactive timeline zoom | plugin-timeline | 1 week |
+| 51 | Add critical path highlighting to Gantt | plugin-gantt | 1 week |
+| 52 | Add custom marker icons for map | plugin-map | 3 days |
+| 53 | Add conversation persistence for chatbot | plugin-chatbot | 1 week |
+| 54 | Add workflow simulation mode | plugin-workflow | 2 weeks |
+| 55 | Add design version history and rollback | plugin-designer | 2 weeks |
+| 56 | Audit and remove unused Phase 3 types | types | 3 days |
+| 57 | Add safe area inset support for mobile | mobile | 2 days |
+| 58 | Implement ComponentAnimationSchema and MotionConfigSchema runtime | react, components | 2 weeks |
+| 59 | Implement PageTransitionSchema for view/page transitions | react, layout | 1 week |
+| 60 | Implement OfflineConfigSchema and SyncConfigSchema runtime | data-objectstack, mobile | 3 weeks |
+| 61 | Implement PerformanceConfigSchema monitoring runtime | core, react | 1 week |
+| 62 | Implement WcagContrastLevel checking utility | components | 3 days |
+| 63 | Add DensityMode support to grid and list views | plugin-grid, plugin-list | 3 days |
 
 ---
 
@@ -951,23 +996,28 @@ This evaluation confirms the existing roadmap priorities. The following adjustme
 #### Q2 2026 (April-June — v1.0.0 Target)
 
 **Recommended focus (in addition to existing items):**
-1. Complete all P1 items (workflow canvas, report refresh, designer persistence)
-2. Dashboard cross-widget filtering (P2)
-3. Form permission integration (P2)
-4. Calendar drag-to-reschedule (P2)
-5. AI endpoint adapter (P2)
+1. Complete all P1 items (workflow canvas, report refresh, designer persistence, accessibility, focus management)
+2. Implement DndConfigSchema-based drag-and-drop (P2)
+3. Implement NotificationSchema system (P2)
+4. Dashboard cross-widget filtering (P2)
+5. Form permission integration (P2)
+6. Calendar drag-to-reschedule (P2)
+7. AI endpoint adapter (P2)
+8. Adopt v2.0.7 responsive/gesture/keyboard schemas in mobile and layout (P2)
 
 **Spec alignment milestone:**
-- With all P0 and P1 items complete, spec coverage reaches ~98%
-- Remaining 2% is real-time collaboration and offline sync (planned Q3)
+- With all P0 and P1 items complete, spec coverage reaches ~95% (accounting for 70+ new v2.0.7 types)
+- Remaining 5% covers animation/motion, offline/sync, and performance monitoring (planned Q3)
 
 #### Q3 2026 (July-September)
 
 **Recommended focus:**
 1. Real-time collaboration (WebSocket) — existing plan ✅
-2. Offline sync — existing plan ✅
-3. P2 items: advanced grid features, saved views, design preview
-4. Begin P3 items for polish
+2. Offline sync with OfflineConfigSchema and SyncConfigSchema — existing plan ✅, now spec-aligned
+3. Animation/motion system (ComponentAnimationSchema, PageTransitionSchema)
+4. PerformanceConfigSchema monitoring runtime
+5. P2 items: advanced grid features, saved views, design preview
+6. Begin P3 items for polish
 
 #### Q4 2026 (October-December)
 
@@ -977,17 +1027,19 @@ This evaluation confirms the existing roadmap priorities. The following adjustme
 3. Performance optimization pass across all plugins
 4. Full spec compliance audit (target: 100%)
 
-### Overall Spec Compliance Score
+### Overall Spec Compliance Score (vs. @objectstack/spec v2.0.7)
 
 | Category | Current | After P0 | After P1 | After P2 | Target |
 |----------|---------|----------|----------|----------|--------|
-| **UI Types** | 98% | 99% | 100% | 100% | 100% |
-| **API Protocol** | 92% | 95% | 98% | 100% | 100% |
-| **Feature Completeness** | 85% | 90% | 95% | 98% | 100% |
-| **Overall** | 91% | 94% | 97% | 99% | 100% |
+| **UI Types** | 92% | 93% | 96% | 99% | 100% |
+| **API Protocol** | 88% | 91% | 94% | 98% | 100% |
+| **Feature Completeness** | 80% | 85% | 90% | 96% | 100% |
+| **v2.0.7 New Areas** | 15% | 20% | 35% | 70% | 100% |
+| **Overall** | 82% | 86% | 91% | 96% | 100% |
+
+> **Note:** Compliance percentages adjusted downward relative to v2.0.1 evaluation due to 70+ new spec types in v2.0.7. Core compatibility is maintained — all 41 builds and 2961 tests pass. The I18nLabel type change is fully handled by `resolveI18nLabel()` in @object-ui/react.
 
 ---
 
-> **Next Review:** March 1, 2026
+> **Next Review:** March 15, 2026
 > **Document Owner:** ObjectUI Architecture Team
-> **Related:** [ROADMAP.md](./ROADMAP.md) | [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md)
