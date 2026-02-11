@@ -544,7 +544,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     reorderableColumns: schema.reorderableColumns ?? false,
     editable: schema.editable ?? false,
     className: schema.className,
-    rowClassName: schema.rowColor ? (_row: any, _idx: number) => getRowClassName(_row) : undefined,
+    rowClassName: schema.rowColor ? (row: any, _idx: number) => getRowClassName(row) : undefined,
     onSelectionChange: onRowSelect,
     onRowClick: navigation.handleClick,
     onCellChange: onCellChange,
