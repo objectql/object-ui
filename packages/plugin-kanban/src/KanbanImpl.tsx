@@ -25,6 +25,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, ScrollArea } from "@object-ui/components"
+import { useHasDndProvider, useDnd } from "@object-ui/react"
 
 // Utility function to merge class names (inline to avoid external dependency)
 const cn = (...classes: (string | undefined)[]) => classes.filter(Boolean).join(' ')
@@ -151,7 +152,27 @@ function KanbanColumn({
   )
 }
 
+/** Bridge wrapper that reads the ObjectUI DnD context and injects it into KanbanBoardInner. */
+function DndBridge({ children }: { children: (dnd: ReturnType<typeof useDnd>) => React.ReactNode }) {
+  const dnd = useDnd()
+  return <>{children(dnd)}</>
+}
+
 export default function KanbanBoard({ columns, onCardMove, className }: KanbanBoardProps) {
+  const hasDnd = useHasDndProvider()
+
+  if (hasDnd) {
+    return (
+      <DndBridge>
+        {(dnd) => <KanbanBoardInner columns={columns} onCardMove={onCardMove} className={className} dnd={dnd} />}
+      </DndBridge>
+    )
+  }
+
+  return <KanbanBoardInner columns={columns} onCardMove={onCardMove} className={className} dnd={null} />
+}
+
+function KanbanBoardInner({ columns, onCardMove, className, dnd }: KanbanBoardProps & { dnd: ReturnType<typeof useDnd> | null }) {
   const [activeCard, setActiveCard] = React.useState<KanbanCard | null>(null)
   
   // Ensure we always have valid columns with cards array
@@ -180,23 +201,40 @@ export default function KanbanBoard({ columns, onCardMove, className }: KanbanBo
     const { active } = event
     const card = findCard(active.id as string)
     setActiveCard(card)
+
+    // Bridge to ObjectUI spec DnD system
+    if (dnd && card) {
+      const column = findColumnByCardId(card.id)
+      if (column) {
+        dnd.startDrag({ id: card.id, type: 'kanban-card', data: card, sourceId: column.id })
+      }
+    }
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     setActiveCard(null)
 
-    if (!over) return
+    if (!over) {
+      if (dnd) dnd.endDrag()
+      return
+    }
 
     const activeId = active.id as string
     const overId = over.id as string
 
-    if (activeId === overId) return
+    if (activeId === overId) {
+      if (dnd) dnd.endDrag()
+      return
+    }
 
     const activeColumn = findColumnByCardId(activeId)
     const overColumn = findColumnByCardId(overId) || findColumnById(overId)
 
-    if (!activeColumn || !overColumn) return
+    if (!activeColumn || !overColumn) {
+      if (dnd) dnd.endDrag()
+      return
+    }
 
     if (activeColumn.id === overColumn.id) {
       // Same column reordering
@@ -241,6 +279,9 @@ export default function KanbanBoard({ columns, onCardMove, className }: KanbanBo
         onCardMove(activeId, activeColumn.id, overColumn.id, overIndex)
       }
     }
+
+    // Bridge to ObjectUI spec DnD system
+    if (dnd) dnd.endDrag(overColumn.id)
   }
 
   const findCard = React.useCallback(
