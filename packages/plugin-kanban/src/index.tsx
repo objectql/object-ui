@@ -44,9 +44,18 @@ export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema }) => {
     
     // If we have flat data and a grouping key, distribute items into columns
     if (data && groupBy && Array.isArray(data)) {
-      // 1. Group data by key
+      // Build label→id mapping so data values (labels like "In Progress")
+      // match column IDs (option values like "in_progress")
+      const labelToColumnId: Record<string, string> = {};
+      columns.forEach((col: any) => {
+        if (col.id) labelToColumnId[String(col.id).toLowerCase()] = col.id;
+        if (col.title) labelToColumnId[String(col.title).toLowerCase()] = col.id;
+      });
+
+      // 1. Group data by key, normalizing via label→id mapping
       const groups = data.reduce((acc, item) => {
-        const key = item[groupBy];
+        const rawKey = String(item[groupBy] ?? '');
+        const key = labelToColumnId[rawKey.toLowerCase()] ?? rawKey;
         if (!acc[key]) acc[key] = [];
         acc[key].push(item);
         return acc;
