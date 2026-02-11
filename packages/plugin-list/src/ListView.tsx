@@ -9,7 +9,7 @@
 import * as React from 'react';
 import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay } from '@object-ui/components';
 import type { SortItem } from '@object-ui/components';
-import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Group, Paintbrush, RulerIcon } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Group, Paintbrush, Ruler } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
 import { ViewSwitcher, ViewType } from './ViewSwitcher';
 import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
@@ -522,7 +522,7 @@ export const ListView: React.FC<ListViewProps> = ({
             className="h-7 px-2 text-muted-foreground hover:text-primary text-xs hidden lg:flex"
             disabled
           >
-            <RulerIcon className="h-3.5 w-3.5 mr-1.5" />
+            <Ruler className="h-3.5 w-3.5 mr-1.5" />
             <span className="hidden sm:inline">Row height</span>
           </Button>
         </div>

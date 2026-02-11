@@ -55,7 +55,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@object-ui/components';
-import { Plus, Search, RefreshCw, SlidersHorizontal, ArrowUpDown, EyeOff, Group, Paintbrush, RulerIcon, X } from 'lucide-react';
+import { Plus, Search, RefreshCw, SlidersHorizontal, ArrowUpDown, EyeOff, Group, Paintbrush, Ruler, X } from 'lucide-react';
 import { ViewSwitcher } from './ViewSwitcher';
 import { FilterUI } from './FilterUI';
 import { SortUI } from './SortUI';
@@ -930,7 +930,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
               className="h-7 px-2 text-muted-foreground hover:text-primary text-xs hidden lg:flex"
               disabled
             >
-              <RulerIcon className="h-3.5 w-3.5 mr-1.5" />
+              <Ruler className="h-3.5 w-3.5 mr-1.5" />
               <span className="hidden sm:inline">Row height</span>
             </Button>
           </div>
