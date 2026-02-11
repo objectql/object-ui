@@ -23,12 +23,8 @@ export function baseOptions(): BaseLayoutProps {
         url: '/docs',
       },
       {
-        text: 'Storybook',
-        url: 'https://storybook.objectui.org',
-      },
-      {
         text: 'Demo',
-        url: 'https://console.objectui.org',
+        url: 'https://demo.objectui.org',
       },
     ],
   };
