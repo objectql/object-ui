@@ -1,50 +1,30 @@
 # ObjectUI Development Roadmap
 
-> **Last Updated:** February 10, 2026  
+> **Last Updated:** February 12, 2026  
 > **Current Version:** v0.5.x  
 > **Target Version:** v2.0.0  
-> **Spec Version:** @objectstack/spec v2.0.1
+> **Spec Version:** @objectstack/spec v2.0.7  
+> **Client Version:** @objectstack/client v2.0.7
 
 ---
 
 ## 📋 Executive Summary
 
-ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn, designed to become the world's most popular enterprise management software platform framework. This roadmap consolidates all development plans, including spec alignment, ObjectOS integration, and ecosystem expansion.
+ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn. It renders JSON metadata from the @objectstack/spec protocol into pixel-perfect, accessible, and interactive enterprise interfaces — dashboards, kanbans, CRUDs, workflows, and more.
+
+With the release of @objectstack/spec v2.0.7 and @objectstack/client v2.0.7, the protocol surface has expanded significantly: **70+ new UI types** covering accessibility, responsive design, i18n, animation/motion, drag-and-drop, gestures/touch, focus/keyboard navigation, notifications, offline/sync, view enhancements, and performance. The client SDK is now **100% spec-compliant** (13/13 API namespaces, 95+ methods).
+
+ObjectUI's current overall compliance stands at **82%** (down from 91% against v2.0.1 due to the expanded spec surface). All existing functionality remains stable — **41/41 builds pass**, **2961/2961 tests pass**. This roadmap defines the path to 100% v2.0.7 compliance and commercial readiness.
 
 **Strategic Goals:**
-- **Technical Excellence:** 100% @objectstack/spec compatibility, 80%+ test coverage, world-class performance
-- **Enterprise-Ready:** Multi-tenancy, RBAC, workflow engine, real-time collaboration
+- **Technical Excellence:** 100% @objectstack/spec v2.0.7 compliance, 80%+ test coverage, world-class performance
+- **Enterprise-Ready:** Multi-tenancy, RBAC, real-time collaboration, offline-first architecture
 - **Global Reach:** 10+ languages, 10,000+ GitHub stars, 50,000+ weekly NPM downloads
 - **Commercial Success:** ObjectUI Cloud platform, 100+ enterprise customers, $2M+ annual revenue
 
----
-
-## 🔍 @objectstack/client Evaluation Summary
-
-> 📄 Full evaluation: [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md)
-
-**Verdict: ✅ @objectstack/client can fully support developing a complete low-code app UI based on @objectstack/spec.**
-
-**Coverage Score: 22/24 protocol features (92%) implemented today.**
-
-| Domain | Client API Coverage | ObjectUI Implementation | Score |
-|--------|-------------------|------------------------|-------|
-| **Data CRUD** | `data.find/get/create/update/delete` | ObjectStackAdapter | ✅ 100% |
-| **Metadata** | `meta.getObject/getItem` | Schema-driven rendering | ✅ 100% |
-| **UI Views** | Schema → 13+ view types | 20 plugin packages | ✅ 100% |
-| **Actions** | 5 action types + batch ops | ActionExecutor | ✅ 95% |
-| **Auth** | Token + custom fetch | @object-ui/auth | ✅ 100% |
-| **Permissions** | Server-side role data | @object-ui/permissions | ✅ 100% |
-| **Multi-Tenancy** | X-Tenant-ID header | @object-ui/tenant | ✅ 100% |
-| **Advanced** | Workflow, AI, Reports | Plugin packages | ✅ 85% |
-| **Real-time** | WebSocket (planned) | 🔲 Q3 2026 | ⚠️ Gap |
-| **Offline** | Service Worker sync | 🔲 Q3 2026 | ⚠️ Gap |
-
-**Key Integration Points:**
-- **Dynamic Token Injection:** `ObjectStackAdapter({ fetch: createAuthenticatedFetch(authClient) })`
-- **Schema-Driven Rendering:** `meta.getObject()` → SchemaRenderer pipeline
-- **App Loading:** `meta.getItem('apps', id)` → Dynamic app configuration
-- **Metadata Caching:** Built-in MetadataCache with TTL + LRU eviction
+> 📄 Companion documents:
+> - [SPEC_COMPLIANCE_EVALUATION.md](./SPEC_COMPLIANCE_EVALUATION.md) — Per-package spec compliance evaluation (82% current, 63 improvement items)
+> - [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md) — Client SDK evaluation (100% protocol coverage, 13/13 namespaces)
 
 ---
 
@@ -58,334 +38,341 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - ✅ 57+ Storybook stories with interactive demos
 - ✅ TypeScript 5.9+ strict mode (100%)
 - ✅ React 19 + Tailwind CSS + Shadcn UI
-- ✅ ~100% @objectstack/spec v2.0.1 coverage
-- ✅ @objectstack/client integration validated (92% protocol coverage)
+- ✅ All 41 builds pass, all 2961 tests pass
+- ✅ @objectstack/client v2.0.7 integration validated (100% protocol coverage)
 
-**Recent Completions (v0.5.0):**
+**Core Features (Complete):**
+- ✅ All 13+ view types implemented (Grid, Kanban, Calendar, Form, Detail, List, Dashboard, Charts, Editor, Markdown, Chatbot, Gantt, Timeline, Map, Report)
 - ✅ Form variants (simple, tabbed, wizard, split, drawer, modal)
 - ✅ NavigationConfig (7 modes: page, drawer, modal, split, popover, new_window, none)
 - ✅ Action System (5 types: script, url, modal, flow, api)
-- ✅ Theme System (aligned with spec, CSS custom properties, dark mode)
+- ✅ Theme System (spec-aligned, CSS custom properties, dark mode)
 - ✅ Page System (4 types: record, home, app, utility with region-based layouts)
-- ✅ ViewData API Provider (api, value, object providers)
-- ✅ AG Grid advanced features (inline editing, CSV export, status bar, context menu)
+- ✅ @object-ui/i18n (10 languages, RTL, date/currency formatting)
+- ✅ @object-ui/auth (AuthProvider, useAuth, AuthGuard, login/register/password-reset)
+- ✅ @object-ui/permissions (RBAC, object/field/row-level permissions)
+- ✅ @object-ui/tenant (multi-tenancy, branding, scoped queries)
+- ✅ Console app with MSW mock backend, system admin UIs
+- ✅ I18nLabel handling via `resolveI18nLabel()` — supports `string | { key, defaultValue?, params? }`
 
-### Current Gaps & Priorities ⚠️
+### Current Compliance (vs. @objectstack/spec v2.0.7)
 
-**Critical Gaps (P0):**
-- ⚠️ Test coverage: 62% lines, 43% functions (Target: 80%+)
-- ⚠️ Internationalization: No built-in i18n support
-- ⚠️ Performance: Bundle size 200KB, LCP 1.2s (Target: 150KB, 600ms)
+| Category | Current | Target |
+|----------|---------|--------|
+| **UI Types** | 92% | 100% |
+| **API Protocol** | 88% | 100% |
+| **Feature Completeness** | 80% | 100% |
+| **v2.0.7 New Areas** | 15% | 100% |
+| **Overall** | **82%** | **100%** |
 
-**Authentication & Console Gaps (P0):**
-- ✅ Authentication package (@object-ui/auth with AuthProvider, useAuth, AuthGuard, forms)
-- ✅ Console integration (auth routes, AuthGuard, UserMenu in sidebar, real auth session)
-- ✅ Session management & token injection into @objectstack/client
-- ✅ System admin UIs (sys_user, sys_org, sys_role, sys_audit_log)
+> Source: [SPEC_COMPLIANCE_EVALUATION.md](./SPEC_COMPLIANCE_EVALUATION.md) §8
 
-**ObjectOS Integration Gaps (P1):**
-- ✅ Multi-tenant architecture support (@object-ui/tenant)
-- ✅ RBAC integration (object/field/row-level permissions) (@object-ui/permissions)
-- ✅ System objects (sys_user, sys_org, sys_role, sys_permission, sys_audit_log)
-- ✅ Workflow engine integration
-- 🔲 Real-time collaboration (WebSocket, presence, comments)
+---
 
-**@objectstack/client Integration Gaps (P1):**
-- ✅ Dynamic app loading from server metadata via `adapter.getApp()` + `useDynamicApp` hook
-- ✅ Widget manifest system for runtime widget registration (WidgetManifest + WidgetRegistry)
-- 🔲 Formula functions in expression engine (SUM, AVG, TODAY, NOW, IF)
-- ✅ Schema hot-reload via cache invalidation (`useDynamicApp.refresh()`)
-- 🔲 File upload integration via client file API
+## 🏗️ Architecture Overview
 
-**Spec Alignment Gaps (P1):**
-- ✅ Widget System (WidgetManifest, WidgetRegistry, dynamic loading)
-- 🔲 Formula functions (SUM, AVG, TODAY, NOW, IF)
-- 🔲 Report export (PDF, Excel)
+ObjectUI operates on a **three-layer model** that cleanly separates protocol, types, and implementation:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Layer 1: @objectstack/spec v2.0.7 (The Protocol)                  │
+│  Pure TypeScript type definitions — Data, UI, System, AI, API      │
+│  800+ types including 70+ new v2.0.7 types                         │
+│  ❌ No runtime code. No React. No dependencies.                    │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │ imports (never redefines)
+┌──────────────────────────────▼──────────────────────────────────────┐
+│  Layer 2: @object-ui/types (The Bridge)                             │
+│  Re-exports all spec types + ObjectUI-specific schemas              │
+│  AnySchema discriminated union, FieldWidgetProps, ViewSchemas       │
+│  ❌ No runtime code. Zero dependencies.                            │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │ consumed by
+┌──────────────────────────────▼──────────────────────────────────────┐
+│  Layer 3: Plugin Implementations (The Runtime)                      │
+│                                                                     │
+│  @object-ui/core ─── Registry, Expressions, Validation, Actions     │
+│  @object-ui/react ── SchemaRenderer, Hooks, Providers               │
+│  @object-ui/components ── 90+ Shadcn-based renderers                │
+│  @object-ui/fields ── 35+ field widgets (text, number, date, ...)   │
+│  @object-ui/layout ── AppShell, Page, SidebarNav                    │
+│  @object-ui/plugin-* ── Grid, Kanban, Calendar, Charts, ...        │
+│  @object-ui/auth/tenant/permissions/i18n ── Infrastructure          │
+│  @object-ui/data-objectstack ── ObjectStackAdapter (DataSource)     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key principles:**
+1. **Spec types are never redefined** — always imported from @objectstack/spec
+2. **Plugins are lazy-loaded** — heavy dependencies (AG Grid, MapLibre, Monaco) only load on demand
+3. **Backend agnostic** — ObjectUI is the official renderer for ObjectStack but works with any JSON metadata source
+
+---
+
+## 📐 @objectstack/spec v2.0.7 Compliance Plan
+
+The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps each domain to its current ObjectUI status and implementation plan.
+
+### What's Done ✅
+
+| Domain | Spec Types | Status | Package |
+|--------|-----------|--------|---------|
+| **Theme System** | ColorPalette, Typography, Spacing, etc. | ✅ Complete | core, components |
+| **View Types** | All 13+ view schemas | ✅ Complete | plugin-* |
+| **Action System** | UIActionSchema (5 types), BatchOps, Undo/Redo | ✅ Complete | core, react |
+| **Form System** | 6 variants, 35+ field types | ✅ Complete | plugin-form, fields |
+| **Permission UI** | RBAC, field/row-level, guards | ✅ Complete | permissions |
+| **I18nLabel** | `string \| { key, defaultValue?, params? }` | ✅ Complete | react (`resolveI18nLabel()`) |
+| **DataSource** | ObjectStackAdapter, MetadataCache | ✅ Complete | data-objectstack |
+| **Auth** | Token injection, session, OAuth | ✅ Complete | auth |
+| **Multi-Tenancy** | Tenant scoping, branding | ✅ Complete | tenant |
+
+### What's New in v2.0.7 (Implementation Required)
+
+| Domain | Key Spec Types | Current Status | Target Quarter |
+|--------|---------------|----------------|----------------|
+| **Accessibility** | AriaPropsSchema, WcagContrastLevel | 🔲 Not Started | Q1 2026 |
+| **Responsive Design** | ResponsiveConfigSchema, BreakpointColumnMapSchema, BreakpointOrderMapSchema | ⚠️ Partial (breakpoints exist, spec schemas not consumed) | Q1 2026 |
+| **I18n Deep Integration** | I18nObjectSchema, LocaleConfigSchema, PluralRuleSchema, DateFormatSchema, NumberFormatSchema | ⚠️ Partial (I18nLabel done, advanced types pending) | Q1 2026 |
+| **Drag and Drop** | DndConfigSchema, DragItemSchema, DropZoneSchema, DragConstraintSchema, DropEffectSchema | ⚠️ Partial (Kanban/Dashboard DnD exists, spec schemas not consumed) | Q2 2026 |
+| **Gestures / Touch** | GestureConfigSchema, SwipeGestureConfigSchema, PinchGestureConfigSchema, LongPressGestureConfigSchema, TouchInteractionSchema | ⚠️ Partial (mobile hooks exist, spec schemas not consumed) | Q2 2026 |
+| **Focus / Keyboard** | FocusManagementSchema, FocusTrapConfigSchema, KeyboardNavigationConfigSchema, KeyboardShortcutSchema | 🔲 Not Started | Q2 2026 |
+| **Animation / Motion** | ComponentAnimationSchema, MotionConfigSchema, TransitionConfigSchema, EasingFunctionSchema | 🔲 Not Started | Q2 2026 |
+| **Notifications** | NotificationSchema, NotificationConfigSchema, NotificationActionSchema, NotificationPositionSchema | 🔲 Not Started | Q2 2026 |
+| **View Enhancements** | ColumnSummarySchema, GalleryConfigSchema, GroupingConfigSchema, RowColorConfigSchema, RowHeightSchema, ViewSharingSchema, DensityMode | ⚠️ Partial (features exist in plugins, spec schemas not directly consumed) | Q2 2026 |
+| **Offline / Sync** | OfflineConfigSchema, SyncConfigSchema, ConflictResolutionSchema, EvictionPolicySchema | 🔲 Not Started | Q3 2026 |
+| **Performance** | PerformanceConfigSchema | 🔲 Not Started | Q3 2026 |
+| **Page Transitions** | PageTransitionSchema, PageComponentType | ⚠️ Partial (Page component exists, transitions not consumed) | Q3 2026 |
 
 ---
 
 ## 🗺️ 2026 Development Roadmap
 
-### Q1 2026: Foundation Strengthening (Jan-Mar) ✅ In Progress
+### Q1 2026: Foundation & v2.0.7 Alignment (Feb-Mar)
 
-**Goal:** Solidify infrastructure, improve quality, and establish global reach
+**Goal:** Strengthen foundation, begin v2.0.7 spec alignment, improve quality
 
-#### 1.1 Test System Enhancement (4 weeks)
-**Target:** 80%+ test coverage
+#### 1.1 I18nLabel Handling ✅ Complete
+- [x] Implement `resolveI18nLabel()` utility in @object-ui/react
+- [x] Handle `string | { key, defaultValue?, params? }` across all schema label/placeholder/helpText/description fields
+- [x] Integration with @object-ui/i18n i18next backend
+
+#### 1.2 Accessibility — AriaProps & WCAG (3 weeks)
+**Target:** Spec-compliant accessibility across all renderers
+
+- [ ] Implement AriaPropsSchema injection in SchemaRenderer and component renderers
+- [ ] Add WcagContrastLevel checking utility for theme color validation
+- [ ] Add ARIA role, label, and description propagation to all Shadcn primitives
+- [ ] Audit all 90+ components for WCAG 2.1 AA compliance
+- [ ] Add automated accessibility tests (axe-core integration)
+
+**Spec Reference:** `AriaPropsSchema`, `WcagContrastLevel`
+
+#### 1.3 Responsive Design — Breakpoint-Aware Layouts (2 weeks)
+**Target:** Consume v2.0.7 responsive schemas in layout system
+
+- [ ] Adopt ResponsiveConfigSchema and BreakpointColumnMapSchema in @object-ui/layout
+- [ ] Implement BreakpointOrderMapSchema for column reordering at breakpoints
+- [ ] Integrate spec breakpoint types with existing @object-ui/mobile breakpoint system
+- [ ] Add responsive layout stories in Storybook
+
+**Spec Reference:** `ResponsiveConfigSchema`, `BreakpointColumnMapSchema`, `BreakpointOrderMapSchema`, `BreakpointName`
+
+#### 1.4 Test Coverage Improvement (4 weeks)
+**Target:** 80%+ line coverage
 
 - [x] Add tests for all core modules (@object-ui/core)
 - [x] Add tests for all components (@object-ui/components)
 - [x] Add E2E test framework (Playwright)
 - [ ] Add performance benchmark suite
 - [ ] Visual regression tests (Storybook snapshot + Chromatic)
+- [ ] Accessibility test suite (axe-core)
 
-#### 1.2 Internationalization (i18n) Support (3 weeks)
-**Target:** 10+ languages, RTL layout
+#### 1.5 I18n Deep Integration (2 weeks)
+**Target:** Consume advanced v2.0.7 i18n types beyond I18nLabel
 
-- [x] Create @object-ui/i18n package
-- [x] Integrate i18next library
-- [x] Add translation support to all components
-- [x] Provide 10+ language packs (zh, en, ja, ko, de, fr, es, pt, ru, ar)
-- [x] RTL layout support
-- [x] Date/currency formatting utilities
+- [ ] Consume I18nObjectSchema for object-level locale configuration
+- [ ] Consume LocaleConfigSchema for per-tenant/per-user locale preferences
+- [ ] Consume PluralRuleSchema for plural-aware translations
+- [ ] Consume DateFormatSchema and NumberFormatSchema for locale-aware formatting
+- [ ] Add dynamic language pack loading (lazy import instead of bundled)
 
-#### 1.3 Documentation System Upgrade (2 weeks)
-**Target:** World-class documentation
+**Spec Reference:** `I18nObjectSchema`, `LocaleConfigSchema`, `PluralRuleSchema`, `DateFormatSchema`, `NumberFormatSchema`
 
-- [x] 5-minute quick start guide
-- [ ] Complete zero-to-deployment tutorial
-- [ ] Video tutorial series
-- [ ] Complete case studies (CRM, E-commerce, Analytics, Workflow)
-- [ ] Multi-language documentation (Chinese, English, Japanese)
-
-#### 1.4 Performance Optimization (3 weeks)
-**Target:** 50%+ performance improvement
-
-- [x] Enhanced lazy loading with retry and error boundaries
-- [x] Plugin preloading utilities
-
-**Performance Targets:**
-- First Contentful Paint: 800ms → 400ms
-- Largest Contentful Paint: 1.2s → 600ms
-- Bundle Size: 200KB → 140KB (gzipped)
-
-#### 1.5 Console Authentication System (6 weeks)
-**Target:** Complete login-to-usage flow using @objectstack/client + better-auth
-
-> 📄 Detailed plan: [CONSOLE_AUTH_PLAN.md](./CONSOLE_AUTH_PLAN.md)  
-> 📄 Client evaluation: [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md)
-
-**Phase 1 — Auth Foundation (Week 1-2):**
-- [x] Create `@object-ui/auth` package (AuthProvider, useAuth, AuthGuard)
-- [x] Integrate better-auth client (`createAuthClient`, session management)
-- [x] Implement LoginForm, RegisterForm, ForgotPasswordForm (Shadcn UI)
-- [x] Implement authenticated fetch wrapper for @objectstack/client token injection
-
-**Phase 2 — Console Integration (Week 3-4):**
-- [x] Add /login, /register, /forgot-password routes to Console
-- [x] Wrap app routes with AuthGuard (redirect unauthenticated users)
-- [x] Connect AuthProvider → ExpressionProvider → PermissionProvider chain
-- [x] Add UserMenu to AppSidebar footer (profile, settings, sign out)
-- [x] Replace hardcoded user context with real auth session
-
-**Phase 3 — System Administration (Week 5-6):**
-- [x] Define system objects (sys_user, sys_org, sys_role, sys_permission, sys_audit_log)
-- [x] Build user management page (reuse plugin-grid + plugin-form)
-- [x] Build organization management page with member management
-- [x] Build role management page with permission assignment matrix
-- [x] Build user profile page (profile edit, password change)
-- [x] Build audit log viewer (read-only grid)
-
-#### 1.6 @objectstack/client Low-Code Integration (3 weeks)
-**Target:** Validate and enhance client SDK integration for full low-code platform capability
-
-> 📄 Full evaluation: [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md)
-
-**Dynamic App Loading (Week 1):**
-- [x] Implement dynamic app configuration loading via `adapter.getApp(appId)`
-- [x] Add server-side schema fetching with fallback to static config (`useDynamicApp` hook)
-- [x] Schema hot-reload via MetadataCache invalidation + re-render (`refresh()`)
-
-**Widget System Foundation (Week 2):**
-- [x] Define WidgetManifest interface for runtime widget registration
-- [x] Implement plugin auto-discovery from server metadata (WidgetRegistry)
-- [x] Custom widget registry for user-defined components
-
-**Data Integration Hardening (Week 3):**
-- [ ] File upload integration via extended ObjectStackAdapter
-- [x] Connection resilience testing (auto-reconnect, error recovery)
-- [ ] End-to-end data flow validation with live ObjectStack backend
-
-**Deliverables:**
-- @object-ui/auth package ✅
-- Console login / register / password reset pages ✅
-- System administration pages (users, orgs, roles, audit logs) ✅
-- Dynamic app loading from server metadata ✅
-- Widget manifest system ✅
-- @objectstack/client integration hardening (in progress)
-
-#### 1.7 Console UX Polish (2 weeks) ✅ Completed
-**Target:** Enterprise-grade UX across every console component
-
-**Loading & Connection (Completed):**
-- [x] Multi-step progress indicator on LoadingScreen (animated step transitions)
-- [x] Brief "Connected" flash on successful connection (auto-dismiss after 2s)
-
-**Navigation & Wayfinding (Completed):**
-- [x] Humanized breadcrumb labels (slug → Title Case, e.g. `crm_dashboard` → `Crm Dashboard`)
-- [x] System admin route support in breadcrumbs
-- [x] Improved record ID display in breadcrumbs (`#abc123…` format)
-
-**Empty States (Completed):**
-- [x] Contextual icons in all "Not Found" empty states (ObjectView, DashboardView, PageView, ReportView, RecordDetailView)
-- [x] Helpful descriptions guiding users on what to do next
-
-**Error Recovery (Completed):**
-- [x] Added "Go Home" recovery action alongside "Try Again" in ErrorBoundary
-
-**System Admin Pages (Completed):**
-- [x] ProfilePage: Migrated from raw HTML to Shadcn Card/Input/Label/Alert/Avatar/Badge components
-- [x] User/Org/Role/Audit pages: Shadcn Button/Card/Badge, contextual page icons, improved empty state visuals
-
-**Next Steps (Q2 2026):**
-- [ ] Skeleton loading states for all data-heavy views (grid, dashboard, detail)
-- [ ] Toast notifications for CRUD operations (create/update/delete success/error)
-- [ ] Keyboard shortcuts help dialog (? key)
-- [ ] Responsive sidebar auto-collapse on tablet
-- [ ] Onboarding walkthrough for first-time users
-- [ ] Notification center with unread count badge
-- [ ] Global search results page (beyond command palette)
-- [ ] Drag-and-drop sidebar navigation reordering
+#### 1.6 Critical Bug Fixes (Ongoing)
+- [ ] Implement DataScope module in @object-ui/core (row-level security enforcement) — **P0**
+- [ ] Replace console.log placeholders in plugin-ai handlers — **P0**
+- [ ] Complete API data fetching in plugin-detail (DetailView, RelatedList) — **P1**
+- [ ] Add coordinate error handling in plugin-map — **P1**
+- [ ] Implement ReportViewer data refresh — **P1**
 
 **Q1 Milestone:**
-- **v0.6.0 Release (March 2026):** Infrastructure Complete + Auth Foundation + Client Integration Validated
+- **v0.6.0 Release (March 2026):** Accessibility foundations, responsive layouts, i18n deep integration, 80%+ test coverage
+- **Spec compliance: 82% → 86%**
 
 ---
 
-### Q2 2026: Feature Enhancement & ObjectOS Integration (Apr-Jun)
+### Q2 2026: Interactive Experience (Apr-Jun)
 
-**Goal:** Complete @objectstack/spec alignment and enterprise features
+**Goal:** Implement interactive protocol areas — DnD, gestures, focus, animation, notifications, view enhancements
 
-#### 2.1 Complete @objectstack/spec v2.0.1 Alignment (6 weeks)
+#### 2.1 Drag and Drop Framework (3 weeks)
+**Target:** Spec-compliant DnD system across all draggable views
 
-- [x] ObjectQL deep integration (JOIN, aggregation, subqueries)
-- [x] Complete ViewSchema implementation
-- [x] ActionSchema enhancement (batch ops, transactions, undo/redo)
-- [x] Permission System (RBAC, field/row-level)
-- [x] Validation System enhancement
+- [ ] Implement DndConfigSchema-based DnD framework (unified API for Kanban, Dashboard, Calendar, Grid)
+- [ ] Consume DragItemSchema, DropZoneSchema, DragConstraintSchema, DropEffectSchema
+- [ ] Refactor plugin-kanban card drag to use spec DnD schemas
+- [ ] Refactor plugin-dashboard widget drag to use spec DnD schemas
+- [ ] Add drag-to-reschedule for calendar events
+- [ ] Add drag-and-drop sidebar navigation reordering
 
-#### 2.2 Multi-Tenancy & RBAC Integration (4 weeks)
+**Spec Reference:** `DndConfigSchema`, `DragItemSchema`, `DropZoneSchema`, `DragConstraintSchema`, `DragHandleSchema`, `DropEffectSchema`
 
-- [x] Tenant Context Provider
-- [x] Tenant isolation and scoped queries
-- [x] Custom branding per tenant
-- [x] Object/field/row-level permissions
-- [x] Permission guards and hooks
+#### 2.2 Gesture & Touch Support (2 weeks)
+**Target:** Mobile-first gesture handling aligned with spec schemas
 
-**Deliverables:**
-- @object-ui/tenant package ✅
-- @object-ui/permissions package ✅
+- [ ] Integrate GestureConfigSchema and TouchInteractionSchema into @object-ui/mobile hooks
+- [ ] Consume SwipeGestureConfigSchema for navigation gestures
+- [ ] Consume PinchGestureConfigSchema for zoom interactions (maps, images)
+- [ ] Consume LongPressGestureConfigSchema for context menus
+- [ ] Consume TouchTargetConfigSchema for minimum touch target sizes (44px)
 
-#### 2.3 System Objects Integration (2 weeks)
+**Spec Reference:** `GestureConfigSchema`, `SwipeGestureConfigSchema`, `PinchGestureConfigSchema`, `LongPressGestureConfigSchema`, `TouchInteractionSchema`, `TouchTargetConfigSchema`
 
-> ⬆️ Auth-related system objects (sys_user, sys_org, sys_role) are initiated in Q1 §1.5 Phase 3.
-> Q2 focuses on completing advanced features and integration hardening.
+#### 2.3 Focus Management & Keyboard Navigation (2 weeks)
+**Target:** Enterprise keyboard accessibility
 
-- [ ] Complete sys_permission advanced UI (conditional permissions, sharing rules)
-- [ ] sys_audit_log advanced features (search, export, retention policies)
-- [ ] Pre-built UI components (org tree visualization, role assignment matrix)
-- [ ] Admin console polish and production readiness
-- [ ] OAuth provider management UI (GitHub, Google, SAML SSO)
+- [ ] Implement FocusManagementSchema runtime in @object-ui/react
+- [ ] Implement FocusTrapConfigSchema for modal/drawer focus trapping
+- [ ] Implement KeyboardNavigationConfigSchema for grid/list navigation (arrow keys, tab order)
+- [ ] Implement KeyboardShortcutSchema system with help dialog (? key)
+- [ ] Add keyboard shortcuts for common CRUD operations
 
-#### 2.4 Enterprise-Grade Features (4 weeks)
+**Spec Reference:** `FocusManagementSchema`, `FocusTrapConfigSchema`, `KeyboardNavigationConfigSchema`, `KeyboardShortcutSchema`
 
-- [x] Advanced Grid (tree grid, grouping, Excel export)
-- [x] Reporting Engine (visual designer, PDF export, scheduling)
-- [x] Workflow Engine (visual designer, approval processes)
-- [x] AI Integration (form filling, recommendations, NL queries)
+#### 2.4 Animation & Motion System (2 weeks)
+**Target:** Smooth, performant animations aligned with spec
 
-#### 2.5 Mobile Optimization (3 weeks)
+- [ ] Implement ComponentAnimationSchema runtime (enter/exit/hover/focus transitions)
+- [ ] Implement MotionConfigSchema for reduced-motion preferences (`prefers-reduced-motion`)
+- [ ] Implement TransitionConfigSchema and TransitionPresetSchema for view transitions
+- [ ] Implement EasingFunctionSchema for consistent easing curves
+- [ ] Add animation to view switcher transitions
 
-- [x] Mobile-responsive components
-- [x] PWA support (Service Worker, offline caching)
-- [x] Touch gesture support
+**Spec Reference:** `ComponentAnimationSchema`, `AnimationTriggerSchema`, `MotionConfigSchema`, `TransitionConfigSchema`, `TransitionPresetSchema`, `EasingFunctionSchema`
 
-**Deliverables:**
-- @object-ui/mobile package ✅
+#### 2.5 View Enhancements (3 weeks)
+**Target:** Consume v2.0.7 view enhancement schemas in grid/list plugins
 
-#### 2.6 @objectstack/client Full-Stack Integration (4 weeks)
-**Target:** Complete low-code platform capability validated by client evaluation
+- [ ] Consume GalleryConfigSchema in plugin-list (gallery view layout, image sizing, masonry mode)
+- [ ] Consume ColumnSummarySchema in plugin-grid and plugin-aggrid (column-level SUM/AVG/COUNT)
+- [ ] Consume GroupingConfigSchema and GroupingFieldSchema in plugin-grid (row grouping with subtotals)
+- [ ] Consume RowColorConfigSchema for conditional row coloring rules
+- [ ] Consume RowHeightSchema for compact/comfortable/spacious row height modes
+- [ ] Consume DensityMode for grid/list density toggling
+- [ ] Consume ViewSharingSchema for shared/personal view configurations
 
-> 📄 Based on: [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md)
+**Spec Reference:** `GalleryConfigSchema`, `ColumnSummarySchema`, `GroupingConfigSchema`, `GroupingFieldSchema`, `RowColorConfigSchema`, `RowHeightSchema`, `DensityMode`, `ViewSharingSchema`
 
-**Expression Engine Enhancement (Week 1-2):**
-- [ ] Formula functions: SUM, AVG, COUNT, MIN, MAX
-- [ ] Date functions: TODAY, NOW, DATEADD, DATEDIFF
-- [ ] Logic functions: IF, AND, OR, NOT, SWITCH
-- [ ] String functions: CONCAT, LEFT, RIGHT, TRIM, UPPER, LOWER
-- [ ] Integration with ObjectQL aggregation queries via @objectstack/client
+#### 2.6 Notification System (2 weeks)
+**Target:** Full notification UI integrated with @objectstack/client notifications API
 
-**Report Export Integration (Week 2-3):**
-- [ ] PDF export with live data from `adapter.find()` queries
-- [ ] Excel export with formatted columns and formulas
-- [ ] Scheduled report generation via workflow triggers
+- [ ] Implement NotificationSchema-based notification renderer (toast, banner, snackbar, modal)
+- [ ] Consume NotificationConfigSchema for position, duration, stacking
+- [ ] Consume NotificationActionSchema for interactive notifications (buttons, links)
+- [ ] Implement notification center UI with unread count badge
+- [ ] Integrate with `client.notifications.*` API for device registration and preferences
 
-**Server-Side Transaction Support (Week 3-4):**
-- [ ] Transaction wrapper for multi-step operations via @objectstack/client
-- [ ] Optimistic UI updates with rollback on failure
-- [ ] Batch operation progress tracking with connection-aware retry
+**Spec Reference:** `NotificationSchema`, `NotificationConfigSchema`, `NotificationActionSchema`, `NotificationPositionSchema`, `NotificationSeveritySchema`, `NotificationTypeSchema`
 
-#### 2.7 Console UX Enhancement Phase 2 (3 weeks)
-**Target:** Production-grade console experience
-
+#### 2.7 Console UX Enhancement (Ongoing)
 - [ ] Skeleton loading states for data-heavy views (grid, dashboard, detail)
 - [ ] Toast notifications for CRUD operations (create/update/delete)
-- [ ] Keyboard shortcuts help dialog (? key)
 - [ ] Responsive sidebar auto-collapse on tablet breakpoints
 - [ ] Onboarding walkthrough for first-time users
-- [ ] Notification center with unread count badge
 - [ ] Global search results page (beyond command palette)
-- [ ] Drag-and-drop sidebar navigation reordering
-- [ ] Breadcrumb-based quick navigation dropdown
 - [ ] Recent items / favorites in sidebar
 
 **Q2 Milestone:**
-- **v1.0.0 Release (June 2026):** Feature Complete + Full @objectstack/client Integration
+- **v1.0.0 Release (June 2026):** Full interactive experience — DnD, gestures, focus, animation, notifications, view enhancements
+- **Spec compliance: 86% → 96%**
 
 ---
 
-### Q3 2026: Ecosystem Building (Jul-Sep)
+### Q3 2026: Enterprise & Offline (Jul-Sep)
 
-**Goal:** Build thriving ecosystem and add collaboration features
+**Goal:** Offline-first architecture, real-time collaboration, performance optimization, page transitions
 
-#### 3.1 Real-time Collaboration (4 weeks)
+#### 3.1 Offline & Sync Support (4 weeks)
+**Target:** Offline-first architecture with conflict resolution
 
-> ⚠️ Identified as a gap in @objectstack/client evaluation — requires WebSocket infrastructure
+- [ ] Implement OfflineConfigSchema-based offline mode detection and fallback
+- [ ] Implement SyncConfigSchema for background data synchronization
+- [ ] Implement ConflictResolutionSchema strategies (last-write-wins, manual merge, server-wins)
+- [ ] Implement EvictionPolicySchema for cache management (LRU, TTL, size-based)
+- [ ] Implement PersistStorageSchema for IndexedDB/localStorage persistence
+- [ ] Integrate with @objectstack/client ETag caching and Service Worker
+- [ ] Add offline indicator UI with sync status
 
-- [ ] WebSocket integration with @objectstack/client real-time channels
+**Spec Reference:** `OfflineConfigSchema`, `OfflineCacheConfigSchema`, `OfflineStrategySchema`, `SyncConfigSchema`, `ConflictResolutionSchema`, `PersistStorageSchema`, `EvictionPolicySchema`
+
+#### 3.2 Real-time Collaboration (4 weeks)
+**Target:** Multi-user real-time editing and presence
+
+- [ ] Integrate `client.realtime.*` WebSocket API for live data subscriptions
 - [ ] Live cursors and presence indicators
 - [ ] Comment threads and @mentions
-- [ ] Conflict resolution and version history
-- [ ] Offline queue with sync-on-reconnect via Service Worker
+- [ ] Conflict resolution with version history
+- [ ] Complete CollaborationProvider in plugin-designer
 
 **Deliverables:**
 - @object-ui/collaboration package
 
-#### 3.2 Plugin Marketplace (8 weeks)
+#### 3.3 Performance Optimization (3 weeks)
+**Target:** Implement PerformanceConfigSchema monitoring
+
+- [ ] Implement PerformanceConfigSchema runtime (LCP, FCP, TTI tracking)
+- [ ] Add performance budget enforcement (bundle size, render time thresholds)
+- [ ] Optimize lazy loading with route-based code splitting
+- [ ] Add performance dashboard in console (dev mode)
+- [ ] Target: LCP < 600ms, bundle < 140KB gzipped
+
+**Spec Reference:** `PerformanceConfigSchema`
+
+#### 3.4 Page Transitions (2 weeks)
+**Target:** Smooth page and view transitions
+
+- [ ] Implement PageTransitionSchema for route-level transitions (fade, slide, scale)
+- [ ] Consume PageComponentType for page variant resolution
+- [ ] Add view transition animations between view types (grid ↔ kanban ↔ calendar)
+- [ ] Integrate with browser View Transitions API where supported
+
+**Spec Reference:** `PageTransitionSchema`, `PageComponentType`
+
+#### 3.5 Plugin Marketplace (6 weeks)
 
 - [ ] Plugin marketplace website
 - [ ] Plugin publishing platform
-- [ ] 20+ official plugins (WeChat, DingTalk, Stripe, OAuth, etc.)
-- [ ] Plugin development guide
+- [ ] Plugin development guide with template generator
+- [ ] 25+ official plugins
 
-#### 3.3 Visual Designer Upgrade (6 weeks)
-
-- [x] Drag-and-drop page designer
-- [x] Data model designer (ER diagrams)
-- [x] Process designer (BPMN 2.0)
-- [x] Report designer
-- [x] Multi-user collaborative editing
-
-**Deliverables:**
-- @object-ui/plugin-designer package ✅
-
-#### 3.4 Community Building (Ongoing)
+#### 3.6 Community Building (Ongoing)
 
 - [ ] Official website (www.objectui.org)
 - [ ] Discord community
-- [ ] Monthly webinars
-- [ ] Technical blog (weekly posts)
-- [ ] YouTube tutorials (weekly)
+- [ ] Monthly webinars and technical blog
+- [ ] YouTube tutorial series
 
 **Q3 Milestone:**
-- **v1.5.0 Release (September 2026):** Ecosystem Thriving
+- **v1.5.0 Release (September 2026):** Offline-first, real-time, performance-optimized
+- **Spec compliance: 96% → 100%**
   - 30+ plugins
   - 5,000+ GitHub stars
   - 1,000+ community members
 
 ---
 
-### Q4 2026: Commercialization & Cloud Platform (Oct-Dec)
+### Q4 2026: Commercialization (Oct-Dec)
 
 **Goal:** Launch ObjectUI Cloud and achieve commercial success
 
@@ -413,9 +400,10 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 **Q4 Milestone:**
 - **v2.0.0 Release (December 2026):** Commercial Success
+  - 100% @objectstack/spec v2.0.7 compliance verified
   - 1,000+ cloud users
   - 50+ enterprise customers
-  - $500k annual revenue
+  - $500K annual revenue
 
 ---
 
@@ -424,14 +412,14 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 | Metric | Q1 | Q2 | Q3 | Q4 |
 |--------|-----|-----|-----|-----|
 | **Test Coverage** | 80% | 85% | 90% | 90% |
-| **Spec Alignment** | 85% | 100% | 100% | 100% |
-| **Client Integration** | 92% | 95% | 100% | 100% |
+| **Spec Compliance (v2.0.7)** | 86% | 96% | 100% | 100% |
+| **Client Integration** | 100% | 100% | 100% | 100% |
 | **Performance (LCP)** | 0.6s | 0.5s | 0.5s | 0.4s |
 | **GitHub Stars** | 1K | 2.5K | 5K | 10K |
 | **NPM Downloads/week** | 5K | 10K | 20K | 50K |
-| **Plugins** | 17 | 20 | 30 | 35 |
-| **Enterprise Customers** | - | 5 | 25 | 50 |
-| **Annual Revenue** | - | - | $100K | $500K |
+| **Plugins** | 20 | 25 | 30 | 35 |
+| **Enterprise Customers** | — | 5 | 25 | 50 |
+| **Annual Revenue** | — | — | $100K | $500K |
 
 ---
 
@@ -465,28 +453,22 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
-| Spec Changes | Medium | High | Regular sync with ObjectStack team |
-| Performance Issues | Medium | Medium | Early testing, optimization sprints |
-| Security Vulnerabilities | Low | High | Security audits, bug bounty |
-| Competition | High | Medium | Differentiation, rapid iteration |
-| Low Adoption | Medium | High | Enhanced marketing, lower barriers |
+| Spec Changes (post v2.0.7) | Medium | High | Regular sync with ObjectStack team; strict "import, never redefine" rule ensures type-level updates propagate automatically |
+| Performance Regression | Medium | Medium | PerformanceConfigSchema monitoring, performance budgets, CI benchmarks |
+| Security Vulnerabilities | Low | High | Security audits, bug bounty, WCAG compliance, CSP headers |
+| Offline/Sync Complexity | Medium | High | Incremental rollout (read-only cache → full sync); ConflictResolutionSchema strategies |
+| Competition | High | Medium | Differentiation via spec compliance + Shadcn quality; rapid iteration |
+| Low Adoption | Medium | High | Enhanced marketing, lower barriers, plugin marketplace |
+| v2.0.7 Type Surface Area | Low | Medium | Phased implementation (Q1: accessibility/i18n, Q2: interactive, Q3: offline/perf) |
 
 ---
 
 ## 📚 Reference Documents
 
-This roadmap consolidates information from:
-
-1. **IMPROVEMENT_PLAN.md** - Comprehensive 12-month improvement plan
-2. **OBJECTOS_INTEGRATION_ROADMAP.md** - ObjectOS integration specifications
-3. **apps/console/DEVELOPMENT_PLAN.md** - Console development plan
-4. **UPDATE_SUMMARY.md** - Recent updates summary
-5. **.github/copilot-instructions.md** - Architectural guidelines
-6. **CONSOLE_AUTH_PLAN.md** - Console authentication & full-flow development plan (@objectstack/client + better-auth)
-7. **OBJECTSTACK_CLIENT_EVALUATION.md** - Comprehensive evaluation of @objectstack/client for low-code app UI development (92% protocol coverage, 22/24 features)
-8. **SPEC_COMPLIANCE_EVALUATION.md** - Per-package @objectstack/spec compliance evaluation with 47 improvement items and prioritized roadmap (91% current compliance)
-
-For detailed technical specifications, implementation patterns, and historical context, please refer to these source documents.
+- [SPEC_COMPLIANCE_EVALUATION.md](./SPEC_COMPLIANCE_EVALUATION.md) — Per-package @objectstack/spec v2.0.7 compliance evaluation (82% current, 63 improvement items, prioritized roadmap)
+- [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md) — @objectstack/client v2.0.7 evaluation (100% protocol coverage, 13/13 API namespaces, 95+ methods)
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — Contribution guidelines
+- [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) — Quick reference for developers
 
 ---
 
@@ -508,5 +490,5 @@ For detailed technical specifications, implementation patterns, and historical c
 ---
 
 **Roadmap Status:** ✅ Active  
-**Next Review:** March 1, 2026  
+**Next Review:** March 15, 2026  
 **Contact:** hello@objectui.org | https://github.com/objectstack-ai/objectui
