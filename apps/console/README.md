@@ -13,7 +13,7 @@ The standard runtime UI for ObjectStack applications. This package provides the 
 - **CRUD Operations**: Create, edit, delete records via schema-driven forms and dialogs
 - **Command Palette**: `⌘+K` for quick navigation across apps and objects
 - **Dark/Light Theme**: System-aware theme with per-app branding (logo, colors, favicon)
-- **Developer Tools**: Built-in metadata inspector for debugging schema definitions
+- **Developer Tools**: Built-in metadata inspector with collapsible sections and copy-to-clipboard support
 
 ## Quick Start
 
@@ -88,6 +88,7 @@ Console App
 | [Architecture Guide](../../content/docs/guide/console-architecture.md) | Technical deep-dive |
 | [Development Plan](./DEVELOPMENT_PLAN.md) | Completed phases 1-10 |
 | [Next Steps](./NEXT_STEPS.md) | Tactical next tasks |
+| [UI Improvement Proposal](./docs/UI_IMPROVEMENT_PROPOSAL.md) | Modern UI design improvements for metadata inspector |
 
 ## License
 

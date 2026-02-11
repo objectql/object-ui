@@ -19,8 +19,8 @@ import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
 import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-calendar';
-import { Button, Empty, EmptyTitle, EmptyDescription, Sheet, SheetContent } from '@object-ui/components';
-import { Plus, Table as TableIcon, Settings2 } from 'lucide-react';
+import { Button, Empty, EmptyTitle, EmptyDescription, Sheet, SheetContent, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@object-ui/components';
+import { Plus, Table as TableIcon, Settings2, MoreVertical, Wrench } from 'lucide-react';
 import type { ListViewSchema } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useObjectActions } from '../hooks/useObjectActions';
@@ -30,6 +30,9 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     const { objectName, viewId } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
     const { showDebug, toggleDebug } = useMetadataInspector();
+    
+    // Design mode toggle - default false for end users
+    const [designMode, setDesignMode] = useState(false);
     
     // Get Object Definition
     const objectDef = objects.find((o: any) => o.name === objectName);
@@ -213,7 +216,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
 
     return (
         <div className="h-full flex flex-col bg-background">
-             {/* 1. Main Header */}
+             {/* 1. Simplified Header */}
              <div className="flex justify-between items-center py-2.5 sm:py-3 px-3 sm:px-4 border-b shrink-0 bg-background z-10">
                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                     <div className="bg-primary/10 p-1.5 sm:p-2 rounded-md shrink-0">
@@ -225,31 +228,48 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                  </div>
                  
                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                    <MetadataToggle open={showDebug} onToggle={toggleDebug} className="hidden sm:flex" />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate(viewId ? `../../views/${viewId}` : `views/${activeViewId}`)}
-                      className="shadow-none gap-1.5 h-8 sm:h-9 hidden sm:flex"
-                      title="Edit current view layout"
-                    >
-                      <Settings2 className="h-4 w-4" />
-                      <span className="hidden lg:inline">Edit View</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate(viewId ? '../../views/new' : 'views/new')}
-                      className="shadow-none gap-1.5 h-8 sm:h-9 hidden sm:flex"
-                      title="Add a view"
-                    >
-                      <Plus className="h-4 w-4" />
-                      <span className="hidden lg:inline">Add View</span>
-                    </Button>
+                    {/* Primary action - always visible */}
                     <Button size="sm" onClick={actions.create} className="shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9">
                         <Plus className="h-4 w-4" /> 
                         <span className="hidden sm:inline">New</span>
                     </Button>
+                    
+                    {/* Design mode tools menu */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          size="sm" 
+                          variant={designMode ? "secondary" : "ghost"}
+                          className="shadow-none h-8 sm:h-9 px-2"
+                          title="Design tools"
+                        >
+                          {designMode ? <Wrench className="h-4 w-4" /> : <MoreVertical className="h-4 w-4" />}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem onClick={() => setDesignMode(!designMode)}>
+                          <Wrench className="h-4 w-4 mr-2" />
+                          {designMode ? 'Exit Design Mode' : 'Enter Design Mode'}
+                        </DropdownMenuItem>
+                        {designMode && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={toggleDebug}>
+                              <MetadataToggle open={showDebug} onToggle={toggleDebug} className="hidden" />
+                              Metadata Inspector
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => navigate(viewId ? `../../views/${viewId}` : `views/${activeViewId}`)}>
+                              <Settings2 className="h-4 w-4 mr-2" />
+                              Edit View
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => navigate(viewId ? '../../views/new' : 'views/new')}>
+                              <Plus className="h-4 w-4 mr-2" />
+                              Add View
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                  </div>
              </div>
 
@@ -270,8 +290,9 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                         />
                     </div>
                 </div>
+                {/* Metadata panel only shows in design mode */}
                 <MetadataPanel
-                    open={showDebug}
+                    open={showDebug && designMode}
                     sections={[
                         { title: 'View Configuration', data: activeView },
                         { title: 'Object Definition', data: objectDef },
