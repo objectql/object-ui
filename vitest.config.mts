@@ -25,15 +25,15 @@ export default defineConfig({
         'examples/',
       ],
       // Section 3.6: Testing coverage thresholds
-      // Adjusted to reflect current coverage levels and prevent CI failures
-      // Target: Gradually increase these as test coverage improves
-      // Last adjusted: 2026-02-03 - Reduced after @objectstack 0.9.1 upgrade
-      // to allow PR merge while maintaining coverage enforcement
+      // Target: 80%+ lines and functions
+      // Last adjusted: 2026-02-11 - Increased after adding comprehensive tests
+      // for hooks, contexts, plugins (useExpression, useDiscovery, useActionRunner,
+      // ActionContext, i18n provider, LazyPluginLoader, timeline, SortUI, FilterUI, VirtualGrid)
       thresholds: {
-        lines: 61,        // Actual: 61.67% (was 63%)
-        functions: 43,
-        branches: 40,
-        statements: 60,   // Actual: 60.46% (was 62%)
+        lines: 66,
+        functions: 55,
+        branches: 50,
+        statements: 65,
       },
     },
   },

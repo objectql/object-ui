@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@object-ui/core": "workspace:*",
+    "@object-ui/i18n": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@objectstack/spec": "^2.0.4",
     "react-hook-form": "^7.71.1"
