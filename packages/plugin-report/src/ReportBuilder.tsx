@@ -8,7 +8,7 @@
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger } from '@object-ui/components';
-import type { ReportBuilderSchema, ReportSchema, ReportField, ReportFilter, ReportGroupBy, ReportSection } from '@object-ui/types';
+import type { ReportBuilderSchema, ReportSchema, ReportField, ReportFilter, ReportGroupBy, ReportSection, DataSource } from '@object-ui/types';
 import { Plus, Trash2, Save, X, Settings, Filter, Layers, Calendar } from 'lucide-react';
 import { ReportViewer } from './ReportViewer';
 import { ScheduleConfig } from './ScheduleConfig';
@@ -51,7 +51,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
   const handleAddField = () => {
     if (availableFields.length > 0 && selectedFields.length < availableFields.length) {
       const nextField = availableFields.find(
-        f => !selectedFields.some(sf => sf.name === f.name)
+        (f: ReportField) => !selectedFields.some(sf => sf.name === f.name)
       );
       if (nextField) {
         const newFields = [...selectedFields, nextField];
@@ -226,7 +226,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
                     <Label>Data Source</Label>
                     <select className="w-full border rounded-md p-2">
                       <option value="">Select a data source</option>
-                      {dataSources.map((_ds, idx) => (
+                      {dataSources.map((_ds: DataSource, idx: number) => (
                         <option key={idx} value={idx}>
                           Data Source {idx + 1}
                         </option>
@@ -364,7 +364,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
                           value={filter.field}
                           onChange={(e) => handleFilterChange(index, { ...filter, field: e.target.value })}
                         >
-                          {availableFields.map((f, i) => (
+                          {availableFields.map((f: ReportField, i: number) => (
                             <option key={i} value={f.name}>{f.label || f.name}</option>
                           ))}
                         </select>
@@ -432,7 +432,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
                                  value={group.field}
                                  onChange={(e) => handleGroupByChange(index, { ...group, field: e.target.value })}
                               >
-                                 {availableFields.map((f, i) => (
+                                 {availableFields.map((f: ReportField, i: number) => (
                                     <option key={i} value={f.name}>{f.label || f.name}</option>
                                  ))}
                               </select>
@@ -557,7 +557,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({ schema }) => {
                                           })}
                                        >
                                           <option value="">Select Field...</option>
-                                          {availableFields.map(f => (
+                                          {availableFields.map((f: ReportField) => (
                                              <option key={f.name} value={f.name}>{f.label || f.name}</option>
                                           ))}
                                           {/* Use mock fields if no available fields provided */}

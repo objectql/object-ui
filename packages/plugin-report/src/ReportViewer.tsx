@@ -54,12 +54,12 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
 
   const computeAggregation = (fieldName: string, aggregation?: string): string | number => {
     if (!data) return 0;
-    const values = data.map(item => Number(item[fieldName]) || 0);
+    const values = data.map((item: Record<string, any>) => Number(item[fieldName]) || 0);
     switch (aggregation) {
       case 'count': return data.length;
-      case 'sum': return values.reduce((sum, v) => sum + v, 0);
+      case 'sum': return values.reduce((sum: number, v: number) => sum + v, 0);
       case 'avg': return values.length > 0
-        ? (values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(2)
+        ? (values.reduce((sum: number, v: number) => sum + v, 0) / values.length).toFixed(2)
         : 0;
       case 'min': return values.length > 0 ? Math.min(...values) : 0;
       case 'max': return values.length > 0 ? Math.max(...values) : 0;
@@ -167,8 +167,8 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
                 {section.type === 'summary' && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {report.fields
-                      ?.filter(f => f.showInSummary)
-                      .map((field, idx) => (
+                      ?.filter((f: ReportField) => f.showInSummary)
+                      .map((field: ReportField, idx: number) => (
                         <Card key={idx}>
                           <CardContent className="p-4">
                             <div className="text-sm text-muted-foreground">{field.label || field.name}</div>
@@ -232,7 +232,7 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
                     <table className="w-full text-sm">
                       <thead className="bg-muted">
                         <tr>
-                          {section.columns?.map((col, idx) => (
+                          {section.columns?.map((col: ReportField, idx: number) => (
                             <th key={idx} className="px-4 py-2 text-left font-medium">
                               {col.label || col.name}
                             </th>
@@ -240,9 +240,9 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({ schema, onRefresh })
                         </tr>
                       </thead>
                       <tbody>
-                        {data?.map((row, rowIdx) => (
+                        {data?.map((row: Record<string, any>, rowIdx: number) => (
                           <tr key={rowIdx} className="border-t">
-                            {section.columns?.map((col, colIdx) => (
+                            {section.columns?.map((col: ReportField, colIdx: number) => (
                               <td key={colIdx} className="px-4 py-2">
                                 {row[col.name]}
                               </td>

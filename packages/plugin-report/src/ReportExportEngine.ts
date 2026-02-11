@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { ReportSchema, ReportExportConfig, ReportExportFormat } from '@object-ui/types';
+import type { ReportSchema, ReportExportConfig, ReportExportFormat, ReportField } from '@object-ui/types';
 
 /**
  * Report Export Engine
@@ -18,8 +18,8 @@ import type { ReportSchema, ReportExportConfig, ReportExportFormat } from '@obje
  */
 export function exportAsCSV(report: ReportSchema, data: any[], config?: ReportExportConfig): void {
   const fields = report.fields || [];
-  const headers = fields.map(f => f.label || f.name);
-  const rows = data.map(row => fields.map(f => {
+  const headers = fields.map((f: ReportField) => f.label || f.name);
+  const rows = data.map((row: Record<string, any>) => fields.map((f: ReportField) => {
     let val = row[f.name];
     val = sanitizeCSVValue(val);
     // Escape CSV values
@@ -81,8 +81,8 @@ export function exportAsHTML(report: ReportSchema, data: any[], config?: ReportE
 ${report.description ? `<p class="description">${escapeHTML(report.description)}</p>` : ''}
 <p class="meta">Generated: ${new Date().toLocaleString()}</p>
 <table>
-<thead><tr>${fields.map(f => `<th>${escapeHTML(f.label || f.name)}</th>`).join('')}</tr></thead>
-<tbody>${data.map(row => `<tr>${fields.map(f => `<td>${escapeHTML(String(row[f.name] ?? ''))}</td>`).join('')}</tr>`).join('')}</tbody>
+<thead><tr>${fields.map((f: ReportField) => `<th>${escapeHTML(f.label || f.name)}</th>`).join('')}</tr></thead>
+<tbody>${data.map((row: Record<string, any>) => `<tr>${fields.map((f: ReportField) => `<td>${escapeHTML(String(row[f.name] ?? ''))}</td>`).join('')}</tr>`).join('')}</tbody>
 </table>
 </body>
 </html>`;
@@ -133,8 +133,8 @@ export function exportAsPDF(report: ReportSchema, data: any[], config?: ReportEx
 ${report.description ? `<p class="description">${escapeHTML(report.description)}</p>` : ''}
 <p class="meta">Generated: ${new Date().toLocaleString()}</p>
 <table>
-<thead><tr>${fields.map(f => `<th>${escapeHTML(f.label || f.name)}</th>`).join('')}</tr></thead>
-<tbody>${data.map(row => `<tr>${fields.map(f => `<td>${escapeHTML(String(row[f.name] ?? ''))}</td>`).join('')}</tr>`).join('')}</tbody>
+<thead><tr>${fields.map((f: ReportField) => `<th>${escapeHTML(f.label || f.name)}</th>`).join('')}</tr></thead>
+<tbody>${data.map((row: Record<string, any>) => `<tr>${fields.map((f: ReportField) => `<td>${escapeHTML(String(row[f.name] ?? ''))}</td>`).join('')}</tr>`).join('')}</tbody>
 </table>
 </body>
 </html>`);
@@ -150,8 +150,8 @@ ${report.description ? `<p class="description">${escapeHTML(report.description)}
  */
 export function exportAsExcel(report: ReportSchema, data: any[], config?: ReportExportConfig): void {
   const fields = report.fields || [];
-  const headers = fields.map(f => f.label || f.name);
-  const rows = data.map(row => fields.map(f => {
+  const headers = fields.map((f: ReportField) => f.label || f.name);
+  const rows = data.map((row: Record<string, any>) => fields.map((f: ReportField) => {
     let val = row[f.name];
     val = sanitizeCSVValue(val);
     if (typeof val === 'string' && (val.includes(',') || val.includes('"') || val.includes('\n') || val.includes('\t'))) {

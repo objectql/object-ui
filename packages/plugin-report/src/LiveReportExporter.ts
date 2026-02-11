@@ -189,7 +189,7 @@ export function exportExcelWithFormulas(
 
   // Optional aggregation row
   if (includeAggregationRow && data.length > 0) {
-    const aggRow = cols.map((col, colIndex) => {
+    const aggRow = cols.map((col: ExcelColumnConfig, colIndex: number) => {
       const field = (report.fields || []).find(f => f.name === col.name);
       if (field?.aggregation) {
         const colLetter = getExcelColumnLetter(colIndex);
