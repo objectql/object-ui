@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/tenant",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "license": "MIT",
   "description": "Multi-tenancy support for Object UI with tenant isolation, scoped queries, and custom branding.",

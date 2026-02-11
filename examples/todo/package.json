@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/example-todo",
-  "version": "0.6.1",
+  "version": "1.0.0",
   "description": "Example Todo App using ObjectStack Protocol",
   "private": true,
   "type": "module",

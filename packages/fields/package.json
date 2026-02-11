@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/fields",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "description": "Field renderers and registry for Object UI",
   "license": "MIT",
   "type": "module",
