@@ -47,7 +47,7 @@ export async function studio() {
   console.log(chalk.dim('  Mode:    MSW (in-browser mock server)\n'));
 
   // Delegate to the console's dev script which starts Vite + MSW
-  const child = spawn('npx', ['vite', '--open'], {
+  const child = spawn('pnpm', ['run', 'dev'], {
     cwd: consolePath,
     stdio: 'inherit',
     env: { ...process.env, NODE_ENV: 'development' },
