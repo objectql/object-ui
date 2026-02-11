@@ -3,8 +3,24 @@ import { ResponsiveGridLayout, useContainerWidth, type LayoutItem as RGLLayout, 
 import 'react-grid-layout/css/styles.css';
 import { cn, Card, CardHeader, CardTitle, CardContent, Button } from '@object-ui/components';
 import { Edit, GripVertical, Save, X } from 'lucide-react';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, useHasDndProvider, useDnd } from '@object-ui/react';
 import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
+
+/** Bridges editMode transitions to the ObjectUI DnD system when a DndProvider is present. */
+function DndEditModeBridge({ editMode }: { editMode: boolean }) {
+  const dnd = useDnd();
+
+  React.useEffect(() => {
+    if (editMode) {
+      dnd.startDrag({ id: 'dashboard-layout', type: 'dashboard-widget', data: {} });
+      return () => { dnd.endDrag(); };
+    } else {
+      dnd.endDrag('dashboard');
+    }
+  }, [editMode, dnd]);
+
+  return null;
+}
 
 const CHART_COLORS = [
   'hsl(var(--chart-1))',
@@ -29,6 +45,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
 }) => {
   const { width, containerRef, mounted } = useContainerWidth();
   const [editMode, setEditMode] = React.useState(false);
+  const hasDndProvider = useHasDndProvider();
   const [layouts, setLayouts] = React.useState<{ lg: RGLLayout[] }>(() => {
     // Try to load saved layout
     if (typeof window !== 'undefined' && persistLayoutKey) {
@@ -122,6 +139,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
 
   return (
     <div ref={containerRef} className={cn("w-full", className)} data-testid="grid-layout">
+      {hasDndProvider && <DndEditModeBridge editMode={editMode} />}
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-2xl font-bold">{schema.title || 'Dashboard'}</h2>
         <div className="flex gap-2">
