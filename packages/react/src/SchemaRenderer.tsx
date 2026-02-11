@@ -9,6 +9,30 @@
 import React, { forwardRef, useContext, useMemo } from 'react';
 import { SchemaNode, ComponentRegistry, ExpressionEvaluator } from '@object-ui/core';
 import { SchemaRendererContext } from './context/SchemaRendererContext';
+import { resolveI18nLabel } from './utils/i18n';
+
+/**
+ * Extract AriaPropsSchema properties from a schema node and convert
+ * them to standard HTML ARIA attributes.
+ *
+ * @objectstack/spec AriaPropsSchema defines:
+ *   ariaLabel: string | I18nLabel (→ aria-label)
+ *   ariaDescribedBy: string (→ aria-describedby)
+ *   role: string (→ role)
+ */
+function resolveAriaProps(schema: Record<string, any>): Record<string, string | undefined> {
+  const aria: Record<string, string | undefined> = {};
+  if (schema.ariaLabel) {
+    aria['aria-label'] = resolveI18nLabel(schema.ariaLabel);
+  }
+  if (schema.ariaDescribedBy) {
+    aria['aria-describedby'] = schema.ariaDescribedBy;
+  }
+  if (schema.role) {
+    aria['role'] = schema.role;
+  }
+  return aria;
+}
 
 export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<string, any>>(({ schema, ...props }, _ref) => {
   const context = useContext(SchemaRendererContext);
@@ -78,10 +102,14 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     ...componentProps
   } = evaluatedSchema;
 
+  // Extract AriaPropsSchema properties for accessibility
+  const ariaProps = resolveAriaProps(evaluatedSchema);
+
   return React.createElement(Component, {
     schema: evaluatedSchema,
     ...componentProps,  // Spread non-metadata schema properties as props
     ...(evaluatedSchema.props || {}),  // Override with explicit props if provided
+    ...ariaProps,  // Inject ARIA attributes from AriaPropsSchema
     className: evaluatedSchema.className,
     'data-obj-id': evaluatedSchema.id,
     'data-obj-type': evaluatedSchema.type,

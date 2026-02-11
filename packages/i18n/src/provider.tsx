@@ -26,6 +26,24 @@ export interface I18nProviderProps {
   config?: I18nConfig;
   /** Pre-created i18next instance (overrides config) */
   instance?: I18nInstance;
+  /**
+   * Dynamic language pack loader (v2.0.7).
+   * When set, language packs are loaded lazily instead of being bundled.
+   * Should return a translation resource object for the given language code.
+   *
+   * @example
+   * ```tsx
+   * <I18nProvider
+   *   loadLanguage={async (lang) => {
+   *     const mod = await import(`./locales/${lang}.json`);
+   *     return mod.default;
+   *   }}
+   * >
+   *   <App />
+   * </I18nProvider>
+   * ```
+   */
+  loadLanguage?: (lang: string) => Promise<Record<string, unknown>>;
   /** Children to render */
   children: React.ReactNode;
 }
@@ -40,7 +58,7 @@ export interface I18nProviderProps {
  * </I18nProvider>
  * ```
  */
-export function I18nProvider({ config, instance: externalInstance, children }: I18nProviderProps) {
+export function I18nProvider({ config, instance: externalInstance, loadLanguage, children }: I18nProviderProps) {
   const i18nInstance = useMemo(
     () => externalInstance || createI18n(config),
     [externalInstance, config],
@@ -69,12 +87,17 @@ export function I18nProvider({ config, instance: externalInstance, children }: I
     () => ({
       language,
       changeLanguage: async (lang: string) => {
+        // Dynamic language pack loading (v2.0.7)
+        if (loadLanguage && !i18nInstance.hasResourceBundle(lang, 'translation')) {
+          const resources = await loadLanguage(lang);
+          i18nInstance.addResourceBundle(lang, 'translation', resources, true, true);
+        }
         await i18nInstance.changeLanguage(lang);
       },
       direction,
       i18n: i18nInstance,
     }),
-    [language, direction, i18nInstance],
+    [language, direction, i18nInstance, loadLanguage],
   );
 
   return React.createElement(

@@ -21,6 +21,7 @@
 
 export { useBreakpoint, type BreakpointState } from './useBreakpoint';
 export { useResponsive } from './useResponsive';
+export { useResponsiveConfig, type SpecResponsiveConfig, type ResolvedResponsiveState } from './useResponsiveConfig';
 export { useGesture, type UseGestureOptions } from './useGesture';
 export { usePullToRefresh, type PullToRefreshOptions } from './usePullToRefresh';
 export { MobileProvider, type MobileProviderProps } from './MobileProvider';

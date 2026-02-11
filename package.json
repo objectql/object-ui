@@ -78,6 +78,7 @@
     "@objectstack/plugin-msw": "^2.0.7",
     "@objectstack/runtime": "^2.0.7",
     "@objectstack/spec": "^2.0.7",
+    "@playwright/test": "^1.58.2",
     "@storybook/addon-essentials": "^8.6.14",
     "@storybook/addon-interactions": "^8.6.14",
     "@storybook/addon-links": "^8.6.15",
@@ -95,6 +96,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "@vitest/ui": "^4.0.18",
     "autoprefixer": "^10.4.23",
+    "axe-core": "^4.11.1",
     "concurrently": "^9.2.1",
     "eslint": "^9.39.2",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -105,7 +107,6 @@
     "jsdom": "^28.0.0",
     "msw": "^2.12.9",
     "msw-storybook-addon": "^2.0.6",
-    "@playwright/test": "^1.58.2",
     "playwright": "^1.58.2",
     "prettier": "^3.8.1",
     "react": "19.2.4",
@@ -119,6 +120,7 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.53.1",
     "vitest": "^4.0.18",
+    "vitest-axe": "^0.1.0",
     "wait-on": "^9.0.3"
   },
   "pnpm": {

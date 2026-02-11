@@ -61,3 +61,15 @@ export {
   type CurrencyFormatOptions,
   type NumberFormatOptions,
 } from './utils/index';
+
+// Spec-aligned formatters (v2.0.7)
+export {
+  resolvePlural,
+  formatDateSpec,
+  formatNumberSpec,
+  applyLocaleConfig,
+  type SpecPluralRule,
+  type SpecDateFormat,
+  type SpecNumberFormat,
+  type SpecLocaleConfig,
+} from './utils/index';

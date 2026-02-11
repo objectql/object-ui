@@ -9,12 +9,14 @@ import { AppShell } from './AppShell';
 import { Page } from './Page';
 import { PageCard } from './PageCard';
 import { SidebarNav } from './SidebarNav';
+import { ResponsiveGrid } from './ResponsiveGrid';
 
 export * from './PageHeader';
 export * from './AppShell';
 export * from './Page';
 export * from './PageCard';
 export * from './SidebarNav';
+export * from './ResponsiveGrid';
 
 export function registerLayout() {
   ComponentRegistry.register('page-header', PageHeader, {
@@ -42,6 +44,17 @@ export function registerLayout() {
     namespace: 'layout',
     label: 'App Shell',
     category: 'Layout',
+  });
+
+  ComponentRegistry.register('responsive-grid', ResponsiveGrid, {
+    namespace: 'layout',
+    label: 'Responsive Grid',
+    category: 'Layout',
+    isContainer: true,
+    inputs: [
+      { name: 'columns', type: 'object' },
+      { name: 'gap', type: 'number' },
+    ],
   });
 
   // NOTE: 'page' registration is handled by @object-ui/components PageRenderer.

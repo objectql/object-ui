@@ -21,6 +21,8 @@ import {
   mergeThemes,
   resolveThemeInheritance,
   resolveMode,
+  contrastRatio,
+  meetsContrastLevel,
 } from '../ThemeEngine';
 
 // ============================================================================
@@ -602,5 +604,65 @@ describe('resolveMode', () => {
     window.matchMedia = undefined;
     expect(resolveMode('auto')).toBe('light');
     window.matchMedia = original;
+  });
+});
+
+// ============================================================================
+// WCAG Contrast Checking (v2.0.7)
+// ============================================================================
+
+describe('contrastRatio', () => {
+  it('should return 21 for black and white', () => {
+    expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 0);
+  });
+
+  it('should return 1 for identical colors', () => {
+    expect(contrastRatio('#336699', '#336699')).toBeCloseTo(1, 1);
+  });
+
+  it('should return null for invalid hex', () => {
+    expect(contrastRatio('invalid', '#000000')).toBeNull();
+    expect(contrastRatio('#000000', 'xyz')).toBeNull();
+  });
+
+  it('should handle shorthand hex (#RGB)', () => {
+    const ratio = contrastRatio('#000', '#fff');
+    expect(ratio).toBeCloseTo(21, 0);
+  });
+
+  it('should be order-independent', () => {
+    const ratio1 = contrastRatio('#000000', '#336699');
+    const ratio2 = contrastRatio('#336699', '#000000');
+    expect(ratio1).toBe(ratio2);
+  });
+});
+
+describe('meetsContrastLevel', () => {
+  it('should pass AA for black on white (normal text)', () => {
+    expect(meetsContrastLevel('#000000', '#ffffff', 'AA')).toBe(true);
+  });
+
+  it('should pass AAA for black on white (normal text)', () => {
+    expect(meetsContrastLevel('#000000', '#ffffff', 'AAA')).toBe(true);
+  });
+
+  it('should fail AA for similar grays', () => {
+    // #777 on #999 gives ~1.6:1 ratio
+    expect(meetsContrastLevel('#777777', '#999999', 'AA')).toBe(false);
+  });
+
+  it('should use lower threshold for large text (AA)', () => {
+    // #767676 on white gives ~4.54:1 (passes AA normal, passes AA large)
+    expect(meetsContrastLevel('#767676', '#ffffff', 'AA', false)).toBe(true);
+    expect(meetsContrastLevel('#767676', '#ffffff', 'AA', true)).toBe(true);
+  });
+
+  it('should use lower threshold for large text (AAA)', () => {
+    // Black on white: 21:1 — passes both
+    expect(meetsContrastLevel('#000000', '#ffffff', 'AAA', true)).toBe(true);
+  });
+
+  it('should return false for invalid colors', () => {
+    expect(meetsContrastLevel('invalid', '#ffffff', 'AA')).toBe(false);
   });
 });

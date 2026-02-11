@@ -450,3 +450,81 @@ export function resolveMode(
 
   return 'light'; // fallback
 }
+
+// ============================================================================
+// WCAG Contrast Checking (v2.0.7)
+// ============================================================================
+
+/**
+ * Parse a hex color string to RGB values [0-255].
+ */
+function hexToRGB(hex: string): [number, number, number] | null {
+  let clean = hex.replace(/^#/, '');
+  if (clean.length === 3) {
+    clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+  }
+  const match = /^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(clean);
+  if (!match) return null;
+  return [parseInt(match[1], 16), parseInt(match[2], 16), parseInt(match[3], 16)];
+}
+
+/**
+ * Calculate relative luminance per WCAG 2.1 spec.
+ * @see https://www.w3.org/TR/WCAG21/#dfn-relative-luminance
+ */
+function relativeLuminance(r: number, g: number, b: number): number {
+  const [rs, gs, bs] = [r, g, b].map(c => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+}
+
+/**
+ * Calculate the WCAG 2.1 contrast ratio between two hex colors.
+ * Returns a value between 1 and 21.
+ *
+ * @param hex1 - First color in hex format (#RGB or #RRGGBB)
+ * @param hex2 - Second color in hex format (#RGB or #RRGGBB)
+ * @returns Contrast ratio (1-21), or null if colors are invalid
+ */
+export function contrastRatio(hex1: string, hex2: string): number | null {
+  const rgb1 = hexToRGB(hex1);
+  const rgb2 = hexToRGB(hex2);
+  if (!rgb1 || !rgb2) return null;
+
+  const l1 = relativeLuminance(...rgb1);
+  const l2 = relativeLuminance(...rgb2);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/**
+ * Check if two colors meet the specified WCAG contrast level.
+ *
+ * WCAG levels:
+ * - AA: 4.5:1 for normal text, 3:1 for large text
+ * - AAA: 7:1 for normal text, 4.5:1 for large text
+ *
+ * @param hex1 - First color in hex format
+ * @param hex2 - Second color in hex format
+ * @param level - WCAG level: 'AA' or 'AAA'
+ * @param isLargeText - Whether the text is large (18pt+ or 14pt+ bold)
+ * @returns true if the color pair meets the required contrast level
+ */
+export function meetsContrastLevel(
+  hex1: string,
+  hex2: string,
+  level: 'AA' | 'AAA' = 'AA',
+  isLargeText = false,
+): boolean {
+  const ratio = contrastRatio(hex1, hex2);
+  if (ratio === null) return false;
+
+  if (level === 'AAA') {
+    return isLargeText ? ratio >= 4.5 : ratio >= 7;
+  }
+  // AA
+  return isLargeText ? ratio >= 3 : ratio >= 4.5;
+}

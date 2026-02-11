@@ -19,4 +19,6 @@ export {
   mergeThemes,
   resolveThemeInheritance,
   resolveMode,
+  contrastRatio,
+  meetsContrastLevel,
 } from './ThemeEngine';
