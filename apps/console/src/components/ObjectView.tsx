@@ -9,7 +9,7 @@
  * - ListView delegation for non-grid view types (kanban, calendar, chart, etc.)
  */
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, type ComponentType } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { ObjectChart } from '@object-ui/plugin-charts';
 import { ListView } from '@object-ui/plugin-list';
@@ -19,11 +19,23 @@ import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
 import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-calendar';
-import { Button, Empty, EmptyTitle, EmptyDescription, Sheet, SheetContent, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@object-ui/components';
-import { Plus, Table as TableIcon, Settings2, MoreVertical, Wrench } from 'lucide-react';
+import { cn, Button, Empty, EmptyTitle, EmptyDescription, Sheet, SheetContent, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@object-ui/components';
+import { Plus, Table as TableIcon, Settings2, MoreVertical, Wrench, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3 } from 'lucide-react';
 import type { ListViewSchema } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useObjectActions } from '../hooks/useObjectActions';
+
+/** Map view types to Lucide icons (Airtable-style) */
+const VIEW_TYPE_ICONS: Record<string, ComponentType<any>> = {
+    grid: TableIcon,
+    kanban: KanbanSquare,
+    calendar: Calendar,
+    gallery: LayoutGrid,
+    timeline: Activity,
+    gantt: GanttChart,
+    map: MapPin,
+    chart: BarChart3,
+};
 
 export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     const navigate = useNavigate();
@@ -272,6 +284,33 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                     </DropdownMenu>
                  </div>
              </div>
+
+             {/* View Tabs — Airtable-style named-view switcher */}
+             {views.length > 1 && (
+               <div className="border-b px-3 sm:px-4 bg-background overflow-x-auto shrink-0">
+                 <div className="flex items-center gap-0.5 -mb-px">
+                   {views.map((view: any) => {
+                     const isActive = view.id === activeViewId;
+                     const ViewIcon = VIEW_TYPE_ICONS[view.type] || TableIcon;
+                     return (
+                       <button
+                         key={view.id}
+                         onClick={() => handleViewChange(view.id)}
+                         className={cn(
+                           "inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                           isActive
+                             ? "border-primary text-primary"
+                             : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                         )}
+                       >
+                         <ViewIcon className="h-3.5 w-3.5" />
+                         {view.label}
+                       </button>
+                     );
+                   })}
+                 </div>
+               </div>
+             )}
 
              {/* 2. Content — Plugin ObjectView with ViewSwitcher + Filter + Sort */}
              <div className="flex-1 overflow-hidden relative flex flex-row">
