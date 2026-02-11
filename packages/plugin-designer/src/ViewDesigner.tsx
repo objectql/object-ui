@@ -311,39 +311,41 @@ export function ViewDesigner({
         {/* Center - View Layout Preview */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* View Name & Type */}
-          <div className="p-3 border-b space-y-3 shrink-0">
-            <div className="flex items-center gap-3">
-              <label className="text-xs font-medium text-muted-foreground w-16 shrink-0">Label</label>
-              <input
-                type="text"
-                value={viewLabel}
-                onChange={(e) => !readOnly && setViewLabel(e.target.value)}
-                placeholder="View name..."
-                className="flex-1 px-2 py-1 text-sm border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                readOnly={readOnly}
-                data-testid="view-label-input"
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <label className="text-xs font-medium text-muted-foreground w-16 shrink-0">Type</label>
-              <div className="flex gap-1 flex-wrap">
+          <div className="p-3 border-b space-y-3 shrink-0 bg-muted/10">
+            {/* View Type - Made more prominent for creation */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-foreground">View Type</label>
+              <div className="flex gap-2 flex-wrap">
                 {VIEW_TYPE_OPTIONS.map(({ type, label, icon: Icon }) => (
                   <button
                     key={type}
                     onClick={() => !readOnly && setViewType(type)}
                     className={cn(
-                      'flex items-center gap-1 px-2 py-1 text-xs rounded border transition-colors',
+                      'flex items-center gap-2 px-3 py-2 text-sm rounded-md border-2 transition-all font-medium',
                       viewType === type
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border hover:bg-accent',
+                        ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                        : 'border-border bg-background hover:border-primary/50 hover:bg-accent',
                     )}
                     data-testid={`view-type-${type}`}
                   >
-                    <Icon className="h-3 w-3" />
+                    <Icon className="h-4 w-4" />
                     {label}
                   </button>
                 ))}
               </div>
+            </div>
+            {/* View Label */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-foreground">View Name</label>
+              <input
+                type="text"
+                value={viewLabel}
+                onChange={(e) => !readOnly && setViewLabel(e.target.value)}
+                placeholder="Enter view name..."
+                className="px-3 py-2 text-sm border-2 rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                readOnly={readOnly}
+                data-testid="view-label-input"
+              />
             </div>
           </div>
 
