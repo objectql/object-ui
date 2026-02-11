@@ -857,7 +857,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     const showSearchBox = schema.showSearch !== false;
     const showCreateButton = schema.showCreate !== false && operations.create !== false;
     const showRefreshButton = schema.showRefresh !== false;
-    const showViewSwitcherToggle = schema.showViewSwitcher !== false;
+    const showViewSwitcherToggle = schema.showViewSwitcher === true; // Changed: default to false (hidden)
 
     return (
       <div className="flex flex-col gap-3">

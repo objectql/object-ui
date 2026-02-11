@@ -24,6 +24,8 @@ export interface ListViewProps {
   onSearchChange?: (search: string) => void;
   /** Callback when a row/item is clicked (overrides NavigationConfig) */
   onRowClick?: (record: Record<string, unknown>) => void;
+  /** Show view type switcher (Grid/Kanban/etc). Default: false (view type is fixed) */
+  showViewSwitcher?: boolean;
   [key: string]: any;
 }
 
@@ -68,6 +70,7 @@ export const ListView: React.FC<ListViewProps> = ({
   onSortChange,
   onSearchChange,
   onRowClick,
+  showViewSwitcher = false,
   ...props
 }) => {
   // Kernel level default: Ensure viewType is always defined (default to 'grid')
@@ -392,14 +395,16 @@ export const ListView: React.FC<ListViewProps> = ({
       {/* Airtable-style Toolbar */}
       <div className="border-b px-4 py-2 flex items-center justify-between gap-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex items-center gap-2 flex-1 overflow-hidden">
-          {/* View Switcher on the Left */}
-          <div className="flex items-center pr-2 border-r mr-2">
-            <ViewSwitcher
-              currentView={currentView}
-              availableViews={availableViews}
-              onViewChange={handleViewChange}
-            />
-          </div>
+          {/* View Switcher on the Left (optional, hidden by default) */}
+          {showViewSwitcher && (
+            <div className="flex items-center pr-2 border-r mr-2">
+              <ViewSwitcher
+                currentView={currentView}
+                availableViews={availableViews}
+                onViewChange={handleViewChange}
+              />
+            </div>
+          )}
 
           {/* Action Tools */}
           <div className="flex items-center gap-1">
