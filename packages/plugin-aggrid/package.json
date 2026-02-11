@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-aggrid",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "type": "module",
   "license": "MIT",
   "description": "AG Grid data grid plugin for Object UI, powered by AG Grid Community",
