@@ -2,6 +2,7 @@
   "name": "@object-ui/core",
   "version": "0.5.0",
   "type": "module",
+  "sideEffects": false,
   "license": "MIT",
   "description": "Core logic, types, and validation for Object UI. Zero React dependencies.",
   "homepage": "https://www.objectui.org",
