@@ -9,7 +9,7 @@
 import * as React from 'react';
 import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay } from '@object-ui/components';
 import type { SortItem } from '@object-ui/components';
-import { Search, SlidersHorizontal, ArrowUpDown, X } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Group, Paintbrush, Ruler } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
 import { ViewSwitcher, ViewType } from './ViewSwitcher';
 import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
@@ -390,126 +390,181 @@ export const ListView: React.FC<ListViewProps> = ({
     }));
   }, [objectDef, schema.fields]);
 
+  const [searchExpanded, setSearchExpanded] = React.useState(false);
+
   return (
     <div className={cn('flex flex-col h-full bg-background', className)}>
-      {/* Airtable-style Toolbar */}
-      <div className="border-b px-4 py-2 flex items-center justify-between gap-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex items-center gap-2 flex-1 overflow-hidden">
-          {/* View Switcher on the Left (optional, hidden by default) */}
-          {showViewSwitcher && (
-            <div className="flex items-center pr-2 border-r mr-2">
-              <ViewSwitcher
-                currentView={currentView}
-                availableViews={availableViews}
-                onViewChange={handleViewChange}
-              />
-            </div>
-          )}
+      {/* Airtable-style Toolbar — Row 1: View tabs */}
+      {showViewSwitcher && (
+        <div className="border-b px-4 py-1 flex items-center bg-background">
+          <ViewSwitcher
+            currentView={currentView}
+            availableViews={availableViews}
+            onViewChange={handleViewChange}
+          />
+        </div>
+      )}
 
-          {/* Action Tools */}
-          <div className="flex items-center gap-1">
-             <Popover open={showFilters} onOpenChange={setShowFilters}>
-               <PopoverTrigger asChild>
-                  <Button
-                    variant={hasFilters ? "secondary" : "ghost"}
-                    size="sm"
-                    className={cn(
-                      "h-8 px-2 lg:px-3 text-muted-foreground hover:text-primary",
-                      hasFilters && "text-primary bg-secondary/50"
-                    )}
-                  >
-                    <SlidersHorizontal className="h-4 w-4 mr-2" />
-                    <span className="hidden lg:inline">Filter</span>
-                    {hasFilters && (
-                      <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary/10 text-[10px] font-medium text-primary">
-                        {currentFilters.conditions?.length || 0}
-                      </span>
-                    )}
-                  </Button>
-               </PopoverTrigger>
-               <PopoverContent align="start" className="w-[600px] p-4">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b pb-2">
-                      <h4 className="font-medium text-sm">Filter Records</h4>
-                    </div>
-                    <FilterBuilder
-                      fields={filterFields}
-                      value={currentFilters}
-                      onChange={(newFilters) => {
-                        console.log('Filter Changed:', newFilters);
-                        setCurrentFilters(newFilters);
-                        // Convert FilterBuilder format to OData $filter string if needed
-                        // For now we just update state and notify listener
-                        // In a real app, this would likely build an OData string
-                        if (onFilterChange) onFilterChange(newFilters);
-                      }}
-                    />
-                  </div>
-               </PopoverContent>
-             </Popover>
-            
-             <Popover open={showSort} onOpenChange={setShowSort}>
-               <PopoverTrigger asChild>
-                  <Button
-                    variant={currentSort.length > 0 ? "secondary" : "ghost"}
-                    size="sm"
-                    className={cn(
-                      "h-8 px-2 lg:px-3 text-muted-foreground hover:text-primary",
-                      currentSort.length > 0 && "text-primary bg-secondary/50"
-                    )}
-                  >
-                    <ArrowUpDown className="h-4 w-4 mr-2" />
-                    <span className="hidden lg:inline">Sort</span>
-                     {currentSort.length > 0 && (
-                      <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary/10 text-[10px] font-medium text-primary">
-                        {currentSort.length}
-                      </span>
-                    )}
-                  </Button>
-               </PopoverTrigger>
-               <PopoverContent align="start" className="w-[600px] p-4">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b pb-2">
-                       <h4 className="font-medium text-sm">Sort Records</h4>
-                    </div>
-                    <SortBuilder
-                      fields={filterFields}
-                      value={currentSort}
-                      onChange={(newSort) => {
-                        console.log('Sort Changed:', newSort);
-                        setCurrentSort(newSort);
-                        if (onSortChange) onSortChange(newSort);
-                      }}
-                    />
-                  </div>
-               </PopoverContent>
-             </Popover>
-            
-            {/* Future: Group, Color, Height */}
-          </div>
+      {/* Airtable-style Toolbar — Row 2: Tool buttons */}
+      <div className="border-b px-4 py-1 flex items-center justify-between gap-2 bg-background">
+        <div className="flex items-center gap-0.5 overflow-hidden">
+          {/* Hide Fields */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+            disabled
+          >
+            <EyeOff className="h-3.5 w-3.5 mr-1.5" />
+            <span className="hidden sm:inline">Hide fields</span>
+          </Button>
+
+          {/* Filter */}
+          <Popover open={showFilters} onOpenChange={setShowFilters}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-7 px-2 text-muted-foreground hover:text-primary text-xs",
+                  hasFilters && "text-primary"
+                )}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
+                <span className="hidden sm:inline">Filter</span>
+                {hasFilters && (
+                  <span className="ml-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary/10 text-[10px] font-medium text-primary">
+                    {currentFilters.conditions?.length || 0}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[600px] p-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h4 className="font-medium text-sm">Filter Records</h4>
+                </div>
+                <FilterBuilder
+                  fields={filterFields}
+                  value={currentFilters}
+                  onChange={(newFilters) => {
+                    setCurrentFilters(newFilters);
+                    if (onFilterChange) onFilterChange(newFilters);
+                  }}
+                />
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Group */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+            disabled
+          >
+            <Group className="h-3.5 w-3.5 mr-1.5" />
+            <span className="hidden sm:inline">Group</span>
+          </Button>
+
+          {/* Sort */}
+          <Popover open={showSort} onOpenChange={setShowSort}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-7 px-2 text-muted-foreground hover:text-primary text-xs",
+                  currentSort.length > 0 && "text-primary"
+                )}
+              >
+                <ArrowUpDown className="h-3.5 w-3.5 mr-1.5" />
+                <span className="hidden sm:inline">Sort</span>
+                {currentSort.length > 0 && (
+                  <span className="ml-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary/10 text-[10px] font-medium text-primary">
+                    {currentSort.length}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[600px] p-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h4 className="font-medium text-sm">Sort Records</h4>
+                </div>
+                <SortBuilder
+                  fields={filterFields}
+                  value={currentSort}
+                  onChange={(newSort) => {
+                    setCurrentSort(newSort);
+                    if (onSortChange) onSortChange(newSort);
+                  }}
+                />
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Color */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+            disabled
+          >
+            <Paintbrush className="h-3.5 w-3.5 mr-1.5" />
+            <span className="hidden sm:inline">Color</span>
+          </Button>
+
+          {/* Row Height */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-muted-foreground hover:text-primary text-xs hidden lg:flex"
+            disabled
+          >
+            <Ruler className="h-3.5 w-3.5 mr-1.5" />
+            <span className="hidden sm:inline">Row height</span>
+          </Button>
         </div>
 
-        {/* Right Actions: Search + New */}
-        <div className="flex items-center gap-2">
-             <div className="relative w-40 lg:w-64 transition-all">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Find..."
-                  value={searchTerm}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="pl-8 h-8 text-sm bg-muted/50 border-transparent hover:bg-muted focus:bg-background focus:border-input transition-colors"
-                />
-                 {searchTerm && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0 hover:bg-muted-foreground/20"
-                    onClick={() => handleSearchChange('')}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-             </div>
+        {/* Right: Search */}
+        <div className="flex items-center gap-1">
+          {searchExpanded ? (
+            <div className="relative w-48 lg:w-64">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Find..."
+                value={searchTerm}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-7 h-7 text-xs bg-muted/50 border-transparent hover:bg-muted focus:bg-background focus:border-input transition-colors"
+                autoFocus
+                onBlur={() => {
+                  if (!searchTerm) setSearchExpanded(false);
+                }}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-0.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 hover:bg-muted-foreground/20"
+                onClick={() => {
+                  handleSearchChange('');
+                  setSearchExpanded(false);
+                }}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+              onClick={() => setSearchExpanded(true)}
+            >
+              <Search className="h-3.5 w-3.5 mr-1.5" />
+              <span className="hidden sm:inline">Search</span>
+            </Button>
+          )}
         </div>
       </div>
 

@@ -66,7 +66,7 @@ describe('ListView', () => {
     expect(container).toBeTruthy();
   });
 
-  it('should render search input', () => {
+  it('should render search button', () => {
     const schema: ListViewSchema = {
       type: 'list-view',
       objectName: 'contacts',
@@ -75,11 +75,11 @@ describe('ListView', () => {
     };
 
     renderWithProvider(<ListView schema={schema} />);
-    const searchInput = screen.getByPlaceholderText(/find/i);
-    expect(searchInput).toBeInTheDocument();
+    const searchButton = screen.getByRole('button', { name: /search/i });
+    expect(searchButton).toBeInTheDocument();
   });
 
-  it('should call onSearchChange when search input changes', () => {
+  it('should expand search and call onSearchChange when search input changes', () => {
     const onSearchChange = vi.fn();
     const schema: ListViewSchema = {
       type: 'list-view',
@@ -89,8 +89,12 @@ describe('ListView', () => {
     };
 
     renderWithProvider(<ListView schema={schema} onSearchChange={onSearchChange} />);
-    const searchInput = screen.getByPlaceholderText(/find/i);
     
+    // Click search button to expand
+    const searchButton = screen.getByRole('button', { name: /search/i });
+    fireEvent.click(searchButton);
+    
+    const searchInput = screen.getByPlaceholderText(/find/i);
     fireEvent.change(searchInput, { target: { value: 'test' } });
     expect(onSearchChange).toHaveBeenCalledWith('test');
   });
@@ -196,13 +200,18 @@ describe('ListView', () => {
     };
 
     renderWithProvider(<ListView schema={schema} />);
+    
+    // Click search button to expand search input
+    const searchButton = screen.getByRole('button', { name: /search/i });
+    fireEvent.click(searchButton);
+    
     const searchInput = screen.getByPlaceholderText(/find/i) as HTMLInputElement;
     
     // Type in search
     fireEvent.change(searchInput, { target: { value: 'test' } });
     expect(searchInput.value).toBe('test');
     
-    // Find and click clear button
+    // Find and click clear button (the X button inside the expanded search)
     const buttons = screen.getAllByRole('button');
     const clearButton = buttons.find(btn => 
       btn.querySelector('svg') !== null && searchInput.value !== ''

@@ -50,15 +50,12 @@ import {
   DrawerTitle,
   DrawerDescription,
   Button,
-  Input,
   Tabs,
   TabsList,
   TabsTrigger,
 } from '@object-ui/components';
-import { Plus, Search, RefreshCw } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { ViewSwitcher } from './ViewSwitcher';
-import { FilterUI } from './FilterUI';
-import { SortUI } from './SortUI';
 
 /**
  * Attempt to import SchemaRenderer from @object-ui/react.
@@ -211,7 +208,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>('create');
   const [selectedRecord, setSelectedRecord] = useState<Record<string, unknown> | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Data fetching state for non-grid views
@@ -852,66 +848,45 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     );
   };
 
-  // Render toolbar
+  // Render toolbar — only named view tabs; filter/sort/search is handled by ListView
   const renderToolbar = () => {
-    const showSearchBox = schema.showSearch !== false;
     const showCreateButton = schema.showCreate !== false && operations.create !== false;
-    const showRefreshButton = schema.showRefresh !== false;
     const showViewSwitcherToggle = schema.showViewSwitcher === true; // Changed: default to false (hidden)
+
+    const namedViewTabs = renderNamedViewTabs();
+
+    // Hide toolbar entirely if there is nothing to show
+    if (!namedViewTabs && !showViewSwitcherToggle && !showCreateButton && !toolbarAddon) return null;
 
     return (
       <div className="flex flex-col gap-3">
         {/* Named view tabs (if any) */}
-        {renderNamedViewTabs()}
+        {namedViewTabs}
 
-        {/* Main toolbar row */}
-        <div className="flex items-center justify-between gap-4">
-          {/* Left side: Search */}
-          <div className="flex-1 max-w-md">
-            {showSearchBox && (
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder={`Search ${(objectSchema?.label as string) || schema.objectName}...`}
-                  value={searchQuery}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+        {/* ViewSwitcher + action buttons row */}
+        {(showViewSwitcherToggle || showCreateButton || toolbarAddon) && (
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              {showViewSwitcherToggle && viewSwitcherSchema && (
+                <ViewSwitcher
+                  schema={viewSwitcherSchema}
+                  onViewChange={handleViewTypeChange}
+                  className="overflow-x-auto"
                 />
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* Right side: Actions */}
-          <div className="flex items-center gap-2">
-            {filterSchema && (
-              <FilterUI schema={filterSchema} onChange={setFilterValues} />
-            )}
-            {sortSchema && (
-              <SortUI schema={sortSchema} onChange={(sort) => setSortConfig(sort ?? [])} />
-            )}
-            {showRefreshButton && (
-              <Button variant="outline" size="sm" onClick={handleRefresh}>
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            )}
-            {toolbarAddon}
-            {showCreateButton && (
-              <Button size="sm" onClick={handleCreate}>
-                <Plus className="h-4 w-4" />
-                Create
-              </Button>
-            )}
+            {/* Right side: Actions */}
+            <div className="flex items-center gap-2">
+              {toolbarAddon}
+              {showCreateButton && (
+                <Button size="sm" onClick={handleCreate}>
+                  <Plus className="h-4 w-4" />
+                  Create
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-
-        {/* ViewSwitcher row (if multi-view via props) */}
-        {showViewSwitcherToggle && viewSwitcherSchema && (
-          <ViewSwitcher
-            schema={viewSwitcherSchema}
-            onViewChange={handleViewTypeChange}
-            className="overflow-x-auto"
-          />
         )}
       </div>
     );
