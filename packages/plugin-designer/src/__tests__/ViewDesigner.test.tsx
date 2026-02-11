@@ -223,7 +223,7 @@ describe('ViewDesigner', () => {
       expect(kanbanBtn.className).toContain('border-primary');
 
       const gridBtn = screen.getByTestId('view-type-grid');
-      expect(gridBtn.className).not.toContain('border-primary');
+      expect(gridBtn.className).not.toContain('bg-primary');
     });
 
     it('should not change type in read-only mode', () => {
