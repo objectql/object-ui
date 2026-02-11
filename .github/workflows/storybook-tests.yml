@@ -5,20 +5,76 @@ on:
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: read
+
 jobs:
-  test-storybook:
-    timeout-minutes: 60
+  storybook-build:
+    name: Storybook Build
+    timeout-minutes: 30
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+          cache: 'pnpm'
+
+      - name: Turbo Cache
+        uses: actions/cache@v5
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Build Storybook
+        run: pnpm storybook:build
+
+  storybook-test:
+    name: Storybook Test Runner
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    needs: storybook-build
+
+    steps:
+      - uses: actions/checkout@v6
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Turbo Cache
+        uses: actions/cache@v5
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
       - name: Install Playwright Browsers
-        run: pnpm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps chromium
+
       - name: Run Storybook tests
         run: pnpm storybook:ci
