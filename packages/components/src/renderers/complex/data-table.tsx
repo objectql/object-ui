@@ -100,6 +100,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     resizableColumns = true,
     reorderableColumns = true,
     editable = false,
+    rowClassName,
     className,
   } = schema;
 
@@ -665,7 +666,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       data-state={isSelected ? 'selected' : undefined}
                       className={cn(
                         schema.onRowClick && "cursor-pointer",
-                        rowHasChanges && "bg-amber-50 dark:bg-amber-950/20"
+                        rowHasChanges && "bg-amber-50 dark:bg-amber-950/20",
+                        rowClassName && rowClassName(row, rowIndex)
                       )}
                       onClick={(e) => {
                         if (schema.onRowClick && !e.defaultPrevented) {

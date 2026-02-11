@@ -32,7 +32,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@object-ui/components';
-import { Edit, Trash2, MoreVertical } from 'lucide-react';
+import { Edit, Trash2, MoreVertical, ChevronRight, ChevronDown } from 'lucide-react';
+import { useRowColor } from './useRowColor';
+import { useGroupedData } from './useGroupedData';
 
 export interface ObjectGridProps {
   schema: ObjectGridSchema;
@@ -286,6 +288,12 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // --- Action support for action columns ---
   const { execute: executeAction } = useAction();
 
+  // --- Row color support ---
+  const getRowClassName = useRowColor(schema.rowColor);
+
+  // --- Grouping support ---
+  const { groups, isGrouped, toggleGroup } = useGroupedData(schema.grouping, data);
+
   const generateColumns = useCallback(() => {
     // Use normalized columns (support both new and legacy)
     const cols = normalizeColumns(schemaColumns);
@@ -536,12 +544,22 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     reorderableColumns: schema.reorderableColumns ?? false,
     editable: schema.editable ?? false,
     className: schema.className,
+    rowClassName: schema.rowColor ? (_row: any, _idx: number) => getRowClassName(_row) : undefined,
     onSelectionChange: onRowSelect,
     onRowClick: navigation.handleClick,
     onCellChange: onCellChange,
     onRowSave: onRowSave,
     onBatchSave: onBatchSave,
   };
+
+  /** Build a per-group data-table schema (inherits everything except data & pagination). */
+  const buildGroupTableSchema = (groupRows: any[]) => ({
+    ...dataTableSchema,
+    caption: undefined,
+    data: groupRows,
+    pagination: false,
+    searchable: false,
+  });
 
   // Build record detail title
   const detailTitle = schema.label
@@ -550,13 +568,39 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       ? `${schema.objectName.charAt(0).toUpperCase() + schema.objectName.slice(1)} Detail`
       : 'Record Detail';
 
+  // Render grid content: grouped (multiple tables with headers) or flat (single table)
+  const gridContent = isGrouped ? (
+    <div className="space-y-2">
+      {groups.map((group) => (
+        <div key={group.key} className="border rounded-md">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm font-medium text-left bg-muted/50 hover:bg-muted transition-colors"
+            onClick={() => toggleGroup(group.key)}
+          >
+            {group.collapsed
+              ? <ChevronRight className="h-4 w-4 shrink-0" />
+              : <ChevronDown className="h-4 w-4 shrink-0" />}
+            <span>{group.label}</span>
+            <span className="ml-auto text-xs text-muted-foreground">{group.rows.length}</span>
+          </button>
+          {!group.collapsed && (
+            <SchemaRenderer schema={buildGroupTableSchema(group.rows)} />
+          )}
+        </div>
+      ))}
+    </div>
+  ) : (
+    <SchemaRenderer schema={dataTableSchema} />
+  );
+
   // For split mode, wrap the grid in the ResizablePanelGroup
   if (navigation.isOverlay && navigation.mode === 'split') {
     return (
       <NavigationOverlay
         {...navigation}
         title={detailTitle}
-        mainContent={<SchemaRenderer schema={dataTableSchema} />}
+        mainContent={gridContent}
       >
         {(record) => (
           <div className="space-y-3">
@@ -576,7 +620,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
 
   return (
     <>
-      <SchemaRenderer schema={dataTableSchema} />
+      {gridContent}
       {navigation.isOverlay && (
         <NavigationOverlay
           {...navigation}

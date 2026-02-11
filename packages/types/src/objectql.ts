@@ -76,6 +76,8 @@ import type {
   ListColumn,
   SelectionConfig,
   PaginationConfig,
+  GroupingConfig,
+  RowColorConfig,
 } from '@objectstack/spec/ui';
 
 /**
@@ -383,6 +385,20 @@ export interface ObjectGridSchema extends BaseSchema {
    */
   editable?: boolean;
   
+  /**
+   * Grouping Configuration (Airtable-style)
+   * Groups rows by specified fields with collapsible sections.
+   * Aligned with @objectstack/spec GroupingConfigSchema.
+   */
+  grouping?: GroupingConfig;
+
+  /**
+   * Row Color Configuration (Airtable-style)
+   * Colors rows based on field values.
+   * Aligned with @objectstack/spec RowColorConfigSchema.
+   */
+  rowColor?: RowColorConfig;
+
   /**
    * Enable keyboard navigation (Grid mode)
    * Arrow keys, Tab, Enter for cell navigation

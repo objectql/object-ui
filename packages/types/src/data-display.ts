@@ -408,6 +408,11 @@ export interface DataTableSchema extends BaseSchema {
    * Called when a row is clicked
    */
   onRowClick?: (row: any) => void;
+  /**
+   * Dynamic row class name
+   * Function that returns a CSS class string for each row
+   */
+  rowClassName?: (row: any, index: number) => string | undefined;
 }
 
 /**

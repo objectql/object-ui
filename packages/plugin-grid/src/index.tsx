@@ -13,8 +13,11 @@ import { ObjectGrid } from './ObjectGrid';
 import { VirtualGrid } from './VirtualGrid';
 
 export { ObjectGrid, VirtualGrid };
+export { useRowColor } from './useRowColor';
+export { useGroupedData } from './useGroupedData';
 export type { ObjectGridProps } from './ObjectGrid';
 export type { VirtualGridProps, VirtualGridColumn } from './VirtualGrid';
+export type { GroupEntry, UseGroupedDataResult } from './useGroupedData';
 
 // Register object-grid component
 export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
