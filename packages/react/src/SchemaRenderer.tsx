@@ -7,7 +7,7 @@
  */
 
 import React, { forwardRef, useContext, useMemo, Component } from 'react';
-import { SchemaNode, ComponentRegistry, ExpressionEvaluator, isObjectUIError, type ObjectUIError, ERROR_CODES } from '@object-ui/core';
+import { SchemaNode, ComponentRegistry, ExpressionEvaluator, isObjectUIError, type ObjectUIError, ERROR_CODES, debugLog, debugTime, debugTimeEnd } from '@object-ui/core';
 import { SchemaRendererContext } from './context/SchemaRendererContext';
 import { resolveI18nLabel } from './utils/i18n';
 
@@ -129,10 +129,13 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
   if (!evaluatedSchema) return null;
   // If schema is just a string, render it as text
   if (typeof evaluatedSchema === 'string') return <>{evaluatedSchema}</>;
+
+  debugLog('schema', 'Rendering schema node', { type: evaluatedSchema.type, id: evaluatedSchema.id });
   
   const Component = ComponentRegistry.get(evaluatedSchema.type);
 
   if (!Component) {
+    debugLog('schema', 'Component not found in registry', { type: evaluatedSchema.type });
     const errorInfo = ERROR_CODES['OBJUI-001'];
     return (
       <div className="p-4 border border-red-500 rounded text-red-500 bg-red-50 my-2" role="alert">
@@ -166,7 +169,8 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
   // Extract AriaPropsSchema properties for accessibility
   const ariaProps = resolveAriaProps(evaluatedSchema);
 
-  return (
+  debugTime(`render:${evaluatedSchema.type}:${evaluatedSchema.id ?? 'anon'}`);
+  const rendered = (
     <SchemaErrorBoundary componentType={evaluatedSchema.type}>
       {React.createElement(Component, {
         schema: evaluatedSchema,
@@ -180,5 +184,7 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
       })}
     </SchemaErrorBoundary>
   );
+  debugTimeEnd(`render:${evaluatedSchema.type}:${evaluatedSchema.id ?? 'anon'}`);
+  return rendered;
 });
 SchemaRenderer.displayName = 'SchemaRenderer';
