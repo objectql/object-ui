@@ -6,7 +6,7 @@
  * validate Tailwind responsive class presence on layout components.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
@@ -30,7 +30,7 @@ vi.mock('react-router-dom', () => ({
 describe('Responsive Layout – Tailwind class assertions', () => {
   describe('Sidebar responsive classes', () => {
     it('sidebar container uses responsive width classes', () => {
-      const { container } = render(
+      render(
         <aside
           data-testid="sidebar"
           className="hidden md:flex md:w-64 lg:w-72 flex-col border-r bg-background h-full"

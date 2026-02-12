@@ -14,7 +14,7 @@
  * Part of P2.3 Accessibility & Inclusive Design roadmap.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 import React from 'react';
