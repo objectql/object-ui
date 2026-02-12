@@ -2,7 +2,7 @@
 
 The standard runtime UI for ObjectStack applications. This package provides the **Console** — a full-featured enterprise admin interface that renders from JSON metadata alone, requiring zero custom pages.
 
-> **Version:** 0.5.1 &nbsp;|&nbsp; **Spec:** @objectstack/spec v2.0.7 &nbsp;|&nbsp; [Full Roadmap →](./CONSOLE_ROADMAP.md)
+> **Version:** 0.5.1 &nbsp;|&nbsp; **Spec:** @objectstack/spec v3.0.0 &nbsp;|&nbsp; [Full Roadmap →](./CONSOLE_ROADMAP.md)
 
 ## Features
 

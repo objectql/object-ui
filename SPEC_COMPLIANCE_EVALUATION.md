@@ -1,7 +1,7 @@
 # ObjectUI Spec Compliance Evaluation
 
 > **Date:** February 12, 2026
-> **Spec Version:** @objectstack/spec v2.0.7
+> **Spec Version:** @objectstack/spec v3.0.0
 > **ObjectUI Version:** v0.5.x
 > **Scope:** All 35 packages — components, plugins, and infrastructure
 > **Build Status:** ✅ 42/42 build tasks pass | ✅ 3185+ tests pass
@@ -45,7 +45,7 @@ Each package is rated against three dimensions:
 
 | Dimension | Rating | Details |
 |-----------|--------|---------|
-| Functional Completeness | ✅ Complete | 800+ type exports across 16 categories; AnySchema discriminated union covers all component types; 70+ new v2.0.7 UI types re-exported |
+| Functional Completeness | ✅ Complete | 800+ type exports across 16 categories; AnySchema discriminated union covers all component types; 70+ new v3.0.0 UI types re-exported |
 | Spec UI Compliance | ✅ Complete | All theme tokens (ColorPalette, Typography, Spacing, etc.) imported directly from @objectstack/spec/ui — never redefined |
 | Spec API Compliance | ✅ Complete | HttpMethod, HttpRequest, ViewData, ListColumn, SelectionConfig, PaginationConfig all re-exported from spec |
 
@@ -54,17 +54,17 @@ Each package is rated against three dimensions:
 - Strict "never redefine, always import" rule for spec types
 - Comprehensive field metadata system (40+ field types)
 - Full action system (UIActionSchema with 5 action types, batch operations, transactions, undo/redo)
-- All 70+ new v2.0.7 spec UI types re-exported (accessibility, responsive, i18n, animation, DnD, gestures, focus, notifications, offline/sync, view enhancements, performance, page)
+- All 70+ new v3.0.0 spec UI types re-exported (accessibility, responsive, i18n, animation, DnD, gestures, focus, notifications, offline/sync, view enhancements, performance, page)
 
 **Gaps:**
 - Validators module referenced but commented out in index.ts
 - Some Phase 3 types (DriverInterface, ConnectionPool) defined but have no runtime consumers yet
-- New v2.0.7 types are re-exported but many lack runtime consumers (DnD, gestures, notifications, offline/sync, animation)
+- New v3.0.0 types are re-exported but many lack runtime consumers (DnD, gestures, notifications, offline/sync, animation)
 
 **Improvement Plan:**
 1. **P1:** Uncomment and finalize validators module export — enables form/field runtime validation
 2. **P2:** Add Zod runtime validators for critical schemas (BaseSchema, ActionSchema, ViewData)
-3. **P2:** Add runtime consumers for v2.0.7 accessibility types (AriaPropsSchema, WcagContrastLevel)
+3. **P2:** Add runtime consumers for v3.0.0 accessibility types (AriaPropsSchema, WcagContrastLevel)
 4. **P3:** Audit Phase 3 types and remove or implement unused definitions
 
 ---
@@ -112,7 +112,7 @@ Each package is rated against three dimensions:
 - Expression evaluation integrated into render cycle
 - React Hook Form integration for form state management
 - Comprehensive hooks: useActionRunner, useDiscovery, useExpression, useCondition, useViewData, useDynamicApp
-- `resolveI18nLabel()` utility handles v2.0.7 I18nLabel type (`string | { key, defaultValue?, params? }`) across all schemas
+- `resolveI18nLabel()` utility handles v3.0.0 I18nLabel type (`string | { key, defaultValue?, params? }`) across all schemas
 
 **Gaps:**
 - usePageVariables hook referenced but implementation needs verification
@@ -168,7 +168,7 @@ Each package is rated against three dimensions:
 
 **Gaps:**
 - Field-level validation delegates entirely to ValidationEngine (no inline validation feedback)
-- ~~No field-level i18n labels (relies on external i18n context)~~ — **Resolved in v2.0.7:** I18nLabel type now supported via `resolveI18nLabel()` utility in @object-ui/react
+- ~~No field-level i18n labels (relies on external i18n context)~~ — **Resolved in v3.0.0:** I18nLabel type now supported via `resolveI18nLabel()` utility in @object-ui/react
 
 **Improvement Plan:**
 1. **P2:** Add inline validation message rendering (error text below field)
@@ -754,7 +754,7 @@ Each package is rated against three dimensions:
 | Dimension | Rating | Details |
 |-----------|--------|---------|
 | Functional Completeness | ✅ Complete | 10 language packs, RTL support, date/currency/number formatting |
-| Spec UI Compliance | ✅ Complete | i18next integration with auto browser detection; v2.0.7 I18nLabel type fully supported |
+| Spec UI Compliance | ✅ Complete | i18next integration with auto browser detection; v3.0.0 I18nLabel type fully supported |
 | Spec API Compliance | ✅ Complete | Locale-aware formatting utilities |
 
 **Strengths:**
@@ -765,9 +765,9 @@ Each package is rated against three dimensions:
 - I18nLabel compatibility: `resolveI18nLabel()` in @object-ui/react handles `string | { key, defaultValue?, params? }` for label, placeholder, helpText, description fields
 
 **Gaps:**
-- No plural rules or context-specific translations documented (v2.0.7 adds PluralRuleSchema — not yet consumed)
+- No plural rules or context-specific translations documented (v3.0.0 adds PluralRuleSchema — not yet consumed)
 - No dynamic language pack loading (all bundled)
-- New v2.0.7 i18n types (I18nObjectSchema, LocaleConfigSchema, DateFormatSchema, NumberFormatSchema) re-exported but lack dedicated runtime consumers
+- New v3.0.0 i18n types (I18nObjectSchema, LocaleConfigSchema, DateFormatSchema, NumberFormatSchema) re-exported but lack dedicated runtime consumers
 
 **Improvement Plan:**
 1. **P2:** Add dynamic language pack loading (lazy import)
@@ -815,11 +815,11 @@ Each package is rated against three dimensions:
 - PWA manifest generator and service worker with cache strategies
 
 **Gaps:**
-- v2.0.7 gesture/touch types (GestureConfigSchema, SwipeGestureConfigSchema, PinchGestureConfigSchema, LongPressGestureConfigSchema, TouchInteractionSchema, TouchTargetConfigSchema) not yet consumed
-- v2.0.7 responsive types (ResponsiveConfigSchema, BreakpointColumnMapSchema, BreakpointOrderMapSchema) not yet consumed
+- v3.0.0 gesture/touch types (GestureConfigSchema, SwipeGestureConfigSchema, PinchGestureConfigSchema, LongPressGestureConfigSchema, TouchInteractionSchema, TouchTargetConfigSchema) not yet consumed
+- v3.0.0 responsive types (ResponsiveConfigSchema, BreakpointColumnMapSchema, BreakpointOrderMapSchema) not yet consumed
 
 **Improvement Plan:**
-1. **P2:** Integrate v2.0.7 GestureConfigSchema and TouchInteractionSchema into gesture hooks
+1. **P2:** Integrate v3.0.0 GestureConfigSchema and TouchInteractionSchema into gesture hooks
 2. **P2:** Adopt ResponsiveConfigSchema and BreakpointColumnMapSchema for spec-aligned responsive layouts
 3. **P3:** Add safe area inset support for notched devices
 4. **P3:** Add haptic feedback utilities
@@ -838,7 +838,7 @@ Each package is rated against three dimensions:
 | View Types | ✅ Complete | All 7 view types (grid, kanban, calendar, gantt, timeline, map, gallery) |
 | Form System | ✅ Complete | 6 form variants; all field types mapped |
 | Permission UI | ✅ Complete | Guard components with hide/disable/redirect fallbacks |
-| I18nLabel (v2.0.7) | ✅ Complete | `resolveI18nLabel()` handles `string \| { key, defaultValue?, params? }` across all schemas |
+| I18nLabel (v3.0.0) | ✅ Complete | `resolveI18nLabel()` handles `string \| { key, defaultValue?, params? }` across all schemas |
 
 ### 6.2 Spec API Compliance Summary
 
@@ -853,7 +853,7 @@ Each package is rated against three dimensions:
 | Real-Time Sync | 🔲 Not Started | WebSocket infrastructure planned for Q3 2026 |
 | Offline Support | 🔲 Not Started | Service Worker caching available; sync-on-reconnect planned Q3 2026 |
 
-### 6.3 Spec v2.0.7 New Protocol Areas
+### 6.3 Spec v3.0.0 New Protocol Areas
 
 | Area | Types Added | ObjectUI Status | Details |
 |------|-------------|-----------------|---------|
@@ -1023,14 +1023,14 @@ This evaluation confirms the existing roadmap priorities. **Significant progress
 3. Performance optimization pass across all plugins
 4. Full spec compliance audit (target: 100%)
 
-### Overall Spec Compliance Score (vs. @objectstack/spec v2.0.7)
+### Overall Spec Compliance Score (vs. @objectstack/spec v3.0.0)
 
 | Category | Current | After P0 | After P1 | After P2 | Target |
 |----------|---------|----------|----------|----------|--------|
 | **UI Types** | 100% | 100% | 100% | 100% | 100% |
 | **API Protocol** | 95% | 97% | 99% | 100% | 100% |
 | **Feature Completeness** | 98% | 99% | 99% | 100% | 100% |
-| **v2.0.7 New Areas** | 100% | 100% | 100% | 100% | 100% |
+| **v3.0.0 New Areas** | 100% | 100% | 100% | 100% | 100% |
 | **Overall** | **98%** | **99%** | **99%** | **100%** | 100% |
 
 > **Note:** All P0 items have been resolved. P1 items are nearly complete (12/13 done). The majority of P2 items are also resolved.

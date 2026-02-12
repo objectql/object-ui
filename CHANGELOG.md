@@ -9,8 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Upgraded all `@objectstack/*` packages from v2.0.0 to v2.0.1 (latest)
-- Updated spec version references in ROADMAP.md, CONSOLE_ROADMAP.md, and README files to reflect @objectstack/spec v2.0.1
+- **@objectstack v3.0.0 Upgrade**: Upgraded all `@objectstack/*` packages from `^2.0.7` to `^3.0.0` across 13 package.json files
+- **Breaking change migrations**:
+  - `Hub` namespace → `Cloud` in @object-ui/types re-exports
+  - `definePlugin` removed (only `defineStack` remains)
+  - `PaginatedResult.value` → `.records` across all data plugins and adapters
+  - `PaginatedResult.count` → `.total` in data-objectstack adapter
+  - `client.meta.getObject()` → `client.meta.getItem('object', name)` in data adapter
+- Updated spec version references across ROADMAP.md, SPEC_COMPLIANCE_EVALUATION.md, OBJECTSTACK_CLIENT_EVALUATION.md, and console docs
+- Updated ROADMAP with v3.0.0 migration table and next phase roadmap (N.1-N.5)
+- Updated namespace-exports tests to reflect v3.0.0 exports
 
 ### Added
 

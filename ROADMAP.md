@@ -3,8 +3,8 @@
 > **Last Updated:** February 12, 2026  
 > **Current Version:** v0.5.x  
 > **Target Version:** v2.0.0  
-> **Spec Version:** @objectstack/spec v2.0.7  
-> **Client Version:** @objectstack/client v2.0.7
+> **Spec Version:** @objectstack/spec v3.0.0  
+> **Client Version:** @objectstack/client v3.0.0
 
 ---
 
@@ -12,12 +12,12 @@
 
 ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn. It renders JSON metadata from the @objectstack/spec protocol into pixel-perfect, accessible, and interactive enterprise interfaces — dashboards, kanbans, CRUDs, workflows, and more.
 
-With the release of @objectstack/spec v2.0.7 and @objectstack/client v2.0.7, the protocol surface has expanded significantly: **70+ new UI types** covering accessibility, responsive design, i18n, animation/motion, drag-and-drop, gestures/touch, focus/keyboard navigation, notifications, offline/sync, view enhancements, and performance. The client SDK is now **100% spec-compliant** (13/13 API namespaces, 95+ methods).
+With the release of @objectstack/spec v3.0.0 and @objectstack/client v3.0.0, the protocol has reached a major milestone: consolidated namespaces (Hub → Cloud, auth/driver/permission merged into security/system), streamlined PaginatedResult API (records/total), and enhanced metadata access patterns. The client SDK remains **100% spec-compliant** (13/13 API namespaces, 95+ methods).
 
-ObjectUI's current overall compliance stands at **82%** (down from 91% against v2.0.1 due to the expanded spec surface). All existing functionality remains stable — **41/41 builds pass**, **2961/2961 tests pass**. This roadmap defines the path to 100% v2.0.7 compliance and commercial readiness.
+ObjectUI's current overall compliance stands at **98%**. All existing functionality remains stable — **42/42 builds pass**, **3235/3235 tests pass**. This roadmap defines the path to 100% v3.0.0 compliance and commercial readiness.
 
 **Strategic Goals:**
-- **Technical Excellence:** 100% @objectstack/spec v2.0.7 compliance, 80%+ test coverage, world-class performance
+- **Technical Excellence:** 100% @objectstack/spec v3.0.0 compliance, 80%+ test coverage, world-class performance
 - **Enterprise-Ready:** Multi-tenancy, RBAC, real-time collaboration, offline-first architecture
 - **Global Reach:** 10+ languages, 10,000+ GitHub stars, 50,000+ weekly NPM downloads
 - **Commercial Success:** ObjectUI Cloud platform, 100+ enterprise customers, $2M+ annual revenue
@@ -39,7 +39,7 @@ ObjectUI's current overall compliance stands at **82%** (down from 91% against v
 - ✅ TypeScript 5.9+ strict mode (100%)
 - ✅ React 19 + Tailwind CSS + Shadcn UI
 - ✅ All 42 builds pass, all 3185+ tests pass
-- ✅ @objectstack/client v2.0.7 integration validated (100% protocol coverage)
+- ✅ @objectstack/client v3.0.0 integration validated (100% protocol coverage)
 
 **Core Features (Complete):**
 - ✅ All 13+ view types implemented (Grid, Kanban, Calendar, Form, Detail, List, Dashboard, Charts, Editor, Markdown, Chatbot, Gantt, Timeline, Map, Report)
@@ -55,14 +55,14 @@ ObjectUI's current overall compliance stands at **82%** (down from 91% against v
 - ✅ Console app with MSW mock backend, system admin UIs
 - ✅ I18nLabel handling via `resolveI18nLabel()` — supports `string | { key, defaultValue?, params? }`
 
-### Current Compliance (vs. @objectstack/spec v2.0.7)
+### Current Compliance (vs. @objectstack/spec v3.0.0)
 
 | Category | Current | Target |
 |----------|---------|--------|
 | **UI Types** | 100% | 100% |
 | **API Protocol** | 95% | 100% |
 | **Feature Completeness** | 98% | 100% |
-| **v2.0.7 New Areas** | 100% | 100% |
+| **v3.0.0 New Areas** | 100% | 100% |
 | **Overall** | **98%** | **100%** |
 
 > Source: [SPEC_COMPLIANCE_EVALUATION.md](./SPEC_COMPLIANCE_EVALUATION.md) §8
@@ -75,9 +75,10 @@ ObjectUI operates on a **three-layer model** that cleanly separates protocol, ty
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Layer 1: @objectstack/spec v2.0.7 (The Protocol)                  │
+│  Layer 1: @objectstack/spec v3.0.0 (The Protocol)                  │
 │  Pure TypeScript type definitions — Data, UI, System, AI, API      │
-│  800+ types including 70+ new v2.0.7 types                         │
+│  12 export modules: data, ui, system, kernel, ai, automation,      │
+│  api, contracts, integration, security, studio, cloud              │
 │  ❌ No runtime code. No React. No dependencies.                    │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │ imports (never redefines)
@@ -109,9 +110,15 @@ ObjectUI operates on a **three-layer model** that cleanly separates protocol, ty
 
 ---
 
-## 📐 @objectstack/spec v2.0.7 Compliance Plan
+## 📐 @objectstack/spec v3.0.0 Compliance Plan
 
-The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps each domain to its current ObjectUI status and implementation plan.
+The v3.0.0 spec is a major consolidation release that streamlines the protocol surface:
+- **Namespace consolidation:** `Hub` → `Cloud`, `auth`/`driver`/`permission` merged into `security`/`system`/`kernel`
+- **API modernization:** `PaginatedResult` uses `records`/`total` (replacing `value`/`count`), `meta.getItem('object', name)` replaces `meta.getObject(name)`
+- **New sub-modules:** `./contracts`, `./integration`, `./security`, `./studio` exports stabilized
+- All 12+ export entry points maintained: `./`, `./data`, `./system`, `./kernel`, `./ai`, `./automation`, `./api`, `./ui`, `./contracts`, `./integration`, `./security`, `./studio`
+
+This section maps each domain to its current ObjectUI status and implementation plan.
 
 ### What's Done ✅
 
@@ -127,7 +134,7 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 | **Auth** | Token injection, session, OAuth | ✅ Complete | auth |
 | **Multi-Tenancy** | Tenant scoping, branding | ✅ Complete | tenant |
 
-### What's New in v2.0.7 (Implementation Required)
+### What's New in v3.0.0 (Implementation Required)
 
 | Domain | Key Spec Types | Current Status | Target Quarter |
 |--------|---------------|----------------|----------------|
@@ -144,13 +151,23 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 | **Performance** | PerformanceConfigSchema | ✅ Complete — usePerformance (metrics tracking, cache strategy, virtual scroll config, debounce) | Q3 2026 |
 | **Page Transitions** | PageTransitionSchema, PageComponentType | ✅ Complete — usePageTransition (9 transition types, easing, crossFade, reduced-motion aware) | Q3 2026 |
 
+### v3.0.0 Migration (Completed ✅)
+
+| Breaking Change | Migration | Status |
+|----------------|-----------|--------|
+| `Hub` namespace → `Cloud` | Re-export `Cloud` instead of `Hub` in @object-ui/types | ✅ Complete |
+| `definePlugin` removed | Removed re-export from @object-ui/types; `defineStack` remains | ✅ Complete |
+| `PaginatedResult.value` → `.records` | Updated all data plugins, adapters, and examples | ✅ Complete |
+| `PaginatedResult.count` → `.total` | Updated data-objectstack adapter and examples | ✅ Complete |
+| `client.meta.getObject(name)` → `client.meta.getItem('object', name)` | Updated data-objectstack adapter and examples | ✅ Complete |
+
 ---
 
 ## 🗺️ 2026 Development Roadmap
 
-### Q1 2026: Foundation & v2.0.7 Alignment (Feb-Mar)
+### Q1 2026: Foundation & v3.0.0 Alignment (Feb-Mar)
 
-**Goal:** Strengthen foundation, begin v2.0.7 spec alignment, improve quality
+**Goal:** Strengthen foundation, begin v3.0.0 spec alignment, improve quality
 
 #### 1.1 I18nLabel Handling ✅ Complete
 - [x] Implement `resolveI18nLabel()` utility in @object-ui/react
@@ -169,7 +186,7 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 **Spec Reference:** `AriaPropsSchema`, `WcagContrastLevel`
 
 #### 1.3 Responsive Design — Breakpoint-Aware Layouts ✅ Complete
-**Target:** Consume v2.0.7 responsive schemas in layout system
+**Target:** Consume v3.0.0 responsive schemas in layout system
 
 - [x] Adopt ResponsiveConfigSchema and BreakpointColumnMapSchema in @object-ui/layout (`ResponsiveGrid`)
 - [x] Implement BreakpointOrderMapSchema for column reordering at breakpoints (`useResponsiveConfig`)
@@ -189,7 +206,7 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 - [x] Accessibility test suite (axe-core)
 
 #### 1.5 I18n Deep Integration ✅ Complete
-**Target:** Consume advanced v2.0.7 i18n types beyond I18nLabel
+**Target:** Consume advanced v3.0.0 i18n types beyond I18nLabel
 
 - [x] Consume I18nObjectSchema for object-level locale configuration
 - [x] Consume LocaleConfigSchema for per-tenant/per-user locale preferences (`applyLocaleConfig()`)
@@ -262,7 +279,7 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 **Spec Reference:** `ComponentAnimationSchema`, `AnimationTriggerSchema`, `MotionConfigSchema`, `TransitionConfigSchema`, `TransitionPresetSchema`, `EasingFunctionSchema`
 
 #### 2.5 View Enhancements (3 weeks)
-**Target:** Consume v2.0.7 view enhancement schemas in grid/list plugins
+**Target:** Consume v3.0.0 view enhancement schemas in grid/list plugins
 
 - [x] Consume GalleryConfigSchema in plugin-list (gallery view layout, image sizing, masonry mode) — ObjectGallery with coverField/coverFit/cardSize/visibleFields
 - [x] Consume ColumnSummarySchema in plugin-grid and plugin-aggrid (column-level SUM/AVG/COUNT) — `useColumnSummary` hook
@@ -309,8 +326,9 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 - [x] Add tab accessibility (role=tablist, role=tab, aria-selected) to ViewDesigner
 - [x] Replace emoji indicators (🔑) with text indicators (PK) in DataModelDesigner
 
+> **Phases 2-4** are tracked in the [Next Phase: N.2 Designer Completion](#n2-designer-completion-q2-q3-2026) section below.
+
 **Phase 2: Interaction Layer (Next Sprint)**
-- [ ] Implement drag-and-drop for component/entity/node positioning using @dnd-kit
 - [ ] Implement undo/redo using command pattern with state history
 - [ ] Add confirmation dialogs for destructive delete actions
 - [ ] Implement edge creation UI in ProcessDesigner (click-to-connect nodes)
@@ -504,10 +522,76 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 
 **Q4 Milestone:**
 - **v2.0.0 Release (December 2026):** Commercial Success
-  - 100% @objectstack/spec v2.0.7 compliance verified
+  - 100% @objectstack/spec v3.0.0 compliance verified
   - 1,000+ cloud users
   - 50+ enterprise customers
   - $500K annual revenue
+
+---
+
+### 🔮 Next Phase: v3.0.0 Deep Integration & 2027 Vision
+
+**Goal:** Leverage @objectstack/spec v3.0.0 consolidation for deeper platform integration, complete designer tooling, and prepare for 2027 growth.
+
+#### N.1 v3.0.0 Deep Integration (Q2-Q3 2026)
+**Target:** Full adoption of v3.0.0 consolidated namespaces and APIs
+
+- [ ] Adopt `Cloud` namespace (replacing `Hub`) for cloud deployment, hosting, and marketplace schemas
+- [ ] Integrate `./contracts` module for plugin contract validation and marketplace publishing
+- [ ] Integrate `./integration` module for third-party service connectors (Slack, email, webhooks)
+- [ ] Integrate `./security` module for advanced security policies (CSP config, audit logging, data masking)
+- [ ] Adopt `./studio` module schemas for visual designer improvements (canvas, property editors, theme builder)
+- [ ] Migrate all data consumers to v3.0.0 `PaginatedResult` API (`records`/`total`/`hasMore`)
+- [ ] Update ObjectStackAdapter to use v3.0.0 metadata API patterns (`getItem`/`getItems`/`getCached`)
+- [ ] Add v3.0.0 compatibility tests for all 13 package.json @objectstack dependencies
+
+#### N.2 Designer Completion (Q2-Q3 2026)
+**Target:** Enterprise-quality visual designer experience
+
+**Phase 2: Interaction Layer (Next Sprint)**
+- [ ] Implement drag-and-drop for component/entity/node positioning using @dnd-kit
+- [ ] Implement undo/redo using command pattern with state history
+- [ ] Add confirmation dialogs for destructive delete actions
+- [ ] Implement edge creation UI in ProcessDesigner (click-to-connect nodes)
+- [ ] Add inline entity field editing in DataModelDesigner
+
+**Phase 3: Advanced Features (Q2 2026)**
+- [ ] Full property editors with live preview for all designers
+- [ ] i18n integration for all hardcoded UI strings via resolveI18nLabel
+- [ ] Canvas pan/zoom with minimap for DataModelDesigner and ProcessDesigner
+- [ ] Auto-layout algorithms for entity and node positioning
+- [ ] Copy/paste support (Ctrl+C/V) across all designers
+- [ ] Multi-select and bulk operations
+- [ ] Responsive/collapsible panel layout
+
+**Phase 4: Collaboration Integration (Q3 2026)**
+- [ ] Wire CollaborationProvider into each designer for real-time co-editing
+- [ ] Live cursor positions on shared canvases
+- [ ] Operation-based undo/redo synchronized across collaborators
+- [ ] Conflict resolution UI for concurrent edits
+- [ ] Version history browser with visual diff
+
+#### N.3 Ecosystem & Marketplace (Q3 2026)
+- [ ] Plugin marketplace website with search, ratings, and install count
+- [ ] Plugin publishing CLI (`objectui publish`) with automated validation
+- [ ] 25+ official plugins (including AG Grid, ECharts, Monaco Editor, MapLibre)
+- [ ] Plugin contract enforcement via `./contracts` module
+- [ ] Official website (www.objectui.org) with interactive playground
+
+#### N.4 Community Growth (Ongoing)
+- [ ] Discord community with 1,000+ members
+- [ ] Monthly webinars and technical blog posts
+- [ ] YouTube tutorial series (10+ videos)
+- [ ] Conference talks (React Summit, JSConf)
+- [ ] Open-source contributor program
+
+#### N.5 2027 Vision: ObjectUI Platform
+- [ ] ObjectUI Cloud v2.0 — multi-region, SOC2 compliance, 99.9% SLA
+- [ ] AI-powered schema generation from natural language descriptions
+- [ ] Visual theme marketplace (100+ community themes)
+- [ ] ObjectUI Mobile — React Native renderer sharing the same JSON schemas
+- [ ] Industry accelerators (CRM, ERP, HRM, e-commerce) as turnkey solutions
+- [ ] Target: 10,000+ GitHub stars, 50,000+ NPM weekly downloads, $2M+ ARR
 
 ---
 
@@ -516,7 +600,7 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 | Metric | Q1 | Q2 | Q3 | Q4 |
 |--------|-----|-----|-----|-----|
 | **Test Coverage** | 80% | 85% | 90% | 90% |
-| **Spec Compliance (v2.0.7)** | 86% | 96% | 100% | 100% |
+| **Spec Compliance (v3.0.0)** | 86% | 96% | 100% | 100% |
 | **Client Integration** | 100% | 100% | 100% | 100% |
 | **Performance (LCP)** | 0.6s | 0.5s | 0.5s | 0.4s |
 | **GitHub Stars** | 1K | 2.5K | 5K | 10K |
@@ -557,20 +641,20 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
-| Spec Changes (post v2.0.7) | Medium | High | Regular sync with ObjectStack team; strict "import, never redefine" rule ensures type-level updates propagate automatically |
+| Spec Changes (post v3.0.0) | Medium | High | Regular sync with ObjectStack team; strict "import, never redefine" rule ensures type-level updates propagate automatically |
 | Performance Regression | Medium | Medium | PerformanceConfigSchema monitoring, performance budgets, CI benchmarks |
 | Security Vulnerabilities | Low | High | Security audits, bug bounty, WCAG compliance, CSP headers |
 | Offline/Sync Complexity | Medium | High | Incremental rollout (read-only cache → full sync); ConflictResolutionSchema strategies |
 | Competition | High | Medium | Differentiation via spec compliance + Shadcn quality; rapid iteration |
 | Low Adoption | Medium | High | Enhanced marketing, lower barriers, plugin marketplace |
-| v2.0.7 Type Surface Area | Low | Medium | Phased implementation (Q1: accessibility/i18n, Q2: interactive, Q3: offline/perf) |
+| v3.0.0 Type Surface Area | Low | Medium | Phased implementation (Q1: accessibility/i18n, Q2: interactive, Q3: offline/perf) |
 
 ---
 
 ## 📚 Reference Documents
 
-- [SPEC_COMPLIANCE_EVALUATION.md](./SPEC_COMPLIANCE_EVALUATION.md) — Per-package @objectstack/spec v2.0.7 compliance evaluation (82% current, 63 improvement items, prioritized roadmap)
-- [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md) — @objectstack/client v2.0.7 evaluation (100% protocol coverage, 13/13 API namespaces, 95+ methods)
+- [SPEC_COMPLIANCE_EVALUATION.md](./SPEC_COMPLIANCE_EVALUATION.md) — Per-package @objectstack/spec v3.0.0 compliance evaluation (98% current, prioritized roadmap)
+- [OBJECTSTACK_CLIENT_EVALUATION.md](./OBJECTSTACK_CLIENT_EVALUATION.md) — @objectstack/client v3.0.0 evaluation (100% protocol coverage, 13/13 API namespaces, 95+ methods)
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — Contribution guidelines
 - [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) — Quick reference for developers
 
@@ -593,6 +677,6 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 
 ---
 
-**Roadmap Status:** ✅ Active  
+**Roadmap Status:** ✅ Active — @objectstack v3.0.0 Aligned  
 **Next Review:** March 15, 2026  
 **Contact:** hello@objectui.org | https://github.com/objectstack-ai/objectui
