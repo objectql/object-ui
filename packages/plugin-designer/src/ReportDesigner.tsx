@@ -6,15 +6,91 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { ReportDesignerSection, ReportDesignerElement } from '@object-ui/types';
-import { FileText, Plus, Trash2, Type, ImageIcon, BarChart3, Table2 } from 'lucide-react';
+import {
+  FileText,
+  Plus,
+  Trash2,
+  Type,
+  ImageIcon,
+  BarChart3,
+  Table2,
+  Undo2,
+  Redo2,
+  Copy,
+  Clipboard,
+  PanelRightClose,
+} from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useUndoRedo } from './hooks/useUndoRedo';
+import { useConfirmDialog } from './hooks/useConfirmDialog';
+import { useMultiSelect } from './hooks/useMultiSelect';
+import { useClipboard } from './hooks/useClipboard';
+import { ConfirmDialog } from './components/ConfirmDialog';
+import { PropertyEditor, type PropertyField } from './components/PropertyEditor';
+import { useCollaboration } from './CollaborationProvider';
 
 function cn(...inputs: (string | undefined | false)[]) {
   return twMerge(clsx(inputs));
 }
+
+// ---------------------------------------------------------------------------
+// i18n-ready label constants
+// ---------------------------------------------------------------------------
+const LABELS = {
+  untitledReport: 'Untitled Report',
+  reportCanvas: 'Report canvas',
+  properties: 'Properties',
+  propertiesPanel: 'Properties panel',
+  designerToolbar: 'Report designer toolbar',
+  selectElementPrompt: 'Select an element to edit its properties',
+  addElementsPrompt: 'Add elements using the buttons above',
+  addText: 'Add Text',
+  addField: 'Add Field',
+  addImage: 'Add Image',
+  addChart: 'Add Chart',
+  addTable: 'Add Table',
+  undo: 'Undo',
+  undoShortcut: 'Undo (Ctrl+Z)',
+  redo: 'Redo',
+  redoShortcut: 'Redo (Ctrl+Shift+Z)',
+  copy: 'Copy',
+  copyShortcut: 'Copy (Ctrl+C)',
+  paste: 'Paste',
+  pasteShortcut: 'Paste (Ctrl+V)',
+  deleteSelected: 'Delete selected',
+  deleteElement: 'Delete element',
+  deleteElementsTitle: 'Delete elements',
+  deleteElementMessage: (count: number) =>
+    `Are you sure you want to delete ${count} element${count > 1 ? 's' : ''}?`,
+  collapsePanel: 'Collapse panel',
+  expandPanel: 'Expand panel',
+  collaborationConnected: 'Connected',
+  sectionHeader: 'Report Header',
+  sectionPageHeader: 'Page Header',
+  sectionGroupHeader: 'Group Header',
+  sectionDetail: 'Detail',
+  sectionGroupFooter: 'Group Footer',
+  sectionPageFooter: 'Page Footer',
+  sectionFooter: 'Report Footer',
+  elementText: 'Text',
+  elementImage: '🖼 Image',
+  elementChart: '📊 Chart',
+  elementTable: '📋 Table',
+  propLabel: 'Label',
+  propX: 'X',
+  propY: 'Y',
+  propWidth: 'Width',
+  propHeight: 'Height',
+  propText: 'Text',
+  propField: 'Field',
+  groupPosition: 'Position',
+  groupSize: 'Size',
+  groupContent: 'Content',
+  groupGeneral: 'General',
+} as const;
 
 export interface ReportDesignerProps {
   /** Report name */
@@ -51,12 +127,18 @@ const PAGE_SIZES = {
   Tabloid: { width: 792, height: 1224 },
 };
 
+const DEFAULT_SECTIONS: ReportDesignerSection[] = [
+  { type: 'header', height: 80, elements: [] },
+  { type: 'detail', height: 400, elements: [], repeat: true },
+  { type: 'footer', height: 60, elements: [] },
+];
+
 /**
  * Report designer for creating printable report layouts.
  * Supports sections (header, detail, footer) with drag-and-drop elements.
  */
 export function ReportDesigner({
-  reportName = 'Untitled Report',
+  reportName = LABELS.untitledReport,
   objectName,
   pageSize = 'A4',
   orientation = 'portrait',
@@ -68,22 +150,87 @@ export function ReportDesigner({
   onSectionsChange,
   className,
 }: ReportDesignerProps) {
-  const [sections, setSections] = useState<ReportDesignerSection[]>(
-    initialSections.length > 0
-      ? initialSections
-      : [
-          { type: 'header', height: 80, elements: [] },
-          { type: 'detail', height: 400, elements: [], repeat: true },
-          { type: 'footer', height: 60, elements: [] },
-        ],
+  // -- Undo / Redo ----------------------------------------------------------
+  const history = useUndoRedo<ReportDesignerSection[]>(
+    initialSections.length > 0 ? initialSections : DEFAULT_SECTIONS,
   );
-  const [selectedElement, setSelectedElement] = useState<string | null>(null);
+  const sections = history.current;
+
+  const pushSections = useCallback(
+    (next: ReportDesignerSection[]) => {
+      history.push(next);
+      onSectionsChange?.(next);
+    },
+    [history, onSectionsChange],
+  );
+
+  // -- Multi-select ---------------------------------------------------------
+  const multiSelect = useMultiSelect();
+
+  const selectedId = useMemo(() => {
+    const ids = Array.from(multiSelect.selectedIds);
+    return ids.length > 0 ? ids[0] : null;
+  }, [multiSelect.selectedIds]);
+
+  // -- Clipboard ------------------------------------------------------------
+  const clipboard = useClipboard<ReportDesignerElement[]>();
+
+  // -- Confirm dialog -------------------------------------------------------
+  const confirmDialog = useConfirmDialog();
+
+  // -- Collaboration (optional) ---------------------------------------------
+  const collaboration = useCollaboration();
+
+  const broadcastOp = useCallback(
+    (op: { type: 'insert' | 'update' | 'delete' | 'move'; elementId: string; data: Record<string, unknown> }) => {
+      if (!collaboration) return;
+      collaboration.sendOperation({ ...op, userId: collaboration.currentUserId ?? '' });
+    },
+    [collaboration],
+  );
+
+  // -- Collapsible property panel -------------------------------------------
+  const [propertyPanelOpen, setPropertyPanelOpen] = useState(true);
+
+  // -- Drag-and-drop state --------------------------------------------------
+  const dragRef = useRef<{
+    id: string;
+    sectionIndex: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // -- Page dimensions ------------------------------------------------------
   const pageDims = PAGE_SIZES[pageSize];
   const pageWidth = orientation === 'landscape' ? pageDims.height : pageDims.width;
   const pageHeight = orientation === 'landscape' ? pageDims.width : pageDims.height;
 
+  // -- Section label helper -------------------------------------------------
+  const getSectionLabel = (type: string) => {
+    switch (type) {
+      case 'header': return LABELS.sectionHeader;
+      case 'page-header': return LABELS.sectionPageHeader;
+      case 'group-header': return LABELS.sectionGroupHeader;
+      case 'detail': return LABELS.sectionDetail;
+      case 'group-footer': return LABELS.sectionGroupFooter;
+      case 'page-footer': return LABELS.sectionPageFooter;
+      case 'footer': return LABELS.sectionFooter;
+      default: return type;
+    }
+  };
+
+  // -- Find selected element data -------------------------------------------
+  const selectedElementData = useMemo(
+    () =>
+      selectedId
+        ? sections.flatMap((s) => s.elements).find((e: ReportDesignerElement) => e.id === selectedId)
+        : null,
+    [selectedId, sections],
+  );
+
+  // -- Add element ----------------------------------------------------------
   const handleAddElement = useCallback(
     (sectionIndex: number, elementType: ReportDesignerElement['type']) => {
       if (readOnly) return;
@@ -101,13 +248,14 @@ export function ReportDesigner({
           ? { ...section, elements: [...section.elements, newElement] }
           : section,
       );
-      setSections(updated);
-      setSelectedElement(newElement.id);
-      onSectionsChange?.(updated);
+      pushSections(updated);
+      multiSelect.selectOne(newElement.id);
+      broadcastOp({ type: 'insert', elementId: newElement.id, data: { element: newElement } });
     },
-    [sections, margins.left, readOnly, onSectionsChange],
+    [sections, margins.left, readOnly, pushSections, multiSelect, broadcastOp],
   );
 
+  // -- Delete single element (no confirm) -----------------------------------
   const handleDeleteElement = useCallback(
     (elementId: string) => {
       if (readOnly) return;
@@ -115,68 +263,361 @@ export function ReportDesigner({
         ...section,
         elements: section.elements.filter((e: ReportDesignerElement) => e.id !== elementId),
       }));
-      setSections(updated);
-      if (selectedElement === elementId) setSelectedElement(null);
-      onSectionsChange?.(updated);
+      pushSections(updated);
+      if (multiSelect.isSelected(elementId)) multiSelect.clearSelection();
+      broadcastOp({ type: 'delete', elementId, data: {} });
     },
-    [sections, selectedElement, readOnly, onSectionsChange],
+    [sections, readOnly, pushSections, multiSelect, broadcastOp],
   );
 
+  // -- Delete selected with confirmation ------------------------------------
+  const handleDeleteSelected = useCallback(async () => {
+    if (readOnly || multiSelect.count === 0) return;
+    const confirmed = await confirmDialog.confirm(
+      LABELS.deleteElementsTitle,
+      LABELS.deleteElementMessage(multiSelect.count),
+    );
+    if (!confirmed) return;
+    const ids = multiSelect.selectedIds;
+    const updated = sections.map((section) => ({
+      ...section,
+      elements: section.elements.filter((e: ReportDesignerElement) => !ids.has(e.id)),
+    }));
+    pushSections(updated);
+    multiSelect.clearSelection();
+    ids.forEach((id) => {
+      broadcastOp({ type: 'delete', elementId: id, data: {} });
+    });
+  }, [readOnly, multiSelect, confirmDialog, sections, pushSections, broadcastOp]);
+
+  // -- Update element property ----------------------------------------------
+  const handleUpdateProperty = useCallback(
+    (name: string, value: unknown) => {
+      if (readOnly || !selectedId) return;
+      const updated = sections.map((section) => ({
+        ...section,
+        elements: section.elements.map((e: ReportDesignerElement) => {
+          if (e.id !== selectedId) return e;
+          if (name === 'x') return { ...e, position: { ...e.position, x: Number(value) } };
+          if (name === 'y') return { ...e, position: { ...e.position, y: Number(value) } };
+          if (name === 'width') return { ...e, position: { ...e.position, width: Number(value) } };
+          if (name === 'height') return { ...e, position: { ...e.position, height: Number(value) } };
+          return { ...e, properties: { ...e.properties, [name]: value } };
+        }),
+      }));
+      pushSections(updated);
+      broadcastOp({ type: 'update', elementId: selectedId, data: { [name]: value } });
+    },
+    [readOnly, selectedId, sections, pushSections, broadcastOp],
+  );
+
+  // -- Copy / Paste ---------------------------------------------------------
+  const handleCopy = useCallback(() => {
+    const ids = multiSelect.selectedIds;
+    if (ids.size === 0) return;
+    const allElements = sections.flatMap((s) => s.elements);
+    const selected = allElements.filter((e: ReportDesignerElement) => ids.has(e.id));
+    clipboard.copy(selected);
+  }, [multiSelect, sections, clipboard]);
+
+  const handlePaste = useCallback(() => {
+    if (readOnly) return;
+    const items = clipboard.paste();
+    if (!items || items.length === 0) return;
+    let pasteCounter = 0;
+    const pasted = items.map((e) => ({
+      ...e,
+      id: `elem-${Date.now()}-${++pasteCounter}-${Math.random().toString(36).slice(2, 7)}`,
+      position: { ...e.position, x: e.position.x + 20, y: e.position.y + 20 },
+    }));
+    // Insert into the first section that has elements, or the detail section
+    const targetIndex = sections.findIndex((s) => s.type === 'detail');
+    const insertIndex = targetIndex >= 0 ? targetIndex : 0;
+    const updated = sections.map((section, i) =>
+      i === insertIndex
+        ? { ...section, elements: [...section.elements, ...pasted] }
+        : section,
+    );
+    pushSections(updated);
+    multiSelect.selectMany(pasted.map((p) => p.id));
+    pasted.forEach((p) => {
+      broadcastOp({ type: 'insert', elementId: p.id, data: { element: p } });
+    });
+  }, [readOnly, clipboard, sections, pushSections, multiSelect, broadcastOp]);
+
+  // -- Drag-and-drop handlers -----------------------------------------------
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, element: ReportDesignerElement, sectionIndex: number) => {
+      if (readOnly) return;
+      dragRef.current = { id: element.id, sectionIndex, startX: e.clientX, startY: e.clientY };
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', element.id);
+    },
+    [readOnly],
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent, targetSectionIndex: number) => {
+      e.preventDefault();
+      const drag = dragRef.current;
+      if (!drag || readOnly) return;
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+
+      if (drag.sectionIndex === targetSectionIndex) {
+        // Move within the same section
+        const updated = sections.map((section, i) => {
+          if (i !== targetSectionIndex) return section;
+          return {
+            ...section,
+            elements: section.elements.map((el: ReportDesignerElement) => {
+              if (el.id !== drag.id) return el;
+              return {
+                ...el,
+                position: {
+                  ...el.position,
+                  x: Math.max(0, el.position.x + dx),
+                  y: Math.max(0, (typeof el.position.y === 'number' ? el.position.y : 0) + dy),
+                },
+              };
+            }),
+          };
+        });
+        pushSections(updated);
+      } else {
+        // Move across sections
+        let movedElement: ReportDesignerElement | null = null;
+        const withRemoved = sections.map((section, i) => {
+          if (i !== drag.sectionIndex) return section;
+          const elem = section.elements.find((el: ReportDesignerElement) => el.id === drag.id);
+          if (elem) {
+            movedElement = {
+              ...elem,
+              position: {
+                ...elem.position,
+                x: Math.max(0, elem.position.x + dx),
+                y: Math.max(0, 10),
+              },
+            };
+          }
+          return {
+            ...section,
+            elements: section.elements.filter((el: ReportDesignerElement) => el.id !== drag.id),
+          };
+        });
+        if (movedElement) {
+          const updated = withRemoved.map((section, i) => {
+            if (i !== targetSectionIndex) return section;
+            return { ...section, elements: [...section.elements, movedElement!] };
+          });
+          pushSections(updated);
+        }
+      }
+      broadcastOp({ type: 'move', elementId: drag.id, data: {} });
+      dragRef.current = null;
+    },
+    [readOnly, sections, pushSections, broadcastOp],
+  );
+
+  // -- Property fields for PropertyEditor -----------------------------------
+  const propertyFields = useMemo<PropertyField[]>(() => {
+    if (!selectedElementData) return [];
+    const fields: PropertyField[] = [
+      { name: 'x', label: LABELS.propX, type: 'number' as const, value: selectedElementData.position.x, group: LABELS.groupPosition },
+      { name: 'y', label: LABELS.propY, type: 'number' as const, value: selectedElementData.position.y, group: LABELS.groupPosition },
+      { name: 'width', label: LABELS.propWidth, type: 'number' as const, value: selectedElementData.position.width, group: LABELS.groupSize },
+      { name: 'height', label: LABELS.propHeight, type: 'number' as const, value: selectedElementData.position.height, group: LABELS.groupSize },
+    ];
+    if (selectedElementData.type === 'text') {
+      fields.push({
+        name: 'text',
+        label: LABELS.propText,
+        type: 'text' as const,
+        value: selectedElementData.properties.text ?? '',
+        group: LABELS.groupContent,
+      });
+    }
+    if (selectedElementData.type === 'field') {
+      fields.push({
+        name: 'field',
+        label: LABELS.propField,
+        type: 'text' as const,
+        value: selectedElementData.properties.field ?? '',
+        group: LABELS.groupContent,
+      });
+    }
+    return fields;
+  }, [selectedElementData]);
+
+  // -- Keyboard shortcuts ---------------------------------------------------
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
+      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName);
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      // Delete / Backspace
+      if ((e.key === 'Delete' || e.key === 'Backspace') && multiSelect.count > 0 && !isInput) {
+        e.preventDefault();
+        handleDeleteSelected();
+        return;
+      }
+      // Escape
       if (e.key === 'Escape') {
-        setSelectedElement(null);
-      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElement) {
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-        handleDeleteElement(selectedElement);
+        multiSelect.clearSelection();
+        return;
+      }
+      if (isInput) return;
+      // Ctrl+Z – Undo
+      if (ctrl && e.key === 'z' && !e.shiftKey && !readOnly) {
+        e.preventDefault();
+        history.undo();
+        return;
+      }
+      // Ctrl+Shift+Z / Ctrl+Y – Redo
+      if (ctrl && ((e.key === 'z' && e.shiftKey) || e.key === 'y') && !readOnly) {
+        e.preventDefault();
+        history.redo();
+        return;
+      }
+      // Ctrl+C – Copy
+      if (ctrl && e.key === 'c') {
+        e.preventDefault();
+        handleCopy();
+        return;
+      }
+      // Ctrl+V – Paste
+      if (ctrl && e.key === 'v' && !readOnly) {
+        e.preventDefault();
+        handlePaste();
+        return;
+      }
+      // Ctrl+A – Select all
+      if (ctrl && e.key === 'a') {
+        e.preventDefault();
+        const allIds = sections.flatMap((s) => s.elements).map((e: ReportDesignerElement) => e.id);
+        multiSelect.selectMany(allIds);
+        return;
       }
     };
     el.addEventListener('keydown', handleKeyDown);
     return () => el.removeEventListener('keydown', handleKeyDown);
-  }, [selectedElement, handleDeleteElement]);
-
-  // Find the selected element data for the property panel
-  const selectedElementData = selectedElement
-    ? sections.flatMap((s) => s.elements).find((e: ReportDesignerElement) => e.id === selectedElement)
-    : null;
-
-  const getSectionLabel = (type: string) => {
-    switch (type) {
-      case 'header': return 'Report Header';
-      case 'page-header': return 'Page Header';
-      case 'group-header': return 'Group Header';
-      case 'detail': return 'Detail';
-      case 'group-footer': return 'Group Footer';
-      case 'page-footer': return 'Page Footer';
-      case 'footer': return 'Report Footer';
-      default: return type;
-    }
-  };
+  }, [multiSelect, handleDeleteSelected, readOnly, history, handleCopy, handlePaste, sections]);
 
   return (
     <div ref={containerRef} tabIndex={0} className={cn('flex h-full w-full border rounded-lg overflow-hidden bg-background', className)}>
       {/* Main content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Toolbar */}
         {showToolbar && (
-          <div role="toolbar" className="flex items-center gap-2 p-2 border-b bg-muted/20">
+          <div role="toolbar" aria-label={LABELS.designerToolbar} className="flex items-center gap-2 p-2 border-b bg-muted/20">
             <FileText className="h-4 w-4" />
             <span className="font-medium text-sm">{reportName}</span>
             {objectName && (
               <span className="text-xs text-muted-foreground">({objectName})</span>
             )}
+
+            {/* Undo / Redo */}
+            {!readOnly && (
+              <>
+                <div className="w-px h-5 bg-border mx-1" />
+                <button
+                  className={cn('p-1.5 rounded hover:bg-accent', !history.canUndo && 'opacity-40 pointer-events-none')}
+                  title={LABELS.undoShortcut}
+                  aria-label={LABELS.undo}
+                  disabled={!history.canUndo}
+                  onClick={() => history.undo()}
+                >
+                  <Undo2 className="h-4 w-4" />
+                </button>
+                <button
+                  className={cn('p-1.5 rounded hover:bg-accent', !history.canRedo && 'opacity-40 pointer-events-none')}
+                  title={LABELS.redoShortcut}
+                  aria-label={LABELS.redo}
+                  disabled={!history.canRedo}
+                  onClick={() => history.redo()}
+                >
+                  <Redo2 className="h-4 w-4" />
+                </button>
+                <div className="w-px h-5 bg-border mx-1" />
+              </>
+            )}
+
+            {/* Copy / Paste */}
+            {!readOnly && (
+              <>
+                <button
+                  className={cn('p-1.5 rounded hover:bg-accent', multiSelect.count === 0 && 'opacity-40 pointer-events-none')}
+                  title={LABELS.copyShortcut}
+                  aria-label={LABELS.copy}
+                  disabled={multiSelect.count === 0}
+                  onClick={handleCopy}
+                >
+                  <Copy className="h-4 w-4" />
+                </button>
+                <button
+                  className={cn('p-1.5 rounded hover:bg-accent', !clipboard.hasContent && 'opacity-40 pointer-events-none')}
+                  title={LABELS.pasteShortcut}
+                  aria-label={LABELS.paste}
+                  disabled={!clipboard.hasContent}
+                  onClick={handlePaste}
+                >
+                  <Clipboard className="h-4 w-4" />
+                </button>
+                <div className="w-px h-5 bg-border mx-1" />
+              </>
+            )}
+
+            {/* Delete selected */}
+            {!readOnly && (
+              <button
+                className={cn('p-1.5 rounded hover:bg-accent', multiSelect.count === 0 && 'opacity-40 pointer-events-none')}
+                title={LABELS.deleteSelected}
+                aria-label={LABELS.deleteSelected}
+                disabled={multiSelect.count === 0}
+                onClick={handleDeleteSelected}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+
             <div className="flex-1" />
+
+            {/* Collaboration indicator */}
+            {collaboration?.isConnected && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                {LABELS.collaborationConnected}
+                {collaboration.users.length > 1 && ` (${collaboration.users.length})`}
+              </span>
+            )}
+
             <span className="text-xs text-muted-foreground">
               {pageSize} {orientation}
             </span>
+
+            {/* Property panel toggle */}
+            {showPropertyPanel && (
+              <button
+                className="p-1.5 rounded hover:bg-accent"
+                title={propertyPanelOpen ? LABELS.collapsePanel : LABELS.expandPanel}
+                aria-label={propertyPanelOpen ? LABELS.collapsePanel : LABELS.expandPanel}
+                onClick={() => setPropertyPanelOpen((v) => !v)}
+              >
+                <PanelRightClose className={cn('h-4 w-4', !propertyPanelOpen && 'rotate-180')} />
+              </button>
+            )}
           </div>
         )}
 
         {/* Report Canvas */}
-        <div role="region" aria-label="Report canvas" className="flex-1 overflow-auto bg-muted/10 p-4 flex justify-center">
+        <div role="region" aria-label={LABELS.reportCanvas} className="flex-1 overflow-auto bg-muted/10 p-4 flex justify-center">
           <div
             className="bg-white shadow-lg border"
             style={{
@@ -189,6 +630,8 @@ export function ReportDesigner({
                 key={`${section.type}-${sectionIndex}`}
                 className="relative border-b border-dashed border-gray-300"
                 style={{ minHeight: section.height }}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, sectionIndex)}
               >
                 {/* Section label */}
                 <div className="absolute left-0 top-0 px-2 py-0.5 bg-muted text-xs text-muted-foreground border-r border-b rounded-br">
@@ -202,40 +645,40 @@ export function ReportDesigner({
                     <button
                       onClick={() => handleAddElement(sectionIndex, 'text')}
                       className="p-0.5 rounded hover:bg-accent"
-                      title="Add Text"
-                      aria-label="Add Text"
+                      title={LABELS.addText}
+                      aria-label={LABELS.addText}
                     >
                       <Type className="h-3 w-3" />
                     </button>
                     <button
                       onClick={() => handleAddElement(sectionIndex, 'field')}
                       className="p-0.5 rounded hover:bg-accent"
-                      title="Add Field"
-                      aria-label="Add Field"
+                      title={LABELS.addField}
+                      aria-label={LABELS.addField}
                     >
                       <Plus className="h-3 w-3" />
                     </button>
                     <button
                       onClick={() => handleAddElement(sectionIndex, 'image')}
                       className="p-0.5 rounded hover:bg-accent"
-                      title="Add Image"
-                      aria-label="Add Image"
+                      title={LABELS.addImage}
+                      aria-label={LABELS.addImage}
                     >
                       <ImageIcon className="h-3 w-3" />
                     </button>
                     <button
                       onClick={() => handleAddElement(sectionIndex, 'chart')}
                       className="p-0.5 rounded hover:bg-accent"
-                      title="Add Chart"
-                      aria-label="Add Chart"
+                      title={LABELS.addChart}
+                      aria-label={LABELS.addChart}
                     >
                       <BarChart3 className="h-3 w-3" />
                     </button>
                     <button
                       onClick={() => handleAddElement(sectionIndex, 'table')}
                       className="p-0.5 rounded hover:bg-accent"
-                      title="Add Table"
-                      aria-label="Add Table"
+                      title={LABELS.addTable}
+                      aria-label={LABELS.addTable}
                     >
                       <Table2 className="h-3 w-3" />
                     </button>
@@ -246,47 +689,52 @@ export function ReportDesigner({
                 <div className="relative" style={{ minHeight: section.height, paddingTop: 24 }}>
                   {section.elements.length === 0 && (
                     <div className="text-xs text-muted-foreground text-center pt-4">
-                      Add elements using the buttons above
+                      {LABELS.addElementsPrompt}
                     </div>
                   )}
-                  {section.elements.map((element: ReportDesignerElement) => (
-                    <div
-                      key={element.id}
-                      className={cn(
-                        'absolute border rounded px-2 py-1 text-xs cursor-pointer',
-                        selectedElement === element.id
-                          ? 'border-primary ring-1 ring-primary/30 bg-primary/5'
-                          : 'border-dashed border-gray-400 hover:border-primary/50',
-                      )}
-                      style={{
-                        left: element.position.x,
-                        top: (typeof element.position.y === 'number' ? element.position.y : 0) + 24,
-                        width: element.position.width,
-                        height: element.position.height,
-                      }}
-                      onClick={() => setSelectedElement(element.id)}
-                    >
-                      <span className="text-muted-foreground">
-                        {element.type === 'text' && (element.properties.text as string ?? 'Text')}
-                        {element.type === 'field' && `{${element.properties.field as string ?? 'field'}}`}
-                        {element.type === 'image' && '🖼 Image'}
-                        {element.type === 'chart' && '📊 Chart'}
-                        {element.type === 'table' && '📋 Table'}
-                      </span>
-                      {!readOnly && selectedElement === element.id && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteElement(element.id);
-                          }}
-                          className="absolute -top-2 -right-2 p-0.5 rounded-full bg-destructive text-destructive-foreground shadow"
-                          aria-label="Delete element"
-                        >
-                          <Trash2 className="h-2.5 w-2.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                  {section.elements.map((element: ReportDesignerElement) => {
+                    const isSelected = multiSelect.isSelected(element.id);
+                    return (
+                      <div
+                        key={element.id}
+                        draggable={!readOnly}
+                        onDragStart={(e) => handleDragStart(e, element, sectionIndex)}
+                        className={cn(
+                          'absolute border rounded px-2 py-1 text-xs cursor-pointer',
+                          isSelected
+                            ? 'border-primary ring-1 ring-primary/30 bg-primary/5'
+                            : 'border-dashed border-gray-400 hover:border-primary/50',
+                        )}
+                        style={{
+                          left: element.position.x,
+                          top: (typeof element.position.y === 'number' ? element.position.y : 0) + 24,
+                          width: element.position.width,
+                          height: element.position.height,
+                        }}
+                        onClick={(e) => multiSelect.toggle(element.id, e.shiftKey)}
+                      >
+                        <span className="text-muted-foreground">
+                          {element.type === 'text' && (element.properties.text as string ?? LABELS.elementText)}
+                          {element.type === 'field' && `{${element.properties.field as string ?? 'field'}}`}
+                          {element.type === 'image' && LABELS.elementImage}
+                          {element.type === 'chart' && LABELS.elementChart}
+                          {element.type === 'table' && LABELS.elementTable}
+                        </span>
+                        {!readOnly && isSelected && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteElement(element.id);
+                            }}
+                            className="absolute -top-2 -right-2 p-0.5 rounded-full bg-destructive text-destructive-foreground shadow"
+                            aria-label={LABELS.deleteElement}
+                          >
+                            <Trash2 className="h-2.5 w-2.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -296,38 +744,43 @@ export function ReportDesigner({
 
       {/* Property Panel */}
       {showPropertyPanel && (
-        <div role="region" aria-label="Properties" className="w-56 border-l bg-muted/30 flex flex-col">
-          <div className="p-3 border-b font-medium text-sm">Properties</div>
-          <div className="flex-1 overflow-y-auto p-3">
-            {selectedElement && selectedElementData ? (
-              <div className="space-y-2 text-xs">
-                <div className="text-muted-foreground">Element ID: {selectedElement}</div>
-                <div className="text-muted-foreground">Type: {selectedElementData.type}</div>
-                <div className="text-muted-foreground">
-                  Position: ({selectedElementData.position.x}, {selectedElementData.position.y})
-                </div>
-                <div className="text-muted-foreground">
-                  Size: {selectedElementData.position.width} × {selectedElementData.position.height}
-                </div>
-                {selectedElementData.type === 'text' && selectedElementData.properties.text && (
-                  <div className="text-muted-foreground">
-                    Text: {String(selectedElementData.properties.text)}
-                  </div>
-                )}
-                {selectedElementData.type === 'field' && selectedElementData.properties.field && (
-                  <div className="text-muted-foreground">
-                    Field: {String(selectedElementData.properties.field)}
-                  </div>
-                )}
-              </div>
+        <div
+          role="region"
+          aria-label={LABELS.propertiesPanel}
+          className={cn(
+            'border-l bg-muted/30 flex flex-col transition-[width] duration-200',
+            propertyPanelOpen ? 'w-56' : 'w-0 overflow-hidden',
+          )}
+        >
+          {propertyPanelOpen && (
+            selectedId && selectedElementData ? (
+              <PropertyEditor
+                title={`${LABELS.properties} – ${selectedElementData.type}`}
+                fields={propertyFields}
+                onChange={handleUpdateProperty}
+              />
             ) : (
-              <div className="text-xs text-muted-foreground text-center py-4">
-                Select an element to view properties
-              </div>
-            )}
-          </div>
+              <>
+                <div className="p-3 border-b font-medium text-sm">{LABELS.properties}</div>
+                <div className="flex-1 overflow-y-auto p-3">
+                  <div className="text-xs text-muted-foreground text-center py-4">
+                    {LABELS.selectElementPrompt}
+                  </div>
+                </div>
+              </>
+            )
+          )}
         </div>
       )}
+
+      {/* Confirmation dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={confirmDialog.onCancel}
+      />
     </div>
   );
 }
