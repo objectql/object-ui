@@ -229,6 +229,28 @@ describe('P3.2 Extreme Inputs', () => {
       );
       expect(screen.getByDisplayValue('+1 (555) 123-4567')).toBeInTheDocument();
     });
+
+    it('TextField handles multi-byte emoji family (ZWJ sequence)', () => {
+      render(
+        <TextField
+          value="👨‍👩‍👧‍👦"
+          onChange={noop}
+          field={{ type: 'text' } as any}
+        />
+      );
+      expect(screen.getByRole('textbox')).toHaveValue('👨‍👩‍👧‍👦');
+    });
+
+    it('TextAreaField handles multi-byte emoji family', () => {
+      render(
+        <TextAreaField
+          value="Family: 👨‍👩‍👧‍👦 Flag: 🏳️‍🌈"
+          onChange={noop}
+          field={{ type: 'textarea' } as any}
+        />
+      );
+      expect(screen.getByRole('textbox')).toHaveValue('Family: 👨‍👩‍👧‍👦 Flag: 🏳️‍🌈');
+    });
   });
 
   // ---------------------------------------------------------------
@@ -269,6 +291,30 @@ describe('P3.2 Extreme Inputs', () => {
         />
       );
       expect(screen.getByRole('textbox')).toHaveValue(arabicText);
+    });
+
+    it('TextField handles Hebrew RTL text', () => {
+      const hebrewText = 'שלום עולם';
+      render(
+        <TextField
+          value={hebrewText}
+          onChange={noop}
+          field={{ type: 'text' } as any}
+        />
+      );
+      expect(screen.getByRole('textbox')).toHaveValue(hebrewText);
+    });
+
+    it('TextField handles mixed RTL and LTR text', () => {
+      const mixedText = 'Hello مرحبا World שלום';
+      render(
+        <TextField
+          value={mixedText}
+          onChange={noop}
+          field={{ type: 'text' } as any}
+        />
+      );
+      expect(screen.getByRole('textbox')).toHaveValue(mixedText);
     });
   });
 
@@ -342,6 +388,141 @@ describe('P3.2 Extreme Inputs', () => {
         />
       );
       expect(screen.getByRole('combobox')).toBeInTheDocument();
+    });
+
+    it('TextField treats undefined as empty string', () => {
+      render(
+        <TextField
+          value={undefined as any}
+          onChange={noop}
+          field={{ type: 'text' } as any}
+        />
+      );
+      expect(screen.getByRole('textbox')).toHaveValue('');
+    });
+
+    it('NumberField treats undefined as empty', () => {
+      render(
+        <NumberField
+          value={undefined as any}
+          onChange={noop}
+          field={{ type: 'number' } as any}
+        />
+      );
+      expect(screen.getByRole('spinbutton')).toHaveValue(null);
+    });
+
+    it('BooleanField treats undefined as false', () => {
+      render(
+        <BooleanField
+          value={undefined as any}
+          onChange={noop}
+          field={{ type: 'boolean' } as any}
+        />
+      );
+      expect(screen.getByRole('switch')).not.toBeChecked();
+    });
+
+    it('TextField treats empty string as empty', () => {
+      render(
+        <TextField
+          value=""
+          onChange={noop}
+          field={{ type: 'text' } as any}
+        />
+      );
+      expect(screen.getByRole('textbox')).toHaveValue('');
+    });
+  });
+
+  // ---------------------------------------------------------------
+  // Special characters and XSS prevention
+  // ---------------------------------------------------------------
+  describe('special characters and XSS', () => {
+    it('TextField renders HTML entity string as literal text', () => {
+      const htmlEntities = '<b>bold</b>';
+      render(
+        <TextField
+          value={htmlEntities}
+          onChange={noop}
+          field={{ type: 'text' } as any}
+        />
+      );
+      expect(screen.getByRole('textbox')).toHaveValue(htmlEntities);
+    });
+
+    it('TextField renders script tag as literal text', () => {
+      const xssPayload = '<script>alert("xss")</script>';
+      render(
+        <TextField
+          value={xssPayload}
+          onChange={noop}
+          field={{ type: 'text' } as any}
+        />
+      );
+      expect(screen.getByRole('textbox')).toHaveValue(xssPayload);
+    });
+
+    it('TextField readonly renders script tag safely (no script element)', () => {
+      const xssPayload = '<script>alert("xss")</script>';
+      const { container } = render(
+        <TextField
+          value={xssPayload}
+          onChange={noop}
+          field={{ type: 'text' } as any}
+          readonly={true}
+        />
+      );
+      expect(container.querySelector('script')).toBeNull();
+      expect(container.textContent).toContain(xssPayload);
+    });
+
+    it('TextAreaField renders script tag as literal text', () => {
+      const xssPayload = '<script>alert("xss")</script>';
+      render(
+        <TextAreaField
+          value={xssPayload}
+          onChange={noop}
+          field={{ type: 'textarea' } as any}
+        />
+      );
+      expect(screen.getByRole('textbox')).toHaveValue(xssPayload);
+    });
+
+    it('EmailField renders HTML injection safely', () => {
+      const htmlEmail = '"><script>alert(1)</script>@evil.com';
+      render(
+        <EmailField
+          value={htmlEmail}
+          onChange={noop}
+          field={{ type: 'email' } as any}
+        />
+      );
+      expect(screen.getByDisplayValue(htmlEmail)).toBeInTheDocument();
+    });
+
+    it('UrlField renders malicious URL safely', () => {
+      const maliciousUrl = 'javascript:alert(1)';
+      render(
+        <UrlField
+          value={maliciousUrl}
+          onChange={noop}
+          field={{ type: 'url' } as any}
+        />
+      );
+      expect(screen.getByDisplayValue(maliciousUrl)).toBeInTheDocument();
+    });
+
+    it('TextField handles SQL injection string as literal text', () => {
+      const sqlInjection = "'; DROP TABLE users; --";
+      render(
+        <TextField
+          value={sqlInjection}
+          onChange={noop}
+          field={{ type: 'text' } as any}
+        />
+      );
+      expect(screen.getByRole('textbox')).toHaveValue(sqlInjection);
     });
   });
 
