@@ -136,8 +136,8 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 
 #### P1.1 Zero-Friction Onboarding
 - [x] Create MIGRATION_GUIDE.md at repo root (currently referenced in README but missing)
-- [ ] Streamline `npx create-objectui-app` scaffolding with working Vite + Tailwind templates
-- [ ] Ensure `pnpm install && pnpm dev` starts the console with zero additional configuration
+- [x] Streamline `npx create-objectui-app` scaffolding with working Vite + Tailwind templates
+- [x] Ensure `pnpm install && pnpm dev` starts the console with zero additional configuration
 - [x] Add a standalone "Hello World" example (5-file, <50 lines total) demonstrating JSON → UI flow
 - [x] Provide copy-paste-ready schema examples in the root README for instant gratification
 
@@ -145,7 +145,7 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [x] Add JSDoc comments to all 20+ exported React hooks (`useExpression`, `useActionRunner`, `useViewData`, `useDynamicApp`, `usePerformance`, `useCrudShortcuts`, etc.)
 - [x] Add JSDoc with usage examples to key types in `@object-ui/types` (`SchemaNode`, `FieldMetadata`, `ViewSchema`, `ActionSchema`, etc.)
 - [x] Document all context providers (`ThemeContext`, `AuthContext`, `I18nContext`, `NotificationContext`, `DndContext`) with usage examples
-- [ ] Ensure TypeScript autocompletion works smoothly for all schema types via strict discriminated unions
+- [x] Ensure TypeScript autocompletion works smoothly for all schema types via strict discriminated unions
 
 #### P1.3 Error Messages & Debugging
 - [x] Create error code system (`OBJUI-001`, `OBJUI-002`, etc.) with documentation links
@@ -155,9 +155,9 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [x] Ensure console warnings for deprecated APIs include migration code snippets
 
 #### P1.4 CLI Tooling Polish
-- [ ] Verify `objectui init` produces a buildable project with all dependencies resolved
+- [x] Verify `objectui init` produces a buildable project with all dependencies resolved
 - [x] Enhance `objectui doctor` to check TypeScript version, Tailwind config, and peer dependencies
-- [ ] Verify `create-plugin` template produces a plugin with working tests and Storybook story
+- [x] Verify `create-plugin` template produces a plugin with working tests and Storybook story
 - [x] Add `objectui validate <schema.json>` command for schema linting with actionable error messages
 - [x] Resolve TODO/FIXME items in CLI code (`doctor.ts`, `dev.ts`, `check.ts`)
 
@@ -187,24 +187,24 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [x] Add locale switcher to Console settings panel
 
 #### P2.2 Console Architecture Cleanup
-- [ ] Consolidate hand-wired ObjectView into plugin-based ObjectView (eliminate duplication)
-- [ ] Replace lightweight local data adapter with official `@object-ui/data-objectstack`
+- [x] Consolidate hand-wired ObjectView into plugin-based ObjectView (eliminate duplication)
+- [x] Replace lightweight local data adapter with official `@object-ui/data-objectstack`
 - [x] Replace custom `defineConfig()` with standard `defineStack()` configuration
-- [ ] Register all missing plugins properly in the plugin registry
-- [ ] Convert hardcoded view tabs to schema-driven configuration
+- [x] Register all missing plugins properly in the plugin registry
+- [x] Convert hardcoded view tabs to schema-driven configuration
 
 #### P2.3 Accessibility & Inclusive Design
 - [ ] Run axe-core audit on Console pages (currently 30 tests on primitives, not on assembled pages)
-- [ ] Ensure focus management across all Console navigation flows (sidebar → content → modal → back)
+- [x] Ensure focus management across all Console navigation flows (sidebar → content → modal → back)
 - [ ] Verify screen reader experience for complex views (Grid, Kanban, Calendar)
 - [ ] Test all color combinations against WCAG 2.1 AA contrast ratios in both light and dark themes
-- [ ] Add `prefers-reduced-motion` respect to all animations (page transitions, DnD, skeleton loading)
+- [x] Add `prefers-reduced-motion` respect to all animations (page transitions, DnD, skeleton loading)
 
 #### P2.4 Performance at Scale
 - [ ] Benchmark Grid/Kanban/Calendar with 1,000+ and 10,000+ records; set performance baselines
 - [ ] Implement virtual scrolling for large data grids (plugin-grid, plugin-aggrid)
 - [ ] Profile and optimize initial Console load (target: < 2s on 3G, currently ~3s estimated)
-- [ ] Add loading skeleton states for all async data views
+- [x] Add loading skeleton states for all async data views
 - [ ] Test view switching (grid ↔ kanban ↔ calendar) state preservation with large datasets
 
 #### P2.5 Console Feature Completeness
@@ -223,7 +223,7 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 #### P3.1 Component Quality Audit
 - [ ] Audit all 91+ components for API consistency (prop naming, default values, error states)
 - [ ] Ensure every component has complete TypeScript types with JSDoc descriptions
-- [ ] Standardize error/empty/loading states across all components using shared primitives
+- [x] Standardize error/empty/loading states across all components using shared primitives
 - [ ] Add missing edge-case handling (overflow, truncation, null data, large datasets)
 
 #### P3.2 Field Widget Polish
@@ -245,7 +245,7 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [ ] Add snapshot tests for critical UI output consistency
 
 #### P3.5 Storybook Enhancement
-- [ ] Ensure every exported component has at least one Storybook story (target: 91+ stories from current 68)
+- [x] Ensure every exported component has at least one Storybook story (target: 91+ stories from current 68)
 - [ ] Add interactive controls (args) for all major props in each story
 - [ ] Add "edge case" stories per component (empty data, error state, loading, overflow, RTL)
 - [ ] Organize stories with consistent categorization (Components / Fields / Layout / Plugins)
@@ -257,17 +257,17 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 **Goal:** Comprehensive, accurate, and easy-to-navigate documentation that is a developer's best friend.
 
 #### P4.1 Guide Content
-- [ ] Verify "Getting Started" guide (`quick-start.md`) stays current with latest API
+- [x] Verify "Getting Started" guide (`quick-start.md`) stays current with latest API
 - [x] Write "Building a CRUD App" end-to-end tutorial (complete walkthrough: schema → data → deploy)
 - [x] Write "Custom Plugin Development" guide with best practices and template walkthrough
 - [x] Write "Theming & Customization" guide (Tailwind config, cva variants, dark mode, CSS custom properties)
-- [ ] Add deployment guides for examples (Docker, Vercel, Railway configurations)
+- [x] Add deployment guides for examples (Docker, Vercel, Railway configurations)
 
 #### P4.2 API Reference
 - [ ] Generate API reference docs from TypeScript types (TSDoc → documentation site)
-- [ ] Document all schema types with annotated examples (ViewSchema, ActionSchema, FieldSchema, etc.)
+- [x] Document all schema types with annotated examples (ViewSchema, ActionSchema, FieldSchema, etc.)
 - [ ] Add interactive schema playground on documentation site (JSON editor → live preview)
-- [ ] Document expression engine syntax and all built-in functions with examples
+- [x] Document expression engine syntax and all built-in functions with examples
 
 #### P4.3 Storybook as Living Documentation
 - [ ] Ensure Storybook serves as the primary component reference alongside docs site
