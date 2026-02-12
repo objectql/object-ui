@@ -1,9 +1,9 @@
 /**
- * Test to verify ObjectStack Spec v2.0.1 namespace exports
+ * Test to verify ObjectStack Spec v3.0.0 namespace exports
  */
 import { describe, it, expect } from 'vitest';
 
-describe('ObjectStack Spec v2.0.1 Namespace Exports', () => {
+describe('ObjectStack Spec v3.0.0 Namespace Exports', () => {
   it('should export Data namespace', async () => {
     const types = await import('../index');
     // Data namespace should exist and have content
@@ -13,9 +13,8 @@ describe('ObjectStack Spec v2.0.1 Namespace Exports', () => {
   it('should export UI types via spec', async () => {
     // Verify that types can be imported from @object-ui/types
     const types = await import('../index');
-    // defineStack and definePlugin should be exported
+    // defineStack should be exported
     expect(typeof types.defineStack).toBe('function');
-    expect(typeof types.definePlugin).toBe('function');
   });
 
   it('should export ObjectStack schemas', async () => {

@@ -37,7 +37,7 @@ export function TaskList({ client, onEdit, refreshTrigger }: TaskListProps) {
       });
 
       // Handle both { value: [] } (OData) and [] (Raw) formats
-      const rawValues = Array.isArray(result) ? result : (result.value || []);
+      const rawValues = Array.isArray(result) ? result : (result.records || []);
       const fetchedTasks = [...rawValues] as Task[];
       
       // Client-side sort fallback (since InMemoryDriver has limited sort support)

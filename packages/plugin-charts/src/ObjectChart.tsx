@@ -28,8 +28,8 @@ export const ObjectChart = (props: any) => {
             if (Array.isArray(results)) {
                 data = results;
             } else if (results && typeof results === 'object') {
-                if (Array.isArray((results as any).value)) {
-                    data = (results as any).value;
+                if (Array.isArray((results as any).records)) {
+                    data = (results as any).records;
                 }
             }
 

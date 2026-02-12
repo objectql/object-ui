@@ -81,8 +81,8 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
                     data = results;
                 } else if (results && typeof results === 'object') {
                     const r = results as Record<string, unknown>;
-                    if (Array.isArray(r.value)) {
-                        data = r.value as Record<string, unknown>[];
+                    if (Array.isArray(r.records)) {
+                        data = r.records as Record<string, unknown>[];
                     } else if (Array.isArray(r.data)) {
                         data = r.data as Record<string, unknown>[];
                     }

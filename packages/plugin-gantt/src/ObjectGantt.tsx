@@ -180,8 +180,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           } else if (result && typeof result === 'object') {
              if (Array.isArray((result as any).data)) {
                 items = (result as any).data; 
-             } else if (Array.isArray((result as any).value)) {
-                items = (result as any).value;
+             } else if (Array.isArray((result as any).records)) {
+                items = (result as any).records;
              }
           }
           setData(items);

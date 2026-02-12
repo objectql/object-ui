@@ -1,9 +1,9 @@
 # @objectstack/client Evaluation for Low-Code App UI Development
 
 > **Date:** February 11, 2026  
-> **Spec Version:** @objectstack/spec v2.0.7  
-> **Client Version:** @objectstack/client v2.0.7  
-> **Auth Plugin Version:** @objectstack/plugin-auth v2.0.7  
+> **Spec Version:** @objectstack/spec v3.0.0  
+> **Client Version:** @objectstack/client v3.0.0  
+> **Auth Plugin Version:** @objectstack/plugin-auth v3.0.0  
 > **ObjectUI Version:** v0.5.x  
 > **Scope:** Evaluate whether @objectstack/client can fully support developing a complete low-code application UI based on the @objectstack/spec protocol
 
@@ -13,7 +13,7 @@
 
 **Verdict: ✅ Fully Capable — @objectstack/client provides all the runtime primitives necessary to build a complete low-code app UI based on @objectstack/spec.**
 
-The @objectstack/spec protocol defines the "constitution" — the canonical type definitions for Data, UI, System, AI, API, and more. The @objectstack/client v2.0.7 package provides the runtime bridge to ObjectStack backends with 13/13 API namespaces (100%), 95+ protocol methods, full batch operations support, ETag caching, and comprehensive error handling. Combined with ObjectUI's existing 35 packages and 91+ components, the full low-code app UI surface can be implemented. The client is fully compliant with @objectstack/spec v2.0.7.
+The @objectstack/spec protocol defines the "constitution" — the canonical type definitions for Data, UI, System, AI, API, and more. The @objectstack/client v3.0.0 package provides the runtime bridge to ObjectStack backends with 13/13 API namespaces (100%), 95+ protocol methods, full batch operations support, ETag caching, and comprehensive error handling. Combined with ObjectUI's existing 35 packages and 91+ components, the full low-code app UI surface can be implemented. The client is fully compliant with @objectstack/spec v3.0.0.
 
 This document evaluates each protocol domain, maps it to @objectstack/client capabilities, identifies gaps, and proposes a concrete action plan.
 
@@ -36,15 +36,15 @@ The @objectstack/spec `Data` namespace defines object schemas, field types, rela
 | **Relationships (JOIN)** | Via ObjectQL query syntax | ✅ Complete | Nested expand/include |
 | **Aggregation** | ObjectQL aggregate functions | ✅ Complete | SUM, AVG, COUNT, etc. |
 | **Subqueries** | ObjectQL subquery support | ✅ Complete | Nested query conditions |
-| **Real-time Subscriptions** | `client.realtime.*` (connect, subscribe) | ✅ Complete | WebSocket via client v2.0.7 |
-| **Offline Sync** | Service Worker + local cache | ✅ Complete | ETag caching in client v2.0.7 |
-| **File/Blob Storage** | `client.storage.upload()` | ✅ Complete | Storage namespace in client v2.0.7 |
+| **Real-time Subscriptions** | `client.realtime.*` (connect, subscribe) | ✅ Complete | WebSocket via client v3.0.0 |
+| **Offline Sync** | Service Worker + local cache | ✅ Complete | ETag caching in client v3.0.0 |
+| **File/Blob Storage** | `client.storage.upload()` | ✅ Complete | Storage namespace in client v3.0.0 |
 
-**Data Layer Assessment: 100% — Core CRUD, queries, bulk ops, real-time subscriptions, offline caching, and file storage are fully covered in @objectstack/client v2.0.7.**
+**Data Layer Assessment: 100% — Core CRUD, queries, bulk ops, real-time subscriptions, offline caching, and file storage are fully covered in @objectstack/client v3.0.0.**
 
 ### 2.2 Metadata Layer — Schema-Driven UI
 
-The @objectstack/spec protocol is fundamentally metadata-driven. The client v2.0.7 provides 13/13 API namespaces including storage and notifications:
+The @objectstack/spec protocol is fundamentally metadata-driven. The client v3.0.0 provides 13/13 API namespaces including storage and notifications:
 
 | Capability | Client API | Status | Notes |
 |------------|-----------|--------|-------|
@@ -59,8 +59,8 @@ The @objectstack/spec protocol is fundamentally metadata-driven. The client v2.0
 | **Hot Schema Reload** | Cache invalidation + re-fetch | ✅ Complete | `invalidateCache()` |
 | **Dashboard Definitions** | Via app/stack metadata | ✅ Complete | `defineStack({ dashboards })` |
 | **Report Definitions** | Via app/stack metadata | ✅ Complete | `defineStack({ reports })` |
-| **Storage Metadata** | `client.storage.*` | ✅ Complete | File upload/download via v2.0.7 |
-| **Notifications Metadata** | `client.notifications.*` | ✅ Complete | Device registration, preferences via v2.0.7 |
+| **Storage Metadata** | `client.storage.*` | ✅ Complete | File upload/download via v3.0.0 |
+| **Notifications Metadata** | `client.notifications.*` | ✅ Complete | Device registration, preferences via v3.0.0 |
 
 **Metadata Layer Assessment: 100% — Full schema-driven architecture is supported.**
 
@@ -146,7 +146,7 @@ The @objectstack/spec defines `ActionSchema` with 5 action types:
 | **Real-time Collaboration** | `client.realtime.*` | WebSocket channels | ✅ Complete |
 | **Offline Support** | ETag caching + Service Worker | `client` ETag support | ✅ Complete |
 
-**Advanced Features Assessment: 100% — All features complete including real-time and offline support via @objectstack/client v2.0.7.**
+**Advanced Features Assessment: 100% — All features complete including real-time and offline support via @objectstack/client v3.0.0.**
 
 ---
 
@@ -234,7 +234,7 @@ A complete low-code app built on @objectstack/spec follows this data flow:
 
 ### 3.2 Feasibility Score: 24/24 Features (100%)
 
-- **24 features** are fully implementable today with @objectstack/client v2.0.7 + ObjectUI
+- **24 features** are fully implementable today with @objectstack/client v3.0.0 + ObjectUI
 
 ---
 

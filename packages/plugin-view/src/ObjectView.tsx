@@ -320,8 +320,8 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         } else if (results && typeof results === 'object') {
           if (Array.isArray((results as any).data)) {
             items = (results as any).data;
-          } else if (Array.isArray((results as any).value)) {
-            items = (results as any).value;
+          } else if (Array.isArray((results as any).records)) {
+            items = (results as any).records;
           }
         }
 

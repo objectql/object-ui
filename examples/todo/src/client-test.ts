@@ -16,7 +16,7 @@ async function main() {
 
     // 3. Get Metadata
     console.log('🔍 Fetching Object Metadata for "todo_task"...');
-    const objectMeta = await client.meta.getObject('todo_task');
+    const objectMeta = await client.meta.getItem('object', 'todo_task');
     console.log(`📋 Object Label: ${objectMeta.label}`);
 
     // 4. Query Data
@@ -26,8 +26,8 @@ async function main() {
        sort: 'status'
     });
     
-    console.log(`🎉 Found ${result.count} tasks:`);
-    result.value.forEach((task: any) => {
+    console.log(`🎉 Found ${result.total} tasks:`);
+    result.records.forEach((task: any) => {
       console.log(` - [${task.is_completed ? 'x' : ' '}] ${task.subject} (Priority: ${task.priority})`);
     });
 
@@ -64,8 +64,8 @@ async function main() {
         },
         sort: ['-priority']
     });
-    console.log(`🎉 Found ${advancedResult.count} high priority tasks:`);
-    advancedResult.value.forEach((task: any) => {
+    console.log(`🎉 Found ${advancedResult.total} high priority tasks:`);
+    advancedResult.records.forEach((task: any) => {
         console.log(` - ${task.subject} (P${task.priority}) [Has keys: ${Object.keys(task).join(', ')}]`);
     });
 

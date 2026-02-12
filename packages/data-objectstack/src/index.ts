@@ -268,14 +268,16 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       };
     }
 
-    const resultObj = result as { value?: T[]; count?: number };
+    const resultObj = result as { records?: T[]; total?: number; value?: T[]; count?: number };
+    const records = resultObj.records || resultObj.value || [];
+    const total = resultObj.total ?? resultObj.count ?? records.length;
     return {
-      data: resultObj.value || [],
-      total: resultObj.count || (resultObj.value ? resultObj.value.length : 0),
+      data: records,
+      total,
       // Calculate page number safely
       page: params?.$skip && params.$top ? Math.floor(params.$skip / params.$top) + 1 : 1,
       pageSize: params?.$top,
-      hasMore: params?.$top ? (resultObj.value?.length || 0) === params.$top : false,
+      hasMore: params?.$top ? records.length === params.$top : false,
     };
   }
 
@@ -557,7 +559,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     try {
       // Use cache with automatic fetching
       const schema = await this.metadataCache.get(objectName, async () => {
-        const result: any = await this.client.meta.getObject(objectName);
+        const result: any = await this.client.meta.getItem('object', objectName);
         
         // Unwrap 'item' property if present (common API response wrapper)
         if (result && result.item) {

@@ -73,8 +73,8 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
                 options: { $top: 100 }
             });
             let data = results;
-            if ((results as any).value) {
-                data = (results as any).value;
+            if ((results as any).records) {
+                data = (results as any).records;
             } else if ((results as any).data) {
                 data = (results as any).data;
             }

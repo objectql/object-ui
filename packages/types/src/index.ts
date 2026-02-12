@@ -788,7 +788,7 @@ export type {
   System,
   AI,
   API,
-  Hub,
+  Cloud,
   Automation,
   Shared,
   QA,
@@ -801,14 +801,14 @@ export type {
 } from '@objectstack/spec';
 
 // ============================================================================
-// ObjectStack Protocol Utilities - defineStack, definePlugin
+// ObjectStack Protocol Utilities - defineStack
 // ============================================================================
 /**
  * Re-export ObjectStack Protocol utility functions and top-level types.
  *
  * @example
  * ```typescript
- * import { defineStack, definePlugin } from '@object-ui/types';
+ * import { defineStack } from '@object-ui/types';
  *
  * export default defineStack({
  *   manifest: { id: 'com.example.app', version: '1.0.0', type: 'app', name: 'My App' },
@@ -819,7 +819,6 @@ export type {
  */
 export {
   defineStack,
-  definePlugin,
   ObjectStackSchema,
   ObjectStackDefinitionSchema,
   ObjectStackCapabilitiesSchema,
