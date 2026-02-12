@@ -55,6 +55,70 @@ import { useRecentItems } from '../hooks/useRecentItems';
 import { useFavorites } from '../hooks/useFavorites';
 import { resolveI18nLabel } from '../utils';
 
+// ---------------------------------------------------------------------------
+// useNavOrder – localStorage-persisted drag-and-drop reorder for nav items
+// ---------------------------------------------------------------------------
+
+function useNavOrder(appName: string) {
+  const storageKey = `objectui-nav-order-${appName}`;
+
+  const [orderMap, setOrderMap] = React.useState<Record<string, string[]>>(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const persist = React.useCallback(
+    (next: Record<string, string[]>) => {
+      setOrderMap(next);
+      try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* full */ }
+    },
+    [storageKey],
+  );
+
+  /** Apply saved order to a flat list of items sharing the same parent group. */
+  const applyOrder = React.useCallback(
+    (groupKey: string, items: any[]): any[] => {
+      const saved = orderMap[groupKey];
+      if (!saved) return items;
+      const byId = new Map(items.map(i => [i.id, i]));
+      const ordered: any[] = [];
+      for (const id of saved) {
+        const item = byId.get(id);
+        if (item) { ordered.push(item); byId.delete(id); }
+      }
+      // Append any items not in the saved order (newly added)
+      byId.forEach(item => ordered.push(item));
+      return ordered;
+    },
+    [orderMap],
+  );
+
+  /** Persist a new ordering for a group. */
+  const saveOrder = React.useCallback(
+    (groupKey: string, ids: string[]) => {
+      persist({ ...orderMap, [groupKey]: ids });
+    },
+    [orderMap, persist],
+  );
+
+  return { applyOrder, saveOrder };
+}
+
+/** Shared drag state so we avoid prop-drilling. */
+const DndContext = React.createContext<{
+  dragItemId: string | null;
+  dragGroupKey: string | null;
+  dropTargetId: string | null;
+  onDragStart: (groupKey: string, itemId: string) => void;
+  onDragOver: (e: React.DragEvent, itemId: string) => void;
+  onDrop: (e: React.DragEvent, groupKey: string, items: any[]) => void;
+  onDragEnd: () => void;
+} | null>(null);
+
 /**
  * Resolve a Lucide icon component by name string.
  * Supports camelCase, PascalCase, and kebab-case icon names.
@@ -96,7 +160,46 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const logo = activeApp?.branding?.logo;
   const primaryColor = activeApp?.branding?.primaryColor;
 
+  // Drag-and-drop reorder state
+  const { applyOrder, saveOrder } = useNavOrder(activeAppName);
+  const [dragItemId, setDragItemId] = React.useState<string | null>(null);
+  const [dragGroupKey, setDragGroupKey] = React.useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = React.useState<string | null>(null);
+
+  const dndValue = React.useMemo(() => ({
+    dragItemId,
+    dragGroupKey,
+    dropTargetId,
+    onDragStart: (groupKey: string, itemId: string) => {
+      setDragGroupKey(groupKey);
+      setDragItemId(itemId);
+    },
+    onDragOver: (e: React.DragEvent, itemId: string) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setDropTargetId(itemId);
+    },
+    onDrop: (e: React.DragEvent, groupKey: string, items: any[]) => {
+      e.preventDefault();
+      if (!dragItemId || groupKey !== dragGroupKey) return;
+      const ids = items.map((i: any) => i.id);
+      const fromIdx = ids.indexOf(dragItemId);
+      const toIdx = ids.indexOf(dropTargetId);
+      if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+      const reordered = [...ids];
+      reordered.splice(fromIdx, 1);
+      reordered.splice(toIdx, 0, dragItemId);
+      saveOrder(groupKey, reordered);
+    },
+    onDragEnd: () => {
+      setDragItemId(null);
+      setDragGroupKey(null);
+      setDropTargetId(null);
+    },
+  }), [dragItemId, dragGroupKey, dropTargetId, applyOrder, saveOrder]);
+
   return (
+    <DndContext.Provider value={dndValue}>
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
@@ -163,7 +266,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
       </SidebarHeader>
 
       <SidebarContent>
-         <NavigationTree items={activeApp.navigation || []} activeAppName={activeAppName} />
+         <NavigationTree items={activeApp.navigation || []} activeAppName={activeAppName} applyOrder={applyOrder} />
 
          {/* Favorites */}
          {favorites.length > 0 && (
@@ -288,19 +391,22 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
+    </DndContext.Provider>
   );
 }
 
-function NavigationTree({ items, activeAppName }: { items: any[], activeAppName: string }) {
+function NavigationTree({ items, activeAppName, applyOrder }: { items: any[], activeAppName: string, applyOrder: (groupKey: string, items: any[]) => any[] }) {
     const hasGroups = items.some(i => i.type === 'group');
 
     // If no explicit groups, wrap everything in one default group
     if (!hasGroups) {
+        const groupKey = '__root__';
+        const ordered = applyOrder(groupKey, items);
         return (
             <SidebarGroup>
                 <SidebarGroupContent>
                     <SidebarMenu>
-                        {items.map(item => <NavigationItemRenderer key={item.id} item={item} activeAppName={activeAppName} />)}
+                        {ordered.map(item => <NavigationItemRenderer key={item.id} item={item} activeAppName={activeAppName} groupKey={groupKey} groupItems={ordered} applyOrder={applyOrder} />)}
                     </SidebarMenu>
                 </SidebarGroupContent>
             </SidebarGroup>
@@ -315,12 +421,14 @@ function NavigationTree({ items, activeAppName }: { items: any[], activeAppName:
     // Helper to flush buffer
     const flushBuffer = (keyPrefix: string) => {
         if (currentBuffer.length === 0) return;
+        const groupKey = keyPrefix;
+        const ordered = applyOrder(groupKey, currentBuffer);
         renderedItems.push(
             <SidebarGroup key={`${keyPrefix}-group`}>
                 <SidebarGroupContent>
                      <SidebarMenu>
-                        {currentBuffer.map(item => (
-                            <NavigationItemRenderer key={item.id} item={item} activeAppName={activeAppName} />
+                        {ordered.map(item => (
+                            <NavigationItemRenderer key={item.id} item={item} activeAppName={activeAppName} groupKey={groupKey} groupItems={ordered} applyOrder={applyOrder} />
                         ))}
                     </SidebarMenu>
                 </SidebarGroupContent>
@@ -332,7 +440,7 @@ function NavigationTree({ items, activeAppName }: { items: any[], activeAppName:
     items.forEach((item, index) => {
         if (item.type === 'group') {
             flushBuffer(`auto-${index}`);
-            renderedItems.push(<NavigationItemRenderer key={item.id} item={item} activeAppName={activeAppName} />);
+            renderedItems.push(<NavigationItemRenderer key={item.id} item={item} activeAppName={activeAppName} groupKey={item.id} groupItems={[]} applyOrder={applyOrder} />);
         } else {
             currentBuffer.push(item);
         }
@@ -343,11 +451,12 @@ function NavigationTree({ items, activeAppName }: { items: any[], activeAppName:
     return <>{renderedItems}</>;
 }
 
-function NavigationItemRenderer({ item, activeAppName }: { item: any, activeAppName: string }) {
+function NavigationItemRenderer({ item, activeAppName, groupKey, groupItems, applyOrder }: { item: any, activeAppName: string, groupKey: string, groupItems: any[], applyOrder: (groupKey: string, items: any[]) => any[] }) {
     const Icon = getIcon(item.icon);
     const location = useLocation();
     const [isOpen, setIsOpen] = React.useState(item.expanded !== false);
     const { evaluator } = useExpressionContext();
+    const dnd = React.useContext(DndContext);
 
     // Evaluate visibility expression (supports boolean, string, and ${} template expressions)
     const isVisible = evaluateVisibility(item.visible ?? item.visibleOn, evaluator);
@@ -356,6 +465,8 @@ function NavigationItemRenderer({ item, activeAppName }: { item: any, activeAppN
     }
 
     if (item.type === 'group') {
+        const children: any[] = item.children ?? [];
+        const orderedChildren = applyOrder(groupKey, children);
         return (
             <Collapsible open={isOpen} onOpenChange={setIsOpen}>
                 <SidebarGroup>
@@ -368,8 +479,8 @@ function NavigationItemRenderer({ item, activeAppName }: { item: any, activeAppN
                     <CollapsibleContent>
                         <SidebarGroupContent>
                             <SidebarMenu>
-                                {item.children?.map((child: any) => (
-                                    <NavigationItemRenderer key={child.id} item={child} activeAppName={activeAppName} />
+                                {orderedChildren.map((child: any) => (
+                                    <NavigationItemRenderer key={child.id} item={child} activeAppName={activeAppName} groupKey={groupKey} groupItems={orderedChildren} applyOrder={applyOrder} />
                                 ))}
                             </SidebarMenu>
                         </SidebarGroupContent>
@@ -407,9 +518,20 @@ function NavigationItemRenderer({ item, activeAppName }: { item: any, activeAppN
     }
 
     const isActive = location.pathname.startsWith(href) && href !== '#';
+    const isDragOver = dnd?.dropTargetId === item.id && dnd?.dragItemId !== item.id && dnd?.dragGroupKey === groupKey;
 
     return (
-        <SidebarMenuItem>
+        <SidebarMenuItem
+            draggable
+            onDragStart={(e: React.DragEvent) => {
+                e.dataTransfer.effectAllowed = 'move';
+                dnd?.onDragStart(groupKey, item.id);
+            }}
+            onDragOver={(e: React.DragEvent) => dnd?.onDragOver(e, item.id)}
+            onDrop={(e: React.DragEvent) => dnd?.onDrop(e, groupKey, groupItems)}
+            onDragEnd={() => dnd?.onDragEnd()}
+            className={isDragOver ? 'border-t-2 border-primary' : ''}
+        >
             <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
                 {isExternal ? (
                     <a href={href} target="_blank" rel="noopener noreferrer">
