@@ -4,7 +4,7 @@
 > **Current Version:** v0.5.x
 > **Spec Version:** @objectstack/spec v3.0.0
 > **Client Version:** @objectstack/client v3.0.0
-> **Current Priority:** 🎯 Component Excellence · Console Completeness · Developer Experience · Documentation
+> **Current Priority:** 🎯 Developer Experience · User Experience · Component Excellence · Documentation
 
 ---
 
@@ -12,13 +12,13 @@
 
 ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn. It renders JSON metadata from the @objectstack/spec protocol into pixel-perfect, accessible, and interactive enterprise interfaces.
 
-**Where We Are:** The foundation is solid — 35 packages, 91+ components, 165 test files, 66 Storybook stories, 98% spec compliance, and all 42 builds passing. The @objectstack/spec v3.0.0 migration is complete, and the Console v1.0 production build is optimized and shipping.
+**Where We Are:** The foundation is solid — 35 packages, 91+ components, 200+ test files, 68 Storybook stories, 98% spec compliance, and all 42 builds passing. The @objectstack/spec v3.0.0 migration is complete, and the Console v1.0 production build is optimized and shipping.
 
-**What's Next:** Before expanding to marketplace or cloud features, we are focusing on making what we have **excellent**. The immediate priority is:
+**What's Next:** Before expanding to marketplace or cloud features, we are focusing on **developer experience** and **user experience**. A full-repository audit (Feb 2026) identified concrete improvement areas across all 35 packages, 4 examples, the Console app, 128 documentation pages, and 68 Storybook stories. The re-prioritized focus is:
 
-1. **🧩 Component Excellence** — Every component polished, well-tested, and delightful to use
-2. **🖥️ Console Completeness** — Full-featured management console with no architectural gaps
-3. **🛠️ Developer Experience** — Intuitive APIs, great CLI tooling, easy onboarding
+1. **🛠️ Developer Experience (DX)** — Zero-friction onboarding, discoverable APIs, helpful errors, complete docs
+2. **🎨 User Experience (UX)** — Console polish, i18n completeness, accessibility, performance at scale
+3. **🧩 Component Excellence** — Every component polished, well-tested, and delightful to use
 4. **📖 Documentation** — Complete API docs, rich Storybook stories, tutorials, and guides
 
 > 📄 Companion documents:
@@ -86,134 +86,200 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 
 ---
 
-## 🎯 Current Priority: Make Everything Excellent
+## 📊 Full-Repository Audit (February 2026)
 
-> All foundation work is complete. Before expanding, we focus on quality, usability, and developer experience.
+> A comprehensive scan of the entire codebase and documentation, analyzed from both **Developer Experience (DX)** and **User Experience (UX)** perspectives.
 
-### P1. Component Excellence 🧩
+### Audit Scope
+
+| Area | Count | Notes |
+|------|-------|-------|
+| Packages | 35 | 27 with README, 10 missing README |
+| Components | 91+ | 48 base UI + 14 custom + 29 renderers |
+| Field Widgets | 36+ | Consistent FieldWidgetProps pattern |
+| Storybook Stories | 68 | Good coverage, some gaps in edge-case stories |
+| Documentation Pages | 128 | .mdx files across 8 categories |
+| Test Files | 200+ | 3,235+ tests, 80% coverage |
+| Examples | 4 | todo, crm, kitchen-sink, msw-todo |
+| CLI Commands | 11 | init, build, dev, serve, doctor, etc. |
+| I18n Locales | 11 | ar, de, en, es, fr, ja, ko, pt, ru, zh + RTL |
+| CI Workflows | 13 | CI, CodeQL, Storybook, perf budget, etc. |
+
+### Key Findings
+
+**Strengths:**
+- Solid architecture with clear layer separation (spec → types → core → react → components)
+- Excellent quick-start guide (`content/docs/guide/quick-start.md`, 197 lines)
+- Clean app bootstrapping (`apps/console/src/main.tsx`, 44 lines, well-commented)
+- 11 CLI commands with `doctor` for environment diagnosis
+- Per-component error boundaries with retry (SchemaErrorBoundary)
+- 13 CI/CD workflows including performance budgets and visual regression
+
+**Gaps Identified:**
+- 10 packages missing README: auth, tenant, permissions, i18n, mobile, collaboration, plugin-ai, plugin-designer, plugin-workflow, plugin-report
+- 20+ React hooks exported without JSDoc documentation
+- Console has hardcoded English strings (LoadingScreen, KeyboardShortcutsDialog) outside i18n
+- MIGRATION_GUIDE.md referenced in README but does not exist
+- Types package has minimal JSDoc on exported interfaces
+- No interactive schema playground in documentation site
+- Core error messages lack error codes and actionable fix suggestions
+
+---
+
+## 🎯 Current Priorities
+
+> All foundation work is complete. Priorities re-ordered based on the Feb 2026 audit, with DX and UX front and center.
+
+### P1. Developer Experience 🛠️
+
+**Goal:** A developer can go from `git clone` to a running app in under 5 minutes, with discoverable APIs, helpful errors, and complete documentation at every step.
+
+#### P1.1 Zero-Friction Onboarding
+- [ ] Create MIGRATION_GUIDE.md at repo root (currently referenced in README but missing)
+- [ ] Streamline `npx create-objectui-app` scaffolding with working Vite + Tailwind templates
+- [ ] Ensure `pnpm install && pnpm dev` starts the console with zero additional configuration
+- [ ] Add a standalone "Hello World" example (5-file, <50 lines total) demonstrating JSON → UI flow
+- [ ] Provide copy-paste-ready schema examples in the root README for instant gratification
+
+#### P1.2 API Discoverability & JSDoc
+- [ ] Add JSDoc comments to all 20+ exported React hooks (`useExpression`, `useActionRunner`, `useViewData`, `useDynamicApp`, `usePerformance`, `useCrudShortcuts`, etc.)
+- [ ] Add JSDoc with usage examples to key types in `@object-ui/types` (`SchemaNode`, `FieldMetadata`, `ViewSchema`, `ActionSchema`, etc.)
+- [ ] Document all context providers (`ThemeContext`, `AuthContext`, `I18nContext`, `NotificationContext`, `DndContext`) with usage examples
+- [ ] Ensure TypeScript autocompletion works smoothly for all schema types via strict discriminated unions
+
+#### P1.3 Error Messages & Debugging
+- [ ] Create error code system (`OBJUI-001`, `OBJUI-002`, etc.) with documentation links
+- [ ] Improve SchemaErrorBoundary to show actionable fix suggestions in dev mode (e.g., "Missing field 'type'. Did you mean to use a PageSchema?")
+- [ ] Replace generic `console.warn()` calls in core with structured error factory
+- [ ] Add `OBJECTUI_DEBUG=true` mode with schema resolution tracing and component render timing
+- [ ] Ensure console warnings for deprecated APIs include migration code snippets
+
+#### P1.4 CLI Tooling Polish
+- [ ] Verify `objectui init` produces a buildable project with all dependencies resolved
+- [ ] Enhance `objectui doctor` to check TypeScript version, Tailwind config, and peer dependencies
+- [ ] Verify `create-plugin` template produces a plugin with working tests and Storybook story
+- [ ] Add `objectui validate <schema.json>` command for schema linting with actionable error messages
+- [ ] Resolve 8 TODO/FIXME items in CLI code (`doctor.ts`, `dev.ts`, `check.ts`)
+
+#### P1.5 Package READMEs (10 Missing)
+- [ ] Add README for `@object-ui/auth` — authentication guards, login/register forms, AuthContext
+- [ ] Add README for `@object-ui/tenant` — multi-tenancy support, TenantProvider, branding
+- [ ] Add README for `@object-ui/permissions` — RBAC, PermissionGuard, usePermissions hook
+- [ ] Add README for `@object-ui/i18n` — 11 locales, RTL support, I18nProvider, formatting utilities
+- [ ] Add README for `@object-ui/mobile` — responsive hooks, gesture support, touch optimization
+- [ ] Add README for `@object-ui/collaboration` — live cursors, presence, comment threads, conflict resolution
+- [ ] Add README for `@object-ui/plugin-ai` — AI form assistance, recommendations, NL query
+- [ ] Add README for `@object-ui/plugin-designer` — 5 visual designers (Page, View, DataModel, Process, Report)
+- [ ] Add README for `@object-ui/plugin-workflow` — approval processes, workflow designer
+- [ ] Add README for `@object-ui/plugin-report` — report builder, viewer, exporter, scheduling
+
+---
+
+### P2. User Experience 🎨
+
+**Goal:** Every interaction in the Console and rendered UIs is fast, polished, accessible, and works flawlessly in all supported languages.
+
+#### P2.1 Console i18n Completeness
+- [ ] Migrate hardcoded strings in `LoadingScreen.tsx` to i18n keys ("ObjectStack Console", "Initializing application...")
+- [ ] Migrate hardcoded strings in `KeyboardShortcutsDialog.tsx` to i18n keys
+- [ ] Audit all `apps/console/src/components/` for remaining hardcoded UI strings
+- [ ] Remove all Chinese UI strings; enforce English-only with i18n key lookups
+- [ ] Add locale switcher to Console settings panel
+
+#### P2.2 Console Architecture Cleanup
+- [ ] Consolidate hand-wired ObjectView into plugin-based ObjectView (eliminate duplication)
+- [ ] Replace lightweight local data adapter with official `@object-ui/data-objectstack`
+- [ ] Replace custom `defineConfig()` with standard `defineStack()` configuration
+- [ ] Register all missing plugins properly in the plugin registry
+- [ ] Convert hardcoded view tabs to schema-driven configuration
+
+#### P2.3 Accessibility & Inclusive Design
+- [ ] Run axe-core audit on Console pages (currently 30 tests on primitives, not on assembled pages)
+- [ ] Ensure focus management across all Console navigation flows (sidebar → content → modal → back)
+- [ ] Verify screen reader experience for complex views (Grid, Kanban, Calendar)
+- [ ] Test all color combinations against WCAG 2.1 AA contrast ratios in both light and dark themes
+- [ ] Add `prefers-reduced-motion` respect to all animations (page transitions, DnD, skeleton loading)
+
+#### P2.4 Performance at Scale
+- [ ] Benchmark Grid/Kanban/Calendar with 1,000+ and 10,000+ records; set performance baselines
+- [ ] Implement virtual scrolling for large data grids (plugin-grid, plugin-aggrid)
+- [ ] Profile and optimize initial Console load (target: < 2s on 3G, currently ~3s estimated)
+- [ ] Add loading skeleton states for all async data views
+- [ ] Test view switching (grid ↔ kanban ↔ calendar) state preservation with large datasets
+
+#### P2.5 Console Feature Completeness
+- [ ] Verify CRUD end-to-end for all object types (create, read, update, delete, bulk operations)
+- [ ] Verify command palette (⌘K) searches across all entity types
+- [ ] Ensure dark/light theme toggle is consistent across all pages with no flash
+- [ ] Test responsive layout on tablet (768px) and mobile (375px) breakpoints
+- [ ] Verify inline editing in grid view with save/cancel/validation feedback
+
+---
+
+### P3. Component Excellence 🧩
 
 **Goal:** Every component is polished, consistent, well-tested, and delightful to use.
 
-#### P1.1 Component Quality Audit
+#### P3.1 Component Quality Audit
 - [ ] Audit all 91+ components for API consistency (prop naming, default values, error states)
 - [ ] Ensure every component has complete TypeScript types with JSDoc descriptions
-- [ ] Standardize error/empty/loading states across all components
+- [ ] Standardize error/empty/loading states across all components using shared primitives
 - [ ] Add missing edge-case handling (overflow, truncation, null data, large datasets)
 
-#### P1.2 Field Widget Polish
-- [ ] Audit all 35+ field widgets for consistent validation feedback
+#### P3.2 Field Widget Polish
+- [ ] Audit all 36+ field widgets for consistent validation feedback (error message placement, color, icon)
 - [ ] Ensure all fields work correctly in all form variants (simple, tabbed, wizard, split, drawer, modal)
-- [ ] Test field widgets with extreme inputs (very long strings, large numbers, special characters)
-- [ ] Polish date/time/datetime pickers for timezone edge cases
+- [ ] Test field widgets with extreme inputs (10,000-char strings, MAX_SAFE_INTEGER, emoji, RTL text)
+- [ ] Polish date/time/datetime pickers for timezone edge cases and locale formatting
 
-#### P1.3 Plugin View Robustness
+#### P3.3 Plugin View Robustness
 - [ ] Verify all 13+ view types handle empty data, loading, and error states gracefully
-- [ ] Test Grid/Kanban/Calendar with 1000+ records for performance
 - [ ] Ensure consistent toolbar, filter, and sort behavior across all views
-- [ ] Validate view switching (grid ↔ kanban ↔ calendar) preserves state correctly
+- [ ] Validate view switching preserves selection state, scroll position, and filter criteria
+- [ ] Add E2E tests for critical view workflows (Grid → detail → back, Kanban drag-and-drop)
 
-#### P1.4 Storybook Coverage
-- [ ] Ensure every exported component has at least one Storybook story
-- [ ] Add interactive controls (args) for all major props in each story
-- [ ] Add "edge case" stories (empty data, error state, loading, overflow)
-- [ ] Organize stories with consistent categorization (Components / Fields / Layout / Plugins)
-
-#### P1.5 Test Coverage Gaps
-- [ ] Identify components with < 80% test coverage and add tests
+#### P3.4 Test Coverage
+- [ ] Increase test coverage from 80% → 90% (target: 4,000+ tests)
+- [ ] Identify and cover components with < 80% test coverage
 - [ ] Add integration tests for complex interactions (DnD + undo/redo, form validation + submit)
-- [ ] Ensure all public APIs are covered by tests
 - [ ] Add snapshot tests for critical UI output consistency
 
----
-
-### P2. Console Completeness 🖥️
-
-**Goal:** The Console is a fully functional, production-quality management UI with no gaps.
-
-#### P2.1 Architectural Cleanup
-- [ ] Consolidate hand-wired ObjectView into plugin-based ObjectView (eliminate duplication)
-- [ ] Replace lightweight local data adapter with official @object-ui/data-objectstack
-- [ ] Replace custom `defineConfig()` with standard `defineStack()` configuration
-- [ ] Remove all Chinese UI strings; enforce English-only with i18n keys
-- [ ] Register all missing plugins properly in the plugin registry
-
-#### P2.2 Schema-Driven Views
-- [ ] Convert hardcoded view tabs to schema-driven configuration
-- [ ] Implement runtime metadata fetching via DataSource API
-- [ ] Remove duplicated MetadataInspector code
-- [ ] Ensure all views respect schema-defined navigation config
-
-#### P2.3 CRUD Completeness
-- [ ] Verify create/read/update/delete works end-to-end for all object types
-- [ ] Ensure bulk operations (multi-select delete, bulk update) work reliably
-- [ ] Test inline editing in grid view with save/cancel/validation
-- [ ] Verify related records (detail view related lists) load and navigate correctly
-
-#### P2.4 Console Features
-- [ ] Verify command palette (⌘K) searches across all entity types
-- [ ] Ensure dark/light theme toggle works consistently across all pages
-- [ ] Test responsive layout on tablet and mobile breakpoints
-- [ ] Verify system admin UIs (users, roles, settings) are fully functional
-
----
-
-### P3. Developer Experience 🛠️
-
-**Goal:** A developer can go from zero to a working app in under 10 minutes.
-
-#### P3.1 Getting Started
-- [ ] Streamline `npx create-objectui-app` scaffolding with working templates
-- [ ] Ensure `pnpm dev` starts the console with zero configuration
-- [ ] Add a "Hello World" example that demonstrates the full JSON → UI flow
-- [ ] Provide a copy-paste-ready schema example in the README
-
-#### P3.2 API Design
-- [ ] Review and simplify the SchemaRenderer API surface
-- [ ] Ensure all hooks have clear, minimal APIs with sensible defaults
-- [ ] Add runtime validation with helpful error messages for invalid schemas
-- [ ] Ensure TypeScript autocompletion works smoothly for all schema types
-
-#### P3.3 CLI Tooling
-- [ ] Verify `objectui` CLI works for project scaffolding, plugin creation, and dev server
-- [ ] Add `objectui doctor` command to diagnose environment issues
-- [ ] Ensure `create-plugin` template produces a working plugin with tests
-- [ ] Add validation/lint command for schema files
-
-#### P3.4 Error Messages & Debugging
-- [ ] Improve error messages for common mistakes (wrong schema type, missing fields, invalid expressions)
-- [ ] Enhance SchemaErrorBoundary to show actionable fix suggestions in dev mode
-- [ ] Add debug mode with schema resolution tracing
-- [ ] Ensure console warnings for deprecated APIs with migration hints
+#### P3.5 Storybook Enhancement
+- [ ] Ensure every exported component has at least one Storybook story (target: 91+ stories from current 68)
+- [ ] Add interactive controls (args) for all major props in each story
+- [ ] Add "edge case" stories per component (empty data, error state, loading, overflow, RTL)
+- [ ] Organize stories with consistent categorization (Components / Fields / Layout / Plugins)
 
 ---
 
 ### P4. Documentation 📖
 
-**Goal:** Comprehensive, accurate, and easy-to-navigate documentation.
+**Goal:** Comprehensive, accurate, and easy-to-navigate documentation that is a developer's best friend.
 
-#### P4.1 Package Documentation
-- [ ] Ensure every package README has: description, installation, quick start, API reference, examples
-- [ ] Add migration guide for v3.0.0 breaking changes
-- [ ] Document all hooks with usage examples and parameter descriptions
-- [ ] Document all context providers (ThemeContext, AuthContext, I18nContext, etc.)
+#### P4.1 Guide Content
+- [ ] Verify "Getting Started" guide (`quick-start.md`) stays current with latest API
+- [ ] Write "Building a CRUD App" end-to-end tutorial (complete walkthrough: schema → data → deploy)
+- [ ] Write "Custom Plugin Development" guide with best practices and template walkthrough
+- [ ] Write "Theming & Customization" guide (Tailwind config, cva variants, dark mode, CSS custom properties)
+- [ ] Add deployment guides for examples (Docker, Vercel, Railway configurations)
 
-#### P4.2 Guide Content
-- [ ] Write "Getting Started" guide (install → first schema → rendered UI)
-- [ ] Write "Building a CRUD App" tutorial (complete walkthrough)
-- [ ] Write "Custom Plugin Development" guide with best practices
-- [ ] Write "Theming & Customization" guide (CSS custom properties, dark mode, cva variants)
+#### P4.2 API Reference
+- [ ] Generate API reference docs from TypeScript types (TSDoc → documentation site)
+- [ ] Document all schema types with annotated examples (ViewSchema, ActionSchema, FieldSchema, etc.)
+- [ ] Add interactive schema playground on documentation site (JSON editor → live preview)
+- [ ] Document expression engine syntax and all built-in functions with examples
 
-#### P4.3 API Reference
-- [ ] Generate API reference docs from TypeScript types (TSDoc → site)
-- [ ] Document all schema types with examples (ViewSchema, ActionSchema, FieldSchema, etc.)
-- [ ] Add interactive schema playground on documentation site
-- [ ] Document expression engine syntax and built-in functions
+#### P4.3 Storybook as Living Documentation
+- [ ] Ensure Storybook serves as the primary component reference alongside docs site
+- [ ] Add usage documentation (MDX) alongside each component story
+- [ ] Add accessibility notes for each component (keyboard shortcuts, ARIA roles, screen reader behavior)
+- [ ] Deploy Storybook to a publicly accessible URL (storybook.objectui.org)
 
-#### P4.4 Storybook as Living Documentation
-- [ ] Ensure Storybook serves as the primary component reference
-- [ ] Add usage documentation (MDX) alongside component stories
-- [ ] Add accessibility notes for each component
-- [ ] Ensure Storybook is deployed and accessible at a public URL
+#### P4.4 Architecture & Internals
+- [ ] Document the layer architecture (spec → types → core → react → components → plugins) with data flow diagrams
+- [ ] Document the plugin system architecture (registration, lifecycle, lazy loading)
+- [ ] Add troubleshooting guide for common development issues
+- [ ] Document CI/CD pipeline architecture (13 workflows, their triggers and responsibilities)
 
 ---
 
@@ -247,15 +313,31 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 
 ## 📈 Success Metrics
 
-| Metric | Current | Short-Term Target |
-|--------|---------|-------------------|
-| **Test Coverage** | 80% | 90% |
-| **Spec Compliance** | 98% | 100% |
-| **Storybook Stories** | 66 | 91+ (1 per component) |
-| **Package READMEs** | 31 | 35 (100%) |
-| **Console Gaps** | ~8 (per NEXT_STEPS.md) | 0 |
-| **Build Status** | 42/42 pass | 42/42 pass |
-| **Test Count** | 3,235+ | 4,000+ |
+| Metric | Current (Feb 2026) | Short-Term Target | How Measured |
+|--------|--------------------|--------------------|--------------|
+| **Test Coverage** | 80% | 90% | `pnpm test:coverage` |
+| **Test Count** | 3,235+ | 4,000+ | `pnpm test` summary |
+| **Spec Compliance** | 98% | 100% | SPEC_COMPLIANCE_EVALUATION.md |
+| **Storybook Stories** | 68 | 91+ (1 per component) | Story file count |
+| **Package READMEs** | 27/35 (77%) | 35/35 (100%) | README.md presence |
+| **Hooks with JSDoc** | ~5/20+ (~25%) | 20+/20+ (100%) | Grep `/** */` in hooks |
+| **Console i18n Coverage** | ~80% | 100% | No hardcoded strings |
+| **Build Status** | 42/42 pass | 42/42 pass | `pnpm build` |
+| **WCAG AA Compliance** | Primitives only | Full Console pages | axe-core audit |
+| **CLI Commands Working** | 11 | 11 (all verified) | `objectui doctor` |
+| **TODO/FIXME Count** | 8 files | 0 | Grep `TODO\|FIXME\|HACK` |
+
+### DX Success Criteria
+- [ ] New developer can `git clone` → `pnpm install` → `pnpm dev` → see Console in < 5 minutes
+- [ ] `objectui init my-app` creates a buildable project with zero errors
+- [ ] Every exported function/hook/type has JSDoc with at least one usage example
+- [ ] Invalid schema input produces an error message with fix suggestion and docs link
+
+### UX Success Criteria
+- [ ] Console loads in < 2s on simulated 3G connection
+- [ ] All Console UI strings are internationalized (0 hardcoded strings)
+- [ ] Grid view handles 10,000+ records without jank (< 100ms interaction latency)
+- [ ] Full keyboard navigation for all Console workflows (no mouse required)
 
 ---
 
@@ -263,10 +345,13 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 
 | Risk | Mitigation |
 |------|------------|
-| Spec changes (post v3.0.0) | Strict "import, never redefine" rule; type updates propagate automatically |
-| Performance regression | Performance budgets in CI, PerformanceConfigSchema monitoring |
-| Component API inconsistency | Audit checklist, automated prop-type validation |
-| Documentation drift | TSDoc generation, Storybook as source of truth |
+| **New developer abandons due to poor onboarding** | P1.1 zero-friction setup; MIGRATION_GUIDE.md; "Hello World" example |
+| **Spec changes (post v3.0.0)** | Strict "import, never redefine" rule; type updates propagate automatically |
+| **Performance regression** | Performance budgets in CI, PerformanceConfigSchema monitoring, 10K-record benchmarks |
+| **i18n regression (new hardcoded strings)** | ESLint rule to detect string literals in JSX; i18n coverage metric in CI |
+| **Component API inconsistency** | Audit checklist, automated prop-type validation, Storybook as source of truth |
+| **Documentation drift** | TSDoc generation from source, Storybook stories alongside code, link checker CI |
+| **Accessibility regression** | axe-core tests on full Console pages (not just primitives), WCAG AA CI check |
 
 ---
 
@@ -291,6 +376,6 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 
 ---
 
-**Roadmap Status:** 🎯 Active — Component Excellence · Console Completeness · Developer Experience · Documentation
+**Roadmap Status:** 🎯 Active — Developer Experience · User Experience · Component Excellence · Documentation
 **Next Review:** March 15, 2026
 **Contact:** hello@objectui.org | https://github.com/objectstack-ai/objectui
