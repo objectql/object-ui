@@ -112,6 +112,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-router-dom": "^7.13.0",
+    "rollup-plugin-visualizer": "^6.0.5",
     "storybook": "^8.6.15",
     "tailwindcss": "^4.1.18",
     "tslib": "^2.6.0",
@@ -119,6 +120,7 @@
     "turbo": "^2.8.3",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.53.1",
+    "vite-plugin-compression2": "^2.4.0",
     "vitest": "^4.0.18",
     "vitest-axe": "^0.1.0",
     "wait-on": "^9.0.3"

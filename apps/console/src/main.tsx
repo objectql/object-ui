@@ -8,7 +8,6 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import { App } from './App';
-import { startMockServer } from './mocks/browser';
 
 // Register plugins (side-effect imports for ComponentRegistry)
 import '@object-ui/plugin-grid';
@@ -28,8 +27,9 @@ import '@object-ui/plugin-markdown';
 
 // Start MSW before rendering the app
 async function bootstrap() {
-  // Initialize Mock Service Worker if enabled
+  // Initialize Mock Service Worker if enabled (lazy-loaded to keep production bundle lean)
   if (import.meta.env.VITE_USE_MOCK_SERVER !== 'false') {
+    const { startMockServer } = await import('./mocks/browser');
     await startMockServer();
   }
 

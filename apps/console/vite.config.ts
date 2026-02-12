@@ -2,6 +2,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { viteCryptoStub } from '../../scripts/vite-crypto-stub';
+import { compression } from 'vite-plugin-compression2';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -15,6 +17,25 @@ export default defineConfig({
   plugins: [
     viteCryptoStub(),
     react(),
+    // Gzip compression for production assets
+    compression({
+      algorithm: 'gzip',
+      exclude: [/\.(br)$/, /\.(gz)$/],
+      threshold: 1024,
+    }),
+    // Brotli compression for modern browsers
+    compression({
+      algorithm: 'brotliCompress',
+      exclude: [/\.(br)$/, /\.(gz)$/],
+      threshold: 1024,
+    }),
+    // Bundle analysis (generates stats.html in dist/)
+    visualizer({
+      filename: 'dist/stats.html',
+      gzipSize: true,
+      brotliSize: true,
+      open: false,
+    }),
   ],
   resolve: {
     extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'],
@@ -72,6 +93,8 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
+    sourcemap: false,
+    cssCodeSplit: true,
     commonjsOptions: {
       include: [/node_modules/, /packages/],
       transformMixedEsModules: true
@@ -85,6 +108,104 @@ export default defineConfig({
           return;
         }
         warn(warning);
+      },
+      output: {
+        manualChunks(id) {
+          // Vendor: React ecosystem
+          if (id.includes('node_modules/react/') ||
+              id.includes('node_modules/react-dom/') ||
+              id.includes('node_modules/react-router') ||
+              id.includes('node_modules/scheduler/')) {
+            return 'vendor-react';
+          }
+          // Vendor: Radix UI primitives
+          if (id.includes('node_modules/@radix-ui/')) {
+            return 'vendor-radix';
+          }
+          // Vendor: Lucide icons
+          if (id.includes('node_modules/lucide-react/')) {
+            return 'vendor-icons';
+          }
+          // Vendor: UI utilities (cva, clsx, tailwind-merge, sonner)
+          if (id.includes('node_modules/class-variance-authority/') ||
+              id.includes('node_modules/clsx/') ||
+              id.includes('node_modules/tailwind-merge/') ||
+              id.includes('node_modules/sonner/')) {
+            return 'vendor-ui-utils';
+          }
+          // ObjectStack SDK
+          if (id.includes('node_modules/@objectstack/')) {
+            return 'vendor-objectstack';
+          }
+          // Zod (validation)
+          if (id.includes('node_modules/zod/')) {
+            return 'vendor-zod';
+          }
+          // MSW + related (mock server — dev/demo only)
+          if (id.includes('node_modules/msw/') ||
+              id.includes('node_modules/mswjs/') ||
+              id.includes('node_modules/@mswjs/') ||
+              id.includes('node_modules/strict-event-emitter/') ||
+              id.includes('node_modules/outvariant/') ||
+              id.includes('node_modules/headers-polyfill/') ||
+              id.includes('node_modules/@bundled-es-modules/')) {
+            return 'vendor-msw';
+          }
+          // Recharts (charts)
+          if (id.includes('node_modules/recharts/') ||
+              id.includes('node_modules/d3-') ||
+              id.includes('node_modules/victory-')) {
+            return 'vendor-charts';
+          }
+          // DnD Kit
+          if (id.includes('node_modules/@dnd-kit/')) {
+            return 'vendor-dndkit';
+          }
+          // i18next
+          if (id.includes('node_modules/i18next') ||
+              id.includes('node_modules/react-i18next/')) {
+            return 'vendor-i18n';
+          }
+          // @object-ui/core + @object-ui/react (framework)
+          if (id.includes('/packages/core/') ||
+              id.includes('/packages/react/') ||
+              id.includes('/packages/types/')) {
+            return 'framework';
+          }
+          // @object-ui/components + @object-ui/fields (UI atoms)
+          if (id.includes('/packages/components/') ||
+              id.includes('/packages/fields/')) {
+            return 'ui-components';
+          }
+          // @object-ui/layout
+          if (id.includes('/packages/layout/')) {
+            return 'ui-layout';
+          }
+          // Infrastructure: auth, permissions, tenant, i18n
+          if (id.includes('/packages/auth/') ||
+              id.includes('/packages/permissions/') ||
+              id.includes('/packages/tenant/') ||
+              id.includes('/packages/i18n/')) {
+            return 'infrastructure';
+          }
+          // Plugins: grid, form, view (core views — always needed)
+          if (id.includes('/packages/plugin-grid/') ||
+              id.includes('/packages/plugin-form/') ||
+              id.includes('/packages/plugin-view/')) {
+            return 'plugins-core';
+          }
+          // Plugins: detail, list, dashboard, report
+          if (id.includes('/packages/plugin-detail/') ||
+              id.includes('/packages/plugin-list/') ||
+              id.includes('/packages/plugin-dashboard/') ||
+              id.includes('/packages/plugin-report/')) {
+            return 'plugins-views';
+          }
+          // Data adapter
+          if (id.includes('/packages/data-objectstack/')) {
+            return 'data-adapter';
+          }
+        }
       }
     }
   },
