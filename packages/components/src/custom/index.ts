@@ -12,3 +12,4 @@ export * from './navigation-overlay';
 export * from './spinner';
 export * from './sort-builder';
 export * from './action-param-dialog';
+export * from './view-skeleton';
