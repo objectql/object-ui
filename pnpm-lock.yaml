@@ -517,6 +517,24 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
+  examples/hello-world:
+    dependencies:
+      '@object-ui/components':
+        specifier: workspace:*
+        version: link:../../packages/components
+      '@object-ui/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@object-ui/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      react:
+        specifier: 19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: 19.2.4
+        version: 19.2.4(react@19.2.4)
+
   examples/kitchen-sink:
     dependencies:
       '@objectstack/spec':

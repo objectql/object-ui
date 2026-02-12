@@ -148,6 +148,28 @@ const de = {
       goHome: 'Zur Startseite',
       errorDetails: 'Fehlerdetails (nur Entwicklung)',
     },
+    theme: {
+      toggle: 'Design umschalten',
+      light: 'Hell',
+      dark: 'Dunkel',
+      system: 'System',
+    },
+    objectView: {
+      objectNotFound: 'Objekt nicht gefunden',
+      objectNotFoundDescription: 'Das Objekt „{{objectName}}" existiert in der aktuellen Konfiguration nicht.',
+      objectNotFoundHint: 'Überprüfen Sie Ihre App-Navigationseinstellungen oder wählen Sie ein anderes Objekt aus der Seitenleiste.',
+      allRecords: 'Alle Datensätze',
+      exitDesignMode: 'Designmodus beenden',
+      enterDesignMode: 'Designmodus starten',
+      metadataInspector: 'Metadaten-Inspektor',
+      editView: 'Ansicht bearbeiten',
+      addView: 'Ansicht hinzufügen',
+      designTools: 'Design-Werkzeuge',
+      new: 'Neu',
+    },
+    localeSwitcher: {
+      label: 'Sprache',
+    },
   },
   errors: {
     networkError: 'Netzwerkfehler. Bitte überprüfen Sie Ihre Verbindung.',

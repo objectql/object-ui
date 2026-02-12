@@ -143,6 +143,28 @@ const ja = {
       goHome: 'ホームに戻る',
       errorDetails: 'エラー詳細（開発モードのみ）',
     },
+    theme: {
+      toggle: 'テーマを切り替え',
+      light: 'ライト',
+      dark: 'ダーク',
+      system: 'システム',
+    },
+    objectView: {
+      objectNotFound: 'オブジェクトが見つかりません',
+      objectNotFoundDescription: 'オブジェクト「{{objectName}}」は現在の設定に存在しません。',
+      objectNotFoundHint: 'アプリのナビゲーション設定を確認するか、サイドバーから別のオブジェクトを選択してください。',
+      allRecords: 'すべてのレコード',
+      exitDesignMode: 'デザインモードを終了',
+      enterDesignMode: 'デザインモードに入る',
+      metadataInspector: 'メタデータインスペクター',
+      editView: 'ビューを編集',
+      addView: 'ビューを追加',
+      designTools: 'デザインツール',
+      new: '新規',
+    },
+    localeSwitcher: {
+      label: '言語',
+    },
   },
   errors: {
     networkError: 'ネットワークエラーです。接続を確認してください。',

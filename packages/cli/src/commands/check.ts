@@ -29,9 +29,19 @@ export async function check() {
     try {
       // Basic JSON parsing check
       if (file.endsWith('.json')) {
-        JSON.parse(readFileSync(join(cwd, file), 'utf-8'));
+        const content = JSON.parse(readFileSync(join(cwd, file), 'utf-8'));
+        // Schema validation: check for ObjectUI schema patterns
+        if (content && typeof content === 'object' && content.type) {
+          const knownTypes = [
+            'page', 'form', 'grid', 'crud', 'kanban', 'calendar', 'dashboard',
+            'chart', 'detail', 'list', 'timeline', 'gantt', 'map', 'gallery',
+            'object-view', 'detail-view', 'object-chart',
+          ];
+          if (typeof content.type === 'string' && !knownTypes.includes(content.type)) {
+            console.log(chalk.yellow(`⚠️ Unknown schema type "${content.type}" in ${file}`));
+          }
+        }
       }
-      // TODO: Schema validation logic
     } catch (e) {
       console.log(chalk.red(`x Invalid JSON in ${file}: ${(e as Error).message}`));
       errors++;

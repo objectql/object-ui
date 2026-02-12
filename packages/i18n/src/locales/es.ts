@@ -143,6 +143,28 @@ const es = {
       goHome: 'Ir al inicio',
       errorDetails: 'Detalles del error (solo desarrollo)',
     },
+    theme: {
+      toggle: 'Cambiar tema',
+      light: 'Claro',
+      dark: 'Oscuro',
+      system: 'Sistema',
+    },
+    objectView: {
+      objectNotFound: 'Objeto no encontrado',
+      objectNotFoundDescription: 'El objeto "{{objectName}}" no existe en la configuración actual.',
+      objectNotFoundHint: 'Verifique la configuración de navegación de su aplicación o seleccione un objeto diferente en la barra lateral.',
+      allRecords: 'Todos los registros',
+      exitDesignMode: 'Salir del modo de diseño',
+      enterDesignMode: 'Entrar en modo de diseño',
+      metadataInspector: 'Inspector de metadatos',
+      editView: 'Editar vista',
+      addView: 'Agregar vista',
+      designTools: 'Herramientas de diseño',
+      new: 'Nuevo',
+    },
+    localeSwitcher: {
+      label: 'Idioma',
+    },
   },
   errors: {
     networkError: 'Error de red. Por favor, compruebe su conexión.',

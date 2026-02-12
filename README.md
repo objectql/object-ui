@@ -259,6 +259,88 @@ function App() {
 export default App
 ```
 
+### Copy-Paste Schema Examples
+
+#### 📝 Contact Form
+
+```json
+{
+  "type": "form",
+  "title": "Contact Us",
+  "fields": [
+    { "name": "name", "type": "text", "label": "Full Name", "required": true },
+    { "name": "email", "type": "email", "label": "Email", "required": true },
+    { "name": "subject", "type": "select", "label": "Subject", "options": [
+      { "label": "General Inquiry", "value": "general" },
+      { "label": "Bug Report", "value": "bug" },
+      { "label": "Feature Request", "value": "feature" }
+    ]},
+    { "name": "message", "type": "textarea", "label": "Message", "required": true }
+  ],
+  "actions": [{ "type": "submit", "label": "Send Message" }]
+}
+```
+
+#### 📊 Data Grid
+
+```json
+{
+  "type": "crud",
+  "api": "/api/users",
+  "columns": [
+    { "name": "name", "label": "Name", "sortable": true },
+    { "name": "email", "label": "Email" },
+    { "name": "role", "label": "Role", "type": "select", "options": ["Admin", "User", "Viewer"] },
+    { "name": "status", "label": "Status", "type": "badge" },
+    { "name": "created_at", "label": "Joined", "type": "date" }
+  ],
+  "filters": [
+    { "name": "role", "type": "select", "label": "Filter by Role" },
+    { "name": "status", "type": "select", "label": "Filter by Status" }
+  ],
+  "showSearch": true,
+  "showCreate": true,
+  "showExport": true
+}
+```
+
+#### 📈 Dashboard
+
+```json
+{
+  "type": "dashboard",
+  "title": "Sales Dashboard",
+  "widgets": [
+    { "type": "stat-card", "title": "Revenue", "value": "${stats.revenue}", "trend": "+12%", "w": 3, "h": 1 },
+    { "type": "stat-card", "title": "Orders", "value": "${stats.orders}", "trend": "+8%", "w": 3, "h": 1 },
+    { "type": "stat-card", "title": "Customers", "value": "${stats.customers}", "trend": "+5%", "w": 3, "h": 1 },
+    { "type": "stat-card", "title": "Conversion", "value": "${stats.conversion}", "trend": "-2%", "w": 3, "h": 1 },
+    { "type": "chart", "chartType": "line", "title": "Revenue Over Time", "w": 8, "h": 3 },
+    { "type": "chart", "chartType": "pie", "title": "Sales by Region", "w": 4, "h": 3 }
+  ]
+}
+```
+
+#### 🔄 Kanban Board
+
+```json
+{
+  "type": "kanban",
+  "objectName": "tasks",
+  "groupBy": "status",
+  "titleField": "title",
+  "cardFields": ["assignee", "priority", "due_date"],
+  "columns": [
+    { "value": "todo", "label": "To Do", "color": "#6366f1" },
+    { "value": "in_progress", "label": "In Progress", "color": "#f59e0b" },
+    { "value": "review", "label": "In Review", "color": "#3b82f6" },
+    { "value": "done", "label": "Done", "color": "#22c55e" }
+  ]
+}
+```
+
+> 📖 **More examples:** See [examples/](./examples/) for complete working applications.
+
 ## 📦 Packages
 
 Object UI is a modular monorepo with packages designed for specific use cases:

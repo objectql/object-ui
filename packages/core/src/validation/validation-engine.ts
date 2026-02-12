@@ -401,7 +401,15 @@ export class ValidationEngine {
    */
   private evaluateCondition(condition: any, values: Record<string, any>): boolean {
     if (typeof condition === 'function') {
-      console.warn('Function-based conditions are deprecated and will be removed. Use declarative conditions instead.');
+      console.warn(
+        'Function-based conditions are deprecated and will be removed. Use declarative conditions instead.\n\n' +
+        '  Migration:\n' +
+        '  // Before (deprecated):\n' +
+        '  { condition: (values) => values.age > 18 }\n\n' +
+        '  // After:\n' +
+        '  { condition: { field: "age", operator: ">", value: 18 } }\n\n' +
+        '  See: https://github.com/objectstack-ai/objectui/blob/main/MIGRATION_GUIDE.md'
+      );
       return false; // Security: reject function-based conditions
     }
     

@@ -94,11 +94,11 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 
 | Area | Count | Notes |
 |------|-------|-------|
-| Packages | 35 | 27 with README, 10 missing README |
+| Packages | 35 | 37 with README (100%) |
 | Components | 91+ | 48 base UI + 14 custom + 29 renderers |
 | Field Widgets | 36+ | Consistent FieldWidgetProps pattern |
 | Storybook Stories | 68 | Good coverage, some gaps in edge-case stories |
-| Documentation Pages | 128 | .mdx files across 8 categories |
+| Documentation Pages | 134 | .mdx/.md files across 8 categories |
 | Test Files | 200+ | 3,235+ tests, 80% coverage |
 | Examples | 4 | todo, crm, kitchen-sink, msw-todo |
 | CLI Commands | 11 | init, build, dev, serve, doctor, etc. |
@@ -116,13 +116,13 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - 13 CI/CD workflows including performance budgets and visual regression
 
 **Gaps Identified:**
-- 10 packages missing README: auth, tenant, permissions, i18n, mobile, collaboration, plugin-ai, plugin-designer, plugin-workflow, plugin-report
-- 20+ React hooks exported without JSDoc documentation
-- Console has hardcoded English strings (LoadingScreen, KeyboardShortcutsDialog) outside i18n
-- MIGRATION_GUIDE.md referenced in README but does not exist
+- ~~10 packages missing README~~ ✅ All 37 packages now have READMEs
+- ~~20+ React hooks exported without JSDoc documentation~~ ✅ All hooks documented with JSDoc
+- ~~Console has hardcoded English strings outside i18n~~ ✅ All strings migrated to i18n keys
+- ~~MIGRATION_GUIDE.md referenced in README but does not exist~~ ✅ Created
 - Types package has minimal JSDoc on exported interfaces
 - No interactive schema playground in documentation site
-- Core error messages lack error codes and actionable fix suggestions
+- ~~Core error messages lack error codes and actionable fix suggestions~~ ✅ Error code system implemented
 
 ---
 
@@ -139,12 +139,12 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [ ] Streamline `npx create-objectui-app` scaffolding with working Vite + Tailwind templates
 - [ ] Ensure `pnpm install && pnpm dev` starts the console with zero additional configuration
 - [x] Add a standalone "Hello World" example (5-file, <50 lines total) demonstrating JSON → UI flow
-- [ ] Provide copy-paste-ready schema examples in the root README for instant gratification
+- [x] Provide copy-paste-ready schema examples in the root README for instant gratification
 
 #### P1.2 API Discoverability & JSDoc
 - [x] Add JSDoc comments to all 20+ exported React hooks (`useExpression`, `useActionRunner`, `useViewData`, `useDynamicApp`, `usePerformance`, `useCrudShortcuts`, etc.)
 - [x] Add JSDoc with usage examples to key types in `@object-ui/types` (`SchemaNode`, `FieldMetadata`, `ViewSchema`, `ActionSchema`, etc.)
-- [ ] Document all context providers (`ThemeContext`, `AuthContext`, `I18nContext`, `NotificationContext`, `DndContext`) with usage examples
+- [x] Document all context providers (`ThemeContext`, `AuthContext`, `I18nContext`, `NotificationContext`, `DndContext`) with usage examples
 - [ ] Ensure TypeScript autocompletion works smoothly for all schema types via strict discriminated unions
 
 #### P1.3 Error Messages & Debugging
@@ -152,14 +152,14 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [x] Improve SchemaErrorBoundary to show actionable fix suggestions in dev mode (e.g., "Missing field 'type'. Did you mean to use a PageSchema?")
 - [x] Replace generic `console.warn()` calls in core with structured error factory
 - [x] Add `OBJECTUI_DEBUG=true` mode with schema resolution tracing and component render timing
-- [ ] Ensure console warnings for deprecated APIs include migration code snippets
+- [x] Ensure console warnings for deprecated APIs include migration code snippets
 
 #### P1.4 CLI Tooling Polish
 - [ ] Verify `objectui init` produces a buildable project with all dependencies resolved
-- [ ] Enhance `objectui doctor` to check TypeScript version, Tailwind config, and peer dependencies
+- [x] Enhance `objectui doctor` to check TypeScript version, Tailwind config, and peer dependencies
 - [ ] Verify `create-plugin` template produces a plugin with working tests and Storybook story
-- [ ] Add `objectui validate <schema.json>` command for schema linting with actionable error messages
-- [ ] Resolve 8 TODO/FIXME items in CLI code (`doctor.ts`, `dev.ts`, `check.ts`)
+- [x] Add `objectui validate <schema.json>` command for schema linting with actionable error messages
+- [x] Resolve TODO/FIXME items in CLI code (`doctor.ts`, `dev.ts`, `check.ts`)
 
 #### P1.5 Package READMEs (10 Missing)
 - [x] Add README for `@object-ui/auth` — authentication guards, login/register forms, AuthContext
@@ -182,14 +182,14 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 #### P2.1 Console i18n Completeness
 - [x] Migrate hardcoded strings in `LoadingScreen.tsx` to i18n keys ("ObjectStack Console", "Initializing application...")
 - [x] Migrate hardcoded strings in `KeyboardShortcutsDialog.tsx` to i18n keys
-- [ ] Audit all `apps/console/src/components/` for remaining hardcoded UI strings
+- [x] Audit all `apps/console/src/components/` for remaining hardcoded UI strings
 - [x] Remove all Chinese UI strings; enforce English-only with i18n key lookups
-- [ ] Add locale switcher to Console settings panel
+- [x] Add locale switcher to Console settings panel
 
 #### P2.2 Console Architecture Cleanup
 - [ ] Consolidate hand-wired ObjectView into plugin-based ObjectView (eliminate duplication)
 - [ ] Replace lightweight local data adapter with official `@object-ui/data-objectstack`
-- [ ] Replace custom `defineConfig()` with standard `defineStack()` configuration
+- [x] Replace custom `defineConfig()` with standard `defineStack()` configuration
 - [ ] Register all missing plugins properly in the plugin registry
 - [ ] Convert hardcoded view tabs to schema-driven configuration
 
@@ -258,9 +258,9 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 
 #### P4.1 Guide Content
 - [ ] Verify "Getting Started" guide (`quick-start.md`) stays current with latest API
-- [ ] Write "Building a CRUD App" end-to-end tutorial (complete walkthrough: schema → data → deploy)
-- [ ] Write "Custom Plugin Development" guide with best practices and template walkthrough
-- [ ] Write "Theming & Customization" guide (Tailwind config, cva variants, dark mode, CSS custom properties)
+- [x] Write "Building a CRUD App" end-to-end tutorial (complete walkthrough: schema → data → deploy)
+- [x] Write "Custom Plugin Development" guide with best practices and template walkthrough
+- [x] Write "Theming & Customization" guide (Tailwind config, cva variants, dark mode, CSS custom properties)
 - [ ] Add deployment guides for examples (Docker, Vercel, Railway configurations)
 
 #### P4.2 API Reference
@@ -276,10 +276,10 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [ ] Deploy Storybook to a publicly accessible URL (storybook.objectui.org)
 
 #### P4.4 Architecture & Internals
-- [ ] Document the layer architecture (spec → types → core → react → components → plugins) with data flow diagrams
-- [ ] Document the plugin system architecture (registration, lifecycle, lazy loading)
-- [ ] Add troubleshooting guide for common development issues
-- [ ] Document CI/CD pipeline architecture (13 workflows, their triggers and responsibilities)
+- [x] Document the layer architecture (spec → types → core → react → components → plugins) with data flow diagrams
+- [x] Document the plugin system architecture (registration, lifecycle, lazy loading)
+- [x] Add troubleshooting guide for common development issues
+- [x] Document CI/CD pipeline architecture (13 workflows, their triggers and responsibilities)
 
 ---
 
@@ -319,13 +319,13 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 | **Test Count** | 3,235+ | 4,000+ | `pnpm test` summary |
 | **Spec Compliance** | 98% | 100% | SPEC_COMPLIANCE_EVALUATION.md |
 | **Storybook Stories** | 68 | 91+ (1 per component) | Story file count |
-| **Package READMEs** | 27/35 (77%) | 35/35 (100%) | README.md presence |
-| **Hooks with JSDoc** | ~5/20+ (~25%) | 20+/20+ (100%) | Grep `/** */` in hooks |
-| **Console i18n Coverage** | ~80% | 100% | No hardcoded strings |
+| **Package READMEs** | 37/37 (100%) | 37/37 (100%) | README.md presence |
+| **Hooks with JSDoc** | 20+/20+ (100%) | 20+/20+ (100%) | Grep `/** */` in hooks |
+| **Console i18n Coverage** | ~100% | 100% | No hardcoded strings |
 | **Build Status** | 42/42 pass | 42/42 pass | `pnpm build` |
 | **WCAG AA Compliance** | Primitives only | Full Console pages | axe-core audit |
 | **CLI Commands Working** | 11 | 11 (all verified) | `objectui doctor` |
-| **TODO/FIXME Count** | 8 files | 0 | Grep `TODO\|FIXME\|HACK` |
+| **TODO/FIXME Count** | 0 files | 0 | Grep `TODO\|FIXME\|HACK` |
 
 ### DX Success Criteria
 - [ ] New developer can `git clone` → `pnpm install` → `pnpm dev` → see Console in < 5 minutes

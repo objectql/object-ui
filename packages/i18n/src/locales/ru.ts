@@ -143,6 +143,28 @@ const ru = {
       goHome: 'На главную',
       errorDetails: 'Подробности ошибки (только для разработки)',
     },
+    theme: {
+      toggle: 'Переключить тему',
+      light: 'Светлая',
+      dark: 'Тёмная',
+      system: 'Системная',
+    },
+    objectView: {
+      objectNotFound: 'Объект не найден',
+      objectNotFoundDescription: 'Объект «{{objectName}}» не существует в текущей конфигурации.',
+      objectNotFoundHint: 'Проверьте настройки навигации приложения или выберите другой объект на боковой панели.',
+      allRecords: 'Все записи',
+      exitDesignMode: 'Выйти из режима дизайна',
+      enterDesignMode: 'Войти в режим дизайна',
+      metadataInspector: 'Инспектор метаданных',
+      editView: 'Редактировать представление',
+      addView: 'Добавить представление',
+      designTools: 'Инструменты дизайна',
+      new: 'Создать',
+    },
+    localeSwitcher: {
+      label: 'Язык',
+    },
   },
   errors: {
     networkError: 'Ошибка сети. Проверьте подключение к интернету.',

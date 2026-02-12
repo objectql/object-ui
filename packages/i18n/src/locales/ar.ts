@@ -144,6 +144,28 @@ const ar = {
       goHome: 'العودة للرئيسية',
       errorDetails: 'تفاصيل الخطأ (وضع التطوير فقط)',
     },
+    theme: {
+      toggle: 'تبديل المظهر',
+      light: 'فاتح',
+      dark: 'داكن',
+      system: 'النظام',
+    },
+    objectView: {
+      objectNotFound: 'الكائن غير موجود',
+      objectNotFoundDescription: 'الكائن "{{objectName}}" غير موجود في الإعدادات الحالية.',
+      objectNotFoundHint: 'تحقق من إعدادات التنقل في تطبيقك أو اختر كائنًا آخر من الشريط الجانبي.',
+      allRecords: 'جميع السجلات',
+      exitDesignMode: 'الخروج من وضع التصميم',
+      enterDesignMode: 'الدخول إلى وضع التصميم',
+      metadataInspector: 'مفتش البيانات الوصفية',
+      editView: 'تعديل العرض',
+      addView: 'إضافة عرض',
+      designTools: 'أدوات التصميم',
+      new: 'جديد',
+    },
+    localeSwitcher: {
+      label: 'اللغة',
+    },
   },
   errors: {
     networkError: 'خطأ في الشبكة. يرجى التحقق من اتصالك.',

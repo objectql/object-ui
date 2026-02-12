@@ -143,6 +143,28 @@ const ko = {
       goHome: '홈으로 이동',
       errorDetails: '오류 상세정보 (개발 모드 전용)',
     },
+    theme: {
+      toggle: '테마 전환',
+      light: '라이트',
+      dark: '다크',
+      system: '시스템',
+    },
+    objectView: {
+      objectNotFound: '객체를 찾을 수 없음',
+      objectNotFoundDescription: '객체 "{{objectName}}"이(가) 현재 구성에 존재하지 않습니다.',
+      objectNotFoundHint: '앱 탐색 설정을 확인하거나 사이드바에서 다른 객체를 선택하세요.',
+      allRecords: '모든 레코드',
+      exitDesignMode: '디자인 모드 종료',
+      enterDesignMode: '디자인 모드 시작',
+      metadataInspector: '메타데이터 인스펙터',
+      editView: '뷰 편집',
+      addView: '뷰 추가',
+      designTools: '디자인 도구',
+      new: '새로 만들기',
+    },
+    localeSwitcher: {
+      label: '언어',
+    },
   },
   errors: {
     networkError: '네트워크 오류입니다. 연결을 확인해주세요.',

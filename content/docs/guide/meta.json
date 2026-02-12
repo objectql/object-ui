@@ -9,11 +9,15 @@
     "data-source",
     "fields",
     "component-registry",
+    "theming",
     "plugins",
     "schema-overview",
     "console",
     "console-architecture",
     "console-rendering",
-    "objectos-integration"
+    "objectos-integration",
+    "architecture-overview",
+    "troubleshooting",
+    "ci-cd-pipeline"
   ]
 }

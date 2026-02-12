@@ -148,6 +148,28 @@ const en = {
       goHome: 'Go Home',
       errorDetails: 'Error Details (dev only)',
     },
+    theme: {
+      toggle: 'Toggle theme',
+      light: 'Light',
+      dark: 'Dark',
+      system: 'System',
+    },
+    objectView: {
+      objectNotFound: 'Object Not Found',
+      objectNotFoundDescription: 'The object "{{objectName}}" does not exist in the current configuration.',
+      objectNotFoundHint: 'Check your app navigation settings or select a different object from the sidebar.',
+      allRecords: 'All Records',
+      exitDesignMode: 'Exit Design Mode',
+      enterDesignMode: 'Enter Design Mode',
+      metadataInspector: 'Metadata Inspector',
+      editView: 'Edit View',
+      addView: 'Add View',
+      designTools: 'Design tools',
+      new: 'New',
+    },
+    localeSwitcher: {
+      label: 'Language',
+    },
   },
   errors: {
     networkError: 'Network error. Please check your connection.',

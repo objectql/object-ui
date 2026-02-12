@@ -86,7 +86,13 @@ export class Registry<T = any> {
     if (!meta?.namespace) {
       console.warn(
         `Registering component "${type}" without a namespace is deprecated. ` +
-        `Please provide a namespace in the meta parameter.`
+        `Please provide a namespace in the meta parameter.\n\n` +
+        `  Migration:\n` +
+        `  // Before (deprecated):\n` +
+        `  registry.register('${type}', MyComponent);\n\n` +
+        `  // After:\n` +
+        `  registry.register('${type}', MyComponent, { namespace: 'my-plugin' });\n\n` +
+        `  See: https://github.com/objectstack-ai/objectui/blob/main/MIGRATION_GUIDE.md`
       );
     }
     

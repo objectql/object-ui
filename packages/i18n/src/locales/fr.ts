@@ -148,6 +148,28 @@ const fr = {
       goHome: "Retour à l'accueil",
       errorDetails: 'Détails de l\'erreur (développement uniquement)',
     },
+    theme: {
+      toggle: 'Changer de thème',
+      light: 'Clair',
+      dark: 'Sombre',
+      system: 'Système',
+    },
+    objectView: {
+      objectNotFound: 'Objet introuvable',
+      objectNotFoundDescription: 'L\'objet « {{objectName}} » n\'existe pas dans la configuration actuelle.',
+      objectNotFoundHint: 'Vérifiez les paramètres de navigation de votre application ou sélectionnez un autre objet dans la barre latérale.',
+      allRecords: 'Tous les enregistrements',
+      exitDesignMode: 'Quitter le mode conception',
+      enterDesignMode: 'Entrer en mode conception',
+      metadataInspector: 'Inspecteur de métadonnées',
+      editView: 'Modifier la vue',
+      addView: 'Ajouter une vue',
+      designTools: 'Outils de conception',
+      new: 'Nouveau',
+    },
+    localeSwitcher: {
+      label: 'Langue',
+    },
   },
   errors: {
     networkError: 'Erreur réseau. Veuillez vérifier votre connexion.',

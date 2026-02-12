@@ -18,6 +18,58 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Button, Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { AlertTriangle, RotateCcw, Home } from 'lucide-react';
+import { useObjectTranslation } from '@object-ui/i18n';
+
+/** Inner fallback component that uses the i18n hook */
+function DefaultErrorFallback({ error, onReset }: { error: Error; onReset: () => void }) {
+  const { t } = useObjectTranslation();
+
+  return (
+    <div className="flex h-full items-center justify-center p-8">
+      <div className="max-w-md text-center">
+        <Empty>
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+            <AlertTriangle className="h-6 w-6 text-destructive" />
+          </div>
+          <EmptyTitle>{t('console.errors.somethingWentWrong')}</EmptyTitle>
+          <EmptyDescription className="mb-4">
+            {error.message || t('console.errors.unexpectedError')}
+          </EmptyDescription>
+          <div className="flex items-center justify-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onReset}
+              className="gap-2"
+            >
+              <RotateCcw className="h-4 w-4" />
+              {t('console.errors.tryAgain')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { window.location.href = '/'; }}
+              className="gap-2"
+            >
+              <Home className="h-4 w-4" />
+              {t('console.errors.goHome')}
+            </Button>
+          </div>
+        </Empty>
+        {import.meta.env.DEV && (
+          <details className="mt-6 text-left">
+            <summary className="cursor-pointer text-xs text-muted-foreground">
+              {t('console.errors.errorDetails')}
+            </summary>
+            <pre className="mt-2 max-h-60 overflow-auto rounded-md border bg-muted p-3 text-xs">
+              {error.stack}
+            </pre>
+          </details>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -66,49 +118,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
       // Default fallback UI
       return (
-        <div className="flex h-full items-center justify-center p-8">
-          <div className="max-w-md text-center">
-            <Empty>
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-                <AlertTriangle className="h-6 w-6 text-destructive" />
-              </div>
-              <EmptyTitle>Something went wrong</EmptyTitle>
-              <EmptyDescription className="mb-4">
-                {this.state.error.message || 'An unexpected error occurred while rendering this view.'}
-              </EmptyDescription>
-              <div className="flex items-center justify-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={this.resetErrorBoundary}
-                  className="gap-2"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  Try Again
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { window.location.href = '/'; }}
-                  className="gap-2"
-                >
-                  <Home className="h-4 w-4" />
-                  Go Home
-                </Button>
-              </div>
-            </Empty>
-            {import.meta.env.DEV && (
-              <details className="mt-6 text-left">
-                <summary className="cursor-pointer text-xs text-muted-foreground">
-                  Error Details (dev only)
-                </summary>
-                <pre className="mt-2 max-h-60 overflow-auto rounded-md border bg-muted p-3 text-xs">
-                  {this.state.error.stack}
-                </pre>
-              </details>
-            )}
-          </div>
-        </div>
+        <DefaultErrorFallback error={this.state.error} onReset={this.resetErrorBoundary} />
       );
     }
 

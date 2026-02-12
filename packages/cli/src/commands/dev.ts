@@ -61,8 +61,16 @@ export async function dev(schemaPath: string, options: DevOptions) {
      if (existsSync(localPagesDir)) {
         hasPagesDir = true;
         pagesDir = localPagesDir;
-        // Try to find app.json in cwd
-        // TODO: Load app.json if exists
+        // Try to find and load app.json in cwd
+        const appJsonPath = join(cwd, 'app.json');
+        if (existsSync(appJsonPath)) {
+          try {
+            appConfig = parseSchemaFile(appJsonPath);
+            console.log(chalk.blue('⚙️  Loaded App Config from app.json'));
+          } catch (_e) {
+            console.warn('Failed to parse app.json config');
+          }
+        }
      }
   }
 

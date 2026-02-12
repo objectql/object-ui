@@ -148,6 +148,28 @@ const zh = {
       goHome: '返回首页',
       errorDetails: '错误详情（仅开发模式）',
     },
+    theme: {
+      toggle: '切换主题',
+      light: '浅色',
+      dark: '深色',
+      system: '系统',
+    },
+    objectView: {
+      objectNotFound: '未找到对象',
+      objectNotFoundDescription: '对象"{{objectName}}"在当前配置中不存在。',
+      objectNotFoundHint: '请检查您的应用导航设置或从侧边栏选择其他对象。',
+      allRecords: '所有记录',
+      exitDesignMode: '退出设计模式',
+      enterDesignMode: '进入设计模式',
+      metadataInspector: '元数据检查器',
+      editView: '编辑视图',
+      addView: '添加视图',
+      designTools: '设计工具',
+      new: '新建',
+    },
+    localeSwitcher: {
+      label: '语言',
+    },
   },
   errors: {
     networkError: '网络错误，请检查网络连接。',

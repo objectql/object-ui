@@ -24,6 +24,7 @@ import { Plus, Table as TableIcon, Settings2, MoreVertical, Wrench, KanbanSquare
 import type { ListViewSchema } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useObjectActions } from '../hooks/useObjectActions';
+import { useObjectTranslation } from '@object-ui/i18n';
 
 /** Map view types to Lucide icons (Airtable-style) */
 const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
@@ -42,6 +43,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     const { objectName, viewId } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
     const { showDebug, toggleDebug } = useMetadataInspector();
+    const { t } = useObjectTranslation();
     
     // Design mode toggle - default false for end users
     const [designMode, setDesignMode] = useState(false);
@@ -56,10 +58,11 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
               <TableIcon className="h-6 w-6 text-muted-foreground" />
             </div>
-            <EmptyTitle>Object Not Found</EmptyTitle>
+            <EmptyTitle>{t('console.objectView.objectNotFound')}</EmptyTitle>
             <EmptyDescription>
-              The object &quot;{objectName}&quot; does not exist in the current configuration.
-              Check your app navigation settings or select a different object from the sidebar.
+              {t('console.objectView.objectNotFoundDescription', { objectName })}
+              {' '}
+              {t('console.objectView.objectNotFoundHint')}
             </EmptyDescription>
           </Empty>
         </div>
@@ -78,7 +81,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
         if (viewList.length === 0) {
             viewList.push({ 
                 id: 'all', 
-                label: 'All Records', 
+                label: t('console.objectView.allRecords'), 
                 type: 'grid', 
                 columns: objectDef.fields ? Object.keys(objectDef.fields).slice(0, 5) : [] 
             });
@@ -243,7 +246,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                     {/* Primary action - always visible */}
                     <Button size="sm" onClick={actions.create} className="shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9">
                         <Plus className="h-4 w-4" /> 
-                        <span className="hidden sm:inline">New</span>
+                        <span className="hidden sm:inline">{t('console.objectView.new')}</span>
                     </Button>
                     
                     {/* Design mode tools menu */}
@@ -253,7 +256,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                           size="sm" 
                           variant={designMode ? "secondary" : "ghost"}
                           className="shadow-none h-8 sm:h-9 px-2"
-                          title="Design tools"
+                          title={t('console.objectView.designTools')}
                         >
                           {designMode ? <Wrench className="h-4 w-4" /> : <MoreVertical className="h-4 w-4" />}
                         </Button>
@@ -261,22 +264,22 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                       <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuItem onClick={() => setDesignMode(!designMode)}>
                           <Wrench className="h-4 w-4 mr-2" />
-                          {designMode ? 'Exit Design Mode' : 'Enter Design Mode'}
+                          {designMode ? t('console.objectView.exitDesignMode') : t('console.objectView.enterDesignMode')}
                         </DropdownMenuItem>
                         {designMode && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={toggleDebug}>
                               <MetadataToggle open={showDebug} onToggle={toggleDebug} className="hidden" />
-                              Metadata Inspector
+                              {t('console.objectView.metadataInspector')}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => navigate(viewId ? `../../views/${viewId}` : `views/${activeViewId}`)}>
                               <Settings2 className="h-4 w-4 mr-2" />
-                              Edit View
+                              {t('console.objectView.editView')}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => navigate(viewId ? '../../views/new' : 'views/new')}>
                               <Plus className="h-4 w-4 mr-2" />
-                              Add View
+                              {t('console.objectView.addView')}
                             </DropdownMenuItem>
                           </>
                         )}

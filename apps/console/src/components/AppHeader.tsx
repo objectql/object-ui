@@ -27,6 +27,7 @@ import {
 import { Search, Bell, HelpCircle, ChevronDown } from 'lucide-react';
 
 import { ModeToggle } from './mode-toggle';
+import { LocaleSwitcher } from './LocaleSwitcher';
 import { ConnectionStatus } from './ConnectionStatus';
 import type { ConnectionState } from '../dataSource';
 
@@ -201,6 +202,11 @@ export function AppHeader({ appName, objects, connectionState }: { appName: stri
                 {/* Theme toggle */}
                 <div className="shrink-0">
                   <ModeToggle />
+                </div>
+                
+                {/* Language switcher */}
+                <div className="shrink-0">
+                  <LocaleSwitcher />
                 </div>
              </div>
         </div>
