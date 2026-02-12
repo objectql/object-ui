@@ -237,9 +237,10 @@ export function PageDesigner({
     if (readOnly) return;
     const items = clipboard.paste();
     if (!items || items.length === 0) return;
+    let pasteCounter = 0;
     const pasted = items.map((c) => ({
       ...c,
-      id: `comp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: `comp-${Date.now()}-${++pasteCounter}-${Math.random().toString(36).slice(2, 7)}`,
       position: { ...c.position, x: c.position.x + 20, y: c.position.y + 20 },
     }));
     const updated = [...components, ...pasted];
@@ -344,7 +345,7 @@ export function PageDesigner({
         return;
       }
       // Ctrl+Shift+Z / Ctrl+Y – Redo
-      if (ctrl && (e.key === 'Z' || e.key === 'y') && undoRedoEnabled && !readOnly) {
+      if (ctrl && ((e.key === 'z' && e.shiftKey) || e.key === 'y') && undoRedoEnabled && !readOnly) {
         e.preventDefault();
         history.redo();
         return;
