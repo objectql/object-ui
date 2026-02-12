@@ -290,7 +290,7 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 - [x] Toast notifications for CRUD operations (create/update/delete)
 - [x] Responsive sidebar auto-collapse on tablet breakpoints
 - [x] Onboarding walkthrough for first-time users
-- [ ] Global search results page (beyond command palette)
+- [x] Global search results page (beyond command palette)
 - [x] Recent items / favorites in sidebar
 
 **Q2 Milestone:**
