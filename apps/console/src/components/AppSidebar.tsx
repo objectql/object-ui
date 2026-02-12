@@ -21,6 +21,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuAction,
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -44,11 +45,14 @@ import {
   Database,
   ChevronRight,
   Clock,
+  Star,
+  StarOff,
 } from 'lucide-react';
 import appConfig from '../../objectstack.shared';
 import { useExpressionContext, evaluateVisibility } from '../context/ExpressionProvider';
 import { useAuth, getUserInitials } from '@object-ui/auth';
 import { useRecentItems } from '../hooks/useRecentItems';
+import { useFavorites } from '../hooks/useFavorites';
 import { resolveI18nLabel } from '../utils';
 
 /**
@@ -81,6 +85,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const { isMobile } = useSidebar();
   const { user, signOut } = useAuth();
   const { recentItems } = useRecentItems();
+  const { favorites, removeFavorite } = useFavorites();
   
   const apps = appConfig.apps || [];
   // Filter out inactive apps
@@ -159,6 +164,39 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
 
       <SidebarContent>
          <NavigationTree items={activeApp.navigation || []} activeAppName={activeAppName} />
+
+         {/* Favorites */}
+         {favorites.length > 0 && (
+           <SidebarGroup>
+             <SidebarGroupLabel className="flex items-center gap-1.5">
+               <Star className="h-3.5 w-3.5" />
+               Favorites
+             </SidebarGroupLabel>
+             <SidebarGroupContent>
+               <SidebarMenu>
+                 {favorites.slice(0, 8).map(item => (
+                   <SidebarMenuItem key={item.id}>
+                     <SidebarMenuButton asChild tooltip={item.label}>
+                       <Link to={item.href}>
+                         <span className="text-muted-foreground">
+                           {item.type === 'dashboard' ? '📊' : item.type === 'report' ? '📈' : item.type === 'page' ? '📄' : '📋'}
+                         </span>
+                         <span className="truncate">{item.label}</span>
+                       </Link>
+                     </SidebarMenuButton>
+                     <SidebarMenuAction
+                       showOnHover
+                       onClick={(e) => { e.stopPropagation(); removeFavorite(item.id); }}
+                       aria-label={`Remove ${item.label} from favorites`}
+                     >
+                       <StarOff className="h-3 w-3" />
+                     </SidebarMenuAction>
+                   </SidebarMenuItem>
+                 ))}
+               </SidebarMenu>
+             </SidebarGroupContent>
+           </SidebarGroup>
+         )}
 
          {/* Recent Items */}
          {recentItems.length > 0 && (

@@ -286,12 +286,12 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 **Spec Reference:** `NotificationSchema`, `NotificationConfigSchema`, `NotificationActionSchema`, `NotificationPositionSchema`, `NotificationSeveritySchema`, `NotificationTypeSchema`
 
 #### 2.7 Console UX Enhancement (Ongoing)
-- [ ] Skeleton loading states for data-heavy views (grid, dashboard, detail)
-- [ ] Toast notifications for CRUD operations (create/update/delete)
-- [ ] Responsive sidebar auto-collapse on tablet breakpoints
-- [ ] Onboarding walkthrough for first-time users
-- [ ] Global search results page (beyond command palette)
-- [ ] Recent items / favorites in sidebar
+- [x] Skeleton loading states for data-heavy views (grid, dashboard, detail)
+- [x] Toast notifications for CRUD operations (create/update/delete)
+- [x] Responsive sidebar auto-collapse on tablet breakpoints
+- [x] Onboarding walkthrough for first-time users
+- [x] Global search results page (beyond command palette)
+- [x] Recent items / favorites in sidebar
 
 **Q2 Milestone:**
 - **v1.0.0 Release (June 2026):** Full interactive experience — DnD, gestures, focus, animation, notifications, view enhancements

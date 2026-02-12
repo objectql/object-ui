@@ -27,6 +27,7 @@ import {
   Moon,
   Sun,
   Monitor,
+  Search,
 } from 'lucide-react';
 import { useTheme } from './theme-provider';
 import { useExpressionContext, evaluateVisibility } from '../context/ExpressionProvider';
@@ -203,6 +204,18 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
           <CommandItem value="theme system" onSelect={() => runCommand(() => setTheme('system'))}>
             <Monitor className="mr-2 h-4 w-4" />
             <span>System Theme</span>
+          </CommandItem>
+        </CommandGroup>
+
+        {/* Full Search Page */}
+        <CommandSeparator />
+        <CommandGroup heading="Actions">
+          <CommandItem
+            value="search all results full page"
+            onSelect={() => runCommand(() => navigate(`${baseUrl}/search`))}
+          >
+            <Search className="mr-2 h-4 w-4" />
+            <span>Open Full Search Page</span>
           </CommandItem>
         </CommandGroup>
       </CommandList>
