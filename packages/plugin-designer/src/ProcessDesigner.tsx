@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { BPMNNode, BPMNEdge, BPMNLane, DesignerCanvasConfig } from '@object-ui/types';
 import { Play, Square, Diamond, Trash2, GitBranch } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -62,6 +62,7 @@ export function ProcessDesigner({
   const [nodes, setNodes] = useState<BPMNNode[]>(initialNodes);
   const [edges, setEdges] = useState<BPMNEdge[]>(initialEdges);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const handleAddNode = useCallback(
     (type: BPMNNode['type'], label: string) => {
@@ -115,13 +116,30 @@ export function ProcessDesigner({
     }
   };
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
+        e.preventDefault();
+        handleDeleteNode(selectedNodeId);
+      } else if (e.key === 'Escape') {
+        setSelectedNodeId(null);
+      }
+    };
+    el.addEventListener('keydown', handleKeyDown);
+    return () => el.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNodeId, handleDeleteNode]);
+
   return (
-    <div className={cn('flex flex-col h-full w-full border rounded-lg overflow-hidden bg-background', className)}>
+    <div ref={containerRef} tabIndex={0} className={cn('flex flex-col h-full w-full border rounded-lg overflow-hidden bg-background', className)}>
       {/* Toolbar */}
       {showToolbar && (
-        <div className="flex items-center gap-2 p-2 border-b bg-muted/20">
+        <div className="flex items-center gap-2 p-2 border-b bg-muted/20" role="toolbar" aria-label="Process toolbar">
           <GitBranch className="h-4 w-4" />
-          <span className="font-medium text-sm">{processName}</span>
+          <span className="font-medium text-sm" aria-label="Process name">{processName}</span>
           <div className="flex-1" />
           {!readOnly && (
             <div className="flex items-center gap-1">
@@ -129,6 +147,7 @@ export function ProcessDesigner({
                 onClick={() => handleAddNode('start-event', 'Start')}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
                 title="Add Start Event"
+                aria-label="Add Start Event"
               >
                 <Play className="h-3 w-3 text-green-600" /> Start
               </button>
@@ -136,6 +155,7 @@ export function ProcessDesigner({
                 onClick={() => handleAddNode('user-task', 'User Task')}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
                 title="Add User Task"
+                aria-label="Add User Task"
               >
                 <Square className="h-3 w-3 text-blue-600" /> Task
               </button>
@@ -143,6 +163,7 @@ export function ProcessDesigner({
                 onClick={() => handleAddNode('exclusive-gateway', 'Decision')}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
                 title="Add Gateway"
+                aria-label="Add Gateway"
               >
                 <Diamond className="h-3 w-3 text-yellow-600" /> Gateway
               </button>
@@ -150,6 +171,7 @@ export function ProcessDesigner({
                 onClick={() => handleAddNode('end-event', 'End')}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
                 title="Add End Event"
+                aria-label="Add End Event"
               >
                 <Square className="h-3 w-3 text-red-600" /> End
               </button>
@@ -159,7 +181,7 @@ export function ProcessDesigner({
       )}
 
       {/* Canvas */}
-      <div className="flex-1 overflow-auto bg-muted/10 p-4">
+      <div className="flex-1 overflow-auto bg-muted/10 p-4" role="region" aria-label="Process canvas">
         <div
           className="relative"
           style={{
@@ -210,6 +232,11 @@ export function ProcessDesigner({
           </svg>
 
           {/* Nodes */}
+          {nodes.length === 0 && (
+            <div className="flex items-center justify-center h-full min-h-[200px] text-muted-foreground text-sm">
+              No nodes in the process. Use the toolbar buttons to add start events, tasks, gateways, and end events.
+            </div>
+          )}
           {nodes.map((node) => (
             <div
               key={node.id}
@@ -218,6 +245,8 @@ export function ProcessDesigner({
                 left: node.position.x,
                 top: node.position.y,
               }}
+              role="group"
+              aria-label={node.label}
               onClick={() => setSelectedNodeId(node.id)}
             >
               <div
@@ -241,6 +270,7 @@ export function ProcessDesigner({
                     handleDeleteNode(node.id);
                   }}
                   className="absolute -top-2 -right-2 p-0.5 rounded-full bg-destructive text-destructive-foreground shadow"
+                  aria-label="Delete node"
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
