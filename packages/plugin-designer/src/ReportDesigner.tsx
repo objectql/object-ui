@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { ReportDesignerSection, ReportDesignerElement } from '@object-ui/types';
 import { FileText, Plus, Trash2, Type, ImageIcon, BarChart3, Table2 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -78,6 +78,7 @@ export function ReportDesigner({
         ],
   );
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const pageDims = PAGE_SIZES[pageSize];
   const pageWidth = orientation === 'landscape' ? pageDims.height : pageDims.width;
@@ -121,6 +122,27 @@ export function ReportDesigner({
     [sections, selectedElement, readOnly, onSectionsChange],
   );
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (e.key === 'Escape') {
+        setSelectedElement(null);
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElement) {
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        handleDeleteElement(selectedElement);
+      }
+    };
+    el.addEventListener('keydown', handleKeyDown);
+    return () => el.removeEventListener('keydown', handleKeyDown);
+  }, [selectedElement, handleDeleteElement]);
+
+  // Find the selected element data for the property panel
+  const selectedElementData = selectedElement
+    ? sections.flatMap((s) => s.elements).find((e: ReportDesignerElement) => e.id === selectedElement)
+    : null;
+
   const getSectionLabel = (type: string) => {
     switch (type) {
       case 'header': return 'Report Header';
@@ -135,12 +157,12 @@ export function ReportDesigner({
   };
 
   return (
-    <div className={cn('flex h-full w-full border rounded-lg overflow-hidden bg-background', className)}>
+    <div ref={containerRef} tabIndex={0} className={cn('flex h-full w-full border rounded-lg overflow-hidden bg-background', className)}>
       {/* Main content */}
       <div className="flex-1 flex flex-col">
         {/* Toolbar */}
         {showToolbar && (
-          <div className="flex items-center gap-2 p-2 border-b bg-muted/20">
+          <div role="toolbar" className="flex items-center gap-2 p-2 border-b bg-muted/20">
             <FileText className="h-4 w-4" />
             <span className="font-medium text-sm">{reportName}</span>
             {objectName && (
@@ -154,7 +176,7 @@ export function ReportDesigner({
         )}
 
         {/* Report Canvas */}
-        <div className="flex-1 overflow-auto bg-muted/10 p-4 flex justify-center">
+        <div role="region" aria-label="Report canvas" className="flex-1 overflow-auto bg-muted/10 p-4 flex justify-center">
           <div
             className="bg-white shadow-lg border"
             style={{
@@ -181,6 +203,7 @@ export function ReportDesigner({
                       onClick={() => handleAddElement(sectionIndex, 'text')}
                       className="p-0.5 rounded hover:bg-accent"
                       title="Add Text"
+                      aria-label="Add Text"
                     >
                       <Type className="h-3 w-3" />
                     </button>
@@ -188,6 +211,7 @@ export function ReportDesigner({
                       onClick={() => handleAddElement(sectionIndex, 'field')}
                       className="p-0.5 rounded hover:bg-accent"
                       title="Add Field"
+                      aria-label="Add Field"
                     >
                       <Plus className="h-3 w-3" />
                     </button>
@@ -195,6 +219,7 @@ export function ReportDesigner({
                       onClick={() => handleAddElement(sectionIndex, 'image')}
                       className="p-0.5 rounded hover:bg-accent"
                       title="Add Image"
+                      aria-label="Add Image"
                     >
                       <ImageIcon className="h-3 w-3" />
                     </button>
@@ -202,6 +227,7 @@ export function ReportDesigner({
                       onClick={() => handleAddElement(sectionIndex, 'chart')}
                       className="p-0.5 rounded hover:bg-accent"
                       title="Add Chart"
+                      aria-label="Add Chart"
                     >
                       <BarChart3 className="h-3 w-3" />
                     </button>
@@ -209,6 +235,7 @@ export function ReportDesigner({
                       onClick={() => handleAddElement(sectionIndex, 'table')}
                       className="p-0.5 rounded hover:bg-accent"
                       title="Add Table"
+                      aria-label="Add Table"
                     >
                       <Table2 className="h-3 w-3" />
                     </button>
@@ -217,6 +244,11 @@ export function ReportDesigner({
 
                 {/* Elements */}
                 <div className="relative" style={{ minHeight: section.height, paddingTop: 24 }}>
+                  {section.elements.length === 0 && (
+                    <div className="text-xs text-muted-foreground text-center pt-4">
+                      Add elements using the buttons above
+                    </div>
+                  )}
                   {section.elements.map((element: ReportDesignerElement) => (
                     <div
                       key={element.id}
@@ -248,6 +280,7 @@ export function ReportDesigner({
                             handleDeleteElement(element.id);
                           }}
                           className="absolute -top-2 -right-2 p-0.5 rounded-full bg-destructive text-destructive-foreground shadow"
+                          aria-label="Delete element"
                         >
                           <Trash2 className="h-2.5 w-2.5" />
                         </button>
@@ -263,12 +296,29 @@ export function ReportDesigner({
 
       {/* Property Panel */}
       {showPropertyPanel && (
-        <div className="w-56 border-l bg-muted/30 flex flex-col">
+        <div role="region" aria-label="Properties" className="w-56 border-l bg-muted/30 flex flex-col">
           <div className="p-3 border-b font-medium text-sm">Properties</div>
           <div className="flex-1 overflow-y-auto p-3">
-            {selectedElement ? (
+            {selectedElement && selectedElementData ? (
               <div className="space-y-2 text-xs">
                 <div className="text-muted-foreground">Element ID: {selectedElement}</div>
+                <div className="text-muted-foreground">Type: {selectedElementData.type}</div>
+                <div className="text-muted-foreground">
+                  Position: ({selectedElementData.position.x}, {selectedElementData.position.y})
+                </div>
+                <div className="text-muted-foreground">
+                  Size: {selectedElementData.position.width} × {selectedElementData.position.height}
+                </div>
+                {selectedElementData.type === 'text' && selectedElementData.properties.text && (
+                  <div className="text-muted-foreground">
+                    Text: {String(selectedElementData.properties.text)}
+                  </div>
+                )}
+                {selectedElementData.type === 'field' && selectedElementData.properties.field && (
+                  <div className="text-muted-foreground">
+                    Field: {String(selectedElementData.properties.field)}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-xs text-muted-foreground text-center py-4">
