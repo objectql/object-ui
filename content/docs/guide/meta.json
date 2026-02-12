@@ -9,6 +9,7 @@
     "data-source",
     "fields",
     "component-registry",
+    "theming",
     "plugins",
     "schema-overview",
     "console",
