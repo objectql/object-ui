@@ -261,13 +261,12 @@ export function useOffline(config: OfflineConfig = {}): OfflineResult {
     }
   }, [enabled, queue]);
 
-  // Auto-sync when coming back online
+  // Auto-sync when coming back online (short stabilization delay)
   useEffect(() => {
     if (!enabled || !isOnline || queue.length === 0) return;
-    const retryInterval = syncConfigRef.current?.retryInterval ?? 5000;
     const timer = setTimeout(() => {
       void sync();
-    }, retryInterval);
+    }, 100);
     return () => clearTimeout(timer);
     // Only trigger on isOnline changes, not on every queue change
     // eslint-disable-next-line react-hooks/exhaustive-deps

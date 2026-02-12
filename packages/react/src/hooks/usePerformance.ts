@@ -91,11 +91,11 @@ const DEFAULTS = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getWebVital(name: string): number | null {
+function getFCP(): number | null {
   if (typeof performance === 'undefined' || !performance.getEntriesByType) return null;
   try {
     const entries = performance.getEntriesByType('paint');
-    const entry = entries.find((e) => e.name === name);
+    const entry = entries.find((e) => e.name === 'first-contentful-paint');
     return entry ? Math.round(entry.startTime) : null;
   } catch {
     return null;
@@ -103,11 +103,14 @@ function getWebVital(name: string): number | null {
 }
 
 function getLCP(): number | null {
-  return getWebVital('largest-contentful-paint');
-}
-
-function getFCP(): number | null {
-  return getWebVital('first-contentful-paint');
+  if (typeof performance === 'undefined' || !performance.getEntriesByType) return null;
+  try {
+    const entries = performance.getEntriesByType('largest-contentful-paint');
+    const entry = entries.length > 0 ? entries[entries.length - 1] : undefined;
+    return entry ? Math.round(entry.startTime) : null;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -205,23 +208,33 @@ export function usePerformance(userConfig: PerformanceConfig = {}): PerformanceR
   }, []);
 
   const debounceMs = config.debounceMs;
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   const debounce = useCallback(
     <T extends (...args: unknown[]) => void>(fn: T): T => {
+      let timer: ReturnType<typeof setTimeout> | null = null;
       const debounced = (...args: unknown[]) => {
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => fn(...args), debounceMs);
+        if (timer) {
+          clearTimeout(timer);
+          timersRef.current.delete(timer);
+        }
+        timer = setTimeout(() => {
+          fn(...args);
+          if (timer) timersRef.current.delete(timer);
+        }, debounceMs);
+        timersRef.current.add(timer);
       };
       return debounced as unknown as T;
     },
     [debounceMs],
   );
 
-  // Cleanup debounce timer
+  // Cleanup all debounce timers
   useEffect(() => {
+    const timers = timersRef.current;
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
     };
   }, []);
 

@@ -165,9 +165,13 @@ export function usePageTransition(config: PageTransitionConfig = {}): PageTransi
     const enterStyle: React.CSSProperties = { ...baseStyle };
     const exitStyle: React.CSSProperties = { ...baseStyle };
 
+    // When crossFade is enabled, both the entering and exiting pages
+    // should overlap and transition opacity simultaneously.
     if (crossFade) {
-      enterStyle.opacity = 0;
-      enterStyle.animationName = undefined; // let the class handle it
+      enterStyle.position = 'absolute';
+      enterStyle.inset = '0';
+      exitStyle.position = 'absolute';
+      exitStyle.inset = '0';
     }
 
     return {
