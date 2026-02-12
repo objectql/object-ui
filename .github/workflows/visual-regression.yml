@@ -1,0 +1,53 @@
+name: Visual Regression Tests
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'packages/components/**'
+      - 'packages/fields/**'
+      - 'packages/layout/**'
+      - '.storybook/**'
+
+permissions:
+  contents: read
+
+jobs:
+  visual-regression:
+    name: Visual Regression (Storybook Snapshots)
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Turbo Cache
+        uses: actions/cache@v5
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Install Playwright Browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run visual regression tests
+        run: |
+          concurrently -k -s first \
+            "pnpm storybook --no-open" \
+            "wait-on tcp:6006 && pnpm storybook:test:snapshot"

@@ -1,0 +1,128 @@
+name: Console Performance Budget
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'packages/**'
+      - 'apps/console/**'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'packages/**'
+      - 'apps/console/**'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  performance-budget:
+    name: Performance Budget Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Turbo Cache
+        uses: actions/cache@v5
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Console (server mode)
+        run: pnpm --filter @object-ui/console build:server
+
+      - name: Check performance budget
+        id: budget
+        run: |
+          # Performance budget: main entry must be < 60 KB gzip
+          MAX_ENTRY_GZIP_KB=60
+
+          DIST_DIR="apps/console/dist/assets"
+          if [ ! -d "$DIST_DIR" ]; then
+            echo "❌ Build output not found at $DIST_DIR"
+            exit 1
+          fi
+
+          # Find the main entry chunk (index-*.js)
+          ENTRY_FILE=$(find "$DIST_DIR" -name 'index-*.js' -not -name '*.gz' -not -name '*.br' | head -1)
+          if [ -z "$ENTRY_FILE" ]; then
+            echo "⚠️ Could not find main entry chunk, checking all JS files..."
+            ENTRY_FILE=$(find "$DIST_DIR" -name '*.js' -not -name '*.gz' -not -name '*.br' | sort | head -1)
+          fi
+
+          if [ -z "$ENTRY_FILE" ]; then
+            echo "❌ No JS files found in $DIST_DIR"
+            exit 1
+          fi
+
+          echo "📦 Main entry file: $(basename $ENTRY_FILE)"
+
+          # Calculate gzip size
+          GZIP_BYTES=$(gzip -c "$ENTRY_FILE" | wc -c)
+          GZIP_KB=$(awk "BEGIN {printf \"%.1f\", $GZIP_BYTES / 1024}")
+
+          echo "   Raw size:  $(awk "BEGIN {printf \"%.1f\", $(wc -c < "$ENTRY_FILE") / 1024}") KB"
+          echo "   Gzip size: ${GZIP_KB} KB"
+          echo "   Budget:    ${MAX_ENTRY_GZIP_KB} KB"
+
+          echo "gzip_kb=$GZIP_KB" >> "$GITHUB_OUTPUT"
+          echo "budget_kb=$MAX_ENTRY_GZIP_KB" >> "$GITHUB_OUTPUT"
+          echo "entry_file=$(basename $ENTRY_FILE)" >> "$GITHUB_OUTPUT"
+
+          # Check budget
+          OVER=$(awk "BEGIN {print ($GZIP_KB > $MAX_ENTRY_GZIP_KB) ? 1 : 0}")
+          if [ "$OVER" -eq 1 ]; then
+            echo ""
+            echo "❌ BUDGET EXCEEDED: Main entry is ${GZIP_KB} KB gzip (limit: ${MAX_ENTRY_GZIP_KB} KB)"
+            echo "budget_status=fail" >> "$GITHUB_OUTPUT"
+            exit 1
+          else
+            echo ""
+            echo "✅ Budget OK: Main entry is ${GZIP_KB} KB gzip (limit: ${MAX_ENTRY_GZIP_KB} KB)"
+            echo "budget_status=pass" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Comment PR with budget result
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const status = '${{ steps.budget.outputs.budget_status }}';
+            const gzipKb = '${{ steps.budget.outputs.gzip_kb }}';
+            const budgetKb = '${{ steps.budget.outputs.budget_kb }}';
+            const entryFile = '${{ steps.budget.outputs.entry_file }}';
+            const icon = status === 'pass' ? '✅' : '❌';
+
+            const body = `## ${icon} Console Performance Budget
+
+            | Metric | Value | Budget |
+            |--------|-------|--------|
+            | Main entry (gzip) | **${gzipKb} KB** | ${budgetKb} KB |
+            | Entry file | \`${entryFile}\` | — |
+            | Status | **${status === 'pass' ? 'PASS' : 'FAIL'}** | — |
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });

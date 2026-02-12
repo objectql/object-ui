@@ -163,7 +163,7 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 - [x] Implement AriaPropsSchema injection in SchemaRenderer and component renderers
 - [x] Add WcagContrastLevel checking utility for theme color validation (`contrastRatio()`, `meetsContrastLevel()`)
 - [x] Add ARIA role, label, and description propagation to all Shadcn primitives
-- [ ] Audit all 90+ components for WCAG 2.1 AA compliance
+- [x] Audit all 90+ components for WCAG 2.1 AA compliance
 - [x] Add automated accessibility tests (axe-core integration)
 
 **Spec Reference:** `AriaPropsSchema`, `WcagContrastLevel`
@@ -174,7 +174,7 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 - [x] Adopt ResponsiveConfigSchema and BreakpointColumnMapSchema in @object-ui/layout (`ResponsiveGrid`)
 - [x] Implement BreakpointOrderMapSchema for column reordering at breakpoints (`useResponsiveConfig`)
 - [x] Integrate spec breakpoint types with existing @object-ui/mobile breakpoint system
-- [ ] Add responsive layout stories in Storybook
+- [x] Add responsive layout stories in Storybook
 
 **Spec Reference:** `ResponsiveConfigSchema`, `BreakpointColumnMapSchema`, `BreakpointOrderMapSchema`, `BreakpointName`
 
@@ -185,7 +185,7 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 - [x] Add tests for all components (@object-ui/components)
 - [x] Add E2E test framework (Playwright)
 - [x] Add performance benchmark suite (vitest bench)
-- [ ] Visual regression tests (Storybook snapshot + Chromatic)
+- [x] Visual regression tests (Storybook snapshot + Chromatic)
 - [x] Accessibility test suite (axe-core)
 
 #### 1.5 I18n Deep Integration ✅ Complete
@@ -347,14 +347,14 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 - [x] Add `build:analyze` npm script for quick analysis
 - [x] Gzip and Brotli size reporting in visualizer output
 
-#### C.5 Production Hardening
+#### C.5 Production Hardening ✅ Complete
 **Target:** Production-grade deployment readiness
 
-- [ ] Add Content Security Policy (CSP) meta tags in index.html
-- [ ] Add resource preload hints (`<link rel="modulepreload">`) for critical chunks
-- [ ] Configure Cache-Control headers documentation for deployment
-- [ ] Add error tracking integration (Sentry/equivalent) setup guide
-- [ ] Performance budget CI check (fail build if main entry > 60 KB gzip)
+- [x] Add Content Security Policy (CSP) meta tags in index.html
+- [x] Add resource preload hints (`<link rel="modulepreload">`) for critical chunks
+- [x] Configure Cache-Control headers documentation for deployment
+- [x] Add error tracking integration (Sentry/equivalent) setup guide
+- [x] Performance budget CI check (fail build if main entry > 60 KB gzip)
 
 **Console v1.0 Milestone:**
 - **Production build:** Main entry 48.5 KB gzip, total initial load ~308 KB gzip (Brotli: ~250 KB)
@@ -418,7 +418,7 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 
 - [ ] Plugin marketplace website
 - [ ] Plugin publishing platform
-- [ ] Plugin development guide with template generator
+- [x] Plugin development guide with template generator
 - [ ] 25+ official plugins
 
 #### 3.6 Community Building (Ongoing)

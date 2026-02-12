@@ -1,9 +1,40 @@
 import { defineConfig } from 'vite';
+import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { viteCryptoStub } from '../../scripts/vite-crypto-stub';
 import { compression } from 'vite-plugin-compression2';
 import { visualizer } from 'rollup-plugin-visualizer';
+
+// Critical chunks that should be preloaded for faster initial page render.
+// These are the chunks needed on every page load (framework + vendor-react).
+const CRITICAL_CHUNK_PREFIXES = ['vendor-react', 'framework', 'ui-components', 'vendor-radix'];
+
+/**
+ * Vite plugin that injects <link rel="modulepreload"> hints for critical chunks
+ * into the built HTML, enabling the browser to fetch them in parallel with the
+ * main entry script.
+ */
+function preloadCriticalChunks(): Plugin {
+  return {
+    name: 'preload-critical-chunks',
+    enforce: 'post',
+    transformIndexHtml(html, ctx) {
+      if (!ctx.bundle) return html;
+      const preloadTags: string[] = [];
+      for (const [fileName] of Object.entries(ctx.bundle)) {
+        if (
+          fileName.endsWith('.js') &&
+          CRITICAL_CHUNK_PREFIXES.some((prefix) => fileName.includes(prefix))
+        ) {
+          preloadTags.push(`<link rel="modulepreload" href="/${fileName}" />`);
+        }
+      }
+      if (preloadTags.length === 0) return html;
+      return html.replace('</head>', `    ${preloadTags.join('\n    ')}\n  </head>`);
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -17,6 +48,8 @@ export default defineConfig({
   plugins: [
     viteCryptoStub(),
     react(),
+    // Inject <link rel="modulepreload"> for critical chunks
+    preloadCriticalChunks(),
     // Gzip compression for production assets
     compression({
       algorithm: 'gzip',
