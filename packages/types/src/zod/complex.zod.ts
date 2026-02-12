@@ -248,7 +248,7 @@ export const DashboardSchema = BaseSchema.extend({
 /**
  * Complex Schema Union - All complex component schemas
  */
-export const ComplexSchema = z.union([
+export const ComplexSchema = z.discriminatedUnion('type', [
   KanbanSchema,
   CalendarViewSchema,
   FilterBuilderSchema,

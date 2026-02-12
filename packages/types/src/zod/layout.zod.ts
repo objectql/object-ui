@@ -280,7 +280,7 @@ export const PageSchema = BaseSchema.extend({
 /**
  * Layout Schema Union - All layout component schemas
  */
-export const LayoutSchema = z.union([
+export const LayoutSchema = z.discriminatedUnion('type', [
   DivSchema,
   SpanSchema,
   TextSchema,

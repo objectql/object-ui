@@ -149,7 +149,7 @@ export const ButtonGroupSchema = BaseSchema.extend({
 /**
  * Navigation Schema Union - All navigation component schemas
  */
-export const NavigationSchema = z.union([
+export const NavigationSchema = z.discriminatedUnion('type', [
   HeaderBarSchema,
   SidebarSchema,
   BreadcrumbSchema,

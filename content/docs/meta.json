@@ -1,6 +1,7 @@
 {
   "pages": [
     "guide",
+    "api",
     "blocks",
     "core",
     "layout",

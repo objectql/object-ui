@@ -160,7 +160,7 @@ export const ReportViewerSchema = BaseSchema.extend({
 /**
  * Union of all report schemas
  */
-export const ReportComponentSchema = z.union([
+export const ReportComponentSchema = z.discriminatedUnion('type', [
   ReportSchema,
   ReportBuilderSchema,
   ReportViewerSchema,

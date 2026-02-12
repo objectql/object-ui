@@ -18,6 +18,7 @@
     "objectos-integration",
     "architecture-overview",
     "troubleshooting",
-    "ci-cd-pipeline"
+    "ci-cd-pipeline",
+    "deployment"
   ]
 }

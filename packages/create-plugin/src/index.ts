@@ -383,6 +383,47 @@ describe('${pascalCaseName}', () => {
     testFile
   );
 
+  // Create src/[Name].stories.tsx
+  const storyFile = `/**
+ * ObjectUI
+ * Copyright (c) ${vars.YEAR}-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import type { Meta, StoryObj } from '@storybook/react';
+import React from 'react';
+import { ${pascalCaseName} } from './${pascalCaseName}Impl';
+
+const meta = {
+  title: 'Plugins/${pascalCaseName}',
+  component: ${pascalCaseName},
+  parameters: {
+    layout: 'padded',
+  },
+  tags: ['autodocs'],
+} satisfies Meta<typeof ${pascalCaseName}>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Default: Story = {
+  args: {},
+};
+
+export const WithClassName: Story = {
+  args: {
+    className: 'p-4 border rounded',
+  },
+};
+`;
+
+  fs.writeFileSync(
+    path.join(targetDir, 'src', `${pascalCaseName}.stories.tsx`),
+    storyFile
+  );
+
   console.log(chalk.green('✅ Plugin created successfully!\n'));
   console.log(chalk.blue('Next steps:\n'));
   console.log(chalk.gray(`  cd packages/${fullPackageName}`));

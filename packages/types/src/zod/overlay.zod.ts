@@ -182,7 +182,7 @@ export const MenubarSchema = BaseSchema.extend({
 /**
  * Overlay Schema Union - All overlay component schemas
  */
-export const OverlaySchema = z.union([
+export const OverlaySchema = z.discriminatedUnion('type', [
   DialogSchema,
   AlertDialogSchema,
   SheetSchema,

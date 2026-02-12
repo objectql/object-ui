@@ -126,7 +126,7 @@ export const SonnerSchema = BaseSchema.extend({
 /**
  * Feedback Schema Union - All feedback component schemas
  */
-export const FeedbackSchema = z.union([
+export const FeedbackSchema = z.discriminatedUnion('type', [
   LoadingSchema,
   ProgressSchema,
   SkeletonSchema,

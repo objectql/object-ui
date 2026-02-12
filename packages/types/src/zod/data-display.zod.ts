@@ -273,7 +273,7 @@ export const HtmlSchema = BaseSchema.extend({
 /**
  * Data Display Schema Union - All data display component schemas
  */
-export const DataDisplaySchema = z.union([
+export const DataDisplaySchema = z.discriminatedUnion('type', [
   AlertSchema,
   StatisticSchema,
   BadgeSchema,

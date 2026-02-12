@@ -162,7 +162,7 @@ export const SortUISchema = BaseSchema.extend({
 /**
  * Union of all view schemas
  */
-export const ViewComponentSchema = z.union([
+export const ViewComponentSchema = z.discriminatedUnion('type', [
   DetailViewSchema,
   ViewSwitcherSchema,
   FilterUISchema,

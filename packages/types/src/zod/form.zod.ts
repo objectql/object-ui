@@ -413,7 +413,7 @@ export const FormSchema = BaseSchema.extend({
 /**
  * Form Component Schema Union - All form component schemas
  */
-export const FormComponentSchema = z.union([
+export const FormComponentSchema = z.discriminatedUnion('type', [
   ButtonSchema,
   InputSchema,
   TextareaSchema,

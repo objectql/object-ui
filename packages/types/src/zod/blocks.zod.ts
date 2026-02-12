@@ -148,7 +148,7 @@ export const ComponentSchema = BaseSchema.extend({
 /**
  * Union of all block schemas
  */
-export const BlockComponentSchema = z.union([
+export const BlockComponentSchema = z.discriminatedUnion('type', [
   BlockSchema,
   BlockLibrarySchema,
   BlockEditorSchema,

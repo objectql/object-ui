@@ -85,7 +85,7 @@ export const ToggleGroupSchema = BaseSchema.extend({
 /**
  * Disclosure Schema Union - All disclosure component schemas
  */
-export const DisclosureSchema = z.union([
+export const DisclosureSchema = z.discriminatedUnion('type', [
   AccordionSchema,
   CollapsibleSchema,
   ToggleGroupSchema,

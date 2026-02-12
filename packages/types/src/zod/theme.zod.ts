@@ -266,7 +266,7 @@ export const ThemeSchema = ThemeComponentSchema;
 /**
  * Union of all theme component schemas (for AnyComponentSchema union).
  */
-export const ThemeUnionSchema = z.union([
+export const ThemeUnionSchema = z.discriminatedUnion('type', [
   ThemeComponentSchema,
   ThemeSwitcherSchema,
   ThemePreviewSchema,

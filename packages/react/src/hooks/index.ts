@@ -14,6 +14,7 @@ export * from './useViewData';
 export * from './useDynamicApp';
 export * from './useDiscovery';
 export * from './useFocusTrap';
+export * from './useFocusManagement';
 export * from './useKeyboardShortcuts';
 export * from './useCrudShortcuts';
 export * from './useReducedMotion';
