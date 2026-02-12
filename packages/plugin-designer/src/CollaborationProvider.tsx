@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { createContext, useContext, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, useEffect, useRef, useState } from 'react';
 import type { CollaborationConfig, CollaborationPresence, CollaborationOperation } from '@object-ui/types';
 
 export interface CollaborationContextValue {
@@ -18,6 +18,10 @@ export interface CollaborationContextValue {
   sendOperation: (operation: Omit<CollaborationOperation, 'id' | 'timestamp' | 'version'>) => void;
   /** Current user ID */
   currentUserId?: string;
+  /** Connection state */
+  connectionState: 'disconnected' | 'connecting' | 'connected' | 'error';
+  /** Version history entries (when versionHistory is enabled) */
+  versionCount: number;
 }
 
 const CollabCtx = createContext<CollaborationContextValue | null>(null);
@@ -34,6 +38,8 @@ export interface CollaborationProviderProps {
   };
   /** Callback when an operation is received from another user */
   onOperation?: (operation: CollaborationOperation) => void;
+  /** Callback when a remote user joins or leaves */
+  onPresenceChange?: (users: CollaborationPresence[]) => void;
   /** Children */
   children: React.ReactNode;
 }
@@ -41,43 +47,128 @@ export interface CollaborationProviderProps {
 /**
  * Provider for multi-user collaborative editing.
  * Manages WebSocket connection, presence, and operation broadcasting.
+ * Supports real-time collaboration via WebSocket when serverUrl is configured.
  */
 export function CollaborationProvider({
   config,
   user,
   onOperation,
+  onPresenceChange,
   children,
 }: CollaborationProviderProps) {
+  const wsRef = useRef<WebSocket | null>(null);
+  const [remoteUsers, setRemoteUsers] = useState<CollaborationPresence[]>([]);
+  const [connectionState, setConnectionState] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
+  const versionRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Connect via WebSocket when serverUrl is provided
+  useEffect(() => {
+    if (!config.enabled || !user || !config.serverUrl) return;
+
+    const canUseWS = typeof WebSocket !== 'undefined';
+    if (!canUseWS) return;
+
+    function connect() {
+      const url = new URL(config.serverUrl!);
+      if (config.roomId) url.searchParams.set('room', config.roomId);
+      url.searchParams.set('userId', user!.id);
+
+      setConnectionState('connecting');
+      const ws = new WebSocket(url.toString());
+
+      ws.onopen = () => {
+        setConnectionState('connected');
+        // Send join message
+        ws.send(JSON.stringify({
+          type: 'join',
+          userId: user!.id,
+          userName: user!.name,
+          avatar: user!.avatar,
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'presence') {
+            const users = (msg.users || []) as CollaborationPresence[];
+            setRemoteUsers(users.filter((u: CollaborationPresence) => u.userId !== user!.id));
+            onPresenceChange?.(users);
+          } else if (msg.type === 'operation') {
+            onOperation?.(msg.operation as CollaborationOperation);
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      };
+
+      ws.onclose = () => {
+        setConnectionState('disconnected');
+        wsRef.current = null;
+        // Auto-reconnect
+        if (config.enabled) {
+          reconnectTimerRef.current = setTimeout(connect, config.autoSaveInterval ?? 3000);
+        }
+      };
+
+      ws.onerror = () => {
+        setConnectionState('error');
+      };
+
+      wsRef.current = ws;
+    }
+
+    connect();
+
+    return () => {
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (wsRef.current) {
+        wsRef.current.onclose = null; // Prevent reconnect on intentional close
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      setConnectionState('disconnected');
+    };
+  }, [config.enabled, config.serverUrl, config.roomId, config.autoSaveInterval, user, onOperation, onPresenceChange]);
+
   const users = useMemo<CollaborationPresence[]>(() => {
     if (!config.enabled || !user) return [];
-    return [{
+    const currentUser: CollaborationPresence = {
       userId: user.id,
       userName: user.name,
       avatar: user.avatar,
       color: generateColor(user.id),
       status: 'active' as const,
       lastActivity: new Date().toISOString(),
-    }];
-  }, [config.enabled, user]);
+    };
+    return [currentUser, ...remoteUsers];
+  }, [config.enabled, user, remoteUsers]);
 
-  const isConnected = config.enabled && !!user;
+  const isConnected = config.enabled && !!user && (config.serverUrl ? connectionState === 'connected' : true);
 
   const sendOperation = useCallback(
     (operation: Omit<CollaborationOperation, 'id' | 'timestamp' | 'version'>) => {
-      if (!isConnected || !user) return;
+      if (!config.enabled || !user) return;
 
+      versionRef.current += 1;
       const fullOp: CollaborationOperation = {
         ...operation,
-        id: `op-${Date.now()}`,
+        id: `op-${Date.now()}-${versionRef.current}`,
         userId: user.id,
         timestamp: new Date().toISOString(),
-        version: Date.now(),
+        version: versionRef.current,
       };
 
-      // In a real implementation, this would send via WebSocket
+      // Send via WebSocket if connected
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'operation', operation: fullOp }));
+      }
+
+      // Always notify local listeners
       onOperation?.(fullOp);
     },
-    [isConnected, user, onOperation],
+    [config.enabled, user, onOperation],
   );
 
   const value = useMemo<CollaborationContextValue>(
@@ -86,8 +177,10 @@ export function CollaborationProvider({
       isConnected,
       sendOperation,
       currentUserId: user?.id,
+      connectionState,
+      versionCount: versionRef.current,
     }),
-    [users, isConnected, sendOperation, user?.id],
+    [users, isConnected, sendOperation, user?.id, connectionState],
   );
 
   return <CollabCtx.Provider value={value}>{children}</CollabCtx.Provider>;

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { ObjectForm } from '@object-ui/plugin-form';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Empty, EmptyTitle } from '@object-ui/components';
 import { toast } from 'sonner';
@@ -9,35 +9,37 @@ import type { ConnectionState } from './dataSource';
 import appConfig from '../objectstack.shared';
 import { AuthGuard, useAuth } from '@object-ui/auth';
 
-// Components
+// Components (eagerly loaded — always needed)
 import { ConsoleLayout } from './components/ConsoleLayout';
 import { CommandPalette } from './components/CommandPalette';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
 import { ObjectView } from './components/ObjectView';
-import { RecordDetailView } from './components/RecordDetailView';
-import { DashboardView } from './components/DashboardView';
-import { PageView } from './components/PageView';
-import { ReportView } from './components/ReportView';
-import { ViewDesignerPage } from './components/ViewDesignerPage';
 import { ExpressionProvider } from './context/ExpressionProvider';
 import { ConditionalAuthWrapper } from './components/ConditionalAuthWrapper';
 import { KeyboardShortcutsDialog } from './components/KeyboardShortcutsDialog';
 import { OnboardingWalkthrough } from './components/OnboardingWalkthrough';
-import { SearchResultsPage } from './components/SearchResultsPage';
 import { useRecentItems } from './hooks/useRecentItems';
 
-// Auth Pages
-import { LoginPage } from './pages/LoginPage';
-import { RegisterPage } from './pages/RegisterPage';
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+// Route-based code splitting — lazy-load less-frequently-used routes
+const RecordDetailView = lazy(() => import('./components/RecordDetailView').then(m => ({ default: m.RecordDetailView })));
+const DashboardView = lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
+const PageView = lazy(() => import('./components/PageView').then(m => ({ default: m.PageView })));
+const ReportView = lazy(() => import('./components/ReportView').then(m => ({ default: m.ReportView })));
+const ViewDesignerPage = lazy(() => import('./components/ViewDesignerPage').then(m => ({ default: m.ViewDesignerPage })));
+const SearchResultsPage = lazy(() => import('./components/SearchResultsPage').then(m => ({ default: m.SearchResultsPage })));
 
-// System Admin Pages
-import { UserManagementPage } from './pages/system/UserManagementPage';
-import { OrgManagementPage } from './pages/system/OrgManagementPage';
-import { RoleManagementPage } from './pages/system/RoleManagementPage';
-import { AuditLogPage } from './pages/system/AuditLogPage';
-import { ProfilePage } from './pages/system/ProfilePage';
+// Auth Pages (lazy — only needed before login)
+const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
+const RegisterPage = lazy(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
+
+// System Admin Pages (lazy — rarely accessed)
+const UserManagementPage = lazy(() => import('./pages/system/UserManagementPage').then(m => ({ default: m.UserManagementPage })));
+const OrgManagementPage = lazy(() => import('./pages/system/OrgManagementPage').then(m => ({ default: m.OrgManagementPage })));
+const RoleManagementPage = lazy(() => import('./pages/system/RoleManagementPage').then(m => ({ default: m.RoleManagementPage })));
+const AuditLogPage = lazy(() => import('./pages/system/AuditLogPage').then(m => ({ default: m.AuditLogPage })));
+const ProfilePage = lazy(() => import('./pages/system/ProfilePage').then(m => ({ default: m.ProfilePage })));
 
 import { useParams } from 'react-router-dom';
 import { ThemeProvider } from './components/theme-provider';
@@ -219,6 +221,7 @@ export function AppContent() {
       <OnboardingWalkthrough />
       <SchemaRendererProvider dataSource={dataSource || {}}>
       <ErrorBoundary>
+      <Suspense fallback={<LoadingScreen />}>
       <Routes>
         <Route path="/" element={
             // Redirect to first route within the app
@@ -278,6 +281,7 @@ export function AppContent() {
         <Route path="system/audit-log" element={<AuditLogPage />} />
         <Route path="system/profile" element={<ProfilePage />} />
       </Routes>
+      </Suspense>
       </ErrorBoundary>
 
        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -365,6 +369,7 @@ export function App() {
       <ConsoleToaster position="bottom-right" />
       <ConditionalAuthWrapper authUrl="/api/auth">
         <BrowserRouter basename="/">
+            <Suspense fallback={<LoadingScreen />}>
             <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
@@ -376,6 +381,7 @@ export function App() {
                 } />
                 <Route path="/" element={<RootRedirect />} />
             </Routes>
+            </Suspense>
         </BrowserRouter>
       </ConditionalAuthWrapper>
     </ThemeProvider>

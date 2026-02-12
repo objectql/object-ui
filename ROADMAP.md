@@ -60,10 +60,10 @@ ObjectUI's current overall compliance stands at **82%** (down from 91% against v
 | Category | Current | Target |
 |----------|---------|--------|
 | **UI Types** | 100% | 100% |
-| **API Protocol** | 89% | 100% |
-| **Feature Completeness** | 95% | 100% |
-| **v2.0.7 New Areas** | 96% | 100% |
-| **Overall** | **96%** | **100%** |
+| **API Protocol** | 95% | 100% |
+| **Feature Completeness** | 98% | 100% |
+| **v2.0.7 New Areas** | 100% | 100% |
+| **Overall** | **98%** | **100%** |
 
 > Source: [SPEC_COMPLIANCE_EVALUATION.md](./SPEC_COMPLIANCE_EVALUATION.md) §8
 
@@ -224,7 +224,7 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 - [x] Refactor plugin-kanban card drag to use spec DnD schemas — DndBridge bridges @dnd-kit events to ObjectUI DndProvider
 - [x] Refactor plugin-dashboard widget drag to use spec DnD schemas — DndEditModeBridge bridges edit mode to DndProvider
 - [x] Add drag-to-reschedule for calendar events — native HTML5 DnD in MonthView with `onEventDrop` callback
-- [ ] Add drag-and-drop sidebar navigation reordering
+- [x] Add drag-and-drop sidebar navigation reordering — HTML5 native DnD in AppSidebar with localStorage persistence per app
 
 **Spec Reference:** `DndConfigSchema`, `DragItemSchema`, `DropZoneSchema`, `DragConstraintSchema`, `DragHandleSchema`, `DropEffectSchema`
 
@@ -311,7 +311,7 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 - [x] Implement ConflictResolutionSchema strategies (last-write-wins, manual merge, server-wins) — configurable via `sync.conflictResolution`
 - [x] Implement EvictionPolicySchema for cache management (LRU, TTL, size-based) — configurable via `cache.evictionPolicy`
 - [x] Implement PersistStorageSchema for IndexedDB/localStorage persistence — localStorage queue persistence
-- [ ] Integrate with @objectstack/client ETag caching and Service Worker
+- [x] Integrate with @objectstack/client ETag caching and Service Worker — `useETagCache` hook with ETag-aware fetch, LRU cache, Service Worker registration
 - [x] Add offline indicator UI with sync status — `showIndicator` + `offlineMessage` in `useOffline`
 
 **Spec Reference:** `OfflineConfigSchema`, `OfflineCacheConfigSchema`, `OfflineStrategySchema`, `SyncConfigSchema`, `ConflictResolutionSchema`, `PersistStorageSchema`, `EvictionPolicySchema`
@@ -319,11 +319,11 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 #### 3.2 Real-time Collaboration (4 weeks)
 **Target:** Multi-user real-time editing and presence
 
-- [ ] Integrate `client.realtime.*` WebSocket API for live data subscriptions
-- [ ] Live cursors and presence indicators
-- [ ] Comment threads and @mentions
-- [ ] Conflict resolution with version history
-- [ ] Complete CollaborationProvider in plugin-designer
+- [x] Integrate `client.realtime.*` WebSocket API for live data subscriptions — `useRealtimeSubscription` hook in @object-ui/collaboration
+- [x] Live cursors and presence indicators — `LiveCursors`, `PresenceAvatars`, `usePresence` in @object-ui/collaboration
+- [x] Comment threads and @mentions — `CommentThread` component in @object-ui/collaboration
+- [x] Conflict resolution with version history — `useConflictResolution` hook in @object-ui/collaboration
+- [x] Complete CollaborationProvider in plugin-designer — enhanced with WebSocket transport, presence tracking, version counting
 
 **Deliverables:**
 - @object-ui/collaboration package
@@ -332,9 +332,9 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 **Target:** Implement PerformanceConfigSchema monitoring
 
 - [x] Implement PerformanceConfigSchema runtime (LCP, FCP, TTI tracking) — `usePerformance` hook with Web Vitals
-- [ ] Add performance budget enforcement (bundle size, render time thresholds)
-- [ ] Optimize lazy loading with route-based code splitting
-- [ ] Add performance dashboard in console (dev mode)
+- [x] Add performance budget enforcement (bundle size, render time thresholds) — `usePerformanceBudget` hook with violation tracking and dev-mode warnings
+- [x] Optimize lazy loading with route-based code splitting — Console app uses `React.lazy()` + `Suspense` for auth, admin, detail, dashboard, and designer routes
+- [x] Add performance dashboard in console (dev mode) — `PerformanceDashboard` floating panel with LCP, FCP, memory, render count, budget violations (Ctrl+Shift+P toggle)
 - [ ] Target: LCP < 600ms, bundle < 140KB gzipped
 
 **Spec Reference:** `PerformanceConfigSchema`
@@ -344,8 +344,8 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 
 - [x] Implement PageTransitionSchema for route-level transitions (fade, slide, scale) — `usePageTransition` hook (9 transition types)
 - [x] Consume PageComponentType for page variant resolution — types re-exported from @object-ui/types
-- [ ] Add view transition animations between view types (grid ↔ kanban ↔ calendar)
-- [ ] Integrate with browser View Transitions API where supported
+- [x] Add view transition animations between view types (grid ↔ kanban ↔ calendar) — `ViewSwitcher` enhanced with `animated` prop and `document.startViewTransition()` integration
+- [x] Integrate with browser View Transitions API where supported — `useViewTransition` hook with native API support, CSS fallback, and reduced-motion awareness
 
 **Spec Reference:** `PageTransitionSchema`, `PageComponentType`
 
