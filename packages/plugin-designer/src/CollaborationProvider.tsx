@@ -8,6 +8,12 @@
 
 import React, { createContext, useContext, useCallback, useMemo, useEffect, useRef, useState } from 'react';
 import type { CollaborationConfig, CollaborationPresence, CollaborationOperation } from '@object-ui/types';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: (string | undefined | false)[]) {
+  return twMerge(clsx(inputs));
+}
 
 export interface CollaborationContextValue {
   /** Active users in the session */
@@ -218,7 +224,7 @@ export function ConnectionStatusIndicator({ className }: { className?: string })
   const { color, label } = stateConfig[connectionState] ?? stateConfig.disconnected;
 
   return (
-    <div className={`flex items-center gap-2 text-xs ${className ?? ''}`} role="status" aria-live="polite" aria-label={`Collaboration: ${label}`}>
+    <div className={cn('flex items-center gap-2 text-xs', className)} role="status" aria-live="polite" aria-label={`Collaboration: ${label}`}>
       <span className={`inline-block h-2 w-2 rounded-full ${color}`} />
       <span>{label}</span>
       {connectionState === 'connected' && users.length > 1 && (

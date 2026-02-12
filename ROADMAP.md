@@ -293,6 +293,45 @@ The v2.0.7 spec introduces 70+ new UI types across 12 domains. This section maps
 - [x] Global search results page (beyond command palette)
 - [x] Recent items / favorites in sidebar
 
+#### 2.8 Designer UX Enhancement (Feb 2026)
+**Target:** Enterprise-quality designer experience across all 5 designers
+
+> 📄 See [DESIGNER_UX_ANALYSIS.md](./DESIGNER_UX_ANALYSIS.md) for full analysis
+
+**Phase 1: Accessibility & Polish ✅ Complete**
+- [x] Add ARIA attributes (aria-label, role=toolbar/region/tablist/tab, aria-selected) across all 5 designers
+- [x] Add keyboard shortcuts (Delete to remove selected, Escape to deselect) to PageDesigner, DataModelDesigner, ProcessDesigner, ReportDesigner
+- [x] Improve empty states with guidance text across all designers
+- [x] Add zoom controls (−/+/fit) to PageDesigner canvas
+- [x] Improve property panels (PageDesigner label editing, ReportDesigner element details)
+- [x] Add ConnectionStatusIndicator component to CollaborationProvider
+- [x] Expand user color palette from 8 to 16 colors
+- [x] Add tab accessibility (role=tablist, role=tab, aria-selected) to ViewDesigner
+- [x] Replace emoji indicators (🔑) with text indicators (PK) in DataModelDesigner
+
+**Phase 2: Interaction Layer (Next Sprint)**
+- [ ] Implement drag-and-drop for component/entity/node positioning using @dnd-kit
+- [ ] Implement undo/redo using command pattern with state history
+- [ ] Add confirmation dialogs for destructive delete actions
+- [ ] Implement edge creation UI in ProcessDesigner (click-to-connect nodes)
+- [ ] Add inline entity field editing in DataModelDesigner
+
+**Phase 3: Advanced Features (Q2 2026)**
+- [ ] Full property editors with live preview for all designers
+- [ ] i18n integration for all hardcoded UI strings via resolveI18nLabel
+- [ ] Canvas pan/zoom with minimap for DataModelDesigner and ProcessDesigner
+- [ ] Auto-layout algorithms for entity and node positioning
+- [ ] Copy/paste support (Ctrl+C/V) across all designers
+- [ ] Multi-select and bulk operations
+- [ ] Responsive/collapsible panel layout
+
+**Phase 4: Collaboration Integration (Q3 2026)**
+- [ ] Wire CollaborationProvider into each designer for real-time co-editing
+- [ ] Live cursor positions on shared canvases
+- [ ] Operation-based undo/redo synchronized across collaborators
+- [ ] Conflict resolution UI for concurrent edits
+- [ ] Version history browser with visual diff
+
 **Q2 Milestone:**
 - **v1.0.0 Release (June 2026):** Full interactive experience — DnD, gestures, focus, animation, notifications, view enhancements
 - **Spec compliance: 86% → 96%**
