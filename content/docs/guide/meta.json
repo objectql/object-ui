@@ -15,6 +15,9 @@
     "console",
     "console-architecture",
     "console-rendering",
-    "objectos-integration"
+    "objectos-integration",
+    "architecture-overview",
+    "troubleshooting",
+    "ci-cd-pipeline"
   ]
 }
