@@ -4,7 +4,8 @@
 > **Current Version:** v0.5.x  
 > **Target Version:** v2.0.0  
 > **Spec Version:** @objectstack/spec v3.0.0  
-> **Client Version:** @objectstack/client v3.0.0
+> **Client Version:** @objectstack/client v3.0.0  
+> **Current Priority:** 🔮 v3.0.0 Deep Integration & 2027 Vision (N.1–N.5)
 
 ---
 
@@ -15,6 +16,10 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 With the release of @objectstack/spec v3.0.0 and @objectstack/client v3.0.0, the protocol has reached a major milestone: consolidated namespaces (Hub → Cloud, auth/driver/permission merged into security/system), streamlined PaginatedResult API (records/total), and enhanced metadata access patterns. The client SDK remains **100% spec-compliant** (13/13 API namespaces, 95+ methods).
 
 ObjectUI's current overall compliance stands at **98%**. All existing functionality remains stable — **42/42 builds pass**, **3235/3235 tests pass**. This roadmap defines the path to 100% v3.0.0 compliance and commercial readiness.
+
+**🔮 Current Focus: v3.0.0 Deep Integration & 2027 Vision**
+
+> All Q1–Q3 2026 foundation items and Console v1.0 Production Release are **complete**. The immediate priority is now the **Next Phase (N.1–N.5)**: deep v3.0.0 integration, designer completion, ecosystem & marketplace, community growth, and the 2027 platform vision. These items have been elevated to P0/P1/P2 priority and are the primary focus of all active development.
 
 **Strategic Goals:**
 - **Technical Excellence:** 100% @objectstack/spec v3.0.0 compliance, 80%+ test coverage, world-class performance
@@ -326,29 +331,13 @@ This section maps each domain to its current ObjectUI status and implementation 
 - [x] Add tab accessibility (role=tablist, role=tab, aria-selected) to ViewDesigner
 - [x] Replace emoji indicators (🔑) with text indicators (PK) in DataModelDesigner
 
-> **Phases 2-4** are tracked in the [Next Phase: N.2 Designer Completion](#n2-designer-completion-q2-q3-2026) section below.
+> **Phases 2-4** are now the **🔴 P0 priority** — see [N.2 Designer Completion](#n2-designer-completion--p0-q2q3-2026) below.
 
-**Phase 2: Interaction Layer (Next Sprint)**
-- [ ] Implement undo/redo using command pattern with state history
-- [ ] Add confirmation dialogs for destructive delete actions
-- [ ] Implement edge creation UI in ProcessDesigner (click-to-connect nodes)
-- [ ] Add inline entity field editing in DataModelDesigner
+**Phase 2: Interaction Layer (Next Sprint)** → 🔴 P0 — tracked in N.2
 
-**Phase 3: Advanced Features (Q2 2026)**
-- [ ] Full property editors with live preview for all designers
-- [ ] i18n integration for all hardcoded UI strings via resolveI18nLabel
-- [ ] Canvas pan/zoom with minimap for DataModelDesigner and ProcessDesigner
-- [ ] Auto-layout algorithms for entity and node positioning
-- [ ] Copy/paste support (Ctrl+C/V) across all designers
-- [ ] Multi-select and bulk operations
-- [ ] Responsive/collapsible panel layout
+**Phase 3: Advanced Features (Q2 2026)** → 🔴 P0 — tracked in N.2
 
-**Phase 4: Collaboration Integration (Q3 2026)**
-- [ ] Wire CollaborationProvider into each designer for real-time co-editing
-- [ ] Live cursor positions on shared canvases
-- [ ] Operation-based undo/redo synchronized across collaborators
-- [ ] Conflict resolution UI for concurrent edits
-- [ ] Version history browser with visual diff
+**Phase 4: Collaboration Integration (Q3 2026)** → 🔴 P0 — tracked in N.2
 
 **Q2 Milestone:**
 - **v1.0.0 Release (June 2026):** Full interactive experience — DnD, gestures, focus, animation, notifications, view enhancements
@@ -471,19 +460,19 @@ This section maps each domain to its current ObjectUI status and implementation 
 
 **Spec Reference:** `PageTransitionSchema`, `PageComponentType`
 
-#### 3.5 Plugin Marketplace (6 weeks)
+#### 3.5 Plugin Marketplace (6 weeks) → 🟡 P1 — tracked in N.3
 
-- [ ] Plugin marketplace website
-- [ ] Plugin publishing platform
+- [ ] Plugin marketplace website → see [N.3 Ecosystem & Marketplace](#n3-ecosystem--marketplace--p1-q3-2026)
+- [ ] Plugin publishing platform → see N.3
 - [x] Plugin development guide with template generator
-- [ ] 25+ official plugins
+- [ ] 25+ official plugins → see N.3
 
-#### 3.6 Community Building (Ongoing)
+#### 3.6 Community Building (Ongoing) → 🟡 P1 — tracked in N.4
 
-- [ ] Official website (www.objectui.org)
-- [ ] Discord community
-- [ ] Monthly webinars and technical blog
-- [ ] YouTube tutorial series
+- [ ] Official website (www.objectui.org) → see [N.4 Community Growth](#n4-community-growth--p1-ongoing-starts-q2-2026)
+- [ ] Discord community → see N.4
+- [ ] Monthly webinars and technical blog → see N.4
+- [ ] YouTube tutorial series → see N.4
 
 **Q3 Milestone:**
 - **v1.5.0 Release (September 2026):** Offline-first, real-time, performance-optimized
@@ -494,9 +483,102 @@ This section maps each domain to its current ObjectUI status and implementation 
 
 ---
 
+### 🔮 Current Priority: v3.0.0 Deep Integration & 2027 Vision
+
+> **Status:** 🚀 Active — All Q1–Q3 foundation work and Console v1.0 are complete. This section is now the **primary development focus**.
+
+**Goal:** Leverage @objectstack/spec v3.0.0 consolidation for deeper platform integration, complete designer tooling, and prepare for 2027 growth.
+
+#### N.1 v3.0.0 Deep Integration — 🔴 P0 (Immediate, Q2 2026)
+**Target:** Full adoption of v3.0.0 consolidated namespaces and APIs
+
+> **Why P0:** The foundation for all downstream work. Ensures full spec compliance before designer, marketplace, and cloud features can ship safely.
+
+- [ ] Adopt `Cloud` namespace (replacing `Hub`) for cloud deployment, hosting, and marketplace schemas
+- [ ] Integrate `./contracts` module for plugin contract validation and marketplace publishing
+- [ ] Integrate `./integration` module for third-party service connectors (Slack, email, webhooks)
+- [ ] Integrate `./security` module for advanced security policies (CSP config, audit logging, data masking)
+- [ ] Adopt `./studio` module schemas for visual designer improvements (canvas, property editors, theme builder)
+- [ ] Migrate all data consumers to v3.0.0 `PaginatedResult` API (`records`/`total`/`hasMore`)
+- [ ] Update ObjectStackAdapter to use v3.0.0 metadata API patterns (`getItem`/`getItems`/`getCached`)
+- [ ] Add v3.0.0 compatibility tests for all 13 package.json @objectstack dependencies
+
+**Milestone:** 100% @objectstack/spec v3.0.0 compliance verified across all packages
+
+#### N.2 Designer Completion — 🔴 P0 (Q2–Q3 2026)
+**Target:** Enterprise-quality visual designer experience
+
+> **Why P0:** Designers are the primary user-facing feature gap. Completing phases 2–4 unlocks the visual development story for enterprise customers.
+
+**Phase 2: Interaction Layer (Immediate — Next Sprint)**
+- [ ] Implement drag-and-drop for component/entity/node positioning using @dnd-kit
+- [ ] Implement undo/redo using command pattern with state history
+- [ ] Add confirmation dialogs for destructive delete actions
+- [ ] Implement edge creation UI in ProcessDesigner (click-to-connect nodes)
+- [ ] Add inline entity field editing in DataModelDesigner
+
+**Phase 3: Advanced Features (Q2 2026)**
+- [ ] Full property editors with live preview for all designers
+- [ ] i18n integration for all hardcoded UI strings via resolveI18nLabel
+- [ ] Canvas pan/zoom with minimap for DataModelDesigner and ProcessDesigner
+- [ ] Auto-layout algorithms for entity and node positioning
+- [ ] Copy/paste support (Ctrl+C/V) across all designers
+- [ ] Multi-select and bulk operations
+- [ ] Responsive/collapsible panel layout
+
+**Phase 4: Collaboration Integration (Q3 2026)**
+- [ ] Wire CollaborationProvider into each designer for real-time co-editing
+- [ ] Live cursor positions on shared canvases
+- [ ] Operation-based undo/redo synchronized across collaborators
+- [ ] Conflict resolution UI for concurrent edits
+- [ ] Version history browser with visual diff
+
+**Milestone:** All 5 designers (Page, View, DataModel, Process, Report) feature-complete with drag-and-drop, undo/redo, collaboration, and accessibility
+
+#### N.3 Ecosystem & Marketplace — 🟡 P1 (Q3 2026)
+
+> **Why P1:** Marketplace is the growth engine. Depends on N.1 (contracts module) and N.2 (designer maturity) for a credible launch.
+
+- [ ] Plugin marketplace website with search, ratings, and install count
+- [ ] Plugin publishing CLI (`objectui publish`) with automated validation
+- [ ] 25+ official plugins (including AG Grid, ECharts, Monaco Editor, MapLibre)
+- [ ] Plugin contract enforcement via `./contracts` module
+- [ ] Official website (www.objectui.org) with interactive playground
+
+**Milestone:** Public marketplace launch with 25+ searchable, installable plugins
+
+#### N.4 Community Growth — 🟡 P1 (Ongoing, starts Q2 2026)
+
+> **Why P1:** Community is essential for adoption and plugin ecosystem. Runs in parallel with N.1–N.3.
+
+- [ ] Discord community with 1,000+ members
+- [ ] Monthly webinars and technical blog posts
+- [ ] YouTube tutorial series (10+ videos)
+- [ ] Conference talks (React Summit, JSConf)
+- [ ] Open-source contributor program
+
+**Milestone:** 1,000+ Discord members, 10+ published content pieces, active contributor pipeline
+
+#### N.5 2027 Vision: ObjectUI Platform — 🔵 P2 (Q4 2026 – 2027)
+
+> **Why P2:** Strategic long-term bets. Planning starts Q3 2026; execution begins Q4 2026.
+
+- [ ] ObjectUI Cloud v2.0 — multi-region, SOC2 compliance, 99.9% SLA
+- [ ] AI-powered schema generation from natural language descriptions
+- [ ] Visual theme marketplace (100+ community themes)
+- [ ] ObjectUI Mobile — React Native renderer sharing the same JSON schemas
+- [ ] Industry accelerators (CRM, ERP, HRM, e-commerce) as turnkey solutions
+- [ ] Target: 10,000+ GitHub stars, 50,000+ NPM weekly downloads, $2M+ ARR
+
+**Milestone:** Platform architecture defined, Cloud v2.0 alpha, Mobile renderer POC
+
+---
+
 ### Q4 2026: Commercialization (Oct-Dec)
 
 **Goal:** Launch ObjectUI Cloud and achieve commercial success
+
+> **Note:** Q4 items depend on successful completion of N.1–N.3. N.5 platform work runs in parallel.
 
 #### 4.1 ObjectUI Cloud (8 weeks)
 
@@ -529,83 +611,19 @@ This section maps each domain to its current ObjectUI status and implementation 
 
 ---
 
-### 🔮 Next Phase: v3.0.0 Deep Integration & 2027 Vision
-
-**Goal:** Leverage @objectstack/spec v3.0.0 consolidation for deeper platform integration, complete designer tooling, and prepare for 2027 growth.
-
-#### N.1 v3.0.0 Deep Integration (Q2-Q3 2026)
-**Target:** Full adoption of v3.0.0 consolidated namespaces and APIs
-
-- [ ] Adopt `Cloud` namespace (replacing `Hub`) for cloud deployment, hosting, and marketplace schemas
-- [ ] Integrate `./contracts` module for plugin contract validation and marketplace publishing
-- [ ] Integrate `./integration` module for third-party service connectors (Slack, email, webhooks)
-- [ ] Integrate `./security` module for advanced security policies (CSP config, audit logging, data masking)
-- [ ] Adopt `./studio` module schemas for visual designer improvements (canvas, property editors, theme builder)
-- [ ] Migrate all data consumers to v3.0.0 `PaginatedResult` API (`records`/`total`/`hasMore`)
-- [ ] Update ObjectStackAdapter to use v3.0.0 metadata API patterns (`getItem`/`getItems`/`getCached`)
-- [ ] Add v3.0.0 compatibility tests for all 13 package.json @objectstack dependencies
-
-#### N.2 Designer Completion (Q2-Q3 2026)
-**Target:** Enterprise-quality visual designer experience
-
-**Phase 2: Interaction Layer (Next Sprint)**
-- [ ] Implement drag-and-drop for component/entity/node positioning using @dnd-kit
-- [ ] Implement undo/redo using command pattern with state history
-- [ ] Add confirmation dialogs for destructive delete actions
-- [ ] Implement edge creation UI in ProcessDesigner (click-to-connect nodes)
-- [ ] Add inline entity field editing in DataModelDesigner
-
-**Phase 3: Advanced Features (Q2 2026)**
-- [ ] Full property editors with live preview for all designers
-- [ ] i18n integration for all hardcoded UI strings via resolveI18nLabel
-- [ ] Canvas pan/zoom with minimap for DataModelDesigner and ProcessDesigner
-- [ ] Auto-layout algorithms for entity and node positioning
-- [ ] Copy/paste support (Ctrl+C/V) across all designers
-- [ ] Multi-select and bulk operations
-- [ ] Responsive/collapsible panel layout
-
-**Phase 4: Collaboration Integration (Q3 2026)**
-- [ ] Wire CollaborationProvider into each designer for real-time co-editing
-- [ ] Live cursor positions on shared canvases
-- [ ] Operation-based undo/redo synchronized across collaborators
-- [ ] Conflict resolution UI for concurrent edits
-- [ ] Version history browser with visual diff
-
-#### N.3 Ecosystem & Marketplace (Q3 2026)
-- [ ] Plugin marketplace website with search, ratings, and install count
-- [ ] Plugin publishing CLI (`objectui publish`) with automated validation
-- [ ] 25+ official plugins (including AG Grid, ECharts, Monaco Editor, MapLibre)
-- [ ] Plugin contract enforcement via `./contracts` module
-- [ ] Official website (www.objectui.org) with interactive playground
-
-#### N.4 Community Growth (Ongoing)
-- [ ] Discord community with 1,000+ members
-- [ ] Monthly webinars and technical blog posts
-- [ ] YouTube tutorial series (10+ videos)
-- [ ] Conference talks (React Summit, JSConf)
-- [ ] Open-source contributor program
-
-#### N.5 2027 Vision: ObjectUI Platform
-- [ ] ObjectUI Cloud v2.0 — multi-region, SOC2 compliance, 99.9% SLA
-- [ ] AI-powered schema generation from natural language descriptions
-- [ ] Visual theme marketplace (100+ community themes)
-- [ ] ObjectUI Mobile — React Native renderer sharing the same JSON schemas
-- [ ] Industry accelerators (CRM, ERP, HRM, e-commerce) as turnkey solutions
-- [ ] Target: 10,000+ GitHub stars, 50,000+ NPM weekly downloads, $2M+ ARR
-
----
-
 ## 📈 2026 Annual Targets
 
-| Metric | Q1 | Q2 | Q3 | Q4 |
-|--------|-----|-----|-----|-----|
+| Metric | Q1 ✅ | Q2 (N.1–N.2) | Q3 (N.2–N.4) | Q4 (N.5 + Cloud) |
+|--------|-------|---------------|---------------|-------------------|
 | **Test Coverage** | 80% | 85% | 90% | 90% |
-| **Spec Compliance (v3.0.0)** | 86% | 96% | 100% | 100% |
+| **Spec Compliance (v3.0.0)** | 86% | 100% ← N.1 | 100% | 100% |
 | **Client Integration** | 100% | 100% | 100% | 100% |
 | **Performance (LCP)** | 0.6s | 0.5s | 0.5s | 0.4s |
+| **Designer Completion** | Phase 1 ✅ | Phase 2–3 ← N.2 | Phase 4 ← N.2 | Stable |
 | **GitHub Stars** | 1K | 2.5K | 5K | 10K |
 | **NPM Downloads/week** | 5K | 10K | 20K | 50K |
-| **Plugins** | 20 | 25 | 30 | 35 |
+| **Plugins** | 20 | 25 ← N.3 | 30 ← N.3 | 35 |
+| **Community (Discord)** | — | 200 ← N.4 | 500 ← N.4 | 1,000 |
 | **Enterprise Customers** | — | 5 | 25 | 50 |
 | **Annual Revenue** | — | — | $100K | $500K |
 
@@ -677,6 +695,6 @@ This section maps each domain to its current ObjectUI status and implementation 
 
 ---
 
-**Roadmap Status:** ✅ Active — @objectstack v3.0.0 Aligned  
+**Roadmap Status:** 🔮 Active — v3.0.0 Deep Integration & 2027 Vision (N.1–N.5) in progress  
 **Next Review:** March 15, 2026  
 **Contact:** hello@objectui.org | https://github.com/objectstack-ai/objectui
