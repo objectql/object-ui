@@ -192,13 +192,15 @@ export function ProcessDesigner({
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const onNodesChangeRef = useRef(onNodesChange);
+  const onEdgesChangeRef = useRef(onEdgesChange);
+  onNodesChangeRef.current = onNodesChange;
+  onEdgesChangeRef.current = onEdgesChange;
 
   // ---- Sync from undo/redo back to parent when undo/redo triggers ----
   useEffect(() => {
-    onNodesChange?.(nodes);
-    onEdgesChange?.(edges);
-    // Only fire when the snapshot reference changes (undo/redo)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    onNodesChangeRef.current?.(nodes);
+    onEdgesChangeRef.current?.(edges);
   }, [undoRedo.current]);
 
   // ---- Add node ----
