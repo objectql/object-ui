@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from './theme-provider';
 import { useExpressionContext, evaluateVisibility } from '../context/ExpressionProvider';
+import { useObjectTranslation } from '@object-ui/i18n';
 
 /** Resolve a Lucide icon by name (kebab-case or PascalCase) */
 function getIcon(name?: string): React.ElementType {
@@ -57,6 +58,7 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
   const { appName } = useParams();
   const { setTheme } = useTheme();
   const { evaluator } = useExpressionContext();
+  const { t } = useObjectTranslation();
 
   // ⌘+K / Ctrl+K shortcut
   useEffect(() => {
@@ -84,13 +86,13 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Type a command or search..." />
+      <CommandInput placeholder={t('console.commandPalette.placeholder')} />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandEmpty>{t('console.commandPalette.noResults')}</CommandEmpty>
 
         {/* Object Navigation */}
         {navItems.filter(i => i.type === 'object').length > 0 && (
-          <CommandGroup heading="Objects">
+          <CommandGroup heading={t('console.commandPalette.objects')}>
             {navItems
               .filter(i => i.type === 'object')
               .map(item => {
@@ -111,7 +113,7 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
 
         {/* Dashboards */}
         {navItems.filter(i => i.type === 'dashboard').length > 0 && (
-          <CommandGroup heading="Dashboards">
+          <CommandGroup heading={t('console.commandPalette.dashboards')}>
             {navItems
               .filter(i => i.type === 'dashboard')
               .map(item => (
@@ -129,7 +131,7 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
 
         {/* Pages */}
         {navItems.filter(i => i.type === 'page').length > 0 && (
-          <CommandGroup heading="Pages">
+          <CommandGroup heading={t('console.commandPalette.pages')}>
             {navItems
               .filter(i => i.type === 'page')
               .map(item => (
@@ -147,7 +149,7 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
 
         {/* Reports */}
         {navItems.filter(i => i.type === 'report').length > 0 && (
-          <CommandGroup heading="Reports">
+          <CommandGroup heading={t('console.commandPalette.reports')}>
             {navItems
               .filter(i => i.type === 'report')
               .map(item => (
@@ -167,7 +169,7 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
         {apps.filter(a => a.active !== false).length > 1 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Switch App">
+            <CommandGroup heading={t('console.commandPalette.switchApp')}>
               {apps
                 .filter(a => a.active !== false)
                 .map(app => {
@@ -181,7 +183,7 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
                       <Icon className="mr-2 h-4 w-4" />
                       <span>{app.label}</span>
                       {app.name === activeApp?.name && (
-                        <span className="ml-auto text-xs text-muted-foreground">Current</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{t('console.commandPalette.current')}</span>
                       )}
                     </CommandItem>
                   );
@@ -192,30 +194,30 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
 
         {/* Theme */}
         <CommandSeparator />
-        <CommandGroup heading="Preferences">
+        <CommandGroup heading={t('console.commandPalette.preferences')}>
           <CommandItem value="theme light" onSelect={() => runCommand(() => setTheme('light'))}>
             <Sun className="mr-2 h-4 w-4" />
-            <span>Light Theme</span>
+            <span>{t('console.commandPalette.lightTheme')}</span>
           </CommandItem>
           <CommandItem value="theme dark" onSelect={() => runCommand(() => setTheme('dark'))}>
             <Moon className="mr-2 h-4 w-4" />
-            <span>Dark Theme</span>
+            <span>{t('console.commandPalette.darkTheme')}</span>
           </CommandItem>
           <CommandItem value="theme system" onSelect={() => runCommand(() => setTheme('system'))}>
             <Monitor className="mr-2 h-4 w-4" />
-            <span>System Theme</span>
+            <span>{t('console.commandPalette.systemTheme')}</span>
           </CommandItem>
         </CommandGroup>
 
         {/* Full Search Page */}
         <CommandSeparator />
-        <CommandGroup heading="Actions">
+        <CommandGroup heading={t('console.commandPalette.actions')}>
           <CommandItem
             value="search all results full page"
             onSelect={() => runCommand(() => navigate(`${baseUrl}/search`))}
           >
             <Search className="mr-2 h-4 w-4" />
-            <span>Open Full Search Page</span>
+            <span>{t('console.commandPalette.openFullSearch')}</span>
           </CommandItem>
         </CommandGroup>
       </CommandList>

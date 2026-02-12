@@ -34,6 +34,7 @@
     "@object-ui/example-kitchen-sink": "workspace:*",
     "@object-ui/example-todo": "workspace:*",
     "@object-ui/fields": "workspace:*",
+    "@object-ui/i18n": "workspace:*",
     "@object-ui/layout": "workspace:*",
     "@object-ui/plugin-calendar": "workspace:*",
     "@object-ui/plugin-charts": "workspace:*",

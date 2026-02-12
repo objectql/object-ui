@@ -135,23 +135,23 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 **Goal:** A developer can go from `git clone` to a running app in under 5 minutes, with discoverable APIs, helpful errors, and complete documentation at every step.
 
 #### P1.1 Zero-Friction Onboarding
-- [ ] Create MIGRATION_GUIDE.md at repo root (currently referenced in README but missing)
+- [x] Create MIGRATION_GUIDE.md at repo root (currently referenced in README but missing)
 - [ ] Streamline `npx create-objectui-app` scaffolding with working Vite + Tailwind templates
 - [ ] Ensure `pnpm install && pnpm dev` starts the console with zero additional configuration
-- [ ] Add a standalone "Hello World" example (5-file, <50 lines total) demonstrating JSON → UI flow
+- [x] Add a standalone "Hello World" example (5-file, <50 lines total) demonstrating JSON → UI flow
 - [ ] Provide copy-paste-ready schema examples in the root README for instant gratification
 
 #### P1.2 API Discoverability & JSDoc
-- [ ] Add JSDoc comments to all 20+ exported React hooks (`useExpression`, `useActionRunner`, `useViewData`, `useDynamicApp`, `usePerformance`, `useCrudShortcuts`, etc.)
-- [ ] Add JSDoc with usage examples to key types in `@object-ui/types` (`SchemaNode`, `FieldMetadata`, `ViewSchema`, `ActionSchema`, etc.)
+- [x] Add JSDoc comments to all 20+ exported React hooks (`useExpression`, `useActionRunner`, `useViewData`, `useDynamicApp`, `usePerformance`, `useCrudShortcuts`, etc.)
+- [x] Add JSDoc with usage examples to key types in `@object-ui/types` (`SchemaNode`, `FieldMetadata`, `ViewSchema`, `ActionSchema`, etc.)
 - [ ] Document all context providers (`ThemeContext`, `AuthContext`, `I18nContext`, `NotificationContext`, `DndContext`) with usage examples
 - [ ] Ensure TypeScript autocompletion works smoothly for all schema types via strict discriminated unions
 
 #### P1.3 Error Messages & Debugging
-- [ ] Create error code system (`OBJUI-001`, `OBJUI-002`, etc.) with documentation links
-- [ ] Improve SchemaErrorBoundary to show actionable fix suggestions in dev mode (e.g., "Missing field 'type'. Did you mean to use a PageSchema?")
-- [ ] Replace generic `console.warn()` calls in core with structured error factory
-- [ ] Add `OBJECTUI_DEBUG=true` mode with schema resolution tracing and component render timing
+- [x] Create error code system (`OBJUI-001`, `OBJUI-002`, etc.) with documentation links
+- [x] Improve SchemaErrorBoundary to show actionable fix suggestions in dev mode (e.g., "Missing field 'type'. Did you mean to use a PageSchema?")
+- [x] Replace generic `console.warn()` calls in core with structured error factory
+- [x] Add `OBJECTUI_DEBUG=true` mode with schema resolution tracing and component render timing
 - [ ] Ensure console warnings for deprecated APIs include migration code snippets
 
 #### P1.4 CLI Tooling Polish
@@ -162,16 +162,16 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [ ] Resolve 8 TODO/FIXME items in CLI code (`doctor.ts`, `dev.ts`, `check.ts`)
 
 #### P1.5 Package READMEs (10 Missing)
-- [ ] Add README for `@object-ui/auth` — authentication guards, login/register forms, AuthContext
-- [ ] Add README for `@object-ui/tenant` — multi-tenancy support, TenantProvider, branding
-- [ ] Add README for `@object-ui/permissions` — RBAC, PermissionGuard, usePermissions hook
-- [ ] Add README for `@object-ui/i18n` — 11 locales, RTL support, I18nProvider, formatting utilities
-- [ ] Add README for `@object-ui/mobile` — responsive hooks, gesture support, touch optimization
-- [ ] Add README for `@object-ui/collaboration` — live cursors, presence, comment threads, conflict resolution
-- [ ] Add README for `@object-ui/plugin-ai` — AI form assistance, recommendations, NL query
-- [ ] Add README for `@object-ui/plugin-designer` — 5 visual designers (Page, View, DataModel, Process, Report)
-- [ ] Add README for `@object-ui/plugin-workflow` — approval processes, workflow designer
-- [ ] Add README for `@object-ui/plugin-report` — report builder, viewer, exporter, scheduling
+- [x] Add README for `@object-ui/auth` — authentication guards, login/register forms, AuthContext
+- [x] Add README for `@object-ui/tenant` — multi-tenancy support, TenantProvider, branding
+- [x] Add README for `@object-ui/permissions` — RBAC, PermissionGuard, usePermissions hook
+- [x] Add README for `@object-ui/i18n` — 11 locales, RTL support, I18nProvider, formatting utilities
+- [x] Add README for `@object-ui/mobile` — responsive hooks, gesture support, touch optimization
+- [x] Add README for `@object-ui/collaboration` — live cursors, presence, comment threads, conflict resolution
+- [x] Add README for `@object-ui/plugin-ai` — AI form assistance, recommendations, NL query
+- [x] Add README for `@object-ui/plugin-designer` — 5 visual designers (Page, View, DataModel, Process, Report)
+- [x] Add README for `@object-ui/plugin-workflow` — approval processes, workflow designer
+- [x] Add README for `@object-ui/plugin-report` — report builder, viewer, exporter, scheduling
 
 ---
 
@@ -180,10 +180,10 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 **Goal:** Every interaction in the Console and rendered UIs is fast, polished, accessible, and works flawlessly in all supported languages.
 
 #### P2.1 Console i18n Completeness
-- [ ] Migrate hardcoded strings in `LoadingScreen.tsx` to i18n keys ("ObjectStack Console", "Initializing application...")
-- [ ] Migrate hardcoded strings in `KeyboardShortcutsDialog.tsx` to i18n keys
+- [x] Migrate hardcoded strings in `LoadingScreen.tsx` to i18n keys ("ObjectStack Console", "Initializing application...")
+- [x] Migrate hardcoded strings in `KeyboardShortcutsDialog.tsx` to i18n keys
 - [ ] Audit all `apps/console/src/components/` for remaining hardcoded UI strings
-- [ ] Remove all Chinese UI strings; enforce English-only with i18n key lookups
+- [x] Remove all Chinese UI strings; enforce English-only with i18n key lookups
 - [ ] Add locale switcher to Console settings panel
 
 #### P2.2 Console Architecture Cleanup

@@ -7,7 +7,17 @@
  */
 
 import React, { forwardRef, useContext, useMemo, Component } from 'react';
-import { SchemaNode, ComponentRegistry, ExpressionEvaluator } from '@object-ui/core';
+import {
+  SchemaNode,
+  ComponentRegistry,
+  ExpressionEvaluator,
+  isObjectUIError,
+  type ObjectUIError,
+  ERROR_CODES,
+  debugLog,
+  debugTime,
+  debugTimeEnd,
+} from '@object-ui/core';
 import { SchemaRendererContext } from './context/SchemaRendererContext';
 import { resolveI18nLabel } from './utils/i18n';
 
@@ -60,12 +70,24 @@ export class SchemaErrorBoundary extends Component<
 
   render() {
     if (this.state.hasError && this.state.error) {
+      const error = this.state.error;
+      const isDev = process.env.NODE_ENV !== 'production';
+      const objuiError = isObjectUIError(error) ? error as ObjectUIError : null;
+
       return (
         <div className="p-4 border border-orange-400 rounded bg-orange-50 text-orange-700 my-2" role="alert">
           <p className="font-medium">
             Component{this.props.componentType ? ` "${this.props.componentType}"` : ''} failed to render
           </p>
-          <p className="text-sm mt-1">{this.state.error.message}</p>
+          <p className="text-sm mt-1">{error.message}</p>
+          {isDev && objuiError?.code && (
+            <p className="text-xs mt-1 text-orange-500">
+              Error code: {objuiError.code}
+              {objuiError.details?.suggestion && (
+                <span className="block mt-0.5">💡 {String(objuiError.details.suggestion)}</span>
+              )}
+            </p>
+          )}
           <button
             onClick={this.handleRetry}
             className="mt-2 text-sm underline hover:no-underline"
@@ -117,13 +139,20 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
   if (!evaluatedSchema) return null;
   // If schema is just a string, render it as text
   if (typeof evaluatedSchema === 'string') return <>{evaluatedSchema}</>;
+
+  debugLog('schema', 'Rendering schema node', { type: evaluatedSchema.type, id: evaluatedSchema.id });
   
   const Component = ComponentRegistry.get(evaluatedSchema.type);
 
   if (!Component) {
+    debugLog('schema', 'Component not found in registry', { type: evaluatedSchema.type });
+    const errorInfo = ERROR_CODES['OBJUI-001'];
     return (
-      <div className="p-4 border border-red-500 rounded text-red-500 bg-red-50 my-2">
-        Unknown component type: <strong>{evaluatedSchema.type}</strong>
+      <div className="p-4 border border-red-500 rounded text-red-500 bg-red-50 my-2" role="alert">
+        <p className="font-medium">Unknown component type: <strong>{evaluatedSchema.type}</strong></p>
+        {process.env.NODE_ENV !== 'production' && (
+          <p className="text-xs mt-1">💡 {errorInfo.suggestion} (OBJUI-001)</p>
+        )}
         <pre className="text-xs mt-2 overflow-auto">{JSON.stringify(evaluatedSchema, null, 2)}</pre>
       </div>
     );
@@ -150,7 +179,8 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
   // Extract AriaPropsSchema properties for accessibility
   const ariaProps = resolveAriaProps(evaluatedSchema);
 
-  return (
+  debugTime(`render:${evaluatedSchema.type}:${evaluatedSchema.id ?? 'anon'}`);
+  const rendered = (
     <SchemaErrorBoundary componentType={evaluatedSchema.type}>
       {React.createElement(Component, {
         schema: evaluatedSchema,
@@ -164,5 +194,7 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
       })}
     </SchemaErrorBoundary>
   );
+  debugTimeEnd(`render:${evaluatedSchema.type}:${evaluatedSchema.id ?? 'anon'}`);
+  return rendered;
 });
 SchemaRenderer.displayName = 'SchemaRenderer';

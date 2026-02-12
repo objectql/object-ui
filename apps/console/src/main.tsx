@@ -8,6 +8,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import { App } from './App';
+import { I18nProvider } from '@object-ui/i18n';
 
 // Register plugins (side-effect imports for ComponentRegistry)
 import '@object-ui/plugin-grid';
@@ -36,7 +37,9 @@ async function bootstrap() {
   // Render the React app
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      <App />
+      <I18nProvider>
+        <App />
+      </I18nProvider>
     </React.StrictMode>
   );
 }

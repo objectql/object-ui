@@ -1,29 +1,31 @@
 
 import { Spinner } from '@object-ui/components';
 import { Database, CheckCircle2, Loader2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useObjectTranslation } from '@object-ui/i18n';
 
 interface LoadingScreenProps {
   /** Optional message override */
   message?: string;
 }
 
-const LOADING_STEPS = [
-  'Connecting to data source',
-  'Loading configuration',
-  'Preparing workspace',
-];
-
 export function LoadingScreen({ message }: LoadingScreenProps) {
+  const { t } = useObjectTranslation();
   const [currentStep, setCurrentStep] = useState(0);
+
+  const loadingSteps = useMemo(() => [
+    t('console.loadingSteps.connecting'),
+    t('console.loadingSteps.loadingConfig'),
+    t('console.loadingSteps.preparingWorkspace'),
+  ], [t]);
 
   useEffect(() => {
     if (message) return; // skip auto-progression when message is overridden
     const timer = setInterval(() => {
-      setCurrentStep((prev) => Math.min(prev + 1, LOADING_STEPS.length - 1));
+      setCurrentStep((prev) => Math.min(prev + 1, loadingSteps.length - 1));
     }, 1200);
     return () => clearInterval(timer);
-  }, [message]);
+  }, [message, loadingSteps.length]);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-background">
@@ -38,8 +40,8 @@ export function LoadingScreen({ message }: LoadingScreenProps) {
         
         {/* Title */}
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight">ObjectStack Console</h1>
-          <p className="text-sm text-muted-foreground">Initializing application...</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('console.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('console.initializing')}</p>
         </div>
         
         {/* Progress steps */}
@@ -50,7 +52,7 @@ export function LoadingScreen({ message }: LoadingScreenProps) {
           </div>
         ) : (
           <div className="flex flex-col gap-2 w-64">
-            {LOADING_STEPS.map((step, index) => (
+            {loadingSteps.map((step, index) => (
               <div
                 key={step}
                 className="flex items-center gap-2.5 text-sm transition-opacity duration-300"

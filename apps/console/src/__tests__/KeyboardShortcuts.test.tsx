@@ -15,6 +15,34 @@ vi.mock('@object-ui/components', () => ({
   DialogDescription: ({ children }: any) => <p>{children}</p>,
 }));
 
+// Mock i18n — return the key's last segment as display text
+vi.mock('@object-ui/i18n', () => ({
+  useObjectTranslation: () => ({
+    t: (key: string) => {
+      const translations: Record<string, string> = {
+        'console.shortcuts.title': 'Keyboard Shortcuts',
+        'console.shortcuts.description': 'Quick reference for all available keyboard shortcuts.',
+        'console.shortcuts.groups.general': 'General',
+        'console.shortcuts.groups.navigation': 'Navigation',
+        'console.shortcuts.groups.dataViews': 'Data Views',
+        'console.shortcuts.groups.preferences': 'Preferences',
+        'console.shortcuts.openCommandPalette': 'Open command palette',
+        'console.shortcuts.showShortcuts': 'Show keyboard shortcuts',
+        'console.shortcuts.closeDialog': 'Close dialog / panel',
+        'console.shortcuts.toggleSidebar': 'Toggle sidebar',
+        'console.shortcuts.focusSearch': 'Focus search',
+        'console.shortcuts.createRecord': 'Create new record',
+        'console.shortcuts.refreshData': 'Refresh data',
+        'console.shortcuts.editRecord': 'Edit selected record',
+        'console.shortcuts.toggleDarkMode': 'Toggle dark mode',
+      };
+      return translations[key] ?? key;
+    },
+    language: 'en',
+    direction: 'ltr',
+  }),
+}));
+
 describe('KeyboardShortcutsDialog', () => {
   it('renders without errors', () => {
     const { container } = render(<KeyboardShortcutsDialog />);

@@ -5,7 +5,7 @@
  * @module
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@object-ui/components';
+import { useObjectTranslation } from '@object-ui/i18n';
 
 interface ShortcutEntry {
   keys: string[];
@@ -24,40 +25,41 @@ interface ShortcutGroup {
   shortcuts: ShortcutEntry[];
 }
 
-const shortcutGroups: ShortcutGroup[] = [
-  {
-    title: 'General',
-    shortcuts: [
-      { keys: ['⌘', 'K'], description: 'Open command palette' },
-      { keys: ['?'], description: 'Show keyboard shortcuts' },
-      { keys: ['Esc'], description: 'Close dialog / panel' },
-    ],
-  },
-  {
-    title: 'Navigation',
-    shortcuts: [
-      { keys: ['B'], description: 'Toggle sidebar' },
-      { keys: ['⌘', '/'], description: 'Focus search' },
-    ],
-  },
-  {
-    title: 'Data Views',
-    shortcuts: [
-      { keys: ['N'], description: 'Create new record' },
-      { keys: ['R'], description: 'Refresh data' },
-      { keys: ['⌘', 'E'], description: 'Edit selected record' },
-    ],
-  },
-  {
-    title: 'Preferences',
-    shortcuts: [
-      { keys: ['⌘', 'D'], description: 'Toggle dark mode' },
-    ],
-  },
-];
-
 export function KeyboardShortcutsDialog() {
+  const { t } = useObjectTranslation();
   const [open, setOpen] = useState(false);
+
+  const shortcutGroups: ShortcutGroup[] = useMemo(() => [
+    {
+      title: t('console.shortcuts.groups.general'),
+      shortcuts: [
+        { keys: ['⌘', 'K'], description: t('console.shortcuts.openCommandPalette') },
+        { keys: ['?'], description: t('console.shortcuts.showShortcuts') },
+        { keys: ['Esc'], description: t('console.shortcuts.closeDialog') },
+      ],
+    },
+    {
+      title: t('console.shortcuts.groups.navigation'),
+      shortcuts: [
+        { keys: ['B'], description: t('console.shortcuts.toggleSidebar') },
+        { keys: ['⌘', '/'], description: t('console.shortcuts.focusSearch') },
+      ],
+    },
+    {
+      title: t('console.shortcuts.groups.dataViews'),
+      shortcuts: [
+        { keys: ['N'], description: t('console.shortcuts.createRecord') },
+        { keys: ['R'], description: t('console.shortcuts.refreshData') },
+        { keys: ['⌘', 'E'], description: t('console.shortcuts.editRecord') },
+      ],
+    },
+    {
+      title: t('console.shortcuts.groups.preferences'),
+      shortcuts: [
+        { keys: ['⌘', 'D'], description: t('console.shortcuts.toggleDarkMode') },
+      ],
+    },
+  ], [t]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -85,9 +87,9 @@ export function KeyboardShortcutsDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Keyboard Shortcuts</DialogTitle>
+          <DialogTitle>{t('console.shortcuts.title')}</DialogTitle>
           <DialogDescription>
-            Quick reference for all available keyboard shortcuts.
+            {t('console.shortcuts.description')}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6 pt-2">

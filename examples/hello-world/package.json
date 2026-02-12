@@ -1,0 +1,13 @@
+{
+  "name": "@object-ui/example-hello-world",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@object-ui/react": "workspace:*",
+    "@object-ui/core": "workspace:*",
+    "@object-ui/components": "workspace:*",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}

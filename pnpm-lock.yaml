@@ -225,6 +225,9 @@ importers:
       '@object-ui/fields':
         specifier: workspace:*
         version: link:../../packages/fields
+      '@object-ui/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@object-ui/layout':
         specifier: workspace:*
         version: link:../../packages/layout
