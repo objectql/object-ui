@@ -6,15 +6,32 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import type { BPMNNode, BPMNEdge, BPMNLane, DesignerCanvasConfig } from '@object-ui/types';
-import { Play, Square, Diamond, Trash2, GitBranch } from 'lucide-react';
+import {
+  Play, Square, Diamond, Trash2, GitBranch,
+  Undo2, Redo2, Copy, Clipboard, ZoomIn, ZoomOut, RotateCcw,
+  Link, Layout, PanelRightClose, PanelRightOpen,
+} from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useUndoRedo } from './hooks/useUndoRedo';
+import { useConfirmDialog } from './hooks/useConfirmDialog';
+import { useMultiSelect } from './hooks/useMultiSelect';
+import { useClipboard } from './hooks/useClipboard';
+import { useCanvasPanZoom } from './hooks/useCanvasPanZoom';
+import { ConfirmDialog } from './components/ConfirmDialog';
+import { PropertyEditor, type PropertyField } from './components/PropertyEditor';
+import { Minimap } from './components/Minimap';
+import { useCollaboration } from './CollaborationProvider';
 
 function cn(...inputs: (string | undefined | false)[]) {
   return twMerge(clsx(inputs));
 }
+
+/** Node dimensions used for edge routing and minimap */
+const NODE_WIDTH = 120;
+const NODE_HEIGHT = 50;
 
 export interface ProcessDesignerProps {
   /** Process name */
@@ -43,9 +60,82 @@ export interface ProcessDesignerProps {
   className?: string;
 }
 
+interface DesignerSnapshot {
+  nodes: BPMNNode[];
+  edges: BPMNEdge[];
+}
+
+/**
+ * Auto-layout: arrange nodes left-to-right based on edge topology.
+ * Roots (no incoming edges) are placed first; each subsequent layer
+ * is offset horizontally by `hGap`.
+ */
+function autoLayoutNodes(nodes: BPMNNode[], edges: BPMNEdge[]): BPMNNode[] {
+  if (nodes.length === 0) return nodes;
+
+  const hGap = 200;
+  const vGap = 100;
+  const incomingCount = new Map<string, number>();
+  const children = new Map<string, string[]>();
+
+  for (const n of nodes) {
+    incomingCount.set(n.id, 0);
+    children.set(n.id, []);
+  }
+  for (const e of edges) {
+    incomingCount.set(e.target, (incomingCount.get(e.target) ?? 0) + 1);
+    children.get(e.source)?.push(e.target);
+  }
+
+  const layers: string[][] = [];
+  const placed = new Set<string>();
+  let currentLayer = nodes.filter((n) => (incomingCount.get(n.id) ?? 0) === 0).map((n) => n.id);
+
+  if (currentLayer.length === 0) {
+    currentLayer = [nodes[0].id];
+  }
+
+  while (currentLayer.length > 0) {
+    layers.push(currentLayer);
+    for (const id of currentLayer) placed.add(id);
+    const nextSet = new Set<string>();
+    for (const id of currentLayer) {
+      for (const child of children.get(id) ?? []) {
+        if (!placed.has(child)) nextSet.add(child);
+      }
+    }
+    currentLayer = Array.from(nextSet);
+  }
+
+  // Place any remaining unconnected nodes
+  const remaining = nodes.filter((n) => !placed.has(n.id)).map((n) => n.id);
+  if (remaining.length > 0) layers.push(remaining);
+
+  const positionMap = new Map<string, { x: number; y: number }>();
+  for (let col = 0; col < layers.length; col++) {
+    const layer = layers[col];
+    for (let row = 0; row < layer.length; row++) {
+      positionMap.set(layer[row], {
+        x: 80 + col * hGap,
+        y: 80 + row * vGap,
+      });
+    }
+  }
+
+  return nodes.map((n) => ({
+    ...n,
+    position: positionMap.get(n.id) ?? n.position,
+  }));
+}
+
 /**
  * Process designer for creating BPMN 2.0 workflows.
  * Supports nodes, edges, lanes, and conditional flows.
+ *
+ * Phase 2-4 features: undo/redo, confirm dialogs, multi-select,
+ * copy/paste, pan/zoom, minimap, edge creation UI, auto-layout,
+ * property editor, drag-and-drop, collaboration, keyboard shortcuts,
+ * and collapsible panels.
  */
 export function ProcessDesigner({
   processName = 'New Process',
@@ -53,17 +143,65 @@ export function ProcessDesigner({
   edges: initialEdges = [],
   lanes: _lanes,
   canvas = { width: 1400, height: 800, showGrid: true },
+  showMinimap: showMinimapProp = true,
   showToolbar = true,
   readOnly = false,
   onNodesChange,
   onEdgesChange,
   className,
 }: ProcessDesignerProps) {
-  const [nodes, setNodes] = useState<BPMNNode[]>(initialNodes);
-  const [edges, setEdges] = useState<BPMNEdge[]>(initialEdges);
+  // ---- Undo / Redo ----
+  const undoRedo = useUndoRedo<DesignerSnapshot>(
+    { nodes: initialNodes, edges: initialEdges },
+    { maxHistory: 50 },
+  );
+  const nodes = undoRedo.current.nodes;
+  const edges = undoRedo.current.edges;
+
+  const pushSnapshot = useCallback(
+    (nextNodes: BPMNNode[], nextEdges: BPMNEdge[]) => {
+      undoRedo.push({ nodes: nextNodes, edges: nextEdges });
+      onNodesChange?.(nextNodes);
+      onEdgesChange?.(nextEdges);
+    },
+    [undoRedo, onNodesChange, onEdgesChange],
+  );
+
+  // ---- Confirmation dialog ----
+  const confirmDialog = useConfirmDialog();
+
+  // ---- Multi-select ----
+  const multiSelect = useMultiSelect();
+
+  // ---- Clipboard ----
+  const clipboard = useClipboard<BPMNNode[]>();
+
+  // ---- Pan / Zoom ----
+  const panZoom = useCanvasPanZoom({ initialZoom: 1 });
+
+  // ---- Collaboration (optional context) ----
+  const collaboration = useCollaboration();
+
+  // ---- Local UI state ----
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [connectMode, setConnectMode] = useState(false);
+  const [connectSource, setConnectSource] = useState<string | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [showPropertyPanel, setShowPropertyPanel] = useState(true);
+  const [dragNodeId, setDragNodeId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // ---- Sync from undo/redo back to parent when undo/redo triggers ----
+  useEffect(() => {
+    onNodesChange?.(nodes);
+    onEdgesChange?.(edges);
+    // Only fire when the snapshot reference changes (undo/redo)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [undoRedo.current]);
+
+  // ---- Add node ----
   const handleAddNode = useCallback(
     (type: BPMNNode['type'], label: string) => {
       if (readOnly) return;
@@ -73,28 +211,199 @@ export function ProcessDesigner({
         label,
         position: { x: 200 + nodes.length * 160, y: 200 },
       };
-      const updated = [...nodes, newNode];
-      setNodes(updated);
+      const updatedNodes = [...nodes, newNode];
+      pushSnapshot(updatedNodes, edges);
       setSelectedNodeId(newNode.id);
-      onNodesChange?.(updated);
+      multiSelect.selectOne(newNode.id);
+      collaboration?.sendOperation({ type: 'insert', elementId: newNode.id, data: { label }, userId: collaboration.currentUserId ?? '' });
     },
-    [nodes, readOnly, onNodesChange],
+    [nodes, edges, readOnly, pushSnapshot, multiSelect, collaboration],
   );
 
+  // ---- Delete node (with confirmation) ----
   const handleDeleteNode = useCallback(
-    (id: string) => {
+    async (id: string) => {
       if (readOnly) return;
+      const node = nodes.find((n) => n.id === id);
+      const confirmed = await confirmDialog.confirm(
+        'Delete Node',
+        `Are you sure you want to delete "${node?.label ?? id}"? This will also remove all connected edges.`,
+      );
+      if (!confirmed) return;
+
       const updatedNodes = nodes.filter((n) => n.id !== id);
       const updatedEdges = edges.filter((e) => e.source !== id && e.target !== id);
-      setNodes(updatedNodes);
-      setEdges(updatedEdges);
+      pushSnapshot(updatedNodes, updatedEdges);
       if (selectedNodeId === id) setSelectedNodeId(null);
-      onNodesChange?.(updatedNodes);
-      onEdgesChange?.(updatedEdges);
+      multiSelect.clearSelection();
+      collaboration?.sendOperation({ type: 'delete', elementId: id, data: {}, userId: collaboration.currentUserId ?? '' });
     },
-    [nodes, edges, selectedNodeId, readOnly, onNodesChange, onEdgesChange],
+    [nodes, edges, selectedNodeId, readOnly, pushSnapshot, confirmDialog, multiSelect, collaboration],
   );
 
+  // ---- Delete multiple selected nodes ----
+  const handleDeleteSelected = useCallback(async () => {
+    if (readOnly || multiSelect.count === 0) return;
+    const confirmed = await confirmDialog.confirm(
+      'Delete Selected Nodes',
+      `Are you sure you want to delete ${multiSelect.count} selected node(s) and their connected edges?`,
+    );
+    if (!confirmed) return;
+
+    const ids = multiSelect.selectedIds;
+    const updatedNodes = nodes.filter((n) => !ids.has(n.id));
+    const updatedEdges = edges.filter((e) => !ids.has(e.source) && !ids.has(e.target));
+    pushSnapshot(updatedNodes, updatedEdges);
+    setSelectedNodeId(null);
+    multiSelect.clearSelection();
+  }, [nodes, edges, readOnly, pushSnapshot, confirmDialog, multiSelect]);
+
+  // ---- Copy selected nodes ----
+  const handleCopy = useCallback(() => {
+    const ids = multiSelect.count > 0 ? multiSelect.selectedIds : (selectedNodeId ? new Set([selectedNodeId]) : new Set<string>());
+    if (ids.size === 0) return;
+    const toCopy = nodes.filter((n) => ids.has(n.id));
+    clipboard.copy(toCopy);
+  }, [nodes, selectedNodeId, multiSelect, clipboard]);
+
+  // ---- Paste from clipboard ----
+  const handlePaste = useCallback(() => {
+    if (readOnly) return;
+    const items = clipboard.paste();
+    if (!items || items.length === 0) return;
+    const offset = 40;
+    const pasted = items.map((n) => ({
+      ...n,
+      id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      position: { x: n.position.x + offset, y: n.position.y + offset },
+    }));
+    const updatedNodes = [...nodes, ...pasted];
+    pushSnapshot(updatedNodes, edges);
+    multiSelect.selectMany(pasted.map((n) => n.id));
+    setSelectedNodeId(pasted[0].id);
+  }, [readOnly, nodes, edges, clipboard, pushSnapshot, multiSelect]);
+
+  // ---- Edge creation (connect mode) ----
+  const handleToggleConnectMode = useCallback(() => {
+    setConnectMode((prev) => {
+      if (prev) {
+        setConnectSource(null);
+        return false;
+      }
+      return true;
+    });
+  }, []);
+
+  const handleNodeClickForConnect = useCallback(
+    (nodeId: string) => {
+      if (!connectMode) return false;
+      if (!connectSource) {
+        setConnectSource(nodeId);
+        return true;
+      }
+      if (connectSource === nodeId) return true; // same node — ignore
+      // Create edge
+      const newEdge: BPMNEdge = {
+        id: `edge-${Date.now()}`,
+        source: connectSource,
+        target: nodeId,
+      };
+      const updatedEdges = [...edges, newEdge];
+      pushSnapshot(nodes, updatedEdges);
+      setConnectSource(null);
+      setConnectMode(false);
+      collaboration?.sendOperation({ type: 'insert', elementId: newEdge.id, data: { source: connectSource, target: nodeId }, userId: collaboration.currentUserId ?? '' });
+      return true;
+    },
+    [connectMode, connectSource, nodes, edges, pushSnapshot, collaboration],
+  );
+
+  // ---- Auto layout ----
+  const handleAutoLayout = useCallback(() => {
+    if (readOnly || nodes.length === 0) return;
+    const layouted = autoLayoutNodes(nodes, edges);
+    pushSnapshot(layouted, edges);
+  }, [nodes, edges, readOnly, pushSnapshot]);
+
+  // ---- Drag-and-drop to reposition nodes ----
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, nodeId: string) => {
+      if (readOnly) return;
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+      setDragNodeId(nodeId);
+      const rect = (e.target as HTMLElement).getBoundingClientRect();
+      setDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', nodeId);
+    },
+    [readOnly, nodes],
+  );
+
+  const handleCanvasDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      if (readOnly || !dragNodeId) return;
+      const canvasRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const zoom = panZoom.zoom;
+      const x = (e.clientX - canvasRect.left - panZoom.panOffset.x) / zoom - dragOffset.x;
+      const y = (e.clientY - canvasRect.top - panZoom.panOffset.y) / zoom - dragOffset.y;
+      const snappedX = Math.max(0, Math.round(x / 20) * 20);
+      const snappedY = Math.max(0, Math.round(y / 20) * 20);
+      const updatedNodes = nodes.map((n) =>
+        n.id === dragNodeId ? { ...n, position: { x: snappedX, y: snappedY } } : n,
+      );
+      pushSnapshot(updatedNodes, edges);
+      setDragNodeId(null);
+    },
+    [readOnly, dragNodeId, dragOffset, nodes, edges, panZoom.zoom, panZoom.panOffset, pushSnapshot],
+  );
+
+  const handleCanvasDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  // ---- Property editor fields for selected node ----
+  const selectedNode = useMemo(() => nodes.find((n) => n.id === selectedNodeId) ?? null, [nodes, selectedNodeId]);
+
+  const propertyFields: PropertyField[] = useMemo(() => {
+    if (!selectedNode) return [];
+    return [
+      { name: 'label', label: 'Name', type: 'text' as const, value: selectedNode.label, group: 'General' },
+      {
+        name: 'type', label: 'Type', type: 'select' as const, value: selectedNode.type,
+        options: [
+          { label: 'Start Event', value: 'start-event' },
+          { label: 'End Event', value: 'end-event' },
+          { label: 'User Task', value: 'user-task' },
+          { label: 'Service Task', value: 'service-task' },
+          { label: 'Script Task', value: 'script-task' },
+          { label: 'Exclusive Gateway', value: 'exclusive-gateway' },
+          { label: 'Parallel Gateway', value: 'parallel-gateway' },
+          { label: 'Inclusive Gateway', value: 'inclusive-gateway' },
+        ],
+        group: 'General',
+      },
+      { name: 'description', label: 'Description', type: 'textarea' as const, value: selectedNode.description ?? '', group: 'General' },
+    ];
+  }, [selectedNode]);
+
+  const handlePropertyChange = useCallback(
+    (name: string, value: unknown) => {
+      if (readOnly || !selectedNodeId) return;
+      const updatedNodes = nodes.map((n) =>
+        n.id === selectedNodeId ? { ...n, [name]: value } : n,
+      );
+      pushSnapshot(updatedNodes, edges);
+    },
+    [readOnly, selectedNodeId, nodes, edges, pushSnapshot],
+  );
+
+  // ---- Node styling (preserved from original) ----
   const getNodeStyle = (type: BPMNNode['type']) => {
     switch (type) {
       case 'start-event':
@@ -116,33 +425,236 @@ export function ProcessDesigner({
     }
   };
 
+  // ---- Minimap items ----
+  const minimapItems = useMemo(
+    () =>
+      nodes.map((n) => ({
+        id: n.id,
+        x: n.position.x,
+        y: n.position.y,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+        selected: multiSelect.isSelected(n.id) || n.id === selectedNodeId,
+      })),
+    [nodes, multiSelect, selectedNodeId],
+  );
+
+  // ---- Keyboard shortcuts ----
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      const isMod = e.ctrlKey || e.metaKey;
+
+      // Ctrl+Z — Undo
+      if (isMod && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
-        handleDeleteNode(selectedNodeId);
-      } else if (e.key === 'Escape') {
-        setSelectedNodeId(null);
+        undoRedo.undo();
+        return;
+      }
+      // Ctrl+Y or Ctrl+Shift+Z — Redo
+      if ((isMod && e.key === 'y') || (isMod && e.key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        undoRedo.redo();
+        return;
+      }
+      // Ctrl+C — Copy
+      if (isMod && e.key === 'c') {
+        e.preventDefault();
+        handleCopy();
+        return;
+      }
+      // Ctrl+V — Paste
+      if (isMod && e.key === 'v') {
+        e.preventDefault();
+        handlePaste();
+        return;
+      }
+      // Delete / Backspace — Delete selected with confirmation
+      if ((e.key === 'Delete' || e.key === 'Backspace')) {
+        if (multiSelect.count > 0) {
+          e.preventDefault();
+          handleDeleteSelected();
+        } else if (selectedNodeId) {
+          e.preventDefault();
+          handleDeleteNode(selectedNodeId);
+        }
+        return;
+      }
+      // Escape — exit connect mode or clear selection
+      if (e.key === 'Escape') {
+        if (connectMode) {
+          setConnectMode(false);
+          setConnectSource(null);
+        } else {
+          setSelectedNodeId(null);
+          multiSelect.clearSelection();
+        }
+        return;
       }
     };
     el.addEventListener('keydown', handleKeyDown);
     return () => el.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodeId, handleDeleteNode]);
+  }, [
+    selectedNodeId, connectMode, multiSelect,
+    undoRedo, handleCopy, handlePaste, handleDeleteNode, handleDeleteSelected,
+  ]);
 
+  // ---- Click on canvas background to deselect ----
+  const handleCanvasClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) {
+        setSelectedNodeId(null);
+        multiSelect.clearSelection();
+        if (connectMode) {
+          setConnectMode(false);
+          setConnectSource(null);
+        }
+      }
+    },
+    [connectMode, multiSelect],
+  );
+
+  // ---- Render ----
   return (
-    <div ref={containerRef} tabIndex={0} className={cn('flex flex-col h-full w-full border rounded-lg overflow-hidden bg-background', className)}>
+    <div
+      ref={containerRef}
+      tabIndex={0}
+      className={cn('flex flex-col h-full w-full border rounded-lg overflow-hidden bg-background', className)}
+    >
+      {/* Confirmation dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={confirmDialog.onCancel}
+        destructive
+      />
+
       {/* Toolbar */}
       {showToolbar && (
         <div className="flex items-center gap-2 p-2 border-b bg-muted/20" role="toolbar" aria-label="Process toolbar">
           <GitBranch className="h-4 w-4" />
           <span className="font-medium text-sm" aria-label="Process name">{processName}</span>
+
+          {/* Collaboration indicator */}
+          {collaboration?.isConnected && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground" role="status" aria-label="Collaboration active">
+              <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+              {collaboration.users.length} user{collaboration.users.length !== 1 ? 's' : ''}
+            </div>
+          )}
+
           <div className="flex-1" />
+
           {!readOnly && (
             <div className="flex items-center gap-1">
+              {/* Undo / Redo */}
+              <button
+                onClick={() => undoRedo.undo()}
+                disabled={!undoRedo.canUndo}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent disabled:opacity-40"
+                title="Undo (Ctrl+Z)"
+                aria-label="Undo"
+              >
+                <Undo2 className="h-3 w-3" />
+              </button>
+              <button
+                onClick={() => undoRedo.redo()}
+                disabled={!undoRedo.canRedo}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent disabled:opacity-40"
+                title="Redo (Ctrl+Y)"
+                aria-label="Redo"
+              >
+                <Redo2 className="h-3 w-3" />
+              </button>
+
+              <div className="w-px h-4 bg-border mx-1" />
+
+              {/* Copy / Paste */}
+              <button
+                onClick={handleCopy}
+                disabled={multiSelect.count === 0 && !selectedNodeId}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent disabled:opacity-40"
+                title="Copy (Ctrl+C)"
+                aria-label="Copy"
+              >
+                <Copy className="h-3 w-3" />
+              </button>
+              <button
+                onClick={handlePaste}
+                disabled={!clipboard.hasContent}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent disabled:opacity-40"
+                title="Paste (Ctrl+V)"
+                aria-label="Paste"
+              >
+                <Clipboard className="h-3 w-3" />
+              </button>
+
+              <div className="w-px h-4 bg-border mx-1" />
+
+              {/* Connect mode */}
+              <button
+                onClick={handleToggleConnectMode}
+                className={cn(
+                  'flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent',
+                  connectMode && 'bg-primary text-primary-foreground',
+                )}
+                title="Connect nodes"
+                aria-label="Connect nodes"
+                aria-pressed={connectMode}
+              >
+                <Link className="h-3 w-3" /> Connect
+              </button>
+
+              {/* Auto-layout */}
+              <button
+                onClick={handleAutoLayout}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
+                title="Auto layout"
+                aria-label="Auto layout"
+              >
+                <Layout className="h-3 w-3" /> Layout
+              </button>
+
+              <div className="w-px h-4 bg-border mx-1" />
+
+              {/* Zoom controls */}
+              <button
+                onClick={panZoom.zoomIn}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
+                title="Zoom in"
+                aria-label="Zoom in"
+              >
+                <ZoomIn className="h-3 w-3" />
+              </button>
+              <span className="text-xs tabular-nums min-w-[3ch] text-center" aria-label="Zoom level">
+                {Math.round(panZoom.zoom * 100)}%
+              </span>
+              <button
+                onClick={panZoom.zoomOut}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
+                title="Zoom out"
+                aria-label="Zoom out"
+              >
+                <ZoomOut className="h-3 w-3" />
+              </button>
+              <button
+                onClick={panZoom.resetZoom}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
+                title="Reset zoom"
+                aria-label="Reset zoom"
+              >
+                <RotateCcw className="h-3 w-3" />
+              </button>
+
+              <div className="w-px h-4 bg-border mx-1" />
+
+              {/* Add node buttons */}
               <button
                 onClick={() => handleAddNode('start-event', 'Start')}
                 className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
@@ -175,109 +687,259 @@ export function ProcessDesigner({
               >
                 <Square className="h-3 w-3 text-red-600" /> End
               </button>
+
+              <div className="w-px h-4 bg-border mx-1" />
+
+              {/* Toggle property panel */}
+              <button
+                onClick={() => setShowPropertyPanel((p) => !p)}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-accent"
+                title={showPropertyPanel ? 'Hide properties' : 'Show properties'}
+                aria-label={showPropertyPanel ? 'Hide property panel' : 'Show property panel'}
+                aria-expanded={showPropertyPanel}
+              >
+                {showPropertyPanel ? <PanelRightClose className="h-3 w-3" /> : <PanelRightOpen className="h-3 w-3" />}
+              </button>
             </div>
           )}
         </div>
       )}
 
-      {/* Canvas */}
-      <div className="flex-1 overflow-auto bg-muted/10 p-4" role="region" aria-label="Process canvas">
+      {/* Main content area: canvas + property panel */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Canvas */}
         <div
-          className="relative"
-          style={{
-            width: canvas.width,
-            minHeight: canvas.height,
-            backgroundImage: canvas.showGrid
-              ? 'radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)'
-              : undefined,
-            backgroundSize: canvas.showGrid ? '20px 20px' : undefined,
-          }}
+          className="flex-1 overflow-auto bg-muted/10 p-4"
+          role="region"
+          aria-label="Process canvas"
+          onWheel={panZoom.handleWheel}
+          onMouseDown={panZoom.startPan}
         >
-          {/* Edge lines */}
-          <svg
-            className="absolute inset-0 pointer-events-none"
-            width={canvas.width}
-            height={canvas.height}
+          <div
+            className="relative"
+            style={{
+              ...panZoom.transformStyle,
+              width: canvas.width,
+              minHeight: canvas.height,
+              backgroundImage: canvas.showGrid
+                ? 'radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)'
+                : undefined,
+              backgroundSize: canvas.showGrid ? '20px 20px' : undefined,
+            }}
+            onClick={handleCanvasClick}
+            onDrop={handleCanvasDrop}
+            onDragOver={handleCanvasDragOver}
           >
-            <defs>
-              <marker
-                id="arrowhead"
-                markerWidth="10"
-                markerHeight="7"
-                refX="10"
-                refY="3.5"
-                orient="auto"
-              >
-                <polygon points="0 0, 10 3.5, 0 7" fill="hsl(var(--foreground))" />
-              </marker>
-            </defs>
-            {edges.map((edge) => {
-              const source = nodes.find((n) => n.id === edge.source);
-              const target = nodes.find((n) => n.id === edge.target);
-              if (!source || !target) return null;
+            {/* Edge SVG layer */}
+            <svg
+              className="absolute inset-0 pointer-events-none"
+              width={canvas.width}
+              height={canvas.height}
+            >
+              <defs>
+                <marker
+                  id="arrowhead"
+                  markerWidth="10"
+                  markerHeight="7"
+                  refX="10"
+                  refY="3.5"
+                  orient="auto"
+                >
+                  <polygon points="0 0, 10 3.5, 0 7" fill="hsl(var(--foreground))" />
+                </marker>
+              </defs>
+              {edges.map((edge) => {
+                const source = nodes.find((n) => n.id === edge.source);
+                const target = nodes.find((n) => n.id === edge.target);
+                if (!source || !target) return null;
+
+                const sx = source.position.x + NODE_WIDTH / 2;
+                const sy = source.position.y + NODE_HEIGHT / 2;
+                const tx = target.position.x + NODE_WIDTH / 2;
+                const ty = target.position.y + NODE_HEIGHT / 2;
+
+                // Exit from right side of source, enter left side of target
+                const x1 = source.position.x + NODE_WIDTH;
+                const y1 = sy;
+                const x2 = target.position.x;
+                const y2 = ty;
+
+                // Quadratic Bezier control point at midpoint-x
+                const cx = (x1 + x2) / 2;
+                const d = `M ${x1} ${y1} Q ${cx} ${y1}, ${(x1 + x2) / 2} ${(y1 + y2) / 2} T ${x2} ${y2}`;
+
+                return (
+                  <g key={edge.id}>
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke="hsl(var(--foreground) / 0.5)"
+                      strokeWidth="2"
+                      markerEnd="url(#arrowhead)"
+                    />
+                    {edge.label && (
+                      <text
+                        x={(x1 + x2) / 2}
+                        y={(y1 + y2) / 2 - 8}
+                        textAnchor="middle"
+                        className="text-[10px] fill-muted-foreground"
+                      >
+                        {edge.label}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+
+            {/* Empty state */}
+            {nodes.length === 0 && (
+              <div className="flex items-center justify-center h-full min-h-[200px] text-muted-foreground text-sm">
+                No nodes in the process. Use the toolbar buttons to add start events, tasks, gateways, and end events.
+              </div>
+            )}
+
+            {/* Nodes */}
+            {nodes.map((node) => {
+              const isSelected = multiSelect.isSelected(node.id) || selectedNodeId === node.id;
+              const isConnectSource = connectSource === node.id;
+              const isHovered = hoveredNodeId === node.id;
+              const showPorts = connectMode || isHovered;
 
               return (
-                <line
-                  key={edge.id}
-                  x1={source.position.x + 60}
-                  y1={source.position.y + 25}
-                  x2={target.position.x}
-                  y2={target.position.y + 25}
-                  stroke="hsl(var(--foreground) / 0.5)"
-                  strokeWidth="2"
-                  markerEnd="url(#arrowhead)"
-                />
+                <div
+                  key={node.id}
+                  className="absolute select-none"
+                  style={{
+                    left: node.position.x,
+                    top: node.position.y,
+                  }}
+                  role="group"
+                  aria-label={node.label}
+                  draggable={!readOnly && !connectMode}
+                  onDragStart={(e) => handleDragStart(e, node.id)}
+                  onMouseEnter={() => setHoveredNodeId(node.id)}
+                  onMouseLeave={() => setHoveredNodeId(null)}
+                  onClick={(e) => {
+                    // Edge creation takes priority
+                    if (handleNodeClickForConnect(node.id)) return;
+                    // Multi-select with shift key
+                    if (e.shiftKey) {
+                      multiSelect.toggle(node.id, true);
+                    } else {
+                      setSelectedNodeId(node.id);
+                      multiSelect.selectOne(node.id);
+                    }
+                  }}
+                >
+                  <div
+                    className={cn(
+                      'flex items-center justify-center border-2 min-w-[120px] min-h-[50px] px-3 py-2 transition-shadow',
+                      getNodeStyle(node.type),
+                      isSelected && 'ring-2 ring-primary shadow-md',
+                      isConnectSource && 'ring-2 ring-blue-400 shadow-lg',
+                      connectMode && !isConnectSource && 'cursor-crosshair',
+                    )}
+                  >
+                    <span className={cn(
+                      'text-xs font-medium',
+                      (node.type === 'exclusive-gateway' || node.type === 'parallel-gateway'
+                        || node.type === 'inclusive-gateway' || node.type === 'event-based-gateway') && '-rotate-45',
+                    )}>
+                      {node.label}
+                    </span>
+                  </div>
+
+                  {/* Connection ports — shown when hovering or in connect mode */}
+                  {showPorts && !readOnly && (
+                    <>
+                      {/* Left port (input) */}
+                      <div
+                        className="absolute w-3 h-3 rounded-full bg-blue-500 border-2 border-white shadow cursor-crosshair"
+                        style={{ left: -6, top: NODE_HEIGHT / 2 - 6 }}
+                        title="Input port"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNodeClickForConnect(node.id);
+                        }}
+                      />
+                      {/* Right port (output) */}
+                      <div
+                        className="absolute w-3 h-3 rounded-full bg-blue-500 border-2 border-white shadow cursor-crosshair"
+                        style={{ right: -6, top: NODE_HEIGHT / 2 - 6 }}
+                        title="Output port"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!connectMode) {
+                            setConnectMode(true);
+                            setConnectSource(node.id);
+                          } else {
+                            handleNodeClickForConnect(node.id);
+                          }
+                        }}
+                      />
+                      {/* Top port */}
+                      <div
+                        className="absolute w-3 h-3 rounded-full bg-blue-400 border-2 border-white shadow cursor-crosshair"
+                        style={{ left: NODE_WIDTH / 2 - 6, top: -6 }}
+                        title="Port"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNodeClickForConnect(node.id);
+                        }}
+                      />
+                      {/* Bottom port */}
+                      <div
+                        className="absolute w-3 h-3 rounded-full bg-blue-400 border-2 border-white shadow cursor-crosshair"
+                        style={{ left: NODE_WIDTH / 2 - 6, bottom: -6 }}
+                        title="Port"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNodeClickForConnect(node.id);
+                        }}
+                      />
+                    </>
+                  )}
+
+                  {/* Delete button */}
+                  {!readOnly && isSelected && !connectMode && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteNode(node.id);
+                      }}
+                      className="absolute -top-2 -right-2 p-0.5 rounded-full bg-destructive text-destructive-foreground shadow"
+                      aria-label="Delete node"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
               );
             })}
-          </svg>
 
-          {/* Nodes */}
-          {nodes.length === 0 && (
-            <div className="flex items-center justify-center h-full min-h-[200px] text-muted-foreground text-sm">
-              No nodes in the process. Use the toolbar buttons to add start events, tasks, gateways, and end events.
-            </div>
-          )}
-          {nodes.map((node) => (
-            <div
-              key={node.id}
-              className="absolute select-none"
-              style={{
-                left: node.position.x,
-                top: node.position.y,
-              }}
-              role="group"
-              aria-label={node.label}
-              onClick={() => setSelectedNodeId(node.id)}
-            >
-              <div
-                className={cn(
-                  'flex items-center justify-center border-2 min-w-[120px] min-h-[50px] px-3 py-2',
-                  getNodeStyle(node.type),
-                  selectedNodeId === node.id && 'ring-2 ring-primary shadow-md',
-                )}
-              >
-                <span className={cn(
-                  'text-xs font-medium',
-                  (node.type === 'exclusive-gateway' || node.type === 'parallel-gateway') && '-rotate-45',
-                )}>
-                  {node.label}
-                </span>
-              </div>
-              {!readOnly && selectedNodeId === node.id && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteNode(node.id);
-                  }}
-                  className="absolute -top-2 -right-2 p-0.5 rounded-full bg-destructive text-destructive-foreground shadow"
-                  aria-label="Delete node"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-          ))}
+            {/* Minimap */}
+            {showMinimapProp && nodes.length > 0 && (
+              <Minimap
+                items={minimapItems}
+                canvasWidth={canvas.width ?? 1400}
+                canvasHeight={canvas.height ?? 800}
+                position="bottom-right"
+              />
+            )}
+          </div>
         </div>
+
+        {/* Collapsible property panel */}
+        {showPropertyPanel && !readOnly && (
+          <div className="w-64 border-l bg-background overflow-y-auto flex-shrink-0" role="complementary" aria-label="Property panel">
+            <PropertyEditor
+              title={selectedNode ? `Properties: ${selectedNode.label}` : 'Properties'}
+              fields={propertyFields}
+              onChange={handlePropertyChange}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
