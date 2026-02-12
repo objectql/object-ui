@@ -203,6 +203,9 @@ function interpolate(
   params: Record<string, string>,
 ): string {
   return template.replace(/\$\{(\w+)\}/g, (_match, key: string) => {
+    if (!(key in params) && typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+      console.warn(`[ObjectUI] Missing interpolation parameter "${key}" in error message template.`);
+    }
     return params[key] ?? `\${${key}}`;
   });
 }

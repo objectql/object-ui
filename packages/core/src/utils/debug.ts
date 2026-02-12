@@ -10,8 +10,9 @@ type DebugCategory = 'schema' | 'registry' | 'expression' | 'action' | 'plugin' 
 
 function isDebugEnabled(): boolean {
   try {
+    const g = typeof globalThis !== 'undefined' && (globalThis as any).OBJECTUI_DEBUG;
     return (
-      (typeof globalThis !== 'undefined' && (globalThis as any).OBJECTUI_DEBUG === true) ||
+      (g === true || g === 'true') ||
       (typeof process !== 'undefined' && process.env?.OBJECTUI_DEBUG === 'true')
     );
   } catch {

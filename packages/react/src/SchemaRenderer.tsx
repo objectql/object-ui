@@ -7,7 +7,17 @@
  */
 
 import React, { forwardRef, useContext, useMemo, Component } from 'react';
-import { SchemaNode, ComponentRegistry, ExpressionEvaluator, isObjectUIError, type ObjectUIError, ERROR_CODES, debugLog, debugTime, debugTimeEnd } from '@object-ui/core';
+import {
+  SchemaNode,
+  ComponentRegistry,
+  ExpressionEvaluator,
+  isObjectUIError,
+  type ObjectUIError,
+  ERROR_CODES,
+  debugLog,
+  debugTime,
+  debugTimeEnd,
+} from '@object-ui/core';
 import { SchemaRendererContext } from './context/SchemaRendererContext';
 import { resolveI18nLabel } from './utils/i18n';
 
