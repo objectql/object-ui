@@ -13,10 +13,12 @@ import { ObjectGrid } from './ObjectGrid';
 import { VirtualGrid } from './VirtualGrid';
 
 export { ObjectGrid, VirtualGrid };
+export { InlineEditing } from './InlineEditing';
 export { useRowColor } from './useRowColor';
 export { useGroupedData } from './useGroupedData';
 export type { ObjectGridProps } from './ObjectGrid';
 export type { VirtualGridProps, VirtualGridColumn } from './VirtualGrid';
+export type { InlineEditingProps } from './InlineEditing';
 export type { GroupEntry, UseGroupedDataResult } from './useGroupedData';
 
 // Register object-grid component

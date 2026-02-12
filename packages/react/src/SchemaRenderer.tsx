@@ -83,9 +83,9 @@ export class SchemaErrorBoundary extends Component<
           {isDev && objuiError?.code && (
             <p className="text-xs mt-1 text-orange-500">
               Error code: {objuiError.code}
-              {objuiError.details?.suggestion && (
+              {objuiError.details?.suggestion ? (
                 <span className="block mt-0.5">💡 {String(objuiError.details.suggestion)}</span>
-              )}
+              ) : null}
             </p>
           )}
           <button

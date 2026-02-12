@@ -154,7 +154,7 @@ export class SecurityManager {
     let entries = [...this.auditLog];
     if (filter?.event) entries = entries.filter(e => e.event === filter.event);
     if (filter?.userId) entries = entries.filter(e => e.userId === filter.userId);
-    if (filter?.since) entries = entries.filter(e => e.timestamp >= filter.since);
+    if (filter?.since) entries = entries.filter(e => e.timestamp >= filter.since!);
     return entries;
   }
 
