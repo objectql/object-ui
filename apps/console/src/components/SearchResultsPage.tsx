@@ -173,12 +173,14 @@ export function SearchResultsPage() {
                   </Badge>
                 </h2>
                 <div className="grid gap-2">
-                  {items.map(item => (
+                  {items.map(item => {
+                    const ItemIcon = TYPE_ICONS[item.type] || Database;
+                    return (
                     <Link key={item.id} to={item.href}>
                       <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
                         <CardContent className="flex items-center gap-3 p-3">
                           <div className={`flex h-8 w-8 items-center justify-center rounded ${TYPE_COLORS[item.type] || ''}`}>
-                            {(() => { const I = TYPE_ICONS[item.type] || Database; return <I className="h-4 w-4" />; })()}
+                            <ItemIcon className="h-4 w-4" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{item.label}</p>
@@ -192,7 +194,8 @@ export function SearchResultsPage() {
                         </CardContent>
                       </Card>
                     </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );

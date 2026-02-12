@@ -21,6 +21,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuAction,
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -183,13 +184,13 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                          <span className="truncate">{item.label}</span>
                        </Link>
                      </SidebarMenuButton>
-                     <button
+                     <SidebarMenuAction
+                       showOnHover
                        onClick={(e) => { e.stopPropagation(); removeFavorite(item.id); }}
-                       className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/menu-item:opacity-100 p-1 rounded hover:bg-accent"
                        aria-label={`Remove ${item.label} from favorites`}
                      >
-                       <StarOff className="h-3 w-3 text-muted-foreground" />
-                     </button>
+                       <StarOff className="h-3 w-3" />
+                     </SidebarMenuAction>
                    </SidebarMenuItem>
                  ))}
                </SidebarMenu>
