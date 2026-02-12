@@ -22,3 +22,6 @@ export * from './useColumnSummary';
 export * from './useDensityMode';
 export * from './useViewSharing';
 export * from './useClientNotifications';
+export * from './useOffline';
+export * from './usePerformance';
+export * from './usePageTransition';
