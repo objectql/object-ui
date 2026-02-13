@@ -32,7 +32,7 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/i18n": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/spec": "^3.0.0",
+    "@objectstack/spec": "^3.0.2",
     "react-hook-form": "^7.71.1"
   },
   "peerDependencies": {
@@ -40,8 +40,8 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
-    "@types/react": "^19.2.13",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "19.2.13",
+    "@types/react-dom": "19.2.3",
     "typescript": "^5.9.3"
   }
 }

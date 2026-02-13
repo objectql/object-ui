@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@object-ui/react": "workspace:*",
-    "@object-ui/core": "workspace:*",
     "@object-ui/components": "workspace:*",
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "@object-ui/core": "workspace:*",
+    "@object-ui/react": "workspace:*",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
   }
 }

@@ -36,7 +36,7 @@
     "@object-ui/mobile": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/spec": "^3.0.0",
+    "@objectstack/spec": "^3.0.2",
     "zod": "^4.3.6"
   },
   "peerDependencies": {
@@ -45,9 +45,9 @@
   },
   "devDependencies": {
     "@object-ui/data-objectstack": "workspace:*",
-    "@types/react": "^19.2.13",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.3",
+    "@types/react": "19.2.13",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "^5.1.4",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vite-plugin-dts": "^4.5.4"
