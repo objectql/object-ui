@@ -1,6 +1,6 @@
 # ObjectStack Console — Complete Development Roadmap
 
-> **Last Updated:** February 9, 2026
+> **Last Updated:** February 13, 2026
 > **Current Version:** v0.5.1
 > **Target Version:** v1.0.0 (GA)
 > **Spec Alignment:** @objectstack/spec v3.0.0
@@ -156,6 +156,7 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 | G6 | No real-time updates (WebSocket/SSE) | Medium | Phase 6 |
 | G7 | No offline support / PWA | Low | Phase 7 |
 | G8 | Bundle size 200KB+ (target < 150KB) | Medium | Phase 8 |
+| G9 | NavigationConfig spec incomplete — 5 view plugins lack navigation support | Medium | Phase 9 |
 
 ---
 
@@ -349,6 +350,74 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 
 ---
 
+### Phase 9: NavigationConfig Specification Compliance (2-3 weeks)
+
+**Goal:** Implement full `ViewNavigationConfig` support across all view plugins to comply with `@objectstack/spec` navigation specification.
+
+**Why:** The spec defines 7 navigation modes (page, drawer, modal, split, popover, new_window, none) for consistent row/item click behavior. Currently only 3 out of 8 view plugins support this, creating inconsistent UX across different view types.
+
+**Current State:**
+- ✅ **Compliant (3/8):** plugin-grid, plugin-list, plugin-view
+- ❌ **Non-Compliant (5/8):** plugin-kanban, plugin-calendar, plugin-timeline, plugin-gantt, plugin-map
+
+| Task | Description | Files |
+|------|-------------|-------|
+| 9.1 | Refactor plugin-view to use `useNavigationOverlay` hook | `@object-ui/plugin-view` |
+| 9.2 | Add NavigationConfig support to plugin-kanban | `@object-ui/plugin-kanban` |
+| 9.3 | Add NavigationConfig support to plugin-calendar | `@object-ui/plugin-calendar` |
+| 9.4 | Add NavigationConfig support to plugin-timeline | `@object-ui/plugin-timeline` |
+| 9.5 | Add NavigationConfig support to plugin-gantt | `@object-ui/plugin-gantt` |
+| 9.6 | Add NavigationConfig support to plugin-map | `@object-ui/plugin-map` |
+| 9.7 | Update Schema types (KanbanSchema, CalendarViewSchema, etc.) | `@object-ui/types` |
+| 9.8 | Add integration tests for all navigation modes | Test files |
+| 9.9 | Update documentation with NavigationConfig examples | Storybook, docs |
+
+**Implementation Pattern:**
+```typescript
+// 1. Add navigation field to schema
+export interface KanbanSchema extends BaseSchema {
+  // ... existing fields
+  navigation?: ViewNavigationConfig;
+}
+
+// 2. Use useNavigationOverlay hook
+const navigation = useNavigationOverlay({
+  navigation: schema.navigation,
+  objectName: schema.objectName,
+  onNavigate: schema.onNavigate,
+  onRowClick,
+});
+
+// 3. Attach click handler
+<KanbanCard onClick={() => navigation.handleClick(card)} />
+
+// 4. Render overlay
+<NavigationOverlay
+  mode={navigation.mode}
+  isOpen={navigation.isOpen}
+  onOpenChange={navigation.setIsOpen}
+  record={navigation.selectedRecord}
+  width={navigation.width}
+>
+  <DetailView record={navigation.selectedRecord} />
+</NavigationOverlay>
+```
+
+**Acceptance Criteria:**
+- All 8 view plugins support NavigationConfig schema field
+- All 7 navigation modes (page, drawer, modal, split, popover, new_window, none) work correctly
+- plugin-view refactored to use standard hook (no manual implementation)
+- 100% test coverage for navigation behavior across all modes
+- Documentation updated with migration guide and examples
+
+**Reference:**
+- Spec: `@objectstack/spec` NavigationConfig schema
+- Hook: `packages/react/src/hooks/useNavigationOverlay.ts`
+- Component: `packages/components/src/custom/navigation-overlay.tsx`
+- Analysis: `/tmp/navigation-config-compliance-report.md`
+
+---
+
 ## 5. UI Feature Roadmap
 
 ### 5.1 Object Management
@@ -437,8 +506,8 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 2026 Q3 (Jul-Sep)
 ═══════════════════════════════════════════════════════════
   Phase 8: Offline / PWA              ██████░░░░░░░░  1 week
-  Phase 9: Advanced Features          ██████████████  4 weeks
-  Phase 10: Enterprise Features       ██████████░░░░  3 weeks
+  Phase 9: NavigationConfig Spec      ████████████░░  2-3 weeks
+  Phase 10: Advanced Features         ██████████░░░░  3 weeks
 
 2026 Q4 (Oct-Dec)
 ═══════════════════════════════════════════════════════════
@@ -602,6 +671,7 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 - [ ] Console installable as PWA
 
 ### Phase 9-10 (Advanced)
+- [ ] All 8 view plugins support NavigationConfig specification (7 modes)
 - [ ] CSV/Excel import and export working
 - [ ] Dashboard drag-and-drop layout
 - [ ] Notification center with activity feed
@@ -614,6 +684,7 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 |----------|----------|---------|
 | Development Plan (v0.1–v0.5) | `apps/console/DEVELOPMENT_PLAN.md` | Completed phases 1-10 |
 | Next Steps (v0.5.1+) | `apps/console/NEXT_STEPS.md` | Tactical next tasks |
+| NavigationConfig Compliance Report | `/tmp/navigation-config-compliance-report.md` | Spec compliance analysis for all view plugins |
 | Architecture Guide | `content/docs/guide/console-architecture.md` | Technical deep-dive |
 | Getting Started | `content/docs/guide/console.md` | User-facing docs |
 | Root Roadmap | `ROADMAP.md` | Full ObjectUI ecosystem roadmap |
@@ -630,3 +701,5 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 | **Expression** | A template string evaluated at runtime (e.g., `"${data.age > 18}"`) |
 | **DataSource** | An adapter interface for CRUD operations and metadata fetching |
 | **ActionRunner** | The engine that executes user actions (create, delete, navigate, etc.) |
+| **NavigationConfig** | Schema configuration defining how to navigate to detail views (page, drawer, modal, split, popover, new_window, none) |
+| **ViewNavigationConfig** | TypeScript interface for navigation configuration — part of @objectstack/spec v3.0.0 |
