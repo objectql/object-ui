@@ -2,6 +2,10 @@ import React from 'react';
 import { Input } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
 
+/**
+ * UrlField - URL input with clickable link in readonly mode
+ * Validates URLs to only render http/https links for security
+ */
 export function UrlField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<string>) {
   const config = field || (props as any).schema;
   if (readonly) {

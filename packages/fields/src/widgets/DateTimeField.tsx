@@ -2,6 +2,10 @@ import React from 'react';
 import { Input } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
 
+/**
+ * DateTimeField - Combined date and time picker widget
+ * Displays both date and time in locale format when readonly
+ */
 export function DateTimeField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
   if (readonly) {
     if (!value) return <span className="text-sm">-</span>;

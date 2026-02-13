@@ -3,6 +3,10 @@ import { Input } from '@object-ui/components';
 import { NumberFieldMetadata } from '@object-ui/types';
 import { FieldWidgetProps } from './types';
 
+/**
+ * NumberField - Numeric input with optional decimal precision
+ * Supports min/max/step constraints and configurable decimal precision
+ */
 export function NumberField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<number>) {
   if (readonly) {
     return <span className="text-sm">{value ?? '-'}</span>;

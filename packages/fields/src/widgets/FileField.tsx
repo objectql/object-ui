@@ -3,6 +3,10 @@ import { Button } from '@object-ui/components';
 import { Upload, X, File as FileIcon } from 'lucide-react';
 import { FieldWidgetProps } from './types';
 
+/**
+ * FileField - File upload widget with drag-and-drop support
+ * Supports single and multiple file uploads with configurable accepted file types
+ */
 export function FileField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileField = (field || (props as any).schema) as any;

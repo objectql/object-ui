@@ -2,6 +2,10 @@ import React from 'react';
 import { Input } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
 
+/**
+ * LocationField - Geographic coordinate input for latitude and longitude
+ * Stores location as { latitude, longitude } object and displays as comma-separated pair
+ */
 export function LocationField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
   const config = field || (props as any).schema;
   // Location is stored as { latitude, longitude } object

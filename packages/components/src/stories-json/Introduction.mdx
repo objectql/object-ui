@@ -1,0 +1,127 @@
+import { Meta } from '@storybook/blocks';
+
+<Meta title="Getting Started/Introduction" />
+
+# ObjectUI — Universal Server-Driven UI Engine
+
+ObjectUI is a **JSON-to-UI rendering engine** for React that transforms declarative schemas
+into fully interactive enterprise interfaces. Built on **Shadcn UI**, **Radix Primitives**,
+and **Tailwind CSS**, it bridges the speed of low-code platforms with the design quality of
+hand-crafted components.
+
+---
+
+## Why ObjectUI?
+
+| Benefit | Description |
+|---|---|
+| **Schema-Driven** | Define your UI as JSON — render it anywhere with zero custom JSX. |
+| **Enterprise-Ready** | Dashboards, data grids, Kanbans, forms, and CRUDs out of the box. |
+| **Accessible by Default** | Every component inherits WAI-ARIA patterns from Radix UI. |
+| **Themeable** | Tailwind CSS design tokens + CSS variables — no prop drilling required. |
+| **Backend Agnostic** | Works with any API or data source; no server lock-in. |
+
+---
+
+## Architecture Overview
+
+ObjectUI follows a layered architecture where each layer has a single responsibility:
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    Your Application                  │
+├─────────────────────────────────────────────────────┤
+│              @object-ui/react  (Runtime)             │
+│         ObjectRenderer · SchemaRenderer · Hooks      │
+├──────────┬──────────────────────────┬───────────────┤
+│ Plugins  │       @object-ui/fields  │  @object-ui/  │
+│ Grid,    │  Text, Number, Select,   │    layout     │
+│ Kanban,  │  Date, Checkbox, …       │  AppShell,    │
+│ Charts,  │                          │  Sidebar,     │
+│ Form, …  │                          │  Header       │
+├──────────┴──────────────────────────┴───────────────┤
+│           @object-ui/components  (Atoms)             │
+│     Button · Card · Badge · Dialog · Tabs · …        │
+├─────────────────────────────────────────────────────┤
+│              @object-ui/core  (Engine)               │
+│   Component Registry · Schema Validation ·           │
+│   Expression Evaluation · Data Binding               │
+├─────────────────────────────────────────────────────┤
+│              @object-ui/types  (Protocol)            │
+│     ComponentSchema · ActionSchema · FieldSchema     │
+│                  Pure TypeScript — 0 deps            │
+└─────────────────────────────────────────────────────┘
+```
+
+### Layer Breakdown
+
+1. **`@object-ui/types`** — Pure TypeScript interfaces that define the JSON protocol.
+   Zero runtime dependencies.
+2. **`@object-ui/core`** — The rendering engine: component registry, schema validation,
+   expression evaluation (`visible: "${data.age > 18}"`), and data binding. No UI code.
+3. **`@object-ui/components`** — Shadcn-based UI atoms (Button, Card, Badge, Dialog, etc.).
+   Pure presentation — no business logic.
+4. **`@object-ui/fields`** — Standard field renderers for form inputs (Text, Number,
+   Select, Date). Each field implements the `FieldWidgetProps` contract.
+5. **`@object-ui/layout`** — Page-level structure components (AppShell, Header, Sidebar).
+   Routing-aware composition.
+6. **`@object-ui/plugin-*`** — Complex view widgets (Grid, Kanban, Charts, Map, Gantt,
+   Form, Timeline). Heavy third-party dependencies are isolated here.
+7. **`@object-ui/react`** — The public runtime entry point that ties everything together.
+   Provides `ObjectRenderer`, hooks, and provider components.
+
+---
+
+## Quick Start
+
+```tsx
+import { ObjectRenderer } from '@object-ui/react';
+
+const schema = {
+  type: 'Card',
+  props: { title: 'Welcome' },
+  children: [
+    { type: 'Text', props: { content: 'Rendered from JSON!' } },
+    { type: 'Button', props: { label: 'Click me', variant: 'default' } },
+  ],
+};
+
+export default function App() {
+  return <ObjectRenderer schema={schema} />;
+}
+```
+
+The `ObjectRenderer` walks the schema tree, resolves each node against the **Component
+Registry**, and produces a fully interactive React component tree.
+
+---
+
+## Browsing This Storybook
+
+Use the **sidebar** on the left to explore every component. Stories are organised into:
+
+| Section | What You'll Find |
+|---|---|
+| **Getting Started** | Introduction, data binding guides, and setup instructions. |
+| **Primitives** | Base Shadcn atoms — Buttons, Cards, Badges, Inputs, Dialogs, and more. |
+| **Fields** | Form field renderers — text, number, select, date, checkbox, etc. |
+| **Plugins** | Complex view widgets — Data Grid, Kanban, Charts, Map, Gantt, Timeline. |
+| **Templates** | Pre-built page layouts — Dashboards, Reports, Sidebar navigation. |
+| **Apps** | Full application demos (e.g. CRM) composed from multiple plugins. |
+
+Each story provides:
+
+- **Canvas** — Live interactive preview.
+- **Controls** — Tweak JSON props in real time via the controls panel.
+- **Docs** — Auto-generated API reference (for stories tagged `autodocs`).
+- **Accessibility** — axe-core audit panel to check WCAG compliance.
+
+---
+
+## Documentation
+
+Full documentation, migration guides, and API references are available at the
+[ObjectUI docs site](https://objectui.dev).
+
+For source code and contribution guidelines, visit the
+[GitHub repository](https://github.com/objectstack-ai/objectui).

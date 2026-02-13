@@ -3,6 +3,10 @@ import { Button } from '@object-ui/components';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
 import { FieldWidgetProps } from './types';
 
+/**
+ * ImageField - Image upload widget with preview thumbnails
+ * Supports single and multiple image uploads with drag-and-drop and preview display
+ */
 export function ImageField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
   const inputRef = useRef<HTMLInputElement>(null);
   const imageField = (field || (props as any).schema) as any;

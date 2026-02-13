@@ -9,6 +9,10 @@ import {
 import { SelectFieldMetadata } from '@object-ui/types';
 import { FieldWidgetProps } from './types';
 
+/**
+ * SelectField - Dropdown selection widget with configurable options
+ * Renders options from field metadata with support for placeholder and readonly display
+ */
 export function SelectField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
   const config = (field || (props as any).schema) as SelectFieldMetadata;
   const options = config?.options || [];

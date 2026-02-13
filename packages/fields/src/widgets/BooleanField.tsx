@@ -2,6 +2,10 @@ import React, { useId } from 'react';
 import { Switch, Checkbox, Label } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
 
+/**
+ * BooleanField - Toggle input supporting switch and checkbox variants
+ * Renders as Switch or Checkbox based on field widget configuration
+ */
 export function BooleanField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<boolean>) {
   const config = (field || (props as any).schema) as any;
   // Use simple type assertion for arbitrary custom properties not in BaseFieldMetadata

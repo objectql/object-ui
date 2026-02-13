@@ -2,6 +2,10 @@ import React from 'react';
 import { Input } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
 
+/**
+ * PhoneField - Telephone number input with tel link in readonly mode
+ * Renders as a clickable tel link when readonly, standard phone input otherwise
+ */
 export function PhoneField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<string>) {
   const config = field || (props as any).schema;
   if (readonly) {

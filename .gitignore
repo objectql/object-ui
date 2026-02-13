@@ -45,6 +45,9 @@ Thumbs.db
 docs/.vitepress/dist
 docs/.vitepress/cache
 
+# TypeDoc generated API docs
+docs/api
+
 # Object UI CLI temporary files
 .objectui-tmp
 

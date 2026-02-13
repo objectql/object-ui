@@ -1,0 +1,297 @@
+import { Meta } from '@storybook/blocks';
+
+<Meta title="Getting Started/Accessibility" />
+
+# Accessibility Reference
+
+ObjectUI targets **WCAG 2.1 Level AA** conformance. Every component inherits accessible
+primitives from [Radix UI](https://www.radix-ui.com/) and is styled with Tailwind CSS
+utility classes that respect user preferences for reduced motion and color contrast.
+
+---
+
+## Compliance Baseline
+
+| Standard | Level | Status |
+|---|---|---|
+| WCAG 2.1 | AA | ✅ Target conformance for all components |
+| WAI-ARIA 1.2 | — | ✅ Roles, states, and properties via Radix |
+| Section 508 | — | ✅ Covered by WCAG AA compliance |
+
+ObjectUI relies on **Radix UI** for its accessible primitive layer. Radix components
+ship with correct ARIA roles, keyboard interactions, and focus management built in.
+Shadcn UI wraps these primitives with Tailwind styling while preserving all accessibility
+behaviour.
+
+---
+
+## Keyboard Navigation Patterns
+
+All interactive components support keyboard navigation following WAI-ARIA authoring
+practices. Below is a reference of the patterns used across component types.
+
+### General Controls
+
+| Component | Key | Action |
+|---|---|---|
+| **Button** | `Enter` / `Space` | Activate the button |
+| **Link** | `Enter` | Follow the link |
+| **Toggle** | `Enter` / `Space` | Toggle the state |
+| All focusable | `Tab` | Move focus to next element |
+| All focusable | `Shift + Tab` | Move focus to previous element |
+
+### Composite Widgets
+
+| Component | Key | Action |
+|---|---|---|
+| **Tabs** | `Arrow Left` / `Arrow Right` | Move between tab triggers |
+| **Tabs** | `Enter` / `Space` | Activate focused tab |
+| **Tabs** | `Home` / `End` | Jump to first / last tab |
+| **Accordion** | `Arrow Up` / `Arrow Down` | Move between headers |
+| **Accordion** | `Enter` / `Space` | Expand / collapse section |
+| **Accordion** | `Home` / `End` | Jump to first / last header |
+| **Menu / DropdownMenu** | `Arrow Up` / `Arrow Down` | Navigate menu items |
+| **Menu / DropdownMenu** | `Enter` / `Space` | Activate item |
+| **Menu / DropdownMenu** | `Escape` | Close menu and return focus |
+| **NavigationMenu** | `Arrow Left` / `Arrow Right` | Move between top-level items |
+| **NavigationMenu** | `Arrow Down` | Open submenu |
+| **NavigationMenu** | `Escape` | Close submenu |
+
+### Form Fields
+
+| Component | Key | Action |
+|---|---|---|
+| **Input / Textarea** | Standard typing | Enter text |
+| **Select** | `Arrow Up` / `Arrow Down` | Navigate options |
+| **Select** | `Enter` | Select option |
+| **Select** | `Escape` | Close listbox |
+| **Checkbox** | `Space` | Toggle checked state |
+| **Radio Group** | `Arrow Up` / `Arrow Down` | Move selection |
+| **Switch** | `Space` | Toggle on/off |
+| **Slider** | `Arrow Left` / `Arrow Right` | Decrease / increase value |
+| **Slider** | `Home` / `End` | Set to minimum / maximum |
+| **DatePicker** | `Arrow Keys` | Navigate calendar grid |
+| **DatePicker** | `Enter` | Select date |
+| **DatePicker** | `Escape` | Close calendar popover |
+
+### Overlay Components
+
+| Component | Key | Action |
+|---|---|---|
+| **Dialog** | `Escape` | Close the dialog |
+| **Dialog** | `Tab` | Cycle focus within dialog (focus trap) |
+| **AlertDialog** | `Escape` | Close (if not critical) |
+| **AlertDialog** | `Tab` | Cycle focus within alert |
+| **Popover** | `Escape` | Close popover |
+| **Tooltip** | `Escape` | Dismiss tooltip |
+| **Sheet** | `Escape` | Close sheet overlay |
+| **Sheet** | `Tab` | Cycle focus within sheet |
+
+### Data Views (Plugins)
+
+| Component | Key | Action |
+|---|---|---|
+| **DataTable / Grid** | `Arrow Keys` | Navigate cells |
+| **DataTable / Grid** | `Enter` | Activate cell / begin editing |
+| **DataTable / Grid** | `Escape` | Cancel editing |
+| **DataTable / Grid** | `Tab` | Move to next focusable cell |
+| **Kanban** | `Tab` | Move between cards |
+| **Kanban** | `Enter` / `Space` | Open card detail |
+
+---
+
+## ARIA Roles and Attributes
+
+ObjectUI components emit the correct ARIA roles and attributes automatically through
+Radix primitives. Below is a reference of the key mappings.
+
+### Primitive Components
+
+| Component | ARIA Role | Key Attributes |
+|---|---|---|
+| **Button** | `button` | `aria-disabled`, `aria-pressed` (toggle) |
+| **Badge** | `status` | `aria-label` (when used as status indicator) |
+| **Card** | `region` | `aria-labelledby` (card title) |
+| **Separator** | `separator` | `aria-orientation` |
+| **Avatar** | `img` | `alt` text on image, fallback initials |
+| **Progress** | `progressbar` | `aria-valuenow`, `aria-valuemin`, `aria-valuemax` |
+| **Skeleton** | `status` | `aria-busy="true"`, `aria-label="Loading"` |
+
+### Composite Components
+
+| Component | ARIA Role | Key Attributes |
+|---|---|---|
+| **Tabs** | `tablist`, `tab`, `tabpanel` | `aria-selected`, `aria-controls`, `aria-labelledby` |
+| **Accordion** | `region` | `aria-expanded`, `aria-controls` on triggers |
+| **Breadcrumb** | `navigation` | `aria-label="Breadcrumb"`, `aria-current="page"` on active |
+| **NavigationMenu** | `navigation` | `aria-label`, `aria-expanded` on submenus |
+| **Carousel** | `region` | `aria-roledescription="carousel"`, `aria-label` on slides |
+
+### Form Components
+
+| Component | ARIA Role | Key Attributes |
+|---|---|---|
+| **Input** | `textbox` | `aria-required`, `aria-invalid`, `aria-describedby` (error/hint) |
+| **Textarea** | `textbox` | `aria-required`, `aria-invalid`, `aria-describedby` |
+| **Select** | `combobox` / `listbox` | `aria-expanded`, `aria-activedescendant`, `aria-required` |
+| **Checkbox** | `checkbox` | `aria-checked`, `aria-required` |
+| **Radio Group** | `radiogroup`, `radio` | `aria-checked`, `aria-required` |
+| **Switch** | `switch` | `aria-checked`, `aria-label` |
+| **Slider** | `slider` | `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, `aria-label` |
+| **Label** | — | `for` / `htmlFor` association with input |
+
+### Overlay Components
+
+| Component | ARIA Role | Key Attributes |
+|---|---|---|
+| **Dialog** | `dialog` | `aria-modal="true"`, `aria-labelledby`, `aria-describedby` |
+| **AlertDialog** | `alertdialog` | `aria-modal="true"`, `aria-labelledby`, `aria-describedby` |
+| **Popover** | `dialog` | `aria-expanded` on trigger, auto `aria-labelledby` |
+| **Tooltip** | `tooltip` | `aria-describedby` on trigger element |
+| **Sheet** | `dialog` | `aria-modal="true"`, `aria-labelledby` |
+| **DropdownMenu** | `menu`, `menuitem` | `aria-expanded`, `aria-haspopup` |
+| **ContextMenu** | `menu`, `menuitem` | `aria-expanded`, `aria-haspopup` |
+
+### Data View Components
+
+| Component | ARIA Role | Key Attributes |
+|---|---|---|
+| **DataTable** | `table`, `row`, `cell` | `aria-sort` on sortable columns, `aria-rowcount` |
+| **Grid (AG Grid)** | `grid`, `row`, `gridcell` | `aria-colcount`, `aria-rowindex`, `aria-selected` |
+| **Kanban** | `list`, `listitem` | `aria-label` per column, `aria-grabbed` on draggable cards |
+
+---
+
+## Screen Reader Behaviour
+
+ObjectUI components are designed to work seamlessly with screen readers
+(NVDA, JAWS, VoiceOver, TalkBack). Key behaviours include:
+
+### Focus Management
+- **Dialogs and Sheets** trap focus within the overlay while open. On close, focus
+  returns to the trigger element.
+- **Menus and Popovers** return focus to their trigger on dismiss.
+- **Toast notifications** use `role="status"` with `aria-live="polite"` so screen
+  readers announce them without interrupting the user.
+
+### Live Regions
+- **Form validation errors** are linked via `aria-describedby`, so errors are announced
+  when the field receives focus.
+- **Loading states** use `aria-busy="true"` on the loading container and `aria-live`
+  regions to announce completion.
+- **Toast / Alert** components use `aria-live="polite"` or `aria-live="assertive"`
+  depending on urgency.
+
+### Landmark Regions
+- **AppShell** emits `<header>`, `<nav>`, `<main>`, and `<aside>` landmarks so screen
+  reader users can jump between sections.
+- **Breadcrumb** uses `<nav aria-label="Breadcrumb">` for quick landmark navigation.
+- **Sidebar** uses `<aside>` with a descriptive `aria-label`.
+
+### Announcements
+- **Sortable table columns** announce sort direction changes via `aria-sort`.
+- **Accordion** sections announce expanded/collapsed state.
+- **Tabs** announce the active tab label on selection.
+- **Carousel** announces slide transitions with `aria-roledescription`.
+
+---
+
+## Color Contrast Requirements
+
+ObjectUI uses Tailwind CSS design tokens (CSS custom properties) for all color
+values. The default theme meets WCAG AA contrast ratios:
+
+| Element | Minimum Ratio | Standard |
+|---|---|---|
+| Body text (`foreground` on `background`) | **4.5 : 1** | WCAG AA — Normal text |
+| Large text (≥ 18pt or ≥ 14pt bold) | **3 : 1** | WCAG AA — Large text |
+| UI components and graphical objects | **3 : 1** | WCAG 2.1 SC 1.4.11 |
+| Focus indicators | **3 : 1** | WCAG 2.1 SC 1.4.11 |
+
+### Theme Tokens
+
+All colors are defined as CSS variables in HSL format:
+
+```css
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222 84% 5%;
+  --primary: 222 47% 11%;
+  --primary-foreground: 210 40% 98%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  /* ...additional tokens */
+}
+```
+
+When customising tokens, verify contrast ratios with a tool such as the
+[WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/) or the
+built-in Storybook accessibility panel.
+
+### Dark Mode
+
+ObjectUI supports a `.dark` class on the root element. The dark theme ships with
+its own set of tokens that maintain the same contrast ratios:
+
+```css
+.dark {
+  --background: 222 84% 5%;
+  --foreground: 210 40% 98%;
+  /* ...dark tokens */
+}
+```
+
+### Focus Indicators
+
+All interactive elements display a visible focus ring when navigated via keyboard.
+The default ring uses the `--ring` token and applies a `2px` outline with a `2px`
+offset, ensuring it meets the **3 : 1** non-text contrast requirement.
+
+```css
+:root {
+  --ring: 222 47% 11%;
+}
+```
+
+> **Tip:** Never remove focus outlines (`outline: none`) without providing an
+> equivalent visible indicator. ObjectUI's `focus-visible` styles handle this
+> automatically.
+
+---
+
+## Testing Accessibility
+
+### Storybook A11y Addon
+
+Every story in this Storybook can be audited via the **Accessibility** panel in the
+addons bar. It runs [axe-core](https://github.com/dequelabs/axe-core) checks and
+reports violations, passes, and incomplete audits.
+
+### Automated Testing
+
+Use `vitest` with `@testing-library/jest-dom` matchers for assertions like
+`toBeVisible()`, `toHaveAccessibleName()`, and `toHaveAttribute('aria-expanded')`.
+
+```tsx
+import { render, screen } from '@testing-library/react';
+import { axe, toHaveNoViolations } from 'jest-axe';
+
+expect.extend(toHaveNoViolations);
+
+it('Button has no accessibility violations', async () => {
+  const { container } = render(<Button>Click me</Button>);
+  const results = await axe(container);
+  expect(results).toHaveNoViolations();
+});
+```
+
+### Manual Testing Checklist
+
+- [ ] Navigate all interactive elements using only the keyboard (`Tab`, `Enter`, `Space`, `Escape`, `Arrow` keys).
+- [ ] Verify visible focus indicators on every focusable element.
+- [ ] Test with a screen reader (VoiceOver on macOS, NVDA on Windows).
+- [ ] Check colour contrast using the browser DevTools or WebAIM checker.
+- [ ] Confirm the page is usable at 200% browser zoom.
+- [ ] Verify `prefers-reduced-motion` is respected (animations are disabled or reduced).

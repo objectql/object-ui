@@ -2,6 +2,10 @@ import React from 'react';
 import { Input } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
 
+/**
+ * PercentField - Percentage input with configurable decimal precision
+ * Stores values as decimals (0-1) and displays as percentages (0-100%)
+ */
 export function PercentField({ value, onChange, field, readonly, errorMessage, className, ...props }: FieldWidgetProps<number>) {
   const percentField = (field || (props as any).schema) as any;
   const precision = percentField?.precision ?? 2;

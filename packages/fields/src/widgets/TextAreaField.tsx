@@ -2,6 +2,10 @@ import React from 'react';
 import { Textarea } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
 
+/**
+ * TextAreaField - Multi-line text input widget
+ * Supports configurable row count and preserves whitespace in readonly mode
+ */
 export function TextAreaField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<string>) {
   if (readonly) {
     return (

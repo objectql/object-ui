@@ -3,6 +3,10 @@ import { Input, Textarea } from '@object-ui/components';
 import { TextareaFieldMetadata } from '@object-ui/types';
 import { FieldWidgetProps } from './types';
 
+/**
+ * TextField - Standard single-line or multi-line text input
+ * Automatically renders as a textarea when rows are configured in field metadata
+ */
 export function TextField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<string>) {
   const fieldData = field || (props as any).schema;
 
