@@ -267,7 +267,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                 </TooltipTrigger>
                 <TooltipContent>More actions</TooltipContent>
               </Tooltip>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-[calc(100vw-2rem)] sm:w-48 max-h-[60vh] overflow-y-auto">
                 <DropdownMenuItem onClick={handleDuplicate}>
                   <Copy className="h-4 w-4 mr-2" />
                   Duplicate

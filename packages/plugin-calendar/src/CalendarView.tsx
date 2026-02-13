@@ -75,6 +75,23 @@ function CalendarView({
     setSelectedView(view)
   }, [view])
 
+  // Auto-switch to day view on mobile
+  const onViewChangeRef = React.useRef(onViewChange)
+  onViewChangeRef.current = onViewChange
+
+  React.useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)")
+    const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      if (e.matches) {
+        setSelectedView("day")
+        onViewChangeRef.current?.("day")
+      }
+    }
+    handleChange(mq)
+    mq.addEventListener("change", handleChange)
+    return () => mq.removeEventListener("change", handleChange)
+  }, [])
+
   const handlePrevious = () => {
     const newDate = new Date(selectedDate)
     if (selectedView === "month") {
@@ -137,6 +154,23 @@ function CalendarView({
         day: "numeric",
         year: "numeric",
       })
+    }
+  }
+
+  // Swipe navigation for mobile
+  const touchStart = React.useRef<number>(0)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStart.current = e.touches[0].clientX
+  }
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const diff = touchStart.current - e.changedTouches[0].clientX
+    if (Math.abs(diff) > 50) {
+      const newDate = new Date(selectedDate)
+      if (selectedView === "day") newDate.setDate(newDate.getDate() + (diff > 0 ? 1 : -1))
+      else if (selectedView === "week") newDate.setDate(newDate.getDate() + (diff > 0 ? 7 : -7))
+      else newDate.setMonth(newDate.getMonth() + (diff > 0 ? 1 : -1))
+      setSelectedDate(newDate)
+      onNavigate?.(newDate)
     }
   }
 
@@ -226,7 +260,7 @@ function CalendarView({
       </div>
 
       {/* Calendar Grid */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
         {selectedView === "month" && (
           <MonthView
             date={selectedDate}
@@ -250,6 +284,7 @@ function CalendarView({
             date={selectedDate}
             events={events}
             onEventClick={onEventClick}
+            onDateClick={onDateClick}
           />
         )}
       </div>
@@ -491,6 +526,22 @@ interface WeekViewProps {
 }
 
 function WeekView({ date, events, locale = "default", onEventClick, onDateClick }: WeekViewProps) {
+  const longPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleSlotTouchStart = (day: Date) => {
+    if (!onDateClick) return
+    longPressTimer.current = setTimeout(() => {
+      onDateClick(day)
+    }, 500)
+  }
+
+  const handleSlotTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }
+
   const weekStart = getWeekStart(date)
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const day = new Date(weekStart)
@@ -538,6 +589,8 @@ function WeekView({ date, events, locale = "default", onEventClick, onDateClick 
               aria-label={`${day.toLocaleDateString("default", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}${dayEvents.length > 0 ? `, ${dayEvents.length} event${dayEvents.length > 1 ? "s" : ""}` : ""}`}
               className="border-r last:border-r-0 p-2 min-h-[400px] cursor-pointer hover:bg-accent/50"
               onClick={() => onDateClick?.(day)}
+              onTouchStart={() => handleSlotTouchStart(day)}
+              onTouchEnd={handleSlotTouchEnd}
             >
               <div className="space-y-2">
                 {dayEvents.map((event) => (
@@ -546,7 +599,7 @@ function WeekView({ date, events, locale = "default", onEventClick, onDateClick 
                     role="button"
                     aria-label={event.title}
                     className={cn(
-                      "text-sm px-3 py-2 rounded cursor-pointer hover:opacity-80",
+                      "text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded cursor-pointer hover:opacity-80",
                       event.color || DEFAULT_EVENT_COLOR
                     )}
                     style={
@@ -559,7 +612,7 @@ function WeekView({ date, events, locale = "default", onEventClick, onDateClick 
                       onEventClick?.(event)
                     }}
                   >
-                    <div className="font-medium">{event.title}</div>
+                    <div className="font-medium truncate">{event.title}</div>
                     {!event.allDay && (
                       <div className="text-xs opacity-90 mt-1">
                         {event.start.toLocaleTimeString("default", {
@@ -583,11 +636,29 @@ interface DayViewProps {
   date: Date
   events: CalendarEvent[]
   onEventClick?: (event: CalendarEvent) => void
+  onDateClick?: (date: Date) => void
 }
 
-function DayView({ date, events, onEventClick }: DayViewProps) {
+function DayView({ date, events, onEventClick, onDateClick }: DayViewProps) {
   const dayEvents = getEventsForDate(date, events)
   const hours = Array.from({ length: 24 }, (_, i) => i)
+  const longPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleSlotTouchStart = (hour: number) => {
+    if (!onDateClick) return
+    longPressTimer.current = setTimeout(() => {
+      const clickDate = new Date(date)
+      clickDate.setHours(hour, 0, 0, 0)
+      onDateClick(clickDate)
+    }, 500)
+  }
+
+  const handleSlotTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -610,13 +681,17 @@ function DayView({ date, events, onEventClick }: DayViewProps) {
                   ? "12 PM"
                   : `${hour - 12} PM`}
               </div>
-              <div className="flex-1 p-2 space-y-2">
+              <div
+                className="flex-1 p-2 space-y-2"
+                onTouchStart={() => handleSlotTouchStart(hour)}
+                onTouchEnd={handleSlotTouchEnd}
+              >
                 {hourEvents.map((event) => (
                   <div
                     key={event.id}
                     aria-label={event.title}
                     className={cn(
-                      "px-3 py-2 rounded cursor-pointer hover:opacity-80",
+                      "px-2 sm:px-3 py-1.5 sm:py-2 rounded cursor-pointer hover:opacity-80",
                       event.color || DEFAULT_EVENT_COLOR
                     )}
                     style={
@@ -626,7 +701,7 @@ function DayView({ date, events, onEventClick }: DayViewProps) {
                     }
                     onClick={() => onEventClick?.(event)}
                   >
-                    <div className="font-medium">{event.title}</div>
+                    <div className="font-medium truncate">{event.title}</div>
                     {!event.allDay && (
                       <div className="text-xs opacity-90 mt-1">
                         {event.start.toLocaleTimeString("default", {

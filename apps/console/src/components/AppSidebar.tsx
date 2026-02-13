@@ -158,6 +158,29 @@ function getIcon(name?: string): React.ComponentType<any> {
 export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: string, onAppChange: (name: string) => void }) {
   const { isMobile } = useSidebar();
   const { user, signOut } = useAuth();
+
+  // Swipe-from-left-edge gesture to open sidebar on mobile
+  React.useEffect(() => {
+    const EDGE_THRESHOLD = 30;
+    const SWIPE_DISTANCE = 50;
+    let touchStartX = 0;
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartX = e.touches[0].clientX;
+    };
+    const handleTouchEnd = (e: TouchEvent) => {
+      const deltaX = e.changedTouches[0].clientX - touchStartX;
+      if (touchStartX < EDGE_THRESHOLD && deltaX > SWIPE_DISTANCE && isMobile) {
+        document.querySelector('[data-sidebar="trigger"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      }
+    };
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchend', handleTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isMobile]);
+
   const { recentItems } = useRecentItems();
   const { favorites, removeFavorite } = useFavorites();
   
@@ -401,6 +424,24 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
+    {isMobile && (
+      <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t bg-background/95 backdrop-blur-sm px-2 py-1 sm:hidden safe-area-bottom">
+        {(activeApp.navigation || []).filter((n: any) => n.type !== 'group').slice(0, 5).map((item: any) => {
+          const NavIcon = getIcon(item.icon);
+          const baseUrl = `/apps/${activeAppName}`;
+          let href = '#';
+          if (item.type === 'object') href = `${baseUrl}/${item.objectName}`;
+          else if (item.type === 'dashboard') href = item.dashboardName ? `${baseUrl}/dashboard/${item.dashboardName}` : '#';
+          else if (item.type === 'page') href = item.pageName ? `${baseUrl}/page/${item.pageName}` : '#';
+          return (
+            <Link key={item.id} to={href} className="flex flex-col items-center gap-0.5 px-2 py-1.5 text-muted-foreground hover:text-foreground transition-colors min-w-[44px] min-h-[44px] justify-center">
+              <NavIcon className="h-5 w-5" />
+              <span className="text-[10px] truncate max-w-[60px]">{item.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    )}
     </DndContext.Provider>
   );
 }
@@ -549,7 +590,7 @@ function NavigationItemRenderer({ item, activeAppName, groupKey, groupItems, app
                         <span>{item.label}</span>
                     </a>
                 ) : (
-                    <Link to={href}>
+                    <Link to={href} className="py-2.5 sm:py-2">
                         <Icon className="h-4 w-4" />
                         <span>{item.label}</span>
                     </Link>

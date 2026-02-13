@@ -90,6 +90,14 @@ export default function AdvancedChartImpl({
   series = [],
   className = '',
 }: AdvancedChartImplProps) {
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
   const ChartComponent = {
     bar: BarChart,
     line: LineChart,
@@ -140,7 +148,10 @@ export default function AdvancedChartImpl({
                 return <Cell key={`cell-${index}`} fill={resolveColor(c)} />;
              })}
           </Pie>
-          <ChartLegend content={<ChartLegendContent nameKey={xAxisKey} />} />
+          <ChartLegend
+            content={<ChartLegendContent nameKey={xAxisKey} />}
+            {...(isMobile && { verticalAlign: "bottom", wrapperStyle: { fontSize: '11px', paddingTop: '8px' } })}
+          />
         </PieChart>
       </ChartContainer>
     );
@@ -155,7 +166,10 @@ export default function AdvancedChartImpl({
           <PolarAngleAxis dataKey={xAxisKey} />
           <PolarRadiusAxis />
           <ChartTooltip content={<ChartTooltipContent />} />
-          <ChartLegend content={<ChartLegendContent />} />
+          <ChartLegend
+            content={<ChartLegendContent />}
+            {...(isMobile && { verticalAlign: "bottom", wrapperStyle: { fontSize: '11px', paddingTop: '8px' } })}
+          />
           {series.map((s: any) => {
             const color = resolveColor(config[s.dataKey]?.color || DEFAULT_CHART_COLOR);
             return (
@@ -185,6 +199,7 @@ export default function AdvancedChartImpl({
             name={String(config[xAxisKey]?.label || xAxisKey)}
             tickLine={false}
             axisLine={false}
+            interval={isMobile ? Math.ceil(data.length / 5) : 0}
           />
           <YAxis 
             type="number"
@@ -195,7 +210,10 @@ export default function AdvancedChartImpl({
           />
           <ZAxis type="number" range={[60, 400]} />
           <ChartTooltip content={<ChartTooltipContent />} />
-          <ChartLegend content={<ChartLegendContent />} />
+          <ChartLegend
+            content={<ChartLegendContent />}
+            {...(isMobile && { verticalAlign: "bottom", wrapperStyle: { fontSize: '11px', paddingTop: '8px' } })}
+          />
           {series.map((s: any, index: number) => {
             const palette = getPalette();
             const color = resolveColor(config[s.dataKey]?.color || palette[index % palette.length]);
@@ -222,10 +240,14 @@ export default function AdvancedChartImpl({
           tickLine={false}
           tickMargin={10}
           axisLine={false}
+          interval={isMobile ? Math.ceil(data.length / 5) : 0}
           tickFormatter={(value) => (value && typeof value === 'string') ? value.slice(0, 3) : value}
         />
         <ChartTooltip content={<ChartTooltipContent />} />
-        <ChartLegend content={<ChartLegendContent />} />
+        <ChartLegend
+          content={<ChartLegendContent />}
+          {...(isMobile && { verticalAlign: "bottom", wrapperStyle: { fontSize: '11px', paddingTop: '8px' } })}
+        />
         {series.map((s: any) => {
           const color = resolveColor(config[s.dataKey]?.color || DEFAULT_CHART_COLOR);
           

@@ -69,14 +69,28 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     const canCopy = value !== null && value !== undefined && value !== '';
     const isCopied = copiedField === field.name;
 
-    // Default field rendering with copy button
+    // Default field rendering with copy button and touch-friendly targets
     return (
       <div key={field.name} className={cn("space-y-1.5 group", spanClass)}>
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           {field.label || field.name}
         </div>
-        <div className="flex items-start justify-between gap-2">
-          <div className="text-sm flex-1 break-words">
+        <div
+          className={cn(
+            "flex items-start justify-between gap-2 min-h-[44px] sm:min-h-0 rounded-md",
+            canCopy && "cursor-pointer active:bg-muted/60 transition-colors"
+          )}
+          onClick={canCopy ? () => handleCopyField(field.name, value) : undefined}
+          onKeyDown={canCopy ? (e: React.KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleCopyField(field.name, value);
+            }
+          } : undefined}
+          role={canCopy ? "button" : undefined}
+          tabIndex={canCopy ? 0 : undefined}
+        >
+          <div className="text-sm flex-1 break-words py-1">
             {displayValue}
           </div>
           {canCopy && (
@@ -87,7 +101,10 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                    onClick={() => handleCopyField(field.name, value)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCopyField(field.name, value);
+                    }}
                   >
                     {isCopied ? (
                       <Check className="h-3 w-3 text-green-600" />

@@ -122,6 +122,14 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [objectSchema, setObjectSchema] = useState<any>(null);
+  const [useCardView, setUseCardView] = useState(false);
+
+  useEffect(() => {
+    const checkWidth = () => setUseCardView(window.innerWidth < 480);
+    checkWidth();
+    window.addEventListener('resize', checkWidth);
+    return () => window.removeEventListener('resize', checkWidth);
+  }, []);
 
   // Check if data is passed directly (from ListView)
   const passedData = (rest as any).data;
@@ -313,7 +321,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         if ('field' in firstCol) {
           return (cols as ListColumn[])
             .filter((col) => col?.field && typeof col.field === 'string' && !col.hidden)
-            .map((col) => {
+            .map((col, colIndex) => {
               const header = col.label || col.field.charAt(0).toUpperCase() + col.field.slice(1).replace(/_/g, ' ');
 
               // Build custom cell renderer based on column configuration
@@ -400,9 +408,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
               const numericTypes = ['number', 'currency', 'percent'];
               const inferredAlign = col.align || (col.type && numericTypes.includes(col.type) ? 'right' as const : undefined);
 
+              // Determine if column should be hidden on mobile
+              const isEssential = colIndex === 0 || (col as any).essential === true;
+
               return {
                 header,
                 accessorKey: col.field,
+                ...(!isEssential && { className: 'hidden sm:table-cell' }),
                 ...(col.width && { width: col.width }),
                 ...(inferredAlign && { align: inferredAlign }),
                 sortable: col.sortable !== false,
@@ -493,7 +505,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       cell: (_value: any, row: any) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Button variant="ghost" size="icon" className="h-8 w-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0">
               <MoreVertical className="h-4 w-4" />
               <span className="sr-only">Open menu</span>
             </Button>
@@ -557,6 +569,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     reorderableColumns: schema.reorderableColumns ?? false,
     editable: schema.editable ?? false,
     className: schema.className,
+    cellClassName: 'px-2 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-2.5',
     rowClassName: schema.rowColor ? (row: any, _idx: number) => getRowClassName(row) : undefined,
     onSelectionChange: onRowSelect,
     onRowClick: navigation.handleClick,
@@ -580,6 +593,49 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     : schema.objectName
       ? `${schema.objectName.charAt(0).toUpperCase() + schema.objectName.slice(1)} Detail`
       : 'Record Detail';
+
+  // Mobile card-view fallback for screens below 480px
+  if (useCardView && data.length > 0 && !isGrouped) {
+    const displayColumns = generateColumns().filter((c: any) => c.accessorKey !== '_actions');
+    return (
+      <>
+        <div className="space-y-2 p-2">
+          {data.map((row, idx) => (
+            <div
+              key={row.id || row._id || idx}
+              className="border rounded-lg p-3 bg-card hover:bg-accent/50 cursor-pointer transition-colors touch-manipulation"
+              onClick={() => navigation.handleClick(row)}
+            >
+              {displayColumns.slice(0, 4).map((col: any) => (
+                <div key={col.accessorKey} className="flex justify-between items-center py-1">
+                  <span className="text-xs text-muted-foreground">{col.header}</span>
+                  <span className="text-sm font-medium truncate ml-2 text-right">
+                    {col.cell ? col.cell(row[col.accessorKey], row) : String(row[col.accessorKey] ?? '—')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        {navigation.isOverlay && (
+          <NavigationOverlay {...navigation} title={detailTitle}>
+            {(record) => (
+              <div className="space-y-3">
+                {Object.entries(record).map(([key, value]) => (
+                  <div key={key} className="flex flex-col">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      {key.replace(/_/g, ' ')}
+                    </span>
+                    <span className="text-sm">{String(value ?? '—')}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </NavigationOverlay>
+        )}
+      </>
+    );
+  }
 
   // Render grid content: grouped (multiple tables with headers) or flat (single table)
   const gridContent = isGrouped ? (

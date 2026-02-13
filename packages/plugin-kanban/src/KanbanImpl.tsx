@@ -13,6 +13,7 @@ import {
   DragOverlay,
   DragStartEvent,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   closestCorners,
@@ -118,7 +119,7 @@ function KanbanColumn({
       role="group"
       aria-label={column.title}
       className={cn(
-        "flex flex-col w-72 sm:w-80 flex-shrink-0 rounded-lg border border-border bg-card/20 backdrop-blur-sm shadow-xl",
+        "flex flex-col w-[85vw] sm:w-80 flex-shrink-0 rounded-lg border border-border bg-card/20 backdrop-blur-sm shadow-xl snap-start",
         column.className
       )}
     >
@@ -194,7 +195,13 @@ function KanbanBoardInner({ columns, onCardMove, className, dnd }: KanbanBoardPr
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 5,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
       },
     })
   )
@@ -318,7 +325,11 @@ function KanbanBoardInner({ columns, onCardMove, className, dnd }: KanbanBoardPr
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className={cn("flex gap-3 sm:gap-4 overflow-x-auto p-2 sm:p-4 [-webkit-overflow-scrolling:touch]", className)} role="region" aria-label="Kanban board">
+      <div className="flex sm:hidden items-center justify-between px-3 pb-2 text-xs text-muted-foreground">
+        <span>{boardColumns.length} columns</span>
+        <span>← Swipe to navigate →</span>
+      </div>
+      <div className={cn("flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory p-2 sm:p-4 [-webkit-overflow-scrolling:touch]", className)} role="region" aria-label="Kanban board">
         {boardColumns.map((column) => (
           <KanbanColumn
             key={column.id}

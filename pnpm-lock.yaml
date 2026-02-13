@@ -2009,6 +2009,9 @@ importers:
       '@object-ui/core':
         specifier: workspace:*
         version: link:../core
+      '@object-ui/mobile':
+        specifier: workspace:*
+        version: link:../mobile
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react

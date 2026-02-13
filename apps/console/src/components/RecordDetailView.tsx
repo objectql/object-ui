@@ -81,7 +81,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-row">
-        <div className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6">
+        <div className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6 scroll-pb-48">
           <DetailView
             schema={detailSchema}
             dataSource={dataSource}

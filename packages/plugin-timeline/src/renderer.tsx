@@ -110,7 +110,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
                 )}
                 {item.title && <TimelineTitle>{item.title}</TimelineTitle>}
                 {item.description && (
-                  <TimelineDescription>{item.description}</TimelineDescription>
+                  <TimelineDescription className="line-clamp-2 sm:line-clamp-none">{item.description}</TimelineDescription>
                 )}
                 {item.content && renderChildren(item.content)}
               </TimelineContent>
@@ -138,7 +138,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
                   )}
                   {item.title && <TimelineTitle>{item.title}</TimelineTitle>}
                   {item.description && (
-                    <TimelineDescription className="text-center">
+                    <TimelineDescription className="text-center line-clamp-2 sm:line-clamp-none">
                       {item.description}
                     </TimelineDescription>
                   )}
@@ -236,7 +236,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
               <TimelineGanttRowLabels>
                 {items.map((row: any, rowIndex: number) => (
                   <TimelineGanttRow key={rowIndex}>
-                    <TimelineGanttLabel title={row.label}>
+                    <TimelineGanttLabel title={row.label} className="truncate">
                       {row.label}
                     </TimelineGanttLabel>
                   </TimelineGanttRow>
