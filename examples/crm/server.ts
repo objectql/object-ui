@@ -7,7 +7,7 @@ import { InMemoryDriver } from '@objectstack/driver-memory';
 import { AuthPlugin } from '@objectstack/plugin-auth';
 import config from './objectstack.config';
 import { pino } from 'pino';
-import { ConsolePlugin } from './console-plugin';
+import { ConsolePlugin } from '@object-ui/console-server';
 
 async function startServer() {
   const logger = pino({

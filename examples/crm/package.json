@@ -15,6 +15,7 @@
     "start": "tsx server.ts"
   },
   "dependencies": {
+    "@object-ui/console-server": "workspace:*",
     "@objectstack/core": "^3.0.0",
     "@objectstack/plugin-auth": "^3.0.0",
     "@objectstack/runtime": "^3.0.0",
