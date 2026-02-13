@@ -22,6 +22,8 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData } from '@object-ui/types';
+import { useNavigationOverlay } from '@object-ui/react';
+import { NavigationOverlay } from '@object-ui/components';
 import { z } from 'zod';
 import Map, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
@@ -42,6 +44,7 @@ export interface ObjectMapProps {
   dataSource?: DataSource;
   className?: string;
   onMarkerClick?: (record: any) => void;
+  onRowClick?: (record: any) => void;
   onEdit?: (record: any) => void;
   onDelete?: (record: any) => void;
 }
@@ -215,6 +218,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
   dataSource,
   className,
   onMarkerClick,
+  onRowClick,
   onEdit,
   onDelete,
   ...rest
@@ -366,6 +370,12 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     markers.find(m => m.id === selectedMarkerId),
   [markers, selectedMarkerId]);
 
+  const navigation = useNavigationOverlay({
+    navigation: (schema as any).navigation,
+    objectName: schema.objectName,
+    onRowClick,
+  });
+
   const filteredMarkers = useMemo(() => {
     if (!searchQuery.trim()) return markers;
     const q = searchQuery.toLowerCase();
@@ -459,6 +469,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
                     onClick={(e) => {
                         e.originalEvent.stopPropagation();
                         setSelectedMarkerId(marker.id);
+                        navigation.handleClick(marker.data);
                         onMarkerClick?.(marker.data);
                     }}
                 >
@@ -494,6 +505,22 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
             )}
          </Map>
       </div>
+      {navigation.isOverlay && (
+        <NavigationOverlay {...navigation} title="Location Details">
+          {(record) => (
+            <div className="space-y-3">
+              {Object.entries(record).map(([key, value]) => (
+                <div key={key} className="flex flex-col">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {key.replace(/_/g, ' ')}
+                  </span>
+                  <span className="text-sm">{String(value ?? '—')}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </NavigationOverlay>
+      )}
     </div>
   );
 };
