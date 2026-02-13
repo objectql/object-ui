@@ -98,7 +98,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
       return (
         <Timeline className={className} {...props}>
           {items.map((item: any, index: number) => (
-            <TimelineItem key={index} className={item.className}>
+            <TimelineItem key={index} className={cn(item.className, onItemClick && 'cursor-pointer')} onClick={() => onItemClick?.(item)}>
               <TimelineMarker variant={item.variant || 'default'}>
                 {item.icon && <span className="text-xs">{item.icon}</span>}
               </TimelineMarker>
@@ -125,7 +125,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
       return (
         <TimelineHorizontal className={cn("overflow-x-auto [-webkit-overflow-scrolling:touch]", className)} {...props}>
           {items.map((item: any, index: number) => (
-            <TimelineHorizontalItem key={index} className={item.className}>
+            <TimelineHorizontalItem key={index} className={cn(item.className, onItemClick && 'cursor-pointer')} onClick={() => onItemClick?.(item)}>
               <div className="flex flex-col items-center">
                 <TimelineMarker variant={item.variant || 'default'}>
                   {item.icon && <span className="text-xs">{item.icon}</span>}
