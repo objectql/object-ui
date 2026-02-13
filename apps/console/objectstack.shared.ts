@@ -2,6 +2,7 @@ import { defineStack } from '@objectstack/spec';
 import crmConfigImport from '@object-ui/example-crm/objectstack.config';
 import todoConfigImport from '@object-ui/example-todo/objectstack.config';
 import kitchenSinkConfigImport from '@object-ui/example-kitchen-sink/objectstack.config';
+import { hotcrmObjects, hotcrmApps, mergeObjects } from '../../examples/hotcrm-bridge.js';
 
 const crmConfig = (crmConfigImport as any).default || crmConfigImport;
 const todoConfig = (todoConfigImport as any).default || todoConfigImport;
@@ -36,17 +37,21 @@ export const sharedConfig = {
   description: 'ObjectStack Console',
   
   // ============================================================================
-  // Merged Stack Configuration (CRM + Todo + Kitchen Sink + Mock Metadata)
+  // Merged Stack Configuration (CRM + Todo + Kitchen Sink + HotCRM + Mock Metadata)
   // ============================================================================
-  objects: [
-    ...(crmConfig.objects || []),
-    ...(todoConfig.objects || []),
-    ...(kitchenSinkConfig.objects || [])
-  ],
+  objects: mergeObjects(
+    [
+      ...(crmConfig.objects || []),
+      ...(todoConfig.objects || []),
+      ...(kitchenSinkConfig.objects || []),
+    ],
+    hotcrmObjects,
+  ),
   apps: [
     ...crmApps,
     ...(todoConfig.apps || []),
-    ...(kitchenSinkConfig.apps || [])
+    ...(kitchenSinkConfig.apps || []),
+    ...hotcrmApps,
   ],
   dashboards: [
     ...(crmConfig.dashboards || []),

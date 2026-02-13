@@ -1,0 +1,3 @@
+[submodule "examples/hotcrm"]
+	path = examples/hotcrm
+	url = https://github.com/objectstack-ai/hotcrm

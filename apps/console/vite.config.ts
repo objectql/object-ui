@@ -102,6 +102,9 @@ export default defineConfig({
       '@object-ui/plugin-markdown': path.resolve(__dirname, '../../packages/plugin-markdown/src'),
       '@object-ui/plugin-timeline': path.resolve(__dirname, '../../packages/plugin-timeline/src'),
       '@object-ui/plugin-view': path.resolve(__dirname, '../../packages/plugin-view/src'),
+
+      // HotCRM submodule: stub @hotcrm/ai (AI utilities not needed for UI metadata)
+      '@hotcrm/ai': path.resolve(__dirname, '../../examples/hotcrm-stubs/ai.ts'),
     },
   },
   optimizeDeps: {
