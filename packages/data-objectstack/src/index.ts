@@ -670,6 +670,27 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   }
 
   /**
+   * Get a page definition from ObjectStack.
+   * Uses the metadata API to fetch page layouts.
+   * Returns null if the server doesn't support page metadata.
+   */
+  async getPage(pageId: string): Promise<unknown | null> {
+    await this.connect();
+
+    try {
+      const cacheKey = `page:${pageId}`;
+      return await this.metadataCache.get(cacheKey, async () => {
+        const result: any = await this.client.meta.getItem('pages', pageId);
+        if (result && result.item) return result.item;
+        return result ?? null;
+      });
+    } catch {
+      // Server doesn't support page metadata — return null to fall back to static config
+      return null;
+    }
+  }
+
+  /**
    * Get multiple metadata items from ObjectStack.
    * Uses v3.0.0 metadata API pattern: getItems for batch retrieval.
    */

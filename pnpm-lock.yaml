@@ -240,6 +240,9 @@ importers:
       '@object-ui/mobile':
         specifier: workspace:*
         version: link:../../packages/mobile
+      '@object-ui/permissions':
+        specifier: workspace:*
+        version: link:../../packages/permissions
       '@object-ui/plugin-calendar':
         specifier: workspace:*
         version: link:../../packages/plugin-calendar

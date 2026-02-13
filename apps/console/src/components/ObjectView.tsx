@@ -25,6 +25,7 @@ import type { ListViewSchema } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useObjectActions } from '../hooks/useObjectActions';
 import { useObjectTranslation } from '@object-ui/i18n';
+import { usePermissions } from '@object-ui/permissions';
 
 /** Map view types to Lucide icons (Airtable-style) */
 const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
@@ -47,6 +48,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     
     // Design mode toggle - default false for end users
     const [designMode, setDesignMode] = useState(false);
+    const { can } = usePermissions();
     
     // Get Object Definition
     const objectDef = objects.find((o: any) => o.name === objectName);
@@ -244,10 +246,12 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                  
                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                     {/* Primary action - always visible */}
+                    {can(objectDef.name, 'create') && (
                     <Button size="sm" onClick={actions.create} className="shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9">
                         <Plus className="h-4 w-4" /> 
                         <span className="hidden sm:inline">{t('console.objectView.new')}</span>
                     </Button>
+                    )}
                     
                     {/* Design mode tools menu */}
                     <DropdownMenu>
