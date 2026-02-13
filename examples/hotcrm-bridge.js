@@ -10,24 +10,40 @@
  * version and would produce type errors in strict mode).
  *
  * Vite / esbuild handle the actual .ts → .js transpilation at bundle time.
+ *
+ * When the hotcrm git submodule is not initialized (e.g. in CI or fresh
+ * clones), the imports are skipped and empty arrays are exported so the
+ * console runs with only its built-in example configs.
  */
 
 // @ts-nocheck
-import { CRMPlugin } from './hotcrm/packages/crm/src/plugin.ts';
-import { FinancePlugin } from './hotcrm/packages/finance/src/plugin.ts';
-import { MarketingPlugin } from './hotcrm/packages/marketing/src/plugin.ts';
-import { ProductsPlugin } from './hotcrm/packages/products/src/plugin.ts';
-import { SupportPlugin } from './hotcrm/packages/support/src/plugin.ts';
-import { HRPlugin } from './hotcrm/packages/hr/src/plugin.ts';
+let allPlugins = [];
 
-const allPlugins = [
-  CRMPlugin,
-  FinancePlugin,
-  MarketingPlugin,
-  ProductsPlugin,
-  SupportPlugin,
-  HRPlugin,
-];
+try {
+  // Dynamic imports with @vite-ignore to prevent Vite from statically
+  // analysing these paths. When the hotcrm submodule is not checked out the
+  // imports fail at runtime and we fall back to empty arrays.
+  const base = './hotcrm/packages/';
+  const [crm, finance, marketing, products, support, hr] = await Promise.all([
+    import(/* @vite-ignore */ base + 'crm/src/plugin.ts'),
+    import(/* @vite-ignore */ base + 'finance/src/plugin.ts'),
+    import(/* @vite-ignore */ base + 'marketing/src/plugin.ts'),
+    import(/* @vite-ignore */ base + 'products/src/plugin.ts'),
+    import(/* @vite-ignore */ base + 'support/src/plugin.ts'),
+    import(/* @vite-ignore */ base + 'hr/src/plugin.ts'),
+  ]);
+
+  allPlugins = [
+    crm.CRMPlugin,
+    finance.FinancePlugin,
+    marketing.MarketingPlugin,
+    products.ProductsPlugin,
+    support.SupportPlugin,
+    hr.HRPlugin,
+  ];
+} catch {
+  // Submodule not available — running without HotCRM metadata
+}
 
 /** All objects extracted from every HotCRM plugin (map values → flat array). */
 export const hotcrmObjects = allPlugins.flatMap((plugin) =>

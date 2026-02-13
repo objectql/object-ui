@@ -784,7 +784,7 @@ describe('Fields Integration', () => {
         const dateStr = formatDate(new Date('2024-01-15'));
         expect(dateStr).toContain('2024');
         
-        const percent = formatPercent(0.1234);
+        const percent = formatPercent(0.1234, 2);
         expect(percent).toBe('12.34%');
     });
 });

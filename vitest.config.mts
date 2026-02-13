@@ -74,6 +74,7 @@ export default defineConfig({
       '@object-ui/auth': path.resolve(__dirname, './packages/auth/src'),
       '@object-ui/mobile': path.resolve(__dirname, './packages/mobile/src'),
       '@object-ui/permissions': path.resolve(__dirname, './packages/permissions/src'),
+      '@object-ui/collaboration': path.resolve(__dirname, './packages/collaboration/src'),
       '@object-ui/tenant': path.resolve(__dirname, './packages/tenant/src'),
       '@': path.resolve(__dirname, './packages/components/src'),
       '@object-ui/ui': path.resolve(__dirname, './packages/ui/src'),
