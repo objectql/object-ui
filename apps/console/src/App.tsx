@@ -387,7 +387,7 @@ export function App() {
     <ThemeProvider defaultTheme="system" storageKey="object-ui-theme">
       <ConsoleToaster position="bottom-right" />
       <ConditionalAuthWrapper authUrl="/api/auth">
-        <BrowserRouter basename="/">
+        <BrowserRouter basename={import.meta.env.BASE_URL?.replace(/\/$/, '') || '/'}>
             <Suspense fallback={<LoadingScreen />}>
             <Routes>
                 <Route path="/login" element={<LoginPage />} />

@@ -4,13 +4,16 @@
   "private": true,
   "description": "ObjectStack Console - The standard runtime UI for ObjectStack applications",
   "type": "module",
-  "main": "./plugin.js",
+  "main": "./plugin.ts",
   "exports": {
-    ".": "./plugin.js"
+    ".": {
+      "import": "./plugin.ts",
+      "default": "./plugin.ts"
+    }
   },
   "files": [
     "dist",
-    "plugin.js"
+    "plugin.ts"
   ],
   "scripts": {
     "msw:init": "msw init -y public",
@@ -18,7 +21,8 @@
     "start": "tsx ../../node_modules/@objectstack/cli/bin/objectstack.js serve objectstack.config.ts",
     "start:mock": "pnpm msw:init && vite preview",
     "build": "pnpm msw:init && tsc && vite build",
-    "build:server": "tsc && VITE_USE_MOCK_SERVER=false vite build",
+    "build:plugin": "VITE_BASE_PATH=/console/ vite build",
+    "build:server": "tsc && VITE_USE_MOCK_SERVER=false VITE_BASE_PATH=/console/ vite build",
     "build:analyze": "pnpm build && echo 'Bundle analysis available at dist/stats.html'",
     "preview": "vite preview",
     "test": "vitest run",

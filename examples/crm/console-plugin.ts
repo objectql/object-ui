@@ -1,55 +1,12 @@
 
-import { serveStatic } from '@hono/node-server/serve-static';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-export class ConsolePlugin {
-    name = 'com.objectstack.server.console';
-    version = '1.0.0';
-
-    async init(ctx: any) {
-        // No init logic needed
-    }
-
-    async start(ctx: any) {
-        const httpServer = ctx.getService('http-server');
-        if (!httpServer) {
-            ctx.logger.warn('HTTP Server not found, accessing console skipped');
-            return;
-        }
-        
-        // We know it's HonoHttpServer from @objectstack/plugin-hono-server
-        // It has getRawApp()
-        if (typeof httpServer.getRawApp === 'function') {
-            const app = httpServer.getRawApp();
-            
-            ctx.logger.info('Registering Console UI at /console');
-            
-            // Path relative to this file (examples/crm/console-plugin.ts)
-            // ../../apps/console/dist
-            const consoleDist = path.resolve(__dirname, '../../apps/console/dist');
-            
-            // Serve static resources (JS, CSS, etc)
-            // Hono serveStatic will look for the file in root
-            // If we request /console/assets/foo.js, we want to serve /dist/assets/foo.js
-            app.use('/console/*', serveStatic({ 
-                root: consoleDist,
-                rewriteRequestPath: (path: string) => path.replace(/^\/console/, '')
-            }));
-
-            // Fallback for SPA routing: any non-file request under /console returns index.html
-            app.get('/console/*', serveStatic({ 
-                root: consoleDist,
-                rewriteRequestPath: () => '/index.html'
-            }));
-            
-            ctx.logger.info(`✅ Console available at http://localhost:3000/console`);
-        } else {
-             ctx.logger.warn('HTTP Server does not support getRawApp()');
-        }
-    }
-}
+/**
+ * CRM Console Plugin
+ *
+ * Re-exports the standard Console plugin for use in the CRM example.
+ * The plugin serves the pre-built Console SPA at /console.
+ *
+ * Usage:
+ *   import { ConsolePlugin } from './console-plugin';
+ *   kernel.use(ConsolePlugin);
+ */
+export { default as ConsolePlugin, createConsolePlugin } from '@object-ui/console';

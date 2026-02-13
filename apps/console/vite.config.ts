@@ -27,7 +27,7 @@ function preloadCriticalChunks(): Plugin {
           fileName.endsWith('.js') &&
           CRITICAL_CHUNK_PREFIXES.some((prefix) => fileName.includes(prefix))
         ) {
-          preloadTags.push(`<link rel="modulepreload" href="/${fileName}" />`);
+          preloadTags.push(`<link rel="modulepreload" href="${basePath}${fileName}" />`);
         }
       }
       if (preloadTags.length === 0) return html;
@@ -36,9 +36,13 @@ function preloadCriticalChunks(): Plugin {
   };
 }
 
+// Base path for SPA deployment. Set VITE_BASE_PATH to mount under a sub-path
+// (e.g., '/console/' when served as an ObjectStack plugin).
+const basePath = process.env.VITE_BASE_PATH || '/';
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: '/',
+  base: basePath,
   define: {
     'process.env': {},
     'process.platform': '"browser"',
