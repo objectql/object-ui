@@ -11,6 +11,10 @@
  * Note: Examples are merged into a single AppPlugin (rather than separate AppPlugins)
  * because CRM and Kitchen Sink both define an `account` object, which would
  * trigger an ownership conflict in the ObjectQL Schema Registry.
+ *
+ * HotCRM (submodule at examples/hotcrm) is included as a real-world metadata
+ * example.  Its objects are merged with deduplication — existing example objects
+ * take priority so that seed data is preserved.
  */
 import { defineStack } from '@objectstack/spec';
 import { AppPlugin, DriverPlugin } from '@objectstack/runtime';
@@ -19,12 +23,20 @@ import { InMemoryDriver } from '@objectstack/driver-memory';
 import CrmConfig from './examples/crm/objectstack.config';
 import TodoConfig from './examples/todo/objectstack.config';
 import KitchenSinkConfig from './examples/kitchen-sink/objectstack.config';
+import { hotcrmObjects, hotcrmApps, mergeObjects } from './examples/hotcrm-bridge.js';
 
 const crm = (CrmConfig as any).default || CrmConfig;
 const todo = (TodoConfig as any).default || TodoConfig;
 const kitchenSink = (KitchenSinkConfig as any).default || KitchenSinkConfig;
 
-// Merge all example configs into a single app bundle for AppPlugin
+// Base objects from built-in examples
+const baseObjects = [
+  ...(crm.objects || []),
+  ...(todo.objects || []),
+  ...(kitchenSink.objects || []),
+];
+
+// Merge all example configs + HotCRM into a single app bundle for AppPlugin
 const mergedApp = defineStack({
   manifest: {
     id: 'dev-workspace',
@@ -38,15 +50,12 @@ const mergedApp = defineStack({
       ...(kitchenSink.manifest?.data || []),
     ],
   },
-  objects: [
-    ...(crm.objects || []),
-    ...(todo.objects || []),
-    ...(kitchenSink.objects || []),
-  ],
+  objects: mergeObjects(baseObjects, hotcrmObjects),
   apps: [
     ...(crm.apps || []),
     ...(todo.apps || []),
     ...(kitchenSink.apps || []),
+    ...hotcrmApps,
   ],
   dashboards: [
     ...(crm.dashboards || []),
