@@ -9,17 +9,23 @@
 /**
  * P3.1 Component Quality Audit - API Consistency
  *
- * Verifies that all exported UI components follow consistent patterns:
- * - Accept className prop for customization
- * - Forward refs where applicable
- * - Support standard HTML attributes
- * - Use consistent variant/size naming via CVA
+ * Comprehensive audit verifying all exported UI components follow
+ * consistent patterns:
+ * - data-slot attribute for custom components
+ * - className prop acceptance and forwarding via cn()
+ * - React.forwardRef for primitive components
+ * - displayName set on forwardRef components
+ * - Consistent prop naming (variant/size, not variants/sizes)
+ * - All exported types are defined
+ * - Source-level pattern scanning for cn() usage
  */
 
 import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 import {
   Badge,
@@ -38,78 +44,377 @@ import {
   Alert,
   AlertTitle,
   AlertDescription,
-} from '../index';
+  Textarea,
+} from '../ui';
 
+import {
+  Kbd,
+  KbdGroup,
+  Empty,
+  EmptyHeader,
+  EmptyTitle,
+  EmptyDescription,
+  EmptyContent,
+  EmptyMedia,
+  ButtonGroup,
+  Item,
+  ItemGroup,
+  ItemContent,
+  ItemTitle,
+  ItemDescription as ItemDesc,
+  ItemActions,
+  ItemMedia,
+  Spinner,
+  DataLoadingState,
+  DataEmptyState,
+  DataErrorState,
+} from '../custom';
+
+import { cn } from '../lib/utils';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const UI_DIR = path.resolve(__dirname, '..', 'ui');
+const CUSTOM_DIR = path.resolve(__dirname, '..', 'custom');
+
+/** Read a source file from either ui/ or custom/ directory. */
+function readSource(dir: string, filename: string): string {
+  return fs.readFileSync(path.join(dir, filename), 'utf-8');
+}
+
+/** List .tsx component files in a directory (excluding index.ts). */
+function listComponentFiles(dir: string): string[] {
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.tsx') && f !== 'index.tsx');
+}
+
+// ---------------------------------------------------------------------------
+// 1. data-slot attribute pattern (custom components)
+// ---------------------------------------------------------------------------
 describe('P3.1 API Consistency Audit', () => {
-  // ---------------------------------------------------------------
-  // className override support
-  // ---------------------------------------------------------------
-  describe('className override support', () => {
-    it('Badge accepts className', () => {
-      const { container } = render(<Badge className="custom-badge">tag</Badge>);
-      expect(container.firstElementChild!.className).toContain('custom-badge');
+  describe('data-slot attribute on custom components', () => {
+    const customComponentsWithSlot = [
+      { name: 'Kbd', Component: Kbd, slot: 'kbd', children: 'K' },
+      { name: 'KbdGroup', Component: KbdGroup, slot: 'kbd-group', children: 'G' },
+      { name: 'Empty', Component: Empty, slot: 'empty', children: 'E' },
+      { name: 'EmptyHeader', Component: EmptyHeader, slot: 'empty-header', children: 'H' },
+      { name: 'EmptyTitle', Component: EmptyTitle, slot: 'empty-title', children: 'T' },
+      { name: 'EmptyDescription', Component: EmptyDescription, slot: 'empty-description', children: 'D' },
+      { name: 'EmptyContent', Component: EmptyContent, slot: 'empty-content', children: 'C' },
+      { name: 'ButtonGroup', Component: ButtonGroup, slot: 'button-group', children: 'B' },
+      { name: 'Item', Component: Item, slot: 'item', children: 'I' },
+      { name: 'ItemGroup', Component: ItemGroup, slot: 'item-group', children: 'G' },
+      { name: 'ItemContent', Component: ItemContent, slot: 'item-content', children: 'C' },
+      { name: 'ItemTitle', Component: ItemTitle, slot: 'item-title', children: 'T' },
+      { name: 'ItemDesc', Component: ItemDesc, slot: 'item-description', children: 'D' },
+      { name: 'ItemActions', Component: ItemActions, slot: 'item-actions', children: 'A' },
+      { name: 'DataLoadingState', Component: DataLoadingState, slot: 'data-loading-state', children: undefined },
+      { name: 'DataEmptyState', Component: DataEmptyState, slot: 'data-empty-state', children: undefined },
+      { name: 'DataErrorState', Component: DataErrorState, slot: 'data-error-state', children: undefined },
+    ];
+
+    it.each(customComponentsWithSlot)(
+      '$name renders data-slot="$slot"',
+      ({ Component, slot, children }) => {
+        const { container } = render(
+          <Component>{children}</Component>
+        );
+        const el = container.querySelector(`[data-slot="${slot}"]`);
+        expect(el).toBeInTheDocument();
+      }
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // 2. className prop acceptance and forwarding
+  // ---------------------------------------------------------------------------
+  describe('className prop forwarding', () => {
+    const CUSTOM_CLASS = 'oui-test-custom-class';
+
+    const classNameTests = [
+      { name: 'Badge', render: () => render(<Badge className={CUSTOM_CLASS}>tag</Badge>) },
+      { name: 'Button', render: () => render(<Button className={CUSTOM_CLASS}>btn</Button>) },
+      { name: 'Card', render: () => render(<Card className={CUSTOM_CLASS}>card</Card>) },
+      { name: 'CardHeader', render: () => render(<CardHeader className={CUSTOM_CLASS} />) },
+      { name: 'CardTitle', render: () => render(<CardTitle className={CUSTOM_CLASS}>T</CardTitle>) },
+      { name: 'CardDescription', render: () => render(<CardDescription className={CUSTOM_CLASS}>D</CardDescription>) },
+      { name: 'CardContent', render: () => render(<CardContent className={CUSTOM_CLASS} />) },
+      { name: 'CardFooter', render: () => render(<CardFooter className={CUSTOM_CLASS} />) },
+      { name: 'Input', render: () => render(<Input className={CUSTOM_CLASS} data-testid="inp" />) },
+      { name: 'Textarea', render: () => render(<Textarea className={CUSTOM_CLASS} data-testid="ta" />) },
+      { name: 'Label', render: () => render(<Label className={CUSTOM_CLASS}>L</Label>) },
+      { name: 'Separator', render: () => render(<Separator className={CUSTOM_CLASS} />) },
+      { name: 'Skeleton', render: () => render(<Skeleton className={CUSTOM_CLASS} />) },
+      { name: 'Alert', render: () => render(<Alert className={CUSTOM_CLASS}>A</Alert>) },
+      { name: 'AlertTitle', render: () => render(<AlertTitle className={CUSTOM_CLASS}>T</AlertTitle>) },
+      { name: 'AlertDescription', render: () => render(<AlertDescription className={CUSTOM_CLASS}>D</AlertDescription>) },
+      { name: 'Kbd', render: () => render(<Kbd className={CUSTOM_CLASS}>K</Kbd>) },
+      { name: 'Empty', render: () => render(<Empty className={CUSTOM_CLASS}>E</Empty>) },
+      { name: 'ButtonGroup', render: () => render(<ButtonGroup className={CUSTOM_CLASS}>B</ButtonGroup>) },
+      { name: 'Item', render: () => render(<Item className={CUSTOM_CLASS}>I</Item>) },
+      { name: 'Spinner', render: () => render(<Spinner className={CUSTOM_CLASS} />) },
+    ];
+
+    it.each(classNameTests)(
+      '$name accepts and forwards className',
+      ({ render: doRender }) => {
+        const { container } = doRender();
+        const el = container.querySelector(`.${CUSTOM_CLASS}`);
+        expect(el).toBeInTheDocument();
+      }
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // 3. Source files use cn() utility for class merging
+  // ---------------------------------------------------------------------------
+  describe('cn() utility usage in source files', () => {
+    const uiFiles = listComponentFiles(UI_DIR);
+    const customFiles = listComponentFiles(CUSTOM_DIR);
+
+    // Representative UI files that must import cn
+    const representativeUiFiles = [
+      'button.tsx',
+      'card.tsx',
+      'input.tsx',
+      'badge.tsx',
+      'alert.tsx',
+      'separator.tsx',
+      'label.tsx',
+      'textarea.tsx',
+      'progress.tsx',
+      'typography.tsx',
+    ].filter((f) => uiFiles.includes(f));
+
+    it.each(representativeUiFiles)(
+      'ui/%s imports and uses cn()',
+      (file) => {
+        const src = readSource(UI_DIR, file);
+        expect(src).toMatch(/import\s*\{[^}]*\bcn\b[^}]*\}\s*from/);
+        expect(src).toContain('cn(');
+      }
+    );
+
+    const representativeCustomFiles = [
+      'empty.tsx',
+      'kbd.tsx',
+      'button-group.tsx',
+      'item.tsx',
+      'spinner.tsx',
+      'view-states.tsx',
+    ].filter((f) => customFiles.includes(f));
+
+    it.each(representativeCustomFiles)(
+      'custom/%s imports and uses cn()',
+      (file) => {
+        const src = readSource(CUSTOM_DIR, file);
+        expect(src).toMatch(/import\s*\{[^}]*\bcn\b[^}]*\}\s*from/);
+        expect(src).toContain('cn(');
+      }
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // 4. React.forwardRef on primitive UI components
+  // ---------------------------------------------------------------------------
+  describe('React.forwardRef on primitive components', () => {
+    const forwardRefFiles = [
+      'button.tsx',
+      'card.tsx',
+      'input.tsx',
+      'textarea.tsx',
+      'label.tsx',
+      'separator.tsx',
+      'progress.tsx',
+      'alert.tsx',
+    ];
+
+    it.each(forwardRefFiles)(
+      'ui/%s uses React.forwardRef',
+      (file) => {
+        const src = readSource(UI_DIR, file);
+        expect(src).toContain('forwardRef');
+      }
+    );
+
+    // Runtime verification: refs actually resolve
+    const refTests = [
+      { name: 'Button', ref: React.createRef<HTMLButtonElement>(), el: () => <Button ref={React.createRef<HTMLButtonElement>()}>B</Button>, instanceOf: HTMLButtonElement },
+      { name: 'Input', ref: React.createRef<HTMLInputElement>(), el: () => <Input ref={React.createRef<HTMLInputElement>()} />, instanceOf: HTMLInputElement },
+      { name: 'Card', ref: React.createRef<HTMLDivElement>(), el: () => <Card ref={React.createRef<HTMLDivElement>()}>C</Card>, instanceOf: HTMLDivElement },
+      { name: 'Textarea', ref: React.createRef<HTMLTextAreaElement>(), el: () => <Textarea ref={React.createRef<HTMLTextAreaElement>()} />, instanceOf: HTMLTextAreaElement },
+      { name: 'Alert', ref: React.createRef<HTMLDivElement>(), el: () => <Alert ref={React.createRef<HTMLDivElement>()}>A</Alert>, instanceOf: HTMLDivElement },
+    ];
+
+    it.each(refTests)(
+      '$name forwards ref to correct DOM element',
+      ({ name, instanceOf }) => {
+        const ref = React.createRef<any>();
+        const components: Record<string, JSX.Element> = {
+          Button: <Button ref={ref}>B</Button>,
+          Input: <Input ref={ref} />,
+          Card: <Card ref={ref}>C</Card>,
+          Textarea: <Textarea ref={ref} />,
+          Alert: <Alert ref={ref}>A</Alert>,
+        };
+        render(components[name]);
+        expect(ref.current).toBeInstanceOf(instanceOf);
+      }
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // 5. displayName set on forwardRef components
+  // ---------------------------------------------------------------------------
+  describe('displayName on forwardRef components', () => {
+    const filesWithForwardRef = [
+      'button.tsx',
+      'card.tsx',
+      'input.tsx',
+      'textarea.tsx',
+      'label.tsx',
+      'separator.tsx',
+      'progress.tsx',
+      'alert.tsx',
+      'typography.tsx',
+    ];
+
+    it.each(filesWithForwardRef)(
+      'ui/%s sets displayName on every forwardRef component',
+      (file) => {
+        const src = readSource(UI_DIR, file);
+        const forwardRefCount = (src.match(/forwardRef/g) || []).length;
+        const displayNameCount = (src.match(/\.displayName\s*=/g) || []).length;
+        // Each forwardRef call should have a corresponding displayName assignment
+        expect(displayNameCount).toBeGreaterThanOrEqual(forwardRefCount);
+      }
+    );
+
+    // Runtime check: exported components have displayName
+    const namedComponents = [
+      { name: 'Button', component: Button },
+      { name: 'Input', component: Input },
+      { name: 'Card', component: Card },
+      { name: 'CardHeader', component: CardHeader },
+      { name: 'CardTitle', component: CardTitle },
+      { name: 'CardDescription', component: CardDescription },
+      { name: 'CardContent', component: CardContent },
+      { name: 'CardFooter', component: CardFooter },
+      { name: 'Textarea', component: Textarea },
+      { name: 'Label', component: Label },
+      { name: 'Alert', component: Alert },
+    ];
+
+    it.each(namedComponents)(
+      '$name has a displayName set',
+      ({ component }) => {
+        // forwardRef components expose displayName on the component object
+        expect((component as any).displayName).toBeTruthy();
+      }
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // 6. Prop naming conventions: variant/size (singular), not variants/sizes
+  // ---------------------------------------------------------------------------
+  describe('prop naming conventions', () => {
+    const allSourceFiles = [
+      ...listComponentFiles(UI_DIR).map((f) => ({ dir: UI_DIR, file: f })),
+      ...listComponentFiles(CUSTOM_DIR).map((f) => ({ dir: CUSTOM_DIR, file: f })),
+    ];
+
+    it('no component source uses plural "variants:" as a CVA key (should be "variant:")', () => {
+      for (const { dir, file } of allSourceFiles) {
+        const src = readSource(dir, file);
+        // CVA config objects use `variants: { variant: ... }` which is correct.
+        // We check that no component destructures a plural prop like `variants` from props.
+        const hasPluralPropDestructure = /\{\s*(?:.*,\s*)?variants\s*[,}]/.test(src) &&
+          !/variants\s*:\s*\{/.test(src);
+        expect(hasPluralPropDestructure).toBe(false);
+      }
     });
 
-    it('Button accepts className', () => {
-      render(<Button className="custom-btn">Click</Button>);
-      const btn = screen.getByRole('button');
-      expect(btn.className).toContain('custom-btn');
+    it('no component source uses plural "sizes" as a prop name', () => {
+      for (const { dir, file } of allSourceFiles) {
+        const src = readSource(dir, file);
+        // "sizes" should not appear as a destructured prop
+        expect(src).not.toMatch(/\(\s*\{[^}]*\bsizes\b/);
+      }
     });
 
-    it('Card accepts className', () => {
-      const { container } = render(<Card className="custom-card">content</Card>);
-      expect(container.firstElementChild!.className).toContain('custom-card');
-    });
-
-    it('CardHeader accepts className', () => {
-      const { container } = render(<CardHeader className="custom-hdr" />);
-      expect(container.firstElementChild!.className).toContain('custom-hdr');
-    });
-
-    it('CardTitle accepts className', () => {
-      const { container } = render(<CardTitle className="custom-title">T</CardTitle>);
-      expect(container.firstElementChild!.className).toContain('custom-title');
-    });
-
-    it('CardDescription accepts className', () => {
-      const { container } = render(<CardDescription className="custom-desc">D</CardDescription>);
-      expect(container.firstElementChild!.className).toContain('custom-desc');
-    });
-
-    it('CardContent accepts className', () => {
-      const { container } = render(<CardContent className="custom-content" />);
-      expect(container.firstElementChild!.className).toContain('custom-content');
-    });
-
-    it('CardFooter accepts className', () => {
-      const { container } = render(<CardFooter className="custom-footer" />);
-      expect(container.firstElementChild!.className).toContain('custom-footer');
-    });
-
-    it('Input accepts className', () => {
-      render(<Input className="custom-input" data-testid="inp" />);
-      expect(screen.getByTestId('inp').className).toContain('custom-input');
-    });
-
-    it('Separator accepts className', () => {
-      const { container } = render(<Separator className="custom-sep" />);
-      expect(container.firstElementChild!.className).toContain('custom-sep');
-    });
-
-    it('Skeleton accepts className', () => {
-      const { container } = render(<Skeleton className="custom-skel" />);
-      expect(container.firstElementChild!.className).toContain('custom-skel');
-    });
-
-    it('Alert accepts className', () => {
-      render(<Alert className="custom-alert">hi</Alert>);
-      expect(screen.getByRole('alert').className).toContain('custom-alert');
+    // CVA definitions should use "variant" and "size" (singular) as variant keys
+    it('CVA variant keys use singular "variant" not "variants"', () => {
+      const cvaFiles = allSourceFiles.filter(({ dir, file }) =>
+        readSource(dir, file).includes('cva(')
+      );
+      for (const { dir, file } of cvaFiles) {
+        const src = readSource(dir, file);
+        // Inside the CVA config, look for `variants: { variant:` pattern
+        // This confirms variant keys are singular inside the CVA variants object
+        if (src.includes('variant:')) {
+          expect(src).toMatch(/variants\s*:\s*\{[^}]*\bvariant\b\s*:/s);
+        }
+      }
     });
   });
 
-  // ---------------------------------------------------------------
-  // Variant support
-  // ---------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // 7. Exported types and values are defined
+  // ---------------------------------------------------------------------------
+  describe('exported types and values are defined', () => {
+    it('cn utility is exported and functional', () => {
+      expect(typeof cn).toBe('function');
+      expect(cn('a', 'b')).toBe('a b');
+      // Tailwind merge deduplication
+      expect(cn('p-4', 'p-2')).toBe('p-2');
+    });
+
+    it('all UI components are exported as functions or objects', () => {
+      const uiComponents = [
+        Badge, Button, Card, CardHeader, CardTitle, CardDescription,
+        CardContent, CardFooter, Input, Label, Separator, Skeleton,
+        Progress, Alert, AlertTitle, AlertDescription, Textarea,
+      ];
+      for (const comp of uiComponents) {
+        expect(typeof comp).toMatch(/^(function|object)$/);
+      }
+    });
+
+    it('all custom components are exported as functions', () => {
+      const customComponents = [
+        Kbd, KbdGroup, Empty, EmptyHeader, EmptyTitle, EmptyDescription,
+        EmptyContent, EmptyMedia, ButtonGroup, Item, ItemGroup,
+        ItemContent, ItemTitle, ItemDesc, ItemActions, ItemMedia,
+        Spinner, DataLoadingState, DataEmptyState, DataErrorState,
+      ];
+      for (const comp of customComponents) {
+        expect(typeof comp).toBe('function');
+      }
+    });
+
+    it('ui/index.ts re-exports all component files', () => {
+      const indexSrc = fs.readFileSync(path.join(UI_DIR, 'index.ts'), 'utf-8');
+      const uiFiles = listComponentFiles(UI_DIR);
+      // toast.tsx is an internal module consumed via sonner.tsx, not directly exported
+      const internalModules = new Set(['toast']);
+      const missingExports: string[] = [];
+      for (const file of uiFiles) {
+        const moduleName = file.replace('.tsx', '');
+        if (internalModules.has(moduleName)) continue;
+        if (!indexSrc.includes(`'./${moduleName}'`) && !indexSrc.includes(`"./${moduleName}"`)) {
+          missingExports.push(moduleName);
+        }
+      }
+      expect(missingExports).toEqual([]);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Variant support (runtime)
+  // ---------------------------------------------------------------------------
   describe('variant support', () => {
     it('Badge renders default variant without explicit prop', () => {
       const { container } = render(<Badge>tag</Badge>);
@@ -157,9 +462,9 @@ describe('P3.1 API Consistency Audit', () => {
     });
   });
 
-  // ---------------------------------------------------------------
-  // Size variants (Button)
-  // ---------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Button size variants
+  // ---------------------------------------------------------------------------
   describe('Button size variants', () => {
     it('renders default size', () => {
       render(<Button>D</Button>);
@@ -182,9 +487,9 @@ describe('P3.1 API Consistency Audit', () => {
     });
   });
 
-  // ---------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // HTML attribute pass-through
-  // ---------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   describe('HTML attribute pass-through', () => {
     it('Button supports disabled attribute', () => {
       render(<Button disabled>Dis</Button>);
@@ -212,38 +517,9 @@ describe('P3.1 API Consistency Audit', () => {
     });
   });
 
-  // ---------------------------------------------------------------
-  // Ref forwarding
-  // ---------------------------------------------------------------
-  describe('ref forwarding', () => {
-    it('Button forwards ref', () => {
-      const ref = React.createRef<HTMLButtonElement>();
-      render(<Button ref={ref}>Ref</Button>);
-      expect(ref.current).toBeInstanceOf(HTMLButtonElement);
-    });
-
-    it('Input forwards ref', () => {
-      const ref = React.createRef<HTMLInputElement>();
-      render(<Input ref={ref} />);
-      expect(ref.current).toBeInstanceOf(HTMLInputElement);
-    });
-
-    it('Card forwards ref', () => {
-      const ref = React.createRef<HTMLDivElement>();
-      render(<Card ref={ref}>C</Card>);
-      expect(ref.current).toBeInstanceOf(HTMLDivElement);
-    });
-
-    it('Alert forwards ref', () => {
-      const ref = React.createRef<HTMLDivElement>();
-      render(<Alert ref={ref}>A</Alert>);
-      expect(ref.current).toBeInstanceOf(HTMLDivElement);
-    });
-  });
-
-  // ---------------------------------------------------------------
-  // Composition patterns (Card sub-components)
-  // ---------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Card composition pattern
+  // ---------------------------------------------------------------------------
   describe('Card composition pattern', () => {
     it('renders full Card composition', () => {
       const { container } = render(
@@ -263,9 +539,9 @@ describe('P3.1 API Consistency Audit', () => {
     });
   });
 
-  // ---------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // Alert composition pattern
-  // ---------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   describe('Alert composition pattern', () => {
     it('renders Alert with title and description', () => {
       render(
@@ -280,9 +556,9 @@ describe('P3.1 API Consistency Audit', () => {
     });
   });
 
-  // ---------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // Consistent defaults
-  // ---------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   describe('consistent defaults', () => {
     it('Separator defaults to horizontal orientation', () => {
       const { container } = render(<Separator />);
