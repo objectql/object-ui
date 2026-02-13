@@ -1,0 +1,89 @@
+import { Meta } from '@storybook/blocks';
+
+<Meta title="Getting Started" />
+
+# ObjectUI Component Library
+
+ObjectUI is a **server-driven UI engine** that renders enterprise interfaces from JSON metadata.
+Built on **React**, **Tailwind CSS**, and **Shadcn UI (Radix)**, it bridges the speed of
+low-code with the design quality of hand-crafted components.
+
+## Installation
+
+```bash
+# Core packages
+pnpm add @object-ui/types @object-ui/core @object-ui/react
+
+# UI layer
+pnpm add @object-ui/components @object-ui/fields @object-ui/layout
+```
+
+Peer dependencies — make sure these are in your project:
+
+```bash
+pnpm add react react-dom tailwindcss
+```
+
+## Quick Usage
+
+```tsx
+import { ObjectRenderer } from '@object-ui/react';
+
+const schema = {
+  type: 'Card',
+  props: { title: 'Hello' },
+  children: [
+    {
+      type: 'Text',
+      props: { content: 'Rendered from JSON!' },
+    },
+  ],
+};
+
+export default function App() {
+  return <ObjectRenderer schema={schema} />;
+}
+```
+
+The `ObjectRenderer` resolves each node in the schema tree against the **Component Registry**,
+producing a fully interactive React tree.
+
+## Accessibility
+
+Every component in ObjectUI follows the **WAI-ARIA** authoring practices provided by
+[Radix UI](https://www.radix-ui.com/). This means:
+
+- Correct ARIA roles and attributes out of the box
+- Full keyboard navigation support
+- Focus management for overlays, dialogs, and menus
+- Screen-reader-friendly labels and live regions
+
+Run the Storybook accessibility addon (included) to audit any story for violations.
+
+## Theme Configuration
+
+ObjectUI uses Tailwind CSS for styling. Customise the design tokens through your
+`tailwind.config` and CSS variables:
+
+```css
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 84% 5%;
+    --primary: 222 47% 11%;
+    --primary-foreground: 210 40% 98%;
+    /* ...other tokens */
+  }
+}
+```
+
+All Shadcn-based components pick up these tokens automatically — no prop drilling required.
+
+## Explore
+
+Use the sidebar to browse every component. Each story shows:
+
+- **Live preview** — interact directly in the canvas
+- **Controls** — tweak props in real time
+- **Docs** — auto-generated API tables (when tagged with `autodocs`)
+- **Accessibility** — axe audit panel

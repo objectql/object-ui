@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ThemeProvider, useTheme } from '../components/theme-provider';
@@ -27,11 +27,8 @@ function ThemeConsumer() {
 
 // Helpers
 const STORAGE_KEY = 'test-ui-theme';
-let matchMediaListeners: Array<(e: MediaQueryListEvent) => void> = [];
-
 function mockMatchMedia(prefersDark: boolean) {
   const listeners: Array<(e: MediaQueryListEvent) => void> = [];
-  matchMediaListeners = listeners;
 
   Object.defineProperty(window, 'matchMedia', {
     writable: true,

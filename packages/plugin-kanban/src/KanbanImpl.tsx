@@ -69,7 +69,7 @@ function SortableCard({ card }: { card: KanbanCard }) {
   }
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} role="listitem" aria-label={card.title}>
       <Card className="mb-2 cursor-grab active:cursor-grabbing border-border bg-card/60 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group">
         <CardHeader className="p-4">
           <CardTitle className="text-sm font-medium font-mono tracking-tight text-foreground group-hover:text-primary transition-colors">{card.title}</CardTitle>
@@ -115,6 +115,8 @@ function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
+      role="group"
+      aria-label={column.title}
       className={cn(
         "flex flex-col w-80 flex-shrink-0 rounded-lg border border-border bg-card/20 backdrop-blur-sm shadow-xl",
         column.className
@@ -122,9 +124,9 @@ function KanbanColumn({
     >
       <div className="p-4 border-b border-border/50 bg-muted/20">
         <div className="flex items-center justify-between">
-          <h3 className="font-mono text-sm font-semibold tracking-wider text-primary/90 uppercase">{column.title}</h3>
+          <h3 id={`kanban-col-${column.id}`} className="font-mono text-sm font-semibold tracking-wider text-primary/90 uppercase">{column.title}</h3>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-muted-foreground">
+            <span className="font-mono text-xs text-muted-foreground" aria-label={`${safeCards.length} cards${column.limit ? ` of ${column.limit} maximum` : ''}`}>
               {safeCards.length}
               {column.limit && ` / ${column.limit}`}
             </span>
@@ -141,7 +143,7 @@ function KanbanColumn({
           items={safeCards.map((c) => c.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="space-y-2">
+          <div className="space-y-2" role="list" aria-label={`${column.title} cards`}>
             {safeCards.map((card) => (
               <SortableCard key={card.id} card={card} />
             ))}
@@ -316,7 +318,7 @@ function KanbanBoardInner({ columns, onCardMove, className, dnd }: KanbanBoardPr
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className={cn("flex gap-4 overflow-x-auto p-4", className)}>
+      <div className={cn("flex gap-4 overflow-x-auto p-4", className)} role="region" aria-label="Kanban board">
         {boardColumns.map((column) => (
           <KanbanColumn
             key={column.id}
@@ -326,7 +328,9 @@ function KanbanBoardInner({ columns, onCardMove, className, dnd }: KanbanBoardPr
         ))}
       </div>
       <DragOverlay>
-        {activeCard ? <SortableCard card={activeCard} /> : null}
+        <div aria-live="assertive" aria-label={activeCard ? `Dragging ${activeCard.title}` : undefined}>
+          {activeCard ? <SortableCard card={activeCard} /> : null}
+        </div>
       </DragOverlay>
     </DndContext>
   )

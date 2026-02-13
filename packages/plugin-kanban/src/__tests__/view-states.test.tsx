@@ -17,6 +17,7 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { KanbanEnhanced, type KanbanColumn } from '../KanbanEnhanced';
+import KanbanBoard from '../KanbanImpl';
 
 // Mock @tanstack/react-virtual
 vi.mock('@tanstack/react-virtual', () => ({
@@ -61,6 +62,11 @@ vi.mock('@dnd-kit/utilities', () => ({
       toString: () => '',
     },
   },
+}));
+
+vi.mock('@object-ui/react', () => ({
+  useHasDndProvider: () => false,
+  useDnd: vi.fn(),
 }));
 
 describe('P3.3 Kanban View States', () => {
@@ -256,6 +262,141 @@ describe('P3.3 Kanban View States', () => {
         <KanbanEnhanced columns={[]} className="my-kanban" />
       );
       expect(container.innerHTML).toContain('my-kanban');
+    });
+  });
+});
+
+// ---------------------------------------------------------------
+// KanbanBoard (from KanbanImpl) View States
+// ---------------------------------------------------------------
+describe('P3.3 KanbanBoard (KanbanImpl) View States', () => {
+  describe('empty state', () => {
+    it('renders with empty columns array', () => {
+      const { container } = render(<KanbanBoard columns={[]} />);
+      expect(container.querySelector('[role="region"]')).toBeInTheDocument();
+    });
+
+    it('renders columns with no cards', () => {
+      const columns: KanbanColumn[] = [
+        { id: 'backlog', title: 'Backlog', cards: [] },
+        { id: 'active', title: 'Active', cards: [] },
+      ];
+      render(<KanbanBoard columns={columns} />);
+      expect(screen.getByText('Backlog')).toBeInTheDocument();
+      expect(screen.getByText('Active')).toBeInTheDocument();
+    });
+
+    it('shows card count of 0 for empty columns', () => {
+      const columns: KanbanColumn[] = [
+        { id: 'empty', title: 'Empty Col', cards: [] },
+      ];
+      render(<KanbanBoard columns={columns} />);
+      expect(screen.getByText('0')).toBeInTheDocument();
+    });
+  });
+
+  describe('single column with many cards', () => {
+    it('renders column with 50 cards without crashing', () => {
+      const manyCards = Array.from({ length: 50 }, (_, i) => ({
+        id: `card-${i}`,
+        title: `Card ${i}`,
+      }));
+      const columns: KanbanColumn[] = [
+        { id: 'big', title: 'Big Column', cards: manyCards },
+      ];
+      render(<KanbanBoard columns={columns} />);
+      expect(screen.getByText('Big Column')).toBeInTheDocument();
+      expect(screen.getByText('Card 0')).toBeInTheDocument();
+      expect(screen.getByText('Card 49')).toBeInTheDocument();
+    });
+
+    it('shows correct count for many cards', () => {
+      const manyCards = Array.from({ length: 25 }, (_, i) => ({
+        id: `card-${i}`,
+        title: `Task ${i}`,
+      }));
+      const columns: KanbanColumn[] = [
+        { id: 'col', title: 'Tasks', cards: manyCards },
+      ];
+      render(<KanbanBoard columns={columns} />);
+      expect(screen.getByText('25')).toBeInTheDocument();
+    });
+  });
+
+  describe('WIP limit exceeded', () => {
+    it('shows Full badge when cards reach limit', () => {
+      const columns: KanbanColumn[] = [
+        {
+          id: 'wip',
+          title: 'In Progress',
+          limit: 3,
+          cards: Array.from({ length: 3 }, (_, i) => ({
+            id: `c${i}`,
+            title: `WIP Task ${i}`,
+          })),
+        },
+      ];
+      render(<KanbanBoard columns={columns} />);
+      expect(screen.getByText('Full')).toBeInTheDocument();
+    });
+
+    it('shows Full badge when cards exceed limit', () => {
+      const columns: KanbanColumn[] = [
+        {
+          id: 'wip',
+          title: 'In Progress',
+          limit: 2,
+          cards: Array.from({ length: 5 }, (_, i) => ({
+            id: `c${i}`,
+            title: `Over Task ${i}`,
+          })),
+        },
+      ];
+      render(<KanbanBoard columns={columns} />);
+      expect(screen.getByText('Full')).toBeInTheDocument();
+    });
+
+    it('does not show Full badge when under limit', () => {
+      const columns: KanbanColumn[] = [
+        {
+          id: 'wip',
+          title: 'In Progress',
+          limit: 10,
+          cards: [{ id: 'c1', title: 'Solo Task' }],
+        },
+      ];
+      render(<KanbanBoard columns={columns} />);
+      expect(screen.queryByText('Full')).not.toBeInTheDocument();
+    });
+
+    it('shows count with limit format', () => {
+      const columns: KanbanColumn[] = [
+        {
+          id: 'wip',
+          title: 'WIP',
+          limit: 5,
+          cards: Array.from({ length: 3 }, (_, i) => ({
+            id: `c${i}`,
+            title: `Task ${i}`,
+          })),
+        },
+      ];
+      render(<KanbanBoard columns={columns} />);
+      expect(screen.getByText(/3\s*\/\s*5/)).toBeInTheDocument();
+    });
+  });
+
+  describe('className and structure', () => {
+    it('applies className prop', () => {
+      const { container } = render(
+        <KanbanBoard columns={[]} className="custom-board" />
+      );
+      expect(container.innerHTML).toContain('custom-board');
+    });
+
+    it('renders kanban board with region role', () => {
+      render(<KanbanBoard columns={[]} />);
+      expect(screen.getByRole('region', { name: 'Kanban board' })).toBeInTheDocument();
     });
   });
 });

@@ -148,18 +148,19 @@ function CalendarView({
   }
 
   return (
-    <div className={cn("flex flex-col h-full bg-background", className)}>
+    <div role="region" aria-label="Calendar" className={cn("flex flex-col h-full bg-background", className)}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-4">
           <div className="flex items-center bg-muted/50 rounded-lg p-1 gap-1">
-             <Button variant="ghost" size="sm" onClick={handleToday} className="h-8">
+             <Button variant="ghost" size="sm" onClick={handleToday} className="h-8" aria-label="Go to today">
                Today
              </Button>
              <div className="h-4 w-px bg-border mx-1" />
              <Button
                variant="ghost"
                size="icon"
+               aria-label="Previous period"
                onClick={handlePrevious}
                className="h-8 w-8"
              >
@@ -168,6 +169,7 @@ function CalendarView({
              <Button
                variant="ghost"
                size="icon"
+               aria-label="Next period"
                onClick={handleNext}
                className="h-8 w-8"
              >
@@ -179,6 +181,7 @@ function CalendarView({
             <PopoverTrigger asChild>
               <Button 
                 variant="ghost" 
+                aria-label={`Current date: ${getDateLabel()}`}
                 className={cn(
                   "text-xl font-semibold h-auto px-3 py-1 hover:bg-muted/50 transition-colors",
                   "flex items-center gap-2"
@@ -237,6 +240,7 @@ function CalendarView({
           <WeekView
             date={selectedDate}
             events={events}
+            locale={locale}
             onEventClick={onEventClick}
             onDateClick={onDateClick}
           />
@@ -393,10 +397,11 @@ function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: Mon
   return (
     <div className="flex flex-col h-full">
       {/* Week day headers */}
-      <div className="grid grid-cols-7 border-b">
+      <div role="row" className="grid grid-cols-7 border-b">
         {weekDays.map((day) => (
           <div
             key={day}
+            role="columnheader"
             className="p-2 text-center text-sm font-medium text-muted-foreground border-r last:border-r-0"
           >
             {day}
@@ -405,7 +410,7 @@ function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: Mon
       </div>
 
       {/* Calendar days */}
-      <div className="grid grid-cols-7 flex-1 auto-rows-fr">
+      <div role="grid" aria-label="Calendar grid" className="grid grid-cols-7 flex-1 auto-rows-fr">
         {days.map((day, index) => {
           const dayEvents = getEventsForDate(day, events)
           const isCurrentMonth = day.getMonth() === date.getMonth()
@@ -414,6 +419,8 @@ function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: Mon
           return (
             <div
               key={index}
+              role="gridcell"
+              aria-label={`${day.toLocaleDateString("default", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}${dayEvents.length > 0 ? `, ${dayEvents.length} event${dayEvents.length > 1 ? "s" : ""}` : ""}`}
               className={cn(
                 "border-b border-r last:border-r-0 p-2 min-h-[100px] cursor-pointer hover:bg-accent/50",
                 !isCurrentMonth && "bg-muted/30 text-muted-foreground",
@@ -430,6 +437,7 @@ function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: Mon
                   isToday &&
                     "inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground h-6 w-6"
                 )}
+                {...(isToday ? { "aria-current": "date" as const } : {})}
               >
                 {day.getDate()}
               </div>
@@ -437,6 +445,8 @@ function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: Mon
                 {dayEvents.slice(0, 3).map((event) => (
                   <div
                     key={event.id}
+                    role="button"
+                    aria-label={event.title}
                     draggable={!!onEventDrop}
                     onDragStart={(e) => handleDragStart(e, event)}
                     onDragEnd={handleDragEnd}
@@ -475,11 +485,12 @@ function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: Mon
 interface WeekViewProps {
   date: Date
   events: CalendarEvent[]
+  locale?: string
   onEventClick?: (event: CalendarEvent) => void
   onDateClick?: (date: Date) => void
 }
 
-function WeekView({ date, events, onEventClick, onDateClick }: WeekViewProps) {
+function WeekView({ date, events, locale = "default", onEventClick, onDateClick }: WeekViewProps) {
   const weekStart = getWeekStart(date)
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const day = new Date(weekStart)
@@ -517,12 +528,14 @@ function WeekView({ date, events, onEventClick, onDateClick }: WeekViewProps) {
       </div>
 
       {/* Week events */}
-      <div className="grid grid-cols-7 flex-1">
+      <div role="grid" className="grid grid-cols-7 flex-1">
         {weekDays.map((day) => {
           const dayEvents = getEventsForDate(day, events)
           return (
             <div
               key={day.toISOString()}
+              role="gridcell"
+              aria-label={`${day.toLocaleDateString("default", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}${dayEvents.length > 0 ? `, ${dayEvents.length} event${dayEvents.length > 1 ? "s" : ""}` : ""}`}
               className="border-r last:border-r-0 p-2 min-h-[400px] cursor-pointer hover:bg-accent/50"
               onClick={() => onDateClick?.(day)}
             >
@@ -530,6 +543,8 @@ function WeekView({ date, events, onEventClick, onDateClick }: WeekViewProps) {
                 {dayEvents.map((event) => (
                   <div
                     key={event.id}
+                    role="button"
+                    aria-label={event.title}
                     className={cn(
                       "text-sm px-3 py-2 rounded cursor-pointer hover:opacity-80",
                       event.color || DEFAULT_EVENT_COLOR
@@ -576,7 +591,7 @@ function DayView({ date, events, onEventClick }: DayViewProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-auto">
+      <div role="list" className="flex-1 overflow-auto">
         {hours.map((hour) => {
           const hourEvents = dayEvents.filter((event) => {
             if (event.allDay) return hour === 0
@@ -585,7 +600,7 @@ function DayView({ date, events, onEventClick }: DayViewProps) {
           })
 
           return (
-            <div key={hour} className="flex border-b min-h-[60px]">
+            <div key={hour} role="listitem" className="flex border-b min-h-[60px]">
               <div className="w-20 p-2 text-sm text-muted-foreground border-r">
                 {hour === 0
                   ? "12 AM"
@@ -599,6 +614,7 @@ function DayView({ date, events, onEventClick }: DayViewProps) {
                 {hourEvents.map((event) => (
                   <div
                     key={event.id}
+                    aria-label={event.title}
                     className={cn(
                       "px-3 py-2 rounded cursor-pointer hover:opacity-80",
                       event.color || DEFAULT_EVENT_COLOR

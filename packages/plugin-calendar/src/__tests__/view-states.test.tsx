@@ -179,6 +179,20 @@ describe('P3.3 Calendar View States', () => {
       expect(screen.getByText('Mon')).toBeInTheDocument();
     });
 
+    it('renders week view', () => {
+      render(
+        <CalendarView
+          currentDate={defaultDate}
+          events={[]}
+          view="week"
+          locale="en-US"
+        />
+      );
+      // Week view should show a range header and a 7-column grid
+      const grids = screen.getAllByRole('grid');
+      expect(grids.length).toBeGreaterThanOrEqual(1);
+    });
+
     it('renders day view', () => {
       render(
         <CalendarView
@@ -296,6 +310,68 @@ describe('P3.3 Calendar View States', () => {
         />
       );
       expect(container).toBeInTheDocument();
+    });
+
+    it('handles date at month boundary (last day of month)', () => {
+      const boundaryDate = new Date(2024, 0, 31); // Jan 31, 2024
+      render(
+        <CalendarView
+          currentDate={boundaryDate}
+          events={[]}
+          view="month"
+          locale="en-US"
+        />
+      );
+      expect(screen.getByText('January 2024')).toBeInTheDocument();
+    });
+
+    it('handles date at month boundary (first day of month)', () => {
+      const firstDay = new Date(2024, 1, 1); // Feb 1, 2024
+      render(
+        <CalendarView
+          currentDate={firstDay}
+          events={[]}
+          view="month"
+          locale="en-US"
+        />
+      );
+      expect(screen.getByText('February 2024')).toBeInTheDocument();
+    });
+
+    it('handles leap year date', () => {
+      const leapDate = new Date(2024, 1, 29); // Feb 29, 2024 (leap year)
+      render(
+        <CalendarView
+          currentDate={leapDate}
+          events={[]}
+          view="month"
+          locale="en-US"
+        />
+      );
+      expect(screen.getByText('February 2024')).toBeInTheDocument();
+    });
+
+    it('handles events spanning across month boundary', () => {
+      const crossMonthEvent: CalendarEvent[] = [
+        {
+          id: 'cross',
+          title: 'Cross-Month Event',
+          start: new Date(2024, 0, 30),
+          end: new Date(2024, 1, 2),
+          allDay: true,
+        },
+      ];
+      const { container } = render(
+        <CalendarView
+          currentDate={new Date(2024, 0, 15)}
+          events={crossMonthEvent}
+          view="month"
+          locale="en-US"
+        />
+      );
+      // Should render without crashing; the event spans into next month padding days
+      const elements = container.querySelectorAll('[role="button"]');
+      expect(elements.length).toBeGreaterThanOrEqual(1);
     });
   });
 });
