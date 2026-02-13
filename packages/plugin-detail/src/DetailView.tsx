@@ -7,8 +7,32 @@
  */
 
 import * as React from 'react';
-import { cn, Button, Skeleton } from '@object-ui/components';
-import { ArrowLeft, Edit, Trash2, MoreHorizontal } from 'lucide-react';
+import { 
+  cn, 
+  Button, 
+  Skeleton,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@object-ui/components';
+import { 
+  ArrowLeft, 
+  Edit, 
+  Trash2, 
+  MoreHorizontal, 
+  Share2, 
+  Copy, 
+  Download, 
+  History, 
+  Star,
+  StarOff,
+} from 'lucide-react';
 import { DetailSection } from './DetailSection';
 import { DetailTabs } from './DetailTabs';
 import { RelatedList } from './RelatedList';
@@ -34,6 +58,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
 }) => {
   const [data, setData] = React.useState<any>(schema.data);
   const [loading, setLoading] = React.useState(!schema.data && !!((schema.api && schema.resourceId) || (dataSource && schema.objectName && schema.resourceId)));
+  const [isFavorite, setIsFavorite] = React.useState(false);
 
   // Fetch data if API or DataSource provided
   React.useEffect(() => {
@@ -108,6 +133,41 @@ export const DetailView: React.FC<DetailViewProps> = ({
     }
   }, [onDelete, schema]);
 
+  const handleShare = React.useCallback(() => {
+    // Share functionality - could trigger share dialog or copy link
+    if (navigator.share && schema.objectName && schema.resourceId) {
+      navigator.share({
+        title: schema.title || 'Record Details',
+        text: `${schema.objectName} #${schema.resourceId}`,
+        url: window.location.href,
+      }).catch((err) => console.log('Share failed:', err));
+    } else {
+      // Fallback: copy link to clipboard
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        console.log('Link copied to clipboard');
+      });
+    }
+  }, [schema]);
+
+  const handleDuplicate = React.useCallback(() => {
+    // Duplicate functionality - could navigate to create page with prefilled data
+    console.log('Duplicate record:', data);
+  }, [data]);
+
+  const handleExport = React.useCallback(() => {
+    // Export functionality - could download as JSON, PDF, etc.
+    console.log('Export record:', data);
+  }, [data]);
+
+  const handleViewHistory = React.useCallback(() => {
+    // View history functionality
+    console.log('View history for record:', schema.resourceId);
+  }, [schema]);
+
+  const handleToggleFavorite = React.useCallback(() => {
+    setIsFavorite(!isFavorite);
+  }, [isFavorite]);
+
   if (loading || schema.loading) {
     return (
       <div className={cn('space-y-4', className)}>
@@ -119,49 +179,123 @@ export const DetailView: React.FC<DetailViewProps> = ({
   }
 
   return (
-    <div className={cn('space-y-6', className)}>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          {(schema.showBack ?? true) && (
-            <Button variant="ghost" size="icon" onClick={handleBack}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          )}
-          <div>
-            <h1 className="text-2xl font-bold">{schema.title || 'Details'}</h1>
-            {schema.objectName && (
-              <p className="text-sm text-muted-foreground mt-1">
-                {schema.objectName} #{schema.resourceId}
-              </p>
+    <TooltipProvider>
+      <div className={cn('space-y-6', className)}>
+        {/* Header - Airtable-inspired layout */}
+        <div className="flex items-start justify-between gap-4 pb-4 border-b">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            {(schema.showBack ?? true) && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={handleBack} className="shrink-0 mt-1">
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Back</TooltipContent>
+              </Tooltip>
             )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold truncate">{schema.title || 'Details'}</h1>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6 shrink-0"
+                      onClick={handleToggleFavorite}
+                    >
+                      {isFavorite ? (
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      ) : (
+                        <StarOff className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              {schema.objectName && (
+                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5">
+                  <span className="font-medium">{schema.objectName}</span>
+                  <span className="text-muted-foreground/60">•</span>
+                  <span>#{schema.resourceId}</span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {schema.actions?.map((action, index) => (
+              <SchemaRenderer key={index} schema={action} data={data} />
+            ))}
+
+            {/* Share Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={handleShare}>
+                  <Share2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Share</TooltipContent>
+            </Tooltip>
+
+            {/* Edit Button */}
+            {schema.showEdit && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="default" onClick={handleEdit} className="gap-2">
+                    <Edit className="h-4 w-4" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Edit record</TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* More Actions Menu */}
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>More actions</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={handleDuplicate}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExport}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleViewHistory}>
+                  <History className="h-4 w-4 mr-2" />
+                  View history
+                </DropdownMenuItem>
+                {schema.showDelete && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={handleDelete}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          {schema.actions?.map((action, index) => (
-            <SchemaRenderer key={index} schema={action} data={data} />
-          ))}
-
-          {schema.showEdit && (
-            <Button variant="outline" onClick={handleEdit}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </Button>
-          )}
-
-          {schema.showDelete && (
-            <Button variant="destructive" onClick={handleDelete}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </Button>
-          )}
-
-          <Button variant="ghost" size="icon">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
 
       {/* Custom Header */}
       {schema.header && (
@@ -223,6 +357,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
           <SchemaRenderer schema={schema.footer} data={data} />
         </div>
       )}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 };

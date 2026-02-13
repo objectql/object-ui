@@ -7,8 +7,23 @@
  */
 
 import * as React from 'react';
-import { cn, Card, CardHeader, CardTitle, CardContent, Collapsible, CollapsibleTrigger, CollapsibleContent } from '@object-ui/components';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { 
+  cn, 
+  Card, 
+  CardHeader, 
+  CardTitle, 
+  CardContent, 
+  Collapsible, 
+  CollapsibleTrigger, 
+  CollapsibleContent,
+  Badge,
+  Button,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@object-ui/components';
+import { ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 import { SchemaRenderer } from '@object-ui/react';
 import type { DetailViewSection as DetailViewSectionType } from '@object-ui/types';
 
@@ -24,6 +39,15 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
   className,
 }) => {
   const [isCollapsed, setIsCollapsed] = React.useState(section.defaultCollapsed ?? false);
+  const [copiedField, setCopiedField] = React.useState<string | null>(null);
+
+  const handleCopyField = React.useCallback((fieldName: string, value: any) => {
+    const textValue = value !== null && value !== undefined ? String(value) : '';
+    navigator.clipboard.writeText(textValue).then(() => {
+      setCopiedField(fieldName);
+      setTimeout(() => setCopiedField(null), 2000);
+    });
+  }, []);
 
   const renderField = (field: any) => {
     const value = data?.[field.name] ?? field.value;
@@ -41,14 +65,43 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
                       field.span === 5 ? 'col-span-5' :
                       field.span === 6 ? 'col-span-6' : '';
 
-    // Default field rendering
+    const displayValue = value !== null && value !== undefined ? String(value) : '-';
+    const canCopy = value !== null && value !== undefined && value !== '';
+    const isCopied = copiedField === field.name;
+
+    // Default field rendering with copy button
     return (
-      <div key={field.name} className={cn("space-y-1", spanClass)}>
-        <div className="text-sm font-medium text-muted-foreground">
+      <div key={field.name} className={cn("space-y-1.5 group", spanClass)}>
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           {field.label || field.name}
         </div>
-        <div className="text-sm">
-          {value !== null && value !== undefined ? String(value) : '-'}
+        <div className="flex items-start justify-between gap-2">
+          <div className="text-sm flex-1 break-words">
+            {displayValue}
+          </div>
+          {canCopy && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    onClick={() => handleCopyField(field.name, value)}
+                  >
+                    {isCopied ? (
+                      <Check className="h-3 w-3 text-green-600" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isCopied ? 'Copied!' : 'Copy to clipboard'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       </div>
     );
@@ -70,19 +123,26 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
 
   if (!section.collapsible) {
     return (
-      <Card className={className}>
+      <Card className={cn(section.showBorder === false ? 'border-none shadow-none' : '', className)}>
         {section.title && (
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {section.icon && <span className="text-muted-foreground">{section.icon}</span>}
-              <span>{section.title}</span>
+          <CardHeader className={cn(section.headerColor && `bg-${section.headerColor}`)}>
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {section.icon && <span className="text-muted-foreground">{section.icon}</span>}
+                <span>{section.title}</span>
+                {section.fields && (
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {section.fields.length}
+                  </Badge>
+                )}
+              </div>
             </CardTitle>
             {section.description && (
-              <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
+              <p className="text-sm text-muted-foreground mt-1.5">{section.description}</p>
             )}
           </CardHeader>
         )}
-        <CardContent>
+        <CardContent className="pt-6">
           {content}
         </CardContent>
       </Card>
@@ -97,21 +157,35 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     >
       <Card>
         <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+          <CardHeader className={cn(
+            "cursor-pointer hover:bg-muted/50 transition-colors",
+            section.headerColor && `bg-${section.headerColor}`
+          )}>
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {section.icon && <span className="text-muted-foreground">{section.icon}</span>}
                 <span>{section.title}</span>
+                {section.fields && (
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {section.fields.length}
+                  </Badge>
+                )}
               </div>
-              {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              <div className="flex items-center gap-2">
+                {isCollapsed ? (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
             </CardTitle>
             {section.description && !isCollapsed && (
-              <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
+              <p className="text-sm text-muted-foreground mt-1.5">{section.description}</p>
             )}
           </CardHeader>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <CardContent>
+          <CardContent className="pt-6">
             {content}
           </CardContent>
         </CollapsibleContent>

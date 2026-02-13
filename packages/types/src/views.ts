@@ -104,6 +104,16 @@ export interface DetailViewSection {
    * Section visibility condition
    */
   visible?: boolean | string;
+  /**
+   * Show border around section
+   * @default true
+   */
+  showBorder?: boolean;
+  /**
+   * Header background color (Tailwind class)
+   * @example 'muted', 'primary/10'
+   */
+  headerColor?: string;
 }
 
 /**
