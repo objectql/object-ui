@@ -10,17 +10,5 @@ export const OrderObject = ObjectSchema.create({
     amount: Field.currency({ label: 'Total Amount' }),
     status: Field.select(['Draft', 'Pending', 'Paid', 'Shipped', 'Delivered', 'Cancelled'], { label: 'Status', defaultValue: 'Draft' }),
     order_date: Field.date({ label: 'Order Date', defaultValue: 'now' })
-  },
-  list_views: {
-    all: {
-      label: 'All Orders',
-      columns: ['name', 'customer', 'amount', 'status', 'order_date'],
-      sort: [['order_date', 'desc']]
-    },
-    pending: {
-      label: 'Pending Orders',
-      columns: ['name', 'customer', 'amount', 'order_date'],
-      filter: [['status', '=', 'Pending']]
-    }
   }
 });

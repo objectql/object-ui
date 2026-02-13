@@ -74,16 +74,5 @@ export const KitchenSinkObject = ObjectSchema.create({
         label: 'Formula (Amount * Price)' 
     }),
     auto_number: Field.autonumber({ label: 'Auto Number' }),
-  },
-  list_views: {
-    all: {
-      label: 'All Records',
-      columns: ['name', 'category', 'amount', 'price', 'percent', 'rating', 'is_active', 'due_date', 'email'],
-    },
-    active: {
-      label: 'Active Only',
-      columns: ['name', 'category', 'amount', 'rating', 'due_date'],
-      filter: [['is_active', '=', true]],
-    },
-  },
+  }
 });

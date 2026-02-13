@@ -12,24 +12,5 @@ export const ProductObject = ObjectSchema.create({
     stock: Field.number({ label: 'Stock' }),
     description: Field.textarea({ label: 'Description' }),
     image: Field.url({ label: 'Image URL' })
-  },
-  list_views: {
-    all: {
-      label: 'All Products',
-      columns: ['name', 'sku', 'category', 'price', 'stock']
-    },
-    low_stock: {
-      label: 'Low Stock',
-      columns: ['name', 'stock', 'price'],
-      filter: [['stock', '<', 10]]
-    },
-    gallery: {
-      label: 'Product Gallery',
-      type: 'gallery',
-      columns: ['name', 'category', 'price'],
-      imageField: 'image',
-      titleField: 'name',
-      subtitleField: 'category'
-    } as any
   }
 });

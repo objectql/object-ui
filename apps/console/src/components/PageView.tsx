@@ -47,8 +47,8 @@ export function PageView() {
              </div>
              <SchemaRenderer 
                 schema={{
-                    type: 'page',
                     ...page,
+                    type: 'page',
                     context: { ...(page as any).context, params }
                 }} 
              />

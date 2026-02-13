@@ -15,31 +15,5 @@ export const ProjectObject = ObjectSchema.create({
     description: Field.textarea({ label: 'Description' }),
     color: Field.text({ label: 'Color' }), // For Gantt bar color
     dependencies: Field.text({ label: 'Dependencies' }), // Comma separated IDs
-  },
-  list_views: {
-    all: {
-      label: 'All Tasks',
-      columns: ['name', 'status', 'progress', 'start_date', 'end_date', 'priority', 'manager'],
-      sort: [['start_date', 'asc']]
-    },
-    gantt_view: {
-      label: 'Gantt View',
-      type: 'gantt',
-      columns: ['name', 'start_date', 'end_date', 'progress'],
-      // Standard Gantt configuration mapped to specific fields
-      startDateField: 'start_date',
-      endDateField: 'end_date',
-      titleField: 'name',
-      progressField: 'progress',
-      dependenciesField: 'dependencies',
-      colorField: 'color',
-    } as any, // Cast to allow extra properties if type definition is strict
-    timeline_view: {
-      label: 'Timeline',
-      type: 'timeline',
-      dateField: 'start_date',
-      titleField: 'name',
-      columns: ['status', 'priority']
-    } as any
   }
 });

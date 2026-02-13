@@ -20,28 +20,5 @@ export const ContactObject = ObjectSchema.create({
     longitude: Field.number({ label: 'Longitude', scale: 6 }),
     is_active: Field.boolean({ label: 'Active', defaultValue: true }),
     notes: Field.textarea({ label: 'Notes' })
-  },
-  list_views: {
-    all: {
-      label: 'All Contacts',
-      type: 'grid',
-      columns: ['name', 'account', 'email', 'phone', 'title', 'status']
-    },
-    map_view: {
-      label: 'Map View',
-      type: 'map',
-      latitudeField: 'latitude',
-      longitudeField: 'longitude',
-      titleField: 'name',
-      descriptionField: 'title',
-      zoom: 12,
-      center: [-73.935242, 40.730610] // NYC
-    } as any,
-    mypending: {
-      label: 'My Pending Contacts',
-      type: 'grid',
-      columns: ['name', 'account', 'status', 'priority'],
-      filter: [['status', '!=', 'Active']] 
-    }
   }
 });

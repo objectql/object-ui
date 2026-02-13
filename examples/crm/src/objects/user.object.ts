@@ -11,11 +11,5 @@ export const UserObject = ObjectSchema.create({
     role: Field.select(['admin', 'user', 'guest'], { label: 'Role' }),
     avatar: Field.url({ label: 'Avatar URL' }),
     active: Field.boolean({ label: 'Active', defaultValue: true })
-  },
-  list_views: {
-    all: {
-      label: 'All Users',
-      columns: ['name', 'username', 'email', 'role', 'active']
-    }
   }
 });

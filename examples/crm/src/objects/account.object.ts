@@ -18,26 +18,5 @@ export const AccountObject = ObjectSchema.create({
     longitude: Field.number({ label: 'Longitude', scale: 6 }),
     owner: Field.lookup('user', { label: 'Owner' }),
     created_at: Field.datetime({ label: 'Created Date' })
-  },
-  list_views: {
-    all: {
-      label: 'All Accounts',
-      columns: ['name', 'industry', 'type', 'phone', 'website', 'employees', 'owner']
-    },
-    map_view: {
-      label: 'Map View',
-      type: 'map',
-      latitudeField: 'latitude',
-      longitudeField: 'longitude',
-      titleField: 'name',
-      descriptionField: 'billing_address',
-      zoom: 3,
-      center: [37.7749, -122.4194] // SF
-    } as any,
-    customers: {
-      label: 'Customers',
-      columns: ['name', 'industry', 'annual_revenue'],
-      filter: [['type', '=', 'Customer']]
-    }
   }
 });
