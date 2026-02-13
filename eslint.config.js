@@ -41,4 +41,10 @@ export default tseslint.config({ ignores: ['**/dist', '**/.next', '**/node_modul
     'react-hooks/preserve-manual-memoization': 'warn',
     'react-hooks/use-memo': 'warn',
   },
-}, storybook.configs["flat/recommended"]);
+}, storybook.configs["flat/recommended"], {
+  // Override storybook rules that conflict with project conventions
+  files: ['**/*.stories.@(ts|tsx|js|jsx|mjs|cjs)'],
+  rules: {
+    'storybook/no-renderer-packages': 'off',
+  },
+});

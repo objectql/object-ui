@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { ComponentRegistry } from '@object-ui/core';
+import { describe, it, expect } from 'vitest';
 import { ListView } from './index';
 
 describe('Plugin List Registration', () => {

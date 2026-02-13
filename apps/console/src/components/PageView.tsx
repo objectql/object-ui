@@ -48,7 +48,7 @@ export function PageView() {
              <SchemaRenderer 
                 schema={{
                     ...page,
-                    type: 'page',
+                    type: (page as any).type || 'page',
                     context: { ...(page as any).context, params }
                 }} 
              />
