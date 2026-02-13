@@ -331,7 +331,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                   return (
                     <button
                       type="button"
-                      className="text-primary font-medium underline-offset-4 hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
+                      className="text-primary font-medium underline-offset-4 hover:underline cursor-pointer bg-transparent border-none p-0 text-left font-inherit"
                       onClick={(e) => {
                         e.stopPropagation();
                         navigation.handleClick(row);
@@ -350,7 +350,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                   return (
                     <button
                       type="button"
-                      className="text-primary font-medium underline-offset-4 hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
+                      className="text-primary font-medium underline-offset-4 hover:underline cursor-pointer bg-transparent border-none p-0 text-left font-inherit"
                       onClick={(e) => {
                         e.stopPropagation();
                         navigation.handleClick(row);
@@ -369,7 +369,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                   return (
                     <button
                       type="button"
-                      className="text-primary underline-offset-4 hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
+                      className="text-primary underline-offset-4 hover:underline cursor-pointer bg-transparent border-none p-0 text-left font-inherit"
                       onClick={(e) => {
                         e.stopPropagation();
                         executeAction({
