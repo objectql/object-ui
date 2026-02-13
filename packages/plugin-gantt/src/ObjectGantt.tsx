@@ -25,6 +25,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
 import { GanttConfigSchema } from '@objectstack/spec/ui';
+import { useNavigationOverlay } from '@object-ui/react';
+import { NavigationOverlay } from '@object-ui/components';
 import { GanttView, type GanttTask } from './GanttView';
 
 export interface ObjectGanttProps {
@@ -32,6 +34,7 @@ export interface ObjectGanttProps {
   dataSource?: DataSource;
   className?: string;
   onTaskClick?: (record: any) => void;
+  onRowClick?: (record: any) => void;
   onEdit?: (record: any) => void;
   onDelete?: (record: any) => void;
 }
@@ -128,6 +131,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   dataSource,
   className,
   onTaskClick,
+  onRowClick,
   ...rest
 }) => {
   const [data, setData] = useState<any[]>([]);
@@ -253,6 +257,12 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     }).filter(task => !isNaN(task.start.getTime()) && !isNaN(task.end.getTime()));
   }, [data, ganttConfig]);
 
+  const navigation = useNavigationOverlay({
+    navigation: (schema as any).navigation,
+    objectName: schema.objectName,
+    onRowClick,
+  });
+
   if (loading) {
     return (
       <div className={className}>
@@ -290,12 +300,31 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       <div className="h-[calc(100vh-200px)] min-h-[600px]">
         <GanttView 
           tasks={tasks}
-          onTaskClick={(task) => onTaskClick?.(task.data)}
+          onTaskClick={(task) => {
+            navigation.handleClick(task.data);
+            onTaskClick?.(task.data);
+          }}
           onAddClick={() => {
             // Placeholder for add action
           }}
         />
       </div>
+      {navigation.isOverlay && (
+        <NavigationOverlay {...navigation} title="Task Details">
+          {(record) => (
+            <div className="space-y-3">
+              {Object.entries(record).map(([key, value]) => (
+                <div key={key} className="flex flex-col">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {key.replace(/_/g, ' ')}
+                  </span>
+                  <span className="text-sm">{String(value ?? '—')}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </NavigationOverlay>
+      )}
     </div>
   );
 };
