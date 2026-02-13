@@ -38,7 +38,7 @@ async function bootstrap() {
   // Render the React app
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      <MobileProvider pwa={{ name: 'ObjectUI Console', shortName: 'Console' }}>
+      <MobileProvider pwa={{ enabled: true, name: 'ObjectUI Console', shortName: 'Console' }}>
         <I18nProvider>
           <App />
         </I18nProvider>

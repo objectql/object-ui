@@ -8,7 +8,8 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import type { DataSource, TimelineSchema } from '@object-ui/types';
-import { useDataScope } from '@object-ui/react';
+import { useDataScope, useNavigationOverlay } from '@object-ui/react';
+import { NavigationOverlay } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { z } from 'zod';
 import { TimelineRenderer } from './renderer';
@@ -44,12 +45,16 @@ export interface ObjectTimelineProps {
   };
   dataSource?: DataSource;
   className?: string;
+  onRowClick?: (record: any) => void;
+  onItemClick?: (record: any) => void;
 }
 
 export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   schema,
   dataSource,
   className,
+  onRowClick,
+  onItemClick,
   ...props
 }) => {
   const [fetchedData, setFetchedData] = useState<any[]>([]);
@@ -121,12 +126,6 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
       }));
   }
 
-  const effectiveSchema = {
-      ...schema,
-      items: effectiveItems || [],
-      className: className || schema.className
-  };
-
   const handleRefresh = useCallback(async () => {
     setRefreshKey(k => k + 1);
   }, []);
@@ -135,6 +134,23 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
     onRefresh: handleRefresh,
     enabled: !!schema.objectName && !!dataSource,
   });
+
+  const navigation = useNavigationOverlay({
+    navigation: (schema as any).navigation,
+    objectName: schema.objectName,
+    onRowClick: onRowClick ?? onItemClick,
+  });
+
+  const effectiveSchema = {
+      ...schema,
+      items: effectiveItems || [],
+      className: className || schema.className,
+      onItemClick: (item: any) => {
+        const record = item._data || item;
+        navigation.handleClick(record);
+        onItemClick?.(record);
+      },
+  };
 
   if (error) {
       return (
@@ -155,6 +171,22 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
         </div>
       )}
       <TimelineRenderer schema={effectiveSchema} />
+      {navigation.isOverlay && (
+        <NavigationOverlay {...navigation} title="Timeline Item">
+          {(record) => (
+            <div className="space-y-3">
+              {Object.entries(record).map(([key, value]) => (
+                <div key={key} className="flex flex-col">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {key.replace(/_/g, ' ')}
+                  </span>
+                  <span className="text-sm">{String(value ?? '—')}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </NavigationOverlay>
+      )}
     </div>
   );
 }

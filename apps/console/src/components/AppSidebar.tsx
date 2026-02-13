@@ -51,6 +51,7 @@ import {
 import appConfig from '../../objectstack.shared';
 import { useExpressionContext, evaluateVisibility } from '../context/ExpressionProvider';
 import { useAuth, getUserInitials } from '@object-ui/auth';
+import { usePermissions } from '@object-ui/permissions';
 import { useRecentItems } from '../hooks/useRecentItems';
 import { useFavorites } from '../hooks/useFavorites';
 import { resolveI18nLabel } from '../utils';
@@ -508,11 +509,24 @@ function NavigationItemRenderer({ item, activeAppName, groupKey, groupItems, app
     const [isOpen, setIsOpen] = React.useState(item.expanded !== false);
     const { evaluator } = useExpressionContext();
     const dnd = React.useContext(DndContext);
+    const { can } = usePermissions();
 
     // Evaluate visibility expression (supports boolean, string, and ${} template expressions)
     const isVisible = evaluateVisibility(item.visible ?? item.visibleOn, evaluator);
     if (!isVisible) {
         return null;
+    }
+
+    // Permission check: skip items that require permissions the user doesn't have
+    if (item.requiredPermissions?.length) {
+        const hasPermission = item.requiredPermissions.every((perm: string) => {
+            const parts = perm.split(':');
+            const [object, action] = parts.length >= 2
+                ? [parts[0], parts[1]]
+                : [item.objectName || perm, 'read'];
+            return can(object, action as any);
+        });
+        if (!hasPermission) return null;
     }
 
     if (item.type === 'group') {

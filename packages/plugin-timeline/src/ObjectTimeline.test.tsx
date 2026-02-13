@@ -4,9 +4,22 @@ import { describe, it, expect, vi } from 'vitest';
 import { ObjectTimeline } from './ObjectTimeline';
 import { DataSource } from '@object-ui/types';
 
-// Mock useDataScope
+// Mock useDataScope and useNavigationOverlay
 vi.mock('@object-ui/react', () => ({
   useDataScope: () => undefined,
+  useNavigationOverlay: () => ({
+    isOverlay: false,
+    handleClick: vi.fn(),
+    selectedRecord: null,
+    isOpen: false,
+    close: vi.fn(),
+    setIsOpen: vi.fn(),
+    mode: 'overlay',
+  }),
+}));
+
+vi.mock('@object-ui/components', () => ({
+  NavigationOverlay: () => null,
 }));
 
 vi.mock('./renderer', () => ({

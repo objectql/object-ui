@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@object-ui/auth": "workspace:*",
+    "@object-ui/collaboration": "workspace:*",
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/data-objectstack": "workspace:*",
@@ -37,6 +38,7 @@
     "@object-ui/i18n": "workspace:*",
     "@object-ui/layout": "workspace:*",
     "@object-ui/mobile": "workspace:*",
+    "@object-ui/permissions": "workspace:*",
     "@object-ui/plugin-calendar": "workspace:*",
     "@object-ui/plugin-charts": "workspace:*",
     "@object-ui/plugin-dashboard": "workspace:*",

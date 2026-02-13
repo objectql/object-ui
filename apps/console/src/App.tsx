@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, useMemo } from 'react';
 import { ObjectForm } from '@object-ui/plugin-form';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Empty, EmptyTitle } from '@object-ui/components';
 import { toast } from 'sonner';
@@ -15,7 +15,8 @@ import { CommandPalette } from './components/CommandPalette';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
 import { ObjectView } from './components/ObjectView';
-import { ExpressionProvider } from './context/ExpressionProvider';
+import { ExpressionProvider, evaluateVisibility } from './context/ExpressionProvider';
+import { ExpressionEvaluator } from '@object-ui/core';
 import { ConditionalAuthWrapper } from './components/ConditionalAuthWrapper';
 import { KeyboardShortcutsDialog } from './components/KeyboardShortcutsDialog';
 import { OnboardingWalkthrough } from './components/OnboardingWalkthrough';
@@ -188,6 +189,16 @@ export function AppContent() {
       navigate(`/apps/${newAppName}`);
   };
 
+  // Expression evaluator for CRUD dialog field visibility (includes editing record data)
+  const expressionEvaluator = useMemo(
+    () => new ExpressionEvaluator({
+      user: user ? { name: user.name, email: user.email, role: user.role ?? 'user' } : {},
+      app: activeApp || {},
+      data: editingRecord || {},
+    }),
+    [user, activeApp, editingRecord]
+  );
+
   if (!dataSource) return <LoadingScreen />;
   if (!activeApp) return (
     <div className="h-screen flex items-center justify-center">
@@ -306,8 +317,15 @@ export function AppContent() {
                             columns: 1,
                             fields: currentObjectDef.fields 
                                 ? (Array.isArray(currentObjectDef.fields) 
-                                    ? currentObjectDef.fields.map((f: any) => typeof f === 'string' ? f : f.name)
-                                    : Object.keys(currentObjectDef.fields))
+                                    ? currentObjectDef.fields
+                                        .filter((f: any) => {
+                                          if (typeof f === 'string') return true;
+                                          return evaluateVisibility(f.visible, expressionEvaluator);
+                                        })
+                                        .map((f: any) => typeof f === 'string' ? f : f.name)
+                                    : Object.entries(currentObjectDef.fields)
+                                        .filter(([_, f]: [string, any]) => evaluateVisibility(f.visible, expressionEvaluator))
+                                        .map(([key]: [string, any]) => key))
                                 : [],
                             onSuccess: () => {
                                 setIsDialogOpen(false);

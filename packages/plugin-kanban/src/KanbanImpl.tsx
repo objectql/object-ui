@@ -50,10 +50,11 @@ export interface KanbanColumn {
 export interface KanbanBoardProps {
   columns: KanbanColumn[]
   onCardMove?: (cardId: string, fromColumnId: string, toColumnId: string, newIndex: number) => void
+  onCardClick?: (card: KanbanCard) => void
   className?: string
 }
 
-function SortableCard({ card }: { card: KanbanCard }) {
+function SortableCard({ card, onCardClick }: { card: KanbanCard; onCardClick?: (card: KanbanCard) => void }) {
   const {
     attributes,
     listeners,
@@ -70,7 +71,9 @@ function SortableCard({ card }: { card: KanbanCard }) {
   }
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} role="listitem" aria-label={card.title}>
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} role="listitem" aria-label={card.title}
+      onClick={() => onCardClick?.(card)}
+    >
       <Card className="mb-2 cursor-grab active:cursor-grabbing border-border bg-card/60 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group touch-manipulation">
         <CardHeader className="p-2 sm:p-4">
           <CardTitle className="text-xs sm:text-sm font-medium font-mono tracking-tight text-foreground group-hover:text-primary transition-colors">{card.title}</CardTitle>
@@ -99,9 +102,11 @@ function SortableCard({ card }: { card: KanbanCard }) {
 function KanbanColumn({
   column,
   cards,
+  onCardClick,
 }: {
   column: KanbanColumn
   cards: KanbanCard[]
+  onCardClick?: (card: KanbanCard) => void
 }) {
   const safeCards = cards || [];
   const { setNodeRef } = useSortable({
@@ -146,7 +151,7 @@ function KanbanColumn({
         >
           <div className="space-y-2" role="list" aria-label={`${column.title} cards`}>
             {safeCards.map((card) => (
-              <SortableCard key={card.id} card={card} />
+              <SortableCard key={card.id} card={card} onCardClick={onCardClick} />
             ))}
           </div>
         </SortableContext>
@@ -161,21 +166,21 @@ function DndBridge({ children }: { children: (dnd: ReturnType<typeof useDnd>) =>
   return <>{children(dnd)}</>
 }
 
-export default function KanbanBoard({ columns, onCardMove, className }: KanbanBoardProps) {
+export default function KanbanBoard({ columns, onCardMove, onCardClick, className }: KanbanBoardProps) {
   const hasDnd = useHasDndProvider()
 
   if (hasDnd) {
     return (
       <DndBridge>
-        {(dnd) => <KanbanBoardInner columns={columns} onCardMove={onCardMove} className={className} dnd={dnd} />}
+        {(dnd) => <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={dnd} />}
       </DndBridge>
     )
   }
 
-  return <KanbanBoardInner columns={columns} onCardMove={onCardMove} className={className} dnd={null} />
+  return <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={null} />
 }
 
-function KanbanBoardInner({ columns, onCardMove, className, dnd }: KanbanBoardProps & { dnd: ReturnType<typeof useDnd> | null }) {
+function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd }: KanbanBoardProps & { dnd: ReturnType<typeof useDnd> | null }) {
   const [activeCard, setActiveCard] = React.useState<KanbanCard | null>(null)
   
   // Ensure we always have valid columns with cards array
@@ -335,6 +340,7 @@ function KanbanBoardInner({ columns, onCardMove, className, dnd }: KanbanBoardPr
             key={column.id}
             column={column}
             cards={column.cards}
+            onCardClick={onCardClick}
           />
         ))}
       </div>

@@ -26,6 +26,8 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData, CalendarConfig } from '@object-ui/types';
 import { CalendarView, type CalendarEvent } from './CalendarView';
 import { usePullToRefresh } from '@object-ui/mobile';
+import { useNavigationOverlay } from '@object-ui/react';
+import { NavigationOverlay } from '@object-ui/components';
 
 export interface CalendarSchema {
   type: 'calendar';
@@ -45,6 +47,7 @@ export interface ObjectCalendarProps {
   dataSource?: DataSource;
   className?: string;
   onEventClick?: (record: any) => void;
+  onRowClick?: (record: any) => void;
   onDateClick?: (date: Date) => void;
   onEdit?: (record: any) => void;
   onDelete?: (record: any) => void;
@@ -137,6 +140,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
   dataSource,
   className,
   onEventClick,
+  onRowClick,
   onDateClick,
   onNavigate,
   onViewChange,
@@ -303,6 +307,14 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
     onDateClick?.(today);
   }, [onDateClick]);
 
+  // --- NavigationConfig support ---
+  // Must be called before any early returns to satisfy React hooks rules
+  const navigation = useNavigationOverlay({
+    navigation: (schema as any).navigation,
+    objectName: schema.objectName,
+    onRowClick,
+  });
+
   if (loading) {
     return (
       <div className={className}>
@@ -350,7 +362,10 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
           events={events}
           currentDate={currentDate}
           view={(schema as any).defaultView || 'month'}
-          onEventClick={(event) => onEventClick?.(event.data)}
+          onEventClick={(event) => {
+            navigation.handleClick(event.data);
+            onEventClick?.(event.data);
+          }}
           onDateClick={onDateClick}
           onNavigate={(date) => {
             setCurrentDate(date);
@@ -363,6 +378,22 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
           onAddClick={handleCreate}
         />
       </div>
+      {navigation.isOverlay && (
+        <NavigationOverlay {...navigation} title="Event Details">
+          {(record) => (
+            <div className="space-y-3">
+              {Object.entries(record).map(([key, value]) => (
+                <div key={key} className="flex flex-col">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {key.replace(/_/g, ' ')}
+                  </span>
+                  <span className="text-sm">{String(value ?? '—')}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </NavigationOverlay>
+      )}
     </div>
   );
 };

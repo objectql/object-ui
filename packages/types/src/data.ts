@@ -248,6 +248,16 @@ export interface DataSource<T = any> {
   getApp?(appId: string): Promise<any | null>;
 
   /**
+   * Get a page definition by name or ID.
+   * Used by page renderers to fetch server-defined page layouts.
+   * Optional — implementations may return null to fall back to static config.
+   *
+   * @param pageId - Page identifier (e.g., 'home', 'settings', 'onboarding')
+   * @returns Promise resolving to the page definition or null
+   */
+  getPage?(pageId: string): Promise<any | null>;
+
+  /**
    * Upload a single file to a resource.
    * Optional — only supported by data sources with file storage integration.
    *

@@ -26,6 +26,7 @@ import {
 } from '@object-ui/components';
 import { Search, Bell, HelpCircle, ChevronDown } from 'lucide-react';
 
+import { useOffline } from '@object-ui/react';
 import { ModeToggle } from './mode-toggle';
 import { LocaleSwitcher } from './LocaleSwitcher';
 import { ConnectionStatus } from './ConnectionStatus';
@@ -41,6 +42,7 @@ function humanizeSlug(slug: string): string {
 export function AppHeader({ appName, objects, connectionState }: { appName: string, objects: any[], connectionState?: ConnectionState }) {
     const location = useLocation();
     const params = useParams();
+    const { isOnline } = useOffline();
     
     // Parse the current route to build breadcrumbs
     const pathParts = location.pathname.split('/').filter(Boolean);
@@ -164,6 +166,14 @@ export function AppHeader({ appName, objects, connectionState }: { appName: stri
              </div>
              
              <div className="flex items-center gap-0.5 sm:gap-1 md:gap-2 shrink-0">
+                {/* Offline indicator */}
+                {!isOnline && (
+                  <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 text-xs font-medium">
+                    <span className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
+                    Offline
+                  </div>
+                )}
+
                 {/* Connection Status */}
                 {connectionState && <ConnectionStatus state={connectionState} />}
                 

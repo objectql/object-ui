@@ -210,6 +210,9 @@ importers:
       '@object-ui/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@object-ui/collaboration':
+        specifier: workspace:*
+        version: link:../../packages/collaboration
       '@object-ui/components':
         specifier: workspace:*
         version: link:../../packages/components
@@ -240,6 +243,9 @@ importers:
       '@object-ui/mobile':
         specifier: workspace:*
         version: link:../../packages/mobile
+      '@object-ui/permissions':
+        specifier: workspace:*
+        version: link:../../packages/permissions
       '@object-ui/plugin-calendar':
         specifier: workspace:*
         version: link:../../packages/plugin-calendar
