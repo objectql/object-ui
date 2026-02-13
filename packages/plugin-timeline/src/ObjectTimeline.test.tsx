@@ -47,7 +47,7 @@ describe('ObjectTimeline', () => {
     });
 
     it('fetches data when objectName is provided', async () => {
-        (mockDataSource.find as any).mockResolvedValue({ value: mockData });
+        (mockDataSource.find as any).mockResolvedValue(mockData);
         
         const schema: any = {
             type: 'timeline',

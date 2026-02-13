@@ -3,6 +3,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import '@object-ui/fields'; // Ensure fields are registered for ObjectForm tests
+import '@object-ui/plugin-dashboard'; // Ensure dashboard component is registered
+import '@object-ui/plugin-report'; // Ensure report component is registered
 
 // -----------------------------------------------------------------------------
 // SYSTEM INTEGRATION TEST: Console Application

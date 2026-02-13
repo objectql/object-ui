@@ -114,7 +114,7 @@ describe('Console View Switching Integration', () => {
         ];
         
         // Setup mock response
-        mockDataSource.find.mockResolvedValue({ value: mockTasks });
+        mockDataSource.find.mockResolvedValue(mockTasks);
         // Spy on find
         const findSpy = vi.spyOn(mockDataSource, 'find');
         
