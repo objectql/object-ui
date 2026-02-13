@@ -28,7 +28,7 @@ ComponentRegistry.register('aspect-ratio',
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
       >
         {schema.image ? (
-          <img src={schema.image} alt={schema.alt || ''} className="rounded-md object-cover w-full h-full" />
+          <img src={schema.image} alt={schema.alt || ''} loading="lazy" className="rounded-md object-cover w-full h-full" />
         ) : (
           renderChildren(schema.children || schema.body)
         )}

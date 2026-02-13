@@ -94,7 +94,7 @@ export function SignatureField({ value, onChange, readonly }: FieldWidgetProps<s
   if (readonly && value) {
     return (
       <div className="border rounded p-2 bg-white">
-        <img src={value} alt="Signature" className="max-w-full h-auto" />
+        <img src={value} alt="Signature" loading="lazy" className="max-w-full h-auto" />
       </div>
     );
   }
