@@ -224,6 +224,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
   const [error, setError] = useState<Error | null>(null);
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const rawDataConfig = getDataConfig(schema);
   // Memoize dataConfig using deep comparison to prevent infinite loops
@@ -365,9 +366,18 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     markers.find(m => m.id === selectedMarkerId),
   [markers, selectedMarkerId]);
 
+  const filteredMarkers = useMemo(() => {
+    if (!searchQuery.trim()) return markers;
+    const q = searchQuery.toLowerCase();
+    return markers.filter(m =>
+      m.title?.toLowerCase().includes(q) ||
+      m.description?.toLowerCase().includes(q)
+    );
+  }, [markers, searchQuery]);
+
   // Calculate map bounds
   const initialViewState = useMemo(() => {
-    if (!markers.length) {
+    if (!filteredMarkers.length) {
       return {
         longitude: mapConfig.center?.[1] || 0,
         latitude: mapConfig.center?.[0] || 0,
@@ -376,8 +386,8 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     }
 
     // Simple bounds calculation
-    const lngs = markers.map(m => m.coordinates[0]);
-    const lats = markers.map(m => m.coordinates[1]);
+    const lngs = filteredMarkers.map(m => m.coordinates[0]);
+    const lats = filteredMarkers.map(m => m.coordinates[1]);
     
     const minLng = Math.min(...lngs);
     const maxLng = Math.max(...lngs);
@@ -389,7 +399,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
       latitude: (minLat + maxLat) / 2,
       zoom: mapConfig.zoom || 3, // Auto-zoom logic could be improved here
     };
-  }, [markers, mapConfig]);
+  }, [filteredMarkers, mapConfig]);
 
   if (loading) {
     return (
@@ -418,15 +428,29 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
           {`${invalidCount} record${invalidCount !== 1 ? 's' : ''} with missing or invalid coordinates excluded from the map.`}
         </div>
       )}
+      {markers.length > 0 && (
+        <div className="mb-2">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search locations…"
+            className="w-full px-3 py-2 text-sm border rounded-md bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      )}
       <div className="relative border rounded-lg overflow-hidden bg-muted h-[300px] sm:h-[400px] md:h-[500px] lg:h-[600px] w-full">
          <Map
             initialViewState={initialViewState}
             style={{ width: '100%', height: '100%' }}
             mapStyle="https://demotiles.maplibre.org/style.json"
+            touchZoomRotate={true}
+            dragRotate={true}
+            touchPitch={true}
          >
-            <NavigationControl position="top-right" />
+            <NavigationControl position="top-right" showCompass={true} showZoom={true} />
             
-            {markers.map(marker => (
+            {filteredMarkers.map(marker => (
                 <Marker
                     key={marker.id}
                     longitude={marker.coordinates[0]}

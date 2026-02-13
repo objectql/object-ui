@@ -30,8 +30,14 @@ import {
 } from "@object-ui/components"
 
 const HEADER_HEIGHT = 50;
-const ROW_HEIGHT = 40;
 const COLUMN_WIDTH = 100; // Time column width
+
+function getResponsiveColumnWidth() {
+  const w = typeof window !== 'undefined' ? window.innerWidth : 1024;
+  if (w < 640) return 35;
+  if (w < 1024) return 50;
+  return 60;
+}
 
 export interface GanttTask {
   id: string | number
@@ -68,7 +74,19 @@ export function GanttView({
   className
 }: GanttViewProps) {
   const [currentDate, setCurrentDate] = React.useState(new Date());
-  const [columnWidth, setColumnWidth] = React.useState(60);
+  const [rowHeight, setRowHeight] = React.useState(
+    typeof window !== 'undefined' && window.innerWidth < 640 ? 32 : 40
+  );
+  const [columnWidth, setColumnWidth] = React.useState(getResponsiveColumnWidth());
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setRowHeight(window.innerWidth < 640 ? 32 : 40);
+      setColumnWidth(getResponsiveColumnWidth());
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // Calculate timeline range
   const timelineRange = React.useMemo(() => {
@@ -179,10 +197,10 @@ export function GanttView({
             </SelectContent>
           </Select>
           <div className="flex bg-muted rounded-md p-1">
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setColumnWidth(prev => Math.max(20, prev - 10))}>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setColumnWidth(prev => Math.max(15, prev - 10))}>
               <ZoomOut className="h-3 w-3" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setColumnWidth(prev => Math.min(100, prev + 10))}>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setColumnWidth(prev => Math.min(120, prev + 10))}>
               <ZoomIn className="h-3 w-3" />
             </Button>
           </div>
@@ -237,7 +255,7 @@ export function GanttView({
               <div 
                 key={task.id}
                 className="flex items-center border-b px-2 sm:px-4 hover:bg-accent/50 cursor-pointer transition-colors touch-manipulation"
-                style={{ height: ROW_HEIGHT }}
+                style={{ height: rowHeight }}
                 onClick={() => onTaskClick?.(task)}
               >
                 <div className="flex-1 truncate font-medium text-xs sm:text-sm flex items-center gap-2">
@@ -287,10 +305,10 @@ export function GanttView({
                     <div 
                       key={task.id}
                       className="relative border-b hover:bg-black/5"
-                      style={{ height: ROW_HEIGHT }}
+                      style={{ height: rowHeight }}
                     >
                       <div 
-                        className="absolute top-2 h-[calc(100%-16px)] rounded-sm bg-primary border border-primary-foreground/20 shadow-sm cursor-pointer hover:brightness-110 flex items-center px-2 group"
+                        className="absolute top-1 sm:top-2 h-[calc(100%-8px)] sm:h-[calc(100%-16px)] rounded-sm bg-primary border border-primary-foreground/20 shadow-sm cursor-pointer hover:brightness-110 flex items-center px-2 group"
                         style={{ 
                           left: style.left, 
                           width: style.width,
