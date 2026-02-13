@@ -329,10 +329,13 @@ describe('P3.1 API Consistency Audit', () => {
     it('no component source uses plural "variants:" as a CVA key (should be "variant:")', () => {
       for (const { dir, file } of allSourceFiles) {
         const src = readSource(dir, file);
-        // CVA config objects use `variants: { variant: ... }` which is correct.
-        // We check that no component destructures a plural prop like `variants` from props.
-        const hasPluralPropDestructure = /\{\s*(?:.*,\s*)?variants\s*[,}]/.test(src) &&
-          !/variants\s*:\s*\{/.test(src);
+        // Detect if "variants" appears as a destructured prop in function args.
+        // CVA config legitimately uses `variants: { variant: ... }` at the top
+        // level — we only flag files that destructure `variants` from component
+        // props, which would indicate an incorrect plural prop name.
+        const destructuresVariantsProp = /\{\s*(?:.*,\s*)?variants\s*[,}]/.test(src);
+        const hasCvaVariantsBlock = /variants\s*:\s*\{/.test(src);
+        const hasPluralPropDestructure = destructuresVariantsProp && !hasCvaVariantsBlock;
         expect(hasPluralPropDestructure).toBe(false);
       }
     });
@@ -398,7 +401,8 @@ describe('P3.1 API Consistency Audit', () => {
     it('ui/index.ts re-exports all component files', () => {
       const indexSrc = fs.readFileSync(path.join(UI_DIR, 'index.ts'), 'utf-8');
       const uiFiles = listComponentFiles(UI_DIR);
-      // toast.tsx is an internal module consumed via sonner.tsx, not directly exported
+      // toast.tsx is an internal module re-exported through sonner.tsx, not
+      // listed in ui/index.ts directly. Exclude it from the re-export check.
       const internalModules = new Set(['toast']);
       const missingExports: string[] = [];
       for (const file of uiFiles) {
