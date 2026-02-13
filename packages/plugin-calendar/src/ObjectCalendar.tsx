@@ -25,6 +25,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData, CalendarConfig } from '@object-ui/types';
 import { CalendarView, type CalendarEvent } from './CalendarView';
+import { usePullToRefresh } from '@object-ui/mobile';
 
 export interface CalendarSchema {
   type: 'calendar';
@@ -147,6 +148,16 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handlePullRefresh = useCallback(async () => {
+    setRefreshKey(k => k + 1);
+  }, []);
+
+  const { ref: pullRef, isRefreshing, pullDistance } = usePullToRefresh<HTMLDivElement>({
+    onRefresh: handlePullRefresh,
+    enabled: !!dataSource && !!schema.objectName,
+  });
 
   const dataConfig = useMemo(() => getDataConfig(schema), [
     (schema as any).data,
@@ -232,7 +243,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
 
     fetchData();
     return () => { isMounted = false; };
-  }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort]);
+  }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, refreshKey]);
 
   // Fetch object schema for field metadata
   useEffect(() => {
@@ -325,7 +336,15 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
   }
 
   return (
-    <div className={className}>
+    <div ref={pullRef} className={className}>
+      {pullDistance > 0 && (
+        <div
+          className="flex items-center justify-center text-xs text-muted-foreground"
+          style={{ height: pullDistance }}
+        >
+          {isRefreshing ? 'Refreshing…' : 'Pull to refresh'}
+        </div>
+      )}
       <div className="border rounded-lg bg-background h-[calc(100vh-120px)] sm:h-[calc(100vh-160px)] md:h-[calc(100vh-200px)] min-h-[400px] sm:min-h-[600px]">
         <CalendarView
           events={events}

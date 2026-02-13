@@ -237,6 +237,9 @@ importers:
       '@object-ui/layout':
         specifier: workspace:*
         version: link:../../packages/layout
+      '@object-ui/mobile':
+        specifier: workspace:*
+        version: link:../../packages/mobile
       '@object-ui/plugin-calendar':
         specifier: workspace:*
         version: link:../../packages/plugin-calendar
@@ -1268,6 +1271,9 @@ importers:
       '@object-ui/fields':
         specifier: workspace:*
         version: link:../fields
+      '@object-ui/mobile':
+        specifier: workspace:*
+        version: link:../mobile
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
@@ -1700,6 +1706,9 @@ importers:
       '@object-ui/fields':
         specifier: workspace:*
         version: link:../fields
+      '@object-ui/mobile':
+        specifier: workspace:*
+        version: link:../mobile
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
@@ -1804,6 +1813,9 @@ importers:
       '@object-ui/core':
         specifier: workspace:*
         version: link:../core
+      '@object-ui/mobile':
+        specifier: workspace:*
+        version: link:../mobile
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react

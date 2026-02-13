@@ -26,6 +26,7 @@ import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction } from '@object-ui/react';
 import { getCellRenderer } from '@object-ui/fields';
 import { Button, NavigationOverlay } from '@object-ui/components';
+import { usePullToRefresh } from '@object-ui/mobile';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -123,6 +124,16 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [error, setError] = useState<Error | null>(null);
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [useCardView, setUseCardView] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handlePullRefresh = useCallback(async () => {
+    setRefreshKey(k => k + 1);
+  }, []);
+
+  const { ref: pullRef, isRefreshing, pullDistance } = usePullToRefresh<HTMLDivElement>({
+    onRefresh: handlePullRefresh,
+    enabled: !!dataSource && !!schema.objectName,
+  });
 
   useEffect(() => {
     const checkWidth = () => setUseCardView(window.innerWidth < 480);
@@ -282,7 +293,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [objectName, schemaFields, schemaColumns, schemaFilter, schemaSort, schemaPagination, schemaPageSize, dataSource, hasInlineData, dataConfig]);
+  }, [objectName, schemaFields, schemaColumns, schemaFilter, schemaSort, schemaPagination, schemaPageSize, dataSource, hasInlineData, dataConfig, refreshKey]);
 
   // --- NavigationConfig support ---
   // Must be called before any early returns to satisfy React hooks rules
@@ -688,7 +699,15 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   }
 
   return (
-    <>
+    <div ref={pullRef} className="relative h-full">
+      {pullDistance > 0 && (
+        <div
+          className="flex items-center justify-center text-xs text-muted-foreground"
+          style={{ height: pullDistance }}
+        >
+          {isRefreshing ? 'Refreshing…' : 'Pull to refresh'}
+        </div>
+      )}
       {gridContent}
       {navigation.isOverlay && (
         <NavigationOverlay
@@ -709,6 +728,6 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           )}
         </NavigationOverlay>
       )}
-    </>
+    </div>
   );
 };

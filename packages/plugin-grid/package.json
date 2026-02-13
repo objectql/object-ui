@@ -23,6 +23,7 @@
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/fields": "workspace:*",
+    "@object-ui/mobile": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@tanstack/react-virtual": "^3.11.3",

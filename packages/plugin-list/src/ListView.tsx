@@ -14,6 +14,7 @@ import type { FilterGroup } from '@object-ui/components';
 import { ViewSwitcher, ViewType } from './ViewSwitcher';
 import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
+import { usePullToRefresh } from '@object-ui/mobile';
 
 export interface ListViewProps {
   schema: ListViewSchema;
@@ -110,6 +111,16 @@ export const ListView: React.FC<ListViewProps> = ({
   const [data, setData] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [objectDef, setObjectDef] = React.useState<any>(null);
+  const [refreshKey, setRefreshKey] = React.useState(0);
+
+  const handlePullRefresh = React.useCallback(async () => {
+    setRefreshKey(k => k + 1);
+  }, []);
+
+  const { ref: pullRef, isRefreshing, pullDistance } = usePullToRefresh<HTMLDivElement>({
+    onRefresh: handlePullRefresh,
+    enabled: !!dataSource && !!schema.objectName,
+  });
 
   const storageKey = React.useMemo(() => {
     return schema.id 
@@ -196,7 +207,7 @@ export const ListView: React.FC<ListViewProps> = ({
     fetchData();
     
     return () => { isMounted = false; };
-  }, [schema.objectName, dataSource, schema.filters, currentSort, currentFilters]); // Re-fetch on filter/sort change
+  }, [schema.objectName, dataSource, schema.filters, currentSort, currentFilters, refreshKey]); // Re-fetch on filter/sort change
 
   // Available view types based on schema configuration
   const availableViews = React.useMemo(() => {
@@ -393,7 +404,15 @@ export const ListView: React.FC<ListViewProps> = ({
   const [searchExpanded, setSearchExpanded] = React.useState(false);
 
   return (
-    <div className={cn('flex flex-col h-full bg-background', className)}>
+    <div ref={pullRef} className={cn('flex flex-col h-full bg-background relative', className)}>
+      {pullDistance > 0 && (
+        <div
+          className="flex items-center justify-center text-xs text-muted-foreground"
+          style={{ height: pullDistance }}
+        >
+          {isRefreshing ? 'Refreshing…' : 'Pull to refresh'}
+        </div>
+      )}
       {/* Airtable-style Toolbar — Row 1: View tabs */}
       {showViewSwitcher && (
         <div className="border-b px-4 py-1 flex items-center bg-background">
