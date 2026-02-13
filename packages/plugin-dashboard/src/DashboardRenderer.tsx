@@ -58,6 +58,8 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
         ref={ref}
         className={cn(
           "grid auto-rows-min",
+          // Responsive grid: 1 column on mobile, 2 on sm, 3 on lg, 4 on xl
+          // When columns > 4, inline gridTemplateColumns style overrides these classes
           "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
           className
         )}
@@ -170,7 +172,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                         </CardHeader>
                     )}
                     <CardContent className="p-0">
-                        <div className={cn("h-full w-full", "p-3 sm:p-4")}>
+                        <div className={cn("h-full w-full", "p-3 sm:p-4 md:p-6")}>
                             <SchemaRenderer schema={componentSchema} />
                         </div>
                     </CardContent>
