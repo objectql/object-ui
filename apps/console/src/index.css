@@ -154,8 +154,6 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    /* Support safe area insets for notched devices */
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 
   /* Prevent iOS zoom on input focus (ensure minimum 16px font) */
@@ -165,8 +163,13 @@
     }
   }
 
-  /* Use dynamic viewport height for full-screen layouts */
-  .h-screen {
+  /* Dynamic viewport height utility for mobile-safe full-screen layouts */
+  .h-dvh {
     height: 100dvh;
+  }
+
+  /* Safe-area-inset utility for notched devices */
+  .safe-area-inset {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 }

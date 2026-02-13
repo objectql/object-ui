@@ -221,7 +221,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
                 {timeHeaders.map((header, index) => (
                   <div
                     key={index}
-                    className="flex-1 px-1 sm:px-2 py-2 sm:py-3 border-r text-[10px] sm:text-xs font-medium text-center"
+                    className="flex-1 px-1 sm:px-2 py-2 sm:py-3 border-r text-xs font-medium text-center"
                   >
                     {header}
                   </div>

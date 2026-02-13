@@ -149,7 +149,7 @@ export function GanttView({
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 border-b bg-card">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => onAddClick?.()}>
+          <Button variant="outline" size="sm" onClick={() => onAddClick?.()} aria-label="Create new task">
             <Plus className="h-4 w-4 mr-1 sm:mr-2" />
             <span className="hidden sm:inline">New Task</span>
             <span className="sm:hidden">New</span>
