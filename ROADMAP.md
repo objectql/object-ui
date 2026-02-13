@@ -295,8 +295,8 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultrawide).
 
 ##### ObjectGrid (`plugin-grid`)
-- [ ] Wrap data table in `overflow-x-auto` container for horizontal scroll on mobile
-- [ ] Add responsive toolbar: stack filter/sort/search controls vertically below `sm:` breakpoint
+- [x] Wrap data table in `overflow-x-auto` container for horizontal scroll on mobile
+- [x] Add responsive toolbar: stack filter/sort/search controls vertically below `sm:` breakpoint
 - [ ] Collapse non-essential columns on mobile via `hidden sm:table-cell` pattern
 - [ ] Scale row padding: `px-2 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-2.5`
 - [ ] Add mobile card-view fallback for screens below 480px (toggle between table and card layout)
@@ -304,29 +304,29 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 
 ##### ObjectKanban (`plugin-kanban`)
 - [ ] Stack columns vertically on mobile with horizontal swipe navigation between columns
-- [ ] Scale card sizing: `p-2 sm:p-3 md:p-4` with responsive typography
+- [x] Scale card sizing: `p-2 sm:p-3 md:p-4` with responsive typography
 - [ ] Add touch-friendly drag-and-drop via `useGesture` (long-press to initiate, haptic feedback)
-- [ ] Column headers: `text-sm sm:text-base` with truncation on mobile
+- [x] Column headers: `text-sm sm:text-base` with truncation on mobile
 - [ ] Add column count badge and swipe indicator on mobile
-- [ ] Limit visible card fields on mobile (show title + status only, expand on tap)
+- [x] Limit visible card fields on mobile (show title + status only, expand on tap)
 
 ##### ObjectForm (`plugin-form`)
-- [ ] Ensure mobile-first column stacking: 1 column on `xs`, 2 on `sm:`, 3+ on `md:`
+- [x] Ensure mobile-first column stacking: 1 column on `xs`, 2 on `sm:`, 3+ on `md:`
 - [ ] Scale field labels: `text-xs sm:text-sm` with proper spacing
-- [ ] Make action buttons full-width on mobile: `w-full sm:w-auto`
+- [x] Make action buttons full-width on mobile: `w-full sm:w-auto`
 - [ ] Increase touch targets for all form controls (min 44×44px)
 - [ ] Optimize select/dropdown fields for mobile (bottom sheet pattern on phones)
 - [ ] Ensure date pickers and multi-select fields are mobile-friendly
 
 ##### ObjectDashboard (`plugin-dashboard`)
-- [ ] Implement responsive grid: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`
-- [ ] Scale widget padding: `p-3 sm:p-4 md:p-6` per widget card
-- [ ] Stack dashboard header controls on mobile (title above actions)
+- [x] Implement responsive grid: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`
+- [x] Scale widget padding: `p-3 sm:p-4 md:p-6` per widget card
+- [x] Stack dashboard header controls on mobile (title above actions)
 - [ ] Add swipeable widget carousel option for mobile
 - [ ] Chart widgets: reduce axis label density on mobile
 
 ##### ObjectCalendar (`plugin-calendar`)
-- [ ] Replace fixed `h-[calc(100vh-200px)]` with responsive height: `h-[calc(100vh-120px)] sm:h-[calc(100vh-160px)] md:h-[calc(100vh-200px)]`
+- [x] Replace fixed `h-[calc(100vh-200px)]` with responsive height: `h-[calc(100vh-120px)] sm:h-[calc(100vh-160px)] md:h-[calc(100vh-200px)]`
 - [ ] Default to day or agenda view on mobile (month view unreadable on phones)
 - [ ] Add swipe-to-navigate between days/weeks on mobile via `useGesture`
 - [ ] Scale event text: `text-xs sm:text-sm` with single-line truncation
@@ -334,52 +334,52 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 
 ##### ObjectTimeline (`plugin-timeline`)
 - [ ] Switch from side-by-side to single-column layout on mobile
-- [ ] Scale item padding: `p-2 sm:p-3 md:p-4` with responsive typography
+- [x] Scale item padding: `p-2 sm:p-3 md:p-4` with responsive typography
 - [ ] Truncate event descriptions on mobile with "Show more" expand
 - [ ] Add pull-to-refresh via `usePullToRefresh` for timeline data
 
 ##### ObjectList (`plugin-list`)
-- [ ] Stack toolbar controls vertically on mobile with collapsible filter panel
-- [ ] Scale search bar: `w-full sm:w-48 lg:w-64` (full-width on mobile)
-- [ ] Responsive list item padding: `px-2 sm:px-3 md:px-4`
+- [x] Stack toolbar controls vertically on mobile with collapsible filter panel
+- [x] Scale search bar: `w-full sm:w-48 lg:w-64` (full-width on mobile)
+- [x] Responsive list item padding: `px-2 sm:px-3 md:px-4`
 - [ ] Ensure action menus use bottom sheet on mobile instead of popovers
 - [ ] Touch-friendly row selection (checkbox size ≥ 44px)
 
 ##### DetailView (`plugin-detail`)
-- [ ] Stack header actions vertically on narrow screens: `flex-col sm:flex-row`
-- [ ] Full-width action buttons on mobile: `w-full sm:w-auto`
-- [ ] Scale section padding: `p-3 sm:p-4 md:p-6`
+- [x] Stack header actions vertically on narrow screens: `flex-col sm:flex-row`
+- [x] Full-width action buttons on mobile: `w-full sm:w-auto`
+- [x] Scale section padding: `p-3 sm:p-4 md:p-6`
 - [ ] Convert metadata panel to bottom drawer on mobile
 - [ ] Increase field value touch targets for copy-to-clipboard
 
 ##### Charts (`plugin-charts`)
-- [ ] Set responsive chart heights: `h-48 sm:h-64 md:h-80 lg:h-96`
+- [x] Set responsive chart heights: `h-48 sm:h-64 md:h-80 lg:h-96`
 - [ ] Reduce axis label count on mobile to prevent overlap
 - [ ] Enable touch-to-inspect data points (tooltip on tap)
 - [ ] Stack legend below chart on mobile: `flex-col sm:flex-row`
 
 ##### Map (`plugin-map`)
 - [ ] Enable pinch-to-zoom and two-finger pan on mobile
-- [ ] Scale info popup sizing for mobile screens
+- [x] Scale info popup sizing for mobile screens
 - [ ] Add mobile-friendly location search with bottom sheet
 - [ ] Ensure map controls (zoom, layer toggle) are touch-accessible
 
 ##### Gantt (`plugin-gantt`)
-- [ ] Add horizontal scroll container with touch momentum
+- [x] Add horizontal scroll container with touch momentum
 - [ ] Scale bar heights: `h-6 sm:h-8 md:h-10`
-- [ ] Collapse task details on mobile (show name only, expand on tap)
+- [x] Collapse task details on mobile (show name only, expand on tap)
 - [ ] Add responsive zoom levels (day view on mobile, week on tablet, month on desktop)
 
 #### P5.2 Console Pages — Responsive Layouts
 
 ##### AppHeader
-- [ ] Ensure all header actions are accessible on mobile (overflow menu for hidden actions)
-- [ ] Add mobile-specific command palette trigger (prominent search icon)
-- [ ] Scale header height: `h-12 sm:h-14 md:h-16`
-- [ ] Responsive breadcrumb: show only current page on mobile, full path on desktop
+- [x] Ensure all header actions are accessible on mobile (overflow menu for hidden actions)
+- [x] Add mobile-specific command palette trigger (prominent search icon)
+- [x] Scale header height: `h-12 sm:h-14 md:h-16`
+- [x] Responsive breadcrumb: show only current page on mobile, full path on desktop
 
 ##### AppSidebar
-- [ ] Auto-collapse to icon-only mode on tablet, full overlay on mobile
+- [x] Auto-collapse to icon-only mode on tablet, full overlay on mobile
 - [ ] Add swipe-from-edge gesture to open sidebar on mobile via `useGesture`
 - [ ] Scale menu item padding for touch: `py-2.5 sm:py-2` (larger on mobile)
 - [ ] Bottom navigation bar option for mobile (5-item tab bar)
@@ -387,7 +387,7 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 ##### DashboardView (Console)
 - [ ] Stack title and metadata toggle vertically on mobile
 - [ ] Scale heading: `text-lg sm:text-xl md:text-2xl`
-- [ ] Add responsive padding: `p-3 sm:p-4 md:p-6 lg:p-8`
+- [x] Add responsive padding: `p-3 sm:p-4 md:p-6 lg:p-8`
 - [ ] Optimize metadata panel as collapsible accordion on mobile
 
 ##### RecordDetailView
@@ -404,17 +404,17 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 #### P5.3 Core Component Primitives
 
 ##### DataTable (`components/renderers/complex`)
-- [ ] Add outer `overflow-x-auto` wrapper with `-webkit-overflow-scrolling: touch`
-- [ ] Scale pagination controls: full-width on mobile with larger touch targets
+- [x] Add outer `overflow-x-auto` wrapper with `-webkit-overflow-scrolling: touch`
+- [x] Scale pagination controls: full-width on mobile with larger touch targets
 - [ ] Responsive column visibility system (priority-based column hiding)
-- [ ] Mobile-optimized search/filter bar: full-width, collapsible
+- [x] Mobile-optimized search/filter bar: full-width, collapsible
 - [ ] Horizontal scroll indicator (shadow/gradient) on mobile
 
 ##### Form Renderer (`components/renderers/form`)
-- [ ] Verify responsive column mapping works correctly for all column counts (1–4)
+- [x] Verify responsive column mapping works correctly for all column counts (1–4)
 - [ ] Ensure wizard/stepper variant shows 1 step at a time on mobile
 - [ ] Scale step indicators for mobile: `text-xs sm:text-sm`, smaller circles
-- [ ] Full-width submit/cancel buttons on mobile
+- [x] Full-width submit/cancel buttons on mobile
 
 ##### Navigation Components
 - [ ] Breadcrumb: truncate to current + parent on mobile with "..." overflow
@@ -442,10 +442,10 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [ ] Implement offline indicator and cached-data fallback
 
 ##### Viewport & Input Handling
-- [ ] Handle virtual keyboard resize (100dvh instead of 100vh for mobile)
-- [ ] Prevent zoom on input focus (`font-size: 16px` minimum for inputs)
-- [ ] Add viewport meta tag validation in Console HTML template
-- [ ] Support safe-area-inset for notched devices (`env(safe-area-inset-*)`)
+- [x] Handle virtual keyboard resize (100dvh instead of 100vh for mobile)
+- [x] Prevent zoom on input focus (`font-size: 16px` minimum for inputs)
+- [x] Add viewport meta tag validation in Console HTML template
+- [x] Support safe-area-inset for notched devices (`env(safe-area-inset-*)`)
 
 #### P5.5 Testing & Quality Assurance
 

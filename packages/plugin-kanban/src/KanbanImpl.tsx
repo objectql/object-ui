@@ -70,17 +70,17 @@ function SortableCard({ card }: { card: KanbanCard }) {
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} role="listitem" aria-label={card.title}>
-      <Card className="mb-2 cursor-grab active:cursor-grabbing border-border bg-card/60 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group">
-        <CardHeader className="p-4">
-          <CardTitle className="text-sm font-medium font-mono tracking-tight text-foreground group-hover:text-primary transition-colors">{card.title}</CardTitle>
+      <Card className="mb-2 cursor-grab active:cursor-grabbing border-border bg-card/60 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group touch-manipulation">
+        <CardHeader className="p-2 sm:p-4">
+          <CardTitle className="text-xs sm:text-sm font-medium font-mono tracking-tight text-foreground group-hover:text-primary transition-colors">{card.title}</CardTitle>
           {card.description && (
-            <CardDescription className="text-xs text-muted-foreground font-mono">
+            <CardDescription className="text-xs text-muted-foreground font-mono line-clamp-2 sm:line-clamp-none">
               {card.description}
             </CardDescription>
           )}
         </CardHeader>
         {card.badges && card.badges.length > 0 && (
-          <CardContent className="p-4 pt-0">
+          <CardContent className="p-2 sm:p-4 pt-0">
             <div className="flex flex-wrap gap-1">
               {card.badges.map((badge, index) => (
                 <Badge key={index} variant={badge.variant || "default"} className="text-xs">
@@ -124,7 +124,7 @@ function KanbanColumn({
     >
       <div className="p-3 sm:p-4 border-b border-border/50 bg-muted/20">
         <div className="flex items-center justify-between">
-          <h3 id={`kanban-col-${column.id}`} className="font-mono text-sm font-semibold tracking-wider text-primary/90 uppercase">{column.title}</h3>
+          <h3 id={`kanban-col-${column.id}`} className="font-mono text-xs sm:text-sm font-semibold tracking-wider text-primary/90 uppercase truncate">{column.title}</h3>
           <div className="flex items-center gap-2">
             <span className="font-mono text-xs text-muted-foreground" aria-label={`${safeCards.length} cards${column.limit ? ` of ${column.limit} maximum` : ''}`}>
               {safeCards.length}
