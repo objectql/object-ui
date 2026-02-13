@@ -12,6 +12,7 @@
     "theming",
     "plugins",
     "schema-overview",
+    "schema-playground",
     "console",
     "console-architecture",
     "console-rendering",
