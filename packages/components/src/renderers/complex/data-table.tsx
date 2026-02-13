@@ -579,8 +579,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
         </div>
       )}
 
-      {/* Table */}
-      <div className="rounded-md border flex-1 min-h-0 overflow-auto relative bg-background [-webkit-overflow-scrolling:touch]">
+      {/* Table - horizontal scroll indicator via inset shadow on mobile */}
+      <div className="rounded-md border flex-1 min-h-0 overflow-auto relative bg-background [-webkit-overflow-scrolling:touch] shadow-[inset_-8px_0_8px_-8px_rgba(0,0,0,0.08)]">
         <Table>
           {caption && <TableCaption>{caption}</TableCaption>}
           <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">

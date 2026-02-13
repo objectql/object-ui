@@ -364,7 +364,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
                   {/* Connector line */}
                   {index !== totalSteps - 1 && (
                     <div
-                      className="absolute top-4 left-8 -right-4 sm:left-10 sm:-right-2 h-0.5"
+                      className="absolute top-3 sm:top-4 left-6 -right-4 sm:left-10 sm:-right-2 h-0.5"
                       aria-hidden="true"
                     >
                       <div
@@ -385,24 +385,24 @@ export const WizardForm: React.FC<WizardFormProps> = ({
                     onClick={() => handleStepClick(index)}
                     disabled={!isClickable}
                   >
-                    {/* Step circle */}
+                    {/* Step circle - smaller on mobile */}
                     <span
                       className={cn(
-                        'flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors',
+                        'flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full text-xs sm:text-sm font-medium transition-colors',
                         isCompleted && 'bg-primary text-primary-foreground',
                         isActive && !isCompleted && 'border-2 border-primary bg-background text-primary',
                         !isActive && !isCompleted && 'border-2 border-muted bg-background text-muted-foreground'
                       )}
                     >
                       {isCompleted ? (
-                        <Check className="h-4 w-4" />
+                        <Check className="h-3 w-3 sm:h-4 sm:w-4" />
                       ) : (
                         index + 1
                       )}
                     </span>
 
                     {/* Step label */}
-                    <span className="ml-3 text-sm font-medium hidden sm:block">
+                    <span className="ml-2 sm:ml-3 text-xs sm:text-sm font-medium hidden sm:block">
                       <span
                         className={cn(
                           isActive ? 'text-foreground' : 'text-muted-foreground'
