@@ -115,7 +115,7 @@ describe('ObjectView Component', () => {
         
         render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
         
-        expect(screen.getByText('Object Not Found')).toBeInTheDocument();
+        expect(screen.getByText('console.objectView.objectNotFound')).toBeInTheDocument();
     });
 
     it('renders default grid view for Opportunity', () => {

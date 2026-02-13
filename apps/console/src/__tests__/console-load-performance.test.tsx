@@ -20,7 +20,7 @@
  *   - MSW gated behind a runtime flag
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React, { Suspense } from 'react';
