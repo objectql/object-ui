@@ -8,7 +8,8 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import type { DataSource } from '@object-ui/types';
-import { useDataScope } from '@object-ui/react';
+import { useDataScope, useNavigationOverlay } from '@object-ui/react';
+import { NavigationOverlay } from '@object-ui/components';
 import { KanbanRenderer } from './index';
 import { KanbanSchema } from './types';
 
@@ -16,12 +17,16 @@ export interface ObjectKanbanProps {
   schema: KanbanSchema;
   dataSource?: DataSource;
   className?: string; // Allow override
+  onRowClick?: (record: any) => void;
+  onCardClick?: (record: any) => void;
 }
 
 export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
   schema,
   dataSource,
   className,
+  onRowClick,
+  onCardClick,
   ...props
 }) => {
   const [fetchedData, setFetchedData] = useState<any[]>([]);
@@ -175,6 +180,12 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
       className: className || schema.className
   };
 
+  const navigation = useNavigationOverlay({
+    navigation: (schema as any).navigation,
+    objectName: schema.objectName,
+    onRowClick: onRowClick ?? onCardClick,
+  });
+
   if (error) {
       return (
         <div className="p-4 border border-destructive/50 rounded bg-destructive/10 text-destructive">
@@ -184,5 +195,35 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
   }
 
   // Pass through to the renderer
-  return <KanbanRenderer schema={effectiveSchema} />;
+  const detailTitle = schema.objectName
+    ? `${schema.objectName.charAt(0).toUpperCase() + schema.objectName.slice(1).replace(/_/g, ' ')} Detail`
+    : 'Card Details';
+
+  return (
+    <>
+      <KanbanRenderer schema={{
+        ...effectiveSchema,
+        onCardClick: (card: any) => {
+          navigation.handleClick(card);
+          onCardClick?.(card);
+        },
+      }} />
+      {navigation.isOverlay && (
+        <NavigationOverlay {...navigation} title={detailTitle}>
+          {(record) => (
+            <div className="space-y-3">
+              {Object.entries(record).map(([key, value]) => (
+                <div key={key} className="flex flex-col">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {key.replace(/_/g, ' ')}
+                  </span>
+                  <span className="text-sm">{String(value ?? '—')}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </NavigationOverlay>
+      )}
+    </>
+  );
 }

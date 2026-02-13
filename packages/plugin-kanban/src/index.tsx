@@ -30,6 +30,7 @@ export interface KanbanRendererProps {
     data?: Array<any>;
     groupBy?: string;
     onCardMove?: (cardId: string, fromColumnId: string, toColumnId: string, newIndex: number) => void;
+    onCardClick?: (card: any) => void;
   };
 }
 
@@ -80,6 +81,7 @@ export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema }) => {
       <LazyKanban
         columns={processedColumns}
         onCardMove={schema.onCardMove}
+        onCardClick={schema.onCardClick}
         className={schema.className}
       />
     </Suspense>
