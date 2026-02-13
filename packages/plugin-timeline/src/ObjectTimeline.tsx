@@ -6,9 +6,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import type { DataSource, TimelineSchema } from '@object-ui/types';
 import { useDataScope } from '@object-ui/react';
+import { usePullToRefresh } from '@object-ui/mobile';
 import { z } from 'zod';
 import { TimelineRenderer } from './renderer';
 
@@ -54,6 +55,7 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   const [fetchedData, setFetchedData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const result = TimelineExtensionSchema.safeParse(schema);
@@ -93,7 +95,7 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
     if (schema.objectName && !boundData && !schema.items && !(props as any).data) {
         fetchData();
     }
-  }, [schema.objectName, dataSource, boundData, schema.items, (props as any).data]);
+  }, [schema.objectName, dataSource, boundData, schema.items, (props as any).data, refreshKey]);
 
   const rawData = (props as any).data || boundData || fetchedData;
 
@@ -125,6 +127,15 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
       className: className || schema.className
   };
 
+  const handleRefresh = useCallback(async () => {
+    setRefreshKey(k => k + 1);
+  }, []);
+
+  const { ref: pullRef, isRefreshing, pullDistance } = usePullToRefresh<HTMLDivElement>({
+    onRefresh: handleRefresh,
+    enabled: !!schema.objectName && !!dataSource,
+  });
+
   if (error) {
       return (
         <div className="p-4 text-red-500">
@@ -133,5 +144,17 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
       );
   }
 
-  return <TimelineRenderer schema={effectiveSchema} />;
+  return (
+    <div ref={pullRef} className="relative overflow-auto h-full">
+      {pullDistance > 0 && (
+        <div
+          className="flex items-center justify-center text-xs text-muted-foreground"
+          style={{ height: pullDistance }}
+        >
+          {isRefreshing ? 'Refreshing…' : 'Pull to refresh'}
+        </div>
+      )}
+      <TimelineRenderer schema={effectiveSchema} />
+    </div>
+  );
 }

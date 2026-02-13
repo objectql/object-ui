@@ -29,6 +29,7 @@ export default defineConfig({
       '@object-ui/react': resolve(__dirname, '../react/src'),
       '@object-ui/components': resolve(__dirname, '../components/src'),
       '@object-ui/fields': resolve(__dirname, '../fields/src'),
+      '@object-ui/mobile': resolve(__dirname, '../mobile/src'),
       '@object-ui/plugin-dashboard': resolve(__dirname, '../plugin-dashboard/src'),
       '@object-ui/plugin-grid': resolve(__dirname, '../plugin-grid/src'),
     },
@@ -40,7 +41,7 @@ export default defineConfig({
       fileName: 'index',
     },
     rollupOptions: {
-      external: ['react', 'react-dom', '@object-ui/components', '@object-ui/core', '@object-ui/react'],
+      external: ['react', 'react-dom', '@object-ui/components', '@object-ui/core', '@object-ui/react', '@object-ui/mobile'],
       output: {
         globals: {
           react: 'React',
@@ -48,6 +49,7 @@ export default defineConfig({
           '@object-ui/components': 'ObjectUIComponents',
           '@object-ui/core': 'ObjectUICore',
           '@object-ui/react': 'ObjectUIReact',
+          '@object-ui/mobile': 'ObjectUIMobile',
         },
       },
     },
