@@ -31,6 +31,7 @@ ComponentRegistry.register(
   'report',
   ReportRenderer,
   {
+    namespace: 'report',
     label: 'Report',
     category: 'Report',
     inputs: [
@@ -46,6 +47,7 @@ ComponentRegistry.register(
   'report-viewer',
   ReportViewer,
   {
+    namespace: 'report',
     label: 'Report Viewer',
     category: 'Report',
     inputs: [
@@ -60,6 +62,7 @@ ComponentRegistry.register(
   'report-builder',
   ReportBuilder,
   {
+    namespace: 'report',
     label: 'Report Builder',
     category: 'Report',
     inputs: [

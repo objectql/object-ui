@@ -65,45 +65,15 @@ export const sharedConfig = {
       name: 'sales_performance_q1',
       label: 'Q1 Sales Performance',
       description: 'Quarterly analysis of sales revenue by region and product line',
-      type: 'report',
-      title: 'Q1 Sales Performance Report',
-      sections: [
-        {
-          type: 'header',
-          title: 'Executive Summary',
-          subtitle: 'Generated on Feb 6, 2026' 
-        },
-        {
-          type: 'summary',
-          title: 'Key Metrics',
-          metrics: [
-             { label: 'Total Revenue', value: '$1,240,000', change: 12, trend: 'up' },
-             { label: 'Deals Closed', value: '45', change: 5, trend: 'up' },
-             { label: 'Avg Deal Size', value: '$27,500', change: -2, trend: 'down' }
-          ]
-        },
-        {
-          type: 'chart',
-          title: 'Revenue Trend',
-          chart: {
-             chartType: 'line',
-             title: 'Monthly Revenue',
-             xAxisField: 'month',
-             yAxisFields: ['revenue'],
-             data: [
-                { month: 'Jan', revenue: 320000 },
-                { month: 'Feb', revenue: 450000 },
-                { month: 'Mar', revenue: 470000 }
-             ]
-          }
-        },
-        {
-          type: 'section',
-          title: 'Regional Breakdown',
-          content: 'North America continues to lead with 45% of total revenue, followed by EMEA at 30%.'
-        }
+      objectName: 'opportunity',
+      type: 'summary',
+      columns: [
+        { field: 'name', label: 'Deal Name' },
+        { field: 'amount', label: 'Amount', aggregate: 'sum' },
+        { field: 'stage', label: 'Stage' },
+        { field: 'close_date', label: 'Close Date' }
       ]
-    } as any
+    }
   ],
   pages: [
     ...(crmConfig.pages || []),
@@ -111,6 +81,10 @@ export const sharedConfig = {
     ...(kitchenSinkConfig.pages || [])
   ],
   manifest: {
+    id: 'com.objectui.console',
+    version: '0.1.0',
+    type: 'app',
+    name: '@object-ui/console',
     data: [
       ...(crmConfig.manifest?.data || []),
       ...(todoConfig.manifest?.data || []),
@@ -118,11 +92,13 @@ export const sharedConfig = {
     ]
   },
   plugins: [],
-  datasources: {
-    default: {
-      driver: '@objectstack/driver-memory'
+  datasources: [
+    {
+      name: 'default',
+      driver: '@objectstack/driver-memory',
+      config: {}
     }
-  }
+  ]
 };
 
 export default defineStack(sharedConfig as any);
