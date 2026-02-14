@@ -3,13 +3,16 @@
   "version": "1.0.0",
   "description": "CRM Metadata Example using ObjectStack Protocol",
   "private": true,
+  "type": "module",
   "main": "dist/objectstack.json",
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./objectstack.config": "./objectstack.config.ts"
+    "./objectstack.config": "./objectstack.config.ts",
+    "./plugin": "./plugin.ts"
   },
   "scripts": {
+    "dev": "objectstack serve --dev objectstack.config.ts",
     "serve": "objectstack serve objectstack.config.ts",
     "build": "objectstack compile objectstack.config.ts",
     "start": "tsx server.ts"
