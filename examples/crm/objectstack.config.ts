@@ -8,7 +8,6 @@ import { OrderObject } from './src/objects/order.object';
 import { UserObject } from './src/objects/user.object';
 import { ProjectObject } from './src/objects/project.object';
 import { EventObject } from './src/objects/event.object';
-import { ConsolePlugin } from '../../apps/console/plugin';
 
 export default defineStack({
   objects: [
@@ -688,7 +687,5 @@ export default defineStack({
     ]
 
   },
-  plugins: [
-    new ConsolePlugin(),
-  ],
+  plugins: [],
 } as any);
