@@ -59,7 +59,8 @@ const mocks = vi.hoisted(() => {
         async update(_: string, id: string, data: any) { return { ...data, id }; }
         async delete() { return true; }
         async connect() { return true; }
-        onConnectionStateChange() {}
+        onConnectionStateChange() { return () => {}; }
+        getConnectionState() { return 'connected'; }
         discovery = {};
     }
 
@@ -101,6 +102,31 @@ vi.mock('../dataSource', () => ({
     ObjectStackAdapter: mocks.MockDataSource,
     ObjectStackDataSource: mocks.MockDataSource,
 }));
+
+// Mock AdapterProvider to provide a mock adapter directly
+vi.mock('../context/AdapterProvider', () => ({
+    AdapterProvider: ({ children }: any) => <>{children}</>,
+    useAdapter: () => new mocks.MockDataSource(),
+}));
+
+// Mock MetadataProvider to use the real objectstack.shared config as metadata
+vi.mock('../context/MetadataProvider', async () => {
+    const config = await import('../../objectstack.shared');
+    const appConfig = (config.default as any).default || config.default;
+    return {
+        MetadataProvider: ({ children }: any) => <>{children}</>,
+        useMetadata: () => ({
+            apps: appConfig.apps || [],
+            objects: appConfig.objects || [],
+            dashboards: appConfig.dashboards || [],
+            reports: (appConfig as any).reports || [],
+            pages: appConfig.pages || [],
+            loading: false,
+            error: null,
+            refresh: vi.fn(),
+        }),
+    };
+});
 
 // --- 2. Import AppContent ---
 import { AppContent } from '../App';

@@ -10,7 +10,7 @@ import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { LayoutDashboard } from 'lucide-react';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { SkeletonDashboard } from './skeletons';
-import appConfig from '../../objectstack.shared';
+import { useMetadata } from '../context/MetadataProvider';
 import { resolveI18nLabel } from '../utils';
 
 export function DashboardView({ dataSource }: { dataSource?: any }) {
@@ -25,9 +25,9 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
     queueMicrotask(() => setIsLoading(false));
   }, [dashboardName]);
   
-  // Find dashboard definition in config
-  // In a real implementation, this would fetch from the server
-  const dashboard = appConfig.dashboards?.find((d: any) => d.name === dashboardName);
+  // Find dashboard definition from API-driven metadata
+  const { dashboards } = useMetadata();
+  const dashboard = dashboards?.find((d: any) => d.name === dashboardName);
 
   if (isLoading) {
     return <SkeletonDashboard />;

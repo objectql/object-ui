@@ -4,14 +4,16 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { PageView } from '../components/PageView';
 
-// Mock appConfig
-vi.mock('../../objectstack.shared', () => ({
-  default: {
+// Mock MetadataProvider to return static page metadata
+vi.mock('../context/MetadataProvider', () => ({
+  useMetadata: () => ({
+    apps: [],
+    objects: [],
+    dashboards: [],
+    reports: [],
     pages: [
       {
         name: 'help_page',
-        // This simulates the fix: ensuring 'app' type renders correctly config-side
-        // But the real component registry needs to support it (which we improved in packages/components)
         type: 'app', 
         label: 'Help Guide',
         regions: [
@@ -30,8 +32,11 @@ vi.mock('../../objectstack.shared', () => ({
             { type: 'text', value: 'Standard Page Content' }
         ]
       }
-    ]
-  }
+    ],
+    loading: false,
+    error: null,
+    refresh: vi.fn(),
+  }),
 }));
 
 // Mock SchemaRenderer to avoid complex component tree rendering
