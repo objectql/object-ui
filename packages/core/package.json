@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/core",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "type": "module",
   "sideEffects": false,
   "license": "MIT",
