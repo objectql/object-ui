@@ -28,6 +28,7 @@ export { LoginForm, type LoginFormProps } from './LoginForm';
 export { RegisterForm, type RegisterFormProps } from './RegisterForm';
 export { ForgotPasswordForm, type ForgotPasswordFormProps } from './ForgotPasswordForm';
 export { UserMenu, type UserMenuProps } from './UserMenu';
+export { PreviewBanner, type PreviewBannerProps } from './PreviewBanner';
 export { createAuthClient } from './createAuthClient';
 export { createAuthenticatedFetch, type AuthenticatedAdapterOptions } from './createAuthenticatedFetch';
 export { getUserInitials } from './types';
@@ -40,6 +41,7 @@ export type {
   AuthClient,
   AuthClientConfig,
   AuthProviderConfig,
+  PreviewModeOptions,
   SignInCredentials,
   SignUpData,
 } from './types';

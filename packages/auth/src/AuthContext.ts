@@ -7,7 +7,7 @@
  */
 
 import { createContext } from 'react';
-import type { AuthUser, AuthSession } from './types';
+import type { AuthUser, AuthSession, PreviewModeOptions } from './types';
 
 export interface AuthContextValue {
   /** Current authenticated user */
@@ -20,6 +20,10 @@ export interface AuthContextValue {
   isLoading: boolean;
   /** Authentication error */
   error: Error | null;
+  /** Whether the app is running in preview mode */
+  isPreviewMode: boolean;
+  /** Preview mode configuration (only set when isPreviewMode is true) */
+  previewMode: PreviewModeOptions | null;
   /** Sign in with email and password */
   signIn: (email: string, password: string) => Promise<void>;
   /** Sign up with name, email, and password */

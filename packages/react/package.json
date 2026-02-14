@@ -32,7 +32,7 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/i18n": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/spec": "^3.0.2",
+    "@objectstack/spec": "^3.0.4",
     "react-hook-form": "^7.71.1"
   },
   "peerDependencies": {

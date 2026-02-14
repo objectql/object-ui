@@ -33,6 +33,8 @@ export function useAuth(): AuthContextValue {
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      isPreviewMode: false,
+      previewMode: null,
       signIn: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
       signUp: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
       signOut: async () => { throw new Error('useAuth must be used within an AuthProvider'); },

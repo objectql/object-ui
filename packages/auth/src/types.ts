@@ -110,6 +110,26 @@ export interface AuthClient {
   updateUser: (data: Partial<AuthUser>) => Promise<AuthUser>;
 }
 
+/**
+ * Preview mode configuration options.
+ * When preview mode is active, the auth provider auto-logs in a simulated user
+ * and bypasses login/registration screens.
+ */
+export interface PreviewModeOptions {
+  /** Auto-login as simulated user, skipping login/registration pages */
+  autoLogin?: boolean;
+  /** Permission role for the simulated preview user */
+  simulatedRole?: 'admin' | 'user' | 'viewer';
+  /** Display name for the simulated preview user */
+  simulatedUserName?: string;
+  /** Restrict the preview session to read-only operations */
+  readOnly?: boolean;
+  /** Preview session duration in seconds (0 = no expiration) */
+  expiresInSeconds?: number;
+  /** Banner message displayed in the UI during preview mode */
+  bannerMessage?: string;
+}
+
 /** Auth provider configuration */
 export interface AuthProviderConfig {
   /** Authentication server URL */

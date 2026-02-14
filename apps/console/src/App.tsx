@@ -7,7 +7,7 @@ import { SchemaRendererProvider } from '@object-ui/react';
 import { ObjectStackAdapter } from './dataSource';
 import type { ConnectionState } from './dataSource';
 import appConfig from '../objectstack.shared';
-import { AuthGuard, useAuth } from '@object-ui/auth';
+import { AuthGuard, useAuth, PreviewBanner } from '@object-ui/auth';
 
 // Components (eagerly loaded — always needed)
 import { ConsoleLayout } from './components/ConsoleLayout';
@@ -387,6 +387,7 @@ export function App() {
     <ThemeProvider defaultTheme="system" storageKey="object-ui-theme">
       <ConsoleToaster position="bottom-right" />
       <ConditionalAuthWrapper authUrl="/api/auth">
+        <PreviewBanner />
         <BrowserRouter basename={import.meta.env.BASE_URL?.replace(/\/$/, '') || '/'}>
             <Suspense fallback={<LoadingScreen />}>
             <Routes>

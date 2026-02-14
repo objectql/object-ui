@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import type { AuthUser, AuthClient, AuthProviderConfig } from './types';
+import type { AuthUser, AuthClient, AuthProviderConfig, PreviewModeOptions } from './types';
 import { AuthCtx, type AuthContextValue } from './AuthContext';
 import { createAuthClient } from './createAuthClient';
 
@@ -20,6 +20,12 @@ export interface AuthProviderProps extends AuthProviderConfig {
    * @default true
    */
   enabled?: boolean;
+  /**
+   * Preview mode configuration.
+   * When provided, the auth provider auto-logs in a simulated user and bypasses
+   * login/registration screens. Useful for marketplace demos and app showcases.
+   */
+  previewMode?: PreviewModeOptions;
 }
 
 /**
@@ -41,12 +47,19 @@ export interface AuthProviderProps extends AuthProviderConfig {
  *   <App />
  * </AuthProvider>
  * ```
+ * @example With preview mode (marketplace demo)
+ * ```tsx
+ * <AuthProvider authUrl="/api/auth" previewMode={{ simulatedRole: 'admin', bannerMessage: 'Demo mode' }}>
+ *   <App />
+ * </AuthProvider>
+ * ```
  */
 export function AuthProvider({
   authUrl,
   client: externalClient,
   onAuthStateChange,
   enabled = true,
+  previewMode,
   children,
 }: AuthProviderProps) {
   const client = useMemo<AuthClient>(
@@ -59,13 +72,38 @@ export function AuthProvider({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // If auth is disabled, automatically set as authenticated with a guest user
-  const isAuthenticated = enabled 
+  // Determine if we're in preview mode
+  const isPreviewMode = previewMode != null;
+
+  // If auth is disabled or in preview mode, automatically set as authenticated
+  const isAuthenticated = (enabled && !isPreviewMode)
     ? user !== null && session !== null
     : true;
 
-  // Load session on mount (only if auth is enabled)
+  // Load session on mount (only if auth is enabled and not in preview mode)
   useEffect(() => {
+    if (isPreviewMode) {
+      // Preview mode: simulate a user based on previewMode config
+      const role = previewMode.simulatedRole ?? 'admin';
+      const name = previewMode.simulatedUserName ?? 'Preview User';
+      const expiresInSeconds = previewMode.expiresInSeconds ?? 0;
+      setUser({
+        id: 'preview-user',
+        email: 'preview@preview.local',
+        name,
+        role,
+        roles: [role],
+      });
+      setSession({
+        token: 'preview-token',
+        expiresAt: expiresInSeconds > 0
+          ? new Date(Date.now() + expiresInSeconds * 1000)
+          : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      });
+      setIsLoading(false);
+      return;
+    }
+
     if (!enabled) {
       // When auth is disabled, set a guest user and mark as loaded
       setUser({
@@ -103,7 +141,7 @@ export function AuthProvider({
 
     loadSession();
     return () => { cancelled = true; };
-  }, [client, enabled]);
+  }, [client, enabled, isPreviewMode, previewMode]);
 
   // Notify on auth state changes
   useEffect(() => {
@@ -218,6 +256,8 @@ export function AuthProvider({
       isAuthenticated,
       isLoading,
       error,
+      isPreviewMode,
+      previewMode: isPreviewMode ? previewMode : null,
       signIn,
       signUp,
       signOut,
@@ -225,7 +265,7 @@ export function AuthProvider({
       forgotPassword,
       resetPassword,
     }),
-    [user, session, isAuthenticated, isLoading, error, signIn, signUp, signOut, updateUser, forgotPassword, resetPassword],
+    [user, session, isAuthenticated, isLoading, error, isPreviewMode, previewMode, signIn, signUp, signOut, updateUser, forgotPassword, resetPassword],
   );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;

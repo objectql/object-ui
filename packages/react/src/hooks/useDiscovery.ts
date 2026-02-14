@@ -18,6 +18,19 @@ export interface DiscoveryInfo {
   name?: string;
   version?: string;
   
+  /** Runtime mode (e.g., 'development', 'production', 'preview') */
+  mode?: string;
+
+  /** Preview mode configuration from the kernel (present when mode is 'preview') */
+  previewMode?: {
+    autoLogin?: boolean;
+    simulatedRole?: 'admin' | 'user' | 'viewer';
+    simulatedUserName?: string;
+    readOnly?: boolean;
+    expiresInSeconds?: number;
+    bannerMessage?: string;
+  };
+  
   /** Service availability status */
   services?: {
     /** Authentication service status */

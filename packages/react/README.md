@@ -112,6 +112,47 @@ function MyComponent() {
 }
 ```
 
+### useDiscovery
+
+Access server discovery information including preview mode detection:
+
+```tsx
+import { useDiscovery } from '@object-ui/react'
+
+function MyComponent() {
+  const { discovery, isLoading, isAuthEnabled } = useDiscovery()
+  
+  // Check if the server is in preview mode
+  if (discovery?.mode === 'preview') {
+    console.log('Preview mode active:', discovery.previewMode)
+  }
+
+  return <div>Server: {discovery?.name}</div>
+}
+```
+
+#### DiscoveryInfo
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `name` | `string` | Server name |
+| `version` | `string` | Server version |
+| `mode` | `string` | Runtime mode (e.g. `'development'`, `'production'`, `'preview'`) |
+| `previewMode` | `object` | Preview mode configuration (present when mode is `'preview'`) |
+| `services` | `object` | Service availability status (auth, data, metadata) |
+| `capabilities` | `string[]` | API capabilities |
+
+The `previewMode` object contains:
+
+| Property | Type | Default | Description |
+| --- | --- | --- | --- |
+| `autoLogin` | `boolean` | `true` | Skip login/registration pages |
+| `simulatedRole` | `'admin' \| 'user' \| 'viewer'` | `'admin'` | Simulated user role |
+| `simulatedUserName` | `string` | `'Preview User'` | Display name |
+| `readOnly` | `boolean` | `false` | Read-only mode |
+| `expiresInSeconds` | `number` | `0` | Session duration (0 = no expiry) |
+| `bannerMessage` | `string` | — | UI banner message |
+
 ## API Reference
 
 See [full documentation](https://objectui.org/api/react) for detailed API reference.

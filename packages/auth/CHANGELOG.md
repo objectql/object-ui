@@ -6,6 +6,17 @@
 
 - @object-ui/types@3.0.1
 
+### Added
+
+- **Preview Mode** (`previewMode` prop on `AuthProvider`): Auto-login with simulated identity for marketplace demos and app showcases. Configurable role, display name, session expiry, read-only mode, and banner message.
+- **PreviewBanner** component: Renders a status banner when preview mode is active.
+- `isPreviewMode` and `previewMode` fields exposed on `AuthContextValue` / `useAuth()` hook.
+- New `PreviewModeOptions` type mirroring spec's `PreviewModeConfig`.
+
+### Changed
+
+- Upgraded `@objectstack/spec` from `^3.0.2` to `^3.0.4`.
+
 ## 3.0.0
 
 ### Minor Changes
