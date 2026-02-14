@@ -511,25 +511,49 @@ importers:
 
   examples/crm:
     dependencies:
+      '@hono/node-server':
+        specifier: ^1.19.9
+        version: 1.19.9(hono@4.11.9)
+      '@object-ui/console':
+        specifier: workspace:*
+        version: link:../../apps/console
       '@objectstack/core':
+        specifier: ^3.0.2
+        version: 3.0.2(pino@8.21.0)
+      '@objectstack/driver-memory':
+        specifier: ^3.0.2
+        version: 3.0.2(pino@8.21.0)
+      '@objectstack/objectql':
         specifier: ^3.0.2
         version: 3.0.2(pino@8.21.0)
       '@objectstack/plugin-auth':
         specifier: ^3.0.2
         version: 3.0.2(next@16.1.6(@babel/core@7.29.0)(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(pino@8.21.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vitest@4.0.18)
+      '@objectstack/plugin-hono-server':
+        specifier: ^3.0.2
+        version: 3.0.2(pino@8.21.0)
       '@objectstack/runtime':
         specifier: ^3.0.2
         version: 3.0.2(pino@8.21.0)
       '@objectstack/spec':
         specifier: ^3.0.2
         version: 3.0.2
+      hono:
+        specifier: ^4.11.9
+        version: 4.11.9
       pino:
         specifier: ^8.21.0
         version: 8.21.0
+      pino-pretty:
+        specifier: ^13.1.3
+        version: 13.1.3
     devDependencies:
       '@objectstack/cli':
         specifier: ^3.0.2
         version: 3.0.2(@objectstack/core@3.0.2(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
