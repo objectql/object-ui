@@ -3,24 +3,29 @@
   "version": "3.0.1",
   "description": "ObjectStack Console - The standard runtime UI for ObjectStack applications",
   "type": "module",
-  "main": "./plugin.ts",
+  "main": "./plugin.js",
+  "types": "./plugin.d.ts",
   "exports": {
     ".": {
-      "import": "./plugin.ts",
-      "default": "./plugin.ts"
+      "types": "./plugin.d.ts",
+      "import": "./plugin.js",
+      "default": "./plugin.js"
     }
   },
   "files": [
     "dist",
-    "plugin.ts"
+    "plugin.ts",
+    "plugin.js",
+    "plugin.d.ts"
   ],
   "scripts": {
     "msw:init": "msw init -y public",
     "dev": "pnpm msw:init && vite",
     "start": "tsx ../../node_modules/@objectstack/cli/bin/objectstack.js serve objectstack.config.ts",
     "start:mock": "pnpm msw:init && vite preview",
-    "build": "pnpm msw:init && tsc && VITE_USE_MOCK_SERVER=false vite build",
-    "build:vercel": "pnpm msw:init && tsc && VITE_USE_MOCK_SERVER=true vite build",
+    "build:plugin": "tsc -p tsconfig.plugin.json",
+    "build": "pnpm msw:init && tsc && VITE_USE_MOCK_SERVER=false vite build && pnpm build:plugin",
+    "build:vercel": "pnpm msw:init && tsc && VITE_USE_MOCK_SERVER=true vite build && pnpm build:plugin",
     "build:analyze": "pnpm build && echo 'Bundle analysis available at dist/stats.html'",
     "preview": "vite preview",
     "test": "vitest run",
