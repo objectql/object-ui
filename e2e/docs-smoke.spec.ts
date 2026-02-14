@@ -24,10 +24,13 @@ const DOCS_BASE = process.env.DOCS_BASE_URL || 'http://localhost:3000';
  * failures in CI when the docs site isn't running.
  */
 let docsAvailable = false;
-test.beforeAll(async ({ request }) => {
+test.beforeAll(async () => {
   try {
-    const response = await request.get(`${DOCS_BASE}/docs`, { timeout: 5_000 });
-    docsAvailable = response.status() < 500;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5_000);
+    const response = await fetch(`${DOCS_BASE}/docs`, { signal: controller.signal });
+    clearTimeout(timer);
+    docsAvailable = response.status < 500;
   } catch {
     docsAvailable = false;
   }
