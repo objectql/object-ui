@@ -25,7 +25,7 @@ import { ConsolePlugin } from '@object-ui/console';
 import CrmConfig from './examples/crm/objectstack.config';
 import TodoConfig from './examples/todo/objectstack.config';
 import KitchenSinkConfig from './examples/kitchen-sink/objectstack.config';
-import { hotcrmObjects, hotcrmApps, mergeObjects } from './examples/hotcrm-bridge.js';
+// import { hotcrmObjects, hotcrmApps, mergeObjects } from './examples/hotcrm-bridge.js';
 
 const crm = (CrmConfig as any).default || CrmConfig;
 const todo = (TodoConfig as any).default || TodoConfig;
@@ -52,12 +52,12 @@ const mergedApp = defineStack({
       ...(kitchenSink.manifest?.data || []),
     ],
   },
-  objects: mergeObjects(baseObjects, hotcrmObjects),
+  objects: baseObjects,
   apps: [
     ...(crm.apps || []),
     ...(todo.apps || []),
     ...(kitchenSink.apps || []),
-    ...hotcrmApps,
+    // ...hotcrmApps,
   ],
   dashboards: [
     ...(crm.dashboards || []),

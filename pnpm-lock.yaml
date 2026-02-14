@@ -181,14 +181,14 @@ importers:
         specifier: ^4.21.0
         version: 4.21.0
       turbo:
-        specifier: ^2.8.7
-        version: 2.8.7
+        specifier: ^2.8.8
+        version: 2.8.8
       typedoc:
-        specifier: ^0.28.16
-        version: 0.28.16(typescript@5.9.3)
+        specifier: ^0.28.17
+        version: 0.28.17(typescript@5.9.3)
       typedoc-plugin-markdown:
         specifier: ^4.10.0
-        version: 4.10.0(typedoc@0.28.16(typescript@5.9.3))
+        version: 4.10.0(typedoc@0.28.17(typescript@5.9.3))
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -573,6 +573,273 @@ importers:
         specifier: 19.2.4
         version: 19.2.4(react@19.2.4)
 
+  examples/hotcrm/packages/ai:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+      axios:
+        specifier: ^1.13.5
+        version: 1.13.5
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/analytics:
+    dependencies:
+      '@hotcrm/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/community:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/core:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.2
+        version: 3.0.4
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+
+  examples/hotcrm/packages/crm:
+    dependencies:
+      '@hotcrm/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/education:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/finance:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/financial-services:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/healthcare:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/hr:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/integration:
+    dependencies:
+      '@hotcrm/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/marketing:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/products:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/real-estate:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/server:
+    dependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.2
+        version: 3.0.4(@objectstack/core@3.0.4(pino@10.3.1))(esbuild@0.27.3)(pino@10.3.1)
+      '@objectstack/core':
+        specifier: ^3.0.2
+        version: 3.0.4(pino@10.3.1)
+      '@objectstack/metadata':
+        specifier: ^3.0.2
+        version: 3.0.4(pino@10.3.1)
+      '@objectstack/objectql':
+        specifier: ^3.0.2
+        version: 3.0.4(pino@10.3.1)
+      '@objectstack/plugin-hono-server':
+        specifier: ^3.0.2
+        version: 3.0.4(pino@10.3.1)
+      '@objectstack/runtime':
+        specifier: ^3.0.2
+        version: 3.0.4(pino@10.3.1)
+      '@objectstack/spec':
+        specifier: ^3.0.2
+        version: 3.0.4
+      pino:
+        specifier: ^10.3.1
+        version: 10.3.1
+    devDependencies:
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
+      ts-node:
+        specifier: ^10.9.2
+        version: 10.9.2(@swc/core@1.15.11)(@types/node@25.2.3)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/support:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.4
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   examples/kitchen-sink:
     dependencies:
       '@objectstack/spec':
@@ -885,8 +1152,8 @@ importers:
         specifier: ^7.71.1
         version: 7.71.1(react@19.2.4)
       react-resizable-panels:
-        specifier: ^4.6.2
-        version: 4.6.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: ^4.6.3
+        version: 4.6.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       recharts:
         specifier: 2.15.4
         version: 2.15.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -3832,8 +4099,8 @@ packages:
       react: 19.2.4
       react-dom: 19.2.4
 
-  '@mswjs/interceptors@0.41.2':
-    resolution: {integrity: sha512-7G0Uf0yK3f2bjElBLGHIQzgRgMESczOMyYVasq1XK8P5HaXtlW4eQhz9MBL+TQILZLaruq+ClGId+hH0w4jvWw==}
+  '@mswjs/interceptors@0.41.3':
+    resolution: {integrity: sha512-cXu86tF4VQVfwz8W1SPbhoRyHJkti6mjH/XJIxp40jhO4j2k1m4KYrEykxqWPkFF3vrK4rgQppBh//AwyGSXPA==}
     engines: {node: '>=18'}
 
   '@napi-rs/wasm-runtime@0.2.12':
@@ -3996,6 +4263,9 @@ packages:
   '@orama/orama@3.1.18':
     resolution: {integrity: sha512-a61ljmRVVyG5MC/698C8/FfFDw5a8LOIvyOLW5fztgUXqUpc1jOfQzOitSCbge657OgXXThmY3Tk8fpiDb4UcA==}
     engines: {node: '>= 20.0.0'}
+
+  '@pinojs/redact@0.4.0':
+    resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -9601,6 +9871,13 @@ packages:
   pino-std-serializers@6.2.2:
     resolution: {integrity: sha512-cHjPPsE+vhj/tnhCy/wiMh3M3z3h/j15zHQX+S9GkTBgqJuTuJzYJ4gUyACLhDaJ7kk9ba9iRDmbH2tJU03OiA==}
 
+  pino-std-serializers@7.1.0:
+    resolution: {integrity: sha512-BndPH67/JxGExRgiX1dX0w1FvZck5Wa4aal9198SrRhZjH3GxKQUKIBnYJTdj2HDN3UQAS06HlfcSbQj2OHmaw==}
+
+  pino@10.3.1:
+    resolution: {integrity: sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==}
+    hasBin: true
+
   pino@8.21.0:
     resolution: {integrity: sha512-ip4qdzjkAyDDZklUaZkcRFb2iA118H9SgRh8yzTkSQK8HilsOJF7rSY8HoW5+I0M46AZgX/pxbprf2vvzQCE0Q==}
     hasBin: true
@@ -9733,6 +10010,9 @@ packages:
 
   process-warning@3.0.0:
     resolution: {integrity: sha512-mqn0kFRl0EoqhnL0GQ0veqFHyIN1yig9RHh/InzORTUiZHFRAur+aMtRkELNwGs9aNwKS6tg/An4NYBPGwvtzQ==}
+
+  process-warning@5.0.0:
+    resolution: {integrity: sha512-a39t9ApHNx2L4+HBnQKqxxHNs1r7KF+Intd8Q/g1bUh6q0WIp9voPXJ/x0j+ZL45KF1pJd9+q2jLIRMfvEshkA==}
 
   process@0.11.10:
     resolution: {integrity: sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A==}
@@ -9931,8 +10211,8 @@ packages:
       '@types/react':
         optional: true
 
-  react-resizable-panels@4.6.2:
-    resolution: {integrity: sha512-d6hyD6s7ewNAI+oINrZznR/08GUyAszrowXouUDztePEn/tQ2z/LEI2qRvrizYBe3TpgBi0cCjc10pXTTOc4jw==}
+  react-resizable-panels@4.6.3:
+    resolution: {integrity: sha512-nO5ksnCTdnV4YrRNw/OrZrX8ffh0sPA+2uM8kJbF19c8PRNuhH7ojJFE+UisAg2HFQFqIPmmW8bANrJNtIdXeA==}
     peerDependencies:
       react: 19.2.4
       react-dom: 19.2.4
@@ -10693,6 +10973,10 @@ packages:
   thread-stream@2.7.0:
     resolution: {integrity: sha512-qQiRWsU/wvNolI6tbbCKd9iKaTnCXsTwVxhhKM6nctPdujTyztjlbUkUTUymidWcMnZ5pWR0ej4a0tjsW021vw==}
 
+  thread-stream@4.0.0:
+    resolution: {integrity: sha512-4iMVL6HAINXWf1ZKZjIPcz5wYaOdPhtO8ATvZ+Xqp3BTdaqtAwQkNmKORqcIo5YkQqGXq5cwfswDwMqqQNrpJA==}
+    engines: {node: '>=20'}
+
   tiny-invariant@1.3.3:
     resolution: {integrity: sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg==}
 
@@ -10845,38 +11129,38 @@ packages:
     resolution: {integrity: sha512-1h/Lnq9yajKY2PEbBadPXj3VxsDDu844OnaAo52UVmIzIvwwtBPIuNvkjuzBlTWpfJyUbG3ez0KSBibQkj4ojg==}
     engines: {node: '>=0.6.11 <=0.7.0 || >=0.7.3'}
 
-  turbo-darwin-64@2.8.7:
-    resolution: {integrity: sha512-Xr4TO/oDDwoozbDtBvunb66g//WK8uHRygl72vUthuwzmiw48pil4IuoG/QbMHd9RE8aBnVmzC0WZEWk/WWt3A==}
+  turbo-darwin-64@2.8.8:
+    resolution: {integrity: sha512-7R/XRAleyNB8nIJuenRpS7EnmCM/kYFgcG1rW3F5DF57Nl4WyBO3DzxqwooRheuoXDD1UsJvDse0yRufgxjClA==}
     cpu: [x64]
     os: [darwin]
 
-  turbo-darwin-arm64@2.8.7:
-    resolution: {integrity: sha512-p8Xbmb9kZEY/NoshQUcFmQdO80s2PCGoLYj5DbpxjZr3diknipXxzOK7pcmT7l2gNHaMCpFVWLkiFY9nO3EU5w==}
+  turbo-darwin-arm64@2.8.8:
+    resolution: {integrity: sha512-whpveO0w/dMcgQ0zFrzqK76mG2W+RBQ/pKIpW+sEvNr+T4UcYd2gZpfV2euehJLvdeFErWgW74dIt/MFfkG1bA==}
     cpu: [arm64]
     os: [darwin]
 
-  turbo-linux-64@2.8.7:
-    resolution: {integrity: sha512-nwfEPAH3m5y/nJeYly3j1YJNYU2EG5+2ysZUxvBNM+VBV2LjQaLxB9CsEIpIOKuWKCjnFHKIADTSDPZ3D12J5Q==}
+  turbo-linux-64@2.8.8:
+    resolution: {integrity: sha512-BISkcKk+5/Dh11q+YhdQIGONXmdlQ6LY0iQ+GBIK7QOBAJyJFKmKvUeAeMdWGXOa3sImz2oZ6u2StyR+0Y/VVA==}
     cpu: [x64]
     os: [linux]
 
-  turbo-linux-arm64@2.8.7:
-    resolution: {integrity: sha512-mgA/M6xiJzyxtXV70TtWGDPh+I6acOKmeQGtOzbFQZYEf794pu5jax26bCk5skAp1gqZu3vacPr6jhYHoHU9IQ==}
+  turbo-linux-arm64@2.8.8:
+    resolution: {integrity: sha512-B+DQWWtM3O+AexFF4aYucT0MvvnQOW4n5y9LA5h3Zc3Lpj10yl9K4dEBzJvMVQ2jTkCRNAvA8q9G3EjqmGmGGA==}
     cpu: [arm64]
     os: [linux]
 
-  turbo-windows-64@2.8.7:
-    resolution: {integrity: sha512-sHTYMaXuCcyHnGUQgfUUt7S8407TWoP14zc/4N2tsM0wZNK6V9h4H2t5jQPtqKEb6Fg8313kygdDgEwuM4vsHg==}
+  turbo-windows-64@2.8.8:
+    resolution: {integrity: sha512-KP5TRVrmVnrxDyvERvQq7VXu+h5AiEiBwyr90YsRuYy/Z5zLz8hrNZXejTyUR17xmnuI+RbUSxrQlfmPnxiW1A==}
     cpu: [x64]
     os: [win32]
 
-  turbo-windows-arm64@2.8.7:
-    resolution: {integrity: sha512-WyGiOI2Zp3AhuzVagzQN+T+iq0fWx0oGxDfAWT3ZiLEd4U0cDUkwUZDKVGb3rKqPjDL6lWnuxKKu73ge5xtovQ==}
+  turbo-windows-arm64@2.8.8:
+    resolution: {integrity: sha512-X45sTOksR8iidk+PZUXpNcfEkOhGCTS2p2J8nSUExr1v7u3T4FixwplzliuWmG7QTPGJapAwItzHbi+d/9ckNQ==}
     cpu: [arm64]
     os: [win32]
 
-  turbo@2.8.7:
-    resolution: {integrity: sha512-RBLh5caMAu1kFdTK1jgH2gH/z+jFsvX5rGbhgJ9nlIAWXSvxlzwId05uDlBA1+pBd3wO/UaKYzaQZQBXDd7kcA==}
+  turbo@2.8.8:
+    resolution: {integrity: sha512-wP+axjWAKzYfZ7bghuggVST9bX4j5cn3NPMU9NPQqtwaUKL9n9JOnWWBIc9gdrEma1aViYR73EoPjDEpVq+liQ==}
     hasBin: true
 
   type-check@0.4.0:
@@ -10927,8 +11211,8 @@ packages:
     peerDependencies:
       typedoc: 0.28.x
 
-  typedoc@0.28.16:
-    resolution: {integrity: sha512-x4xW77QC3i5DUFMBp0qjukOTnr/sSg+oEs86nB3LjDslvAmwe/PUGDWbe3GrIqt59oTqoXK5GRK9tAa0sYMiog==}
+  typedoc@0.28.17:
+    resolution: {integrity: sha512-ZkJ2G7mZrbxrKxinTQMjFqsCoYY6a5Luwv2GKbTnBCEgV2ihYm5CflA9JnJAwH0pZWavqfYxmDkFHPt4yx2oDQ==}
     engines: {node: '>= 18', pnpm: '>= 10'}
     hasBin: true
     peerDependencies:
@@ -10974,8 +11258,8 @@ packages:
   undici-types@7.16.0:
     resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
 
-  undici@7.21.0:
-    resolution: {integrity: sha512-Hn2tCQpoDt1wv23a68Ctc8Cr/BHpUSfaPYrkajTXOS9IKpxVRx/X5m1K2YkbK2ipgZgxXSgsUinl3x+2YdSSfg==}
+  undici@7.22.0:
+    resolution: {integrity: sha512-RqslV2Us5BrllB+JeiZnK4peryVTndy9Dnqq62S3yYRRTj0tFQCwEniUy2167skdGOy3vqRzEvl1Dm4sV2ReDg==}
     engines: {node: '>=20.18.1'}
 
   unicorn-magic@0.1.0:
@@ -12149,7 +12433,6 @@ snapshots:
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
-    optional: true
 
   '@csstools/color-helpers@6.0.1': {}
 
@@ -12962,7 +13245,6 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
-    optional: true
 
   '@manypkg/find-root@1.1.0':
     dependencies:
@@ -13176,7 +13458,7 @@ snapshots:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 
-  '@mswjs/interceptors@0.41.2':
+  '@mswjs/interceptors@0.41.3':
     dependencies:
       '@open-draft/deferred-promise': 2.2.0
       '@open-draft/logger': 0.3.0
@@ -13242,6 +13524,24 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
+  '@objectstack/cli@3.0.4(@objectstack/core@3.0.4(pino@10.3.1))(esbuild@0.27.3)(pino@10.3.1)':
+    dependencies:
+      '@objectstack/core': 3.0.4(pino@10.3.1)
+      '@objectstack/driver-memory': 3.0.4(pino@10.3.1)
+      '@objectstack/objectql': 3.0.4(pino@10.3.1)
+      '@objectstack/plugin-hono-server': 3.0.4(pino@10.3.1)
+      '@objectstack/rest': 3.0.4(pino@10.3.1)
+      '@objectstack/runtime': 3.0.4(pino@10.3.1)
+      '@objectstack/spec': 3.0.4
+      bundle-require: 5.1.0(esbuild@0.27.3)
+      chalk: 5.6.2
+      commander: 14.0.3
+      tsx: 4.21.0
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - esbuild
+      - pino
+
   '@objectstack/cli@3.0.4(@objectstack/core@3.0.4(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)':
     dependencies:
       '@objectstack/core': 3.0.4(pino@8.21.0)
@@ -13276,6 +13576,14 @@ snapshots:
     transitivePeerDependencies:
       - pino
 
+  '@objectstack/core@3.0.4(pino@10.3.1)':
+    dependencies:
+      '@objectstack/spec': 3.0.4
+      pino-pretty: 13.1.3
+      zod: 4.3.6
+    optionalDependencies:
+      pino: 10.3.1
+
   '@objectstack/core@3.0.4(pino@8.21.0)':
     dependencies:
       '@objectstack/spec': 3.0.4
@@ -13284,11 +13592,31 @@ snapshots:
     optionalDependencies:
       pino: 8.21.0
 
+  '@objectstack/driver-memory@3.0.4(pino@10.3.1)':
+    dependencies:
+      '@objectstack/core': 3.0.4(pino@10.3.1)
+      '@objectstack/spec': 3.0.4
+      mingo: 7.2.0
+    transitivePeerDependencies:
+      - pino
+
   '@objectstack/driver-memory@3.0.4(pino@8.21.0)':
     dependencies:
       '@objectstack/core': 3.0.4(pino@8.21.0)
       '@objectstack/spec': 3.0.4
       mingo: 7.2.0
+    transitivePeerDependencies:
+      - pino
+
+  '@objectstack/metadata@3.0.4(pino@10.3.1)':
+    dependencies:
+      '@objectstack/core': 3.0.4(pino@10.3.1)
+      '@objectstack/spec': 3.0.4
+      '@objectstack/types': 3.0.4
+      chokidar: 5.0.0
+      glob: 13.0.3
+      js-yaml: 4.1.1
+      zod: 4.3.6
     transitivePeerDependencies:
       - pino
 
@@ -13301,6 +13629,14 @@ snapshots:
       glob: 13.0.3
       js-yaml: 4.1.1
       zod: 4.3.6
+    transitivePeerDependencies:
+      - pino
+
+  '@objectstack/objectql@3.0.4(pino@10.3.1)':
+    dependencies:
+      '@objectstack/core': 3.0.4(pino@10.3.1)
+      '@objectstack/spec': 3.0.4
+      '@objectstack/types': 3.0.4
     transitivePeerDependencies:
       - pino
 
@@ -13339,6 +13675,15 @@ snapshots:
       - vitest
       - vue
 
+  '@objectstack/plugin-hono-server@3.0.4(pino@10.3.1)':
+    dependencies:
+      '@hono/node-server': 1.19.9(hono@4.11.9)
+      '@objectstack/core': 3.0.4(pino@10.3.1)
+      '@objectstack/spec': 3.0.4
+      hono: 4.11.9
+    transitivePeerDependencies:
+      - pino
+
   '@objectstack/plugin-hono-server@3.0.4(pino@8.21.0)':
     dependencies:
       '@hono/node-server': 1.19.9(hono@4.11.9)
@@ -13361,10 +13706,28 @@ snapshots:
       - pino
       - typescript
 
+  '@objectstack/rest@3.0.4(pino@10.3.1)':
+    dependencies:
+      '@objectstack/core': 3.0.4(pino@10.3.1)
+      '@objectstack/spec': 3.0.4
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - pino
+
   '@objectstack/rest@3.0.4(pino@8.21.0)':
     dependencies:
       '@objectstack/core': 3.0.4(pino@8.21.0)
       '@objectstack/spec': 3.0.4
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - pino
+
+  '@objectstack/runtime@3.0.4(pino@10.3.1)':
+    dependencies:
+      '@objectstack/core': 3.0.4(pino@10.3.1)
+      '@objectstack/rest': 3.0.4(pino@10.3.1)
+      '@objectstack/spec': 3.0.4
+      '@objectstack/types': 3.0.4
       zod: 4.3.6
     transitivePeerDependencies:
       - pino
@@ -13413,7 +13776,7 @@ snapshots:
       lucide-react: 0.563.0(react@19.2.4)
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
-      react-resizable-panels: 4.6.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      react-resizable-panels: 4.6.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       tailwind-merge: 3.4.0
     transitivePeerDependencies:
       - '@types/node'
@@ -13436,6 +13799,8 @@ snapshots:
   '@open-draft/until@2.1.0': {}
 
   '@orama/orama@3.1.18': {}
+
+  '@pinojs/redact@0.4.0': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -14959,17 +15324,13 @@ snapshots:
       minimatch: 10.2.0
       path-browserify: 1.0.1
 
-  '@tsconfig/node10@1.0.12':
-    optional: true
+  '@tsconfig/node10@1.0.12': {}
 
-  '@tsconfig/node12@1.0.11':
-    optional: true
+  '@tsconfig/node12@1.0.11': {}
 
-  '@tsconfig/node14@1.0.3':
-    optional: true
+  '@tsconfig/node14@1.0.3': {}
 
-  '@tsconfig/node16@1.0.4':
-    optional: true
+  '@tsconfig/node16@1.0.4': {}
 
   '@tybys/wasm-util@0.10.1':
     dependencies:
@@ -15842,8 +16203,7 @@ snapshots:
 
   archy@1.0.0: {}
 
-  arg@4.1.3:
-    optional: true
+  arg@4.1.3: {}
 
   argparse@1.0.10:
     dependencies:
@@ -16250,7 +16610,7 @@ snapshots:
       parse5: 7.3.0
       parse5-htmlparser2-tree-adapter: 7.1.0
       parse5-parser-stream: 7.1.2
-      undici: 7.21.0
+      undici: 7.22.0
       whatwg-mimetype: 4.0.0
 
   chokidar@4.0.3:
@@ -16416,8 +16776,7 @@ snapshots:
 
   coverage-v8@0.0.1-security: {}
 
-  create-require@1.1.1:
-    optional: true
+  create-require@1.1.1: {}
 
   cross-spawn@7.0.6:
     dependencies:
@@ -16596,8 +16955,7 @@ snapshots:
 
   diff-sequences@29.6.3: {}
 
-  diff@4.0.4:
-    optional: true
+  diff@4.0.4: {}
 
   diff@8.0.3: {}
 
@@ -18547,7 +18905,7 @@ snapshots:
       saxes: 6.0.0
       symbol-tree: 3.2.4
       tough-cookie: 6.0.0
-      undici: 7.21.0
+      undici: 7.22.0
       w3c-xmlserializer: 5.0.0
       webidl-conversions: 8.0.1
       whatwg-mimetype: 5.0.0
@@ -18818,8 +19176,7 @@ snapshots:
     dependencies:
       semver: 7.7.4
 
-  make-error@1.3.6:
-    optional: true
+  make-error@1.3.6: {}
 
   makeerror@1.0.12:
     dependencies:
@@ -19421,7 +19778,7 @@ snapshots:
   msw@2.12.10(@types/node@25.2.3)(typescript@5.9.3):
     dependencies:
       '@inquirer/confirm': 5.1.21(@types/node@25.2.3)
-      '@mswjs/interceptors': 0.41.2
+      '@mswjs/interceptors': 0.41.3
       '@open-draft/deferred-promise': 2.2.0
       '@types/statuses': 2.0.6
       cookie: 1.1.1
@@ -19863,6 +20220,22 @@ snapshots:
 
   pino-std-serializers@6.2.2: {}
 
+  pino-std-serializers@7.1.0: {}
+
+  pino@10.3.1:
+    dependencies:
+      '@pinojs/redact': 0.4.0
+      atomic-sleep: 1.0.0
+      on-exit-leak-free: 2.1.2
+      pino-abstract-transport: 3.0.0
+      pino-std-serializers: 7.1.0
+      process-warning: 5.0.0
+      quick-format-unescaped: 4.0.4
+      real-require: 0.2.0
+      safe-stable-stringify: 2.5.0
+      sonic-boom: 4.2.1
+      thread-stream: 4.0.0
+
   pino@8.21.0:
     dependencies:
       atomic-sleep: 1.0.0
@@ -19998,6 +20371,8 @@ snapshots:
       fromentries: 1.3.2
 
   process-warning@3.0.0: {}
+
+  process-warning@5.0.0: {}
 
   process@0.11.10: {}
 
@@ -20211,7 +20586,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.13
 
-  react-resizable-panels@4.6.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  react-resizable-panels@4.6.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
@@ -21204,6 +21579,10 @@ snapshots:
     dependencies:
       real-require: 0.2.0
 
+  thread-stream@4.0.0:
+    dependencies:
+      real-require: 0.2.0
+
   tiny-invariant@1.3.3: {}
 
   tinybench@2.9.0: {}
@@ -21293,7 +21672,6 @@ snapshots:
       yn: 3.1.1
     optionalDependencies:
       '@swc/core': 1.15.11
-    optional: true
 
   tsconfig-paths@4.2.0:
     dependencies:
@@ -21347,32 +21725,32 @@ snapshots:
 
   tunnel@0.0.6: {}
 
-  turbo-darwin-64@2.8.7:
+  turbo-darwin-64@2.8.8:
     optional: true
 
-  turbo-darwin-arm64@2.8.7:
+  turbo-darwin-arm64@2.8.8:
     optional: true
 
-  turbo-linux-64@2.8.7:
+  turbo-linux-64@2.8.8:
     optional: true
 
-  turbo-linux-arm64@2.8.7:
+  turbo-linux-arm64@2.8.8:
     optional: true
 
-  turbo-windows-64@2.8.7:
+  turbo-windows-64@2.8.8:
     optional: true
 
-  turbo-windows-arm64@2.8.7:
+  turbo-windows-arm64@2.8.8:
     optional: true
 
-  turbo@2.8.7:
+  turbo@2.8.8:
     optionalDependencies:
-      turbo-darwin-64: 2.8.7
-      turbo-darwin-arm64: 2.8.7
-      turbo-linux-64: 2.8.7
-      turbo-linux-arm64: 2.8.7
-      turbo-windows-64: 2.8.7
-      turbo-windows-arm64: 2.8.7
+      turbo-darwin-64: 2.8.8
+      turbo-darwin-arm64: 2.8.8
+      turbo-linux-64: 2.8.8
+      turbo-linux-arm64: 2.8.8
+      turbo-windows-64: 2.8.8
+      turbo-windows-arm64: 2.8.8
 
   type-check@0.4.0:
     dependencies:
@@ -21413,11 +21791,11 @@ snapshots:
     dependencies:
       is-typedarray: 1.0.0
 
-  typedoc-plugin-markdown@4.10.0(typedoc@0.28.16(typescript@5.9.3)):
+  typedoc-plugin-markdown@4.10.0(typedoc@0.28.17(typescript@5.9.3)):
     dependencies:
-      typedoc: 0.28.16(typescript@5.9.3)
+      typedoc: 0.28.17(typescript@5.9.3)
 
-  typedoc@0.28.16(typescript@5.9.3):
+  typedoc@0.28.17(typescript@5.9.3):
     dependencies:
       '@gerrit0/mini-shiki': 3.22.0
       lunr: 2.3.9
@@ -21457,7 +21835,7 @@ snapshots:
 
   undici-types@7.16.0: {}
 
-  undici@7.21.0: {}
+  undici@7.22.0: {}
 
   unicorn-magic@0.1.0: {}
 
@@ -21596,8 +21974,7 @@ snapshots:
 
   uuid@9.0.1: {}
 
-  v8-compile-cache-lib@3.0.1:
-    optional: true
+  v8-compile-cache-lib@3.0.1: {}
 
   v8-to-istanbul@9.3.0:
     dependencies:
@@ -22074,8 +22451,7 @@ snapshots:
     dependencies:
       buffer-crc32: 0.2.13
 
-  yn@3.1.1:
-    optional: true
+  yn@3.1.1: {}
 
   yocto-queue@0.1.0: {}
 

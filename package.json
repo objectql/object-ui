@@ -16,10 +16,10 @@
     "docs"
   ],
   "scripts": {
-    "dev": "pnpm dev:msw",    
+    "dev": "pnpm dev:msw",
     "dev:msw": "pnpm --filter @object-ui/console dev",
     "start": "pnpm os:start",
-    "os:dev": "tsx node_modules/@objectstack/cli/bin/objectstack.js serve --dev",
+    "os:dev": "tsx node_modules/@objectstack/cli/bin/objectstack.js dev",
     "os:start": "tsx node_modules/@objectstack/cli/bin/objectstack.js serve",
     "build": "turbo run build --filter=!@object-ui/site",
     "build:all": "turbo run build",
@@ -112,8 +112,8 @@
     "tailwindcss": "^4.1.18",
     "tslib": "^2.8.1",
     "tsx": "^4.21.0",
-    "turbo": "^2.8.7",
-    "typedoc": "^0.28.16",
+    "turbo": "^2.8.8",
+    "typedoc": "^0.28.17",
     "typedoc-plugin-markdown": "^4.10.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.55.0",
