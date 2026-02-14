@@ -1,5 +1,13 @@
 # @object-ui/fields
 
+## 3.0.1
+
+### Patch Changes
+
+- @object-ui/components@3.0.1
+- @object-ui/types@3.0.1
+- @object-ui/core@3.0.1
+
 ## 3.0.0
 
 ### Minor Changes
