@@ -1,5 +1,5 @@
 import { test, expect, devices } from '@playwright/test';
-import { waitForReactMount } from './helpers';
+import { waitForReactMount, CONSOLE_BASE } from './helpers';
 
 /**
  * P5.5 Mobile viewport tests for the Console app.
@@ -38,14 +38,14 @@ test.describe('P5.5 Mobile Viewport Tests', () => {
         const errors: string[] = [];
         page.on('pageerror', (err) => errors.push(err.message));
 
-        await page.goto('/');
+        await page.goto(`${CONSOLE_BASE}/`);
         await waitForReactMount(page);
 
         expect(errors, 'Uncaught JS errors on mobile viewport').toEqual([]);
       });
 
       test('should render meaningful content (no blank page)', async ({ page }) => {
-        await page.goto('/');
+        await page.goto(`${CONSOLE_BASE}/`);
         await waitForReactMount(page);
 
         const root = page.locator('#root');
@@ -55,19 +55,19 @@ test.describe('P5.5 Mobile Viewport Tests', () => {
       });
 
       test('should have viewport meta tag with viewport-fit=cover', async ({ page }) => {
-        await page.goto('/');
+        await page.goto(`${CONSOLE_BASE}/`);
         const meta = page.locator('meta[name="viewport"]');
         await expect(meta).toHaveAttribute('content', /viewport-fit=cover/);
       });
 
       test('should have PWA manifest link', async ({ page }) => {
-        await page.goto('/');
+        await page.goto(`${CONSOLE_BASE}/`);
         const manifestLink = page.locator('link[rel="manifest"]');
         await expect(manifestLink).toBeAttached();
       });
 
       test('should not have horizontal overflow', async ({ page }) => {
-        await page.goto('/');
+        await page.goto(`${CONSOLE_BASE}/`);
         await waitForReactMount(page);
 
         const hasOverflow = await page.evaluate(() => {
@@ -77,7 +77,7 @@ test.describe('P5.5 Mobile Viewport Tests', () => {
       });
 
       test('should have touch targets ≥ 44px for interactive elements', async ({ page }) => {
-        await page.goto('/');
+        await page.goto(`${CONSOLE_BASE}/`);
         await waitForReactMount(page);
 
         // Check all visible buttons have reasonable touch target size

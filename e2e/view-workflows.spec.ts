@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { waitForReactMount } from './helpers';
+import { waitForReactMount, CONSOLE_BASE } from './helpers';
 
 /**
  * Critical view workflow E2E tests.
@@ -15,7 +15,7 @@ import { waitForReactMount } from './helpers';
  */
 
 /** Base path for the default app — mirrors route: /apps/:appName/:objectName */
-const APP_BASE = '/apps/default';
+const APP_BASE = `${CONSOLE_BASE}/apps/default`;
 
 /**
  * Waits for the app shell to be fully interactive (sidebar or main nav visible).

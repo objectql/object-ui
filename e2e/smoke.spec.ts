@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { waitForReactMount } from './helpers';
+import { waitForReactMount, CONSOLE_BASE } from './helpers';
 
 /**
  * Smoke tests for the console production build.
@@ -18,7 +18,7 @@ test.describe('Console App – Smoke', () => {
     const errors: string[] = [];
     page.on('pageerror', (err) => errors.push(err.message));
 
-    await page.goto('/');
+    await page.goto(`${CONSOLE_BASE}/`);
     await waitForReactMount(page);
 
     // The page must not have thrown any uncaught exceptions
@@ -26,7 +26,7 @@ test.describe('Console App – Smoke', () => {
   });
 
   test('should render React content inside #root', async ({ page }) => {
-    await page.goto('/');
+    await page.goto(`${CONSOLE_BASE}/`);
     await waitForReactMount(page);
 
     // #root must exist and have child elements (React mounted successfully)
@@ -37,7 +37,7 @@ test.describe('Console App – Smoke', () => {
   });
 
   test('should not show a blank page (meaningful text rendered)', async ({ page }) => {
-    await page.goto('/');
+    await page.goto(`${CONSOLE_BASE}/`);
     await waitForReactMount(page);
 
     // Wait for visible text to appear (SPA may still be rendering after mount)
@@ -64,19 +64,19 @@ test.describe('Console App – Smoke', () => {
       }
     });
 
-    await page.goto('/');
+    await page.goto(`${CONSOLE_BASE}/`);
     await page.waitForLoadState('networkidle');
 
     expect(failedAssets, 'Critical assets returned HTTP errors').toEqual([]);
   });
 
   test('should have correct page title', async ({ page }) => {
-    await page.goto('/');
+    await page.goto(`${CONSOLE_BASE}/`);
     await expect(page).toHaveTitle(/ObjectStack|ObjectUI|Console/i);
   });
 
   test('should show the app shell or loading screen', async ({ page }) => {
-    await page.goto('/');
+    await page.goto(`${CONSOLE_BASE}/`);
 
     // Either the app shell (nav / sidebar) or the loading screen should appear
     // within a reasonable time. Both are acceptable initial states.

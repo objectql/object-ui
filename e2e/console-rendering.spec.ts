@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { waitForReactMount } from './helpers';
+import { waitForReactMount, CONSOLE_BASE } from './helpers';
 
 /**
  * Console rendering & navigation E2E tests.
@@ -35,7 +35,7 @@ test.describe('Console Rendering', () => {
       }
     });
 
-    await page.goto('/');
+    await page.goto(`${CONSOLE_BASE}/`);
     await waitForReactMount(page);
 
     expect(
@@ -45,7 +45,7 @@ test.describe('Console Rendering', () => {
   });
 
   test('should resolve client-side routes without blank content', async ({ page }) => {
-    await page.goto('/');
+    await page.goto(`${CONSOLE_BASE}/`);
     await waitForReactMount(page);
 
     // After routing, the page should have meaningful DOM content
@@ -56,7 +56,7 @@ test.describe('Console Rendering', () => {
   test('should serve index.html for SPA fallback routes', async ({ page }) => {
     // Vercel blank-page issues often stem from missing SPA rewrites.
     // Navigate to a deep route — the server must return index.html (not 404).
-    const response = await page.goto('/apps/default/some-object');
+    const response = await page.goto(`${CONSOLE_BASE}/apps/default/some-object`);
     expect(response?.status(), 'Deep route returned non-200 status').toBeLessThan(400);
 
     await waitForReactMount(page);
@@ -70,7 +70,7 @@ test.describe('Console Rendering', () => {
   test('should include the MSW service worker in the build output', async ({ page }) => {
     // The mock server requires mockServiceWorker.js to be served from /public.
     // If it's missing, the app may hang during bootstrap.
-    const response = await page.request.get('/mockServiceWorker.js');
+    const response = await page.request.get(`${CONSOLE_BASE}/mockServiceWorker.js`);
 
     // In production builds without MSW, 404 is acceptable.
     // But if the build includes it, it must be valid JS.
