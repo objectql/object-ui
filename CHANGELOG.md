@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **@objectstack v3.0.4 Upgrade**: Upgraded all `@objectstack/*` packages from `^3.0.2` to `^3.0.4` across 42 references
 - **@objectstack v3.0.0 Upgrade**: Upgraded all `@objectstack/*` packages from `^2.0.7` to `^3.0.0` across 13 package.json files
 - **Breaking change migrations**:
   - `Hub` namespace → `Cloud` in @object-ui/types re-exports
@@ -22,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Preview Mode** (`@object-ui/auth`): New `previewMode` prop on `AuthProvider` for auto-login with simulated identity — skip login/registration for marketplace demos and app showcases. Includes `PreviewBanner` component, `isPreviewMode` / `previewMode` on `useAuth()`, and `PreviewModeOptions` type. Aligns with `@objectstack/spec` kernel `PreviewModeConfig`.
+- **Discovery Preview Detection** (`@object-ui/react`): Extended `DiscoveryInfo` with `mode` and `previewMode` fields for server-driven preview mode detection.
+- **Console Preview Support**: `ConditionalAuthWrapper` auto-detects `mode === 'preview'` from server discovery and configures auth accordingly.
 - **Console Bundle Optimization**: Split monolithic 3.7 MB main chunk into 17 granular cacheable chunks via `manualChunks` — main entry reduced from 1,008 KB gzip to 48.5 KB gzip (95% reduction)
 - **Gzip + Brotli Compression**: Pre-compressed assets via `vite-plugin-compression2` — Brotli main entry at 40 KB
 - **Bundle Analysis**: Added `rollup-plugin-visualizer` generating interactive treemap at `dist/stats.html`; new `build:analyze` script
