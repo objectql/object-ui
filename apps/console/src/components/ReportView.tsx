@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { ReportViewer, ReportBuilder } from '@object-ui/plugin-report';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
-import { PenLine, ChevronLeft, BarChart3 } from 'lucide-react';
+import { PenLine, ChevronLeft, BarChart3, Loader2 } from 'lucide-react';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useMetadata } from '../context/MetadataProvider';
 
@@ -24,9 +24,22 @@ export function ReportView({ dataSource: _dataSource }: { dataSource?: any }) {
   const [isEditing, setIsEditing] = useState(false);
   
   // Find report definition from API-driven metadata
-  const { reports } = useMetadata();
+  const { reports, loading } = useMetadata();
   const initialReport = reports?.find((r: any) => r.name === reportName);
   const [reportData, setReportData] = useState(initialReport);
+
+  // Sync reportData when metadata finishes loading or reportName changes
+  useEffect(() => {
+    setReportData(initialReport);
+  }, [initialReport]);
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (!initialReport) {
     return (
