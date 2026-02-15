@@ -41,11 +41,11 @@ function mergeViewsIntoObjects(objects: any[], configs: any[]): any[] {
     if (!Array.isArray(config.views)) continue;
     for (const view of config.views) {
       if (!view.listViews) continue;
-      for (const [key, listView] of Object.entries(view.listViews as Record<string, any>)) {
+      for (const [viewName, listView] of Object.entries(view.listViews as Record<string, any>)) {
         const objectName = listView?.data?.object;
         if (!objectName) continue;
         if (!viewsByObject[objectName]) viewsByObject[objectName] = {};
-        viewsByObject[objectName][key] = listView;
+        viewsByObject[objectName][viewName] = listView;
       }
     }
   }
