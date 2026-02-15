@@ -19,7 +19,7 @@ const config: StorybookConfig = {
     autodocs: "tag",
   },
   async viteFinal(config) {
-    return mergeConfig(config, {
+    const merged = mergeConfig(config, {
       define: {
         'process.env': {},
         'process.platform': '"browser"',
@@ -82,21 +82,30 @@ const config: StorybookConfig = {
       },
       build: {
         target: 'esnext',
-        rollupOptions: {
-          onwarn(warning, warn) {
-            // Suppress "use client" directive warnings (from Radix UI, react-router, etc.)
-            // and sourcemap resolution errors from dependencies with incomplete sourcemaps
-            if (
-              warning.code === 'MODULE_LEVEL_DIRECTIVE' ||
-              warning.message?.includes("Can't resolve original location of error")
-            ) {
-              return;
-            }
-            warn(warning);
-          },
-        },
       },
     });
+
+    // Apply onwarn directly to avoid mergeConfig potentially dropping function callbacks
+    merged.build ??= {};
+    merged.build.rollupOptions ??= {};
+    const existingOnwarn = merged.build.rollupOptions.onwarn;
+    merged.build.rollupOptions.onwarn = (warning, warn) => {
+      // Suppress "use client" directive warnings (from Radix UI, react-router, etc.)
+      // and sourcemap resolution errors from dependencies with incomplete sourcemaps
+      if (
+        warning.code === 'MODULE_LEVEL_DIRECTIVE' ||
+        warning.message?.includes("Can't resolve original location of error")
+      ) {
+        return;
+      }
+      if (existingOnwarn) {
+        existingOnwarn(warning, warn);
+      } else {
+        warn(warning);
+      }
+    };
+
+    return merged;
   },
 };
 export default config;
