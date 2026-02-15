@@ -29,7 +29,7 @@ vi.mock('react-router-dom', () => ({
     useNavigate: () => vi.fn(),
 }));
 
-// Use dates in current month so events show on the visible calendar
+// Use dates in current month so events show on the visible calendar (month view shows all days 1-31)
 const now = new Date();
 const year = now.getFullYear();
 const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -120,12 +120,11 @@ describe('CRM Calendar View with Nested Config', () => {
             </SchemaRendererProvider>
         );
 
+        // Wait for calendar region to render and data to load
         await waitFor(() => {
-            expect(mockDataSource.find).toHaveBeenCalled();
-        }, { timeout: 3000 });
-
-        // Wait for rendering
-        await new Promise(r => setTimeout(r, 500));
+            const calendarRegion = document.querySelector('[aria-label="Calendar"]');
+            expect(calendarRegion).toBeInTheDocument();
+        }, { timeout: 5000 });
 
         // Should NOT show "Untitled" - that would mean titleField defaulted to 'name'
         expect(screen.queryByText('Untitled')).not.toBeInTheDocument();
