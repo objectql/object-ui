@@ -586,16 +586,31 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     };
 
     // Resolve type-specific options from current named view or active view
+    // Per @objectstack/spec, type-specific config MUST be nested under the view type key
     const viewOptions = currentNamedViewConfig?.options || activeView || {};
+
+    // Dev-mode warning for flat property access violations
+    if (process.env.NODE_ENV === 'development') {
+        const flatKeys = ['startDateField', 'endDateField', 'dateField', 'groupBy', 'groupField',
+            'locationField', 'imageField', 'dependenciesField', 'progressField', 'titleField',
+            'subtitleField', 'latitudeField', 'longitudeField'];
+        const found = flatKeys.filter(k => k in viewOptions && !viewOptions[viewType]?.[k]);
+        if (found.length > 0) {
+            console.warn(
+                `[Spec Compliance] View options use flat properties ${JSON.stringify(found)}. ` +
+                `Move them under options.${viewType} per @objectstack/spec protocol.`
+            );
+        }
+    }
 
     switch (viewType) {
       case 'kanban':
         return {
           type: 'object-kanban',
           ...baseProps,
-          groupBy: viewOptions.kanban?.groupField || viewOptions.groupBy || viewOptions.groupField || 'status',
-          groupField: viewOptions.kanban?.groupField || viewOptions.groupField || 'status',
-          titleField: viewOptions.kanban?.titleField || viewOptions.titleField || 'name',
+          groupBy: viewOptions.kanban?.groupField || 'status',
+          groupField: viewOptions.kanban?.groupField || 'status',
+          titleField: viewOptions.kanban?.titleField || 'name',
           cardFields: baseProps.fields || [],
           ...(viewOptions.kanban || {}),
         };
@@ -603,43 +618,43 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         return {
           type: 'object-calendar',
           ...baseProps,
-          startDateField: viewOptions.calendar?.startDateField || viewOptions.startDateField || 'start_date',
-          endDateField: viewOptions.calendar?.endDateField || viewOptions.endDateField || 'end_date',
-          titleField: viewOptions.calendar?.titleField || viewOptions.titleField || 'name',
+          startDateField: viewOptions.calendar?.startDateField || 'start_date',
+          endDateField: viewOptions.calendar?.endDateField || 'end_date',
+          titleField: viewOptions.calendar?.titleField || 'name',
           ...(viewOptions.calendar || {}),
         };
       case 'gallery':
         return {
           type: 'object-gallery',
           ...baseProps,
-          imageField: viewOptions.gallery?.imageField || viewOptions.imageField,
-          titleField: viewOptions.gallery?.titleField || viewOptions.titleField || 'name',
-          subtitleField: viewOptions.gallery?.subtitleField || viewOptions.subtitleField,
+          imageField: viewOptions.gallery?.imageField,
+          titleField: viewOptions.gallery?.titleField || 'name',
+          subtitleField: viewOptions.gallery?.subtitleField,
           ...(viewOptions.gallery || {}),
         };
       case 'timeline':
         return {
           type: 'object-timeline',
           ...baseProps,
-          dateField: viewOptions.timeline?.dateField || viewOptions.dateField || 'created_at',
-          titleField: viewOptions.timeline?.titleField || viewOptions.titleField || 'name',
+          dateField: viewOptions.timeline?.dateField || 'created_at',
+          titleField: viewOptions.timeline?.titleField || 'name',
           ...(viewOptions.timeline || {}),
         };
       case 'gantt':
         return {
           type: 'object-gantt',
           ...baseProps,
-          startDateField: viewOptions.gantt?.startDateField || viewOptions.startDateField || 'start_date',
-          endDateField: viewOptions.gantt?.endDateField || viewOptions.endDateField || 'end_date',
-          progressField: viewOptions.gantt?.progressField || viewOptions.progressField || 'progress',
-          dependenciesField: viewOptions.gantt?.dependenciesField || viewOptions.dependenciesField || 'dependencies',
+          startDateField: viewOptions.gantt?.startDateField || 'start_date',
+          endDateField: viewOptions.gantt?.endDateField || 'end_date',
+          progressField: viewOptions.gantt?.progressField || 'progress',
+          dependenciesField: viewOptions.gantt?.dependenciesField || 'dependencies',
           ...(viewOptions.gantt || {}),
         };
       case 'map':
         return {
           type: 'object-map',
           ...baseProps,
-          locationField: viewOptions.map?.locationField || viewOptions.locationField || 'location',
+          locationField: viewOptions.map?.locationField || 'location',
           ...(viewOptions.map || {}),
         };
       default:

@@ -89,18 +89,18 @@ describe('ObjectView Component', () => {
                 name: { label: 'Name' }, 
                 stage: { label: 'Stage' } 
             },
-            list_views: {
+            listViews: {
                 all: { label: 'All Opportunities', type: 'grid', columns: ['name', 'stage'] },
-                pipeline: { label: 'Pipeline', type: 'kanban', groupBy: 'stage', columns: ['name'] }
+                pipeline: { label: 'Pipeline', type: 'kanban', kanban: { groupField: 'stage' }, columns: ['name'] }
             }
         },
         {
             name: 'todo_task',
             label: 'Task',
             fields: { subject: { label: 'Subject' }, due_date: { label: 'Due' } },
-            list_views: {
+            listViews: {
                 all: { label: 'All Tasks', type: 'grid', columns: ['subject'] },
-                calendar: { label: 'My Calendar', type: 'calendar', dateField: 'due_date' }
+                calendar: { label: 'My Calendar', type: 'calendar', calendar: { startDateField: 'due_date' } }
             }
         }
     ];
