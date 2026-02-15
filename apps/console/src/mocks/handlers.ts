@@ -48,96 +48,46 @@ export function createHandlers(baseUrl: string, kernel: ObjectKernel, driver: In
       return HttpResponse.json(response, { status: 200 });
     }),
 
-    // ── Metadata: list objects ───────────────────────────────────────────
-    http.get(`${prefix}${baseUrl}/meta/objects`, async () => {
-      const response = await protocol.getMetaItems({ type: 'object' });
+    // ── Metadata: list items by type ────────────────────────────────────
+    // The client sends GET /meta/<type> where <type> is singular (e.g. app,
+    // object, dashboard, report, page).  We also keep the legacy plural
+    // routes (/meta/apps, /meta/objects, …) for backward compatibility.
+    // A single dynamic handler covers both forms.
+    http.get(`${prefix}${baseUrl}/meta/:type`, async ({ params }) => {
+      const raw = params.type as string;
+      const response = await protocol.getMetaItems({ type: raw });
       return HttpResponse.json(response, { status: 200 });
     }),
-    http.get(`${prefix}${baseUrl}/metadata/objects`, async () => {
-      const response = await protocol.getMetaItems({ type: 'object' });
+    http.get(`${prefix}${baseUrl}/metadata/:type`, async ({ params }) => {
+      const raw = params.type as string;
+      const response = await protocol.getMetaItems({ type: raw });
       return HttpResponse.json(response, { status: 200 });
     }),
 
-    // ── Metadata: single object (legacy /meta/objects/:name) ─────────────
-    http.get(`${prefix}${baseUrl}/meta/objects/:objectName`, async ({ params }) => {
+    // ── Metadata: single item by type + name ─────────────────────────────
+    http.get(`${prefix}${baseUrl}/meta/:type/:name`, async ({ params }) => {
       try {
         const response = await protocol.getMetaItem({
-          type: 'object',
-          name: params.objectName as string
-        });
-        return HttpResponse.json(response || { error: 'Not found' }, { status: response ? 200 : 404 });
-      } catch (e) {
-        return HttpResponse.json({ error: String(e) }, { status: 500 });
-      }
-    }),
-
-    // ── Metadata: single object (/meta/object/:name & /metadata/object/:name)
-    http.get(`${prefix}${baseUrl}/meta/object/:objectName`, async ({ params }) => {
-      try {
-        const response = await protocol.getMetaItem({
-          type: 'object',
-          name: params.objectName as string
+          type: params.type as string,
+          name: params.name as string
         });
         const payload = (response && response.item) ? response.item : response;
         return HttpResponse.json(payload || { error: 'Not found' }, { status: payload ? 200 : 404 });
       } catch (e) {
-        console.error('[MSW] error getting meta item', e);
         return HttpResponse.json({ error: String(e) }, { status: 500 });
       }
     }),
-
-    http.get(`${prefix}${baseUrl}/metadata/object/:objectName`, async ({ params }) => {
+    http.get(`${prefix}${baseUrl}/metadata/:type/:name`, async ({ params }) => {
       try {
         const response = await protocol.getMetaItem({
-          type: 'object',
-          name: params.objectName as string
+          type: params.type as string,
+          name: params.name as string
         });
         const payload = (response && response.item) ? response.item : response;
         return HttpResponse.json(payload || { error: 'Not found' }, { status: payload ? 200 : 404 });
       } catch (e) {
-        console.error('[MSW] error getting meta item', e);
         return HttpResponse.json({ error: String(e) }, { status: 500 });
       }
-    }),
-
-    // ── Metadata: apps ──────────────────────────────────────────────────
-    http.get(`${prefix}${baseUrl}/meta/apps`, async () => {
-      const response = await protocol.getMetaItems({ type: 'app' });
-      return HttpResponse.json(response, { status: 200 });
-    }),
-    http.get(`${prefix}${baseUrl}/metadata/apps`, async () => {
-      const response = await protocol.getMetaItems({ type: 'app' });
-      return HttpResponse.json(response, { status: 200 });
-    }),
-
-    // ── Metadata: dashboards ────────────────────────────────────────────
-    http.get(`${prefix}${baseUrl}/meta/dashboards`, async () => {
-      const response = await protocol.getMetaItems({ type: 'dashboard' });
-      return HttpResponse.json(response, { status: 200 });
-    }),
-    http.get(`${prefix}${baseUrl}/metadata/dashboards`, async () => {
-      const response = await protocol.getMetaItems({ type: 'dashboard' });
-      return HttpResponse.json(response, { status: 200 });
-    }),
-
-    // ── Metadata: reports ───────────────────────────────────────────────
-    http.get(`${prefix}${baseUrl}/meta/reports`, async () => {
-      const response = await protocol.getMetaItems({ type: 'report' });
-      return HttpResponse.json(response, { status: 200 });
-    }),
-    http.get(`${prefix}${baseUrl}/metadata/reports`, async () => {
-      const response = await protocol.getMetaItems({ type: 'report' });
-      return HttpResponse.json(response, { status: 200 });
-    }),
-
-    // ── Metadata: pages ─────────────────────────────────────────────────
-    http.get(`${prefix}${baseUrl}/meta/pages`, async () => {
-      const response = await protocol.getMetaItems({ type: 'page' });
-      return HttpResponse.json(response, { status: 200 });
-    }),
-    http.get(`${prefix}${baseUrl}/metadata/pages`, async () => {
-      const response = await protocol.getMetaItems({ type: 'page' });
-      return HttpResponse.json(response, { status: 200 });
     }),
 
     // ── Data: find all ──────────────────────────────────────────────────

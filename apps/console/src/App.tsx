@@ -368,7 +368,7 @@ function findFirstRoute(items: any[]): string {
 
 // Redirect root to default app
 function RootRedirect() {
-    const { apps, loading } = useMetadata();
+    const { apps, loading, error } = useMetadata();
     const activeApps = apps.filter((a: any) => a.active !== false);
     const defaultApp = activeApps.find((a: any) => a.isDefault === true) || activeApps[0];
     
@@ -376,7 +376,13 @@ function RootRedirect() {
     if (defaultApp) {
         return <Navigate to={`/apps/${defaultApp.name}`} replace />;
     }
-    return <LoadingScreen />;
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Empty>
+          <EmptyTitle>{error ? 'Failed to Load Configuration' : 'No Apps Configured'}</EmptyTitle>
+        </Empty>
+      </div>
+    );
 }
 
 export function App() {
