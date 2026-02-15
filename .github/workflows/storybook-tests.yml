@@ -59,3 +59,10 @@ jobs:
 
       - name: Run Storybook tests
         run: pnpm storybook:ci
+
+      - name: Run visual regression tests
+        if: github.event_name == 'pull_request'
+        run: |
+          concurrently -k -s first \
+            "pnpm storybook --no-open" \
+            "wait-on tcp:6006 && pnpm storybook:test:snapshot"
