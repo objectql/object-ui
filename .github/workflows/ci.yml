@@ -110,6 +110,15 @@ jobs:
           fi
           echo "All packages built successfully"
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            packages/*/dist
+            apps/console/dist
+          retention-days: 1
+
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
@@ -130,19 +139,13 @@ jobs:
           node-version: '20.x'
           cache: 'pnpm'
 
-      - name: Restore Turbo Cache
-        uses: actions/cache/restore@v5
-        with:
-          path: node_modules/.cache/turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages and console
-        run: pnpm turbo run build --filter='./packages/*' --filter='./apps/console'
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4.1.3
+        with:
+          name: build-output
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
@@ -161,27 +164,45 @@ jobs:
   docs:
     name: Build Docs
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'push' ||
-      (
-        github.event_name == 'pull_request' &&
-        !contains(github.event.pull_request.title, '[skip docs]')
-      )
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check for docs changes
+        id: docs-changes
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            # Check if docs-related files changed in this PR
+            CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} -- \
+              'apps/site/' 'content/' 2>/dev/null || echo "")
+            if [ -n "$CHANGED" ]; then
+              echo "should_run=true" >> "$GITHUB_OUTPUT"
+              echo "Docs-related files changed:"
+              echo "$CHANGED"
+            else
+              echo "should_run=false" >> "$GITHUB_OUTPUT"
+              echo "No docs-related files changed, skipping build"
+            fi
+          fi
 
       - name: Setup pnpm
+        if: steps.docs-changes.outputs.should_run == 'true'
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
+        if: steps.docs-changes.outputs.should_run == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: '20.x'
           cache: 'pnpm'
 
       - name: Turbo Cache
+        if: steps.docs-changes.outputs.should_run == 'true'
         uses: actions/cache@v5
         with:
           path: node_modules/.cache/turbo
@@ -190,7 +211,9 @@ jobs:
             turbo-${{ runner.os }}-
 
       - name: Install dependencies
+        if: steps.docs-changes.outputs.should_run == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Build Site
+        if: steps.docs-changes.outputs.should_run == 'true'
         run: pnpm turbo run build --filter='@object-ui/site'
