@@ -14,23 +14,19 @@ import { ComponentRegistry } from '@object-ui/core';
  */
 
 // Mock child plugins to capture schema props
-let capturedKanbanSchema: any = null;
-let capturedCalendarSchema: any = null;
 
 vi.mock('@object-ui/plugin-grid', () => ({
-    ObjectGrid: (props: any) => <div data-testid="object-grid">Grid</div>,
+    ObjectGrid: (_props: any) => <div data-testid="object-grid">Grid</div>,
 }));
 
 vi.mock('@object-ui/plugin-kanban', () => ({
     ObjectKanban: (props: any) => {
-        capturedKanbanSchema = props.schema;
         return <div data-testid="object-kanban">Kanban: {props.schema.groupField}</div>;
     },
 }));
 
 vi.mock('@object-ui/plugin-calendar', () => ({
     ObjectCalendar: (props: any) => {
-        capturedCalendarSchema = props.schema;
         return <div data-testid="object-calendar">Calendar: {props.schema.startDateField}</div>;
     },
 }));
@@ -65,17 +61,13 @@ describe('Spec Protocol: Nested View Config Enforcement', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        capturedKanbanSchema = null;
-        capturedCalendarSchema = null;
         mockSearchParams = new URLSearchParams();
 
-        ComponentRegistry.register('object-grid', (props: any) => <div data-testid="object-grid">Grid</div>);
+        ComponentRegistry.register('object-grid', (_props: any) => <div data-testid="object-grid">Grid</div>);
         ComponentRegistry.register('object-kanban', (props: any) => {
-            capturedKanbanSchema = props.schema;
             return <div data-testid="object-kanban">Kanban: {props.schema.groupField}</div>;
         });
         ComponentRegistry.register('object-calendar', (props: any) => {
-            capturedCalendarSchema = props.schema;
             return <div data-testid="object-calendar">Calendar: {props.schema.startDateField}</div>;
         });
         ComponentRegistry.register('list-view', (_props: any) => <div data-testid="list-view">List View</div>);
