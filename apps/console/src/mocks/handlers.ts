@@ -54,13 +54,13 @@ export function createHandlers(baseUrl: string, kernel: ObjectKernel, driver: In
     // routes (/meta/apps, /meta/objects, …) for backward compatibility.
     // A single dynamic handler covers both forms.
     http.get(`${prefix}${baseUrl}/meta/:type`, async ({ params }) => {
-      const raw = params.type as string;
-      const response = await protocol.getMetaItems({ type: raw });
+      const metadataType = params.type as string;
+      const response = await protocol.getMetaItems({ type: metadataType });
       return HttpResponse.json(response, { status: 200 });
     }),
     http.get(`${prefix}${baseUrl}/metadata/:type`, async ({ params }) => {
-      const raw = params.type as string;
-      const response = await protocol.getMetaItems({ type: raw });
+      const metadataType = params.type as string;
+      const response = await protocol.getMetaItems({ type: metadataType });
       return HttpResponse.json(response, { status: 200 });
     }),
 
