@@ -63,13 +63,13 @@ const mockObjects = [
              status: { label: 'Status', type: 'select', options: ['Todo', 'Done'] },
              location: { label: 'Location', type: 'location' }
         },
-        list_views: {
+        listViews: {
             all: { label: 'All Tasks', type: 'grid' },
-            board: { label: 'Board', type: 'kanban', groupBy: 'status' },
-            schedule: { label: 'Schedule', type: 'calendar', dateField: 'due_date' },
-            roadmap: { label: 'Roadmap', type: 'gantt', startDateField: 'start', endDateField: 'end' },
-            history: { label: 'History', type: 'timeline', dateField: 'due_date' },
-            sites: { label: 'Sites', type: 'map', locationField: 'location' }
+            board: { label: 'Board', type: 'kanban', kanban: { groupField: 'status' } },
+            schedule: { label: 'Schedule', type: 'calendar', calendar: { startDateField: 'due_date' } },
+            roadmap: { label: 'Roadmap', type: 'gantt', gantt: { startDateField: 'start', endDateField: 'end' } },
+            history: { label: 'History', type: 'timeline', timeline: { dateField: 'due_date' } },
+            sites: { label: 'Sites', type: 'map', map: { locationField: 'location' } }
         }
     }
 ];

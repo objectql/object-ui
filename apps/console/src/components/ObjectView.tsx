@@ -141,7 +141,25 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
         const key = `${objectName}-${activeView.id}-${refreshKey}`;
         const viewDef = activeView;
 
+        // Warn in dev mode if flat properties are used instead of nested spec format
+        if (process.env.NODE_ENV === 'development') {
+            const flatKeys = ['startDateField', 'endDateField', 'dateField', 'groupBy', 'groupField',
+                'locationField', 'imageField', 'chartType', 'xAxisField', 'dependenciesField',
+                'progressField', 'colorField', 'allDayField', 'subjectField', 'endField',
+                'latitudeField', 'longitudeField', 'zoom', 'center', 'cardFields', 'subtitleField',
+                'descriptionField', 'yAxisFields', 'aggregation', 'series'];
+            const nestedConfig = (viewDef as any)[viewDef.type] || {};
+            const found = flatKeys.filter(k => k in viewDef && !(k in nestedConfig));
+            if (found.length > 0) {
+                console.warn(
+                    `[Spec Compliance] View "${viewDef.id}" uses flat properties ${JSON.stringify(found)}. ` +
+                    `Move them under viewDef.${viewDef.type || '<type>'} per @objectstack/spec protocol.`
+                );
+            }
+        }
+
         if (viewDef.type === 'chart') {
+            const chartConfig = viewDef.chart || {};
             return (
                 <ObjectChart 
                     key={key}
@@ -149,13 +167,13 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                     schema={{
                         type: 'object-chart',
                         objectName: objectDef.name,
-                        chartType: viewDef.chartType,
-                        xAxisField: viewDef.xAxisField,
-                        yAxisFields: viewDef.yAxisFields,
-                        aggregation: viewDef.aggregation,
-                        series: viewDef.series,
-                        config: viewDef.config,
-                        filter: viewDef.filter,
+                        chartType: chartConfig.chartType,
+                        xAxisField: chartConfig.xAxisField,
+                        yAxisFields: chartConfig.yAxisFields,
+                        aggregation: chartConfig.aggregation,
+                        series: chartConfig.series,
+                        config: chartConfig.config,
+                        filter: chartConfig.filter,
                     } as any}
                 />
             );
@@ -165,52 +183,52 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
             ...listSchema,
             options: {
                 kanban: {
-                    groupBy: viewDef.kanban?.groupByField || viewDef.kanban?.groupField || viewDef.groupBy || viewDef.groupField || 'status',
-                    groupField: viewDef.kanban?.groupByField || viewDef.kanban?.groupField || viewDef.groupBy || viewDef.groupField || 'status',
-                    titleField: viewDef.kanban?.titleField || viewDef.titleField || objectDef.titleField || 'name',
-                    cardFields: viewDef.kanban?.columns || viewDef.columns || viewDef.cardFields,
+                    groupBy: viewDef.kanban?.groupByField || viewDef.kanban?.groupField || 'status',
+                    groupField: viewDef.kanban?.groupByField || viewDef.kanban?.groupField || 'status',
+                    titleField: viewDef.kanban?.titleField || objectDef.titleField || 'name',
+                    cardFields: viewDef.kanban?.columns,
                 },
                 calendar: {
-                    startDateField: viewDef.calendar?.startDateField || viewDef.startDateField || viewDef.dateField || 'due_date',
-                    endDateField: viewDef.calendar?.endDateField || viewDef.endDateField || viewDef.endField,
-                    titleField: viewDef.calendar?.titleField || viewDef.titleField || viewDef.subjectField || 'name',
-                    colorField: viewDef.calendar?.colorField || viewDef.colorField,
-                    allDayField: viewDef.calendar?.allDayField || viewDef.allDayField,
-                    defaultView: viewDef.calendar?.defaultView || viewDef.defaultView,
+                    startDateField: viewDef.calendar?.startDateField || 'due_date',
+                    endDateField: viewDef.calendar?.endDateField,
+                    titleField: viewDef.calendar?.titleField || 'name',
+                    colorField: viewDef.calendar?.colorField,
+                    allDayField: viewDef.calendar?.allDayField,
+                    defaultView: viewDef.calendar?.defaultView,
                 },
                 timeline: {
-                    dateField: viewDef.timeline?.dateField || viewDef.dateField || viewDef.startDateField || 'due_date',
-                    titleField: viewDef.timeline?.titleField || viewDef.titleField || objectDef.titleField || 'name',
-                    descriptionField: viewDef.timeline?.descriptionField || viewDef.descriptionField,
+                    dateField: viewDef.timeline?.dateField || 'due_date',
+                    titleField: viewDef.timeline?.titleField || objectDef.titleField || 'name',
+                    descriptionField: viewDef.timeline?.descriptionField,
                 },
                 map: {
-                    locationField: viewDef.map?.locationField || viewDef.locationField,
-                    titleField: viewDef.map?.titleField || viewDef.titleField || objectDef.titleField || 'name',
-                    latitudeField: viewDef.map?.latitudeField || viewDef.latitudeField,
-                    longitudeField: viewDef.map?.longitudeField || viewDef.longitudeField,
-                    zoom: viewDef.map?.zoom || viewDef.zoom,
-                    center: viewDef.map?.center || viewDef.center,
+                    locationField: viewDef.map?.locationField,
+                    titleField: viewDef.map?.titleField || objectDef.titleField || 'name',
+                    latitudeField: viewDef.map?.latitudeField,
+                    longitudeField: viewDef.map?.longitudeField,
+                    zoom: viewDef.map?.zoom,
+                    center: viewDef.map?.center,
                 },
                 gallery: {
-                    imageField: viewDef.gallery?.imageField || viewDef.imageField || 'image',
-                    titleField: viewDef.gallery?.titleField || viewDef.titleField || objectDef.titleField || 'name',
-                    subtitleField: viewDef.gallery?.subtitleField || viewDef.subtitleField,
+                    imageField: viewDef.gallery?.imageField || 'image',
+                    titleField: viewDef.gallery?.titleField || objectDef.titleField || 'name',
+                    subtitleField: viewDef.gallery?.subtitleField,
                 },
                 gantt: {
-                    startDateField: viewDef.gantt?.startDateField || viewDef.startDateField || 'start_date',
-                    endDateField: viewDef.gantt?.endDateField || viewDef.endDateField || 'end_date',
-                    titleField: viewDef.gantt?.titleField || viewDef.titleField || 'name',
-                    progressField: viewDef.gantt?.progressField || viewDef.progressField,
-                    dependenciesField: viewDef.gantt?.dependenciesField || viewDef.dependenciesField,
-                    colorField: viewDef.gantt?.colorField || viewDef.colorField,
+                    startDateField: viewDef.gantt?.startDateField || 'start_date',
+                    endDateField: viewDef.gantt?.endDateField || 'end_date',
+                    titleField: viewDef.gantt?.titleField || 'name',
+                    progressField: viewDef.gantt?.progressField,
+                    dependenciesField: viewDef.gantt?.dependenciesField,
+                    colorField: viewDef.gantt?.colorField,
                 },
                 chart: {
-                    chartType: viewDef.chart?.chartType || viewDef.chartType,
-                    xAxisField: viewDef.chart?.xAxisField || viewDef.xAxisField,
-                    yAxisFields: viewDef.chart?.yAxisFields || viewDef.yAxisFields,
-                    aggregation: viewDef.chart?.aggregation || viewDef.aggregation,
-                    series: viewDef.chart?.series || viewDef.series,
-                    config: viewDef.chart?.config || viewDef.config,
+                    chartType: viewDef.chart?.chartType,
+                    xAxisField: viewDef.chart?.xAxisField,
+                    yAxisFields: viewDef.chart?.yAxisFields,
+                    aggregation: viewDef.chart?.aggregation,
+                    series: viewDef.chart?.series,
+                    config: viewDef.chart?.config,
                 },
             },
         };
