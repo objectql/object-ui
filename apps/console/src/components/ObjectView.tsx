@@ -148,7 +148,8 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                 'progressField', 'colorField', 'allDayField', 'subjectField', 'endField',
                 'latitudeField', 'longitudeField', 'zoom', 'center', 'cardFields', 'subtitleField',
                 'descriptionField', 'yAxisFields', 'aggregation', 'series'];
-            const found = flatKeys.filter(k => k in viewDef && !(viewDef as any)[viewDef.type]?.[k]);
+            const nestedConfig = (viewDef as any)[viewDef.type] || {};
+            const found = flatKeys.filter(k => k in viewDef && !(k in nestedConfig));
             if (found.length > 0) {
                 console.warn(
                     `[Spec Compliance] View "${viewDef.id}" uses flat properties ${JSON.stringify(found)}. ` +

@@ -594,7 +594,8 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         const flatKeys = ['startDateField', 'endDateField', 'dateField', 'groupBy', 'groupField',
             'locationField', 'imageField', 'dependenciesField', 'progressField', 'titleField',
             'subtitleField', 'latitudeField', 'longitudeField'];
-        const found = flatKeys.filter(k => k in viewOptions && !viewOptions[viewType]?.[k]);
+        const nestedConfig = viewOptions[viewType] || {};
+        const found = flatKeys.filter(k => k in viewOptions && !(k in nestedConfig));
         if (found.length > 0) {
             console.warn(
                 `[Spec Compliance] View options use flat properties ${JSON.stringify(found)}. ` +
