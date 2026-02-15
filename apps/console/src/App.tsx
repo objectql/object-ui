@@ -1,13 +1,13 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { useState, useEffect, lazy, Suspense, useMemo } from 'react';
+import { useState, useEffect, lazy, Suspense, useMemo, type ReactNode } from 'react';
 import { ObjectForm } from '@object-ui/plugin-form';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Empty, EmptyTitle } from '@object-ui/components';
 import { toast } from 'sonner';
 import { SchemaRendererProvider } from '@object-ui/react';
-import { ObjectStackAdapter } from './dataSource';
 import type { ConnectionState } from './dataSource';
-import appConfig from '../objectstack.shared';
 import { AuthGuard, useAuth, PreviewBanner } from '@object-ui/auth';
+import { MetadataProvider, useMetadata } from './context/MetadataProvider';
+import { AdapterProvider, useAdapter } from './context/AdapterProvider';
 
 // Components (eagerly loaded — always needed)
 import { ConsoleLayout } from './components/ConsoleLayout';
@@ -46,17 +46,42 @@ import { useParams } from 'react-router-dom';
 import { ThemeProvider } from './components/theme-provider';
 import { ConsoleToaster } from './components/ConsoleToaster';
 
+/**
+ * ConnectedShell
+ *
+ * Creates the ObjectStackAdapter (via AdapterProvider), waits for connection,
+ * then wraps children in MetadataProvider for API-driven metadata.
+ */
+function ConnectedShell({ children }: { children: ReactNode }) {
+  return (
+    <AdapterProvider>
+      <ConnectedShellInner>{children}</ConnectedShellInner>
+    </AdapterProvider>
+  );
+}
+
+function ConnectedShellInner({ children }: { children: ReactNode }) {
+  const adapter = useAdapter();
+  if (!adapter) return <LoadingScreen />;
+
+  return (
+    <MetadataProvider adapter={adapter}>
+      {children}
+    </MetadataProvider>
+  );
+}
+
 export function AppContent() {
-  const [dataSource, setDataSource] = useState<ObjectStackAdapter | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const { user } = useAuth();
+  const dataSource = useAdapter();
   
   // App Selection
   const navigate = useNavigate();
   const location = useLocation();
   const [, setSearchParams] = useSearchParams();
   const { appName } = useParams();
-  const apps = appConfig.apps || [];
+  const { apps, objects: allObjects, loading: metadataLoading } = useMetadata();
   
   // Determine active app based on URL
   const activeApps = apps.filter((a: any) => a.active !== false);
@@ -70,48 +95,19 @@ export function AppContent() {
   // Branding is now applied by AppShell via ConsoleLayout
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function initializeDataSource() {
-      try {
-        const adapter = new ObjectStackAdapter({
-          baseUrl: '',
-          autoReconnect: true,
-          maxReconnectAttempts: 5,
-          reconnectDelay: 1000,
-          cache: { maxSize: 50, ttl: 300_000 },
-        });
-
-        // Monitor connection state
-        adapter.onConnectionStateChange((event) => {
-          if (cancelled) return;
-          setConnectionState(event.state);
-          if (event.error) {
-            console.error('[Console] Connection error:', event.error);
-          }
-        });
-
-        await adapter.connect();
-
-        if (!cancelled) {
-          setDataSource(adapter);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          console.error('[Console] Failed to initialize:', err);
-          setConnectionState('error');
-        }
+    if (!dataSource) return;
+    const unsub = dataSource.onConnectionStateChange((event) => {
+      setConnectionState(event.state);
+      if (event.error) {
+        console.error('[Console] Connection error:', event.error);
       }
-    }
+    });
+    // Sync current state
+    setConnectionState(dataSource.getConnectionState());
+    return unsub;
+  }, [dataSource]);
 
-    initializeDataSource();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const allObjects = appConfig.objects || [];
+  // allObjects already derived from useMetadata() above
   
   // Find current object for Dialog
   // Path is now relative to /apps/:appName/
@@ -140,7 +136,7 @@ export function AppContent() {
       objName = '';
     }
     const basePath = `/apps/${activeApp.name}`;
-    const objects = appConfig.objects || [];
+    const objects = allObjects;
     if (objName) {
       const obj = objects.find((o: any) => o.name === objName);
       if (obj) {
@@ -199,7 +195,7 @@ export function AppContent() {
     [user, activeApp, editingRecord]
   );
 
-  if (!dataSource) return <LoadingScreen />;
+  if (!dataSource || metadataLoading) return <LoadingScreen />;
   if (!activeApp) return (
     <div className="h-screen flex items-center justify-center">
       <Empty>
@@ -372,10 +368,11 @@ function findFirstRoute(items: any[]): string {
 
 // Redirect root to default app
 function RootRedirect() {
-    const apps = appConfig.apps || [];
+    const { apps, loading } = useMetadata();
     const activeApps = apps.filter((a: any) => a.active !== false);
     const defaultApp = activeApps.find((a: any) => a.isDefault === true) || activeApps[0];
     
+    if (loading) return <LoadingScreen />;
     if (defaultApp) {
         return <Navigate to={`/apps/${defaultApp.name}`} replace />;
     }
@@ -396,10 +393,16 @@ export function App() {
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/apps/:appName/*" element={
                   <AuthGuard fallback={<Navigate to="/login" />} loadingFallback={<LoadingScreen />}>
-                    <AppContent />
+                    <ConnectedShell>
+                      <AppContent />
+                    </ConnectedShell>
                   </AuthGuard>
                 } />
-                <Route path="/" element={<RootRedirect />} />
+                <Route path="/" element={
+                  <ConnectedShell>
+                    <RootRedirect />
+                  </ConnectedShell>
+                } />
             </Routes>
             </Suspense>
         </BrowserRouter>

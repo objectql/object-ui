@@ -8,16 +8,16 @@ import { SchemaRenderer } from '@object-ui/react';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { FileText } from 'lucide-react';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import appConfig from '../../objectstack.shared';
+import { useMetadata } from '../context/MetadataProvider';
 
 export function PageView() {
   const { pageName } = useParams<{ pageName: string }>();
   const [searchParams] = useSearchParams();
   const { showDebug, toggleDebug } = useMetadataInspector();
   
-  // Find page definition in config
-  // In a real implementation, this would fetch from the server
-  const page = appConfig.pages?.find((p: any) => p.name === pageName);
+  // Find page definition from API-driven metadata
+  const { pages } = useMetadata();
+  const page = pages?.find((p: any) => p.name === pageName);
 
   if (!page) {
     return (

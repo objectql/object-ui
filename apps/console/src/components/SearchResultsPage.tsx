@@ -23,7 +23,7 @@ import {
   BarChart3,
   ArrowLeft,
 } from 'lucide-react';
-import appConfig from '../../objectstack.shared';
+import { useMetadata } from '../context/MetadataProvider';
 
 interface SearchResult {
   id: string;
@@ -66,7 +66,8 @@ export function SearchResultsPage() {
   const queryParam = searchParams.get('q') || '';
   const [query, setQuery] = useState(queryParam);
 
-  const apps = appConfig.apps || [];
+  const { apps: metadataApps } = useMetadata();
+  const apps = metadataApps || [];
   const activeApp = apps.find((a: any) => a.name === appName) || apps[0];
   const baseUrl = `/apps/${appName}`;
 

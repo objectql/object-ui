@@ -4,7 +4,7 @@ import { ReportViewer, ReportBuilder } from '@object-ui/plugin-report';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { PenLine, ChevronLeft, BarChart3 } from 'lucide-react';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import appConfig from '../../objectstack.shared';
+import { useMetadata } from '../context/MetadataProvider';
 
 // Mock fields for the builder since we don't have a dynamic schema provider here yet
 const MOCK_FIELDS = [
@@ -23,9 +23,9 @@ export function ReportView({ dataSource: _dataSource }: { dataSource?: any }) {
   const { showDebug, toggleDebug } = useMetadataInspector();
   const [isEditing, setIsEditing] = useState(false);
   
-  // Find report definition in config
-  // Note: we need to cast appConfig because reports might not be in the strict type yet
-  const initialReport = (appConfig as any).reports?.find((r: any) => r.name === reportName);
+  // Find report definition from API-driven metadata
+  const { reports } = useMetadata();
+  const initialReport = reports?.find((r: any) => r.name === reportName);
   const [reportData, setReportData] = useState(initialReport);
 
   if (!initialReport) {

@@ -48,7 +48,7 @@ import {
   Star,
   StarOff,
 } from 'lucide-react';
-import appConfig from '../../objectstack.shared';
+import { useMetadata } from '../context/MetadataProvider';
 import { useExpressionContext, evaluateVisibility } from '../context/ExpressionProvider';
 import { useAuth, getUserInitials } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
@@ -185,7 +185,8 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const { recentItems } = useRecentItems();
   const { favorites, removeFavorite } = useFavorites();
   
-  const apps = appConfig.apps || [];
+  const { apps: metadataApps } = useMetadata();
+  const apps = metadataApps || [];
   // Filter out inactive apps
   const activeApps = apps.filter((a: any) => a.active !== false);
   const activeApp = activeApps.find((a: any) => a.name === activeAppName) || activeApps[0];

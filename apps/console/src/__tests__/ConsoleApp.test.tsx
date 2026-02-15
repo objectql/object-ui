@@ -6,7 +6,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
 // --- Mocks ---
 
-// Mock ObjectStack Config
+// Mock ObjectStack Config (still used by MSW mock setup)
 vi.mock('../../objectstack.shared', () => ({
     default: {
         apps: [
@@ -33,6 +33,39 @@ vi.mock('../../objectstack.shared', () => ({
     }
 }));
 
+// Mock MetadataProvider to return static metadata (replaces objectstack.shared in components)
+vi.mock('../context/MetadataProvider', () => ({
+    MetadataProvider: ({ children }: any) => <>{children}</>,
+    useMetadata: () => ({
+        apps: [
+            {
+                name: 'sales',
+                label: 'Sales App',
+                active: true,
+                icon: 'briefcase',
+                navigation: [
+                    { id: 'nav_opp', label: 'Opportunities', type: 'object', objectName: 'opportunity' }
+                ]
+            },
+            {
+                name: 'admin',
+                label: 'Admin',
+                active: true,
+                navigation: []
+            }
+        ],
+        objects: [
+            { name: 'opportunity', label: 'Opportunity', fields: {} }
+        ],
+        dashboards: [],
+        reports: [],
+        pages: [],
+        loading: false,
+        error: null,
+        refresh: vi.fn(),
+    }),
+}));
+
 // Mock Client and DataSource
 vi.mock('@objectstack/client', () => {
     return {
@@ -42,6 +75,18 @@ vi.mock('@objectstack/client', () => {
     };
 });
 
+const MockAdapterInstance = {
+    find: vi.fn().mockResolvedValue([]),
+    findOne: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    connect: vi.fn().mockResolvedValue(true),
+    onConnectionStateChange: vi.fn().mockReturnValue(() => {}),
+    getConnectionState: vi.fn().mockReturnValue('connected'),
+    discovery: {},
+};
+
 vi.mock('../dataSource', () => {
     const MockAdapter = class {
         find = vi.fn().mockResolvedValue([]);
@@ -50,7 +95,8 @@ vi.mock('../dataSource', () => {
         update = vi.fn();
         delete = vi.fn();
         connect = vi.fn().mockResolvedValue(true);
-        onConnectionStateChange = vi.fn();
+        onConnectionStateChange = vi.fn().mockReturnValue(() => {});
+        getConnectionState = vi.fn().mockReturnValue('connected');
         discovery = {};
     };
     return {
@@ -58,6 +104,12 @@ vi.mock('../dataSource', () => {
         ObjectStackDataSource: MockAdapter,
     };
 });
+
+// Mock AdapterProvider to provide mock adapter directly
+vi.mock('../context/AdapterProvider', () => ({
+    AdapterProvider: ({ children }: any) => <>{children}</>,
+    useAdapter: () => MockAdapterInstance,
+}));
 
 // Mock Child Components (Integration level)
 // We want to verify routing, so we mock the "Page" components but keep Layout structure mostly
@@ -136,17 +188,12 @@ describe('Console App Integration', () => {
     it('initializes and renders default app layout', async () => {
         renderApp();
         
-        // 1. Should show loading initially
-        expect(screen.getByText(/Initializing/i)).toBeInTheDocument();
-
-        // 2. Should eventually show Main Layout (header/sidebar)
-        await waitFor(() => {
-            expect(screen.queryByText(/Initializing/i)).not.toBeInTheDocument();
-        }, { timeout: 10000 });
-
+        // With mocked adapter and metadata, the app renders immediately
         // Check for App Name in sidebar/header config
-        const appLabels = screen.getAllByText('Sales App');
-        expect(appLabels.length).toBeGreaterThan(0);
+        await waitFor(() => {
+            const appLabels = screen.getAllByText('Sales App');
+            expect(appLabels.length).toBeGreaterThan(0);
+        }, { timeout: 10000 });
         
         // Check for Navigation Items
         expect(screen.getByText('Opportunities')).toBeInTheDocument();
