@@ -156,17 +156,16 @@ export default defineStack({
           options: {
             xField: 'status',
             yField: 'count',
-          },
-          // @ts-ignore
-          data: {
-            provider: 'value',
-            items: [
-              { status: 'Backlog', count: 2 },
-              { status: 'Todo', count: 2 },
-              { status: 'In Progress', count: 4 },
-              { status: 'Review', count: 1 },
-              { status: 'Done', count: 3 },
-            ],
+            data: {
+              provider: 'value',
+              items: [
+                { status: 'Backlog', count: 2 },
+                { status: 'Todo', count: 2 },
+                { status: 'In Progress', count: 4 },
+                { status: 'Review', count: 1 },
+                { status: 'Done', count: 3 },
+              ],
+            },
           },
         },
         {
@@ -176,17 +175,16 @@ export default defineStack({
           options: {
             xField: 'category',
             yField: 'count',
-          },
-          // @ts-ignore
-          data: {
-            provider: 'value',
-            items: [
-              { category: 'Feature', count: 4 },
-              { category: 'Bug', count: 3 },
-              { category: 'Documentation', count: 2 },
-              { category: 'Design', count: 1 },
-              { category: 'Chore', count: 2 },
-            ],
+            data: {
+              provider: 'value',
+              items: [
+                { category: 'Feature', count: 4 },
+                { category: 'Bug', count: 3 },
+                { category: 'Documentation', count: 2 },
+                { category: 'Design', count: 1 },
+                { category: 'Chore', count: 2 },
+              ],
+            },
           },
         },
       ],

@@ -68,8 +68,10 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
             // Handle Shorthand Registry Mappings
             const widgetType = (widget as any).type;
             if (widgetType === 'bar' || widgetType === 'line' || widgetType === 'area' || widgetType === 'pie' || widgetType === 'donut') {
-                const dataItems = Array.isArray((widget as any).data) ? (widget as any).data : (widget as any).data?.items || [];
                 const options = (widget as any).options || {};
+                // Support data at widget level or nested inside options
+                const widgetData = (widget as any).data || options.data;
+                const dataItems = Array.isArray(widgetData) ? widgetData : widgetData?.items || [];
                 const xAxisKey = options.xField || 'name';
                 const yField = options.yField || 'value';
                 
@@ -85,10 +87,13 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
             }
 
             if (widgetType === 'table') {
+                const options = (widget as any).options || {};
+                // Support data at widget level or nested inside options
+                const widgetData = (widget as any).data || options.data;
                 return {
                     type: 'data-table',
-                    ...(widget as any).options,
-                    data: (widget as any).data?.items || [],
+                    ...options,
+                    data: widgetData?.items || [],
                     searchable: false,
                     pagination: false,
                     className: "border-0"

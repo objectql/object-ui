@@ -120,15 +120,14 @@ export default defineStack({
           options: {
             xField: 'category',
             yField: 'count',
-          },
-          // @ts-ignore
-          data: {
-            provider: 'value',
-            items: [
-              { category: 'Option A', count: 2 },
-              { category: 'Option B', count: 2 },
-              { category: 'Option C', count: 1 },
-            ],
+            data: {
+              provider: 'value',
+              items: [
+                { category: 'Option A', count: 2 },
+                { category: 'Option B', count: 2 },
+                { category: 'Option C', count: 1 },
+              ],
+            },
           },
         },
         {
@@ -138,17 +137,16 @@ export default defineStack({
           options: {
             xField: 'name',
             yField: 'amount',
-          },
-          // @ts-ignore
-          data: {
-            provider: 'value',
-            items: [
-              { name: 'Alpha', amount: 1500 },
-              { name: 'Beta', amount: 3200 },
-              { name: 'Gamma', amount: 800 },
-              { name: 'Delta', amount: 5000 },
-              { name: 'Epsilon', amount: 12000 },
-            ],
+            data: {
+              provider: 'value',
+              items: [
+                { name: 'Alpha', amount: 1500 },
+                { name: 'Beta', amount: 3200 },
+                { name: 'Gamma', amount: 800 },
+                { name: 'Delta', amount: 5000 },
+                { name: 'Epsilon', amount: 12000 },
+              ],
+            },
           },
         },
 
@@ -160,18 +158,17 @@ export default defineStack({
           options: {
             xField: 'month',
             yField: 'value',
-          },
-          // @ts-ignore
-          data: {
-            provider: 'value',
-            items: [
-              { month: 'Jan', value: 3200 },
-              { month: 'Feb', value: 4500 },
-              { month: 'Mar', value: 4100 },
-              { month: 'Apr', value: 5800 },
-              { month: 'May', value: 6200 },
-              { month: 'Jun', value: 7500 },
-            ],
+            data: {
+              provider: 'value',
+              items: [
+                { month: 'Jan', value: 3200 },
+                { month: 'Feb', value: 4500 },
+                { month: 'Mar', value: 4100 },
+                { month: 'Apr', value: 5800 },
+                { month: 'May', value: 6200 },
+                { month: 'Jun', value: 7500 },
+              ],
+            },
           },
         },
       ],
