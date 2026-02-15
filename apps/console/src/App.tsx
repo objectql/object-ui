@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, lazy, Suspense, useMemo, type ReactNode } from 'react';
 import { ObjectForm } from '@object-ui/plugin-form';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Empty, EmptyTitle } from '@object-ui/components';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { toast } from 'sonner';
 import { SchemaRendererProvider } from '@object-ui/react';
 import type { ConnectionState } from './dataSource';
@@ -368,7 +368,7 @@ function findFirstRoute(items: any[]): string {
 
 // Redirect root to default app
 function RootRedirect() {
-    const { apps, loading } = useMetadata();
+    const { apps, loading, error } = useMetadata();
     const activeApps = apps.filter((a: any) => a.active !== false);
     const defaultApp = activeApps.find((a: any) => a.isDefault === true) || activeApps[0];
     
@@ -376,7 +376,16 @@ function RootRedirect() {
     if (defaultApp) {
         return <Navigate to={`/apps/${defaultApp.name}`} replace />;
     }
-    return <LoadingScreen />;
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Empty>
+          <EmptyTitle>{error ? 'Failed to Load Configuration' : 'No Apps Configured'}</EmptyTitle>
+          <EmptyDescription>
+            {error ? error.message : 'No applications have been registered. Check your ObjectStack configuration.'}
+          </EmptyDescription>
+        </Empty>
+      </div>
+    );
 }
 
 export function App() {
