@@ -759,14 +759,14 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     );
   }
 
-  // Row height cycle handler
-  const cycleRowHeight = useCallback(() => {
+  // Row height cycle handler (plain function, not hook — after early returns)
+  const cycleRowHeight = () => {
     setRowHeightMode(prev => {
       if (prev === 'compact') return 'medium';
       if (prev === 'medium') return 'tall';
       return 'compact';
     });
-  }, []);
+  };
 
   const RowHeightIcon = rowHeightMode === 'compact' ? Rows4 : rowHeightMode === 'tall' ? AlignJustify : Rows3;
 

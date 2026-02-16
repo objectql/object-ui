@@ -246,4 +246,178 @@ describe('DetailView', () => {
     const skeletons = container.querySelectorAll('.animate-pulse');
     expect(skeletons.length).toBeGreaterThan(0);
   });
+
+  it('should render prev/next navigation when recordNavigation is provided', () => {
+    const onNavigate = vi.fn();
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      data: { name: 'John Doe' },
+      fields: [{ name: 'name', label: 'Name' }],
+      showBack: false,
+      recordNavigation: {
+        recordIds: ['id1', 'id2', 'id3'],
+        currentIndex: 1,
+        onNavigate,
+      },
+    };
+
+    render(<DetailView schema={schema} />);
+    
+    // Should show position indicator
+    expect(screen.getByText('2 of 3')).toBeInTheDocument();
+  });
+
+  it('should call onNavigate with previous record id', () => {
+    const onNavigate = vi.fn();
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      data: { name: 'John Doe' },
+      fields: [{ name: 'name', label: 'Name' }],
+      showBack: false,
+      recordNavigation: {
+        recordIds: ['id1', 'id2', 'id3'],
+        currentIndex: 1,
+        onNavigate,
+      },
+    };
+
+    const { container } = render(<DetailView schema={schema} />);
+    
+    // Find the prev button (first in the navigation group)
+    const navButtons = container.querySelectorAll('button');
+    // The prev button is the one that contains a chevron-left icon and is not disabled
+    const prevButton = Array.from(navButtons).find(btn =>
+      btn.querySelector('.lucide-chevron-left')
+    );
+    expect(prevButton).toBeTruthy();
+    fireEvent.click(prevButton!);
+    expect(onNavigate).toHaveBeenCalledWith('id1');
+  });
+
+  it('should call onNavigate with next record id', () => {
+    const onNavigate = vi.fn();
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      data: { name: 'John Doe' },
+      fields: [{ name: 'name', label: 'Name' }],
+      showBack: false,
+      recordNavigation: {
+        recordIds: ['id1', 'id2', 'id3'],
+        currentIndex: 1,
+        onNavigate,
+      },
+    };
+
+    const { container } = render(<DetailView schema={schema} />);
+    
+    const nextButton = Array.from(container.querySelectorAll('button')).find(btn =>
+      btn.querySelector('.lucide-chevron-right')
+    );
+    expect(nextButton).toBeTruthy();
+    fireEvent.click(nextButton!);
+    expect(onNavigate).toHaveBeenCalledWith('id3');
+  });
+
+  it('should disable prev button at first record', () => {
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      data: { name: 'John Doe' },
+      fields: [{ name: 'name', label: 'Name' }],
+      showBack: false,
+      recordNavigation: {
+        recordIds: ['id1', 'id2'],
+        currentIndex: 0,
+        onNavigate: vi.fn(),
+      },
+    };
+
+    const { container } = render(<DetailView schema={schema} />);
+    
+    const prevButton = Array.from(container.querySelectorAll('button')).find(btn =>
+      btn.querySelector('.lucide-chevron-left')
+    );
+    expect(prevButton).toBeTruthy();
+    expect(prevButton!).toBeDisabled();
+  });
+
+  it('should disable next button at last record', () => {
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      data: { name: 'John Doe' },
+      fields: [{ name: 'name', label: 'Name' }],
+      showBack: false,
+      recordNavigation: {
+        recordIds: ['id1', 'id2'],
+        currentIndex: 1,
+        onNavigate: vi.fn(),
+      },
+    };
+
+    const { container } = render(<DetailView schema={schema} />);
+    
+    const nextButton = Array.from(container.querySelectorAll('button')).find(btn =>
+      btn.querySelector('.lucide-chevron-right')
+    );
+    expect(nextButton).toBeTruthy();
+    expect(nextButton!).toBeDisabled();
+  });
+
+  it('should render comments section when comments are provided', () => {
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      data: { name: 'John Doe' },
+      fields: [{ name: 'name', label: 'Name' }],
+      comments: [
+        {
+          id: '1',
+          text: 'Great contact!',
+          author: 'Alice',
+          createdAt: '2026-02-16T08:00:00Z',
+        },
+      ],
+    };
+
+    render(<DetailView schema={schema} />);
+    
+    expect(screen.getByText('Comments')).toBeInTheDocument();
+    expect(screen.getByText('Great contact!')).toBeInTheDocument();
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+  });
+
+  it('should render activity timeline when activities are provided', () => {
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      data: { name: 'John Doe' },
+      fields: [{ name: 'name', label: 'Name' }],
+      activities: [
+        {
+          id: '1',
+          type: 'create',
+          user: 'Bob',
+          timestamp: '2026-02-15T10:00:00Z',
+        },
+        {
+          id: '2',
+          type: 'field_change',
+          field: 'email',
+          oldValue: 'old@test.com',
+          newValue: 'new@test.com',
+          user: 'Alice',
+          timestamp: '2026-02-16T09:00:00Z',
+        },
+      ],
+    };
+
+    render(<DetailView schema={schema} />);
+    
+    expect(screen.getByText('Activity')).toBeInTheDocument();
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+  });
 });
