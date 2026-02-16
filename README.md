@@ -428,6 +428,54 @@ class MyCustomDataSource implements DataSource {
 
 [**Data Source Examples →**](./packages/types/examples/rest-data-source.ts)
 
+## 🏗️ Plugin Architecture
+
+ObjectUI follows the [@objectstack/spec](https://github.com/objectstack-ai/objectstack) protocol and embraces a **pure plugin ecosystem** architecture. This means explicit plugin composition with no hidden aggregators.
+
+### ✅ Recommended Pattern (Explicit & Transparent)
+
+```typescript
+import { ObjectQLPlugin } from '@objectstack/objectql';        // Data engine
+import { DriverPlugin, AppPlugin } from '@objectstack/runtime'; // Runtime
+import { InMemoryDriver } from '@objectstack/driver-memory';   // Storage
+import { HonoServerPlugin } from '@objectstack/plugin-hono-server'; // Server
+import { ConsolePlugin } from '@object-ui/console';             // UI
+
+export default {
+  plugins: [
+    new ObjectQLPlugin(),                      // Explicit: Data engine
+    new DriverPlugin(new InMemoryDriver()),    // Explicit: Storage layer  
+    new AppPlugin(config),                     // Explicit: Metadata
+    new HonoServerPlugin({ port: 3000 }),      // Explicit: HTTP server
+    new ConsolePlugin(),                       // Explicit: UI shell
+  ],
+};
+```
+
+### ❌ Deprecated Pattern (Hidden Aggregators)
+
+```typescript
+// DON'T use @objectql/core - it's deprecated
+import { ObjectQLPlugin } from '@objectql/core';
+
+// This hides complexity and violates microkernel principles
+new ObjectQLPlugin({ 
+  enableRepository: true,
+  enableQueryService: true,
+  // ...magic configuration
+})
+```
+
+### Best Practices
+
+1. **Import from `@objectstack/*` packages** - Never use deprecated `@objectql/core`
+2. **Use explicit plugin composition** - No aggregator patterns or magic
+3. **Follow `@objectstack/spec`** - The constitutional protocol for all development
+4. **Document plugin dependencies** - Make registration order clear
+5. **Test with minimal combinations** - Don't enable "everything" by default
+
+> See [ROADMAP.md § Architecture Migration](./ROADMAP.md#-architecture-migration-deprecating-objectqlcore) for the full migration plan and plugin ecosystem vision.
+
 ## 🎯 What Can You Build?
 
 Object UI is perfect for:

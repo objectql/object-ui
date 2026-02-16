@@ -541,6 +541,161 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 
 ---
 
+## 🔄 Architecture Migration: Deprecating @objectql/core
+
+> **Background:** According to the `@objectstack/spec` protocol (the upstream constitutional specification that all ObjectStack development must follow), the `@objectql/core` package in the `objectstack-ai/objectql` repository has been refactored from ~3,500 LOC to a 734 LOC thin bridge + plugin orchestrator and marked as deprecated (PR #373). This violates ObjectStack's microkernel + plugin architecture philosophy.
+
+> **ObjectUI Status:** ✅ **Already Compliant!** This repository does not use the deprecated `@objectql/core` package. All configurations use `@objectstack/objectql` and explicit plugin composition, which is the target architecture.
+
+### Migration Strategy for ObjectStack Ecosystem
+
+While ObjectUI is already following best practices, this section documents the broader ecosystem migration plan for reference and alignment with upstream deprecation:
+
+#### Phase A: Eliminate `ObjectQLPlugin` Aggregator (v4.3)
+
+**Objective:** Remove the one-click aggregator pattern and migrate to explicit plugin composition.
+
+**Current Pattern (Deprecated):**
+```typescript
+import { ObjectQLPlugin } from '@objectql/core';
+
+// One-click magic aggregator (hides complexity)
+new ObjectQLPlugin({
+  enableRepository: true,
+  enableQueryService: true,
+  enableValidator: true,
+  enableFormulas: true,
+  datasources: { ... }
+})
+```
+
+**Target Pattern (Explicit & Transparent):**
+```typescript
+// Explicit plugin composition — transparent, no magic
+import { ObjectQLPlugin } from '@objectstack/objectql';  // Upstream data engine
+import { QueryPlugin } from '@objectql/plugin-query';
+import { ValidatorPlugin } from '@objectql/plugin-validator';
+import { FormulaPlugin } from '@objectql/plugin-formula';
+
+// User composes exactly what they need
+plugins: [
+  new ObjectQLPlugin(),
+  new QueryPlugin(),
+  new ValidatorPlugin(),
+  new FormulaPlugin(),
+]
+```
+
+**ObjectUI Implementation:** Already follows this pattern in all configuration files.
+
+#### Phase B: Bridge Class Disposal (v4.3)
+
+**Objective:** Move `app.ts` (168 LOC bridge class) MetadataRegistry bridging logic into `@objectql/platform-node`.
+
+- `ObjectLoader` will register directly to upstream `SchemaRegistry`
+- No intermediate bridge layer needed
+- Platform adapters handle environment-specific concerns
+
+**ObjectUI Impact:** None — uses `@objectstack/runtime` platform abstractions.
+
+#### Phase C: Remaining Module Disposal (v4.3)
+
+**Modules to Remove:**
+- `kernel-factory.ts` → Delete; users directly use `new ObjectStackKernel([...plugins])`
+- `repository.ts` → Delete; import directly from `@objectstack/objectql`
+- `util.ts` → Move to `@objectql/types` (pure functions belong with type package)
+
+**ObjectUI Impact:** Already uses kernel and repository patterns from upstream packages.
+
+#### Phase D: v5.0 Breaking Release (Q4 2026)
+
+**Objective:** Complete removal of `@objectql/core` package.
+
+**Deliverables:**
+- Publish `@objectql/core@5.0.0` as empty meta-package
+  - Contains only `peerDependencies` pointing to standalone plugins
+  - Runtime outputs `console.warn` migration guidance
+- Update all documentation, examples, and tests across ecosystem
+- Provide automated migration tool (`@objectstack/codemod`)
+
+**ObjectUI Preparation:** Documentation updates to reference the pure plugin ecosystem.
+
+### Terminal State: Pure Plugin Marketplace
+
+The final ObjectStack plugin ecosystem architecture:
+
+```
+Core Plugins:
+├── @objectql/plugin-query              # Query enhancement layer
+├── @objectql/plugin-validator          # Declarative validation rules
+├── @objectql/plugin-formula            # Computed fields & expressions
+├── @objectql/plugin-security           # RBAC/FLS/RLS access control
+├── @objectql/plugin-optimizations      # Performance tuning (caching, indexing)
+├── @objectql/plugin-workflow           # State machines & automations
+├── @objectql/plugin-multitenancy       # Multi-tenant data isolation
+└── @objectql/plugin-sync               # Data synchronization engine
+
+Protocol Adapters:
+├── @objectql/protocol-graphql          # GraphQL schema generation
+├── @objectql/protocol-odata-v4         # OData V4 endpoint
+└── @objectql/protocol-json-rpc         # JSON-RPC 2.0 API
+
+Platform Adapters:
+├── @objectql/platform-node             # Node.js runtime support
+└── @objectql/edge-adapter              # Edge Runtime (Cloudflare, Deno)
+
+Data Drivers:
+├── @objectql/driver-*                  # Database-specific drivers
+
+Foundation (Immutable):
+└── @objectql/types                     # Constitutional type definitions
+```
+
+### Risk Mitigation
+
+| Risk | Mitigation Strategy |
+|------|---------------------|
+| **Breaking changes for existing users** | Preserve backward-compatible re-exports until v5.0; clear migration timeline |
+| **Plugin registration complexity** | Provide `createObjectQLPreset()` convenience function for common combinations |
+| **Plugin ordering issues** | Document recommended registration order; validate with integration tests |
+| **Discovery difficulty** | Comprehensive plugin registry with examples; autocomplete support in IDE |
+
+### ObjectUI Implementation Notes
+
+**Current State (Compliant):**
+- ✅ Uses `@objectstack/objectql` directly (not deprecated `@objectql/core`)
+- ✅ Uses `@objectstack/runtime` for kernel and platform abstractions
+- ✅ Explicit plugin composition in all configuration files
+- ✅ No hidden aggregators or magic imports
+
+**Example (from `objectstack.config.ts`):**
+```typescript
+import { ObjectQLPlugin } from '@objectstack/objectql';
+import { DriverPlugin, AppPlugin } from '@objectstack/runtime';
+import { InMemoryDriver } from '@objectstack/driver-memory';
+import { HonoServerPlugin } from '@objectstack/plugin-hono-server';
+import { ConsolePlugin } from '@object-ui/console';
+
+export default {
+  plugins: [
+    new ObjectQLPlugin(),                      // Explicit: Data engine
+    new DriverPlugin(new InMemoryDriver()),    // Explicit: Storage layer
+    new AppPlugin(mergedApp),                  // Explicit: Metadata
+    new HonoServerPlugin({ port: 3000 }),      // Explicit: HTTP server
+    new ConsolePlugin(),                       // Explicit: UI shell
+  ],
+};
+```
+
+**Recommended Practices for Plugin Developers:**
+1. Import from `@objectstack/*` packages, never `@objectql/core`
+2. Use explicit plugin composition over aggregator patterns
+3. Document plugin dependencies and registration order
+4. Follow `@objectstack/spec` as the constitutional protocol
+5. Test with minimal plugin combinations, not "everything enabled"
+
+---
+
 ## 📈 Success Metrics
 
 ### v1.0 Release Criteria (P0)
