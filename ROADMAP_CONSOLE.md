@@ -1,13 +1,17 @@
 # ObjectStack Console — Complete Development Roadmap
 
 > **Last Updated:** February 16, 2026
-> **Current Version:** v0.8.0
+> **Current Version:** v0.9.0
 > **Target Version:** v1.0.0 (GA)
 > **Spec Alignment:** @objectstack/spec v3.0.2
 > **Bootstrap (Phase 0):** ✅ Complete
 > **Phases 1-9:** ✅ Complete
 > **Phase 10 (L1):** ✅ Complete — Data Interaction Foundation
-> **Priority Focus:** 🎯 Phase 11-12 for v1.0 release
+> **Phase 11 (L1):** ✅ Complete — Grid & Table Excellence
+> **Phase 12 (L1):** ✅ Complete — Record Detail & Navigation
+> **Phase 13 (L1):** ✅ Complete — Kanban & Views Enhancement
+> **Phase 14 (L1):** ✅ Complete — Forms & Data Collection
+> **Priority Focus:** 🎯 Phase 15 for v1.1 release
 
 ---
 
@@ -618,17 +622,17 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 ---
 
-### Phase 13: Kanban & Views Enhancement 🔲 Planned
+### Phase 13: Kanban & Views Enhancement ✅ L1 Complete
 
 **Goal:** Close Kanban UX gaps (quick add, cover images, collapse, conditional coloring) and add advanced view features.
 
-**Status:** 🔲 Not Started — Improves Kanban and visual view types.
+**Status:** ✅ L1 Complete — Foundation features implemented. L2/L3 planned for future iterations.
 
 #### 13.1: Kanban Quick Add & Cover Image
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | Quick Add button at bottom of each Kanban column. Click to add card inline. Cover image field support (show image on card top). | 🔲 Planned | `KanbanConfigSchema.quickAdd`, `coverImageField` |
+| **L1 (Foundation)** | Quick Add button at bottom of each Kanban column. Click to add card inline. Cover image field support (show image on card top). | ✅ Done | `KanbanConfigSchema.quickAdd`, `coverImageField` |
 | **L2 (Production)** | Inline editing in quick-add (no dialog), image upload for cover field, cover image fit options (cover/contain). | 🔲 Planned | Enhanced quick-add UX |
 | **L3 (Excellence)** | Drag to reorder quick-add, batch quick-add (add multiple cards), AI-suggested cover images. | 🔲 Planned | Advanced quick-add features |
 
@@ -636,7 +640,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | Collapse/expand Kanban columns. Collapsed column shows count only. Card conditional coloring (border or background based on field value). | 🔲 Planned | `KanbanConfig.allowCollapse`, `conditionalFormatting` |
+| **L1 (Foundation)** | Collapse/expand Kanban columns. Collapsed column shows count only. Card conditional coloring (border or background based on field value). | ✅ Done | `KanbanConfig.allowCollapse`, `conditionalFormatting` |
 | **L2 (Production)** | Persist collapsed state per user, conditional column visibility (hide empty columns), card badges (priority, tags). | 🔲 Planned | Enhanced column management |
 | **L3 (Excellence)** | Custom column widths, horizontal scroll for many columns, column drag-to-reorder. | 🔲 Planned | Advanced layout customization |
 
@@ -649,25 +653,25 @@ These were the initial tasks to bring the console prototype to production-qualit
 | **L3 (Excellence)** | Multi-level swimlanes (nested grouping), swimlane drag-to-reorder, cross-swimlane card movement. | 🔲 Planned | Advanced 2D layout features |
 
 **Success Metrics:**
-- [ ] Quick Add button creates cards inline at column bottom
-- [ ] Cover images display on Kanban cards
-- [ ] Columns can be collapsed to show count only
-- [ ] Cards conditionally colored based on priority field
+- [x] Quick Add button creates cards inline at column bottom
+- [x] Cover images display on Kanban cards
+- [x] Columns can be collapsed to show count only
+- [x] Cards conditionally colored based on priority field
 - [ ] Swimlanes group cards by second field (2D layout)
 
 ---
 
-### Phase 14: Forms & Data Collection 🔲 Planned
+### Phase 14: Forms & Data Collection ✅ L1 Complete
 
 **Goal:** Complete FileUploadField widget, add embeddable standalone forms, and form analytics.
 
-**Status:** 🔲 Not Started — Enables external data collection use cases.
+**Status:** ✅ L1 Complete — Foundation features implemented. L2/L3 planned for future iterations.
 
 #### 14.1: Complete FileUploadField Widget
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | Drag-and-drop upload zone, upload progress bar, file preview (image/PDF/doc icons), delete uploaded file button. | 🔲 Planned | Full `FileUploadField` implementation |
+| **L1 (Foundation)** | Drag-and-drop upload zone, upload progress bar, file preview (image/PDF/doc icons), delete uploaded file button. | ✅ Done | Full `FileUploadField` implementation |
 | **L2 (Production)** | Multi-file upload with individual progress bars, file size/type validation with error messages, thumbnail grid for images. | 🔲 Planned | `FileFieldMetadata.multiple`, validation rules |
 | **L3 (Excellence)** | Camera capture for mobile, image cropping/rotation, cloud storage integration (S3, Azure Blob), upload resume on network failure. | 🔲 Planned | Advanced file handling |
 
@@ -675,7 +679,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | Standalone form URL (no authentication required). Shareable link for external submissions. Submission creates record in object. | 🔲 Planned | `FormConfig.embeddable`, `/forms/:formId` route |
+| **L1 (Foundation)** | Standalone form URL (no authentication required). Shareable link for external submissions. Submission creates record in object. | ✅ Done | `FormConfig.embeddable`, `/forms/:formId` route |
 | **L2 (Production)** | Prefill URL parameters (`?name=John&email=...`), custom thank-you page redirect, form branding (logo, colors). | 🔲 Planned | `FormConfig.prefillParams`, `thankYouPage` |
 | **L3 (Excellence)** | Multi-page forms (wizard steps), conditional form logic (skip fields based on answers), form expiration (time-limited access). | 🔲 Planned | Advanced form features |
 
@@ -683,15 +687,15 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | Submissions dashboard showing form fill rate, completion time, field drop-off. | 🔲 Planned | Analytics component |
+| **L1 (Foundation)** | Submissions dashboard showing form fill rate, completion time, field drop-off. | ✅ Done | Analytics component |
 | **L2 (Production)** | Field-level analytics (most skipped, most errored), submission heatmap (time of day), A/B testing support. | 🔲 Planned | Detailed analytics |
 | **L3 (Excellence)** | Real-time submission monitoring, export submissions as CSV, webhook on form submit. | 🔲 Planned | Advanced monitoring |
 
 **Success Metrics:**
-- [ ] FileUploadField supports drag-and-drop + multi-file upload
-- [ ] Standalone form URL created and shareable
+- [x] FileUploadField supports drag-and-drop + multi-file upload
+- [x] Standalone form URL created and shareable
 - [ ] Prefill URL parameters populate form fields
-- [ ] Form analytics dashboard shows submission metrics
+- [x] Form analytics dashboard shows submission metrics
 
 ---
 
@@ -878,9 +882,9 @@ These were the initial tasks to bring the console prototype to production-qualit
 | Saved filters / views | ✅ Done | — | Phase 3 |
 | **Export (CSV, JSON)** | ✅ Done | **🎯 v1.0 Essential** | Phase 10 (L1) |
 | **Export (Excel, PDF)** | 🔲 Planned | Post v1.0 | Phase 11 (L2) |
-| **Frozen columns** | 🔲 Planned | Post v1.0 | Phase 11 (L1) |
-| **Row grouping (native)** | 🔲 Planned | Post v1.0 | Phase 11 (L2) |
-| **Conditional row coloring** | 🔲 Planned | Post v1.0 | Phase 11 (L1) |
+| **Frozen columns** | ✅ Done | Post v1.0 | Phase 11 (L1) |
+| **Row grouping (native)** | ✅ Done | Post v1.0 | Phase 11 (L2) |
+| **Conditional row coloring** | ✅ Done | Post v1.0 | Phase 11 (L1) |
 | **Copy-paste from Excel** | 🔲 Planned | Post v1.0 | Phase 11 (L3) |
 | Import (CSV, Excel) | 🔲 Planned | Post v1.0 | Phase 15 (L1) |
 
@@ -896,12 +900,12 @@ These were the initial tasks to bring the console prototype to production-qualit
 | Conditional fields (dependsOn) | ✅ Done | — | — |
 | Field validation | ✅ Done | — | — |
 | **File upload fields (basic)** | ✅ Done | **🎯 v1.0 Essential** | Phase 10 (L1) |
-| **File upload fields (complete)** | 🔲 Planned | Post v1.0 | Phase 14 (L1) |
+| **File upload fields (complete)** | ✅ Done | Post v1.0 | Phase 14 (L1) |
 | **Related record lookup** | ✅ Done | **🎯 v1.0 Essential** | Phase 10 (L1) |
-| **Prev/Next record navigation** | 🔲 Planned | Post v1.0 | Phase 12 (L1) |
-| **Comments / Activity history** | 🔲 Planned | Post v1.0 | Phase 12 (L1) |
+| **Prev/Next record navigation** | ✅ Done | Post v1.0 | Phase 12 (L1) |
+| **Comments / Activity history** | ✅ Done | Post v1.0 | Phase 12 (L1) |
 | **Record revision history** | 🔲 Planned | Post v1.0 | Phase 12 (L2) |
-| **Embeddable form URL** | 🔲 Planned | Post v1.0 | Phase 14 (L1) |
+| **Embeddable form URL** | ✅ Done | Post v1.0 | Phase 14 (L1) |
 | Rich text editor fields | 🔲 Planned | Post v1.0 | Phase 14 (L3) |
 | Audit trail (field change history) | 🔲 Planned | Post v1.0 | Phase 16 (L2) |
 
@@ -941,10 +945,10 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 | Feature | Status | Priority | Phase |
 |---------|--------|----------|-------|
-| **Kanban Quick Add button** | 🔲 Planned | Post v1.0 | Phase 13 (L1) |
-| **Kanban cover image** | 🔲 Planned | Post v1.0 | Phase 13 (L1) |
-| **Kanban column collapse** | 🔲 Planned | Post v1.0 | Phase 13 (L1) |
-| **Kanban card coloring** | 🔲 Planned | Post v1.0 | Phase 13 (L1) |
+| **Kanban Quick Add button** | ✅ Done | Post v1.0 | Phase 13 (L1) |
+| **Kanban cover image** | ✅ Done | Post v1.0 | Phase 13 (L1) |
+| **Kanban column collapse** | ✅ Done | Post v1.0 | Phase 13 (L1) |
+| **Kanban card coloring** | ✅ Done | Post v1.0 | Phase 13 (L1) |
 | **Kanban swimlanes (2D grouping)** | 🔲 Planned | Post v1.0 | Phase 13 (L3) |
 | **Kanban card templates** | 🔲 Planned | Post v1.0 | Phase 13 (L2) |
 
@@ -1001,10 +1005,10 @@ These were the initial tasks to bring the console prototype to production-qualit
   Phase 11: Grid Excellence           ██████████████  ✅ L1 Complete: Frozen columns, Row grouping, Conditional coloring, Copy cell
   Phase 12: Record Detail             ██████████████  ✅ L1 Complete: Prev/Next nav, Comments, Activity history
 
-2026 Q3 (Jul-Sep) — v1.1: VIEWS & FORMS
+2026 Q3 (Jul-Sep) — v1.1: VIEWS & FORMS (✅ L1 Complete)
 ═══════════════════════════════════════════════════════════
-  Phase 13: Kanban Enhancement        ████████░░░░░░  Quick Add, Cover image, Swimlanes
-  Phase 14: Forms & Collection        ████████░░░░░░  Complete FileUpload, Embeddable forms, Analytics
+  Phase 13: Kanban Enhancement        ██████████████  ✅ L1 Complete: Quick Add, Cover image, Column collapse, Card coloring
+  Phase 14: Forms & Collection        ██████████████  ✅ L1 Complete: DnD FileUpload, Embeddable forms, Analytics
   Phase 15: Import/Export             ██████░░░░░░░░  Import wizard, Universal export, Shared links
 
 2026 Q4 (Oct-Dec) — v1.2: UNDO/REDO & COLLABORATION
@@ -1248,12 +1252,12 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 - [ ] Threaded discussions with attachments
 - [ ] Point-in-time restore for records
 
-### Phase 13: Kanban & Views Enhancement — Post v1.0
+### Phase 13: Kanban & Views Enhancement — ✅ L1 Complete
 **L1 (Foundation):**
-- [ ] Quick Add button at column bottom
-- [ ] Cover image support on Kanban cards
-- [ ] Column collapse/expand
-- [ ] Card conditional coloring
+- [x] Quick Add button at column bottom
+- [x] Cover image support on Kanban cards
+- [x] Column collapse/expand
+- [x] Card conditional coloring
 
 **L2 (Production):**
 - [ ] Inline editing in quick-add (no dialog)
@@ -1267,12 +1271,12 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 - [ ] Custom column widths with horizontal scroll
 - [ ] Cross-swimlane card movement
 
-### Phase 14: Forms & Data Collection — Post v1.0
+### Phase 14: Forms & Data Collection — ✅ L1 Complete
 **L1 (Foundation):**
-- [ ] Drag-and-drop upload zone in FileUploadField
-- [ ] Standalone form URL (embeddable, no auth)
-- [ ] Form submissions create records
-- [ ] Basic form analytics dashboard
+- [x] Drag-and-drop upload zone in FileUploadField
+- [x] Standalone form URL (embeddable, no auth)
+- [x] Form submissions create records
+- [x] Basic form analytics dashboard
 
 **L2 (Production):**
 - [ ] Multi-file upload with progress bars
