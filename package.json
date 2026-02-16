@@ -70,7 +70,7 @@
     "@objectstack/core": "^3.0.4",
     "@objectstack/driver-memory": "^3.0.4",
     "@objectstack/objectql": "^3.0.4",
-    "@objectstack/plugin-msw": "^3.0.4",
+    "@objectstack/plugin-msw": "^3.0.6",
     "@objectstack/runtime": "^3.0.4",
     "@objectstack/spec": "^3.0.4",
     "@playwright/test": "^1.58.2",
