@@ -1,6 +1,6 @@
 # Designer UX Analysis & Improvement Plan
 
-> **Last Updated:** February 12, 2026
+> **Last Updated:** February 16, 2026
 > **Package:** `@object-ui/plugin-designer`
 > **Source:** `packages/plugin-designer/src/`
 
@@ -497,6 +497,377 @@ This is the **most complete** designer:
 | Property editors complete | ~15% | ~25% | ~50% | ~90% |
 | Empty state guidance | 1/5 | 5/5 | 5/5 | 5/5 |
 | Confirmation on destructive actions | 0/5 | 0/5 | 5/5 | 5/5 |
+
+---
+
+## 10. Field Type Evaluation for Form Designer
+
+> **Last Updated:** February 16, 2026
+> **Related Packages:** `@object-ui/fields`, `@object-ui/types`, `@object-ui/plugin-designer`
+
+### 10.1 Overview
+
+The `@object-ui/fields` package provides **36 field widget implementations** covering
+text, numeric, date/time, selection, file, contact, computed, and visual field types.
+The `@object-ui/types` package defines **35 typed metadata interfaces** in
+`field-types.ts` plus a `FieldMetadata` union type. However, the designer components
+in `@object-ui/plugin-designer` expose only a **fraction** of these field types to
+users, creating a significant gap between available capabilities and designer UX.
+
+### 10.2 Complete Field Type Inventory
+
+The table below catalogs all field types available in `@object-ui/fields`, their
+corresponding type definitions in `@object-ui/types`, and their current status in
+each designer.
+
+#### Category: Basic Text
+
+| Field Type | Widget File | Type Interface | Cell Renderer | Form Mapper | DataModel | Page Palette |
+|------------|-------------|----------------|---------------|-------------|-----------|--------------|
+| `text` | `TextField.tsx` | `TextFieldMetadata` | `TextCellRenderer` | `field:text` | ✅ Default | `input` |
+| `textarea` | `TextAreaField.tsx` | `TextareaFieldMetadata` | `TextCellRenderer` | `field:textarea` | ❌ | `textarea` |
+| `markdown` | `RichTextField.tsx` | `MarkdownFieldMetadata` | `TextCellRenderer` | `field:markdown` | ❌ | ❌ |
+| `html` | `RichTextField.tsx` | `HtmlFieldMetadata` | `TextCellRenderer` | `field:html` | ❌ | ❌ |
+| `code` | `CodeField.tsx` | `CodeFieldMetadata` | — | — | ❌ | ❌ |
+
+#### Category: Numeric
+
+| Field Type | Widget File | Type Interface | Cell Renderer | Form Mapper | DataModel | Page Palette |
+|------------|-------------|----------------|---------------|-------------|-----------|--------------|
+| `number` | `NumberField.tsx` | `NumberFieldMetadata` | `NumberCellRenderer` | `field:number` | ❌ | ❌ |
+| `currency` | `CurrencyField.tsx` | `CurrencyFieldMetadata` | `CurrencyCellRenderer` | `field:currency` | ❌ | ❌ |
+| `percent` | `PercentField.tsx` | `PercentFieldMetadata` | `PercentCellRenderer` | `field:percent` | ❌ | ❌ |
+| `slider` | `SliderField.tsx` | `SliderFieldMetadata` | — | — | ❌ | ❌ |
+| `rating` | `RatingField.tsx` | `RatingFieldMetadata` | — | — | ❌ | ❌ |
+
+#### Category: Date & Time
+
+| Field Type | Widget File | Type Interface | Cell Renderer | Form Mapper | DataModel | Page Palette |
+|------------|-------------|----------------|---------------|-------------|-----------|--------------|
+| `date` | `DateField.tsx` | `DateFieldMetadata` | `DateCellRenderer` | `field:date` | ❌ | ❌ |
+| `datetime` | `DateTimeField.tsx` | `DateTimeFieldMetadata` | `DateTimeCellRenderer` | `field:datetime` | ✅ (default entity) | ❌ |
+| `time` | `TimeField.tsx` | `TimeFieldMetadata` | `TextCellRenderer` | `field:time` | ❌ | ❌ |
+
+#### Category: Selection & Lookup
+
+| Field Type | Widget File | Type Interface | Cell Renderer | Form Mapper | DataModel | Page Palette |
+|------------|-------------|----------------|---------------|-------------|-----------|--------------|
+| `boolean` | `BooleanField.tsx` | `BooleanFieldMetadata` | `BooleanCellRenderer` | `field:boolean` | ❌ | `checkbox` |
+| `select` | `SelectField.tsx` | `SelectFieldMetadata` | `SelectCellRenderer` | `field:select` | ❌ | `select` |
+| `lookup` | `LookupField.tsx` | `LookupFieldMetadata` | `LookupCellRenderer` | `field:lookup` | ❌ | ❌ |
+| `master_detail` | `MasterDetailField.tsx` | `MasterDetailFieldMetadata` | `LookupCellRenderer` | `field:master_detail` | ❌ | ❌ |
+
+#### Category: Contact & Identity
+
+| Field Type | Widget File | Type Interface | Cell Renderer | Form Mapper | DataModel | Page Palette |
+|------------|-------------|----------------|---------------|-------------|-----------|--------------|
+| `email` | `EmailField.tsx` | `EmailFieldMetadata` | `EmailCellRenderer` | `field:email` | ❌ | ❌ |
+| `phone` | `PhoneField.tsx` | `PhoneFieldMetadata` | `PhoneCellRenderer` | `field:phone` | ❌ | ❌ |
+| `url` | `UrlField.tsx` | `UrlFieldMetadata` | `UrlCellRenderer` | `field:url` | ❌ | ❌ |
+| `password` | `PasswordField.tsx` | `PasswordFieldMetadata` | *(masked)* | `field:password` | ❌ | ❌ |
+| `user` | `UserField.tsx` | `UserFieldMetadata` | `UserCellRenderer` | — | ❌ | ❌ |
+| `avatar` | `AvatarField.tsx` | `AvatarFieldMetadata` | — | — | ❌ | ❌ |
+
+#### Category: File & Media
+
+| Field Type | Widget File | Type Interface | Cell Renderer | Form Mapper | DataModel | Page Palette |
+|------------|-------------|----------------|---------------|-------------|-----------|--------------|
+| `file` | `FileField.tsx` | `FileFieldMetadata` | `FileCellRenderer` | `field:file` | ❌ | ❌ |
+| `image` | `ImageField.tsx` | `ImageFieldMetadata` | `ImageCellRenderer` | `field:image` | ❌ | ❌ |
+| `signature` | `SignatureField.tsx` | `SignatureFieldMetadata` | — | — | ❌ | ❌ |
+| `qrcode` | `QRCodeField.tsx` | `QRCodeFieldMetadata` | — | — | ❌ | ❌ |
+
+#### Category: Location & Address
+
+| Field Type | Widget File | Type Interface | Cell Renderer | Form Mapper | DataModel | Page Palette |
+|------------|-------------|----------------|---------------|-------------|-----------|--------------|
+| `location` | `LocationField.tsx` | `LocationFieldMetadata` | `TextCellRenderer` | `field:location` | ❌ | ❌ |
+| `address` | `AddressField.tsx` | `AddressFieldMetadata` | — | — | ❌ | ❌ |
+| `geolocation` | `GeolocationField.tsx` | `GeolocationFieldMetadata` | — | — | ❌ | ❌ |
+
+#### Category: Computed & Auto-generated
+
+| Field Type | Widget File | Type Interface | Cell Renderer | Form Mapper | DataModel | Page Palette |
+|------------|-------------|----------------|---------------|-------------|-----------|--------------|
+| `formula` | `FormulaField.tsx` | `FormulaFieldMetadata` | `FormulaCellRenderer` | `field:formula` | ❌ | ❌ |
+| `summary` | `SummaryField.tsx` | `SummaryFieldMetadata` | `FormulaCellRenderer` | `field:summary` | ❌ | ❌ |
+| `auto_number` | `AutoNumberField.tsx` | `AutoNumberFieldMetadata` | `TextCellRenderer` | `field:auto_number` | ❌ | ❌ |
+
+#### Category: Complex & Visual
+
+| Field Type | Widget File | Type Interface | Cell Renderer | Form Mapper | DataModel | Page Palette |
+|------------|-------------|----------------|---------------|-------------|-----------|--------------|
+| `object` | `ObjectField.tsx` | `ObjectFieldMetadata` | *[Object]* | — | ❌ | ❌ |
+| `vector` | `VectorField.tsx` | `VectorFieldMetadata` | *[Vector]* | — | ❌ | ❌ |
+| `grid` | `GridField.tsx` | `GridFieldMetadata` | *[Grid]* | — | ❌ | ❌ |
+| `color` | `ColorField.tsx` | `ColorFieldMetadata` | — | — | ❌ | ❌ |
+
+### 10.3 Gap Analysis by Designer
+
+#### DataModelDesigner
+
+**Current state:** When a field is added via `handleAddField` (`DataModelDesigner.tsx:258`),
+the type is hardcoded to `'text'`. The field type is displayed as a plain text label
+(`DataModelDesigner.tsx:712`) but there is **no UI to change the field type** after
+creation. The inline editing mode (`DataModelDesigner.tsx:273–306`) only supports
+editing the field name.
+
+**`DataModelField.type`** in `@object-ui/types` (`designer.ts:156`) is typed as a
+generic `string`, not a union of valid `@object-ui/fields` types. This means:
+- No TypeScript-level validation of field type values
+- No autocomplete assistance for developers
+- No compile-time guarantee that a field type maps to an existing widget
+
+**Key gaps:**
+1. No field type selector dropdown when adding/editing fields
+2. No reuse of `FieldMetadata` union type from `@object-ui/types/field-types.ts`
+3. No visual distinction between field types (icons, colors, badges)
+4. Default entity template only includes `uuid` and `datetime` — no standard business fields
+
+#### PageDesigner
+
+**Current state:** The `DEFAULT_PALETTE` (`PageDesigner.tsx:740–773`) contains 14
+generic component types across 3 categories (Layout, Form, Data). The Form category
+has only 5 items: `input`, `textarea`, `select`, `checkbox`, `button`.
+
+**Key gaps:**
+1. Form palette uses generic HTML-like type names (`input`, `checkbox`) rather than
+   `@object-ui/fields` type names (`text`, `boolean`, `email`, `phone`)
+2. Missing a dedicated **Fields** palette category showcasing all 36 field widgets
+3. No mapping between palette items and `@object-ui/fields` `FieldWidgetProps` interface
+4. No preview rendering using actual field widgets from `@object-ui/fields`
+
+#### ViewDesigner
+
+**Current state:** The ViewDesigner shows field types as plain text badges
+(`ViewDesigner.tsx:533`). It relies on the `availableFields` prop to receive
+`Array<{ name: string; label: string; type: string }>` from the parent. Type display
+is the most complete among designers, but still lacks visual indicators.
+
+**Key gaps:**
+1. Field type badges are plain text with no icons or colors per type
+2. No field type grouping/categorization in the Available Fields panel
+3. No type-specific column configuration (e.g., currency format, date format)
+
+### 10.4 Recommended `DESIGNER_FIELD_TYPES` Constant
+
+A centralized constant should be created to define all available field types for
+designer selection, leveraging the `FieldMetadata` union type from `@object-ui/types`.
+
+**Proposed location:** `packages/plugin-designer/src/constants/fieldTypes.ts`
+
+```typescript
+import type { LucideIcon } from 'lucide-react';
+import {
+  Type, Hash, Calendar, Clock, ToggleLeft, List,
+  Link, Mail, Phone, Globe, Lock, File, Image,
+  MapPin, Home, Navigation, Calculator, Sigma, Binary,
+  User, Palette, Code2, Star, PenTool, QrCode,
+  Grid3X3, Braces, Database as DatabaseIcon, SlidersHorizontal,
+} from 'lucide-react';
+
+export interface DesignerFieldTypeOption {
+  /** Field type identifier — matches @object-ui/fields registry key */
+  type: string;
+  /** Display label */
+  label: string;
+  /** Lucide icon component */
+  icon: LucideIcon;
+  /** Category for grouping in palette/dropdown */
+  category: 'text' | 'number' | 'datetime' | 'selection' | 'contact'
+           | 'file' | 'location' | 'computed' | 'complex' | 'visual';
+  /** Short description for tooltips */
+  description: string;
+}
+
+export const DESIGNER_FIELD_TYPES: DesignerFieldTypeOption[] = [
+  // Text
+  { type: 'text', label: 'Text', icon: Type, category: 'text',
+    description: 'Single-line text input' },
+  { type: 'textarea', label: 'Long Text', icon: Type, category: 'text',
+    description: 'Multi-line text area' },
+  { type: 'markdown', label: 'Markdown', icon: Code2, category: 'text',
+    description: 'Markdown-formatted rich text' },
+  { type: 'html', label: 'Rich Text', icon: Code2, category: 'text',
+    description: 'HTML rich text editor' },
+  { type: 'code', label: 'Code', icon: Code2, category: 'text',
+    description: 'Code editor with syntax highlighting' },
+
+  // Number
+  { type: 'number', label: 'Number', icon: Hash, category: 'number',
+    description: 'Numeric input with precision control' },
+  { type: 'currency', label: 'Currency', icon: Hash, category: 'number',
+    description: 'Monetary value with currency symbol' },
+  { type: 'percent', label: 'Percent', icon: Hash, category: 'number',
+    description: 'Percentage value with progress bar' },
+  { type: 'slider', label: 'Slider', icon: SlidersHorizontal, category: 'number',
+    description: 'Numeric range slider' },
+  { type: 'rating', label: 'Rating', icon: Star, category: 'number',
+    description: 'Star rating input' },
+
+  // Date & Time
+  { type: 'date', label: 'Date', icon: Calendar, category: 'datetime',
+    description: 'Date picker' },
+  { type: 'datetime', label: 'Date & Time', icon: Calendar, category: 'datetime',
+    description: 'Date and time picker' },
+  { type: 'time', label: 'Time', icon: Clock, category: 'datetime',
+    description: 'Time picker' },
+
+  // Selection
+  { type: 'boolean', label: 'Boolean', icon: ToggleLeft, category: 'selection',
+    description: 'True/false toggle' },
+  { type: 'select', label: 'Select', icon: List, category: 'selection',
+    description: 'Dropdown with predefined options' },
+  { type: 'lookup', label: 'Lookup', icon: Link, category: 'selection',
+    description: 'Reference to another object' },
+  { type: 'master_detail', label: 'Master-Detail', icon: Link, category: 'selection',
+    description: 'Parent-child relationship with cascade delete' },
+
+  // Contact
+  { type: 'email', label: 'Email', icon: Mail, category: 'contact',
+    description: 'Email address with validation' },
+  { type: 'phone', label: 'Phone', icon: Phone, category: 'contact',
+    description: 'Phone number input' },
+  { type: 'url', label: 'URL', icon: Globe, category: 'contact',
+    description: 'Web address with validation' },
+  { type: 'password', label: 'Password', icon: Lock, category: 'contact',
+    description: 'Masked password input' },
+  { type: 'user', label: 'User', icon: User, category: 'contact',
+    description: 'User reference with avatar' },
+  { type: 'avatar', label: 'Avatar', icon: User, category: 'contact',
+    description: 'User avatar image' },
+
+  // File & Media
+  { type: 'file', label: 'File', icon: File, category: 'file',
+    description: 'File upload with type/size validation' },
+  { type: 'image', label: 'Image', icon: Image, category: 'file',
+    description: 'Image upload with preview' },
+  { type: 'signature', label: 'Signature', icon: PenTool, category: 'file',
+    description: 'Digital signature capture' },
+  { type: 'qrcode', label: 'QR Code', icon: QrCode, category: 'file',
+    description: 'QR code generator/scanner' },
+
+  // Location
+  { type: 'location', label: 'Location', icon: MapPin, category: 'location',
+    description: 'Map-based location picker' },
+  { type: 'address', label: 'Address', icon: Home, category: 'location',
+    description: 'Structured address fields' },
+  { type: 'geolocation', label: 'Geolocation', icon: Navigation, category: 'location',
+    description: 'GPS coordinates input' },
+
+  // Computed
+  { type: 'formula', label: 'Formula', icon: Calculator, category: 'computed',
+    description: 'Calculated field from expression' },
+  { type: 'summary', label: 'Summary', icon: Sigma, category: 'computed',
+    description: 'Roll-up aggregation from related records' },
+  { type: 'auto_number', label: 'Auto Number', icon: Binary, category: 'computed',
+    description: 'Auto-incrementing number' },
+
+  // Complex
+  { type: 'object', label: 'Object', icon: Braces, category: 'complex',
+    description: 'Nested JSON object' },
+  { type: 'vector', label: 'Vector', icon: DatabaseIcon, category: 'complex',
+    description: 'Embedding vector for AI/ML' },
+  { type: 'grid', label: 'Grid', icon: Grid3X3, category: 'complex',
+    description: 'Inline sub-table/spreadsheet' },
+  { type: 'color', label: 'Color', icon: Palette, category: 'visual',
+    description: 'Color picker' },
+];
+```
+
+### 10.5 Integration Plan per Designer
+
+#### DataModelDesigner — Field Type Selector
+
+Add a `<select>` dropdown next to each field's type display, populated from
+`DESIGNER_FIELD_TYPES`. When a field type is changed, update the entity's field
+array via `pushState()`.
+
+**Implementation points:**
+- Replace the read-only `{field.type}` span (`DataModelDesigner.tsx:712`) with a
+  `<select>` element grouped by `category`
+- Add an `onChangeFieldType(entityId, fieldIndex, newType)` handler
+- Show field type icons in the property editor panel when an entity is selected
+- Update the type of `DataModelField.type` in `@object-ui/types/designer.ts` to
+  reference the `FieldMetadata` union's type discriminant for type safety
+
+#### PageDesigner — Fields Palette Category
+
+Add a fourth palette category **"Fields"** to `DEFAULT_PALETTE`, populated from
+`DESIGNER_FIELD_TYPES`. Each palette item should map to the corresponding
+`@object-ui/fields` widget via `ComponentRegistry.resolve('field:<type>')`.
+
+**Proposed palette addition:**
+```typescript
+{
+  name: 'fields',
+  label: 'Fields',
+  items: DESIGNER_FIELD_TYPES.map(ft => ({
+    type: `field:${ft.type}`,
+    label: ft.label,
+    icon: ft.icon.name,
+    defaultSize: { width: 300, height: 60 },
+    defaultProps: { fieldType: ft.type },
+  })),
+}
+```
+
+**Implementation points:**
+- Import `DESIGNER_FIELD_TYPES` from `./constants/fieldTypes`
+- Render field type icons in palette items
+- When a field palette item is dropped on canvas, the component renders the
+  actual field widget from `@object-ui/fields` via `ComponentRegistry`
+- The property editor should expose field-type-specific props (e.g., `currency`
+  for currency fields, `options` for select fields)
+
+#### ViewDesigner — Field Type Badges with Icons
+
+Enhance the Available Fields panel (`ViewDesigner.tsx:520–537`) to show field
+type icons from `DESIGNER_FIELD_TYPES` alongside field names, and group fields
+by category.
+
+**Implementation points:**
+- Import field type icons from `DESIGNER_FIELD_TYPES`
+- Replace plain text type badge with icon + colored badge
+- Optionally group available fields by field type category
+
+### 10.6 Type Safety Recommendations
+
+1. **Add `FieldTypeName` type to `@object-ui/types`:**
+   ```typescript
+   export type FieldTypeName = FieldMetadata['type'];
+   // Results in: 'text' | 'textarea' | 'markdown' | 'html' | 'number' | ...
+   ```
+
+2. **Update `DataModelField.type` in `designer.ts`:**
+   ```typescript
+   import type { FieldTypeName } from './field-types';
+
+   export interface DataModelField {
+     name: string;
+     label?: string;
+     type: FieldTypeName;  // Changed from generic `string`
+     // ...
+   }
+   ```
+
+3. **Update `mapFieldTypeToFormType` in `@object-ui/fields`** to cover all 36
+   field types (currently missing: `color`, `slider`, `rating`, `code`, `avatar`,
+   `address`, `geolocation`, `signature`, `qrcode`).
+
+### 10.7 Priority & Phasing
+
+| Priority | Task | Effort |
+|----------|------|--------|
+| 🔴 P0 | Create `DESIGNER_FIELD_TYPES` constant | 0.5 day |
+| 🔴 P0 | Add field type selector dropdown to DataModelDesigner | 1 day |
+| 🟠 P1 | Add Fields palette category to PageDesigner | 1 day |
+| 🟠 P1 | Add `FieldTypeName` type and update `DataModelField` | 0.5 day |
+| 🟡 P2 | Enhance ViewDesigner field type badges with icons | 0.5 day |
+| 🟡 P2 | Complete `mapFieldTypeToFormType` for all 36 types | 0.5 day |
+| 🟢 P3 | Type-specific property editors per field type | 3–5 days |
+
+**Total estimated effort:** 7–9.5 developer days
 
 ---
 
