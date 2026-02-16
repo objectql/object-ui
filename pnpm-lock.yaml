@@ -1152,8 +1152,8 @@ importers:
         specifier: ^7.71.1
         version: 7.71.1(react@19.2.4)
       react-resizable-panels:
-        specifier: ^4.6.3
-        version: 4.6.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: ^4.6.4
+        version: 4.6.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       recharts:
         specifier: 2.15.4
         version: 2.15.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -10237,8 +10237,8 @@ packages:
       '@types/react':
         optional: true
 
-  react-resizable-panels@4.6.3:
-    resolution: {integrity: sha512-nO5ksnCTdnV4YrRNw/OrZrX8ffh0sPA+2uM8kJbF19c8PRNuhH7ojJFE+UisAg2HFQFqIPmmW8bANrJNtIdXeA==}
+  react-resizable-panels@4.6.4:
+    resolution: {integrity: sha512-E7Szs1xyaMZ7xOI2gG4TECNz4r/gmpV1AsXyZRnER6OQnfFf9uclFmrHHZR3h/iF8vQS+nQ1LKyZv9bzwGxPSg==}
     peerDependencies:
       react: 19.2.4
       react-dom: 19.2.4
@@ -13860,7 +13860,7 @@ snapshots:
       lucide-react: 0.563.0(react@19.2.4)
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
-      react-resizable-panels: 4.6.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      react-resizable-panels: 4.6.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       tailwind-merge: 3.4.0
     transitivePeerDependencies:
       - '@types/node'
@@ -20674,7 +20674,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.13
 
-  react-resizable-panels@4.6.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  react-resizable-panels@4.6.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
