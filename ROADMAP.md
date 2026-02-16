@@ -543,7 +543,7 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 
 ## 🔄 Architecture Migration: Deprecating @objectql/core
 
-> **Background:** According to the `@objectstack/spec` protocol (the upstream constitutional specification that all ObjectStack development must follow), the `@objectql/core` package in the `objectstack-ai/objectql` repository has been refactored from ~3,500 LOC to a 734 LOC thin bridge + plugin orchestrator and marked as deprecated (PR #373). This violates ObjectStack's microkernel + plugin architecture philosophy.
+> **Background:** According to the `@objectstack/spec` protocol (the upstream constitutional specification that all ObjectStack development must follow), the `@objectql/core` package in the `objectstack-ai/objectql` repository has been refactored from ~3,500 LOC to a 734 LOC thin bridge + plugin orchestrator and marked as deprecated (PR #373). The original implementation violated ObjectStack's microkernel + plugin architecture philosophy, prompting this refactoring and eventual removal.
 
 > **ObjectUI Status:** ✅ **Already Compliant!** This repository does not use the deprecated `@objectql/core` package. All configurations use `@objectstack/objectql` and explicit plugin composition, which is the target architecture.
 
