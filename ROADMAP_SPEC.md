@@ -251,7 +251,7 @@ Each package is rated against three dimensions:
 | Dimension | Rating | Details |
 |-----------|--------|---------|
 | Functional Completeness | ✅ Complete | ObjectKanban with drag-drop, column limits, lazy loading |
-| Spec UI Compliance | ✅ Complete | Implements KanbanSchema with columns, cards, groupBy |
+| Spec UI Compliance | ⚠️ Partial | Implements KanbanConfigSchema (groupByField, summarizeField, columns); navigation.mode supported but navigation.width and navigation.view not applied |
 | Spec API Compliance | ✅ Complete | DataSource grouping via ObjectQL queries |
 
 **Strengths:**
@@ -259,12 +259,17 @@ Each package is rated against three dimensions:
 - Column card limits enforcement
 - Lazy-loaded via React.Suspense
 - Enhanced version with virtual scrolling option
+- Navigation via useNavigationOverlay (mode, openNewTab, preventNavigation)
 
-**Gaps:** None critical
+**Gaps:**
+- Navigation `width` property not applied to drawer/modal overlays
+- Navigation `view` property not used (should specify target form/view)
 
 **Improvement Plan:**
-1. **P3:** Add swimlane support (dual-axis grouping)
-2. **P3:** Add card template customization
+1. **P2:** Apply navigation.width to drawer/modal overlays
+2. **P2:** Implement navigation.view to open specific form/view on card click
+3. **P3:** Add swimlane support (dual-axis grouping)
+4. **P3:** Add card template customization
 
 ---
 
@@ -346,19 +351,29 @@ Each package is rated against three dimensions:
 | Dimension | Rating | Details |
 |-----------|--------|---------|
 | Functional Completeness | ✅ Complete | ListView, ViewSwitcher, ObjectGallery |
-| Spec UI Compliance | ✅ Complete | Multi-view support with 7 view types (grid, kanban, gallery, calendar, timeline, gantt, map) |
+| Spec UI Compliance | ⚠️ Partial | Multi-view support with 7 view types; navigation.width/view propagation incomplete; 10+ ListViewSchema spec properties not yet implemented (quickFilters, hiddenFields, fieldOrder, virtualScroll, conditionalFormatting, inlineEdit, exportOptions, emptyState, aria, rowHeight) |
 | Spec API Compliance | ✅ Complete | FilterBuilder AST conversion to ObjectStack format; SortBuilder; search integration |
 
 **Strengths:**
 - ViewSwitcher with tabs/buttons/dropdown variants
 - FilterBuilder integration converting UI filters to ObjectQL AST
 - Named list views for pre-configured filters
+- Full navigation support in ListView itself (mode, openNewTab, preventNavigation, width)
 
-**Gaps:** None critical
+**Gaps:**
+- ObjectGallery: No navigation property support (only accepts onCardClick callback)
+- ListView: Spec properties not implemented — quickFilters, hiddenFields, fieldOrder, virtualScroll, conditionalFormatting, inlineEdit, exportOptions, emptyState, aria, sharing, rowHeight
+- Navigation `view` property not used in child view components
 
 **Improvement Plan:**
-1. **P2:** Add saved view management (create/update/delete named views)
-2. **P3:** Add view sharing between users
+1. **P1:** Add navigation property support to ObjectGallery
+2. **P2:** Implement quickFilters spec property for predefined filter buttons
+3. **P2:** Add saved view management (create/update/delete named views)
+4. **P2:** Implement hiddenFields and fieldOrder spec properties
+5. **P2:** Implement emptyState spec property for custom no-data UI
+6. **P3:** Implement inlineEdit, virtualScroll, conditionalFormatting spec properties
+7. **P3:** Implement exportOptions spec property (csv, xlsx, json, pdf)
+8. **P3:** Add view sharing between users
 
 ---
 
@@ -367,7 +382,7 @@ Each package is rated against three dimensions:
 | Dimension | Rating | Details |
 |-----------|--------|---------|
 | Functional Completeness | ✅ Complete | ObjectView, ViewSwitcher, FilterUI, SortUI |
-| Spec UI Compliance | ✅ Complete | Multi-view container managing grid/kanban/calendar/timeline/gantt/map |
+| Spec UI Compliance | ⚠️ Partial | Multi-view container managing grid/kanban/calendar/timeline/gantt/map; navigation.width not passed to child views; navigation.view not used |
 | Spec API Compliance | ✅ Complete | DataSource-driven view resolution; localStorage view persistence |
 
 **Strengths:**
@@ -376,10 +391,14 @@ Each package is rated against three dimensions:
 - Filter/Sort/Search UI components
 - View persistence via localStorage
 
-**Gaps:** None critical
+**Gaps:**
+- Navigation `width` property not passed to child view overlays
+- Navigation `view` property (target form/view name) not consumed
 
 **Improvement Plan:**
-1. **P3:** Add view transition animations between view types
+1. **P2:** Pass navigation.width to drawer/modal overlays in all child views
+2. **P2:** Implement navigation.view to specify target form/view on record click
+3. **P3:** Add view transition animations between view types
 
 ---
 
@@ -390,7 +409,7 @@ Each package is rated against three dimensions:
 | Dimension | Rating | Details |
 |-----------|--------|---------|
 | Functional Completeness | ✅ Complete | ObjectCalendar, CalendarView with month/week/day views |
-| Spec UI Compliance | ✅ Complete | Implements CalendarConfig from spec (dateField, endField, titleField, colorField, defaultView) |
+| Spec UI Compliance | ⚠️ Partial | Implements CalendarConfigSchema (startDateField, endDateField, titleField, colorField); navigation.mode supported but navigation.width and navigation.view not applied |
 | Spec API Compliance | ✅ Complete | Auto-maps records to CalendarEvent via DataSource; date range filtering |
 
 **Strengths:**
@@ -398,14 +417,19 @@ Each package is rated against three dimensions:
 - Color-coded events
 - Locale-aware date formatting
 - Event click and date click handlers
+- Navigation via useNavigationOverlay (mode, openNewTab, preventNavigation)
 
 **Gaps:**
+- Navigation `width` property not applied to drawer/modal overlays
+- Navigation `view` property not used (should specify target form/view)
 - No drag-to-resize event duration
 - No drag-to-move event to different date
 
 **Improvement Plan:**
-1. **P2:** Add drag-to-reschedule (move events between dates)
-2. **P3:** Add drag-to-resize (adjust event duration)
+1. **P2:** Apply navigation.width to drawer/modal overlays
+2. **P2:** Implement navigation.view to open specific form/view on event click
+3. **P2:** Add drag-to-reschedule (move events between dates)
+4. **P3:** Add drag-to-resize (adjust event duration)
 
 ---
 
@@ -414,7 +438,7 @@ Each package is rated against three dimensions:
 | Dimension | Rating | Details |
 |-----------|--------|---------|
 | Functional Completeness | ✅ Complete | ObjectGantt, GanttView with day/week/month/quarter modes |
-| Spec UI Compliance | ✅ Complete | Directly imports GanttConfigSchema from @objectstack/spec/ui |
+| Spec UI Compliance | ⚠️ Partial | Directly imports GanttConfigSchema from @objectstack/spec/ui; navigation.mode supported but navigation.width and navigation.view not applied; ObjectUI adds colorField (not in spec) |
 | Spec API Compliance | ✅ Complete | DataSource integration with object/api/value providers |
 
 **Strengths:**
@@ -422,14 +446,19 @@ Each package is rated against three dimensions:
 - Task progress tracking with visual bar
 - Task dependency visualization
 - Multi-view mode with zoom controls
+- Navigation via useNavigationOverlay (mode, openNewTab, preventNavigation)
 
 **Gaps:**
+- Navigation `width` property not applied to drawer/modal overlays
+- Navigation `view` property not used (should specify target form/view)
 - No inline task editing
 - No critical path highlighting
 
 **Improvement Plan:**
-1. **P2:** Add inline task editing (click-to-edit dates and progress)
-2. **P3:** Add critical path calculation and highlighting
+1. **P2:** Apply navigation.width to drawer/modal overlays
+2. **P2:** Implement navigation.view to open specific form/view on task click
+3. **P2:** Add inline task editing (click-to-edit dates and progress)
+4. **P3:** Add critical path calculation and highlighting
 
 ---
 
@@ -438,7 +467,7 @@ Each package is rated against three dimensions:
 | Dimension | Rating | Details |
 |-----------|--------|---------|
 | Functional Completeness | ✅ Complete | 3 variants: vertical, horizontal, gantt-style |
-| Spec UI Compliance | ✅ Complete | Rich primitive system (Timeline, TimelineItem, TimelineMarker, TimelineContent, etc.) |
+| Spec UI Compliance | ⚠️ Partial | Rich primitive system; but TimelineConfigSchema from spec (startDateField, endDateField, titleField, groupByField, colorField, scale) not consumed — ObjectTimeline uses non-standard field names (dateField vs startDateField); navigation.width and navigation.view not applied |
 | Spec API Compliance | ✅ Complete | ObjectTimeline with DataSource integration; auto date range calculation |
 
 **Strengths:**
@@ -446,11 +475,21 @@ Each package is rated against three dimensions:
 - Marker variants with color coding (success, warning, danger, info)
 - Gantt-style horizontal bars with time scale
 - Comprehensive primitive components for custom composition
+- Navigation via useNavigationOverlay (mode, openNewTab, preventNavigation)
 
-**Gaps:** None critical
+**Gaps:**
+- TimelineConfig type NOT defined in @object-ui/types — uses ad-hoc mapping with non-standard field names (`dateField` instead of spec's `startDateField`)
+- Spec properties not consumed: `endDateField`, `groupByField`, `colorField`, `scale`
+- Navigation `width` property not applied to drawer/modal overlays
+- Navigation `view` property not used
 
 **Improvement Plan:**
-1. **P3:** Add interactive timeline (click-to-zoom on date ranges)
+1. **P1:** Define TimelineConfig type in @object-ui/types aligned with @objectstack/spec TimelineConfigSchema
+2. **P1:** Rename dateField → startDateField to match spec naming convention
+3. **P2:** Implement spec properties: endDateField, groupByField, colorField, scale
+4. **P2:** Apply navigation.width to drawer/modal overlays
+5. **P2:** Implement navigation.view to open specific form/view on item click
+6. **P3:** Add interactive timeline (click-to-zoom on date ranges)
 
 ---
 
@@ -459,7 +498,7 @@ Each package is rated against three dimensions:
 | Dimension | Rating | Details |
 |-----------|--------|---------|
 | Functional Completeness | ✅ Complete | ObjectMap with marker support using MapLibre GL |
-| Spec UI Compliance | ✅ Complete | Implements ObjectMapSchema with latitudeField, longitudeField, locationField mapping |
+| Spec UI Compliance | ⚠️ Partial | Implements ObjectMapSchema with latitudeField, longitudeField, locationField mapping; navigation.mode supported but navigation.width and navigation.view not applied; no MapConfig in spec (map type has no separate config schema) |
 | Spec API Compliance | ✅ Complete | DataSource integration with object/api/value providers |
 
 **Strengths:**
@@ -467,16 +506,19 @@ Each package is rated against three dimensions:
 - Multi-format location input (separate lat/lng or combined field)
 - Navigation controls
 - Marker popups with title/description
+- Navigation via useNavigationOverlay (mode, openNewTab, preventNavigation)
 
 **Gaps:**
+- Navigation `width` property not applied to drawer/modal overlays
+- Navigation `view` property not used (should specify target form/view on marker click)
 - No marker clustering for dense data
 - No custom marker icons
-- Limited error handling for invalid coordinates
 
 **Improvement Plan:**
-1. **P1:** Add error handling for missing/invalid coordinates
-2. **P2:** Add marker clustering (Supercluster) for 100+ markers
-3. **P3:** Add custom marker icons based on record type or status
+1. **P2:** Apply navigation.width to drawer/modal overlays
+2. **P2:** Implement navigation.view to open specific form/view on marker click
+3. **P2:** Add marker clustering (Supercluster) for 100+ markers
+4. **P3:** Add custom marker icons based on record type or status
 
 ---
 
@@ -840,6 +882,32 @@ Each package is rated against three dimensions:
 | Permission UI | ✅ Complete | Guard components with hide/disable/redirect fallbacks |
 | I18nLabel (v3.0.0) | ✅ Complete | `resolveI18nLabel()` handles `string \| { key, defaultValue?, params? }` across all schemas |
 
+#### 6.1.1 List View Type Spec Compliance Detail
+
+**Per-View-Type Navigation Property Support:**
+
+| View Type | navigation.mode | navigation.openNewTab | navigation.preventNavigation | navigation.width | navigation.view |
+|-----------|:-:|:-:|:-:|:-:|:-:|
+| Grid (plugin-grid) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Kanban (plugin-kanban) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Calendar (plugin-calendar) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Gantt (plugin-gantt) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Timeline (plugin-timeline) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Map (plugin-map) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Gallery (plugin-list) | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+**Per-View-Type Config Schema Compliance:**
+
+| View Type | Spec Config | Type Defined | Spec Properties Covered | Missing Properties |
+|-----------|-------------|:---:|-------------------------|-------------------|
+| Grid | ListViewSchema | ✅ | columns, filter, sort, selection, pagination, navigation, searchableFields, filterableFields | quickFilters, hiddenFields, fieldOrder, virtualScroll, conditionalFormatting, inlineEdit, exportOptions, emptyState, aria, sharing, rowHeight |
+| Kanban | KanbanConfigSchema | ✅ | groupByField, summarizeField, columns | — (fully compliant) |
+| Calendar | CalendarConfigSchema | ✅ | startDateField, endDateField, titleField, colorField | — (fully compliant) |
+| Gantt | GanttConfigSchema | ✅ | startDateField, endDateField, titleField, progressField, dependenciesField | — (fully compliant; ObjectUI adds colorField beyond spec) |
+| Gallery | GalleryConfigSchema | ⚠️ | coverField, coverFit, cardSize, titleField, visibleFields (implemented but type not exported from @object-ui/types) | Type export missing from index.ts |
+| Timeline | TimelineConfigSchema | ❌ | — | Type NOT defined; uses non-standard `dateField` instead of spec `startDateField`; missing: endDateField, groupByField, colorField, scale |
+| Map | (no spec config) | N/A | locationField, latitudeField, longitudeField, titleField | N/A (no MapConfig in spec) |
+
 ### 6.2 Spec API Compliance Summary
 
 | Area | Status | Details |
@@ -866,7 +934,7 @@ Each package is rated against three dimensions:
 | **Focus / Keyboard** | FocusManagementSchema, FocusTrapConfigSchema, KeyboardNavigationConfigSchema, KeyboardShortcutSchema | 🔲 Not Started | Types re-exported; no focus management runtime |
 | **Notifications** | NotificationSchema, NotificationActionSchema, NotificationConfigSchema, NotificationPositionSchema, NotificationSeveritySchema, NotificationTypeSchema | 🔲 Not Started | Types re-exported; no notification system implemented |
 | **Offline / Sync** | OfflineCacheConfigSchema, OfflineConfigSchema, OfflineStrategySchema, SyncConfigSchema, ConflictResolutionSchema, PersistStorageSchema, EvictionPolicySchema | 🔲 Not Started | Service Worker caching in @object-ui/mobile; spec offline schemas not consumed |
-| **View Enhancements** | ColumnSummarySchema, GalleryConfigSchema, GroupingConfigSchema, GroupingFieldSchema, RowColorConfigSchema, RowHeightSchema, ViewSharingSchema, DensityMode | ⚠️ Partial | Some features exist in plugins (gallery in plugin-list, grouping in plugin-aggrid) but spec schemas not directly consumed |
+| **View Enhancements** | ColumnSummarySchema, GalleryConfigSchema, GroupingConfigSchema, GroupingFieldSchema, RowColorConfigSchema, RowHeightSchema, ViewSharingSchema, TimelineConfigSchema, DensityMode | ⚠️ Partial | ColumnSummary, Grouping, RowColor consumed in plugin-grid; Gallery implemented in plugin-list but type not exported; **TimelineConfigSchema not consumed** (uses non-standard dateField); RowHeight and DensityMode not yet implemented |
 | **Performance** | PerformanceConfigSchema | 🔲 Not Started | Types re-exported; no performance monitoring runtime |
 | **Page** | PageComponentType, PageTransitionSchema | ⚠️ Partial | Page component exists with 4 variants; PageTransitionSchema not consumed |
 
@@ -884,6 +952,11 @@ Each package is rated against three dimensions:
 | 8 | ~~Real-time collaboration~~ | ~~P2~~ | ~~All~~ | ✅ **Resolved** — @object-ui/collaboration with WebSocket, presence, comments |
 | 9 | ~~Offline sync~~ | ~~P2~~ | ~~data-objectstack, mobile~~ | ✅ **Resolved** — useOffline hook with sync queue, conflict resolution |
 | 10 | ~~Advanced formulas missing~~ | ~~P2~~ | ~~core~~ | ✅ **Resolved** — FIND, REPLACE, SUBSTRING, REGEX, STDEV, VARIANCE, PERCENTILE, MEDIAN all implemented |
+| 11 | TimelineConfig not defined in @object-ui/types | P1 | types, plugin-timeline | TimelineConfigSchema from spec not consumed; uses non-standard `dateField` instead of `startDateField` |
+| 12 | GalleryConfig type not exported from @object-ui/types | P1 | types, plugin-list | GalleryConfigSchema from spec implemented but type not exported from index.ts |
+| 13 | Navigation `width`/`view` properties not applied | P2 | plugin-kanban, plugin-calendar, plugin-gantt, plugin-timeline, plugin-map, plugin-view | All view plugins accept navigation via useNavigationOverlay but ignore `width` and `view` properties |
+| 14 | ObjectGallery lacks navigation support | P1 | plugin-list | ObjectGallery only accepts onCardClick; does not support spec navigation config |
+| 15 | ListView spec properties not implemented | P2 | plugin-list, types | 10+ ListViewSchema properties from spec not implemented: quickFilters, hiddenFields, fieldOrder, virtualScroll, conditionalFormatting, inlineEdit, exportOptions, emptyState, aria, rowHeight |
 
 ---
 
@@ -912,6 +985,9 @@ Each package is rated against three dimensions:
 | 12 | ~~Add useTheme hook for component-level theme access~~ | react | ~~2 days~~ | ✅ Complete — in ThemeContext |
 | 13 | ~~Implement AriaPropsSchema injection in component renderers~~ | components, react | ~~1 week~~ | ✅ Complete — resolveAriaProps in SchemaRenderer |
 | 14 | ~~Implement FocusManagementSchema and FocusTrapConfigSchema runtime~~ | react | ~~1 week~~ | ✅ Complete — useFocusTrap hook |
+| 64 | Define TimelineConfig type in @object-ui/types aligned with spec TimelineConfigSchema | types, plugin-timeline | 3 days | Pending |
+| 65 | Export GalleryConfig type from @object-ui/types index.ts | types | 1 day | Pending |
+| 66 | Add navigation property support to ObjectGallery | plugin-list | 3 days | Pending |
 
 ### Priority 2 — Medium (Q2 2026)
 
@@ -945,6 +1021,12 @@ Each package is rated against three dimensions:
 | 40 | ~~Consume ColumnSummarySchema, GroupingConfigSchema, RowColorConfigSchema in grid views~~ | plugin-grid, plugin-aggrid | ~~1 week~~ | ✅ Complete — useColumnSummary, useGroupedData, useRowColor |
 | 41 | ~~Consume GalleryConfigSchema and ViewSharingSchema in list plugin~~ | plugin-list | ~~1 week~~ | ✅ Complete — ObjectGallery, useViewSharing |
 | 42 | ~~Consume I18nObjectSchema, LocaleConfigSchema, PluralRuleSchema in i18n package~~ | i18n | ~~1 week~~ | ✅ Complete |
+| 67 | Apply navigation.width to drawer/modal overlays in all view plugins | plugin-kanban, plugin-calendar, plugin-gantt, plugin-timeline, plugin-map, plugin-view | 1 week | Pending |
+| 68 | Implement navigation.view property across all view plugins | plugin-kanban, plugin-calendar, plugin-gantt, plugin-timeline, plugin-map, plugin-view | 1 week | Pending |
+| 69 | Implement quickFilters spec property in ListView | plugin-list | 3 days | Pending |
+| 70 | Implement hiddenFields and fieldOrder spec properties in ListView | plugin-list, types | 3 days | Pending |
+| 71 | Implement emptyState spec property in ListView | plugin-list | 2 days | Pending |
+| 72 | Implement Timeline spec properties: endDateField, groupByField, colorField, scale | plugin-timeline | 1 week | Pending |
 
 ### Priority 3 — Low (Q3-Q4 2026)
 
@@ -971,6 +1053,10 @@ Each package is rated against three dimensions:
 | 61 | Implement PerformanceConfigSchema monitoring runtime | core, react | 1 week |
 | 62 | Implement WcagContrastLevel checking utility | components | 3 days |
 | 63 | Add DensityMode support to grid and list views | plugin-grid, plugin-list | 3 days |
+| 73 | Implement inlineEdit, virtualScroll, conditionalFormatting spec properties in ListView | plugin-list | 2 weeks |
+| 74 | Implement exportOptions spec property in ListView (csv, xlsx, json, pdf) | plugin-list | 1 week |
+| 75 | Add aria spec property support to ListView | plugin-list | 3 days |
+| 76 | Add sharing spec property support to ListView | plugin-list | 3 days |
 
 ---
 
