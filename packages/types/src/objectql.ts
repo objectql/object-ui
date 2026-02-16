@@ -416,6 +416,22 @@ export interface ObjectGridSchema extends BaseSchema {
   frozenColumns?: number;
 
   /**
+   * Export options configuration for exporting grid data.
+   * Supports csv, xlsx, json, and pdf formats.
+   * Aligned with @objectstack/spec ListViewSchema.exportOptions.
+   */
+  exportOptions?: {
+    /** Formats available for export */
+    formats?: Array<'csv' | 'xlsx' | 'json' | 'pdf'>;
+    /** Maximum number of records to export (0 = unlimited) */
+    maxRecords?: number;
+    /** Include column headers in export */
+    includeHeaders?: boolean;
+    /** Custom file name prefix */
+    fileNamePrefix?: string;
+  };
+
+  /**
    * Navigation configuration for row click behavior.
    * Controls how record detail is displayed when a row is clicked.
    * Aligned with @objectstack/spec ListView.navigation.

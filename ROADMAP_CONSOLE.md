@@ -1,12 +1,13 @@
 # ObjectStack Console — Complete Development Roadmap
 
 > **Last Updated:** February 16, 2026
-> **Current Version:** v0.5.2
+> **Current Version:** v0.8.0
 > **Target Version:** v1.0.0 (GA)
 > **Spec Alignment:** @objectstack/spec v3.0.2
 > **Bootstrap (Phase 0):** ✅ Complete
-> **Phases 1-9:** ⚠️ Mostly Complete (see verified status below)
-> **Priority Focus:** 🎯 UI-essential features for v1.0 release
+> **Phases 1-9:** ✅ Complete
+> **Phase 10 (L1):** ✅ Complete — Data Interaction Foundation
+> **Priority Focus:** 🎯 Phase 11-12 for v1.0 release
 
 ---
 
@@ -433,11 +434,11 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 ---
 
-### Phase 10: Data Interaction Foundation (v1.0 Blockers) 🔲 Planned
+### Phase 10: Data Interaction Foundation (v1.0 Blockers) ✅ Complete
 
 **Goal:** Implement core data interaction features required for v1.0 GA — file upload, related record lookup, export, ActionEngine, and server-driven metadata loading.
 
-**Status:** 🔲 Not Started — These are v1.0 blockers that must ship before GA.
+**Status:** ✅ L1 Complete — All v1.0 blocker features implemented and tested.
 
 **Approach:** Progressive implementation with L1 (Foundation) → L2 (Production) → L3 (Excellence) maturity stages. Each feature starts with a minimal viable implementation (L1), then evolves to production-ready quality (L2), and optionally to advanced capabilities (L3).
 
@@ -445,7 +446,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | Basic file input field with preview in forms. Single file upload with progress indicator. Accepts common file types (images, PDFs, docs). | 🔲 Planned | `FieldMetadata` type `file` + `FileUploadField` widget |
+| **L1 (Foundation)** | Basic file input field with preview in forms. Single file upload with progress indicator. Accepts common file types (images, PDFs, docs). | ✅ Done | `FieldMetadata` type `file` + `FileUploadField` widget |
 | **L2 (Production)** | Drag-and-drop upload zone, multi-file support, file size validation, thumbnail previews, delete uploaded files. | 🔲 Planned | `FileFieldMetadata.multiple`, `maxSize`, `accept` properties |
 | **L3 (Excellence)** | Direct camera/photo capture, image cropping/editing, cloud storage integration, upload resume on failure. | 🔲 Planned | Extended `FileFieldMetadata` with `capture`, `crop`, `storage` options |
 
@@ -460,7 +461,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | LookupField widget with DataSource-integrated search. Type-ahead search returns matching records. Selected record displayed with primary field. | 🔲 Planned | `FieldMetadata` type `lookup` with `referenceObject` property |
+| **L1 (Foundation)** | LookupField widget with DataSource-integrated search. Type-ahead search returns matching records. Selected record displayed with primary field. | ✅ Done | `FieldMetadata` type `lookup` with `referenceObject` property |
 | **L2 (Production)** | Advanced search with multiple fields, record preview on hover, quick-create button for related records, multi-select lookup. | 🔲 Planned | `LookupFieldMetadata.searchFields`, `quickCreate`, `multiple` |
 | **L3 (Excellence)** | Dependent lookups (filter options based on other fields), hierarchical lookups (parent-child relationships), lookup result caching. | 🔲 Planned | `dependsOn` filters, `hierarchical` mode, caching strategy |
 
@@ -475,7 +476,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | CSV/JSON export button on Grid toolbar. Exports visible columns and current filtered/sorted data. | 🔲 Planned | `ListViewSchema.exportOptions` with `csv`, `json` formats |
+| **L1 (Foundation)** | CSV/JSON export button on Grid toolbar. Exports visible columns and current filtered/sorted data. | ✅ Done | `ObjectGridSchema.exportOptions` + `ListViewSchema.exportOptions` with `csv`, `json` formats |
 | **L2 (Production)** | Excel (XLSX) export, PDF export with formatting, export all data (not just visible), custom column selection for export. | 🔲 Planned | `exportOptions.formats: ["csv", "xlsx", "json", "pdf"]` |
 | **L3 (Excellence)** | Scheduled exports via automation, export templates with custom formatting, email export results, export to cloud storage. | 🔲 Planned | Integration with Phase 18 Automation workflows |
 
@@ -490,7 +491,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | Declarative `ActionDef[]` → `ActionRunner` pipeline. Replace callback-based `useObjectActions` with event-driven dispatch. Support core action types: `navigate`, `create`, `update`, `delete`, `refresh`. | 🔲 Planned | `ActionSchema` from `@objectstack/spec` |
+| **L1 (Foundation)** | Declarative `ActionDef[]` → `ActionRunner` pipeline. Replace callback-based `useObjectActions` with event-driven dispatch. Support core action types: `navigate`, `create`, `update`, `delete`, `refresh`. | ✅ Done | `ActionSchema` from `@objectstack/spec` |
 | **L2 (Production)** | Full action type coverage: `open_url`, `show_notification`, `confirm`, `execute_workflow`, `call_api`. Conditional actions (`enabled`, `visible` expressions). Action chaining (sequential execution). | 🔲 Planned | Complete `ActionSchema` type union implementation |
 | **L3 (Excellence)** | Custom action handlers (plugin system), action middleware (logging, analytics), undo/redo support for reversible actions. | 🔲 Planned | `ActionHandler` plugin interface, middleware pipeline |
 
@@ -505,7 +506,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | Console fetches app config from server at runtime using `DataSource.getApp()`, `getView()`, `getPage()` methods. Fallback to static config when server unavailable. | 🔲 Planned | `DataSource` interface metadata methods |
+| **L1 (Foundation)** | Console fetches app config from server at runtime using `DataSource.getApp()`, `getView()`, `getPage()` methods. Fallback to static config when server unavailable. | ✅ Done | `DataSource` interface metadata methods |
 | **L2 (Production)** | Metadata caching with ETag support (already implemented in adapter), hot-reload on metadata changes, version compatibility checks. | ✅ Done (Adapter) | `MetadataCache` in `ObjectStackAdapter` |
 | **L3 (Excellence)** | Metadata editing UI (admin console), metadata versioning and rollback, A/B testing with metadata variants. | 🔲 Planned | Advanced admin features |
 
@@ -517,11 +518,11 @@ These were the initial tasks to bring the console prototype to production-qualit
 - Console displays loading state during metadata fetch
 
 **Success Metrics:**
-- [ ] File upload works in forms with progress indicator
-- [ ] Lookup field searches related records via DataSource
-- [ ] Grid export button downloads CSV with current data
-- [ ] All CRUD actions dispatched through ActionEngine
-- [ ] Console loads app config from server (not static file)
+- [x] File upload works in forms with progress indicator
+- [x] Lookup field searches related records via DataSource
+- [x] Grid export button downloads CSV with current data
+- [x] All CRUD actions dispatched through ActionEngine
+- [x] Console loads app config from server (not static file)
 
 ---
 
@@ -875,7 +876,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 | Bulk actions (select + execute) | ✅ Done | — | Phase 2 |
 | Column reordering & persistence | ✅ Done | — | Phase 7 |
 | Saved filters / views | ✅ Done | — | Phase 3 |
-| **Export (CSV, JSON)** | 🔲 Planned | **🎯 v1.0 Essential** | Phase 10 (L1) |
+| **Export (CSV, JSON)** | ✅ Done | **🎯 v1.0 Essential** | Phase 10 (L1) |
 | **Export (Excel, PDF)** | 🔲 Planned | Post v1.0 | Phase 11 (L2) |
 | **Frozen columns** | 🔲 Planned | Post v1.0 | Phase 11 (L1) |
 | **Row grouping (native)** | 🔲 Planned | Post v1.0 | Phase 11 (L2) |
@@ -894,9 +895,9 @@ These were the initial tasks to bring the console prototype to production-qualit
 | Form variants (tabbed, wizard, split) | ✅ Done | — | — |
 | Conditional fields (dependsOn) | ✅ Done | — | — |
 | Field validation | ✅ Done | — | — |
-| **File upload fields (basic)** | 🔲 Planned | **🎯 v1.0 Essential** | Phase 10 (L1) |
+| **File upload fields (basic)** | ✅ Done | **🎯 v1.0 Essential** | Phase 10 (L1) |
 | **File upload fields (complete)** | 🔲 Planned | Post v1.0 | Phase 14 (L1) |
-| **Related record lookup** | 🔲 Planned | **🎯 v1.0 Essential** | Phase 10 (L1) |
+| **Related record lookup** | ✅ Done | **🎯 v1.0 Essential** | Phase 10 (L1) |
 | **Prev/Next record navigation** | 🔲 Planned | Post v1.0 | Phase 12 (L1) |
 | **Comments / Activity history** | 🔲 Planned | Post v1.0 | Phase 12 (L1) |
 | **Record revision history** | 🔲 Planned | Post v1.0 | Phase 12 (L2) |
@@ -980,8 +981,8 @@ These were the initial tasks to bring the console prototype to production-qualit
 2026 Q1 (Feb-Mar)  — FEATURE PHASES
 ═══════════════════════════════════════════════════════════
   Phase 1: Expression Engine          ██████████████  ✅ Complete
-  Phase 2: Action System              ██████████░░░░  ⚠️ Partial (no ActionEngine)
-  Phase 3: Metadata API               ██████████░░░░  ⚠️ Partial (static config)
+  Phase 2: Action System              ██████████████  ✅ Complete (ActionEngine)
+  Phase 3: Metadata API               ██████████████  ✅ Complete (server-driven)
   Phase 4: Internationalization        ██████████████  ✅ Complete
   Phase 5: RBAC & Permissions          ██████████████  ✅ Complete
   Phase 6: Real-Time Updates           ██████████████  ✅ Complete
@@ -989,11 +990,11 @@ These were the initial tasks to bring the console prototype to production-qualit
   Phase 8: Offline / PWA              ██████████████  ✅ Complete
   Phase 9: NavigationConfig Spec      ██████████████  ✅ Complete
 
-2026 Q1-Q2 (Mar-Apr) — v1.0 DATA INTERACTION (🎯 GA Blockers)
+2026 Q1-Q2 (Mar-Apr) — v1.0 DATA INTERACTION (✅ L1 Complete)
 ═══════════════════════════════════════════════════════════
-  Phase 2 Completion: ActionEngine    ██░░░░░░░░░░░░  Declarative action dispatch
-  Phase 3 Completion: Metadata API    ██░░░░░░░░░░░░  Server-driven config loading
-  Phase 10: Data Interaction          ████░░░░░░░░░░  File upload, Lookup, Export, ActionEngine, Server metadata
+  Phase 2 Completion: ActionEngine    ██████████████  ✅ Declarative action dispatch
+  Phase 3 Completion: Metadata API    ██████████████  ✅ Server-driven config loading
+  Phase 10: Data Interaction          ██████████████  ✅ File upload, Lookup, Export, ActionEngine, Server metadata
 
 2026 Q2 (May-Jun) — v1.0 GA: GRID & RECORD DETAIL
 ═══════════════════════════════════════════════════════════
@@ -1022,7 +1023,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 |-----------|---------|------|-------------|
 | **Bootstrap** | v0.5.0 | ✅ Feb 7, 2026 | 10 sub-phases: data layer, plugins, i18n, routing, DX |
 | **Alpha** | v0.5.2 | ✅ Feb 14, 2026 | Expressions + Partial Actions + Metadata adapter + i18n + RBAC |
-| **Beta** | v0.8.0 | Planned Mar 2026 | ActionEngine + Server-driven metadata + Phase 10 L1 features |
+| **Beta** | v0.8.0 | ✅ Feb 16, 2026 | ActionEngine + Server-driven metadata + Phase 10 L1 features |
 | **RC** | v0.9.0 | Planned Apr 2026 | Phase 10 complete + Phase 11/12 L1 features |
 | **GA v1.0** | v1.0.0 | Q2 2026 | Core data interaction + Grid excellence + Record detail (Phases 10-12) |
 | **v1.1** | v1.1.0 | Q3 2026 | Kanban + Forms + Import/Export (Phases 13-15) |
@@ -1186,13 +1187,13 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 - [x] All 8 view plugins support NavigationConfig specification (7 modes)
 - [x] `useNavigationOverlay` hook + `NavigationOverlay` component pattern
 
-### Phase 10: Data Interaction Foundation (v1.0 Blockers) — 🎯 Priority
+### Phase 10: Data Interaction Foundation (v1.0 Blockers) — ✅ L1 Complete
 **L1 (Foundation) — v1.0 GA Scope:**
-- [ ] FileUploadField widget renders with single file upload + progress
-- [ ] LookupField widget searches related records via DataSource
-- [ ] Grid export button downloads CSV/JSON with current data
-- [ ] ActionEngine dispatches all CRUD actions from `ActionDef[]`
-- [ ] Console fetches app config from server via `getApp()` method
+- [x] FileUploadField widget renders with single file upload + progress
+- [x] LookupField widget searches related records via DataSource
+- [x] Grid export button downloads CSV/JSON with current data
+- [x] ActionEngine dispatches all CRUD actions from `ActionDef[]`
+- [x] Console fetches app config from server via `getApp()` method
 
 **L2 (Production) — Post v1.0:**
 - [ ] Multi-file upload with drag-and-drop + validation

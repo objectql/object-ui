@@ -25,15 +25,13 @@ import React, { useEffect, useState, useCallback } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction } from '@object-ui/react';
 import { getCellRenderer } from '@object-ui/fields';
-import { Button, NavigationOverlay } from '@object-ui/components';
-import { usePullToRefresh } from '@object-ui/mobile';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  Button, NavigationOverlay,
+  Popover, PopoverContent, PopoverTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@object-ui/components';
-import { Edit, Trash2, MoreVertical, ChevronRight, ChevronDown } from 'lucide-react';
+import { usePullToRefresh } from '@object-ui/mobile';
+import { Edit, Trash2, MoreVertical, ChevronRight, ChevronDown, Download } from 'lucide-react';
 import { useRowColor } from './useRowColor';
 import { useGroupedData } from './useGroupedData';
 
@@ -125,6 +123,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [useCardView, setUseCardView] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showExport, setShowExport] = useState(false);
 
   // Column state persistence (order and widths)
   const columnStorageKey = React.useMemo(() => {
@@ -514,6 +513,47 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     return generatedColumns;
   }, [objectSchema, schemaFields, schemaColumns, dataConfig, hasInlineData, navigation.handleClick, executeAction]);
 
+  const handleExport = useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
+    const exportConfig = schema.exportOptions;
+    const maxRecords = exportConfig?.maxRecords || 0;
+    const includeHeaders = exportConfig?.includeHeaders !== false;
+    const prefix = exportConfig?.fileNamePrefix || schema.objectName || 'export';
+    const exportData = maxRecords > 0 ? data.slice(0, maxRecords) : data;
+
+    const downloadFile = (blob: Blob, filename: string) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    const escapeCsvValue = (val: any): string => {
+      const str = val == null ? '' : String(val);
+      return str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')
+        ? `"${str.replace(/"/g, '""')}"`
+        : str;
+    };
+
+    if (format === 'csv') {
+      const cols = generateColumns().filter((c: any) => c.accessorKey !== '_actions');
+      const fields = cols.map((c: any) => c.accessorKey);
+      const headers = cols.map((c: any) => c.header);
+      const rows: string[] = [];
+      if (includeHeaders) {
+        rows.push(headers.join(','));
+      }
+      exportData.forEach(record => {
+        rows.push(fields.map((f: string) => escapeCsvValue(record[f])).join(','));
+      });
+      downloadFile(new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' }), `${prefix}.csv`);
+    } else if (format === 'json') {
+      downloadFile(new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' }), `${prefix}.json`);
+    }
+    setShowExport(false);
+  }, [data, schema.exportOptions, schema.objectName, generateColumns]);
+
   if (error) {
     return (
       <div className="p-3 sm:p-4 border border-red-300 bg-red-50 rounded-md">
@@ -713,6 +753,40 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     );
   }
 
+  // Export toolbar (shown when exportOptions is configured)
+  const exportToolbar = schema.exportOptions ? (
+    <div className="flex items-center justify-end px-2 py-1">
+      <Popover open={showExport} onOpenChange={setShowExport}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+          >
+            <Download className="h-3.5 w-3.5 mr-1.5" />
+            <span className="hidden sm:inline">Export</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-48 p-2">
+          <div className="space-y-1">
+            {(schema.exportOptions.formats || ['csv', 'json']).map(format => (
+              <Button
+                key={format}
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start h-8 text-xs"
+                onClick={() => handleExport(format)}
+              >
+                <Download className="h-3.5 w-3.5 mr-2" />
+                Export as {format.toUpperCase()}
+              </Button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  ) : null;
+
   // Render grid content: grouped (multiple tables with headers) or flat (single table)
   const gridContent = isGrouped ? (
     <div className="space-y-2">
@@ -745,7 +819,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       <NavigationOverlay
         {...navigation}
         title={detailTitle}
-        mainContent={gridContent}
+        mainContent={<>{exportToolbar}{gridContent}</>}
       >
         {(record) => (
           <div className="space-y-3">
@@ -773,6 +847,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           {isRefreshing ? 'Refreshing…' : 'Pull to refresh'}
         </div>
       )}
+      {exportToolbar}
       {gridContent}
       {navigation.isOverlay && (
         <NavigationOverlay
