@@ -1,16 +1,21 @@
 # ObjectStack Console — Complete Development Roadmap
 
-> **Last Updated:** February 16, 2026
+> **Last Updated:** February 16, 2026 (Progress Re-evaluation)
 > **Current Version:** v0.9.0
 > **Target Version:** v1.0.0 (GA)
 > **Spec Alignment:** @objectstack/spec v3.0.2
-> **Bootstrap (Phase 0):** ✅ Complete
-> **Phases 1-9:** ✅ Complete
+> **Bootstrap (Phase 0):** ⚠️ Mostly Complete (1 item remaining)
+> **Phases 1-5:** ✅ Complete
+> **Phase 6 (Real-Time):** ⚠️ Core complete, some features not integrated into console
+> **Phase 7 (Performance):** ✅ Complete
+> **Phase 8 (PWA):** ⚠️ Core complete, background sync simulated only
+> **Phase 9 (NavigationConfig):** ✅ Complete
 > **Phase 10 (L1):** ✅ Complete — Data Interaction Foundation
 > **Phase 11 (L1):** ✅ Complete — Grid & Table Excellence
 > **Phase 12 (L1):** ✅ Complete — Record Detail & Navigation
 > **Phase 13 (L1):** ✅ Complete — Kanban & Views Enhancement
 > **Phase 14 (L1):** ✅ Complete — Forms & Data Collection
+> **Phase 16-18:** ⚠️ Partial — Package-level components exist (useUndoRedo, CommentThread, WorkflowDesigner, ProcessDesigner)
 > **Priority Focus:** 🎯 Phase 15 for v1.1 release
 
 ---
@@ -112,7 +117,7 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 
 ---
 
-## 3. Current State (v0.5.2)
+## 3. Current State (v0.9.0 RC — Progress Re-evaluation)
 
 ### Completed Features ✅
 
@@ -136,7 +141,7 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 - ✅ Auto-reconnect with exponential backoff
 - ✅ Metadata caching (ETag-based)
 - ✅ MSW browser-based mock server
-- ⚠️ Metadata API (`getView`, `getApp`, `getPage`) exists on adapter but console still loads from static config
+- ✅ Runtime metadata loading via `MetadataProvider` → `client.meta.getItems()` (replaces static config)
 - ✅ Graceful hotcrm submodule fallback (empty arrays when not initialized)
 
 **Object Views:**
@@ -164,10 +169,12 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 - ✅ Expression-based navigation item visibility (`visible`, `visibleOn`)
 
 **Action System:**
-- ⚠️ `useObjectActions` hook with create/delete/navigate/refresh handlers (callback-based, not yet full `ActionEngine` dispatch)
+- ✅ `useObjectActions` hook with create/delete/navigate/refresh handlers, wired to `ActionRunner` via `useActionRunner`
+- ✅ `ActionRunner.execute(ActionDef)` fully implemented (717 lines) with script, url, modal, flow, api, navigation action types
 - ✅ Toast notifications via Sonner
 - ✅ Confirmation dialogs for destructive actions
-- ❌ Declarative `ActionDef[]` event pipeline (events → ActionEngine) not yet implemented
+- ✅ Custom toolbar actions from schema (`action.location === 'list_toolbar'`) dispatched through ActionRunner
+- ⚠️ CRUD dialog in `App.tsx` still uses inline `onSuccess`/`onCancel` callbacks instead of `ActionDef[]`
 
 **Internationalization:**
 - ✅ `@object-ui/i18n` integration with `I18nProvider`
@@ -202,7 +209,7 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 - ✅ 7 navigation modes (page, drawer, modal, split, popover, new_window, none)
 
 **Testing:**
-- ✅ 34 test files covering core flows
+- ✅ 315 test files covering core flows, plugins, hooks, and components
 - ✅ MSW server-side mock for tests
 - ✅ Plugin integration tests
 - ✅ Expression visibility tests
@@ -218,20 +225,20 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 | # | Gap | Status | Resolution |
 |---|-----|--------|------------|
 | G1 | Expression engine not fully wired | ✅ | `ExpressionProvider` + `evaluateVisibility` wired into navigation, form fields, and CRUD dialog |
-| G2 | Action system uses `any` types | ⚠️ | `useObjectActions` hook typed, but no declarative `ActionEngine` pipeline yet |
-| G3 | DataSource missing metadata API | ⚠️ | `getView`/`getApp`/`getPage` exist on adapter, but console still uses static config |
+| G2 | Action system uses `any` types | ✅ | `ActionRunner.execute(ActionDef)` fully typed with 717-line implementation; `useActionRunner` hook in `@object-ui/react` |
+| G3 | DataSource missing metadata API | ✅ | `getView`/`getApp`/`getPage` exist on adapter AND console fetches via `MetadataProvider` at runtime |
 | G4 | No i18n support | ✅ | 10 language packs + `LocaleSwitcher` + `useObjectTranslation` |
 | G5 | No RBAC integration | ✅ | `usePermissions` gating CRUD buttons and navigation items |
-| G6 | No real-time updates | ✅ | `useRealtimeSubscription` auto-refreshing views on data changes |
-| G7 | No offline support / PWA | ✅ | `MobileProvider` with PWA manifest and service worker |
-| G8 | Bundle size 200KB+ | ✅ | Code splitting, chunk splitting, compression, preloading |
+| G6 | No real-time updates | ⚠️ | `useRealtimeSubscription` auto-refreshes views; `PresenceAvatars`/`useConflictResolution` exist but NOT integrated into console |
+| G7 | No offline support / PWA | ⚠️ | `MobileProvider` with PWA manifest; background sync queue simulated only (no real server sync) |
+| G8 | Bundle size 200KB+ | ✅ | Code splitting (15+ manual chunks), compression, preloading |
 | G9 | NavigationConfig incomplete | ✅ | All 8 view plugins support NavigationConfig with 7 modes |
 
 ---
 
 ## 4. Development Phases
 
-### Phase 0: Bootstrap & Foundation ✅ Complete
+### Phase 0: Bootstrap & Foundation ⚠️ Mostly Complete
 
 **Origin:** Consolidated from `DEVELOPMENT_PLAN.md` (10 sub-phases, Feb 7-13 2026).
 
@@ -240,21 +247,18 @@ These were the initial tasks to bring the console prototype to production-qualit
 | Sub-Phase | Description | Status | Notes |
 |-----------|-------------|--------|-------|
 | 0.1 | English-Only Codebase | ✅ Done | All Chinese strings replaced with English; i18n keys used |
-| 0.2 | Plugin Registration | ✅ Done | 14 plugins registered in `main.tsx` (5 planned + 9 extra) |
-| 0.3 | Config Alignment (`defineStack()`) | ⚠️ Partial | `defineStack()` from spec used, but `as any` cast bypasses Zod validation |
-| 0.4 | Data Layer Upgrade | ⚠️ Partial | `ObjectStackAdapter` integrated + `ConnectionStatus`; metadata still loaded statically |
-| 0.5 | Schema-Driven Architecture | ⚠️ Partial | `ObjectView` delegates to `plugin-view` with ViewSwitcher; Filter/Sort delegated to plugins internally |
-| 0.6 | Developer Experience | ✅ Done | Shared `MetadataInspector`, Error Boundaries, 34 test files |
-| 0.7 | MSW Runtime Fixes | ⚠️ Partial | MSW functional via lazy-load; workarounds remain in `objectstack.config.ts` + `vite.config.ts` |
+| 0.2 | Plugin Registration | ✅ Done | 11 plugins registered in `main.tsx` |
+| 0.3 | Config Alignment (`defineStack()`) | ⚠️ Partial | `defineStack()` from spec used, but `as any` cast remains in `objectstack.shared.ts` |
+| 0.4 | Data Layer Upgrade | ✅ Done | `ObjectStackAdapter` integrated + `ConnectionStatus`; metadata fetched at runtime via `MetadataProvider` |
+| 0.5 | Schema-Driven Architecture | ✅ Done | `ObjectView` delegates to `plugin-view` with ViewSwitcher; Filter/Sort delegated to plugins |
+| 0.6 | Developer Experience | ✅ Done | Shared `MetadataInspector`, Error Boundaries, 315 test files |
+| 0.7 | MSW Runtime Fixes | ✅ Done | MSW properly integrated via `startMockServer()` in bootstrap; legacy workarounds cleaned up |
 | 0.8 | Layout System | ✅ Done | Branding/theming via `AppShell`, mobile-responsive layout |
 | 0.9 | Navigation & Routing | ✅ Done | Deep-links, `⌘+K` command palette, expression-based visibility |
-| 0.10 | Action System (Foundation) | ⚠️ Partial | `useObjectActions` hook with callbacks; declarative `ActionEngine` not yet implemented |
+| 0.10 | Action System (Foundation) | ✅ Done | `ActionRunner.execute(ActionDef)` fully implemented; `useActionRunner` hook wired into console |
 
 **Remaining items to close Phase 0:**
 - [ ] Remove `as any` cast in `objectstack.shared.ts` — use proper typed config
-- [ ] Migrate static metadata loading to runtime `getView()`/`getApp()` calls
-- [ ] Clean up MSW workarounds in `objectstack.config.ts`
-- [ ] Implement declarative `ActionEngine` from `@object-ui/core`
 
 ---
 
@@ -279,30 +283,31 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 ---
 
-### Phase 2: Action System Completion ⚠️ Partially Complete
+### Phase 2: Action System Completion ✅ Mostly Complete
 
 **Goal:** Unify the action system and make ActionRunner production-ready with typed dispatch, toast notifications, dialog confirmations, and redirect handling.
 
-**Status:** ⚠️ Partial — `useObjectActions` hook provides create/delete/navigate/refresh handlers with toast notifications via Sonner. However, the declarative `ActionEngine` pipeline (events → `ActionDef[]` dispatch) from the JSON Protocol is **not yet implemented**. CRUD dialog uses inline callbacks, not `ActionSchema`.
+**Status:** ✅ Mostly Complete — `ActionRunner.execute(ActionDef)` fully implemented (717 lines) with script, url, modal, flow, api, navigation action types. `useActionRunner` hook wires it into console via `useObjectActions`. Custom toolbar actions dispatch through ActionRunner. Only remaining gap: CRUD dialog in `App.tsx` still uses inline callbacks instead of `ActionDef[]`.
 
 | Task | Description | Status |
 |------|-------------|--------|
-| 2.1 | Canonical ActionDef type | ⚠️ Partial (typed hook, not full ActionDef pipeline) |
-| 2.2 | Type `ActionRunner.execute()` with `ActionDef` | ❌ Not implemented |
+| 2.1 | Canonical ActionDef type | ✅ Done (fully typed ActionDef interface in ActionRunner.ts) |
+| 2.2 | Type `ActionRunner.execute()` with `ActionDef` | ✅ Done (line 249: `async execute(action: ActionDef): Promise<ActionResult>`) |
 | 2.3 | Toast action handler (Sonner) | ✅ Done (in `useObjectActions`) |
 | 2.4 | Dialog confirmation action handler | ✅ Done (`confirmText` in delete flow) |
 | 2.5 | Redirect result handling | ✅ Done (`navigate` handler in `useObjectActions`) |
 | 2.6 | Wire action buttons into ObjectView toolbar | ✅ Done (`objectDef.actions[]` rendering) |
-| 2.7 | Bulk action support | ✅ Done (multi-row selection in plugin-grid) |
-| 2.8 | Custom toolbar actions from schema | ✅ Done (`action.location === 'list_toolbar'`) |
+| 2.7 | Bulk action support | ✅ Done (multi-row checkbox selection in data-table + ObjectGrid `selectable` prop) |
+| 2.8 | Custom toolbar actions from schema | ✅ Done (`action.location === 'list_toolbar'` dispatched via `actions.execute(action)`) |
+| 2.9 | Migrate CRUD dialog to ActionDef[] | ⚠️ Pending (App.tsx uses inline `onSuccess`/`onCancel` callbacks) |
 
 ---
 
-### Phase 3: Server-Driven Metadata API ⚠️ Partially Complete
+### Phase 3: Server-Driven Metadata API ✅ Complete
 
 **Goal:** Add `getView`, `getApp`, `getPage` methods to the DataSource interface so the console can fetch UI definitions from the server instead of using static config.
 
-**Status:** ⚠️ Partial — All three methods exist on `DataSource` interface and are implemented in `ObjectStackAdapter` with metadata caching. However, the console **still loads objects/apps from static `objectstack.shared.ts`** rather than fetching at runtime. Views are resolved from `objectDef.list_views` (static), not via `client.meta.getView()`.
+**Status:** ✅ Complete — All three methods exist on `DataSource` interface and are implemented in `ObjectStackAdapter` with metadata caching. Console fetches metadata at runtime via `MetadataProvider` which calls `adapter.getClient().meta.getItems()`. MSW mock server intercepts these API calls during development.
 
 | Task | Description | Status |
 |------|-------------|--------|
@@ -311,8 +316,8 @@ These were the initial tasks to bring the console prototype to production-qualit
 | 3.3 | `getPage(pageId)` on DataSource | ✅ Done |
 | 3.4 | Implement in `ObjectStackAdapter` | ✅ Done (with `MetadataCache`) |
 | 3.5 | Metadata cache layer (TTL + ETag) | ✅ Done |
-| 3.6 | Console: fetch app config from server | ⚠️ Adapter supports it, but console uses static config |
-| 3.7 | Console: fallback to static config | ✅ Done (`objectstack.shared.ts`) |
+| 3.6 | Console: fetch app config from server | ✅ Done (`MetadataProvider` calls `client.meta.getItems()` at runtime) |
+| 3.7 | Console: fallback to static config | ✅ Done (MSW uses `objectstack.shared.ts` as mock data source) |
 | 3.8 | MSW: mock metadata endpoints | ✅ Done |
 
 ---
@@ -354,26 +359,26 @@ These were the initial tasks to bring the console prototype to production-qualit
 | 5.3 | Gate navigation items by `requiredPermissions` | ✅ Done (`AppSidebar.tsx`) |
 | 5.4 | Gate CRUD buttons by permissions | ✅ Done (`can(objectName, 'create')`) |
 | 5.5 | Gate field visibility by permissions | ✅ Done (`useFieldPermissions`) |
-| 5.6 | Row-level security | ✅ Done (server-side enforcement) |
+| 5.6 | Row-level security | ⚠️ Partial | Server-side enforcement assumed; client-side `DataScopeManager` has interfaces/types only (no actual filtering applied) |
 | 5.7 | Permission-denied fallback UI | ✅ Done (`PermissionGuard`) |
 | 5.8 | Integration with ObjectStack RBAC API | ✅ Done |
 
 ---
 
-### Phase 6: Real-Time Updates ✅ Complete
+### Phase 6: Real-Time Updates ⚠️ Core Complete
 
 **Goal:** Live data updates via WebSocket/SSE — when a record changes on the server, the console updates immediately.
 
-**Status:** ✅ Complete — `@object-ui/collaboration` provides `useRealtimeSubscription`, `usePresence`, and `useConflictResolution`. Integrated into `ObjectView` for auto-refresh on data changes.
+**Status:** ⚠️ Core Complete — `@object-ui/collaboration` provides `useRealtimeSubscription` (300 lines), `usePresence` (207 lines), and `useConflictResolution` (299 lines). However, only `useRealtimeSubscription` is integrated into the console for auto-refresh. `PresenceAvatars` and `useConflictResolution` exist as fully implemented components/hooks but are **not wired into the console UI**. Optimistic updates are type-only (no actual state application).
 
 | Task | Description | Status |
 |------|-------------|--------|
 | 6.1 | WebSocket transport | ✅ Done (`useRealtimeSubscription`) |
 | 6.2 | Subscribe to object change events | ✅ Done (`channel: object:${name}`) |
 | 6.3 | Auto-refresh views on data change | ✅ Done (`ObjectView.tsx` refreshKey) |
-| 6.4 | Presence indicators | ✅ Done (`usePresence`, `PresenceAvatars`) |
-| 6.5 | Optimistic updates | ✅ Done |
-| 6.6 | Conflict resolution UI | ✅ Done (`useConflictResolution`) |
+| 6.4 | Presence indicators | ⚠️ Component exists (`PresenceAvatars`) but NOT used in console UI |
+| 6.5 | Optimistic updates | ⚠️ Types/interfaces defined (`TransactionManager`) but no actual state application |
+| 6.6 | Conflict resolution UI | ⚠️ Hook exists (`useConflictResolution`, 299 lines) but NOT wired to console reconnection flow |
 
 ---
 
@@ -395,19 +400,19 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 ---
 
-### Phase 8: Offline & PWA Support ✅ Complete
+### Phase 8: Offline & PWA Support ⚠️ Core Complete
 
 **Goal:** Make the console installable as a PWA with offline data access.
 
-**Status:** ✅ Complete — `MobileProvider` with PWA config, manifest.json, viewport-fit=cover for notch support, responsive mobile layout.
+**Status:** ⚠️ Core Complete — `MobileProvider` with PWA config, manifest.json, viewport-fit=cover for notch support, responsive mobile layout. However, background sync queue only simulates server sync (no real backend integration), and conflict resolution on reconnection is not wired into the console.
 
 | Task | Description | Status |
 |------|-------------|--------|
-| 8.1 | PWA manifest and service worker | ✅ Done (`manifest.json`, `MobileProvider`) |
+| 8.1 | PWA manifest and service worker | ✅ Done (`manifest.json`, `MobileProvider`, `serviceWorker.ts`) |
 | 8.2 | Offline data storage | ✅ Done (adapter caching) |
-| 8.3 | Background sync queue | ✅ Done |
+| 8.3 | Background sync queue | ⚠️ Local queue works (`useOffline.queueMutation()`), but server sync is simulated only |
 | 8.4 | Offline indicator in header | ✅ Done (`ConnectionStatus`) |
-| 8.5 | Conflict resolution on reconnection | ✅ Done |
+| 8.5 | Conflict resolution on reconnection | ⚠️ Hook exists (`useConflictResolution`) but not wired to reconnection flow in console |
 
 ---
 
@@ -745,17 +750,17 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 ---
 
-### Phase 16: Undo/Redo & Data Safety 🔲 Planned
+### Phase 16: Undo/Redo & Data Safety ⚠️ Partially Implemented
 
 **Goal:** Implement global undo/redo for data operations, record revision history, and time-travel debugging.
 
-**Status:** 🔲 Not Started — Critical UX gap identified in Airtable benchmarking.
+**Status:** ⚠️ Partial — `useUndoRedo<T>()` generic hook exists in `@object-ui/plugin-designer` (configurable max history, push/undo/redo/reset), but only used for ProcessDesigner canvas operations. **Not a global CRUD undo system** for the console.
 
 #### 16.1: Global Undo Manager
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | Global undo/redo for CRUD operations (create, update, delete). Keyboard shortcuts: Ctrl+Z (undo), Ctrl+Shift+Z (redo). Undo stack with max size (e.g., 50 operations). | 🔲 Planned | `UndoManager` service in `@object-ui/core` |
+| **L1 (Foundation)** | Global undo/redo for CRUD operations (create, update, delete). Keyboard shortcuts: Ctrl+Z (undo), Ctrl+Shift+Z (redo). Undo stack with max size (e.g., 50 operations). | ⚠️ Hook exists but scoped to ProcessDesigner only | `useUndoRedo` in `@object-ui/plugin-designer` — needs generalization to `@object-ui/core` |
 | **L2 (Production)** | Undo/redo UI (toast notification on undo), batch undo (undo multiple operations at once), undo history panel (show stack). | 🔲 Planned | Enhanced undo UX |
 | **L3 (Excellence)** | Persistent undo stack (survives page reload), undo branching (multiple undo paths), undo conflicts (merge or reject). | 🔲 Planned | Advanced undo features |
 
@@ -776,32 +781,32 @@ These were the initial tasks to bring the console prototype to production-qualit
 | **L3 (Excellence)** | Point-in-time restore (restore object to previous state), operation rollback (undo all operations after timestamp), operation migration (replay operations on different environment). | 🔲 Planned | Enterprise debugging features |
 
 **Success Metrics:**
-- [ ] Ctrl+Z undoes last CRUD operation
-- [ ] Ctrl+Shift+Z redoes undone operation
+- [ ] Ctrl+Z undoes last CRUD operation (only ProcessDesigner canvas undo exists)
+- [ ] Ctrl+Shift+Z redoes undone operation (only ProcessDesigner canvas redo exists)
 - [ ] Record detail shows revision history with diffs
 - [ ] Developer tool displays operation log
 
 ---
 
-### Phase 17: Collaboration & Communication 🔲 Planned
+### Phase 17: Collaboration & Communication ⚠️ Partially Implemented
 
 **Goal:** Add record-level comments, @mention notifications, activity feed, and threaded discussions.
 
-**Status:** 🔲 Not Started — Enables team collaboration workflows.
+**Status:** ⚠️ Partial — `CommentThread` component (549 lines) exists in `@object-ui/collaboration` with @mention autocomplete, threaded replies, comment editing/deletion, and thread resolution. However, it is **not integrated into the console** — the console uses the simpler `RecordComments` from `plugin-detail` (Phase 12 L1). `NotificationContext` exists in `@object-ui/react` with severity levels and display types. No email notifications.
 
 #### 17.1: Record-Level Comments
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | Comments component in record detail page. Add comment (plain text), view comment list, display author + timestamp. | 🔲 Planned | `CommentSchema` |
-| **L2 (Production)** | Rich text comments (markdown/HTML), edit/delete own comments, comment reactions (emoji), comment sorting (newest/oldest). | 🔲 Planned | Enhanced comments |
+| **L1 (Foundation)** | Comments component in record detail page. Add comment (plain text), view comment list, display author + timestamp. | ✅ Done (via `RecordComments` in Phase 12) | Basic comments in `plugin-detail` |
+| **L2 (Production)** | Rich text comments (markdown/HTML), edit/delete own comments, comment reactions (emoji), comment sorting (newest/oldest). | ⚠️ `CommentThread` has edit/delete but NOT integrated into console | `@object-ui/collaboration/CommentThread.tsx` (549 lines) |
 | **L3 (Excellence)** | Comment attachments (files, images), comment search, comment export, comment moderation (admin delete). | 🔲 Planned | Advanced comment features |
 
 #### 17.2: @Mention Notifications & Activity Feed
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | @mention autocomplete in comments. Notify mentioned user (in-app notification). Activity feed in sidebar (show recent activity). | 🔲 Planned | Notification system |
+| **L1 (Foundation)** | @mention autocomplete in comments. Notify mentioned user (in-app notification). Activity feed in sidebar (show recent activity). | ⚠️ @mention autocomplete implemented in `CommentThread` but not integrated; `NotificationContext` exists | `CommentThread` has mention parsing + keyboard nav |
 | **L2 (Production)** | Email notifications for @mentions, notification preferences (enable/disable per activity type), mark notifications as read. | 🔲 Planned | Full notification system |
 | **L3 (Excellence)** | Notification grouping (batch similar notifications), notification snooze, notification webhook (send to Slack/Teams). | 🔲 Planned | Enterprise notifications |
 
@@ -809,29 +814,29 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | Reply to comment (threaded discussion). Display thread hierarchy (indent replies). Collapse/expand threads. | 🔲 Planned | Threaded comments |
+| **L1 (Foundation)** | Reply to comment (threaded discussion). Display thread hierarchy (indent replies). Collapse/expand threads. | ⚠️ `CommentThread` has parentId-based threading with indentation, but not used in console | Threaded comments in `@object-ui/collaboration` |
 | **L2 (Production)** | Thread notifications (notify on reply), thread resolution (mark as resolved), thread subscription (follow thread). | 🔲 Planned | Enhanced threads |
 | **L3 (Excellence)** | Thread export (download discussion), thread permissions (restrict replies), thread AI summary (summarize long threads). | 🔲 Planned | Advanced thread features |
 
 **Success Metrics:**
-- [ ] Comments posted on record detail page
-- [ ] @mention triggers notification to mentioned user
-- [ ] Activity feed shows recent comments and changes
-- [ ] Threaded replies display with indentation
+- [x] Comments posted on record detail page (via `RecordComments` in Phase 12)
+- [ ] @mention triggers notification to mentioned user (component exists, not integrated)
+- [ ] Activity feed shows recent comments and changes (not in console sidebar)
+- [ ] Threaded replies display with indentation (component exists, not integrated)
 
 ---
 
-### Phase 18: Automation & Workflows (Post v1.0) 🔲 Planned
+### Phase 18: Automation & Workflows (Post v1.0) ⚠️ Partially Implemented
 
 **Goal:** Visual automation builder for trigger-action workflows, leveraging ProcessDesigner from designer phase.
 
-**Status:** 🔲 Not Started — Post-v1.0 enterprise feature.
+**Status:** ⚠️ Partial — `WorkflowDesigner` (426 lines) exists in `@object-ui/plugin-workflow` with 9 node types (start, end, task, approval, condition, parallel, delay, notification, script) and is registered as `'workflow-designer'`. `ProcessDesigner` (948 lines) exists in `@object-ui/plugin-designer` as a full BPMN 2.0 designer with auto-layout, undo/redo, copy/paste, pan/zoom, and collaboration support, registered as `'process-designer'`. Both are **UI-only** (no workflow execution engine). `ApprovalProcess` component also exists with tests.
 
 #### 18.1: Trigger-Action Pipeline UI
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | UI for configuring automations: select trigger (record created, field updated), select action (send email, update field). Save automation definition. | 🔲 Planned | Automation config UI |
+| **L1 (Foundation)** | UI for configuring automations: select trigger (record created, field updated), select action (send email, update field). Save automation definition. | ⚠️ `WorkflowDesigner` has node palette + properties panel but no trigger/action config UI | UI-only, no execution |
 | **L2 (Production)** | Conditional triggers (only when field matches value), multi-step actions (action sequence), action parameters (customize action behavior). | 🔲 Planned | Advanced automation config |
 | **L3 (Excellence)** | Automation templates (pre-built workflows), automation testing (dry run), automation analytics (execution count, success rate). | 🔲 Planned | Enterprise automation features |
 
@@ -839,7 +844,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | Leverage ProcessDesigner plugin for visual workflow design. Drag-and-drop nodes (trigger, condition, action). Connect nodes to define flow. | 🔲 Planned | `@object-ui/plugin-designer` integration |
+| **L1 (Foundation)** | Leverage ProcessDesigner plugin for visual workflow design. Drag-and-drop nodes (trigger, condition, action). Connect nodes to define flow. | ⚠️ `ProcessDesigner` (948 lines) fully implemented with BPMN 2.0 nodes, auto-layout, undo/redo, minimap, but not connected to automation execution | `@object-ui/plugin-designer` registered as `'process-designer'` |
 | **L2 (Production)** | Branching logic (if/else conditions), loops (repeat action), error handling (catch errors, retry). | 🔲 Planned | Advanced workflow features |
 | **L3 (Excellence)** | Sub-workflows (call another workflow), parallel execution (run actions in parallel), workflow versioning (save versions, rollback). | 🔲 Planned | Enterprise workflow features |
 
@@ -852,8 +857,8 @@ These were the initial tasks to bring the console prototype to production-qualit
 | **L3 (Excellence)** | Webhook signature verification, run history export, automation monitoring dashboard (execution metrics). | 🔲 Planned | Enterprise execution features |
 
 **Success Metrics:**
-- [ ] Automation created via UI (trigger + action)
-- [ ] ProcessDesigner renders visual workflow
+- [ ] Automation created via UI (trigger + action) — `WorkflowDesigner` exists but no trigger/action config
+- [x] ProcessDesigner renders visual workflow (948-line BPMN 2.0 designer implemented)
 - [ ] Scheduled trigger executes automation daily
 - [ ] Webhook action sends HTTP POST on trigger
 - [ ] Run history displays past automation executions
@@ -937,7 +942,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 | Mobile-responsive layout | ✅ Done | — | Phase 8 |
 | Language switcher | ✅ Done | — | Phase 4 |
 | Global search (cross-object) | ✅ Done | — | — |
-| **Global Undo/Redo (Ctrl+Z)** | 🔲 Planned | Post v1.0 | Phase 16 (L1) |
+| **Global Undo/Redo (Ctrl+Z)** | ⚠️ Hook exists (ProcessDesigner only) | Post v1.0 | Phase 16 (L1) |
 | Notification center | 🔲 Planned | Post v1.0 | Phase 17 (L2) |
 | Activity feed | 🔲 Planned | Post v1.0 | Phase 17 (L1) |
 
@@ -956,17 +961,17 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 | Feature | Status | Priority | Phase |
 |---------|--------|----------|-------|
-| **Record-level comments** | 🔲 Planned | Post v1.0 | Phase 17 (L1) |
-| **@mention notifications** | 🔲 Planned | Post v1.0 | Phase 17 (L1) |
-| **Threaded discussions** | 🔲 Planned | Post v1.0 | Phase 17 (L3) |
+| **Record-level comments** | ✅ Done (basic, via RecordComments) | — | Phase 12 (L1) |
+| **@mention notifications** | ⚠️ Component exists (CommentThread) | Post v1.0 | Phase 17 (L1) |
+| **Threaded discussions** | ⚠️ Component exists (CommentThread) | Post v1.0 | Phase 17 (L3) |
 | **Email notifications** | 🔲 Planned | Post v1.0 | Phase 17 (L2) |
 
 ### 5.7 Automation
 
 | Feature | Status | Priority | Phase |
 |---------|--------|----------|-------|
-| **Automation Builder UI** | 🔲 Planned | Post v1.0 | Phase 18 (L1) |
-| **Visual workflow designer** | 🔲 Planned | Post v1.0 | Phase 18 (L2) |
+| **Automation Builder UI** | ⚠️ WorkflowDesigner exists (UI only) | Post v1.0 | Phase 18 (L1) |
+| **Visual workflow designer** | ✅ Done (ProcessDesigner, 948 LOC) | Post v1.0 | Phase 18 (L2) |
 | **Scheduled triggers** | 🔲 Planned | Post v1.0 | Phase 18 (L1) |
 | **Webhook actions** | 🔲 Planned | Post v1.0 | Phase 18 (L1) |
 | **Automation run history** | 🔲 Planned | Post v1.0 | Phase 18 (L1) |
@@ -978,26 +983,24 @@ These were the initial tasks to bring the console prototype to production-qualit
 > **Re-prioritized (Feb 16, 2026):** Progressive maturity stages (L1/L2/L3) organize features by depth. Each phase builds incrementally from foundation to excellence.
 
 ```
-2026 Q1 (Feb 7-13)  — BOOTSTRAP COMPLETE ✅
+2026 Q1 (Feb 7-13)  — BOOTSTRAP MOSTLY COMPLETE ⚠️
 ═══════════════════════════════════════════════════════════
-  Phase 0: Bootstrap & Foundation     ██████████████  ✅ Complete (4 items remaining)
+  Phase 0: Bootstrap & Foundation     █████████████░  ⚠️ Mostly Complete (1 item remaining: `as any` cast)
 
 2026 Q1 (Feb-Mar)  — FEATURE PHASES
 ═══════════════════════════════════════════════════════════
   Phase 1: Expression Engine          ██████████████  ✅ Complete
-  Phase 2: Action System              ██████████████  ✅ Complete (ActionEngine)
-  Phase 3: Metadata API               ██████████████  ✅ Complete (server-driven)
+  Phase 2: Action System              █████████████░  ✅ Mostly Complete (CRUD dialog migration pending)
+  Phase 3: Metadata API               ██████████████  ✅ Complete (runtime fetch via MetadataProvider)
   Phase 4: Internationalization        ██████████████  ✅ Complete
   Phase 5: RBAC & Permissions          ██████████████  ✅ Complete
-  Phase 6: Real-Time Updates           ██████████████  ✅ Complete
+  Phase 6: Real-Time Updates           ██████████░░░░  ⚠️ Core done, Presence/Optimistic/Conflict not in console
   Phase 7: Performance Optimization    ██████████████  ✅ Complete
-  Phase 8: Offline / PWA              ██████████████  ✅ Complete
+  Phase 8: Offline / PWA              ██████████░░░░  ⚠️ Core done, background sync simulated
   Phase 9: NavigationConfig Spec      ██████████████  ✅ Complete
 
 2026 Q1-Q2 (Mar-Apr) — v1.0 DATA INTERACTION (✅ L1 Complete)
 ═══════════════════════════════════════════════════════════
-  Phase 2 Completion: ActionEngine    ██████████████  ✅ Declarative action dispatch
-  Phase 3 Completion: Metadata API    ██████████████  ✅ Server-driven config loading
   Phase 10: Data Interaction          ██████████████  ✅ File upload, Lookup, Export, ActionEngine, Server metadata
 
 2026 Q2 (May-Jun) — v1.0 GA: GRID & RECORD DETAIL
@@ -1009,16 +1012,16 @@ These were the initial tasks to bring the console prototype to production-qualit
 ═══════════════════════════════════════════════════════════
   Phase 13: Kanban Enhancement        ██████████████  ✅ L1 Complete: Quick Add, Cover image, Column collapse, Card coloring
   Phase 14: Forms & Collection        ██████████████  ✅ L1 Complete: DnD FileUpload, Embeddable forms, Analytics
-  Phase 15: Import/Export             ██████░░░░░░░░  Import wizard, Universal export, Shared links
+  Phase 15: Import/Export             ██░░░░░░░░░░░░  🔲 Not Started: Import wizard, Universal export, Shared links
 
 2026 Q4 (Oct-Dec) — v1.2: UNDO/REDO & COLLABORATION
 ═══════════════════════════════════════════════════════════
-  Phase 16: Undo/Redo & Safety        ██████████░░░░  Global undo (Ctrl+Z), Revision history, Time-travel
-  Phase 17: Collaboration             ████████░░░░░░  Comments, @mentions, Threads, Notifications
+  Phase 16: Undo/Redo & Safety        ████░░░░░░░░░░  ⚠️ useUndoRedo hook exists (ProcessDesigner only), not global CRUD
+  Phase 17: Collaboration             ██████░░░░░░░░  ⚠️ CommentThread (549 LOC) + NotificationContext exist, not in console
 
 2027 Q1+ — v2.0: AUTOMATION & WORKFLOWS
 ═══════════════════════════════════════════════════════════
-  Phase 18: Automation & Workflows    ████░░░░░░░░░░  Trigger-Action UI, Visual builder, Scheduled triggers
+  Phase 18: Automation & Workflows    ██████░░░░░░░░  ⚠️ WorkflowDesigner (426 LOC) + ProcessDesigner (948 LOC) exist, UI-only
 ```
 
 ### Milestone Summary
@@ -1026,13 +1029,13 @@ These were the initial tasks to bring the console prototype to production-qualit
 | Milestone | Version | Date | Description |
 |-----------|---------|------|-------------|
 | **Bootstrap** | v0.5.0 | ✅ Feb 7, 2026 | 10 sub-phases: data layer, plugins, i18n, routing, DX |
-| **Alpha** | v0.5.2 | ✅ Feb 14, 2026 | Expressions + Partial Actions + Metadata adapter + i18n + RBAC |
-| **Beta** | v0.8.0 | ✅ Feb 16, 2026 | ActionEngine + Server-driven metadata + Phase 10 L1 features |
-| **RC** | v0.9.0 | Planned Apr 2026 | Phase 10 complete + Phase 11/12 L1 features |
+| **Alpha** | v0.5.2 | ✅ Feb 14, 2026 | Expressions + Actions + Metadata adapter + i18n + RBAC |
+| **Beta** | v0.8.0 | ✅ Feb 16, 2026 | ActionRunner + Server-driven metadata + Phase 10 L1 features |
+| **RC** | v0.9.0 | ⚠️ In Progress | Phase 10 complete + Phase 11/12 L1; some Phase 6/8 gaps (Presence, Sync) |
 | **GA v1.0** | v1.0.0 | Q2 2026 | Core data interaction + Grid excellence + Record detail (Phases 10-12) |
-| **v1.1** | v1.1.0 | Q3 2026 | Kanban + Forms + Import/Export (Phases 13-15) |
-| **v1.2** | v1.2.0 | Q4 2026 | Undo/Redo + Collaboration (Phases 16-17) |
-| **v2.0** | v2.0.0 | 2027 Q1+ | Automation & Workflows (Phase 18) |
+| **v1.1** | v1.1.0 | Q3 2026 | Kanban + Forms + Import/Export (Phases 13-15); Phase 13-14 L1 ✅ |
+| **v1.2** | v1.2.0 | Q4 2026 | Undo/Redo + Collaboration (Phases 16-17); partial components exist |
+| **v2.0** | v2.0.0 | 2027 Q1+ | Automation & Workflows (Phase 18); ProcessDesigner + WorkflowDesigner exist |
 
 ---
 
@@ -1172,20 +1175,26 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 - [x] `defineStack()` used for config (Zod validation pending)
 - [x] All UI strings in English; i18n keys via `useObjectTranslation`
 
-### Phase 1-3 (Foundation) ⚠️ — v1.0 Blockers
+### Phase 1-3 (Foundation) ✅ Complete
 - [x] 100% of navigation items respect `visible` expressions
-- [ ] **🎯 v1.0:** All CRUD actions dispatched through declarative `ActionEngine` pipeline
-- [ ] **🎯 v1.0:** Console fetches app config from server at runtime (currently static)
+- [x] ActionRunner.execute(ActionDef) fully implemented (717 lines); toolbar actions dispatch through ActionRunner
+- [x] Console fetches app config from server at runtime via `MetadataProvider` → `client.meta.getItems()`
+- [ ] CRUD dialog in `App.tsx` still uses inline callbacks instead of ActionDef[]
 
-### Phase 4-6 (Enterprise) ✅
+### Phase 4-6 (Enterprise) ⚠️
 - [x] 10 languages supported with runtime switching
 - [x] Permission-denied UI tested for all object operations
 - [x] Real-time grid refresh on server-side changes
+- [ ] Presence indicators (PresenceAvatars) not rendered in console UI
+- [ ] Optimistic updates not implemented (types only)
+- [ ] Conflict resolution not wired to reconnection flow
 
-### Phase 7-8 (Performance) ✅
-- [x] Code splitting, chunk splitting, and compression configured
+### Phase 7-8 (Performance) ⚠️
+- [x] Code splitting (15+ manual chunks), compression, and preloading configured
+- [x] Virtual scrolling via @tanstack/react-virtual in VirtualGrid
 - [x] Critical chunk preloading for fast LCP
-- [x] Console installable as PWA
+- [x] Console installable as PWA (manifest.json + MobileProvider)
+- [ ] Background sync queue simulates server sync only (no real backend integration)
 
 ### Phase 9 (NavigationConfig) ✅
 - [x] All 8 view plugins support NavigationConfig specification (7 modes)
@@ -1309,10 +1318,10 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 - [ ] Edit permissions in shared links
 - [ ] Streaming export for large datasets
 
-### Phase 16: Undo/Redo & Data Safety — Post v1.0
+### Phase 16: Undo/Redo & Data Safety — ⚠️ Partial
 **L1 (Foundation):**
-- [ ] Global undo/redo (Ctrl+Z / Ctrl+Shift+Z)
-- [ ] Undo stack with max size (50 operations)
+- [ ] Global undo/redo (Ctrl+Z / Ctrl+Shift+Z) — `useUndoRedo` hook exists but only for ProcessDesigner, not global CRUD
+- [x] Undo stack with max size (50 operations) — implemented in `useUndoRedo` (configurable max history)
 - [ ] Server-side audit log displays field changes
 - [ ] Developer operation log tool
 
@@ -1328,12 +1337,12 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 - [ ] Point-in-time restore for objects
 - [ ] Operation replay on different environment
 
-### Phase 17: Collaboration & Communication — Post v1.0
+### Phase 17: Collaboration & Communication — ⚠️ Partial (Components Exist, Not Integrated)
 **L1 (Foundation):**
-- [ ] Record-level comments posted and displayed
-- [ ] @mention autocomplete in comments
-- [ ] Activity feed shows recent activity
-- [ ] Reply to comment (threaded discussion)
+- [x] Record-level comments posted and displayed (via `RecordComments` in Phase 12 L1)
+- [x] @mention autocomplete in comments (implemented in `CommentThread`, 549 lines, not used in console)
+- [ ] Activity feed shows recent activity (not in console sidebar)
+- [x] Reply to comment (threaded discussion) (implemented in `CommentThread` via `parentId`, not used in console)
 
 **L2 (Production):**
 - [ ] Rich text comments (markdown)
@@ -1347,15 +1356,15 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 - [ ] Thread AI summary (summarize long threads)
 - [ ] Thread permissions (restrict replies)
 
-### Phase 18: Automation & Workflows — Post v1.0 (v2.0)
+### Phase 18: Automation & Workflows — ⚠️ Partial (UI Components Exist, No Execution)
 **L1 (Foundation):**
-- [ ] Automation created via UI (trigger + action)
+- [ ] Automation created via UI (trigger + action) — `WorkflowDesigner` has node palette but no trigger config
 - [ ] Scheduled triggers (daily/weekly)
 - [ ] Webhook actions (HTTP POST)
 - [ ] Run history displays past executions
 
 **L2 (Production):**
-- [ ] Visual workflow designer (ProcessDesigner integration)
+- [x] Visual workflow designer (ProcessDesigner, 948 lines, BPMN 2.0 with auto-layout, undo/redo, minimap)
 - [ ] Conditional triggers (match field value)
 - [ ] Multi-step actions (action sequence)
 - [ ] Webhook retry on failure
