@@ -651,6 +651,8 @@ export type {
   FilterUISchema,
   SortUISchema,
   ViewComponentSchema,
+  CommentEntry,
+  ActivityEntry,
 } from './views';
 
 export type {

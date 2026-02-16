@@ -147,6 +147,44 @@ export interface DetailViewTab {
 }
 
 /**
+ * Comment Entry - represents a single comment on a record
+ */
+export interface CommentEntry {
+  /** Unique identifier */
+  id: string | number;
+  /** Comment text */
+  text: string;
+  /** Author display name */
+  author: string;
+  /** Avatar URL (optional) */
+  avatarUrl?: string;
+  /** Timestamp when the comment was created */
+  createdAt: string;
+}
+
+/**
+ * Activity Entry - represents a single activity/field change on a record
+ */
+export interface ActivityEntry {
+  /** Unique identifier */
+  id: string | number;
+  /** Activity type */
+  type: 'field_change' | 'create' | 'delete' | 'comment' | 'status_change';
+  /** Field that was changed (for field_change type) */
+  field?: string;
+  /** Previous value */
+  oldValue?: any;
+  /** New value */
+  newValue?: any;
+  /** User who made the change */
+  user: string;
+  /** Timestamp of the change */
+  timestamp: string;
+  /** Human-readable description of the change */
+  description?: string;
+}
+
+/**
  * Detail View Schema - Display detailed information about a single record
  * Enhanced in Phase 2 with better organization and features
  */
@@ -274,6 +312,30 @@ export interface DetailViewSchema extends BaseSchema {
      */
     fields?: string[];
   }>;
+  /**
+   * Record navigation configuration for prev/next navigation.
+   * Allows navigating through a result set from within the detail view.
+   */
+  recordNavigation?: {
+    /** All record IDs in the current view's result set */
+    recordIds: Array<string | number>;
+    /** Current record's index in the result set (0-based) */
+    currentIndex: number;
+    /** Callback to navigate to a specific record by ID */
+    onNavigate: (recordId: string | number) => void;
+  };
+  /**
+   * Comments associated with this record
+   */
+  comments?: CommentEntry[];
+  /**
+   * Callback to add a new comment
+   */
+  onAddComment?: (text: string) => void | Promise<void>;
+  /**
+   * Activity history entries for this record
+   */
+  activities?: ActivityEntry[];
 }
 
 /**

@@ -413,6 +413,22 @@ export interface DataTableSchema extends BaseSchema {
    * Function that returns a CSS class string for each row
    */
   rowClassName?: (row: any, index: number) => string | undefined;
+  /**
+   * Number of columns to freeze (left-pin)
+   * When set, the first N columns remain fixed while the rest scroll horizontally.
+   * @default 0
+   */
+  frozenColumns?: number;
+  /**
+   * Column resize handler
+   * Called when a column is resized
+   */
+  onColumnResize?: (columnKey: string, width: number) => void;
+  /**
+   * Column reorder handler (new order of accessorKeys)
+   * Called when columns are reordered via drag-and-drop
+   */
+  onColumnReorder?: (newOrder: string[]) => void;
 }
 
 /**

@@ -31,7 +31,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { Edit, Trash2, MoreVertical, ChevronRight, ChevronDown, Download } from 'lucide-react';
+import { Edit, Trash2, MoreVertical, ChevronRight, ChevronDown, Download, Rows3, Rows4, AlignJustify } from 'lucide-react';
 import { useRowColor } from './useRowColor';
 import { useGroupedData } from './useGroupedData';
 
@@ -124,6 +124,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [useCardView, setUseCardView] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showExport, setShowExport] = useState(false);
+  const [rowHeightMode, setRowHeightMode] = useState<'compact' | 'medium' | 'tall'>(schema.rowHeight ?? 'medium');
 
   // Column state persistence (order and widths)
   const columnStorageKey = React.useMemo(() => {
@@ -673,8 +674,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     reorderableColumns: schema.reorderableColumns ?? false,
     editable: schema.editable ?? false,
     className: schema.className,
-    cellClassName: 'px-2 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-2.5',
+    cellClassName: rowHeightMode === 'compact'
+      ? 'px-2 py-1 text-xs'
+      : rowHeightMode === 'tall'
+        ? 'px-3 py-3 sm:px-4 sm:py-4'
+        : 'px-2 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-2.5',
     rowClassName: schema.rowColor ? (row: any, _idx: number) => getRowClassName(row) : undefined,
+    frozenColumns: schema.frozenColumns ?? 0,
     onSelectionChange: onRowSelect,
     onRowClick: navigation.handleClick,
     onCellChange: onCellChange,
@@ -753,37 +759,64 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     );
   }
 
-  // Export toolbar (shown when exportOptions is configured)
-  const exportToolbar = schema.exportOptions ? (
-    <div className="flex items-center justify-end px-2 py-1">
-      <Popover open={showExport} onOpenChange={setShowExport}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
-          >
-            <Download className="h-3.5 w-3.5 mr-1.5" />
-            <span className="hidden sm:inline">Export</span>
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-48 p-2">
-          <div className="space-y-1">
-            {(schema.exportOptions.formats || ['csv', 'json']).map(format => (
-              <Button
-                key={format}
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start h-8 text-xs"
-                onClick={() => handleExport(format)}
-              >
-                <Download className="h-3.5 w-3.5 mr-2" />
-                Export as {format.toUpperCase()}
-              </Button>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
+  // Row height cycle handler
+  const cycleRowHeight = useCallback(() => {
+    setRowHeightMode(prev => {
+      if (prev === 'compact') return 'medium';
+      if (prev === 'medium') return 'tall';
+      return 'compact';
+    });
+  }, []);
+
+  const RowHeightIcon = rowHeightMode === 'compact' ? Rows4 : rowHeightMode === 'tall' ? AlignJustify : Rows3;
+
+  // Grid toolbar (row height toggle + export)
+  const hasToolbar = schema.exportOptions || schema.rowHeight !== undefined;
+  const gridToolbar = hasToolbar ? (
+    <div className="flex items-center justify-end gap-1 px-2 py-1">
+      {/* Row height toggle */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+        onClick={cycleRowHeight}
+        title={`Row height: ${rowHeightMode}`}
+      >
+        <RowHeightIcon className="h-3.5 w-3.5 mr-1.5" />
+        <span className="hidden sm:inline capitalize">{rowHeightMode}</span>
+      </Button>
+
+      {/* Export */}
+      {schema.exportOptions && (
+        <Popover open={showExport} onOpenChange={setShowExport}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+            >
+              <Download className="h-3.5 w-3.5 mr-1.5" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-48 p-2">
+            <div className="space-y-1">
+              {(schema.exportOptions.formats || ['csv', 'json']).map(format => (
+                <Button
+                  key={format}
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start h-8 text-xs"
+                  onClick={() => handleExport(format)}
+                >
+                  <Download className="h-3.5 w-3.5 mr-2" />
+                  Export as {format.toUpperCase()}
+                </Button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   ) : null;
 
@@ -819,7 +852,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       <NavigationOverlay
         {...navigation}
         title={detailTitle}
-        mainContent={<>{exportToolbar}{gridContent}</>}
+        mainContent={<>{gridToolbar}{gridContent}</>}
       >
         {(record) => (
           <div className="space-y-3">
@@ -847,7 +880,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           {isRefreshing ? 'Refreshing…' : 'Pull to refresh'}
         </div>
       )}
-      {exportToolbar}
+      {gridToolbar}
       {gridContent}
       {navigation.isOverlay && (
         <NavigationOverlay

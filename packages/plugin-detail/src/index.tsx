@@ -14,10 +14,14 @@ import { RelatedList } from './RelatedList';
 import type { DetailViewSchema } from '@object-ui/types';
 
 export { DetailView, DetailSection, DetailTabs, RelatedList };
+export { RecordComments } from './RecordComments';
+export { ActivityTimeline } from './ActivityTimeline';
 export type { DetailViewProps } from './DetailView';
 export type { DetailSectionProps } from './DetailSection';
 export type { DetailTabsProps } from './DetailTabs';
 export type { RelatedListProps } from './RelatedList';
+export type { RecordCommentsProps } from './RecordComments';
+export type { ActivityTimelineProps } from './ActivityTimeline';
 
 // Register DetailView component
 ComponentRegistry.register('detail-view', DetailView, {

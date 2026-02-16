@@ -416,6 +416,13 @@ export interface ObjectGridSchema extends BaseSchema {
   frozenColumns?: number;
 
   /**
+   * Row height preset for the grid
+   * Controls the density of grid rows
+   * @default 'medium'
+   */
+  rowHeight?: 'compact' | 'medium' | 'tall';
+
+  /**
    * Export options configuration for exporting grid data.
    * Supports csv, xlsx, json, and pdf formats.
    * Aligned with @objectstack/spec ListViewSchema.exportOptions.

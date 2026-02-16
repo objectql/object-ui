@@ -102,6 +102,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     editable = false,
     rowClassName,
     className,
+    frozenColumns = 0,
   } = schema;
 
   // Normalize columns to support legacy keys (label/name) from existing JSONs
@@ -456,6 +457,21 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   };
 
   const handleCellKeyDown = (e: React.KeyboardEvent, rowIndex: number, columnKey: string) => {
+    // Copy cell value with Ctrl+C / Cmd+C
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !editingCell) {
+      e.preventDefault();
+      const globalIdx = (currentPage - 1) * pageSize + rowIndex;
+      const row = sortedData[globalIdx];
+      if (row) {
+        const value = row[columnKey];
+        const text = value != null ? String(value) : '';
+        navigator.clipboard.writeText(text).catch(() => {
+          // Fallback for environments without clipboard API
+        });
+      }
+      return;
+    }
+
     if (!editable) return;
     
     const column = columns.find(col => col.accessorKey === columnKey);
@@ -586,7 +602,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
           <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
             <TableRow>
               {selectable && (
-                <TableHead className="w-12 bg-background">
+                <TableHead className={cn("w-12 bg-background", frozenColumns > 0 && "sticky left-0 z-20")}>
                   <Checkbox
                     checked={allPageRowsSelected ? true : somePageRowsSelected ? 'indeterminate' : false}
                     onCheckedChange={handleSelectAll}
@@ -597,6 +613,16 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                 const columnWidth = columnWidths[col.accessorKey] || col.width;
                 const isDragging = draggedColumn === index;
                 const isDragOver = dragOverColumn === index;
+                const isFrozen = frozenColumns > 0 && index < frozenColumns;
+                const frozenOffset = isFrozen
+                  ? columns.slice(0, index).reduce((sum, c, i) => {
+                      if (i < frozenColumns) {
+                        const w = columnWidths[c.accessorKey] || c.width;
+                        return sum + (typeof w === 'number' ? w : w ? parseInt(String(w), 10) || 150 : 150);
+                      }
+                      return sum;
+                    }, selectable ? 48 : 0)
+                  : undefined;
                 
                 return (
                   <TableHead
@@ -608,11 +634,14 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       isDragOver && 'border-l-2 border-primary',
                       col.align === 'right' && 'text-right',
                       col.align === 'center' && 'text-center',
-                      'relative group bg-background'
+                      'relative group bg-background',
+                      isFrozen && 'sticky z-20',
+                      isFrozen && index === frozenColumns - 1 && 'border-r-2 border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]',
                     )}
                     style={{ 
                       width: columnWidth,
-                      minWidth: columnWidth 
+                      minWidth: columnWidth,
+                      ...(isFrozen && { left: frozenOffset }),
                     }}
                     draggable={reorderableColumns}
                     onDragStart={(e) => handleColumnDragStart(e, index)}
@@ -692,7 +721,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       }}
                     >
                       {selectable && (
-                        <TableCell>
+                        <TableCell className={cn(frozenColumns > 0 && "sticky left-0 z-10 bg-background")}>
                           <Checkbox
                             checked={isSelected}
                             onCheckedChange={(checked) => handleSelectRow(rowId, checked as boolean)}
@@ -706,6 +735,16 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         const cellValue = hasPendingChange ? rowChanges[col.accessorKey] : originalValue;
                         const isEditing = editingCell?.rowIndex === rowIndex && editingCell?.columnKey === col.accessorKey;
                         const isEditable = editable && col.editable !== false;
+                        const isFrozen = frozenColumns > 0 && colIndex < frozenColumns;
+                        const frozenOffset = isFrozen
+                          ? columns.slice(0, colIndex).reduce((sum, c, i) => {
+                              if (i < frozenColumns) {
+                                const w = columnWidths[c.accessorKey] || c.width;
+                                return sum + (typeof w === 'number' ? w : w ? parseInt(String(w), 10) || 150 : 150);
+                              }
+                              return sum;
+                            }, selectable ? 48 : 0)
+                          : undefined;
                         
                         return (
                           <TableCell 
@@ -715,12 +754,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                               col.align === 'right' && 'text-right',
                               col.align === 'center' && 'text-center',
                               isEditable && !isEditing && "cursor-text hover:bg-muted/50",
-                              hasPendingChange && "font-semibold text-amber-700 dark:text-amber-400"
+                              hasPendingChange && "font-semibold text-amber-700 dark:text-amber-400",
+                              isFrozen && 'sticky z-10 bg-background',
+                              isFrozen && colIndex === frozenColumns - 1 && 'border-r-2 border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]',
                             )}
                             style={{
                               width: columnWidth,
                               minWidth: columnWidth,
-                              maxWidth: columnWidth
+                              maxWidth: columnWidth,
+                              ...(isFrozen && { left: frozenOffset }),
                             }}
                             onDoubleClick={() => isEditable && startEdit(rowIndex, col.accessorKey)}
                             onKeyDown={(e) => handleCellKeyDown(e, rowIndex, col.accessorKey)}

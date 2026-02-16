@@ -33,10 +33,14 @@ import {
   Star,
   StarOff,
   Check,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { DetailSection } from './DetailSection';
 import { DetailTabs } from './DetailTabs';
 import { RelatedList } from './RelatedList';
+import { RecordComments } from './RecordComments';
+import { ActivityTimeline } from './ActivityTimeline';
 import { SchemaRenderer } from '@object-ui/react';
 import type { DetailViewSchema, DataSource } from '@object-ui/types';
 
@@ -257,6 +261,53 @@ export const DetailView: React.FC<DetailViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 shrink-0 w-full sm:w-auto">
+            {/* Prev/Next Record Navigation */}
+            {schema.recordNavigation && (
+              <div className="flex items-center gap-1 mr-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={schema.recordNavigation.currentIndex <= 0}
+                      onClick={() => {
+                        const nav = schema.recordNavigation!;
+                        if (nav.currentIndex > 0) {
+                          nav.onNavigate(nav.recordIds[nav.currentIndex - 1]);
+                        }
+                      }}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Previous record</TooltipContent>
+                </Tooltip>
+                <span className="text-xs text-muted-foreground whitespace-nowrap px-1">
+                  {schema.recordNavigation.currentIndex + 1} of {schema.recordNavigation.recordIds.length}
+                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={schema.recordNavigation.currentIndex >= schema.recordNavigation.recordIds.length - 1}
+                      onClick={() => {
+                        const nav = schema.recordNavigation!;
+                        if (nav.currentIndex < nav.recordIds.length - 1) {
+                          nav.onNavigate(nav.recordIds[nav.currentIndex + 1]);
+                        }
+                      }}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Next record</TooltipContent>
+                </Tooltip>
+              </div>
+            )}
+
             {schema.actions?.map((action, index) => (
               <SchemaRenderer key={index} schema={action} data={data} />
             ))}
@@ -411,6 +462,19 @@ export const DetailView: React.FC<DetailViewProps> = ({
             />
           ))}
         </div>
+      )}
+
+      {/* Comments */}
+      {schema.comments && (
+        <RecordComments
+          comments={schema.comments}
+          onAddComment={schema.onAddComment}
+        />
+      )}
+
+      {/* Activity Timeline */}
+      {schema.activities && schema.activities.length > 0 && (
+        <ActivityTimeline activities={schema.activities} />
       )}
 
       {/* Custom Footer */}
