@@ -10,7 +10,7 @@
 import { ObjectKernel } from '@objectstack/runtime';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { setupServer } from 'msw/node';
-import appConfig from '../../objectstack.shared';
+import appConfig, { sharedConfig } from '../../objectstack.shared';
 import { createKernel } from './createKernel';
 import { createHandlers } from './handlers';
 
@@ -31,8 +31,10 @@ export async function startMockServer() {
   driver = result.driver;
 
   // Create MSW handlers for both paths to ensure compatibility with client defaults
-  const v1Handlers = createHandlers('http://localhost:3000/api/v1', kernel, driver);
-  const legacyHandlers = createHandlers('http://localhost:3000/api', kernel, driver);
+  // Pass sharedConfig (pre-defineStack) so handlers can enrich object metadata
+  // with listViews that defineStack's Zod parse strips.
+  const v1Handlers = createHandlers('http://localhost:3000/api/v1', kernel, driver, sharedConfig);
+  const legacyHandlers = createHandlers('http://localhost:3000/api', kernel, driver, sharedConfig);
   const handlers = [...v1Handlers, ...legacyHandlers];
 
   // Setup MSW server for Node.js environment

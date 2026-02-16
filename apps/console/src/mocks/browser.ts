@@ -10,7 +10,7 @@
 import { ObjectKernel } from '@objectstack/runtime';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { setupWorker } from 'msw/browser';
-import appConfig from '../../objectstack.shared';
+import appConfig, { sharedConfig } from '../../objectstack.shared';
 import { createKernel } from './createKernel';
 import { createHandlers } from './handlers';
 
@@ -42,8 +42,10 @@ export async function startMockServer() {
   // Create MSW handlers that match the response format of HonoServerPlugin
   // Include both /api/v1 and legacy /api paths so the ObjectStackClient can
   // reach the mock server regardless of which base URL it probes.
-  const v1Handlers = createHandlers('/api/v1', kernel, driver);
-  const legacyHandlers = createHandlers('/api', kernel, driver);
+  // Pass sharedConfig (pre-defineStack) so handlers can enrich object metadata
+  // with listViews that defineStack's Zod parse strips.
+  const v1Handlers = createHandlers('/api/v1', kernel, driver, sharedConfig);
+  const legacyHandlers = createHandlers('/api', kernel, driver, sharedConfig);
   const handlers = [...v1Handlers, ...legacyHandlers];
 
   // Start MSW service worker
