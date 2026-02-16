@@ -271,8 +271,8 @@ export function GanttView({
                     setEditingTask(task.id);
                     setEditValues({
                       title: task.title,
-                      start: task.start.toISOString().split('T')[0],
-                      end: task.end.toISOString().split('T')[0],
+                      start: task.start.toLocaleDateString('en-CA'),
+                      end: task.end.toLocaleDateString('en-CA'),
                       progress: String(task.progress),
                     });
                   }

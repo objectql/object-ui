@@ -488,7 +488,7 @@ export const ListView: React.FC<ListViewProps> = ({
     const exportData = maxRecords > 0 ? data.slice(0, maxRecords) : data;
 
     if (format === 'csv') {
-      const fields = effectiveFields.map((f: any) => typeof f === 'string' ? f : (f.name || f.field));
+      const fields = effectiveFields.map((f: any) => typeof f === 'string' ? f : (f.name || f.fieldName || f.field));
       const rows: string[] = [];
       if (includeHeaders) {
         rows.push(fields.join(','));
@@ -497,7 +497,7 @@ export const ListView: React.FC<ListViewProps> = ({
         rows.push(fields.map((f: string) => {
           const val = record[f];
           const str = val == null ? '' : String(val);
-          return str.includes(',') || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
+          return str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r') ? `"${str.replace(/"/g, '""')}"` : str;
         }).join(','));
       });
       const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });

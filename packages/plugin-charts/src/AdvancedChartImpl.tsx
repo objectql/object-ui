@@ -271,6 +271,12 @@ export default function AdvancedChartImpl({
   }
 
   return (
+    <ChartContainer config={config} className={className}>
+      <ChartComponent data={data}>
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey={xAxisKey}
+          tickLine={false}
           tickMargin={10}
           axisLine={false}
           interval={isMobile ? Math.ceil(data.length / 5) : 0}
