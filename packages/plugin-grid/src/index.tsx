@@ -11,14 +11,16 @@ import { ComponentRegistry } from '@object-ui/core';
 import { useSchemaContext } from '@object-ui/react';
 import { ObjectGrid } from './ObjectGrid';
 import { VirtualGrid } from './VirtualGrid';
+import { ImportWizard } from './ImportWizard';
 
-export { ObjectGrid, VirtualGrid };
+export { ObjectGrid, VirtualGrid, ImportWizard };
 export { InlineEditing } from './InlineEditing';
 export { useRowColor } from './useRowColor';
 export { useGroupedData } from './useGroupedData';
 export type { ObjectGridProps } from './ObjectGrid';
 export type { VirtualGridProps, VirtualGridColumn } from './VirtualGrid';
 export type { InlineEditingProps } from './InlineEditing';
+export type { ImportWizardProps, ImportResult } from './ImportWizard';
 export type { GroupEntry, UseGroupedDataResult } from './useGroupedData';
 
 // Register object-grid component
@@ -48,6 +50,30 @@ ComponentRegistry.register('grid', ObjectGridRenderer, {
     { name: 'objectName', type: 'string', label: 'Object Name', required: true },
     { name: 'columns', type: 'array', label: 'Columns' },
     { name: 'filters', type: 'array', label: 'Filters' },
+  ]
+});
+
+// Register import-wizard component
+const ImportWizardRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
+  const { dataSource } = useSchemaContext() || {};
+  return (
+    <ImportWizard
+      objectName={schema.objectName}
+      objectLabel={schema.objectLabel}
+      fields={schema.fields ?? []}
+      dataSource={dataSource}
+      {...props}
+    />
+  );
+};
+
+ComponentRegistry.register('import-wizard', ImportWizardRenderer, {
+  namespace: 'plugin-grid',
+  label: 'Import Wizard',
+  category: 'plugin',
+  inputs: [
+    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
+    { name: 'fields', type: 'array', label: 'Fields', required: true },
   ]
 });
 
