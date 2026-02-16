@@ -1,11 +1,12 @@
 # ObjectStack Console — Complete Development Roadmap
 
-> **Last Updated:** February 14, 2026
+> **Last Updated:** February 16, 2026
 > **Current Version:** v0.5.2
 > **Target Version:** v1.0.0 (GA)
 > **Spec Alignment:** @objectstack/spec v3.0.2
 > **Bootstrap (Phase 0):** ✅ Complete
 > **Phases 1-9:** ⚠️ Mostly Complete (see verified status below)
+> **Priority Focus:** 🎯 UI-essential features for v1.0 release
 
 ---
 
@@ -434,75 +435,79 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 ## 5. UI Feature Roadmap
 
+> **Re-prioritized (Feb 16, 2026):** Features marked as "v1.0 Essential" must ship before GA. Phase 10 items split into v1.0-essential and post-v1.0.
+
 ### 5.1 Object Management
 
-| Feature | Status | Phase |
-|---------|--------|-------|
-| Grid view (sort, filter, search) | ✅ Done | — |
-| Kanban board | ✅ Done | — |
-| Calendar view | ✅ Done | — |
-| Timeline view | ✅ Done | — |
-| Gallery view | ✅ Done | — |
-| Map view | ✅ Done | — |
-| Gantt chart | ✅ Done | — |
-| Chart view | ✅ Done | — |
-| Inline editing (grid) | ✅ Done | — |
-| Bulk actions (select + execute) | ✅ Done | Phase 2 |
-| Column reordering & persistence | ✅ Done | Phase 7 |
-| Saved filters / views | ✅ Done | Phase 3 |
-| Export (CSV, Excel, PDF) | 🔲 Planned | Phase 10 |
-| Import (CSV, Excel) | 🔲 Planned | Phase 10 |
+| Feature | Status | Priority | Phase |
+|---------|--------|----------|-------|
+| Grid view (sort, filter, search) | ✅ Done | — | — |
+| Kanban board | ✅ Done | — | — |
+| Calendar view | ✅ Done | — | — |
+| Timeline view | ✅ Done | — | — |
+| Gallery view | ✅ Done | — | — |
+| Map view | ✅ Done | — | — |
+| Gantt chart | ✅ Done | — | — |
+| Chart view | ✅ Done | — | — |
+| Inline editing (grid) | ✅ Done | — | — |
+| Bulk actions (select + execute) | ✅ Done | — | Phase 2 |
+| Column reordering & persistence | ✅ Done | — | Phase 7 |
+| Saved filters / views | ✅ Done | — | Phase 3 |
+| **Export (CSV, Excel, PDF)** | 🔲 Planned | **🎯 v1.0 Essential** | Phase 10a |
+| Import (CSV, Excel) | 🔲 Planned | Post v1.0 | Phase 10b |
 
 ### 5.2 Forms & Records
 
-| Feature | Status | Phase |
-|---------|--------|-------|
-| Create/edit dialog | ✅ Done | — |
-| Field type mapping | ✅ Done | — |
-| Record detail page | ✅ Done | — |
-| Record drawer (sheet) | ✅ Done | — |
-| Form variants (tabbed, wizard, split) | ✅ Done | — |
-| Conditional fields (dependsOn) | ✅ Done | — |
-| Field validation | ✅ Done | — |
-| File upload fields | 🔲 Planned | Phase 10 |
-| Rich text editor fields | 🔲 Planned | Phase 10 |
-| Related record lookup | 🔲 Planned | Phase 10 |
-| Audit trail (field change history) | 🔲 Planned | Phase 10 |
+| Feature | Status | Priority | Phase |
+|---------|--------|----------|-------|
+| Create/edit dialog | ✅ Done | — | — |
+| Field type mapping | ✅ Done | — | — |
+| Record detail page | ✅ Done | — | — |
+| Record drawer (sheet) | ✅ Done | — | — |
+| Form variants (tabbed, wizard, split) | ✅ Done | — | — |
+| Conditional fields (dependsOn) | ✅ Done | — | — |
+| Field validation | ✅ Done | — | — |
+| **File upload fields** | 🔲 Planned | **🎯 v1.0 Essential** | Phase 10a |
+| **Related record lookup** | 🔲 Planned | **🎯 v1.0 Essential** | Phase 10a |
+| Rich text editor fields | 🔲 Planned | Post v1.0 | Phase 10b |
+| Audit trail (field change history) | 🔲 Planned | Post v1.0 | Phase 10b |
 
 ### 5.3 Dashboards & Reports
 
-| Feature | Status | Phase |
-|---------|--------|-------|
-| Dashboard renderer | ✅ Done | — |
-| Chart widgets | ✅ Done | — |
-| Report viewer | ✅ Done | — |
-| Report builder | ✅ Done | — |
-| Dashboard drag & drop layout | 🔲 Planned | Phase 10 |
-| Real-time dashboard auto-refresh | ✅ Done | Phase 6 |
-| Report export (PDF, Excel) | 🔲 Planned | Phase 10 |
-| Scheduled reports (email) | 🔲 Planned | Phase 10 |
+| Feature | Status | Priority | Phase |
+|---------|--------|----------|-------|
+| Dashboard renderer | ✅ Done | — | — |
+| Chart widgets | ✅ Done | — | — |
+| Report viewer | ✅ Done | — | — |
+| Report builder | ✅ Done | — | — |
+| Real-time dashboard auto-refresh | ✅ Done | — | Phase 6 |
+| Report export (PDF, Excel) | 🔲 Planned | Post v1.0 | Phase 10b |
+| Dashboard drag & drop layout | 🔲 Planned | Post v1.0 | Phase 10b |
+| Scheduled reports (email) | 🔲 Planned | Post v1.0 | Phase 10b |
 
 ### 5.4 Navigation & UX
 
-| Feature | Status | Phase |
-|---------|--------|-------|
-| Multi-app switcher | ✅ Done | — |
-| Recursive navigation tree | ✅ Done | — |
-| Command palette (⌘+K) | ✅ Done | — |
-| Expression-based visibility | ✅ Done | Phase 1 |
-| Dark/light theme | ✅ Done | — |
-| Per-app branding | ✅ Done | — |
-| Breadcrumbs | ✅ Done | — |
-| Keyboard shortcuts | ✅ Done | — |
-| Mobile-responsive layout | ✅ Done | Phase 8 |
-| Language switcher | ✅ Done | Phase 4 |
-| Notification center | 🔲 Planned | Phase 10 |
-| Activity feed | 🔲 Planned | Phase 10 |
-| Global search (cross-object) | ✅ Done | — |
+| Feature | Status | Priority | Phase |
+|---------|--------|----------|-------|
+| Multi-app switcher | ✅ Done | — | — |
+| Recursive navigation tree | ✅ Done | — | — |
+| Command palette (⌘+K) | ✅ Done | — | — |
+| Expression-based visibility | ✅ Done | — | Phase 1 |
+| Dark/light theme | ✅ Done | — | — |
+| Per-app branding | ✅ Done | — | — |
+| Breadcrumbs | ✅ Done | — | — |
+| Keyboard shortcuts | ✅ Done | — | — |
+| Mobile-responsive layout | ✅ Done | — | Phase 8 |
+| Language switcher | ✅ Done | — | Phase 4 |
+| Global search (cross-object) | ✅ Done | — | — |
+| Notification center | 🔲 Planned | Post v1.0 | Phase 10b |
+| Activity feed | 🔲 Planned | Post v1.0 | Phase 10b |
 
 ---
 
 ## 6. Execution Timeline
+
+> **Re-prioritized (Feb 16, 2026):** UI-essential features are now the immediate focus for v1.0 release.
 
 ```
 2026 Q1 (Feb 7-13)  — BOOTSTRAP COMPLETE ✅
@@ -521,10 +526,17 @@ These were the initial tasks to bring the console prototype to production-qualit
   Phase 8: Offline / PWA              ██████████████  ✅ Complete
   Phase 9: NavigationConfig Spec      ██████████████  ✅ Complete
 
-2026 Q2-Q3 (Apr-Sep)
+2026 Q1-Q2 (Mar-Apr) — v1.0 UI ESSENTIALS 🎯 (NEW PRIORITY)
 ═══════════════════════════════════════════════════════════
-  Phase 10: Advanced Features         ██████████░░░░  Planned
-  v1.0.0 GA Release                   ████░░░░░░░░░░  Stabilization
+  Phase 2 Completion: ActionEngine    ██░░░░░░░░░░░░  → v1.0 blocker
+  Phase 3 Completion: Metadata API    ██░░░░░░░░░░░░  → v1.0 blocker
+  Phase 10a: Core UI Features         ████░░░░░░░░░░  Export, File upload, Lookup
+  Spec Compliance: View Configs       ████░░░░░░░░░░  Timeline, Gallery, Navigation
+
+2026 Q2-Q3 (May-Sep)
+═══════════════════════════════════════════════════════════
+  Phase 10b: Advanced Features        ██████████░░░░  Dashboard DnD, Notifications
+  v1.0.0 GA Release                   ████████░░░░░░  Stabilization
 ```
 
 ### Milestone Summary
@@ -533,9 +545,9 @@ These were the initial tasks to bring the console prototype to production-qualit
 |-----------|---------|------|-------------|
 | **Bootstrap** | v0.5.0 | ✅ Feb 7, 2026 | 10 sub-phases: data layer, plugins, i18n, routing, DX |
 | **Alpha** | v0.5.2 | ✅ Feb 14, 2026 | Expressions + Partial Actions + Metadata adapter + i18n + RBAC |
-| **Beta** | v0.8.0 | Planned | Complete Action System + Server-driven metadata + MSW cleanup |
-| **RC** | v0.9.0 | Planned | Full feature set + Performance + NavigationConfig |
-| **GA** | v1.0.0 | Q3 2026 | Production-ready enterprise console |
+| **Beta** | v0.8.0 | Planned | ActionEngine + Server-driven metadata + Spec-compliant views |
+| **RC** | v0.9.0 | Planned | Core UI features (export, file upload, lookup) + Spec compliance 100% (UI) |
+| **GA** | v1.0.0 | Q2 2026 | Production-ready enterprise console |
 
 ---
 
@@ -675,10 +687,10 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 - [x] `defineStack()` used for config (Zod validation pending)
 - [x] All UI strings in English; i18n keys via `useObjectTranslation`
 
-### Phase 1-3 (Foundation) ⚠️
+### Phase 1-3 (Foundation) ⚠️ — v1.0 Blockers
 - [x] 100% of navigation items respect `visible` expressions
-- [ ] All CRUD actions dispatched through declarative `ActionEngine` pipeline
-- [ ] Console fetches app config from server at runtime (currently static)
+- [ ] **🎯 v1.0:** All CRUD actions dispatched through declarative `ActionEngine` pipeline
+- [ ] **🎯 v1.0:** Console fetches app config from server at runtime (currently static)
 
 ### Phase 4-6 (Enterprise) ✅
 - [x] 10 languages supported with runtime switching
@@ -694,10 +706,18 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 - [x] All 8 view plugins support NavigationConfig specification (7 modes)
 - [x] `useNavigationOverlay` hook + `NavigationOverlay` component pattern
 
-### Phase 10 (Advanced) — Planned
-- [ ] CSV/Excel import and export
+### Phase 10a (v1.0 Essential UI Features) — 🎯 Priority
+- [ ] **🎯 v1.0:** CSV/Excel export for grid views
+- [ ] **🎯 v1.0:** File upload fields in forms
+- [ ] **🎯 v1.0:** Related record lookup in forms
+
+### Phase 10b (Post-v1.0 Advanced Features)
+- [ ] CSV/Excel import
 - [ ] Dashboard drag-and-drop layout
+- [ ] Rich text editor fields
 - [ ] Notification center with activity feed
+- [ ] Scheduled reports (email)
+- [ ] Audit trail (field change history)
 
 ---
 

@@ -1,10 +1,11 @@
 # ObjectUI Spec Compliance Evaluation
 
-> **Date:** February 12, 2026
+> **Date:** February 16, 2026
 > **Spec Version:** @objectstack/spec v3.0.0
 > **ObjectUI Version:** v0.5.x
 > **Scope:** All 35 packages — components, plugins, and infrastructure
 > **Build Status:** ✅ 42/42 build tasks pass | ✅ 3185+ tests pass
+> **Priority Focus:** 🎯 UI-facing spec compliance for v1.0 release
 
 ---
 
@@ -940,95 +941,85 @@ Each package is rated against three dimensions:
 
 ### 6.4 Critical Gaps Across All Packages
 
+> **Priority re-assigned (Feb 16, 2026):** UI-facing gaps elevated to P0 for v1.0 release.
+
 | # | Gap | Priority | Affected Packages | Impact |
 |---|-----|----------|-------------------|--------|
 | 1 | ~~DataScope module not implemented~~ | ~~P0~~ | ~~core~~ | ✅ **Resolved** — DataScopeManager fully implemented with row-level filters |
 | 2 | ~~AI plugin handlers are placeholders~~ | ~~P0~~ | ~~plugin-ai~~ | ✅ **Resolved** — Real implementations in AIFormAssist, NLQueryInput, AIRecommendations |
 | 3 | ~~DetailView API fetching incomplete~~ | ~~P1~~ | ~~plugin-detail~~ | ✅ **Resolved** — RelatedList and DetailView support API data sources |
 | 4 | ~~ReportViewer data refresh TODO~~ | ~~P1~~ | ~~plugin-report~~ | ✅ **Resolved** — onRefresh callback and LiveReportExporter implemented |
-| 5 | Workflow canvas uses custom implementation | P2 | plugin-workflow | Custom canvas works; React Flow integration deferred to P2 |
+| 5 | Workflow canvas uses custom implementation | P2 | plugin-workflow | Custom canvas works; React Flow integration deferred post-v1.0 |
 | 6 | ~~Designer schema persistence missing~~ | ~~P1~~ | ~~plugin-designer~~ | ✅ **Resolved** — useSchemaPersistence hook with pluggable adapter |
 | 7 | ~~Map error handling for coordinates~~ | ~~P1~~ | ~~plugin-map~~ | ✅ **Resolved** — extractCoordinates validates, counts invalid records |
 | 8 | ~~Real-time collaboration~~ | ~~P2~~ | ~~All~~ | ✅ **Resolved** — @object-ui/collaboration with WebSocket, presence, comments |
 | 9 | ~~Offline sync~~ | ~~P2~~ | ~~data-objectstack, mobile~~ | ✅ **Resolved** — useOffline hook with sync queue, conflict resolution |
 | 10 | ~~Advanced formulas missing~~ | ~~P2~~ | ~~core~~ | ✅ **Resolved** — FIND, REPLACE, SUBSTRING, REGEX, STDEV, VARIANCE, PERCENTILE, MEDIAN all implemented |
-| 11 | TimelineConfig not defined in @object-ui/types | P1 | types, plugin-timeline | TimelineConfigSchema from spec not consumed; uses non-standard `dateField` instead of `startDateField` |
-| 12 | GalleryConfig type not exported from @object-ui/types | P1 | types, plugin-list | GalleryConfigSchema from spec implemented but type not exported from index.ts |
-| 13 | Navigation `width`/`view` properties not applied | P2 | plugin-kanban, plugin-calendar, plugin-gantt, plugin-timeline, plugin-map, plugin-view | All view plugins accept navigation via useNavigationOverlay but ignore `width` and `view` properties |
-| 14 | ObjectGallery lacks navigation support | P1 | plugin-list | ObjectGallery only accepts onCardClick; does not support spec navigation config |
-| 15 | ListView spec properties not implemented | P2 | plugin-list, types | 10+ ListViewSchema properties from spec not implemented: quickFilters, hiddenFields, fieldOrder, virtualScroll, conditionalFormatting, inlineEdit, exportOptions, emptyState, aria, rowHeight |
+| 11 | TimelineConfig not defined in @object-ui/types | **P0** 🎯 | types, plugin-timeline | TimelineConfigSchema from spec not consumed; uses non-standard `dateField` instead of `startDateField` |
+| 12 | GalleryConfig type not exported from @object-ui/types | **P0** 🎯 | types, plugin-list | GalleryConfigSchema from spec implemented but type not exported from index.ts |
+| 13 | Navigation `width`/`view` properties not applied | **P0** 🎯 | plugin-kanban, plugin-calendar, plugin-gantt, plugin-timeline, plugin-map, plugin-view | All view plugins accept navigation via useNavigationOverlay but ignore `width` and `view` properties |
+| 14 | ObjectGallery lacks navigation support | **P0** 🎯 | plugin-list | ObjectGallery only accepts onCardClick; does not support spec navigation config |
+| 15 | ListView spec properties not implemented | **P0/P1** 🎯 | plugin-list, types | 10+ ListViewSchema properties from spec — emptyState (P0), quickFilters/hiddenFields/fieldOrder (P1), rest P2 |
 
 ---
 
 ## 7. Improvement Plan Summary
 
-### Priority 0 — Critical (Address Immediately)
+> **Priority re-ordered (Feb 16, 2026):** UI-facing spec compliance tasks are prioritized for v1.0 release. Infrastructure and non-UI tasks are deferred to post-v1.0.
+
+### Priority 0 — v1.0 UI Essentials (Address Immediately)
+
+> These are the minimum spec compliance items required for v1.0 to be usable.
 
 | # | Task | Package | Effort | Status |
 |---|------|---------|--------|--------|
-| 1 | ~~Implement DataScope module for row-level security~~ | core | ~~2 weeks~~ | ✅ Complete |
-| 2 | ~~Replace console.log placeholders in AI plugin handlers~~ | plugin-ai | ~~1 week~~ | ✅ Complete |
-| 3 | ~~Uncomment and finalize validators module export in types~~ | types | ~~2 days~~ | ✅ Validators in core/validation |
-
-### Priority 1 — High (Q1 2026)
-
-| # | Task | Package | Effort | Status |
-|---|------|---------|--------|--------|
-| 4 | ~~Complete API data fetching in DetailView and RelatedList~~ | plugin-detail | ~~1 week~~ | ✅ Complete |
-| 5 | ~~Implement ReportViewer data refresh and aggregation UI~~ | plugin-report | ~~1 week~~ | ✅ Complete |
-| 6 | Integrate React Flow for workflow canvas | plugin-workflow | 2 weeks | Deferred (custom canvas works) |
-| 7 | ~~Add schema persistence API to designer~~ | plugin-designer | ~~1 week~~ | ✅ Complete — useSchemaPersistence hook |
-| 8 | ~~Add coordinate error handling in map plugin~~ | plugin-map | ~~2 days~~ | ✅ Complete |
-| 9 | ~~Add string search formulas (FIND, REPLACE, SUBSTRING)~~ | core | ~~3 days~~ | ✅ Complete |
-| 10 | ~~Verify and document usePageVariables hook~~ | react | ~~2 days~~ | ✅ Complete |
-| 11 | ~~Add updateMany batch documentation in data adapter~~ | data-objectstack | ~~1 day~~ | ✅ Complete |
-| 12 | ~~Add useTheme hook for component-level theme access~~ | react | ~~2 days~~ | ✅ Complete — in ThemeContext |
-| 13 | ~~Implement AriaPropsSchema injection in component renderers~~ | components, react | ~~1 week~~ | ✅ Complete — resolveAriaProps in SchemaRenderer |
-| 14 | ~~Implement FocusManagementSchema and FocusTrapConfigSchema runtime~~ | react | ~~1 week~~ | ✅ Complete — useFocusTrap hook |
 | 64 | Define TimelineConfig type in @object-ui/types aligned with spec TimelineConfigSchema | types, plugin-timeline | 3 days | Pending |
 | 65 | Export GalleryConfig type from @object-ui/types index.ts | types | 1 day | Pending |
 | 66 | Add navigation property support to ObjectGallery | plugin-list | 3 days | Pending |
+| 67 | Apply navigation.width to drawer/modal overlays in all view plugins | plugin-kanban, plugin-calendar, plugin-gantt, plugin-timeline, plugin-map, plugin-view | 1 week | Pending |
+| 68 | Implement navigation.view property across all view plugins | plugin-kanban, plugin-calendar, plugin-gantt, plugin-timeline, plugin-map, plugin-view | 1 week | Pending |
+| 71 | Implement emptyState spec property in ListView | plugin-list | 2 days | Pending |
+| 72 | Implement Timeline spec properties: endDateField, groupByField, colorField, scale | plugin-timeline | 1 week | Pending |
 
-### Priority 2 — Medium (Q2 2026)
+### Priority 1 — UI-Facing Spec Compliance (v1.0 Polish)
+
+> Enhance the UI experience with spec-defined view features.
 
 | # | Task | Package | Effort | Status |
 |---|------|---------|--------|--------|
-| 15 | ~~Add dashboard-level auto-refresh and cross-widget filtering~~ | plugin-dashboard | ~~2 weeks~~ | ✅ Complete — refreshInterval + onRefresh |
-| 16 | ~~Add drag-to-reschedule for calendar events~~ | plugin-calendar | ~~1 week~~ | ✅ Complete |
+| 69 | Implement quickFilters spec property in ListView | plugin-list | 3 days | Pending |
+| 70 | Implement hiddenFields and fieldOrder spec properties in ListView | plugin-list, types | 3 days | Pending |
 | 17 | Add inline task editing for Gantt chart | plugin-gantt | 1 week | Pending |
 | 18 | Add marker clustering for map plugin | plugin-map | 1 week | Pending |
 | 19 | Add combo chart support | plugin-charts | 1 week | Pending |
-| 20 | Add form-level permission integration | plugin-form | 1 week | Pending |
 | 21 | Add column reorder/resize persistence for grid | plugin-grid | 3 days | Pending |
+| 63 | Add DensityMode support to grid and list views | plugin-grid, plugin-list | 3 days | Pending |
+| 74 | Implement exportOptions spec property in ListView (csv, xlsx, json, pdf) | plugin-list | 1 week | Pending |
+| 30 | Add inline editing toggle for detail view | plugin-detail | 3 days | Pending |
+
+### Priority 2 — Infrastructure & Non-UI Compliance (Post v1.0)
+
+> These items are important for completeness but do not block v1.0 release.
+
+| # | Task | Package | Effort | Status |
+|---|------|---------|--------|--------|
+| 6 | Integrate React Flow for workflow canvas | plugin-workflow | 2 weeks | Deferred (custom canvas works) |
+| 20 | Add form-level permission integration | plugin-form | 1 week | Pending |
 | 22 | Add Zod runtime validators for critical schemas | types | 1 week | Pending |
 | 23 | Add OAuth provider management UI | auth | 2 weeks | Pending |
 | 24 | Add tenant session persistence | tenant | 3 days | Pending |
 | 25 | Add permission evaluation caching | permissions | 3 days | Pending |
 | 26 | Add dynamic language pack loading | i18n | 1 week | Pending |
-| 27 | ~~Add ErrorBoundary wrapper to SchemaRenderer~~ | components | ~~3 days~~ | ✅ Complete — SchemaErrorBoundary |
 | 28 | Document AG Grid Community vs Enterprise boundaries | plugin-aggrid | 2 days | Pending |
 | 29 | Add live design preview mode | plugin-designer | 1 week | Pending |
-| 30 | Add inline editing toggle for detail view | plugin-detail | 3 days | Pending |
 | 31 | Add AI endpoint adapter (OpenAI, Anthropic) | plugin-ai | 2 weeks | Pending |
 | 32 | Add NLQuery → ObjectQL integration | plugin-ai | 1 week | Pending |
 | 33 | Add saved view management | plugin-list | 1 week | Pending |
-| 34 | ~~Add custom validator registration API~~ | core | ~~3 days~~ | ✅ Complete — registerValidator/registerAsyncValidator |
-| 35 | ~~Implement DndConfigSchema-based drag-and-drop in Kanban and Dashboard~~ | plugin-kanban, plugin-dashboard | ~~2 weeks~~ | ✅ Complete — DndBridge, DndEditModeBridge |
-| 36 | ~~Implement NotificationSchema system (toast/banner/snackbar)~~ | components, react | ~~2 weeks~~ | ✅ Complete — NotificationProvider |
-| 37 | ~~Integrate GestureConfigSchema and TouchInteractionSchema into mobile hooks~~ | mobile | ~~1 week~~ | ✅ Complete — useSpecGesture |
-| 38 | ~~Adopt ResponsiveConfigSchema and BreakpointColumnMapSchema in layouts~~ | mobile, layout | ~~1 week~~ | ✅ Complete |
-| 39 | ~~Implement KeyboardShortcutSchema and KeyboardNavigationConfigSchema runtime~~ | react | ~~1 week~~ | ✅ Complete — useKeyboardShortcuts |
-| 40 | ~~Consume ColumnSummarySchema, GroupingConfigSchema, RowColorConfigSchema in grid views~~ | plugin-grid, plugin-aggrid | ~~1 week~~ | ✅ Complete — useColumnSummary, useGroupedData, useRowColor |
-| 41 | ~~Consume GalleryConfigSchema and ViewSharingSchema in list plugin~~ | plugin-list | ~~1 week~~ | ✅ Complete — ObjectGallery, useViewSharing |
-| 42 | ~~Consume I18nObjectSchema, LocaleConfigSchema, PluralRuleSchema in i18n package~~ | i18n | ~~1 week~~ | ✅ Complete |
-| 67 | Apply navigation.width to drawer/modal overlays in all view plugins | plugin-kanban, plugin-calendar, plugin-gantt, plugin-timeline, plugin-map, plugin-view | 1 week | Pending |
-| 68 | Implement navigation.view property across all view plugins | plugin-kanban, plugin-calendar, plugin-gantt, plugin-timeline, plugin-map, plugin-view | 1 week | Pending |
-| 69 | Implement quickFilters spec property in ListView | plugin-list | 3 days | Pending |
-| 70 | Implement hiddenFields and fieldOrder spec properties in ListView | plugin-list, types | 3 days | Pending |
-| 71 | Implement emptyState spec property in ListView | plugin-list | 2 days | Pending |
-| 72 | Implement Timeline spec properties: endDateField, groupByField, colorField, scale | plugin-timeline | 1 week | Pending |
+| 73 | Implement inlineEdit, virtualScroll, conditionalFormatting spec properties in ListView | plugin-list | 2 weeks | Pending |
+| 75 | Add aria spec property support to ListView | plugin-list | 3 days | Pending |
+| 76 | Add sharing spec property support to ListView | plugin-list | 3 days | Pending |
 
-### Priority 3 — Low (Q3-Q4 2026)
+### Priority 3 — Low (Deferred Post v1.0)
 
 | # | Task | Package | Effort |
 |---|------|---------|--------|
@@ -1052,75 +1043,108 @@ Each package is rated against three dimensions:
 | 60 | Implement OfflineConfigSchema and SyncConfigSchema runtime | data-objectstack, mobile | 3 weeks |
 | 61 | Implement PerformanceConfigSchema monitoring runtime | core, react | 1 week |
 | 62 | Implement WcagContrastLevel checking utility | components | 3 days |
-| 63 | Add DensityMode support to grid and list views | plugin-grid, plugin-list | 3 days |
-| 73 | Implement inlineEdit, virtualScroll, conditionalFormatting spec properties in ListView | plugin-list | 2 weeks |
-| 74 | Implement exportOptions spec property in ListView (csv, xlsx, json, pdf) | plugin-list | 1 week |
-| 75 | Add aria spec property support to ListView | plugin-list | 3 days |
-| 76 | Add sharing spec property support to ListView | plugin-list | 3 days |
+
+### Completed Items (Reference)
+
+| # | Task | Package | Status |
+|---|------|---------|--------|
+| 1 | ~~Implement DataScope module for row-level security~~ | core | ✅ Complete |
+| 2 | ~~Replace console.log placeholders in AI plugin handlers~~ | plugin-ai | ✅ Complete |
+| 3 | ~~Uncomment and finalize validators module export in types~~ | types | ✅ Validators in core/validation |
+| 4 | ~~Complete API data fetching in DetailView and RelatedList~~ | plugin-detail | ✅ Complete |
+| 5 | ~~Implement ReportViewer data refresh and aggregation UI~~ | plugin-report | ✅ Complete |
+| 7 | ~~Add schema persistence API to designer~~ | plugin-designer | ✅ Complete — useSchemaPersistence hook |
+| 8 | ~~Add coordinate error handling in map plugin~~ | plugin-map | ✅ Complete |
+| 9 | ~~Add string search formulas (FIND, REPLACE, SUBSTRING)~~ | core | ✅ Complete |
+| 10 | ~~Verify and document usePageVariables hook~~ | react | ✅ Complete |
+| 11 | ~~Add updateMany batch documentation in data adapter~~ | data-objectstack | ✅ Complete |
+| 12 | ~~Add useTheme hook for component-level theme access~~ | react | ✅ Complete — in ThemeContext |
+| 13 | ~~Implement AriaPropsSchema injection in component renderers~~ | components, react | ✅ Complete — resolveAriaProps in SchemaRenderer |
+| 14 | ~~Implement FocusManagementSchema and FocusTrapConfigSchema runtime~~ | react | ✅ Complete — useFocusTrap hook |
+| 15 | ~~Add dashboard-level auto-refresh and cross-widget filtering~~ | plugin-dashboard | ✅ Complete — refreshInterval + onRefresh |
+| 16 | ~~Add drag-to-reschedule for calendar events~~ | plugin-calendar | ✅ Complete |
+| 27 | ~~Add ErrorBoundary wrapper to SchemaRenderer~~ | components | ✅ Complete — SchemaErrorBoundary |
+| 34 | ~~Add custom validator registration API~~ | core | ✅ Complete — registerValidator/registerAsyncValidator |
+| 35 | ~~Implement DndConfigSchema-based drag-and-drop in Kanban and Dashboard~~ | plugin-kanban, plugin-dashboard | ✅ Complete — DndBridge, DndEditModeBridge |
+| 36 | ~~Implement NotificationSchema system (toast/banner/snackbar)~~ | components, react | ✅ Complete — NotificationProvider |
+| 37 | ~~Integrate GestureConfigSchema and TouchInteractionSchema into mobile hooks~~ | mobile | ✅ Complete — useSpecGesture |
+| 38 | ~~Adopt ResponsiveConfigSchema and BreakpointColumnMapSchema in layouts~~ | mobile, layout | ✅ Complete |
+| 39 | ~~Implement KeyboardShortcutSchema and KeyboardNavigationConfigSchema runtime~~ | react | ✅ Complete — useKeyboardShortcuts |
+| 40 | ~~Consume ColumnSummarySchema, GroupingConfigSchema, RowColorConfigSchema in grid views~~ | plugin-grid, plugin-aggrid | ✅ Complete — useColumnSummary, useGroupedData, useRowColor |
+| 41 | ~~Consume GalleryConfigSchema and ViewSharingSchema in list plugin~~ | plugin-list | ✅ Complete — ObjectGallery, useViewSharing |
+| 42 | ~~Consume I18nObjectSchema, LocaleConfigSchema, PluralRuleSchema in i18n package~~ | i18n | ✅ Complete |
 
 ---
 
 ## 8. Roadmap Recommendations
 
-### Alignment with Existing ROADMAP.md
+### Priority Re-Order (Feb 16, 2026)
 
-This evaluation confirms the existing roadmap priorities. **Significant progress has been made since the initial evaluation** — all P0 items and the majority of P1/P2 items are now complete.
+> **Change rationale:** The original priority order (DX → UX → Components → Docs → Mobile) has been reorganized to prioritize **UI-facing spec compliance and v1.0 essentials**. All original P0/P1 items are complete. The remaining work is primarily UI-facing spec alignment.
 
-#### Q1 2026 (Status: ✅ Complete)
+#### Immediate (v1.0 UI Essentials — P0)
 
-**All P0 and most P1 items resolved:**
-- ✅ DataScope module implementation — complete
-- ✅ AI plugin handlers — real implementations
-- ✅ DetailView/RelatedList API — complete
-- ✅ Map coordinate error handling — complete
-- ✅ Schema persistence for designers — useSchemaPersistence hook
-- ✅ Dashboard auto-refresh — refreshInterval + onRefresh
-- ✅ SchemaRenderer error boundary — SchemaErrorBoundary
+**Focus: Make every view plugin spec-compliant and usable.**
 
-#### Q2 2026 (April-June — v1.0.0 Target)
+1. **TimelineConfig spec alignment** — Define type, rename `dateField` → `startDateField`, implement all spec properties (#64, #72)
+2. **GalleryConfig export** — Export type from @object-ui/types (#65)
+3. **ObjectGallery navigation** — Add navigation property support (#66)
+4. **Navigation width/view properties** — Apply across all 6 view plugins (#67, #68)
+5. **ListView emptyState** — Implement custom no-data UI spec property (#71)
 
-**Remaining items for full compliance:**
-1. Inline task editing for Gantt chart (P2)
-2. Marker clustering for map plugin (P2)
-3. Combo chart support (P2)
-4. Form-level permission integration (P2)
-5. Column reorder/resize persistence for grid (P2)
-6. OAuth provider management UI (P2)
-7. AI endpoint adapter (OpenAI, Anthropic) (P2)
+**Estimated effort:** ~3 weeks
 
-**Spec alignment milestone:**
-- Current spec coverage at ~98% with all P0/P1 items complete
-- Remaining 2% covers polish items and advanced integrations
+#### Short-Term (v1.0 Polish — P1)
 
-#### Q3 2026 (July-September)
+**Focus: UI enhancement features from spec.**
 
-**Status: ✅ Complete** — All Q3 items have been implemented:
-- ✅ Real-time collaboration (WebSocket) — @object-ui/collaboration package
-- ✅ Offline sync with OfflineConfigSchema/SyncConfigSchema — useOffline hook
-- ✅ Animation/motion system — useAnimation, useReducedMotion, usePageTransition
-- ✅ PerformanceConfigSchema monitoring — usePerformance, usePerformanceBudget
-- ✅ View transitions — useViewTransition with native API support
+1. ListView spec properties: quickFilters, hiddenFields, fieldOrder (#69, #70)
+2. Inline task editing for Gantt (#17)
+3. Map marker clustering (#18)
+4. Grid column reorder/resize persistence (#21)
+5. DensityMode support for grid/list (#63)
+6. ListView exportOptions (#74)
+7. Detail view inline editing toggle (#30)
 
-#### Q4 2026 (October-December)
+**Estimated effort:** ~5 weeks
 
-**Recommended focus:**
-1. Complete remaining P3 polish items
-2. Cloud platform launch — existing plan
-3. Performance optimization pass across all plugins
-4. Full spec compliance audit (target: 100%)
+#### Post v1.0 (Infrastructure — P2)
+
+1. React Flow for workflow canvas (#6)
+2. Form-level permission integration (#20)
+3. OAuth provider management UI (#23)
+4. AI endpoint adapter (#31)
+5. Saved view management (#33)
+6. ListView advanced features: inlineEdit, virtualScroll, conditionalFormatting (#73)
+
+#### Deferred (P3)
+
+Non-UI polish items: animation runtime, offline sync runtime, performance monitoring runtime, workflow simulation, design version history.
+
+### Completed Foundation (Reference)
+
+**Q1 2026 (✅ Complete):**
+- ✅ DataScope module, AI plugin handlers, DetailView/RelatedList API
+- ✅ Map coordinate error handling, Schema persistence, Dashboard auto-refresh
+- ✅ SchemaRenderer error boundary
+
+**Q3 2026 (✅ Complete):**
+- ✅ Real-time collaboration, Offline sync, Animation/motion system
+- ✅ PerformanceConfigSchema monitoring, View transitions
 
 ### Overall Spec Compliance Score (vs. @objectstack/spec v3.0.0)
 
-| Category | Current | After P0 | After P1 | After P2 | Target |
-|----------|---------|----------|----------|----------|--------|
+| Category | Current | After P0 (v1.0 UI) | After P1 (v1.0 Polish) | After P2 | Target |
+|----------|---------|---------------------|------------------------|----------|--------|
 | **UI Types** | 100% | 100% | 100% | 100% | 100% |
+| **View Config Compliance** | 85% | 98% | 100% | 100% | 100% |
+| **Navigation Compliance** | 86% (6/7 views) | 100% (7/7 views) | 100% | 100% | 100% |
+| **ListView Spec Props** | 0% (0/11) | 27% (3/11) | 64% (7/11) | 100% | 100% |
 | **API Protocol** | 95% | 97% | 99% | 100% | 100% |
-| **Feature Completeness** | 98% | 99% | 99% | 100% | 100% |
-| **v3.0.0 New Areas** | 100% | 100% | 100% | 100% | 100% |
-| **Overall** | **98%** | **99%** | **99%** | **100%** | 100% |
+| **Overall** | **98%** | **99%** | **100% (UI)** | **100%** | 100% |
 
-> **Note:** All P0 items have been resolved. P1 items are nearly complete (12/13 done). The majority of P2 items are also resolved.
-> All 42 builds pass, all 3185+ tests pass. Remaining items are primarily polish (P3) and business infrastructure.
+> **Note:** With P0 completion, all UI-facing spec compliance will be at 99%+, making v1.0 release viable.
+> All 42 builds pass, all 3185+ tests pass.
 
 ---
 
