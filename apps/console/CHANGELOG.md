@@ -1,5 +1,11 @@
 # @object-ui/console
 
+## 3.0.3
+
+### Patch Changes
+
+- e1267d2: fix: re-attach listViews to object metadata stripped by defineStack() Zod parse
+
 ## 3.0.2
 
 ### Patch Changes

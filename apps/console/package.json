@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/console",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "ObjectStack Console - The standard runtime UI for ObjectStack applications",
   "type": "module",
   "main": "./plugin.js",

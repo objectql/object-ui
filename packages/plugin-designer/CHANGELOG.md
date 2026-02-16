@@ -1,5 +1,14 @@
 # @object-ui/plugin-designer
 
+## 3.0.3
+
+### Patch Changes
+
+- @object-ui/types@3.0.3
+- @object-ui/core@3.0.3
+- @object-ui/react@3.0.3
+- @object-ui/components@3.0.3
+
 ## 3.0.2
 
 ### Patch Changes

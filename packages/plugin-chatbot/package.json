@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-chatbot",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "type": "module",
   "license": "MIT",
   "description": "Chatbot interface plugin for Object UI",
