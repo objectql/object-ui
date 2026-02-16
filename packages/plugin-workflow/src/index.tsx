@@ -9,8 +9,12 @@
 import { ComponentRegistry } from '@object-ui/core';
 import { WorkflowDesigner } from './WorkflowDesigner';
 import { ApprovalProcess } from './ApprovalProcess';
+import { AutomationBuilder } from './AutomationBuilder';
+import { AutomationRunHistory } from './AutomationRunHistory';
 
-export { WorkflowDesigner, ApprovalProcess };
+export { WorkflowDesigner, ApprovalProcess, AutomationBuilder, AutomationRunHistory };
+export type { AutomationDefinition, AutomationBuilderProps, TriggerConfig, ActionConfig } from './AutomationBuilder';
+export type { AutomationRun, AutomationRunHistoryProps } from './AutomationRunHistory';
 
 // Register workflow designer component
 ComponentRegistry.register(
@@ -43,6 +47,33 @@ ComponentRegistry.register(
       { name: 'history', type: 'code', label: 'History' },
       { name: 'showHistory', type: 'boolean', label: 'Show History', defaultValue: true },
       { name: 'showComments', type: 'boolean', label: 'Show Comments', defaultValue: true },
+    ]
+  }
+);
+
+// Register automation builder component
+ComponentRegistry.register(
+  'automation-builder',
+  AutomationBuilder,
+  {
+    label: 'Automation Builder',
+    category: 'Enterprise',
+    inputs: [
+      { name: 'automation', type: 'code', label: 'Automation Definition' },
+      { name: 'objects', type: 'code', label: 'Available Objects' },
+    ]
+  }
+);
+
+// Register automation run history component
+ComponentRegistry.register(
+  'automation-run-history',
+  AutomationRunHistory,
+  {
+    label: 'Automation Run History',
+    category: 'Enterprise',
+    inputs: [
+      { name: 'runs', type: 'code', label: 'Run History' },
     ]
   }
 );
