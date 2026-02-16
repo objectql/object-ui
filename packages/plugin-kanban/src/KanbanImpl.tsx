@@ -25,8 +25,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, ScrollArea } from "@object-ui/components"
+import { Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, ScrollArea, Button, Input } from "@object-ui/components"
 import { useHasDndProvider, useDnd } from "@object-ui/react"
+import { Plus } from "lucide-react"
 
 // Utility function to merge class names (inline to avoid external dependency)
 const cn = (...classes: (string | undefined)[]) => classes.filter(Boolean).join(' ')
@@ -36,6 +37,7 @@ export interface KanbanCard {
   title: string
   description?: string
   badges?: Array<{ label: string; variant?: "default" | "secondary" | "destructive" | "outline" }>
+  coverImage?: string
   [key: string]: any
 }
 
@@ -47,14 +49,65 @@ export interface KanbanColumn {
   className?: string
 }
 
+export interface ConditionalFormattingRule {
+  field: string
+  operator: 'equals' | 'not_equals' | 'contains' | 'in'
+  value: string | string[]
+  backgroundColor?: string
+  borderColor?: string
+}
+
 export interface KanbanBoardProps {
   columns: KanbanColumn[]
   onCardMove?: (cardId: string, fromColumnId: string, toColumnId: string, newIndex: number) => void
   onCardClick?: (card: KanbanCard) => void
   className?: string
+  quickAdd?: boolean
+  onQuickAdd?: (columnId: string, title: string) => void
+  coverImageField?: string
+  conditionalFormatting?: ConditionalFormattingRule[]
 }
 
-function SortableCard({ card, onCardClick }: { card: KanbanCard; onCardClick?: (card: KanbanCard) => void }) {
+/**
+ * Evaluate conditional formatting rules for a card.
+ * Returns CSS style overrides for backgroundColor and borderColor.
+ */
+function getCardStyles(card: KanbanCard, rules?: ConditionalFormattingRule[]): React.CSSProperties {
+  if (!rules || rules.length === 0) return {}
+
+  for (const rule of rules) {
+    const fieldValue = card[rule.field]
+    if (fieldValue === undefined || fieldValue === null) continue
+
+    let matches = false
+    const strValue = String(fieldValue)
+
+    switch (rule.operator) {
+      case 'equals':
+        matches = strValue === String(rule.value)
+        break
+      case 'not_equals':
+        matches = strValue !== String(rule.value)
+        break
+      case 'contains':
+        matches = strValue.toLowerCase().includes(String(rule.value).toLowerCase())
+        break
+      case 'in':
+        matches = Array.isArray(rule.value) && rule.value.includes(strValue)
+        break
+    }
+
+    if (matches) {
+      return {
+        ...(rule.backgroundColor ? { backgroundColor: rule.backgroundColor } : {}),
+        ...(rule.borderColor ? { borderColor: rule.borderColor } : {}),
+      }
+    }
+  }
+  return {}
+}
+
+function SortableCard({ card, onCardClick, conditionalFormatting }: { card: KanbanCard; onCardClick?: (card: KanbanCard) => void; conditionalFormatting?: ConditionalFormattingRule[] }) {
   const {
     attributes,
     listeners,
@@ -70,11 +123,23 @@ function SortableCard({ card, onCardClick }: { card: KanbanCard; onCardClick?: (
     opacity: isDragging ? 0.5 : undefined,
   }
 
+  const cardStyles = getCardStyles(card, conditionalFormatting)
+
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} role="listitem" aria-label={card.title}
       onClick={() => onCardClick?.(card)}
     >
-      <Card className="mb-2 cursor-grab active:cursor-grabbing border-border bg-card/60 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group touch-manipulation">
+      <Card className="mb-2 cursor-grab active:cursor-grabbing border-border bg-card/60 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group touch-manipulation" style={cardStyles}>
+        {card.coverImage && (
+          <div className="w-full h-32 overflow-hidden rounded-t-lg">
+            <img
+              src={card.coverImage}
+              alt=""
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          </div>
+        )}
         <CardHeader className="p-2 sm:p-4">
           <CardTitle className="text-xs sm:text-sm font-medium font-mono tracking-tight text-foreground group-hover:text-primary transition-colors">{card.title}</CardTitle>
           {card.description && (
@@ -99,14 +164,77 @@ function SortableCard({ card, onCardClick }: { card: KanbanCard; onCardClick?: (
   )
 }
 
-function KanbanColumn({
+function QuickAddForm({ columnId, onAdd }: { columnId: string; onAdd: (columnId: string, title: string) => void }) {
+  const [isAdding, setIsAdding] = React.useState(false)
+  const [title, setTitle] = React.useState('')
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  const handleSubmit = () => {
+    const trimmed = title.trim()
+    if (trimmed) {
+      onAdd(columnId, trimmed)
+      setTitle('')
+    }
+    setIsAdding(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSubmit()
+    } else if (e.key === 'Escape') {
+      setTitle('')
+      setIsAdding(false)
+    }
+  }
+
+  if (!isAdding) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="w-full mt-2 text-muted-foreground hover:text-foreground"
+        onClick={() => {
+          setIsAdding(true)
+          setTimeout(() => inputRef.current?.focus(), 0)
+        }}
+      >
+        <Plus className="h-4 w-4 mr-1" />
+        Add Card
+      </Button>
+    )
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      <Input
+        ref={inputRef}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={handleKeyDown} 
+        onBlur={handleSubmit}
+        placeholder="Enter card title..."
+        className="text-sm"
+        autoFocus
+      />
+    </div>
+  )
+}
+
+function KanbanColumnComponent({
   column,
   cards,
   onCardClick,
+  quickAdd,
+  onQuickAdd,
+  conditionalFormatting,
 }: {
   column: KanbanColumn
   cards: KanbanCard[]
   onCardClick?: (card: KanbanCard) => void
+  quickAdd?: boolean
+  onQuickAdd?: (columnId: string, title: string) => void
+  conditionalFormatting?: ConditionalFormattingRule[]
 }) {
   const safeCards = cards || [];
   const { setNodeRef } = useSortable({
@@ -151,10 +279,13 @@ function KanbanColumn({
         >
           <div className="space-y-2" role="list" aria-label={`${column.title} cards`}>
             {safeCards.map((card) => (
-              <SortableCard key={card.id} card={card} onCardClick={onCardClick} />
+              <SortableCard key={card.id} card={card} onCardClick={onCardClick} conditionalFormatting={conditionalFormatting} />
             ))}
           </div>
         </SortableContext>
+        {quickAdd && onQuickAdd && (
+          <QuickAddForm columnId={column.id} onAdd={onQuickAdd} />
+        )}
       </ScrollArea>
     </div>
   )
@@ -166,21 +297,21 @@ function DndBridge({ children }: { children: (dnd: ReturnType<typeof useDnd>) =>
   return <>{children(dnd)}</>
 }
 
-export default function KanbanBoard({ columns, onCardMove, onCardClick, className }: KanbanBoardProps) {
+export default function KanbanBoard({ columns, onCardMove, onCardClick, className, quickAdd, onQuickAdd, coverImageField, conditionalFormatting }: KanbanBoardProps) {
   const hasDnd = useHasDndProvider()
 
   if (hasDnd) {
     return (
       <DndBridge>
-        {(dnd) => <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={dnd} />}
+        {(dnd) => <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={dnd} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} />}
       </DndBridge>
     )
   }
 
-  return <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={null} />
+  return <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={null} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} />
 }
 
-function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd }: KanbanBoardProps & { dnd: ReturnType<typeof useDnd> | null }) {
+function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, quickAdd, onQuickAdd, coverImageField, conditionalFormatting }: KanbanBoardProps & { dnd: ReturnType<typeof useDnd> | null }) {
   const [activeCard, setActiveCard] = React.useState<KanbanCard | null>(null)
   
   // Ensure we always have valid columns with cards array
@@ -336,17 +467,20 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd }: 
       </div>
       <div className={cn("flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory p-2 sm:p-4 [-webkit-overflow-scrolling:touch]", className)} role="region" aria-label="Kanban board">
         {boardColumns.map((column) => (
-          <KanbanColumn
+          <KanbanColumnComponent
             key={column.id}
             column={column}
             cards={column.cards}
             onCardClick={onCardClick}
+            quickAdd={quickAdd}
+            onQuickAdd={onQuickAdd}
+            conditionalFormatting={conditionalFormatting}
           />
         ))}
       </div>
       <DragOverlay>
         <div aria-live="assertive" aria-label={activeCard ? `Dragging ${activeCard.title}` : undefined}>
-          {activeCard ? <SortableCard card={activeCard} /> : null}
+          {activeCard ? <SortableCard card={activeCard} conditionalFormatting={conditionalFormatting} /> : null}
         </div>
       </DragOverlay>
     </DndContext>

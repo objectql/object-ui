@@ -25,8 +25,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, Button } from "@object-ui/components"
-import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react"
+import { Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, Button, Input } from "@object-ui/components"
+import { ChevronDown, ChevronRight, AlertTriangle, Plus } from "lucide-react"
 
 const cn = (...classes: (string | undefined)[]) => classes.filter(Boolean).join(' ')
 
@@ -35,6 +35,7 @@ export interface KanbanCard {
   title: string
   description?: string
   badges?: Array<{ label: string; variant?: "default" | "secondary" | "destructive" | "outline" }>
+  coverImage?: string
   [key: string]: any
 }
 
@@ -47,6 +48,14 @@ export interface KanbanColumn {
   collapsed?: boolean
 }
 
+export interface ConditionalFormattingRule {
+  field: string
+  operator: 'equals' | 'not_equals' | 'contains' | 'in'
+  value: string | string[]
+  backgroundColor?: string
+  borderColor?: string
+}
+
 export interface KanbanEnhancedProps {
   columns: KanbanColumn[]
   onCardMove?: (cardId: string, fromColumnId: string, toColumnId: string, newIndex: number) => void
@@ -54,9 +63,47 @@ export interface KanbanEnhancedProps {
   enableVirtualScrolling?: boolean
   virtualScrollThreshold?: number
   className?: string
+  quickAdd?: boolean
+  onQuickAdd?: (columnId: string, title: string) => void
+  conditionalFormatting?: ConditionalFormattingRule[]
 }
 
-function SortableCard({ card }: { card: KanbanCard }) {
+function getCardStyles(card: KanbanCard, rules?: ConditionalFormattingRule[]): React.CSSProperties {
+  if (!rules || rules.length === 0) return {}
+
+  for (const rule of rules) {
+    const fieldValue = card[rule.field]
+    if (fieldValue === undefined || fieldValue === null) continue
+
+    let matches = false
+    const strValue = String(fieldValue)
+
+    switch (rule.operator) {
+      case 'equals':
+        matches = strValue === String(rule.value)
+        break
+      case 'not_equals':
+        matches = strValue !== String(rule.value)
+        break
+      case 'contains':
+        matches = strValue.toLowerCase().includes(String(rule.value).toLowerCase())
+        break
+      case 'in':
+        matches = Array.isArray(rule.value) && rule.value.includes(strValue)
+        break
+    }
+
+    if (matches) {
+      return {
+        ...(rule.backgroundColor ? { backgroundColor: rule.backgroundColor } : {}),
+        ...(rule.borderColor ? { borderColor: rule.borderColor } : {}),
+      }
+    }
+  }
+  return {}
+}
+
+function SortableCard({ card, conditionalFormatting }: { card: KanbanCard; conditionalFormatting?: ConditionalFormattingRule[] }) {
   const {
     attributes,
     listeners,
@@ -72,9 +119,21 @@ function SortableCard({ card }: { card: KanbanCard }) {
     opacity: isDragging ? 0.5 : undefined,
   }
 
+  const cardStyles = getCardStyles(card, conditionalFormatting)
+
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <Card className="mb-2 cursor-grab active:cursor-grabbing border-border bg-card/60 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group">
+      <Card className="mb-2 cursor-grab active:cursor-grabbing border-border bg-card/60 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group" style={cardStyles}>
+        {card.coverImage && (
+          <div className="w-full h-32 overflow-hidden rounded-t-lg">
+            <img
+              src={card.coverImage}
+              alt=""
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          </div>
+        )}
         <CardHeader className="p-4">
           <CardTitle className="text-sm font-medium font-mono tracking-tight text-foreground group-hover:text-primary transition-colors">{card.title}</CardTitle>
           {card.description && (
@@ -99,7 +158,7 @@ function SortableCard({ card }: { card: KanbanCard }) {
   )
 }
 
-function VirtualizedCardList({ cards, parentRef }: { cards: KanbanCard[]; parentRef: React.RefObject<HTMLDivElement | null> }) {
+function VirtualizedCardList({ cards, parentRef, conditionalFormatting }: { cards: KanbanCard[]; parentRef: React.RefObject<HTMLDivElement | null>; conditionalFormatting?: ConditionalFormattingRule[] }) {
   const rowVirtualizer = useVirtualizer({
     count: cards.length,
     getScrollElement: () => parentRef.current,
@@ -128,10 +187,67 @@ function VirtualizedCardList({ cards, parentRef }: { cards: KanbanCard[]; parent
               transform: `translateY(${virtualItem.start}px)`,
             }}
           >
-            <SortableCard card={card} />
+            <SortableCard card={card} conditionalFormatting={conditionalFormatting} />
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function QuickAddForm({ columnId, onAdd }: { columnId: string; onAdd: (columnId: string, title: string) => void }) {
+  const [isAdding, setIsAdding] = React.useState(false)
+  const [title, setTitle] = React.useState('')
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  const handleSubmit = () => {
+    const trimmed = title.trim()
+    if (trimmed) {
+      onAdd(columnId, trimmed)
+      setTitle('')
+    }
+    setIsAdding(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSubmit()
+    } else if (e.key === 'Escape') {
+      setTitle('')
+      setIsAdding(false)
+    }
+  }
+
+  if (!isAdding) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="w-full mt-2 text-muted-foreground hover:text-foreground"
+        onClick={() => {
+          setIsAdding(true)
+          setTimeout(() => inputRef.current?.focus(), 0)
+        }}
+      >
+        <Plus className="h-4 w-4 mr-1" />
+        Add Card
+      </Button>
+    )
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      <Input
+        ref={inputRef}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={handleSubmit}
+        placeholder="Enter card title..."
+        className="text-sm"
+        autoFocus
+      />
     </div>
   )
 }
@@ -141,11 +257,17 @@ function KanbanColumnEnhanced({
   cards,
   onToggle,
   enableVirtual,
+  quickAdd,
+  onQuickAdd,
+  conditionalFormatting,
 }: {
   column: KanbanColumn
   cards: KanbanCard[]
   onToggle: (collapsed: boolean) => void
   enableVirtual: boolean
+  quickAdd?: boolean
+  onQuickAdd?: (columnId: string, title: string) => void
+  conditionalFormatting?: ConditionalFormattingRule[]
 }) {
   const safeCards = cards || []
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -221,15 +343,18 @@ function KanbanColumnEnhanced({
             strategy={verticalListSortingStrategy}
           >
             {enableVirtual ? (
-              <VirtualizedCardList cards={safeCards} parentRef={scrollRef} />
+              <VirtualizedCardList cards={safeCards} parentRef={scrollRef} conditionalFormatting={conditionalFormatting} />
             ) : (
               <div className="space-y-2">
                 {safeCards.map((card) => (
-                  <SortableCard key={card.id} card={card} />
+                  <SortableCard key={card.id} card={card} conditionalFormatting={conditionalFormatting} />
                 ))}
               </div>
             )}
           </SortableContext>
+          {quickAdd && onQuickAdd && (
+            <QuickAddForm columnId={column.id} onAdd={onQuickAdd} />
+          )}
         </div>
       )}
     </div>
@@ -243,6 +368,9 @@ export function KanbanEnhanced({
   enableVirtualScrolling = false,
   virtualScrollThreshold = 50,
   className,
+  quickAdd,
+  onQuickAdd,
+  conditionalFormatting,
 }: KanbanEnhancedProps) {
   const [activeCard, setActiveCard] = React.useState<KanbanCard | null>(null)
   
@@ -380,12 +508,15 @@ export function KanbanEnhanced({
               cards={column.cards}
               onToggle={(collapsed) => handleColumnToggle(column.id, collapsed)}
               enableVirtual={shouldUseVirtual}
+              quickAdd={quickAdd}
+              onQuickAdd={onQuickAdd}
+              conditionalFormatting={conditionalFormatting}
             />
           )
         })}
       </div>
       <DragOverlay>
-        {activeCard ? <SortableCard card={activeCard} /> : null}
+        {activeCard ? <SortableCard card={activeCard} conditionalFormatting={conditionalFormatting} /> : null}
       </DragOverlay>
     </DndContext>
   )

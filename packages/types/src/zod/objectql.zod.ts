@@ -240,12 +240,24 @@ export const ObjectCalendarSchema = BaseSchema.extend({
 /**
  * ObjectKanban Schema
  */
+const KanbanConditionalFormattingRuleSchema = z.object({
+  field: z.string().describe('Field name to check'),
+  operator: z.enum(['equals', 'not_equals', 'contains', 'in']).describe('Comparison operator'),
+  value: z.union([z.string(), z.array(z.string())]).describe('Value to compare against'),
+  backgroundColor: z.string().optional().describe('Background color'),
+  borderColor: z.string().optional().describe('Border color'),
+});
+
 export const ObjectKanbanSchema = BaseSchema.extend({
   type: z.literal('object-kanban'),
   objectName: z.string().describe('ObjectQL object name'),
   groupField: z.string().describe('Group field'),
   titleField: z.string().optional().describe('Title field'),
   cardFields: z.array(z.string()).optional().describe('Card fields'),
+  quickAdd: z.boolean().optional().describe('Enable Quick Add button at column bottom'),
+  coverImageField: z.string().optional().describe('Field name for cover image on cards'),
+  allowCollapse: z.boolean().optional().describe('Allow columns to collapse/expand'),
+  conditionalFormatting: z.array(KanbanConditionalFormattingRuleSchema).optional().describe('Card conditional formatting rules'),
 });
 
 /**

@@ -31,6 +31,16 @@ export interface KanbanRendererProps {
     groupBy?: string;
     onCardMove?: (cardId: string, fromColumnId: string, toColumnId: string, newIndex: number) => void;
     onCardClick?: (card: any) => void;
+    quickAdd?: boolean;
+    onQuickAdd?: (columnId: string, title: string) => void;
+    coverImageField?: string;
+    conditionalFormatting?: Array<{
+      field: string;
+      operator: 'equals' | 'not_equals' | 'contains' | 'in';
+      value: string | string[];
+      backgroundColor?: string;
+      borderColor?: string;
+    }>;
   };
 }
 
@@ -41,7 +51,16 @@ export interface KanbanRendererProps {
 export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema }) => {
   // ⚡️ Adapter: Map flat 'data' + 'groupBy' to nested 'cards' structure
   const processedColumns = React.useMemo(() => {
-    const { columns = [], data, groupBy } = schema;
+    const { columns = [], data, groupBy, coverImageField } = schema;
+    
+    // Helper to map cover image field onto cards
+    const mapCoverImage = (item: any) => {
+      if (!coverImageField) return item;
+      const imgValue = item[coverImageField];
+      if (!imgValue) return item;
+      const coverImage = typeof imgValue === 'string' ? imgValue : imgValue?.url;
+      return coverImage ? { ...item, coverImage } : item;
+    };
     
     // If we have flat data and a grouping key, distribute items into columns
     if (data && groupBy && Array.isArray(data)) {
@@ -58,7 +77,7 @@ export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema }) => {
         const rawKey = String(item[groupBy] ?? '');
         const key = labelToColumnId[rawKey.toLowerCase()] ?? rawKey;
         if (!acc[key]) acc[key] = [];
-        acc[key].push(item);
+        acc[key].push(mapCoverImage(item));
         return acc;
       }, {} as Record<string, any[]>);
 
@@ -66,14 +85,17 @@ export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema }) => {
       return columns.map((col: any) => ({
         ...col,
         cards: [
-           ...(col.cards || []),     // Preserve static cards
+           ...(col.cards || []).map(mapCoverImage),     // Preserve static cards
            ...(groups[col.id] || []) // Add dynamic cards
         ]
       }));
     }
     
-    // Default: Return columns as-is (assuming they have 'cards' inside)
-    return columns;
+    // Default: Return columns as-is, mapping cover images
+    return columns.map((col: any) => ({
+      ...col,
+      cards: (col.cards || []).map(mapCoverImage),
+    }));
   }, [schema]);
 
   return (
@@ -83,6 +105,10 @@ export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema }) => {
         onCardMove={schema.onCardMove}
         onCardClick={schema.onCardClick}
         className={schema.className}
+        quickAdd={schema.quickAdd}
+        onQuickAdd={schema.onQuickAdd}
+        coverImageField={schema.coverImageField}
+        conditionalFormatting={schema.conditionalFormatting}
       />
     </Suspense>
   );
@@ -223,6 +249,9 @@ ComponentRegistry.register(
           enableVirtualScrolling={schema.enableVirtualScrolling}
           virtualScrollThreshold={schema.virtualScrollThreshold}
           className={schema.className}
+          quickAdd={schema.quickAdd}
+          onQuickAdd={schema.onQuickAdd}
+          conditionalFormatting={schema.conditionalFormatting}
         />
       </Suspense>
     );

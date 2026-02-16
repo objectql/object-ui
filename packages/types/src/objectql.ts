@@ -1183,6 +1183,48 @@ export interface ObjectKanbanSchema extends BaseSchema {
   titleField?: string;
   /** Fields to display on card */
   cardFields?: string[];
+
+  /**
+   * Enable Quick Add button at the bottom of each column.
+   * When true, a "+" button appears allowing inline card creation.
+   * @default false
+   */
+  quickAdd?: boolean;
+
+  /**
+   * Field name to use as cover image on cards.
+   * The field value should be a URL string or file object with a `url` property.
+   */
+  coverImageField?: string;
+
+  /**
+   * Allow columns to be collapsed/expanded.
+   * Collapsed columns show only the title and card count.
+   * @default false
+   */
+  allowCollapse?: boolean;
+
+  /**
+   * Conditional formatting rules for card coloring.
+   * Cards are colored based on field values matching conditions.
+   */
+  conditionalFormatting?: KanbanConditionalFormattingRule[];
+}
+
+/**
+ * Conditional formatting rule for Kanban cards
+ */
+export interface KanbanConditionalFormattingRule {
+  /** Field name to check */
+  field: string;
+  /** Operator for comparison */
+  operator: 'equals' | 'not_equals' | 'contains' | 'in';
+  /** Value to compare against */
+  value: string | string[];
+  /** Background color to apply (Tailwind class or CSS color) */
+  backgroundColor?: string;
+  /** Border color to apply (Tailwind class or CSS color) */
+  borderColor?: string;
 }
 
 /**

@@ -77,4 +77,39 @@ export interface KanbanSchema extends BaseSchema {
    * Optional CSS class name to apply custom styling.
    */
   className?: string;
+
+  /**
+   * Enable Quick Add button at the bottom of each column.
+   * When true, a "+" button appears allowing inline card creation.
+   * @default false
+   */
+  quickAdd?: boolean;
+
+  /**
+   * Callback when a new card is created via Quick Add.
+   */
+  onQuickAdd?: (columnId: string, title: string) => void;
+
+  /**
+   * Field name to use as cover image on cards.
+   * The field value should be a URL string or file object with a `url` property.
+   */
+  coverImageField?: string;
+
+  /**
+   * Allow columns to be collapsed/expanded.
+   * @default false
+   */
+  allowCollapse?: boolean;
+
+  /**
+   * Conditional formatting rules for card coloring.
+   */
+  conditionalFormatting?: Array<{
+    field: string;
+    operator: 'equals' | 'not_equals' | 'contains' | 'in';
+    value: string | string[];
+    backgroundColor?: string;
+    borderColor?: string;
+  }>;
 }

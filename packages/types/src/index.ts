@@ -291,6 +291,7 @@ export type {
   ObjectGanttSchema,
   ObjectCalendarSchema,
   ObjectKanbanSchema,
+  KanbanConditionalFormattingRule,
   ObjectChartSchema,
   ListViewSchema,
   ObjectGridSchema,
