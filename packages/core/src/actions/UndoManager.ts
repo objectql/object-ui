@@ -33,6 +33,19 @@ export interface UndoManagerOptions {
   maxHistory?: number;
 }
 
+/** Type guard validating the required shape of a persisted UndoableOperation. */
+function isValidOperation(op: unknown): op is UndoableOperation {
+  if (typeof op !== 'object' || op === null) return false;
+  const o = op as Record<string, unknown>;
+  return (
+    typeof o.id === 'string' &&
+    typeof o.type === 'string' &&
+    typeof o.objectName === 'string' &&
+    typeof o.recordId === 'string' &&
+    typeof o.timestamp === 'number'
+  );
+}
+
 /**
  * Manages undo/redo stacks for CRUD operations.
  *
@@ -109,6 +122,91 @@ export class UndoManager {
 
   /** Get a shallow copy of the undo history (for developer tools). */
   getHistory(): UndoableOperation[] { return [...this.undoStack]; }
+
+  /** Get a shallow copy of the redo history (for developer tools). */
+  getRedoHistory(): UndoableOperation[] { return [...this.redoStack]; }
+
+  // ---------------------------------------------------------------------------
+  // Batch operations
+  // ---------------------------------------------------------------------------
+
+  /** Push multiple operations as one atomic unit. Clears the redo stack. */
+  pushBatch(operations: UndoableOperation[]): void {
+    if (operations.length === 0) return;
+    this.undoStack.push(...operations);
+    // Trim from the front if we exceed maxHistory
+    if (this.undoStack.length > this.maxHistory) {
+      this.undoStack.splice(0, this.undoStack.length - this.maxHistory);
+    }
+    this.redoStack = [];
+    this.notify();
+  }
+
+  /** Pop `count` operations from the undo stack and move them to redo (LIFO order). */
+  popUndoBatch(count: number): UndoableOperation[] {
+    const actual = Math.min(count, this.undoStack.length);
+    if (actual === 0) return [];
+    const ops = this.undoStack.splice(this.undoStack.length - actual, actual);
+    // Preserve LIFO order on the redo stack (last undone goes on top)
+    this.redoStack.push(...ops);
+    this.notify();
+    return ops;
+  }
+
+  /** Pop `count` operations from the redo stack and move them to undo (LIFO order). */
+  popRedoBatch(count: number): UndoableOperation[] {
+    const actual = Math.min(count, this.redoStack.length);
+    if (actual === 0) return [];
+    const ops = this.redoStack.splice(this.redoStack.length - actual, actual);
+    this.undoStack.push(...ops);
+    this.notify();
+    return ops;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Persistence (localStorage)
+  // ---------------------------------------------------------------------------
+
+  private static readonly STORAGE_KEY = 'objectui:undo-history';
+
+  /** Persist the current undo/redo stacks to localStorage. */
+  saveToStorage(): void {
+    try {
+      const payload = JSON.stringify({
+        undoStack: this.undoStack,
+        redoStack: this.redoStack,
+      });
+      localStorage.setItem(UndoManager.STORAGE_KEY, payload);
+    } catch {
+      // localStorage may be unavailable (SSR, quota exceeded, etc.)
+    }
+  }
+
+  /** Restore undo/redo stacks from localStorage (no-op when unavailable). */
+  loadFromStorage(): void {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const raw = localStorage.getItem(UndoManager.STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        undoStack?: UndoableOperation[];
+        redoStack?: UndoableOperation[];
+      };
+      if (Array.isArray(parsed.undoStack)) {
+        this.undoStack = parsed.undoStack.filter(isValidOperation);
+      }
+      if (Array.isArray(parsed.redoStack)) {
+        this.redoStack = parsed.redoStack.filter(isValidOperation);
+      }
+      // Enforce maxHistory in case persisted state used a different limit
+      if (this.undoStack.length > this.maxHistory) {
+        this.undoStack.splice(0, this.undoStack.length - this.maxHistory);
+      }
+      this.notify();
+    } catch {
+      // Silently ignore parse errors or missing storage
+    }
+  }
 
   private notify(): void { this.listeners.forEach((fn) => fn()); }
 }
