@@ -31,7 +31,7 @@ import { PresenceAvatars, type PresenceUser } from '@object-ui/collaboration';
 import { ModeToggle } from './mode-toggle';
 import { LocaleSwitcher } from './LocaleSwitcher';
 import { ConnectionStatus } from './ConnectionStatus';
-import { ActivityFeed } from './ActivityFeed';
+import { ActivityFeed, type ActivityItem } from './ActivityFeed';
 import type { ConnectionState } from '../dataSource';
 
 /** Convert a slug like "crm_dashboard" or "audit-log" to "Crm Dashboard" / "Audit Log" */
@@ -46,6 +46,15 @@ const MOCK_PRESENCE_USERS: PresenceUser[] = [
   { userId: 'u1', userName: 'Alice Chen', color: '#3498db', status: 'active', lastActivity: new Date().toISOString() },
   { userId: 'u2', userName: 'Bob Smith', color: '#2ecc71', status: 'idle', lastActivity: new Date().toISOString() },
   { userId: 'u3', userName: 'Carol Li', color: '#e74c3c', status: 'active', lastActivity: new Date().toISOString() },
+];
+
+// Demo activity items for local/mock mode
+const DEMO_ACTIVITIES: ActivityItem[] = [
+  { id: 'a1', type: 'create', objectName: 'Contact', recordId: 'c-101', user: 'Alice Chen', description: 'Created new contact "Acme Corp"', timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString() },
+  { id: 'a2', type: 'update', objectName: 'Deal', recordId: 'd-42', user: 'Bob Smith', description: 'Updated deal stage to "Negotiation"', timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString() },
+  { id: 'a3', type: 'comment', objectName: 'Task', recordId: 't-88', user: 'Carol Li', description: 'Commented on task "Q4 Review"', timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString() },
+  { id: 'a4', type: 'delete', objectName: 'Lead', recordId: 'l-7', user: 'Alice Chen', description: 'Deleted duplicate lead "Test Lead"', timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
+  { id: 'a5', type: 'update', objectName: 'Contact', recordId: 'c-55', user: 'Bob Smith', description: 'Updated email for "Jane Doe"', timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString() },
 ];
 
 export function AppHeader({ appName, objects, connectionState, presenceUsers }: { appName: string, objects: any[], connectionState?: ConnectionState, presenceUsers?: PresenceUser[] }) {
@@ -218,7 +227,7 @@ export function AppHeader({ appName, objects, connectionState, presenceUsers }: 
                 
                 {/* Activity Feed */}
                 <div className="hidden sm:flex shrink-0 relative">
-                  <ActivityFeed />
+                  <ActivityFeed activities={DEMO_ACTIVITIES} />
                 </div>
                 
                 {/* Help */}

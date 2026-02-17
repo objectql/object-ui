@@ -10,13 +10,14 @@
 import { useState } from 'react';
 import {
   Button,
+  Badge,
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from '@object-ui/components';
-import { Bell, Plus, Pencil, Trash2, MessageSquare } from 'lucide-react';
+import { Bell, Plus, Pencil, Trash2, MessageSquare, Filter } from 'lucide-react';
 
 export interface ActivityItem {
   id: string;
@@ -59,6 +60,19 @@ function formatRelativeTime(iso: string): string {
 
 export function ActivityFeed({ activities = [], className }: ActivityFeedProps) {
   const [open, setOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [notificationPreferences, setNotificationPreferences] = useState<Record<ActivityItem['type'], boolean>>({
+    create: true,
+    update: true,
+    delete: true,
+    comment: true,
+  });
+
+  const togglePreference = (type: ActivityItem['type']) => {
+    setNotificationPreferences(prev => ({ ...prev, [type]: !prev[type] }));
+  };
+
+  const filteredActivities = activities.filter(a => notificationPreferences[a.type]);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -80,17 +94,48 @@ export function ActivityFeed({ activities = [], className }: ActivityFeedProps) 
 
       <SheetContent side="right" className="w-80 sm:w-96">
         <SheetHeader>
-          <SheetTitle>Recent Activity</SheetTitle>
+          <SheetTitle className="flex items-center justify-between">
+            Recent Activity
+            <Button
+              variant={showFilters ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="h-3.5 w-3.5 mr-1" />
+              Filter
+            </Button>
+          </SheetTitle>
         </SheetHeader>
 
-        {activities.length === 0 ? (
+        {showFilters && (
+          <div className="flex flex-wrap gap-1.5 mt-3 px-1">
+            {(Object.keys(typeConfig) as ActivityItem['type'][]).map(type => {
+              const { icon: Icon, color } = typeConfig[type];
+              const active = notificationPreferences[type];
+              return (
+                <Badge
+                  key={type}
+                  variant={active ? 'default' : 'outline'}
+                  className="cursor-pointer select-none gap-1 capitalize"
+                  onClick={() => togglePreference(type)}
+                >
+                  <Icon className={`h-3 w-3 ${active ? '' : color}`} />
+                  {type}
+                </Badge>
+              );
+            })}
+          </div>
+        )}
+
+        {filteredActivities.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
             <Bell className="h-8 w-8 opacity-40" />
             <p className="text-sm">No recent activity</p>
           </div>
         ) : (
           <ul className="mt-4 space-y-1 overflow-y-auto max-h-[calc(100vh-8rem)]">
-            {activities.map((item) => {
+            {filteredActivities.map((item) => {
               const { icon: Icon, color } = typeConfig[item.type];
               return (
                 <li
