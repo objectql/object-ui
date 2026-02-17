@@ -10,9 +10,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { DetailView } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
-import { CommentThread, type Comment } from '@object-ui/collaboration';
+import { CommentThread, PresenceAvatars, type Comment, type PresenceUser } from '@object-ui/collaboration';
 import { useAuth } from '@object-ui/auth';
-import { Database, MessageSquare } from 'lucide-react';
+import { Database, MessageSquare, Users } from 'lucide-react';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { SkeletonDetail } from './skeletons';
 
@@ -23,6 +23,12 @@ interface RecordDetailViewProps {
 }
 
 const MOCK_USER = { id: 'current-user', name: 'Demo User' };
+
+// Demo presence users viewing the current record
+const MOCK_RECORD_VIEWERS: PresenceUser[] = [
+  { userId: 'u1', userName: 'Alice Chen', color: '#3498db', status: 'active', lastActivity: new Date().toISOString() },
+  { userId: 'u3', userName: 'Carol Li', color: '#e74c3c', status: 'active', lastActivity: new Date().toISOString() },
+];
 
 export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailViewProps) {
   const { objectName, recordId } = useParams();
@@ -56,6 +62,24 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
       setComments(prev => prev.filter(c => c.id !== commentId));
     },
     [],
+  );
+
+  const handleReaction = useCallback(
+    (commentId: string, emoji: string) => {
+      setComments(prev => prev.map(c => {
+        if (c.id !== commentId) return c;
+        const reactions = { ...(c.reactions || {}) };
+        const userIds = reactions[emoji] || [];
+        if (userIds.includes(currentUser.id)) {
+          reactions[emoji] = userIds.filter(id => id !== currentUser.id);
+          if (reactions[emoji].length === 0) delete reactions[emoji];
+        } else {
+          reactions[emoji] = [...userIds, currentUser.id];
+        }
+        return { ...c, reactions };
+      }));
+    },
+    [currentUser.id],
   );
 
   useEffect(() => {
@@ -108,7 +132,14 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
 
   return (
     <div className="h-full bg-background overflow-hidden flex flex-col relative">
-      <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-50">
+      <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-50 flex items-center gap-2">
+        {/* Presence: who else is viewing this record */}
+        {MOCK_RECORD_VIEWERS.length > 0 && (
+          <div className="flex items-center gap-1.5" title="Users viewing this record">
+            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+            <PresenceAvatars users={MOCK_RECORD_VIEWERS} size="sm" maxVisible={4} showStatus />
+          </div>
+        )}
         <MetadataToggle open={showDebug} onToggle={toggleDebug} />
       </div>
 
@@ -132,6 +163,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
               currentUser={currentUser}
               onAddComment={handleAddComment}
               onDeleteComment={handleDeleteComment}
+              onReaction={handleReaction}
             />
           </div>
         </div>

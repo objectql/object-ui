@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, lazy, Suspense, useMemo, type ReactNo
 import { ObjectForm } from '@object-ui/plugin-form';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { toast } from 'sonner';
-import { SchemaRendererProvider, useActionRunner } from '@object-ui/react';
+import { SchemaRendererProvider, useActionRunner, useGlobalUndo } from '@object-ui/react';
 import type { ConnectionState } from './dataSource';
 import { AuthGuard, useAuth, PreviewBanner } from '@object-ui/auth';
 import { MetadataProvider, useMetadata } from './context/MetadataProvider';
@@ -94,6 +94,23 @@ export function AppContent() {
 
   // ActionRunner for CRUD dialog callbacks (Phase 2.9)
   const { execute: executeAction, runner } = useActionRunner();
+
+  // Global Undo/Redo with toast notifications (Phase 16 L2)
+  const { redo } = useGlobalUndo({
+    dataSource: dataSource ?? undefined,
+    onUndo: (op) => {
+      toast.info(`Undo: ${op.description}`, {
+        duration: 4000,
+      });
+      setRefreshKey(k => k + 1);
+    },
+    onRedo: (op) => {
+      toast.info(`Redo: ${op.description}`, {
+        duration: 3000,
+      });
+      setRefreshKey(k => k + 1);
+    },
+  });
 
   useEffect(() => {
     runner.registerHandler('crud_success', async (action) => {

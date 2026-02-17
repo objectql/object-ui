@@ -37,6 +37,8 @@ export interface CommentThreadProps {
   onDeleteComment?: (commentId: string) => void;
   /** Callback when thread is resolved/reopened */
   onResolve?: (resolved: boolean) => void;
+  /** Callback when a reaction is toggled */
+  onReaction?: (commentId: string, emoji: string) => void;
   /** Whether the thread is resolved */
   resolved?: boolean;
   /** Additional className */
@@ -192,6 +194,48 @@ const styles = {
     cursor: 'pointer',
     padding: 0,
   },
+  sortSelect: {
+    background: 'none',
+    border: '1px solid #e2e8f0',
+    borderRadius: '4px',
+    padding: '2px 6px',
+    fontSize: '11px',
+    color: '#64748b',
+    cursor: 'pointer',
+    outline: 'none',
+  },
+  reactionBar: {
+    display: 'flex',
+    gap: '4px',
+    marginTop: '4px',
+    flexWrap: 'wrap' as const,
+  },
+  reactionBtn: {
+    background: 'none',
+    border: '1px solid #e2e8f0',
+    borderRadius: '12px',
+    padding: '1px 6px',
+    fontSize: '12px',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '2px',
+    lineHeight: '1.5',
+  },
+  reactionBtnActive: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#93c5fd',
+  },
+  reactionPicker: {
+    background: 'none',
+    border: '1px solid #e2e8f0',
+    borderRadius: '12px',
+    padding: '1px 6px',
+    fontSize: '12px',
+    cursor: 'pointer',
+    color: '#94a3b8',
+    lineHeight: '1.5',
+  },
   inputArea: {
     display: 'flex',
     gap: '8px',
@@ -281,6 +325,7 @@ export function CommentThread({
   onEditComment,
   onDeleteComment,
   onResolve,
+  onReaction,
   resolved = false,
   className,
 }: CommentThreadProps): React.ReactElement {
@@ -290,6 +335,7 @@ export function CommentThread({
   const [editValue, setEditValue] = useState('');
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('oldest');
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const filteredMentions = useMemo(() => {
@@ -390,8 +436,14 @@ export function CommentThread({
   }, [filteredMentions.length, mentionIndex]);
 
   const rootComments = useMemo(
-    () => comments.filter(c => !c.parentId),
-    [comments],
+    () => {
+      const roots = comments.filter(c => !c.parentId);
+      if (sortOrder === 'newest') {
+        return [...roots].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      }
+      return roots;
+    },
+    [comments, sortOrder],
   );
   const replies = useMemo(
     () => comments.filter(c => c.parentId),
@@ -446,12 +498,39 @@ export function CommentThread({
               }, 'Cancel'),
             )
           : React.createElement('div', { style: styles.content }, renderContent(comment.content)),
+        // Reactions display
+        !isEditing && comment.reactions && Object.keys(comment.reactions).length > 0 && React.createElement('div', { style: styles.reactionBar },
+          Object.entries(comment.reactions).map(([emoji, userIds]) =>
+            React.createElement('button', {
+              key: emoji,
+              style: {
+                ...styles.reactionBtn,
+                ...(userIds.includes(currentUser.id) ? styles.reactionBtnActive : {}),
+              },
+              onClick: () => onReaction?.(comment.id, emoji),
+              title: userIds.length === 1 ? '1 reaction' : `${userIds.length} reactions`,
+            }, `${emoji} ${userIds.length}`),
+          ),
+          onReaction && React.createElement('button', {
+            style: styles.reactionPicker,
+            onClick: () => onReaction(comment.id, '👍'),
+            title: 'Add reaction',
+          }, '+'),
+        ),
         // Actions
         !isEditing && React.createElement('div', { style: styles.actions },
           React.createElement('button', {
             style: styles.actionBtn,
             onClick: () => setReplyTo(comment.id),
           }, 'Reply'),
+          onReaction && React.createElement('button', {
+            style: styles.actionBtn,
+            onClick: () => onReaction(comment.id, '👍'),
+          }, '👍'),
+          onReaction && React.createElement('button', {
+            style: styles.actionBtn,
+            onClick: () => onReaction(comment.id, '❤️'),
+          }, '❤️'),
           isOwner && onEditComment && React.createElement('button', {
             style: styles.actionBtn,
             onClick: () => handleEdit(comment.id),
@@ -476,10 +555,21 @@ export function CommentThread({
         `${comments.length} comment${comments.length !== 1 ? 's' : ''}`,
         resolved ? ' · Resolved' : '',
       ),
-      onResolve && React.createElement('button', {
-        style: styles.resolveBtn,
-        onClick: () => onResolve(!resolved),
-      }, resolved ? 'Reopen' : 'Resolve'),
+      React.createElement('div', { style: { display: 'flex', gap: '6px', alignItems: 'center' } },
+        React.createElement('select', {
+          value: sortOrder,
+          onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setSortOrder(e.target.value as 'newest' | 'oldest'),
+          style: styles.sortSelect,
+          'aria-label': 'Sort comments',
+        },
+          React.createElement('option', { value: 'oldest' }, 'Oldest'),
+          React.createElement('option', { value: 'newest' }, 'Newest'),
+        ),
+        onResolve && React.createElement('button', {
+          style: styles.resolveBtn,
+          onClick: () => onResolve(!resolved),
+        }, resolved ? 'Reopen' : 'Resolve'),
+      ),
     ),
     // Comments list
     React.createElement('div', { style: styles.commentList },
