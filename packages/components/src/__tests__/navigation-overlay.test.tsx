@@ -270,4 +270,76 @@ describe('NavigationOverlay', () => {
       expect(screen.getByTestId('status')).toHaveTextContent('active');
     });
   });
+
+  // ============================================================
+  // renderView support
+  // ============================================================
+
+  describe('renderView support', () => {
+    it('should use renderView when both renderView and view are provided', () => {
+      render(
+        <NavigationOverlay
+          {...createProps({
+            mode: 'drawer',
+            view: 'contact-detail',
+            renderView: (record, viewName) => (
+              <div data-testid="custom-view">
+                <span data-testid="view-name">{viewName}</span>
+                <span data-testid="record-name">{String(record.name)}</span>
+              </div>
+            ),
+          })}
+        />
+      );
+      expect(screen.getByTestId('custom-view')).toBeInTheDocument();
+      expect(screen.getByTestId('view-name')).toHaveTextContent('contact-detail');
+      expect(screen.getByTestId('record-name')).toHaveTextContent('Test Record');
+      // Children should NOT be rendered
+      expect(screen.queryByTestId('record-content')).not.toBeInTheDocument();
+    });
+
+    it('should fallback to children when renderView is provided but view is not', () => {
+      render(
+        <NavigationOverlay
+          {...createProps({
+            mode: 'drawer',
+            renderView: (_record, _viewName) => (
+              <div data-testid="custom-view">Should not appear</div>
+            ),
+          })}
+        />
+      );
+      // Children should be rendered since view is undefined
+      expect(screen.getByTestId('record-content')).toBeInTheDocument();
+      expect(screen.queryByTestId('custom-view')).not.toBeInTheDocument();
+    });
+
+    it('should fallback to children when view is provided but renderView is not', () => {
+      render(
+        <NavigationOverlay
+          {...createProps({
+            mode: 'drawer',
+            view: 'contact-detail',
+          })}
+        />
+      );
+      // Children should be rendered since renderView is undefined
+      expect(screen.getByTestId('record-content')).toBeInTheDocument();
+    });
+
+    it('should use renderView in modal mode', () => {
+      render(
+        <NavigationOverlay
+          {...createProps({
+            mode: 'modal',
+            view: 'edit-form',
+            renderView: (record, viewName) => (
+              <div data-testid="modal-custom-view">{viewName}: {String(record.name)}</div>
+            ),
+          })}
+        />
+      );
+      expect(screen.getByTestId('modal-custom-view')).toHaveTextContent('edit-form: Test Record');
+    });
+  });
 });

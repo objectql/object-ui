@@ -137,43 +137,43 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 
 #### P0.1 Console Core UI Completeness
 - [ ] Implement declarative `ActionEngine` pipeline (events → `ActionDef[]` dispatch) — replaces callback-based `useObjectActions`
-- [ ] Migrate Console from static config to runtime metadata API (`getView()`/`getApp()`/`getPage()`)
-- [ ] Remove `as any` cast in `objectstack.shared.ts` — use properly typed config
+- [x] Migrate Console from static config to runtime metadata API (`getView()`/`getApp()`/`getPage()`)
+- [x] Remove `as any` cast in `objectstack.shared.ts` — use properly typed config
 - [ ] Clean up MSW workarounds in `objectstack.config.ts`
-- [ ] CSV/Excel export for grid views (core data workflow)
-- [ ] File upload fields in forms (required for real-world data entry)
-- [ ] Related record lookup in forms (essential for relational data)
+- [x] CSV/Excel export for grid views (core data workflow)
+- [x] File upload fields in forms (required for real-world data entry)
+- [x] Related record lookup in forms (essential for relational data)
 
 #### P0.2 View Plugin Navigation Compliance
-- [ ] Add navigation property support to ObjectGallery (currently only accepts `onCardClick`)
-- [ ] Apply `navigation.width` to drawer/modal overlays in Kanban, Calendar, Gantt, Timeline, Map, View plugins
-- [ ] Implement `navigation.view` property across all view plugins
+- [x] Add navigation property support to ObjectGallery (currently only accepts `onCardClick`)
+- [x] Apply `navigation.width` to drawer/modal overlays in Kanban, Calendar, Gantt, Timeline, Map, View plugins
+- [x] Implement `navigation.view` property across all view plugins — `NavigationOverlay` supports `renderView` prop for view-specific rendering
 
 #### P0.3 Spec-Compliant View Configs
-- [ ] Define `TimelineConfig` type in `@object-ui/types` aligned with `@objectstack/spec TimelineConfigSchema`
-- [ ] Rename Timeline `dateField` → `startDateField` to match spec naming convention
-- [ ] Export `GalleryConfig` type from `@object-ui/types` index.ts
-- [ ] Implement Timeline spec properties: `endDateField`, `groupByField`, `colorField`, `scale`
+- [x] Define `TimelineConfig` type in `@object-ui/types` aligned with `@objectstack/spec TimelineConfigSchema`
+- [x] Rename Timeline `dateField` → `startDateField` to match spec naming convention
+- [x] Export `GalleryConfig` type from `@object-ui/types` index.ts
+- [x] Implement Timeline spec properties: `endDateField`, `groupByField`, `colorField`, `scale`
 
 #### P0.4 ListView Spec Properties (v1.0 Subset)
-- [ ] Implement `emptyState` spec property (custom no-data UI — critical for UX)
-- [ ] Implement `hiddenFields` and `fieldOrder` spec properties (view customization)
-- [ ] Implement `quickFilters` spec property (predefined filter buttons)
+- [x] Implement `emptyState` spec property (custom no-data UI — critical for UX)
+- [x] Implement `hiddenFields` and `fieldOrder` spec properties (view customization)
+- [x] Implement `quickFilters` spec property (predefined filter buttons)
 
 ### P1. Spec Compliance — UI-Facing 📐
 
 **Goal:** Achieve 100% compliance with `@objectstack/spec` for all UI-facing contracts. These items improve user experience and ensure protocol compatibility.
 
 #### P1.1 View Enhancement Properties
-- [ ] Implement `rowHeight` spec property in ListView
-- [ ] Add `DensityMode` support to grid and list views
-- [ ] Implement `conditionalFormatting` spec property in ListView
-- [ ] Implement `inlineEdit` spec property in ListView
+- [x] Implement `rowHeight` spec property in ListView — maps to density mode (compact/medium/tall)
+- [x] Add `DensityMode` support to grid and list views
+- [x] Implement `conditionalFormatting` spec property in ListView — type definition and evaluation function
+- [x] Implement `inlineEdit` spec property in ListView — passed as `editable` to grid child view
 
 #### P1.2 Data Export & Import
-- [ ] Implement `exportOptions` spec property in ListView (csv, xlsx, json, pdf)
-- [ ] Add `aria` spec property support to ListView
-- [ ] Add `sharing` spec property support to ListView
+- [x] Implement `exportOptions` spec property in ListView (csv, xlsx, json, pdf)
+- [x] Add `aria` spec property support to ListView — label, describedBy, live attributes
+- [x] Add `sharing` spec property support to ListView — Share button in toolbar with visibility level
 
 #### P1.3 Advanced View Features
 - [ ] Inline task editing for Gantt chart

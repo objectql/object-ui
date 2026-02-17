@@ -353,4 +353,81 @@ describe('ListView', () => {
     const { container } = renderWithProvider(<ListView schema={schema} />);
     expect(container).toBeTruthy();
   });
+
+  it('should map rowHeight to density mode', () => {
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      fields: ['name', 'email'],
+      rowHeight: 'compact',
+    };
+
+    renderWithProvider(<ListView schema={schema} />);
+    const densityButton = screen.getByTitle('Density: compact');
+    expect(densityButton).toBeInTheDocument();
+  });
+
+  it('should prefer densityMode over rowHeight', () => {
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      fields: ['name', 'email'],
+      rowHeight: 'compact',
+      densityMode: 'spacious',
+    };
+
+    renderWithProvider(<ListView schema={schema} />);
+    const densityButton = screen.getByTitle('Density: spacious');
+    expect(densityButton).toBeInTheDocument();
+  });
+
+  it('should apply aria attributes to root container', () => {
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      fields: ['name', 'email'],
+      aria: {
+        label: 'Contacts List',
+        live: 'polite',
+      },
+    };
+
+    renderWithProvider(<ListView schema={schema} />);
+    const region = screen.getByRole('region', { name: 'Contacts List' });
+    expect(region).toBeInTheDocument();
+    expect(region).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('should render share button when sharing is enabled', () => {
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      fields: ['name', 'email'],
+      sharing: {
+        enabled: true,
+        visibility: 'team',
+      },
+    };
+
+    renderWithProvider(<ListView schema={schema} />);
+    const shareButton = screen.getByTestId('share-button');
+    expect(shareButton).toBeInTheDocument();
+    expect(shareButton).toHaveAttribute('title', 'Sharing: team');
+  });
+
+  it('should not render share button when sharing is not enabled', () => {
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      fields: ['name', 'email'],
+    };
+
+    renderWithProvider(<ListView schema={schema} />);
+    expect(screen.queryByTestId('share-button')).not.toBeInTheDocument();
+  });
 });

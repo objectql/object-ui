@@ -103,6 +103,12 @@ export interface NavigationOverlayProps {
    */
   children: (record: Record<string, unknown>) => React.ReactNode;
   /**
+   * Optional render function for a specific view/form based on `view` prop.
+   * When provided, this takes priority over `children` for rendering overlay content.
+   * Receives the selected record and the view name.
+   */
+  renderView?: (record: Record<string, unknown>, viewName: string) => React.ReactNode;
+  /**
    * The main content to wrap (for split mode only).
    * In split mode, the main content is rendered in the left panel.
    */
@@ -148,10 +154,12 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
   close,
   setIsOpen,
   width,
+  view,
   title,
   description,
   className,
   children,
+  renderView,
   mainContent,
   popoverTrigger,
 }) => {
@@ -167,6 +175,14 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
   const widthStyle = getWidthStyle(width);
   const resolvedTitle = title || 'Record Detail';
 
+  // Use renderView when both renderView and view are provided; otherwise fallback to children
+  const renderContent = (record: Record<string, unknown>) => {
+    if (renderView && view) {
+      return renderView(record, view);
+    }
+    return children(record);
+  };
+
   // --- Drawer Mode (Sheet) ---
   if (mode === 'drawer') {
     return (
@@ -181,7 +197,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
             {description && <SheetDescription>{description}</SheetDescription>}
           </SheetHeader>
           <div className="mt-4">
-            {children(selectedRecord)}
+            {renderContent(selectedRecord)}
           </div>
         </SheetContent>
       </Sheet>
@@ -201,7 +217,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
             {description && <DialogDescription>{description}</DialogDescription>}
           </DialogHeader>
           <div className="mt-4">
-            {children(selectedRecord)}
+            {renderContent(selectedRecord)}
           </div>
         </DialogContent>
       </Dialog>
@@ -260,7 +276,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
             {description && (
               <p className="text-sm text-muted-foreground mb-4">{description}</p>
             )}
-            {children(selectedRecord)}
+            {renderContent(selectedRecord)}
           </div>
         </ResizablePanel>
       </PanelGroup>
@@ -285,7 +301,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
             {description && (
               <p className="text-xs text-muted-foreground">{description}</p>
             )}
-            {children(selectedRecord)}
+            {renderContent(selectedRecord)}
           </div>
         </PopoverContent>
       </Popover>

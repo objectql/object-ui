@@ -9,7 +9,7 @@
 import * as React from 'react';
 import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay } from '@object-ui/components';
 import type { SortItem } from '@object-ui/components';
-import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, icons, type LucideIcon } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Share2, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
 import { ViewSwitcher, ViewType } from './ViewSwitcher';
 import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
@@ -62,6 +62,52 @@ function convertFilterGroupToAST(group: FilterGroup): any[] {
   if (conditions.length === 1) return conditions[0];
   
   return [group.logic, ...conditions];
+}
+
+/**
+ * Evaluate conditional formatting rules against a record.
+ * Returns a CSSProperties object for the first matching rule, or empty object.
+ *
+ * Exported for use by child view renderers (e.g., ObjectGrid) and consumers
+ * who need to evaluate formatting rules outside the ListView component.
+ */
+export function evaluateConditionalFormatting(
+  record: Record<string, unknown>,
+  rules?: ListViewSchema['conditionalFormatting']
+): React.CSSProperties {
+  if (!rules || rules.length === 0) return {};
+  for (const rule of rules) {
+    const fieldValue = record[rule.field];
+    let match = false;
+    switch (rule.operator) {
+      case 'equals':
+        match = fieldValue === rule.value;
+        break;
+      case 'not_equals':
+        match = fieldValue !== rule.value;
+        break;
+      case 'contains':
+        match = typeof fieldValue === 'string' && typeof rule.value === 'string' && fieldValue.includes(rule.value);
+        break;
+      case 'greater_than':
+        match = typeof fieldValue === 'number' && typeof rule.value === 'number' && fieldValue > rule.value;
+        break;
+      case 'less_than':
+        match = typeof fieldValue === 'number' && typeof rule.value === 'number' && fieldValue < rule.value;
+        break;
+      case 'in':
+        match = Array.isArray(rule.value) && rule.value.includes(fieldValue);
+        break;
+    }
+    if (match) {
+      const style: React.CSSProperties = {};
+      if (rule.backgroundColor) style.backgroundColor = rule.backgroundColor;
+      if (rule.textColor) style.color = rule.textColor;
+      if (rule.borderColor) style.borderColor = rule.borderColor;
+      return style;
+    }
+  }
+  return {};
 }
 
 export const ListView: React.FC<ListViewProps> = ({
@@ -132,8 +178,20 @@ export const ListView: React.FC<ListViewProps> = ({
   // Export State
   const [showExport, setShowExport] = React.useState(false);
 
-  // Density Mode
-  const density = useDensityMode(schema.densityMode || 'comfortable');
+  // Density Mode — rowHeight maps to density if densityMode not explicitly set
+  const resolvedDensity = React.useMemo(() => {
+    if (schema.densityMode) return schema.densityMode;
+    if (schema.rowHeight) {
+      const map: Record<string, 'compact' | 'comfortable' | 'spacious'> = {
+        compact: 'compact',
+        medium: 'comfortable',
+        tall: 'spacious',
+      };
+      return map[schema.rowHeight] || 'comfortable';
+    }
+    return 'comfortable';
+  }, [schema.densityMode, schema.rowHeight]);
+  const density = useDensityMode(resolvedDensity);
 
   const handlePullRefresh = React.useCallback(async () => {
     setRefreshKey(k => k + 1);
@@ -380,6 +438,8 @@ export const ListView: React.FC<ListViewProps> = ({
           type: 'object-grid',
           ...baseProps,
           columns: effectiveFields,
+          ...(schema.conditionalFormatting ? { conditionalFormatting: schema.conditionalFormatting } : {}),
+          ...(schema.inlineEdit != null ? { editable: schema.inlineEdit } : {}),
           ...(schema.options?.grid || {}),
         };
       case 'kanban':
@@ -528,7 +588,14 @@ export const ListView: React.FC<ListViewProps> = ({
   }, [schema.fields]);
 
   return (
-    <div ref={pullRef} className={cn('flex flex-col h-full bg-background relative', className)}>
+    <div
+      ref={pullRef}
+      className={cn('flex flex-col h-full bg-background relative', className)}
+      {...(schema.aria?.label ? { 'aria-label': schema.aria.label } : {})}
+      {...(schema.aria?.describedBy ? { 'aria-describedby': schema.aria.describedBy } : {})}
+      {...(schema.aria?.live ? { 'aria-live': schema.aria.live } : {})}
+      role="region"
+    >
       {pullDistance > 0 && (
         <div
           className="flex items-center justify-center text-xs text-muted-foreground"
@@ -746,6 +813,20 @@ export const ListView: React.FC<ListViewProps> = ({
                 </div>
               </PopoverContent>
             </Popover>
+          )}
+
+          {/* Share */}
+          {schema.sharing?.enabled && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+              title={`Sharing: ${schema.sharing.visibility || 'private'}`}
+              data-testid="share-button"
+            >
+              <Share2 className="h-3.5 w-3.5 mr-1.5" />
+              <span className="hidden sm:inline">Share</span>
+            </Button>
           )}
         </div>
 

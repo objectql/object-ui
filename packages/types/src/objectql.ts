@@ -1119,6 +1119,61 @@ export interface ListViewSchema extends BaseSchema {
    * Aligned with @objectstack/spec DensityMode.
    */
   densityMode?: 'compact' | 'comfortable' | 'spacious';
+
+  /**
+   * Row height for list/grid view rows.
+   * Aligned with @objectstack/spec ListViewSchema.rowHeight.
+   */
+  rowHeight?: 'compact' | 'medium' | 'tall';
+
+  /**
+   * Conditional formatting rules for row/cell styling.
+   * Rules are evaluated in order; first matching rule wins.
+   */
+  conditionalFormatting?: Array<{
+    /** Field to evaluate */
+    field: string;
+    /** Comparison operator */
+    operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'in';
+    /** Value to compare against */
+    value: unknown;
+    /** CSS-compatible background color (e.g., '#fee2e2', 'rgb(254,226,226)') */
+    backgroundColor?: string;
+    /** CSS-compatible text color */
+    textColor?: string;
+    /** CSS-compatible border color */
+    borderColor?: string;
+  }>;
+
+  /**
+   * Enable inline editing for list view fields.
+   * When true, cells become editable on click/double-click.
+   */
+  inlineEdit?: boolean;
+
+  /**
+   * ARIA attributes for accessibility.
+   * Applied to the root list container element.
+   */
+  aria?: {
+    /** Accessible label for the list view */
+    label?: string;
+    /** ID of the element that describes the list view */
+    describedBy?: string;
+    /** Live region politeness for dynamic updates */
+    live?: 'polite' | 'assertive' | 'off';
+  };
+
+  /**
+   * View sharing configuration.
+   * Controls who can see this view and enables share UI.
+   */
+  sharing?: {
+    /** Visibility level for the view */
+    visibility?: 'private' | 'team' | 'organization' | 'public';
+    /** Whether sharing controls are shown in the toolbar */
+    enabled?: boolean;
+  };
 }
 
 /**
