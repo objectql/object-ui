@@ -1143,6 +1143,8 @@ export interface ListViewSchema extends BaseSchema {
     textColor?: string;
     /** CSS-compatible border color */
     borderColor?: string;
+    /** Expression-based condition (e.g., '${data.amount > 1000 && data.status === "urgent"}'). Overrides field/operator/value when provided. */
+    expression?: string;
   }>;
 
   /**

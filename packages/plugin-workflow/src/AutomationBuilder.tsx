@@ -37,6 +37,8 @@ export interface AutomationDefinition {
   enabled: boolean;
   trigger: TriggerConfig;
   actions: ActionConfig[];
+  /** Execution mode: 'sequential' runs actions in order, 'parallel' runs all simultaneously. @default 'sequential' */
+  executionMode?: 'sequential' | 'parallel';
   createdAt: string;
   lastRunAt?: string;
 }
@@ -248,12 +250,29 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {automation.actions.length > 1 && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Label className="text-xs">Execution</Label>
+              <Select value={automation.executionMode ?? 'sequential'} onValueChange={(v) => setAutomation(prev => ({ ...prev, executionMode: v as 'sequential' | 'parallel' }))}>
+                <SelectTrigger className="h-7 w-36"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sequential">Sequential</SelectItem>
+                  <SelectItem value="parallel">Parallel</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {automation.actions.map((action, idx) => (
             <div key={idx} className="rounded-lg border p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {ACTION_ICONS[action.type]}
-                  <span className="text-sm font-medium">Action {idx + 1}</span>
+                  <span className="text-sm font-medium">
+                    {(automation.executionMode ?? 'sequential') === 'sequential' ? `Step ${idx + 1}` : `Action ${idx + 1}`}
+                  </span>
+                  {idx > 0 && (automation.executionMode ?? 'sequential') === 'sequential' && (
+                    <Badge variant="outline" className="text-[10px] px-1">then</Badge>
+                  )}
                 </div>
                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-700" onClick={() => removeAction(idx)}>
                   <Trash2 className="h-4 w-4" />

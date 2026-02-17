@@ -5,21 +5,38 @@ import { FieldWidgetProps } from './types';
 
 /**
  * FileField - File upload widget with drag-and-drop support
- * Supports single and multiple file uploads with configurable accepted file types
+ * Supports single and multiple file uploads with configurable accepted file types.
+ * L2: File size validation, per-file progress indicators, error messages.
  */
 export function FileField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileField = (field || (props as any).schema) as any;
   const multiple = fileField?.multiple || false;
   const accept = fileField?.accept ? fileField.accept.join(',') : undefined;
+  const maxSize = fileField?.maxSize as number | undefined; // bytes
   const [isDragOver, setIsDragOver] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
 
   const files = value ? (Array.isArray(value) ? value : [value]) : [];
 
   const processFiles = useCallback((selectedFiles: File[]) => {
     if (selectedFiles.length === 0) return;
+    const newErrors: string[] = [];
 
-    const fileObjects = selectedFiles.map(file => ({
+    // Validate file sizes
+    const validFiles = selectedFiles.filter(file => {
+      if (maxSize && file.size > maxSize) {
+        const maxMB = (maxSize / (1024 * 1024)).toFixed(1);
+        newErrors.push(`"${file.name}" exceeds max size (${maxMB} MB)`);
+        return false;
+      }
+      return true;
+    });
+    setErrors(newErrors);
+
+    if (validFiles.length === 0) return;
+
+    const fileObjects = validFiles.map(file => ({
       name: file.name,
       original_name: file.name,
       size: file.size,
@@ -33,7 +50,7 @@ export function FileField({ value, onChange, field, readonly, ...props }: FieldW
     } else {
       onChange(fileObjects[0]);
     }
-  }, [files, multiple, onChange]);
+  }, [files, multiple, onChange, maxSize]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -146,6 +163,15 @@ export function FileField({ value, onChange, field, readonly, ...props }: FieldW
             </p>
           </div>
         </div>
+
+        {/* Validation errors */}
+        {errors.length > 0 && (
+          <div className="space-y-0.5">
+            {errors.map((err, i) => (
+              <p key={i} className="text-xs text-destructive">{err}</p>
+            ))}
+          </div>
+        )}
 
         {/* File list */}
         {files.length > 0 && (
