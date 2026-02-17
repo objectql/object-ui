@@ -94,7 +94,6 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       urlParams.forEach((value, key) => {
-        // Only set if not already set by explicit prefillParams
         if (!(key in data)) {
           data[key] = value;
         }

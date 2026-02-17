@@ -514,7 +514,7 @@ export function CommentThread({
           onReaction && React.createElement('button', {
             style: styles.reactionPicker,
             onClick: () => onReaction(comment.id, '👍'),
-            title: 'Add reaction',
+            title: 'Add thumbs up',
           }, '+'),
         ),
         // Actions

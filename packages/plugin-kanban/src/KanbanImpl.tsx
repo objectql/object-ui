@@ -32,6 +32,8 @@ import { Plus } from "lucide-react"
 // Utility function to merge class names (inline to avoid external dependency)
 const cn = (...classes: (string | undefined)[]) => classes.filter(Boolean).join(' ')
 
+const UNCATEGORIZED_LANE = 'Uncategorized'
+
 export interface KanbanCard {
   id: string
   title: string
@@ -338,7 +340,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
     const laneValues = new Set<string>()
     allCards.forEach(card => {
       const val = card[swimlaneField]
-      laneValues.add(val != null ? String(val) : 'Uncategorized')
+      laneValues.add(val != null ? String(val) : UNCATEGORIZED_LANE)
     })
     return Array.from(laneValues).sort()
   }, [boardColumns, swimlaneField])
@@ -507,7 +509,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
           {swimlanes.map(lane => {
             const isCollapsed = collapsedLanes.has(lane)
             const laneCardCount = boardColumns.reduce((sum, col) =>
-              sum + col.cards.filter(c => (c[swimlaneField!] != null ? String(c[swimlaneField!]) : 'Uncategorized') === lane).length, 0)
+              sum + col.cards.filter(c => (c[swimlaneField!] != null ? String(c[swimlaneField!]) : UNCATEGORIZED_LANE) === lane).length, 0)
 
             return (
               <div key={lane} className="border rounded-lg bg-muted/10">
@@ -527,7 +529,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
                   <div className="flex gap-3 sm:gap-4 overflow-x-auto px-2 pb-3 pl-36 sm:pl-44">
                     {boardColumns.map(col => {
                       const laneCards = col.cards.filter(c =>
-                        (c[swimlaneField!] != null ? String(c[swimlaneField!]) : 'Uncategorized') === lane
+                        (c[swimlaneField!] != null ? String(c[swimlaneField!]) : UNCATEGORIZED_LANE) === lane
                       )
                       return (
                         <div key={col.id} className="w-[85vw] sm:w-80 flex-shrink-0 min-h-[60px] rounded-md bg-card/20 p-2">
