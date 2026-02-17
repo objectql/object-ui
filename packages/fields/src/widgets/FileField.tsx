@@ -14,21 +14,6 @@ export function FileField({ value, onChange, field, readonly, ...props }: FieldW
   const accept = fileField?.accept ? fileField.accept.join(',') : undefined;
   const [isDragOver, setIsDragOver] = useState(false);
 
-  if (readonly) {
-    if (!value) return <span className="text-sm">-</span>;
-    
-    const files = Array.isArray(value) ? value : [value];
-    return (
-      <div className="flex flex-wrap gap-2">
-        {files.map((file: any, idx: number) => (
-          <span key={idx} className="text-sm truncate max-w-xs">
-            {file.name || file.original_name || 'File'}
-          </span>
-        ))}
-      </div>
-    );
-  }
-
   const files = value ? (Array.isArray(value) ? value : [value]) : [];
 
   const processFiles = useCallback((selectedFiles: File[]) => {
@@ -50,10 +35,6 @@ export function FileField({ value, onChange, field, readonly, ...props }: FieldW
     }
   }, [files, multiple, onChange]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    processFiles(Array.from(e.target.files || []));
-  };
-
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -73,11 +54,11 @@ export function FileField({ value, onChange, field, readonly, ...props }: FieldW
 
     const droppedFiles = Array.from(e.dataTransfer.files);
     if (accept) {
-      const acceptedTypes = accept.split(',').map(t => t.trim().toLowerCase());
+      const acceptedTypes = accept.split(',').map((t: string) => t.trim().toLowerCase());
       const filtered = droppedFiles.filter(file => {
         const parts = file.name.split('.');
         const ext = parts.length > 1 ? '.' + parts.pop()?.toLowerCase() : '';
-        return acceptedTypes.some(t =>
+        return acceptedTypes.some((t: string) =>
           t === file.type || (ext && t === ext) || (t.endsWith('/*') && file.type.startsWith(t.replace('/*', '/')))
         );
       });
@@ -86,6 +67,25 @@ export function FileField({ value, onChange, field, readonly, ...props }: FieldW
       processFiles(droppedFiles);
     }
   }, [accept, processFiles]);
+
+  if (readonly) {
+    if (!value) return <span className="text-sm">-</span>;
+    
+    const readonlyFiles = Array.isArray(value) ? value : [value];
+    return (
+      <div className="flex flex-wrap gap-2">
+        {readonlyFiles.map((file: any, idx: number) => (
+          <span key={idx} className="text-sm truncate max-w-xs">
+            {file.name || file.original_name || 'File'}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    processFiles(Array.from(e.target.files || []));
+  };
 
   const handleRemove = (index: number) => {
     if (multiple) {
