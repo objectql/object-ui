@@ -12,6 +12,7 @@ import { ViewSwitcher } from './ViewSwitcher';
 import { ObjectGallery } from './ObjectGallery';
 
 export { ListView, ViewSwitcher, ObjectGallery };
+export { evaluateConditionalFormatting } from './ListView';
 export type { ListViewProps } from './ListView';
 export type { ObjectGalleryProps } from './ObjectGallery';
 export type { ViewSwitcherProps, ViewType } from './ViewSwitcher';

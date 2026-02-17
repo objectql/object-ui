@@ -67,8 +67,11 @@ function convertFilterGroupToAST(group: FilterGroup): any[] {
 /**
  * Evaluate conditional formatting rules against a record.
  * Returns a CSSProperties object for the first matching rule, or empty object.
+ *
+ * Exported for use by child view renderers (e.g., ObjectGrid) and consumers
+ * who need to evaluate formatting rules outside the ListView component.
  */
-function evaluateConditionalFormatting(
+export function evaluateConditionalFormatting(
   record: Record<string, unknown>,
   rules?: ListViewSchema['conditionalFormatting']
 ): React.CSSProperties {
