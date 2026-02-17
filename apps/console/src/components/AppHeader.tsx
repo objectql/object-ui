@@ -24,12 +24,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@object-ui/components';
-import { Search, Bell, HelpCircle, ChevronDown } from 'lucide-react';
+import { Search, HelpCircle, ChevronDown } from 'lucide-react';
 
 import { useOffline } from '@object-ui/react';
 import { ModeToggle } from './mode-toggle';
 import { LocaleSwitcher } from './LocaleSwitcher';
 import { ConnectionStatus } from './ConnectionStatus';
+import { ActivityFeed } from './ActivityFeed';
 import type { ConnectionState } from '../dataSource';
 
 /** Convert a slug like "crm_dashboard" or "audit-log" to "Crm Dashboard" / "Audit Log" */
@@ -199,10 +200,10 @@ export function AppHeader({ appName, objects, connectionState }: { appName: stri
                   <Search className="h-4 w-4" />
                 </Button>
                 
-                {/* Notifications */}
-                <Button variant="ghost" size="icon" className="h-8 w-8 hidden sm:flex shrink-0">
-                  <Bell className="h-4 w-4" />
-                </Button>
+                {/* Activity Feed */}
+                <div className="hidden sm:flex shrink-0 relative">
+                  <ActivityFeed />
+                </div>
                 
                 {/* Help */}
                 <Button variant="ghost" size="icon" className="h-8 w-8 hidden md:flex shrink-0">
