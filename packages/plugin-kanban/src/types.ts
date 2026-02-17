@@ -48,6 +48,12 @@ export interface KanbanSchema extends BaseSchema {
   groupBy?: string;
 
   /**
+   * Field for swimlane rows (2D grouping). When set, cards are grouped
+   * vertically by `groupBy` (columns) and horizontally by `swimlaneField` (rows).
+   */
+  swimlaneField?: string;
+
+  /**
    * Field to use as the card title.
    */
   cardTitle?: string;

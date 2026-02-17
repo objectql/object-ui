@@ -81,13 +81,23 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Build initial data from URL prefill params
+  // Build initial data from URL prefill params or window.location.search
   const initialData = useMemo(() => {
     const data: Record<string, string> = {};
+    // Explicit prefillParams take priority
     if (prefillParams) {
       for (const [key, value] of Object.entries(prefillParams)) {
         data[key] = value;
       }
+    }
+    // Also parse URL search parameters for prefilling (Phase 14 L2)
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      urlParams.forEach((value, key) => {
+        if (!(key in data)) {
+          data[key] = value;
+        }
+      });
     }
     return Object.keys(data).length > 0 ? data : undefined;
   }, [prefillParams]);

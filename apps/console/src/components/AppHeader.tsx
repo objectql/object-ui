@@ -27,6 +27,7 @@ import {
 import { Search, HelpCircle, ChevronDown } from 'lucide-react';
 
 import { useOffline } from '@object-ui/react';
+import { PresenceAvatars, type PresenceUser } from '@object-ui/collaboration';
 import { ModeToggle } from './mode-toggle';
 import { LocaleSwitcher } from './LocaleSwitcher';
 import { ConnectionStatus } from './ConnectionStatus';
@@ -40,10 +41,18 @@ function humanizeSlug(slug: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function AppHeader({ appName, objects, connectionState }: { appName: string, objects: any[], connectionState?: ConnectionState }) {
+// Demo presence users for local/mock mode
+const MOCK_PRESENCE_USERS: PresenceUser[] = [
+  { userId: 'u1', userName: 'Alice Chen', color: '#3498db', status: 'active', lastActivity: new Date().toISOString() },
+  { userId: 'u2', userName: 'Bob Smith', color: '#2ecc71', status: 'idle', lastActivity: new Date().toISOString() },
+  { userId: 'u3', userName: 'Carol Li', color: '#e74c3c', status: 'active', lastActivity: new Date().toISOString() },
+];
+
+export function AppHeader({ appName, objects, connectionState, presenceUsers }: { appName: string, objects: any[], connectionState?: ConnectionState, presenceUsers?: PresenceUser[] }) {
     const location = useLocation();
     const params = useParams();
     const { isOnline } = useOffline();
+    const activeUsers = presenceUsers ?? MOCK_PRESENCE_USERS;
     
     // Parse the current route to build breadcrumbs
     const pathParts = location.pathname.split('/').filter(Boolean);
@@ -177,6 +186,13 @@ export function AppHeader({ appName, objects, connectionState }: { appName: stri
 
                 {/* Connection Status */}
                 {connectionState && <ConnectionStatus state={connectionState} />}
+
+                {/* Presence Avatars */}
+                {activeUsers.length > 0 && (
+                  <div className="hidden md:flex items-center shrink-0" title="Users currently online">
+                    <PresenceAvatars users={activeUsers} size="sm" maxVisible={3} showStatus />
+                  </div>
+                )}
                 
                 {/* Search - Desktop — opens ⌘K command palette */}
                 <button

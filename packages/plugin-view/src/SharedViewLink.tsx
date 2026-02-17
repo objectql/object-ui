@@ -16,7 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@object-ui/components';
-import { Share2, Copy, Check } from 'lucide-react';
+import { Share2, Copy, Check, Lock, Calendar } from 'lucide-react';
 
 export interface SharedViewLinkProps {
   /** The object name used in the share URL path */
@@ -26,7 +26,7 @@ export interface SharedViewLinkProps {
   /** Base URL for the shareable link (defaults to window.location.origin) */
   baseUrl?: string;
   /** Callback fired after a share URL is generated */
-  onShare?: (shareUrl: string) => void;
+  onShare?: (shareUrl: string, options?: { password?: string; expiresAt?: string }) => void;
   className?: string;
 }
 
@@ -57,6 +57,8 @@ export const SharedViewLink: React.FC<SharedViewLinkProps> = ({
   const [shareUrl, setShareUrl] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
   const [open, setOpen] = React.useState(false);
+  const [password, setPassword] = React.useState('');
+  const [expiresIn, setExpiresIn] = React.useState('');
 
   const resolvedBaseUrl = baseUrl ?? (typeof window !== 'undefined' ? window.location.origin : '');
 
@@ -65,8 +67,9 @@ export const SharedViewLink: React.FC<SharedViewLinkProps> = ({
     const url = buildShareUrl(resolvedBaseUrl, objectName, viewId, token);
     setShareUrl(url);
     setCopied(false);
-    onShare?.(url);
-  }, [resolvedBaseUrl, objectName, viewId, onShare]);
+    const expiresAt = expiresIn ? new Date(Date.now() + parseInt(expiresIn, 10) * 86400000).toISOString() : undefined;
+    onShare?.(url, { password: password || undefined, expiresAt });
+  }, [resolvedBaseUrl, objectName, viewId, onShare, password, expiresIn]);
 
   const handleCopy = React.useCallback(async () => {
     if (!shareUrl) return;
@@ -109,31 +112,86 @@ export const SharedViewLink: React.FC<SharedViewLinkProps> = ({
         </div>
 
         {!shareUrl ? (
-          <Button onClick={handleGenerateLink} className="w-full gap-2" size="sm">
-            <Share2 className="h-4 w-4" />
-            Generate Link
-          </Button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Input
-              value={shareUrl}
-              readOnly
-              className="h-8 text-xs"
-              onClick={(e) => (e.target as HTMLInputElement).select()}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCopy}
-              className="shrink-0 gap-1"
-            >
-              {copied ? (
-                <Check className="h-4 w-4 text-green-500" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
+          <div className="space-y-3">
+            {/* Password protection */}
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                <Lock className="h-3.5 w-3.5" />
+                Password protection (optional)
+              </label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password..."
+                className="h-8 text-xs"
+              />
+            </div>
+
+            {/* Expiration */}
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                Expires after (optional)
+              </label>
+              <select
+                value={expiresIn}
+                onChange={(e) => setExpiresIn(e.target.value)}
+                className="w-full h-8 text-xs rounded-md border border-input bg-background px-3"
+              >
+                <option value="">Never</option>
+                <option value="1">1 day</option>
+                <option value="7">7 days</option>
+                <option value="30">30 days</option>
+                <option value="90">90 days</option>
+              </select>
+            </div>
+
+            <Button onClick={handleGenerateLink} className="w-full gap-2" size="sm">
+              <Share2 className="h-4 w-4" />
+              Generate Link
             </Button>
           </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <Input
+                value={shareUrl}
+                readOnly
+                className="h-8 text-xs"
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopy}
+                className="shrink-0 gap-1"
+              >
+                {copied ? (
+                  <Check className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            {/* Share options indicators */}
+            {(password || expiresIn) && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {password && (
+                  <Badge variant="outline" className="text-xs gap-1">
+                    <Lock className="h-3 w-3" />
+                    Password protected
+                  </Badge>
+                )}
+                {expiresIn && (
+                  <Badge variant="outline" className="text-xs gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Expires in {expiresIn} day{expiresIn !== '1' ? 's' : ''}
+                  </Badge>
+                )}
+              </div>
+            )}
+          </>
         )}
       </PopoverContent>
     </Popover>

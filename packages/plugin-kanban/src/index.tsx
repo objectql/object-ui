@@ -29,6 +29,7 @@ export interface KanbanRendererProps {
     columns?: Array<any>;
     data?: Array<any>;
     groupBy?: string;
+    swimlaneField?: string;
     onCardMove?: (cardId: string, fromColumnId: string, toColumnId: string, newIndex: number) => void;
     onCardClick?: (card: any) => void;
     quickAdd?: boolean;
@@ -109,6 +110,7 @@ export const KanbanRenderer: React.FC<KanbanRendererProps> = ({ schema }) => {
         onQuickAdd={schema.onQuickAdd}
         coverImageField={schema.coverImageField}
         conditionalFormatting={schema.conditionalFormatting}
+        swimlaneField={schema.swimlaneField}
       />
     </Suspense>
   );

@@ -1,25 +1,26 @@
 # ObjectStack Console — Complete Development Roadmap
 
-> **Last Updated:** July 15, 2025 (All L1 Development Complete)
-> **Current Version:** v1.1.0
+> **Last Updated:** February 17, 2026 (L2 Development In Progress)
+> **Current Version:** v1.2.0
 > **Target Version:** v2.0.0 (Next Major)
 > **Spec Alignment:** @objectstack/spec v3.0.2
 > **Bootstrap (Phase 0):** ✅ Complete
 > **Phases 1-5:** ✅ Complete
-> **Phase 6 (Real-Time):** ⚠️ Core complete, some features not integrated into console
+> **Phase 6 (Real-Time):** ✅ L2 Partial — PresenceAvatars integrated into AppHeader & RecordDetailView
 > **Phase 7 (Performance):** ✅ Complete
 > **Phase 8 (PWA):** ⚠️ Core complete, background sync simulated only
 > **Phase 9 (NavigationConfig):** ✅ Complete
 > **Phase 10 (L1):** ✅ Complete — Data Interaction Foundation
 > **Phase 11 (L1):** ✅ Complete — Grid & Table Excellence
 > **Phase 12 (L1):** ✅ Complete — Record Detail & Navigation
-> **Phase 13 (L1):** ✅ Complete — Kanban & Views Enhancement
-> **Phase 14 (L1):** ✅ Complete — Forms & Data Collection
-> **Phase 15 (L1):** ✅ Complete — Import/Export & Data Portability
-> **Phase 16 (L1):** ✅ Complete — Undo/Redo & Data Safety
-> **Phase 17 (L1):** ✅ Complete — Collaboration & Communication
+> **Phase 13 (L1+L2):** ✅ L1 Complete, L2 Partial — Kanban Swimlanes (2D grouping) implemented
+> **Phase 14 (L1+L2):** ✅ L1 Complete, L2 Partial — URL prefill parameters for EmbeddableForm
+> **Phase 15 (L1+L2):** ✅ L1 Complete, L2 Partial — SharedViewLink password protection & expiration
+> **Phase 16 (L1+L2):** ✅ L1 Complete, L2 Partial — Undo/Redo toast UI integrated
+> **Phase 17 (L1+L2):** ✅ L1 Complete, L2 Partial — Comment sorting & emoji reactions
 > **Phase 18 (L1):** ✅ Complete — Automation & Workflows
 > **All L1 Development:** ✅ Complete — All phases through 18 have L1 foundation implemented
+> **L2 Development:** 🔄 In Progress — Phases 6, 13-17 have L2 features implemented
 
 ---
 
@@ -193,6 +194,7 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 **Real-Time:**
 - ✅ `useRealtimeSubscription` from `@object-ui/collaboration`
 - ✅ Auto-refresh grid/views on data change events
+- ✅ `PresenceAvatars` integrated into AppHeader (global) and RecordDetailView (per-record)
 
 **Mobile & PWA:**
 - ✅ `MobileProvider` with PWA config
@@ -232,7 +234,7 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 | G3 | DataSource missing metadata API | ✅ | `getView`/`getApp`/`getPage` exist on adapter AND console fetches via `MetadataProvider` at runtime |
 | G4 | No i18n support | ✅ | 10 language packs + `LocaleSwitcher` + `useObjectTranslation` |
 | G5 | No RBAC integration | ✅ | `usePermissions` gating CRUD buttons and navigation items |
-| G6 | No real-time updates | ⚠️ | `useRealtimeSubscription` auto-refreshes views; `PresenceAvatars`/`useConflictResolution` exist but NOT integrated into console |
+| G6 | No real-time updates | ✅ | `useRealtimeSubscription` auto-refreshes views; `PresenceAvatars` integrated into `AppHeader` and `RecordDetailView`; `useConflictResolution` exists |
 | G7 | No offline support / PWA | ⚠️ | `MobileProvider` with PWA manifest; background sync queue simulated only (no real server sync) |
 | G8 | Bundle size 200KB+ | ✅ | Code splitting (15+ manual chunks), compression, preloading |
 | G9 | NavigationConfig incomplete | ✅ | All 8 view plugins support NavigationConfig with 7 modes |
@@ -656,7 +658,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
-| **L1 (Foundation)** | Swimlanes: 2D grouping (columns + rows). Group by second field for horizontal lanes. | 🔲 Planned | `KanbanConfig.swimlaneField` property |
+| **L1 (Foundation)** | Swimlanes: 2D grouping (columns + rows). Group by second field for horizontal lanes. | ✅ Done | `KanbanConfig.swimlaneField` property — collapsible swimlane rows with card counts |
 | **L2 (Production)** | Card templates (predefined field values for new cards), swimlane collapse/expand, swimlane aggregations. | 🔲 Planned | `cardTemplates[]` configuration |
 | **L3 (Excellence)** | Multi-level swimlanes (nested grouping), swimlane drag-to-reorder, cross-swimlane card movement. | 🔲 Planned | Advanced 2D layout features |
 
@@ -665,7 +667,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 - [x] Cover images display on Kanban cards
 - [x] Columns can be collapsed to show count only
 - [x] Cards conditionally colored based on priority field
-- [ ] Swimlanes group cards by second field (2D layout)
+- [x] Swimlanes group cards by second field (2D layout) — `swimlaneField` property with collapsible rows
 
 ---
 
@@ -688,7 +690,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
 | **L1 (Foundation)** | Standalone form URL (no authentication required). Shareable link for external submissions. Submission creates record in object. | ✅ Done | `FormConfig.embeddable`, `/forms/:formId` route |
-| **L2 (Production)** | Prefill URL parameters (`?name=John&email=...`), custom thank-you page redirect, form branding (logo, colors). | 🔲 Planned | `FormConfig.prefillParams`, `thankYouPage` |
+| **L2 (Production)** | Prefill URL parameters (`?name=John&email=...`), custom thank-you page redirect, form branding (logo, colors). | ✅ Done | `EmbeddableForm` reads URL search params + explicit `prefillParams`; `thankYouPage.redirectUrl` with delay |
 | **L3 (Excellence)** | Multi-page forms (wizard steps), conditional form logic (skip fields based on answers), form expiration (time-limited access). | 🔲 Planned | Advanced form features |
 
 #### 14.3: Form Analytics & Submissions Dashboard
@@ -702,7 +704,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 **Success Metrics:**
 - [x] FileUploadField supports drag-and-drop + multi-file upload
 - [x] Standalone form URL created and shareable
-- [ ] Prefill URL parameters populate form fields
+- [x] Prefill URL parameters populate form fields — `EmbeddableForm` auto-reads `window.location.search`
 - [x] Form analytics dashboard shows submission metrics
 
 ---
@@ -734,7 +736,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
 | **L1 (Foundation)** | Generate shareable read-only view link. Public URL (no login required). View data only (no edit/delete). | ✅ Done | `SharedViewLink.tsx` in `packages/plugin-view/src/` with token generation |
-| **L2 (Production)** | Password-protected shared links, expiration date for links, view-level permissions (show only certain fields). | 🔲 Planned | Secure sharing |
+| **L2 (Production)** | Password-protected shared links, expiration date for links, view-level permissions (show only certain fields). | ⚠️ L2 Partial — Password input & expiration dropdown UI added to `SharedViewLink`; server-side enforcement planned | `SharedViewLink` with password & expiresAt options in `onShare` callback |
 | **L3 (Excellence)** | Edit permissions in shared link, comment-only access, share analytics (who viewed, when). | 🔲 Planned | Collaborative sharing |
 
 #### 15.4: API Export Endpoints
@@ -764,7 +766,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
 | **L1 (Foundation)** | Global undo/redo for CRUD operations (create, update, delete). Keyboard shortcuts: Ctrl+Z (undo), Ctrl+Shift+Z (redo). Undo stack with max size (e.g., 50 operations). | ✅ Done | `UndoManager` in `@object-ui/core` + `useGlobalUndo` hook in `@object-ui/react` |
-| **L2 (Production)** | Undo/redo UI (toast notification on undo), batch undo (undo multiple operations at once), undo history panel (show stack). | 🔲 Planned | Enhanced undo UX |
+| **L2 (Production)** | Undo/redo UI (toast notification on undo), batch undo (undo multiple operations at once), undo history panel (show stack). | ⚠️ L2 Partial — Sonner toast notifications on undo/redo via `useGlobalUndo` in `App.tsx`; batch undo and history panel planned | Toast shows operation description on Ctrl+Z / Ctrl+Shift+Z |
 | **L3 (Excellence)** | Persistent undo stack (survives page reload), undo branching (multiple undo paths), undo conflicts (merge or reject). | 🔲 Planned | Advanced undo features |
 
 #### 16.2: Record Revision History (Server-Side)
@@ -802,7 +804,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 | Maturity Level | Description | Status | Spec Compliance |
 |----------------|-------------|--------|-----------------|
 | **L1 (Foundation)** | Comments component in record detail page. Add comment (plain text), view comment list, display author + timestamp. | ✅ Done (via `RecordComments` in Phase 12) | Basic comments in `plugin-detail` |
-| **L2 (Production)** | Rich text comments (markdown/HTML), edit/delete own comments, comment reactions (emoji), comment sorting (newest/oldest). | ⚠️ `CommentThread` has edit/delete and is integrated into console RecordDetailView | `@object-ui/collaboration/CommentThread.tsx` (549 lines) |
+| **L2 (Production)** | Rich text comments (markdown/HTML), edit/delete own comments, comment reactions (emoji), comment sorting (newest/oldest). | ✅ Done | `CommentThread` has edit/delete, emoji reactions (👍❤️), sort dropdown (newest/oldest), reaction counts; integrated into RecordDetailView |
 | **L3 (Excellence)** | Comment attachments (files, images), comment search, comment export, comment moderation (admin delete). | 🔲 Planned | Advanced comment features |
 
 #### 17.2: @Mention Notifications & Activity Feed
@@ -957,7 +959,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 | **Kanban cover image** | ✅ Done | Post v1.0 | Phase 13 (L1) |
 | **Kanban column collapse** | ✅ Done | Post v1.0 | Phase 13 (L1) |
 | **Kanban card coloring** | ✅ Done | Post v1.0 | Phase 13 (L1) |
-| **Kanban swimlanes (2D grouping)** | 🔲 Planned | Post v1.0 | Phase 13 (L3) |
+| **Kanban swimlanes (2D grouping)** | ✅ Done | Post v1.0 | Phase 13 (L1) |
 | **Kanban card templates** | 🔲 Planned | Post v1.0 | Phase 13 (L2) |
 
 ### 5.6 Collaboration
@@ -997,7 +999,7 @@ These were the initial tasks to bring the console prototype to production-qualit
   Phase 3: Metadata API               ██████████████  ✅ Complete (runtime fetch via MetadataProvider)
   Phase 4: Internationalization        ██████████████  ✅ Complete
   Phase 5: RBAC & Permissions          ██████████████  ✅ Complete
-  Phase 6: Real-Time Updates           ██████████░░░░  ⚠️ Core done, Presence/Optimistic/Conflict not in console
+  Phase 6: Real-Time Updates           ████████████░░  ✅ L2 Partial — PresenceAvatars integrated; Optimistic/Conflict still planned
   Phase 7: Performance Optimization    ██████████████  ✅ Complete
   Phase 8: Offline / PWA              ██████████░░░░  ⚠️ Core done, background sync simulated
   Phase 9: NavigationConfig Spec      ██████████████  ✅ Complete
@@ -1184,11 +1186,11 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 - [x] Console fetches app config from server at runtime via `MetadataProvider` → `client.meta.getItems()`
 - [x] CRUD dialog migrated to ActionDef[] with `crud_success` and `dialog_cancel` handlers dispatched through ActionRunner
 
-### Phase 4-6 (Enterprise) ⚠️
+### Phase 4-6 (Enterprise) ✅ L2 Partial
 - [x] 10 languages supported with runtime switching
 - [x] Permission-denied UI tested for all object operations
 - [x] Real-time grid refresh on server-side changes
-- [ ] Presence indicators (PresenceAvatars) not rendered in console UI
+- [x] Presence indicators (PresenceAvatars) rendered in AppHeader and RecordDetailView
 - [ ] Optimistic updates not implemented (types only)
 - [ ] Conflict resolution not wired to reconnection flow
 

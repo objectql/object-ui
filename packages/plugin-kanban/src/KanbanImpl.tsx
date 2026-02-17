@@ -32,6 +32,8 @@ import { Plus } from "lucide-react"
 // Utility function to merge class names (inline to avoid external dependency)
 const cn = (...classes: (string | undefined)[]) => classes.filter(Boolean).join(' ')
 
+const UNCATEGORIZED_LANE = 'Uncategorized'
+
 export interface KanbanCard {
   id: string
   title: string
@@ -66,6 +68,8 @@ export interface KanbanBoardProps {
   onQuickAdd?: (columnId: string, title: string) => void
   coverImageField?: string
   conditionalFormatting?: ConditionalFormattingRule[]
+  /** Field name for swimlane rows (2D grouping) */
+  swimlaneField?: string
 }
 
 /**
@@ -297,22 +301,23 @@ function DndBridge({ children }: { children: (dnd: ReturnType<typeof useDnd>) =>
   return <>{children(dnd)}</>
 }
 
-export default function KanbanBoard({ columns, onCardMove, onCardClick, className, quickAdd, onQuickAdd, coverImageField, conditionalFormatting }: KanbanBoardProps) {
+export default function KanbanBoard({ columns, onCardMove, onCardClick, className, quickAdd, onQuickAdd, coverImageField, conditionalFormatting, swimlaneField }: KanbanBoardProps) {
   const hasDnd = useHasDndProvider()
 
   if (hasDnd) {
     return (
       <DndBridge>
-        {(dnd) => <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={dnd} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} />}
+        {(dnd) => <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={dnd} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} swimlaneField={swimlaneField} />}
       </DndBridge>
     )
   }
 
-  return <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={null} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} />
+  return <KanbanBoardInner columns={columns} onCardMove={onCardMove} onCardClick={onCardClick} className={className} dnd={null} quickAdd={quickAdd} onQuickAdd={onQuickAdd} coverImageField={coverImageField} conditionalFormatting={conditionalFormatting} swimlaneField={swimlaneField} />
 }
 
-function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, quickAdd, onQuickAdd, coverImageField, conditionalFormatting }: KanbanBoardProps & { dnd: ReturnType<typeof useDnd> | null }) {
+function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, quickAdd, onQuickAdd, coverImageField, conditionalFormatting, swimlaneField }: KanbanBoardProps & { dnd: ReturnType<typeof useDnd> | null }) {
   const [activeCard, setActiveCard] = React.useState<KanbanCard | null>(null)
+  const [collapsedLanes, setCollapsedLanes] = React.useState<Set<string>>(new Set())
   
   // Ensure we always have valid columns with cards array
   const safeColumns = React.useMemo(() => {
@@ -327,6 +332,27 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
   React.useEffect(() => {
     setBoardColumns(safeColumns)
   }, [safeColumns])
+
+  // Compute swimlane rows when swimlaneField is provided
+  const swimlanes = React.useMemo(() => {
+    if (!swimlaneField) return null
+    const allCards = boardColumns.flatMap(col => col.cards)
+    const laneValues = new Set<string>()
+    allCards.forEach(card => {
+      const val = card[swimlaneField]
+      laneValues.add(val != null ? String(val) : UNCATEGORIZED_LANE)
+    })
+    return Array.from(laneValues).sort()
+  }, [boardColumns, swimlaneField])
+
+  const toggleLane = React.useCallback((lane: string) => {
+    setCollapsedLanes(prev => {
+      const next = new Set(prev)
+      if (next.has(lane)) next.delete(lane)
+      else next.add(lane)
+      return next
+    })
+  }, [])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -465,19 +491,81 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
         <span>{boardColumns.length} columns</span>
         <span>← Swipe to navigate →</span>
       </div>
-      <div className={cn("flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory p-2 sm:p-4 [-webkit-overflow-scrolling:touch]", className)} role="region" aria-label="Kanban board">
-        {boardColumns.map((column) => (
-          <KanbanColumnView
-            key={column.id}
-            column={column}
-            cards={column.cards}
-            onCardClick={onCardClick}
-            quickAdd={quickAdd}
-            onQuickAdd={onQuickAdd}
-            conditionalFormatting={conditionalFormatting}
-          />
-        ))}
-      </div>
+
+      {swimlanes ? (
+        /* Swimlane (2D) layout */
+        <div className={cn("flex flex-col gap-1 p-2 sm:p-4", className)} role="region" aria-label="Kanban board with swimlanes">
+          {/* Column headers */}
+          <div className="flex gap-3 sm:gap-4 pl-36 sm:pl-44 overflow-x-auto">
+            {boardColumns.map(col => (
+              <div key={col.id} className="w-[85vw] sm:w-80 flex-shrink-0 text-center">
+                <span className="font-mono text-xs sm:text-sm font-semibold tracking-wider text-primary/90 uppercase">{col.title}</span>
+                <span className="ml-2 font-mono text-xs text-muted-foreground">({col.cards.length})</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Swimlane rows */}
+          {swimlanes.map(lane => {
+            const isCollapsed = collapsedLanes.has(lane)
+            const laneCardCount = boardColumns.reduce((sum, col) =>
+              sum + col.cards.filter(c => (c[swimlaneField!] != null ? String(c[swimlaneField!]) : UNCATEGORIZED_LANE) === lane).length, 0)
+
+            return (
+              <div key={lane} className="border rounded-lg bg-muted/10">
+                {/* Lane header */}
+                <button
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/30 transition-colors"
+                  onClick={() => toggleLane(lane)}
+                  aria-expanded={!isCollapsed}
+                >
+                  <span className={cn("transition-transform text-xs", isCollapsed ? "" : "rotate-90")}>▶</span>
+                  <span className="font-mono text-xs font-semibold text-muted-foreground uppercase tracking-wider">{lane}</span>
+                  <span className="font-mono text-xs text-muted-foreground">({laneCardCount})</span>
+                </button>
+
+                {/* Lane content */}
+                {!isCollapsed && (
+                  <div className="flex gap-3 sm:gap-4 overflow-x-auto px-2 pb-3 pl-36 sm:pl-44">
+                    {boardColumns.map(col => {
+                      const laneCards = col.cards.filter(c =>
+                        (c[swimlaneField!] != null ? String(c[swimlaneField!]) : UNCATEGORIZED_LANE) === lane
+                      )
+                      return (
+                        <div key={col.id} className="w-[85vw] sm:w-80 flex-shrink-0 min-h-[60px] rounded-md bg-card/20 p-2">
+                          <SortableContext items={laneCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                            <div className="space-y-2" role="list" aria-label={`${col.title} - ${lane} cards`}>
+                              {laneCards.map(card => (
+                                <SortableCard key={card.id} card={card} onCardClick={onCardClick} conditionalFormatting={conditionalFormatting} />
+                              ))}
+                            </div>
+                          </SortableContext>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        /* Standard flat layout */
+        <div className={cn("flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory p-2 sm:p-4 [-webkit-overflow-scrolling:touch]", className)} role="region" aria-label="Kanban board">
+          {boardColumns.map((column) => (
+            <KanbanColumnView
+              key={column.id}
+              column={column}
+              cards={column.cards}
+              onCardClick={onCardClick}
+              quickAdd={quickAdd}
+              onQuickAdd={onQuickAdd}
+              conditionalFormatting={conditionalFormatting}
+            />
+          ))}
+        </div>
+      )}
+
       <DragOverlay>
         <div aria-live="assertive" aria-label={activeCard ? `Dragging ${activeCard.title}` : undefined}>
           {activeCard ? <SortableCard card={activeCard} conditionalFormatting={conditionalFormatting} /> : null}
