@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "clsx": "^2.1.1",
-    "lucide-react": "^0.344.0",
+    "lucide-react": "^0.574.0",
     "tailwind-merge": "^2.6.1"
   },
   "devDependencies": {

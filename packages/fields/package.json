@@ -33,7 +33,7 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/types": "workspace:*",
     "clsx": "^2.1.1",
-    "lucide-react": "^0.563.0",
+    "lucide-react": "^0.574.0",
     "tailwind-merge": "^2.6.1"
   },
   "peerDependencies": {

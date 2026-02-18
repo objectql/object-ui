@@ -36,7 +36,7 @@
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@objectstack/spec": "^3.0.4",
-    "lucide-react": "^0.563.0",
+    "lucide-react": "^0.574.0",
     "maplibre-gl": "^5.18.0",
     "react-map-gl": "^8.1.0",
     "zod": "^4.3.6"
