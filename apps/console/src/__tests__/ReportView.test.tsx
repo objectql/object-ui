@@ -86,6 +86,27 @@ describe('ReportView Data Loading', () => {
 
     // The report should render with data (checking for toolbar presence)
     expect(screen.getByRole('button', { name: /print/i })).toBeInTheDocument();
+
+    // Verify that report fields render as table headers (spec-compliant metadata)
+    await waitFor(
+      () => {
+        expect(screen.getByText('Deal Name')).toBeInTheDocument();
+        expect(screen.getAllByText('Amount').length).toBeGreaterThanOrEqual(1);
+        expect(screen.getByText('Stage')).toBeInTheDocument();
+        expect(screen.getByText('Close Date')).toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
+
+    // Verify actual data rows are displayed
+    await waitFor(
+      () => {
+        expect(screen.getByText('Deal Alpha')).toBeInTheDocument();
+        expect(screen.getByText('Deal Beta')).toBeInTheDocument();
+        expect(screen.getByText('Deal Gamma')).toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
   });
 
   it('should handle inline data in report definition', async () => {

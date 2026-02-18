@@ -178,8 +178,36 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   // Wrap the report definition in the ReportViewer schema
   // The ReportViewer expects a schema property which is of type ReportViewerSchema
   // That schema has a 'report' property which is the actual report definition (ReportSchema)
-  // Map 'label' from @objectstack/spec to 'title' expected by ReportViewer
-  const reportForViewer = reportData.title ? reportData : { ...reportData, title: reportData.label };
+  // Map @objectstack/spec report format to @object-ui/types ReportSchema:
+  //   - 'label' → 'title'
+  //   - 'columns' (with 'field') → 'fields' (with 'name') + auto-generate 'sections'
+  const reportForViewer = (() => {
+    const mapped: any = { ...reportData };
+    if (!mapped.title && mapped.label) {
+      mapped.title = mapped.label;
+    }
+    // Map spec 'columns' (field/label/aggregate) → ReportSchema 'fields' (name/label/aggregation)
+    if (!mapped.fields && Array.isArray(mapped.columns)) {
+      mapped.fields = mapped.columns.map((col: any) => ({
+        name: col.field || col.name,
+        label: col.label,
+        ...(col.aggregate ? { aggregation: col.aggregate, showInSummary: true } : {}),
+      }));
+    }
+    // Auto-generate sections from fields when sections are missing
+    if (!mapped.sections && mapped.fields) {
+      const hasSummaryFields = mapped.fields.some((f: any) => f.showInSummary);
+      mapped.sections = [
+        ...(hasSummaryFields ? [{ type: 'summary', title: 'Key Metrics' }] : []),
+        {
+          type: 'table',
+          title: 'Details',
+          columns: mapped.fields.map((f: any) => ({ name: f.name, label: f.label })),
+        },
+      ];
+    }
+    return mapped;
+  })();
   const viewerSchema = {
       type: 'report-viewer',
       report: reportForViewer, // The report definition
