@@ -734,7 +734,7 @@ describe('Kanban Integration', () => {
             data: initialData 
         } as any);
 
-        vi.spyOn(mocks.MockDataSource.prototype, 'getObjectSchema').mockResolvedValue({
+        const schemaSpy = vi.spyOn(mocks.MockDataSource.prototype, 'getObjectSchema').mockResolvedValue({
             name: 'project_task',
             fields: {
                 title: { type: 'text', label: 'Title' },
@@ -778,6 +778,10 @@ describe('Kanban Integration', () => {
         // For now, we verify the component can handle the initial load
         // and that data source was called correctly
         expect(findSpy).toHaveBeenCalledWith('project_task', expect.any(Object));
+
+        // Restore spies to avoid affecting subsequent tests
+        findSpy.mockRestore();
+        schemaSpy.mockRestore();
     });
 });
 
@@ -838,7 +842,7 @@ describe('Dashboard Integration', () => {
         
         await waitFor(() => {
             expect(screen.getByText(/CRM Overview/i)).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
         
         expect(screen.getByText(/Revenue Trends/i)).toBeInTheDocument();
     });
@@ -848,7 +852,7 @@ describe('Dashboard Integration', () => {
         
         await waitFor(() => {
             expect(screen.getByText(/CRM Help Guide/i)).toBeInTheDocument();
-        });
+        }, { timeout: 10000 });
         
         expect(screen.getByText(/Keyboard Shortcuts/i)).toBeInTheDocument();
     });

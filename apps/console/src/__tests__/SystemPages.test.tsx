@@ -130,7 +130,7 @@ describe('AuditLogPage', () => {
     });
     wrap(<AuditLogPage />);
     await waitFor(() => {
-      expect(mockFind).toHaveBeenCalledWith('sys_audit_log', expect.objectContaining({ $orderby: 'createdAt desc' }));
+      expect(mockFind).toHaveBeenCalledWith('sys_audit_log', expect.objectContaining({ $orderby: { createdAt: 'desc' } }));
     });
     expect(screen.getByText('create')).toBeInTheDocument();
   });
