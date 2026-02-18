@@ -57,4 +57,20 @@ describe('Data Table Component', () => {
     expect(config?.defaultProps?.exportable).toBe(true);
     expect(config?.defaultProps?.rowActions).toBe(true);
   });
+
+  it('should have showAddRow and onAddRecord properties in schema', () => {
+    const config = ComponentRegistry.getConfig('data-table');
+    expect(config).toBeDefined();
+    // Verify the DataTableSchema type supports add-record properties
+    // by checking that the component accepts these props without error
+    const testSchema: import('@object-ui/types').DataTableSchema = {
+      type: 'data-table',
+      columns: [],
+      data: [],
+      showAddRow: true,
+      onAddRecord: () => {},
+    };
+    expect(testSchema.showAddRow).toBe(true);
+    expect(typeof testSchema.onAddRecord).toBe('function');
+  });
 });

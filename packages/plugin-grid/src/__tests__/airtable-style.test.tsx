@@ -250,3 +250,93 @@ describe('Frozen first column', () => {
     expect(subjectHeader).not.toHaveClass('sticky');
   });
 });
+
+// =========================================================================
+// 7. Column header type icons
+// =========================================================================
+describe('Column header type icons', () => {
+  it('should render type icons in column headers', async () => {
+    renderGrid([
+      { field: 'subject', label: 'Subject' },
+      { field: 'status', label: 'Status' },
+      { field: 'due_date', label: 'Due Date' },
+    ]);
+    await waitFor(() => {
+      expect(screen.getByText('Subject')).toBeInTheDocument();
+    });
+    // Each column header should have an SVG icon
+    const headers = screen.getAllByRole('columnheader');
+    // Filter out utility headers (row numbers, checkboxes, actions)
+    const dataHeaders = headers.filter(h => h.querySelector('svg'));
+    expect(dataHeaders.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// =========================================================================
+// 8. Datetime type inference
+// =========================================================================
+describe('Datetime type inference', () => {
+  it('should infer datetime type for created_at fields', async () => {
+    renderGrid([
+      { field: 'subject', label: 'Subject' },
+      { field: 'created_at', label: 'Created At' },
+    ]);
+    await waitFor(() => {
+      expect(screen.getByText('Subject')).toBeInTheDocument();
+    });
+    // Should show split datetime format (date and time separately)
+    // The time part should be rendered in a separate muted span
+    const dateEl = screen.getByText('1/15/2026');
+    expect(dateEl).toBeInTheDocument();
+  });
+});
+
+// =========================================================================
+// 9. Compound cell with prefix badge
+// =========================================================================
+describe('Compound cell with prefix badge', () => {
+  it('should render prefix badge before the main value', async () => {
+    renderGrid([
+      { field: 'subject', label: 'Subject', prefix: { field: 'category', type: 'badge' } },
+      { field: 'status', label: 'Status' },
+    ]);
+    await waitFor(() => {
+      expect(screen.getByText('Subject')).toBeInTheDocument();
+    });
+    // The category values should appear as badges alongside subject
+    const engineeringBadges = screen.getAllByText('Engineering');
+    expect(engineeringBadges.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Task Alpha')).toBeInTheDocument();
+  });
+});
+
+// =========================================================================
+// 10. Add record row
+// =========================================================================
+describe('Add record row', () => {
+  it('should show add record row when operations.create is true', async () => {
+    renderGrid(
+      [
+        { field: 'subject', label: 'Subject' },
+        { field: 'status', label: 'Status' },
+      ],
+      { operations: { create: true } }
+    );
+    await waitFor(() => {
+      expect(screen.getByText('Subject')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('add-record-row')).toBeInTheDocument();
+    expect(screen.getByText('Add record')).toBeInTheDocument();
+  });
+
+  it('should not show add record row by default', async () => {
+    renderGrid([
+      { field: 'subject', label: 'Subject' },
+      { field: 'status', label: 'Status' },
+    ]);
+    await waitFor(() => {
+      expect(screen.getByText('Subject')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('add-record-row')).not.toBeInTheDocument();
+  });
+});

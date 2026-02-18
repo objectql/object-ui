@@ -430,4 +430,45 @@ describe('ListView', () => {
     renderWithProvider(<ListView schema={schema} />);
     expect(screen.queryByTestId('share-button')).not.toBeInTheDocument();
   });
+
+  it('should show record count bar when data is loaded', async () => {
+    const mockItems = [
+      { _id: '1', name: 'Alice', email: 'alice@test.com' },
+      { _id: '2', name: 'Bob', email: 'bob@test.com' },
+      { _id: '3', name: 'Charlie', email: 'charlie@test.com' },
+    ];
+    mockDataSource.find.mockResolvedValue(mockItems);
+
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      fields: ['name', 'email'],
+    };
+
+    renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('record-count-bar')).toBeInTheDocument();
+    });
+    expect(screen.getByText('3 records')).toBeInTheDocument();
+  });
+
+  it('should not show record count bar when no data', async () => {
+    mockDataSource.find.mockResolvedValue([]);
+
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      fields: ['name', 'email'],
+    };
+
+    renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('empty-state')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('record-count-bar')).not.toBeInTheDocument();
+  });
 });
