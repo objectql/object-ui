@@ -119,19 +119,26 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
     );
   }
 
-  if (!initialReport) {
+  if (!initialReport || !reportData) {
+    if (!loading && !initialReport) {
+      return (
+        <div className="h-full flex items-center justify-center p-8">
+           <Empty>
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <BarChart3 className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <EmptyTitle>Report Not Found</EmptyTitle>
+            <EmptyDescription>
+              The report &quot;{reportName}&quot; could not be found.
+              It may have been removed or renamed.
+            </EmptyDescription>
+          </Empty>
+        </div>
+      );
+    }
     return (
       <div className="h-full flex items-center justify-center p-8">
-         <Empty>
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-            <BarChart3 className="h-6 w-6 text-muted-foreground" />
-          </div>
-          <EmptyTitle>Report Not Found</EmptyTitle>
-          <EmptyDescription>
-            The report &quot;{reportName}&quot; could not be found.
-            It may have been removed or renamed.
-          </EmptyDescription>
-        </Empty>
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -151,7 +158,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
                <span className="hidden sm:inline">Back to View</span>
                <span className="sm:hidden">Back</span>
             </Button>
-            <div className="font-medium truncate">Edit Report: {reportData.title}</div>
+            <div className="font-medium truncate">Edit Report: {reportData.title || reportData.label}</div>
          </div>
          <div className="flex-1 overflow-auto">
             <ReportBuilder 
@@ -171,9 +178,11 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   // Wrap the report definition in the ReportViewer schema
   // The ReportViewer expects a schema property which is of type ReportViewerSchema
   // That schema has a 'report' property which is the actual report definition (ReportSchema)
+  // Map 'label' from @objectstack/spec to 'title' expected by ReportViewer
+  const reportForViewer = reportData.title ? reportData : { ...reportData, title: reportData.label };
   const viewerSchema = {
       type: 'report-viewer',
-      report: reportData, // The report definition
+      report: reportForViewer, // The report definition
       data: reportRuntimeData, // Runtime data fetched from the data source
       showToolbar: true,
       allowExport: true,
@@ -185,7 +194,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4 p-4 sm:p-6 border-b shrink-0 bg-muted/10">
         <div className="min-w-0">
            {/* Header is handled by ReportViewer usually, but we can have a page header too */}
-           <h1 className="text-base sm:text-lg font-medium text-muted-foreground truncate">{reportData.title || 'Report Viewer'}</h1>
+           <h1 className="text-base sm:text-lg font-medium text-muted-foreground truncate">{reportData.title || reportData.label || 'Report Viewer'}</h1>
         </div>
         <div className="flex items-center gap-2 shrink-0">
            <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="h-8">

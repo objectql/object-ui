@@ -79,7 +79,7 @@ describe('ReportView Data Loading', () => {
     // Check that the report viewer is rendered
     await waitFor(
       () => {
-        expect(screen.getByText(/Q1 Sales Performance/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/Q1 Sales Performance/i)[0]).toBeInTheDocument();
       },
       { timeout: 3000 }
     );
@@ -172,7 +172,7 @@ describe('ReportView Data Loading', () => {
     // Then the report should load
     await waitFor(
       () => {
-        expect(screen.getByText(/Q1 Sales Performance/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/Q1 Sales Performance/i)[0]).toBeInTheDocument();
       },
       { timeout: 3000 }
     );
