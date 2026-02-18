@@ -36,6 +36,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [threadResolved, setThreadResolved] = useState(false);
   const objectDef = objects.find((o: any) => o.name === objectName);
 
   const currentUser = user
@@ -164,6 +165,8 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
               onAddComment={handleAddComment}
               onDeleteComment={handleDeleteComment}
               onReaction={handleReaction}
+              resolved={threadResolved}
+              onResolve={setThreadResolved}
             />
           </div>
         </div>

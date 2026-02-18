@@ -21,6 +21,8 @@ export interface ImportWizardProps {
   onCancel?: () => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Error handling strategy: 'skip' skips invalid rows, 'stop' aborts on first error. @default 'skip' */
+  onErrorMode?: 'skip' | 'stop';
 }
 
 export interface ImportResult {
@@ -31,6 +33,9 @@ export interface ImportResult {
 }
 
 type WizardStep = 'upload' | 'mapping' | 'preview';
+
+/** Maximum number of rows to show in the preview step */
+const PREVIEW_ROW_COUNT = 10;
 
 /** CSV parser with quote handling */
 function parseCSV(text: string): string[][] {
@@ -201,7 +206,7 @@ const StepMapping: React.FC<{
   );
 };
 
-// Step 3: Preview & Import
+// Step 3: Preview & Import (shows first 10 rows with per-row validation errors)
 const StepPreview: React.FC<{
   headers: string[]; rows: string[][]; mapping: Record<number, string>; fields: ImportWizardProps['fields'];
 }> = ({ headers, rows, mapping, fields }) => {
@@ -209,29 +214,53 @@ const StepPreview: React.FC<{
     Object.entries(mapping).map(([idx, fieldName]) => ({
       csvIdx: Number(idx), header: headers[Number(idx)], field: fields.find((f) => f.name === fieldName)!,
     })), [mapping, headers, fields]);
-  const previewRows = rows.slice(0, 5);
+  const previewRows = rows.slice(0, PREVIEW_ROW_COUNT);
+
+  const rowValidations = useMemo(() => previewRows.map((row, rIdx) => {
+    const errs: Record<number, string> = {};
+    for (const col of mappedCols) {
+      const raw = row[col.csvIdx] ?? '';
+      if (col.field.required && !raw) errs[col.csvIdx] = 'Required';
+      else if (raw && !validateValue(raw, col.field.type)) errs[col.csvIdx] = `Invalid ${col.field.type}`;
+    }
+    return errs;
+  }), [previewRows, mappedCols]);
+
+  const errorCount = rowValidations.filter(e => Object.keys(e).length > 0).length;
 
   return (
     <div className="max-h-[360px] overflow-auto">
+      {errorCount > 0 && (
+        <p className="mb-2 flex items-center gap-1 text-xs text-destructive">
+          <AlertCircle className="h-3.5 w-3.5" /> {errorCount} row(s) with errors in preview
+        </p>
+      )}
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-12">#</TableHead>
             {mappedCols.map((col) => <TableHead key={col.csvIdx}>{col.field.label}</TableHead>)}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {previewRows.map((row, rIdx) => (
-            <TableRow key={rIdx}>
-              {mappedCols.map((col) => {
-                const value = row[col.csvIdx] ?? '';
-                return (
-                  <TableCell key={col.csvIdx} className={cn(!validateValue(value, col.field.type) && 'text-destructive')}>
-                    {value}
-                  </TableCell>
-                );
-              })}
-            </TableRow>
-          ))}
+          {previewRows.map((row, rIdx) => {
+            const errs = rowValidations[rIdx];
+            const hasError = Object.keys(errs).length > 0;
+            return (
+              <TableRow key={rIdx} className={cn(hasError && 'bg-destructive/5')}>
+                <TableCell className="text-xs text-muted-foreground">{rIdx + 1}</TableCell>
+                {mappedCols.map((col) => {
+                  const value = row[col.csvIdx] ?? '';
+                  const cellErr = errs[col.csvIdx];
+                  return (
+                    <TableCell key={col.csvIdx} className={cn(cellErr && 'text-destructive')} title={cellErr}>
+                      {value || <span className="text-muted-foreground/50">—</span>}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
       <p className="mt-2 text-xs text-muted-foreground">Showing {previewRows.length} of {rows.length} rows</p>
@@ -241,7 +270,7 @@ const StepPreview: React.FC<{
 
 // Main wizard component
 export const ImportWizard: React.FC<ImportWizardProps> = ({
-  objectName, objectLabel, fields, dataSource, onComplete, onCancel, open, onOpenChange,
+  objectName, objectLabel, fields, dataSource, onComplete, onCancel, open, onOpenChange, onErrorMode = 'skip',
 }) => {
   const [step, setStep] = useState<WizardStep>('upload');
   const [headers, setHeaders] = useState<string[]>([]);
@@ -274,19 +303,21 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
       if (rowErrors.length > 0) {
         skippedRows++;
         errors.push(...rowErrors);
+        if (onErrorMode === 'stop') break;
       } else {
         try { if (dataSource?.create) await dataSource.create(objectName, record); importedRows++; }
         catch (err) {
           skippedRows++;
           const msg = err instanceof Error ? err.message : 'Failed to create record';
           errors.push({ row: i + 1, field: '', message: msg });
+          if (onErrorMode === 'stop') break;
         }
       }
       setProgress(Math.round(((i + 1) / rows.length) * 100));
     }
     const importResult: ImportResult = { totalRows: rows.length, importedRows, skippedRows, errors };
     setResult(importResult); setImporting(false); onComplete?.(importResult);
-  }, [rows, mapping, fields, dataSource, objectName, onComplete]);
+  }, [rows, mapping, fields, dataSource, objectName, onComplete, onErrorMode]);
 
   const reset = useCallback(() => {
     setStep('upload'); setHeaders([]); setRows([]); setMapping({}); setProgress(0); setResult(null);

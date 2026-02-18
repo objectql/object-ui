@@ -201,6 +201,26 @@ export const DetailView: React.FC<DetailViewProps> = ({
     setEditedValues(prev => ({ ...prev, [field]: value }));
   }, []);
 
+  // Keyboard shortcuts for prev/next record navigation (← / →)
+  React.useEffect(() => {
+    if (!schema.recordNavigation) return;
+    const nav = schema.recordNavigation;
+    const handler = (e: KeyboardEvent) => {
+      // Skip when focus is inside an input, textarea, or contenteditable
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return;
+      if (e.key === 'ArrowLeft' && nav.currentIndex > 0) {
+        e.preventDefault();
+        nav.onNavigate(nav.recordIds[nav.currentIndex - 1]);
+      } else if (e.key === 'ArrowRight' && nav.currentIndex < nav.recordIds.length - 1) {
+        e.preventDefault();
+        nav.onNavigate(nav.recordIds[nav.currentIndex + 1]);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [schema.recordNavigation]);
+
   if (loading || schema.loading) {
     return (
       <div className={cn('space-y-4', className)}>

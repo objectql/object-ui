@@ -16,6 +16,7 @@ import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
+import { ExpressionEvaluator } from '@object-ui/core';
 
 export interface ListViewProps {
   schema: ListViewSchema;
@@ -67,6 +68,7 @@ function convertFilterGroupToAST(group: FilterGroup): any[] {
 /**
  * Evaluate conditional formatting rules against a record.
  * Returns a CSSProperties object for the first matching rule, or empty object.
+ * Supports both field/operator/value rules and expression-based rules.
  *
  * Exported for use by child view renderers (e.g., ObjectGrid) and consumers
  * who need to evaluate formatting rules outside the ListView component.
@@ -77,28 +79,42 @@ export function evaluateConditionalFormatting(
 ): React.CSSProperties {
   if (!rules || rules.length === 0) return {};
   for (const rule of rules) {
-    const fieldValue = record[rule.field];
     let match = false;
-    switch (rule.operator) {
-      case 'equals':
-        match = fieldValue === rule.value;
-        break;
-      case 'not_equals':
-        match = fieldValue !== rule.value;
-        break;
-      case 'contains':
-        match = typeof fieldValue === 'string' && typeof rule.value === 'string' && fieldValue.includes(rule.value);
-        break;
-      case 'greater_than':
-        match = typeof fieldValue === 'number' && typeof rule.value === 'number' && fieldValue > rule.value;
-        break;
-      case 'less_than':
-        match = typeof fieldValue === 'number' && typeof rule.value === 'number' && fieldValue < rule.value;
-        break;
-      case 'in':
-        match = Array.isArray(rule.value) && rule.value.includes(fieldValue);
-        break;
+
+    // Expression-based evaluation (L2 feature) using safe ExpressionEvaluator
+    if (rule.expression) {
+      try {
+        const evaluator = new ExpressionEvaluator({ data: record });
+        const result = evaluator.evaluate(rule.expression, { throwOnError: true });
+        match = result === true;
+      } catch {
+        match = false;
+      }
+    } else {
+      // Standard field/operator/value evaluation
+      const fieldValue = record[rule.field];
+      switch (rule.operator) {
+        case 'equals':
+          match = fieldValue === rule.value;
+          break;
+        case 'not_equals':
+          match = fieldValue !== rule.value;
+          break;
+        case 'contains':
+          match = typeof fieldValue === 'string' && typeof rule.value === 'string' && fieldValue.includes(rule.value);
+          break;
+        case 'greater_than':
+          match = typeof fieldValue === 'number' && typeof rule.value === 'number' && fieldValue > rule.value;
+          break;
+        case 'less_than':
+          match = typeof fieldValue === 'number' && typeof rule.value === 'number' && fieldValue < rule.value;
+          break;
+        case 'in':
+          match = Array.isArray(rule.value) && rule.value.includes(fieldValue);
+          break;
+      }
     }
+
     if (match) {
       const style: React.CSSProperties = {};
       if (rule.backgroundColor) style.backgroundColor = rule.backgroundColor;

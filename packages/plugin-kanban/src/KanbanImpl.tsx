@@ -317,7 +317,20 @@ export default function KanbanBoard({ columns, onCardMove, onCardClick, classNam
 
 function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, quickAdd, onQuickAdd, coverImageField, conditionalFormatting, swimlaneField }: KanbanBoardProps & { dnd: ReturnType<typeof useDnd> | null }) {
   const [activeCard, setActiveCard] = React.useState<KanbanCard | null>(null)
-  const [collapsedLanes, setCollapsedLanes] = React.useState<Set<string>>(new Set())
+
+  // Persist collapsed swimlane state per swimlaneField
+  const storageKey = swimlaneField ? `objectui:kanban-collapsed:${swimlaneField}` : null
+  const [collapsedLanes, setCollapsedLanes] = React.useState<Set<string>>(() => {
+    if (!storageKey) return new Set()
+    try {
+      const stored = localStorage.getItem(storageKey)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed)) return new Set(parsed.filter((v): v is string => typeof v === 'string'))
+      }
+    } catch { /* ignore corrupt data */ }
+    return new Set()
+  })
   
   // Ensure we always have valid columns with cards array
   const safeColumns = React.useMemo(() => {
@@ -350,9 +363,12 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
       const next = new Set(prev)
       if (next.has(lane)) next.delete(lane)
       else next.add(lane)
+      if (storageKey) {
+        try { localStorage.setItem(storageKey, JSON.stringify([...next])) } catch { /* quota exceeded */ }
+      }
       return next
     })
-  }, [])
+  }, [storageKey])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

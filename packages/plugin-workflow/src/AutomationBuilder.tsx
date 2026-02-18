@@ -20,6 +20,9 @@ export interface TriggerConfig {
   fieldName?: string;
   schedule?: string;
   condition?: string;
+  conditionField?: string;
+  conditionOperator?: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than';
+  conditionValue?: string;
 }
 
 export interface ActionConfig {
@@ -34,6 +37,8 @@ export interface AutomationDefinition {
   enabled: boolean;
   trigger: TriggerConfig;
   actions: ActionConfig[];
+  /** Execution mode: 'sequential' runs actions in order, 'parallel' runs all simultaneously. @default 'sequential' */
+  executionMode?: 'sequential' | 'parallel';
   createdAt: string;
   lastRunAt?: string;
 }
@@ -60,6 +65,14 @@ const ACTION_ICONS: Record<ActionConfig['type'], React.ReactNode> = {
   send_email: <Mail className="h-4 w-4" />, update_field: <FileEdit className="h-4 w-4" />,
   create_record: <Plus className="h-4 w-4" />, delete_record: <Trash2 className="h-4 w-4" />,
   webhook: <Globe className="h-4 w-4" />, notification: <Bell className="h-4 w-4" />,
+};
+
+const CONDITION_OPERATORS: Record<NonNullable<TriggerConfig['conditionOperator']>, string> = {
+  equals: 'Equals',
+  not_equals: 'Not Equals',
+  contains: 'Contains',
+  greater_than: 'Greater Than',
+  less_than: 'Less Than',
 };
 
 const defaultAutomation = (): AutomationDefinition => ({
@@ -190,6 +203,41 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({
             <Label className="text-xs">Condition (optional)</Label>
             <Input value={automation.trigger.condition ?? ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateTrigger({ condition: e.target.value })} placeholder='e.g. ${data.status === "active"}' />
           </div>
+          <Separator />
+          <div className="space-y-3">
+            <Label className="text-xs font-medium">Conditional Trigger (optional)</Label>
+            <p className="text-xs text-muted-foreground">Run only when a field matches a specific value.</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Field</Label>
+                {selectedObjectFields ? (
+                  <Select value={automation.trigger.conditionField ?? ''} onValueChange={(v) => updateTrigger({ conditionField: v })}>
+                    <SelectTrigger><SelectValue placeholder="Field" /></SelectTrigger>
+                    <SelectContent>
+                      {Object.keys(selectedObjectFields).map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={automation.trigger.conditionField ?? ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateTrigger({ conditionField: e.target.value })} placeholder="e.g. status" />
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Operator</Label>
+                <Select value={automation.trigger.conditionOperator ?? 'equals'} onValueChange={(v) => updateTrigger({ conditionOperator: v as TriggerConfig['conditionOperator'] })}>
+                  <SelectTrigger><SelectValue placeholder="Operator" /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(CONDITION_OPERATORS) as NonNullable<TriggerConfig['conditionOperator']>[]).map(op => (
+                      <SelectItem key={op} value={op}>{CONDITION_OPERATORS[op]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Value</Label>
+                <Input value={automation.trigger.conditionValue ?? ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateTrigger({ conditionValue: e.target.value })} placeholder="e.g. urgent" />
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -202,12 +250,29 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {automation.actions.length > 1 && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Label className="text-xs">Execution</Label>
+              <Select value={automation.executionMode ?? 'sequential'} onValueChange={(v) => setAutomation(prev => ({ ...prev, executionMode: v as 'sequential' | 'parallel' }))}>
+                <SelectTrigger className="h-7 w-36"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sequential">Sequential</SelectItem>
+                  <SelectItem value="parallel">Parallel</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {automation.actions.map((action, idx) => (
             <div key={idx} className="rounded-lg border p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {ACTION_ICONS[action.type]}
-                  <span className="text-sm font-medium">Action {idx + 1}</span>
+                  <span className="text-sm font-medium">
+                    {automation.actions.length > 1 && (automation.executionMode ?? 'sequential') === 'sequential' ? `Step ${idx + 1}` : `Action ${idx + 1}`}
+                  </span>
+                  {idx > 0 && automation.actions.length > 1 && (automation.executionMode ?? 'sequential') === 'sequential' && (
+                    <Badge variant="outline" className="text-[10px] px-1">then</Badge>
+                  )}
                 </div>
                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-700" onClick={() => removeAction(idx)}>
                   <Trash2 className="h-4 w-4" />

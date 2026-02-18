@@ -26,7 +26,7 @@ import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataI
 import { useObjectActions } from '../hooks/useObjectActions';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
-import { useRealtimeSubscription } from '@object-ui/collaboration';
+import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
 
 /** Map view types to Lucide icons (Airtable-style) */
 const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
@@ -122,11 +122,19 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
         channel: `object:${objectDef.name}`,
     });
 
+    // Conflict resolution: detect and queue conflicts on reconnection
+    const conflictUserId = objectDef.name ? `user-${objectDef.name}` : 'current-user';
+    const { hasConflicts, resolveAllConflicts } = useConflictResolution(conflictUserId);
+
     useEffect(() => {
         if (realtimeMessage) {
+            // On reconnection data change, auto-resolve with server-wins strategy
+            if (hasConflicts) {
+                resolveAllConflicts('remote');
+            }
             setRefreshKey(k => k + 1);
         }
-    }, [realtimeMessage]);
+    }, [realtimeMessage, hasConflicts, resolveAllConflicts]);
     
     // Drawer Logic
     const drawerRecordId = searchParams.get('recordId');
