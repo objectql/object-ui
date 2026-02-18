@@ -147,6 +147,8 @@ export type {
   ChartType,
   ChartSeries,
   ChartSchema,
+  PivotAggregation,
+  PivotTableSchema,
   TimelineEvent,
   TimelineSchema,
   KbdSchema,

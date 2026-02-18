@@ -11,8 +11,9 @@ import { DashboardRenderer } from './DashboardRenderer';
 import { DashboardGridLayout } from './DashboardGridLayout';
 import { MetricWidget } from './MetricWidget';
 import { MetricCard } from './MetricCard';
+import { PivotTable } from './PivotTable';
 
-export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard };
+export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, PivotTable };
 
 // Register dashboard component
 ComponentRegistry.register(
@@ -77,6 +78,41 @@ ComponentRegistry.register(
   }
 );
 
+// Register pivot table component
+ComponentRegistry.register(
+  'pivot',
+  PivotTable,
+  {
+    namespace: 'plugin-dashboard',
+    label: 'Pivot Table',
+    category: 'Dashboard',
+    icon: 'table-2',
+    inputs: [
+      { name: 'title', type: 'string', label: 'Title' },
+      { name: 'rowField', type: 'string', label: 'Row Field', required: true },
+      { name: 'columnField', type: 'string', label: 'Column Field', required: true },
+      { name: 'valueField', type: 'string', label: 'Value Field', required: true },
+      { name: 'aggregation', type: 'enum', label: 'Aggregation', enum: [
+        { label: 'Sum', value: 'sum' },
+        { label: 'Count', value: 'count' },
+        { label: 'Average', value: 'avg' },
+        { label: 'Min', value: 'min' },
+        { label: 'Max', value: 'max' },
+      ]},
+      { name: 'showRowTotals', type: 'boolean', label: 'Show Row Totals' },
+      { name: 'showColumnTotals', type: 'boolean', label: 'Show Column Totals' },
+      { name: 'format', type: 'string', label: 'Number Format' },
+    ],
+    defaultProps: {
+      rowField: '',
+      columnField: '',
+      valueField: '',
+      aggregation: 'sum',
+      data: [],
+    }
+  }
+);
+
 // Register dashboard grid layout component
 ComponentRegistry.register(
   'dashboard-grid',
@@ -105,4 +141,5 @@ export const dashboardComponents = {
   DashboardGridLayout,
   MetricWidget,
   MetricCard,
+  PivotTable,
 };

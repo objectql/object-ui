@@ -615,6 +615,64 @@ export interface ChartSchema extends BaseSchema {
 }
 
 /**
+ * Aggregation function for pivot table values
+ */
+export type PivotAggregation = 'sum' | 'count' | 'avg' | 'min' | 'max';
+
+/**
+ * Pivot table (cross-tabulation) component
+ *
+ * Renders a matrix where rows correspond to one field,
+ * columns to another, and cells show an aggregated value.
+ */
+export interface PivotTableSchema extends BaseSchema {
+  type: 'pivot';
+  /**
+   * Pivot table title
+   */
+  title?: string;
+  /**
+   * Field used for row headers
+   */
+  rowField: string;
+  /**
+   * Field used for column headers
+   */
+  columnField: string;
+  /**
+   * Field whose values are aggregated in cells
+   */
+  valueField: string;
+  /**
+   * Aggregation function applied to valueField
+   * @default 'sum'
+   */
+  aggregation?: PivotAggregation;
+  /**
+   * Source data rows
+   */
+  data: Record<string, unknown>[];
+  /**
+   * Show a totals column on the right
+   * @default false
+   */
+  showRowTotals?: boolean;
+  /**
+   * Show a totals row at the bottom
+   * @default false
+   */
+  showColumnTotals?: boolean;
+  /**
+   * Numeric format string (e.g. "$,.2f") — applied via simple prefix/suffix/decimals
+   */
+  format?: string;
+  /**
+   * Mapping of column header values to Tailwind text-color classes
+   */
+  columnColors?: Record<string, string>;
+}
+
+/**
  * Timeline event
  */
 export interface TimelineEvent {
@@ -727,6 +785,7 @@ export type DataDisplaySchema =
   | MarkdownSchema
   | TreeViewSchema
   | ChartSchema
+  | PivotTableSchema
   | TimelineSchema
   | HtmlSchema
   | StatisticSchema

@@ -177,6 +177,7 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [x] Add `sharing` spec property support to ListView — Share button in toolbar with visibility level
 
 #### P1.3 Advanced View Features
+- [x] PivotTable component (`plugin-dashboard`) — cross-tabulation with sum/count/avg/min/max, row/column totals, format, columnColors
 - [ ] Inline task editing for Gantt chart
 - [ ] Marker clustering for map plugin (Supercluster for 100+ markers)
 - [ ] Combo chart support (e.g., bar + line overlay)

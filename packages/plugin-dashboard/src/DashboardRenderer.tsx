@@ -99,6 +99,15 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 };
             }
 
+            if (widgetType === 'pivot') {
+                const widgetData = (widget as any).data || options.data;
+                return {
+                    type: 'pivot',
+                    ...options,
+                    data: Array.isArray(widgetData) ? widgetData : widgetData?.items || [],
+                };
+            }
+
             return {
                 ...widget,
                 ...options
