@@ -103,6 +103,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     rowClassName,
     className,
     frozenColumns = 0,
+    showRowNumbers = false,
   } = schema;
 
   // Normalize columns to support legacy keys (label/name) from existing JSONs
@@ -609,6 +610,11 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                   />
                 </TableHead>
               )}
+              {showRowNumbers && (
+                <TableHead className={cn("w-12 bg-background text-center", frozenColumns > 0 && "sticky z-20")} style={frozenColumns > 0 ? { left: selectable ? 48 : 0 } : undefined}>
+                  <span className="text-xs text-muted-foreground">#</span>
+                </TableHead>
+              )}
               {columns.map((col, index) => {
                 const columnWidth = columnWidths[col.accessorKey] || col.width;
                 const isDragging = draggedColumn === index;
@@ -621,7 +627,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         return sum + (typeof w === 'number' ? w : w ? parseInt(String(w), 10) || 150 : 150);
                       }
                       return sum;
-                    }, selectable ? 48 : 0)
+                    }, (selectable ? 48 : 0) + (showRowNumbers ? 48 : 0))
                   : undefined;
                 
                 return (
@@ -681,7 +687,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
             {paginatedData.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0)}
+                  colSpan={columns.length + (selectable ? 1 : 0) + (showRowNumbers ? 1 : 0) + (rowActions ? 1 : 0)}
                   className="h-96 text-center text-muted-foreground"
                 >
                   <div className="flex flex-col items-center justify-center gap-2">
@@ -728,6 +734,13 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                           />
                         </TableCell>
                       )}
+                      {showRowNumbers && (
+                        <TableCell className={cn("text-center w-12", frozenColumns > 0 && "sticky z-10 bg-background")} style={frozenColumns > 0 ? { left: selectable ? 48 : 0 } : undefined}>
+                          <span className="text-xs text-muted-foreground tabular-nums select-none">
+                            {globalIndex + 1}
+                          </span>
+                        </TableCell>
+                      )}
                       {columns.map((col, colIndex) => {
                         const columnWidth = columnWidths[col.accessorKey] || col.width;
                         const originalValue = row[col.accessorKey];
@@ -743,7 +756,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                 return sum + (typeof w === 'number' ? w : w ? parseInt(String(w), 10) || 150 : 150);
                               }
                               return sum;
-                            }, selectable ? 48 : 0)
+                            }, (selectable ? 48 : 0) + (showRowNumbers ? 48 : 0))
                           : undefined;
                         
                         return (

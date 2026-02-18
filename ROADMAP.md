@@ -343,6 +343,11 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Scale row padding: `px-2 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-2.5`
 - [x] Add mobile card-view fallback for screens below 480px (toggle between table and card layout)
 - [x] Ensure touch targets ≥ 44px for all interactive row elements
+- [x] Airtable-style auto-type inference for date, select/badge, boolean, and user fields
+- [x] Airtable-style BooleanCellRenderer using Checkbox instead of Badge
+- [x] Airtable-style row number column (showRowNumbers)
+- [x] Airtable-style compact row density (tighter padding, 13px font)
+- [x] Default freeze first column (frozenColumns: 1)
 
 ##### ObjectKanban (`plugin-kanban`)
 - [x] Stack columns vertically on mobile with horizontal swipe navigation between columns
