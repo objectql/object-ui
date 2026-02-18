@@ -64,10 +64,10 @@ export function AppHeader({ appName, objects, connectionState, presenceUsers, ac
       try {
         const [presenceResult, activityResult] = await Promise.all([
           dataSource.find('sys_presence').catch(() => ({ data: [] })),
-          dataSource.find('sys_activity', { $orderby: 'timestamp desc', $top: 20 }).catch(() => ({ data: [] })),
+          dataSource.find('sys_activity', { $orderby: { timestamp: 'desc' }, $top: 20 }).catch(() => ({ data: [] })),
         ]);
-        if (presenceResult.data?.length) setApiPresenceUsers(presenceResult.data);
-        if (activityResult.data?.length) setApiActivities(activityResult.data);
+        if (presenceResult.data?.length) setApiPresenceUsers(presenceResult.data as PresenceUser[]);
+        if (activityResult.data?.length) setApiActivities(activityResult.data as ActivityItem[]);
       } catch {
         // Fallback to defaults handled below
       }

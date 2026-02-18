@@ -307,8 +307,12 @@ describe('Console Application Simulation', () => {
             { id: '2', name: 'Item 2', amount: 200 }
         ];
 
+        const originalFind = mocks.MockDataSource.prototype.find;
         const findSpy = vi.spyOn(mocks.MockDataSource.prototype, 'find')
-            .mockResolvedValue({ data: seedData });
+            .mockImplementation(async function (this: any, objectName: string) {
+                if (objectName === 'kitchen_sink') return { data: seedData };
+                return originalFind.call(this, objectName);
+            });
 
         renderApp('/kitchen_sink');
         
@@ -326,6 +330,8 @@ describe('Console Application Simulation', () => {
             expect(screen.getByText('Item 1')).toBeInTheDocument();
         }, { timeout: 5000 });
         expect(screen.getByText('Item 2')).toBeInTheDocument();
+
+        findSpy.mockRestore();
     });
 
 });
@@ -828,23 +834,23 @@ describe('Dashboard Integration', () => {
     };
 
     it('Scenario A: Dashboard Page Rendering', async () => {
-        renderApp('/dashboard/showcase_dashboard');
+        renderApp('/dashboard/crm_dashboard');
         
         await waitFor(() => {
-            expect(screen.getByText(/Platform Showcase/i)).toBeInTheDocument();
+            expect(screen.getByText(/CRM Overview/i)).toBeInTheDocument();
         });
         
-        expect(screen.getByText(/Records by Category/i)).toBeInTheDocument();
+        expect(screen.getByText(/Revenue Trends/i)).toBeInTheDocument();
     });
 
     it('Scenario B: Help Page Rendering', async () => {
-        renderApp('/page/showcase_help');
+        renderApp('/page/crm_help');
         
         await waitFor(() => {
-            expect(screen.getByText(/Platform Showcase/i)).toBeInTheDocument();
+            expect(screen.getByText(/CRM Help Guide/i)).toBeInTheDocument();
         });
         
-        expect(screen.getByText(/Supported Field Types/i)).toBeInTheDocument();
+        expect(screen.getByText(/Keyboard Shortcuts/i)).toBeInTheDocument();
     });
 
     it('Scenario C: Component Registry Check', async () => {

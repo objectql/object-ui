@@ -573,6 +573,273 @@ importers:
         specifier: 19.2.4
         version: 19.2.4(react@19.2.4)
 
+  examples/hotcrm/packages/ai:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+      axios:
+        specifier: ^1.13.5
+        version: 1.13.5
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/analytics:
+    dependencies:
+      '@hotcrm/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/community:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/core:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.2
+        version: 3.0.6
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+
+  examples/hotcrm/packages/crm:
+    dependencies:
+      '@hotcrm/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/education:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/finance:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/financial-services:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/healthcare:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/hr:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/integration:
+    dependencies:
+      '@hotcrm/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/marketing:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/products:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/real-estate:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/server:
+    dependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.2
+        version: 3.0.4(@objectstack/core@3.0.6(pino@10.3.1))(esbuild@0.27.3)(pino@10.3.1)
+      '@objectstack/core':
+        specifier: ^3.0.2
+        version: 3.0.6(pino@10.3.1)
+      '@objectstack/metadata':
+        specifier: ^3.0.2
+        version: 3.0.4(pino@10.3.1)
+      '@objectstack/objectql':
+        specifier: ^3.0.2
+        version: 3.0.6(pino@10.3.1)
+      '@objectstack/plugin-hono-server':
+        specifier: ^3.0.2
+        version: 3.0.4(pino@10.3.1)
+      '@objectstack/runtime':
+        specifier: ^3.0.2
+        version: 3.0.4(pino@10.3.1)
+      '@objectstack/spec':
+        specifier: ^3.0.2
+        version: 3.0.6
+      pino:
+        specifier: ^10.3.1
+        version: 10.3.1
+    devDependencies:
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
+      ts-node:
+        specifier: ^10.9.2
+        version: 10.9.2(@swc/core@1.15.11)(@types/node@25.2.3)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  examples/hotcrm/packages/support:
+    dependencies:
+      '@objectstack/spec':
+        specifier: ^3.0.3
+        version: 3.0.6
+    devDependencies:
+      '@objectstack/cli':
+        specifier: ^3.0.3
+        version: 3.0.4(@objectstack/core@3.0.6(pino@8.21.0))(esbuild@0.27.3)(pino@8.21.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   examples/kitchen-sink:
     dependencies:
       '@objectstack/spec':
@@ -4040,6 +4307,9 @@ packages:
     resolution: {integrity: sha512-a61ljmRVVyG5MC/698C8/FfFDw5a8LOIvyOLW5fztgUXqUpc1jOfQzOitSCbge657OgXXThmY3Tk8fpiDb4UcA==}
     engines: {node: '>= 20.0.0'}
 
+  '@pinojs/redact@0.4.0':
+    resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
+
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
@@ -6107,14 +6377,8 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  ag-charts-types@10.3.9:
-    resolution: {integrity: sha512-drcRiJVencliC8LnRwk4MmeQDNNBg5GzmOoLFihO3/k0CUK0VF/N+2nc7iFozwaNG0btSB9vAhYuJLjqHMtRrQ==}
-
   ag-charts-types@13.1.0:
     resolution: {integrity: sha512-DytRM3CXli+Y013SC1Mr8lQBrhVTACK+11ilDHOhwUM0sRpmGuR51XFGcBKOliW1Vas1AycP31Cm3Pp0jx3hqw==}
-
-  ag-grid-community@32.3.9:
-    resolution: {integrity: sha512-l07SB0mCbGPkC1R8rQQFgBtI5+1FoXBi3RUk1+dHKV/UPeorMEFAzCokcsOhz0qwcWCPrHauUsbRa1SIxfVEJQ==}
 
   ag-grid-community@35.1.0:
     resolution: {integrity: sha512-yWFQfRNjv3KUBkHHzFdDOYGjPcDMU0B8Up4qG651diFlGRUGEGVs94SK73niWvk1FDZdpV9oWrwq3f30/qAoVg==}
@@ -9681,6 +9945,13 @@ packages:
   pino-std-serializers@6.2.2:
     resolution: {integrity: sha512-cHjPPsE+vhj/tnhCy/wiMh3M3z3h/j15zHQX+S9GkTBgqJuTuJzYJ4gUyACLhDaJ7kk9ba9iRDmbH2tJU03OiA==}
 
+  pino-std-serializers@7.1.0:
+    resolution: {integrity: sha512-BndPH67/JxGExRgiX1dX0w1FvZck5Wa4aal9198SrRhZjH3GxKQUKIBnYJTdj2HDN3UQAS06HlfcSbQj2OHmaw==}
+
+  pino@10.3.1:
+    resolution: {integrity: sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==}
+    hasBin: true
+
   pino@8.21.0:
     resolution: {integrity: sha512-ip4qdzjkAyDDZklUaZkcRFb2iA118H9SgRh8yzTkSQK8HilsOJF7rSY8HoW5+I0M46AZgX/pxbprf2vvzQCE0Q==}
     hasBin: true
@@ -9813,6 +10084,9 @@ packages:
 
   process-warning@3.0.0:
     resolution: {integrity: sha512-mqn0kFRl0EoqhnL0GQ0veqFHyIN1yig9RHh/InzORTUiZHFRAur+aMtRkELNwGs9aNwKS6tg/An4NYBPGwvtzQ==}
+
+  process-warning@5.0.0:
+    resolution: {integrity: sha512-a39t9ApHNx2L4+HBnQKqxxHNs1r7KF+Intd8Q/g1bUh6q0WIp9voPXJ/x0j+ZL45KF1pJd9+q2jLIRMfvEshkA==}
 
   process@0.11.10:
     resolution: {integrity: sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A==}
@@ -10772,6 +11046,10 @@ packages:
 
   thread-stream@2.7.0:
     resolution: {integrity: sha512-qQiRWsU/wvNolI6tbbCKd9iKaTnCXsTwVxhhKM6nctPdujTyztjlbUkUTUymidWcMnZ5pWR0ej4a0tjsW021vw==}
+
+  thread-stream@4.0.0:
+    resolution: {integrity: sha512-4iMVL6HAINXWf1ZKZjIPcz5wYaOdPhtO8ATvZ+Xqp3BTdaqtAwQkNmKORqcIo5YkQqGXq5cwfswDwMqqQNrpJA==}
+    engines: {node: '>=20'}
 
   tiny-invariant@1.3.3:
     resolution: {integrity: sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg==}
@@ -12246,7 +12524,6 @@ snapshots:
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
-    optional: true
 
   '@csstools/color-helpers@6.0.1': {}
 
@@ -13059,7 +13336,6 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
-    optional: true
 
   '@manypkg/find-root@1.1.0':
     dependencies:
@@ -13343,10 +13619,28 @@ snapshots:
     dependencies:
       '@objectstack/core': 3.0.4(pino@8.21.0)
       '@objectstack/driver-memory': 3.0.4(pino@8.21.0)
-      '@objectstack/objectql': 3.0.4(pino@8.21.0)
+      '@objectstack/objectql': 3.0.6(pino@8.21.0)
       '@objectstack/plugin-hono-server': 3.0.4(pino@8.21.0)
       '@objectstack/rest': 3.0.4(pino@8.21.0)
       '@objectstack/runtime': 3.0.4(pino@8.21.0)
+      '@objectstack/spec': 3.0.4
+      bundle-require: 5.1.0(esbuild@0.27.3)
+      chalk: 5.6.2
+      commander: 14.0.3
+      tsx: 4.21.0
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - esbuild
+      - pino
+
+  '@objectstack/cli@3.0.4(@objectstack/core@3.0.6(pino@10.3.1))(esbuild@0.27.3)(pino@10.3.1)':
+    dependencies:
+      '@objectstack/core': 3.0.6(pino@10.3.1)
+      '@objectstack/driver-memory': 3.0.4(pino@10.3.1)
+      '@objectstack/objectql': 3.0.6(pino@10.3.1)
+      '@objectstack/plugin-hono-server': 3.0.4(pino@10.3.1)
+      '@objectstack/rest': 3.0.4(pino@10.3.1)
+      '@objectstack/runtime': 3.0.4(pino@10.3.1)
       '@objectstack/spec': 3.0.4
       bundle-require: 5.1.0(esbuild@0.27.3)
       chalk: 5.6.2
@@ -13361,7 +13655,7 @@ snapshots:
     dependencies:
       '@objectstack/core': 3.0.6(pino@8.21.0)
       '@objectstack/driver-memory': 3.0.4(pino@8.21.0)
-      '@objectstack/objectql': 3.0.4(pino@8.21.0)
+      '@objectstack/objectql': 3.0.6(pino@8.21.0)
       '@objectstack/plugin-hono-server': 3.0.4(pino@8.21.0)
       '@objectstack/rest': 3.0.4(pino@8.21.0)
       '@objectstack/runtime': 3.0.4(pino@8.21.0)
@@ -13398,6 +13692,14 @@ snapshots:
     transitivePeerDependencies:
       - pino
 
+  '@objectstack/core@3.0.4(pino@10.3.1)':
+    dependencies:
+      '@objectstack/spec': 3.0.4
+      pino-pretty: 13.1.3
+      zod: 4.3.6
+    optionalDependencies:
+      pino: 10.3.1
+
   '@objectstack/core@3.0.4(pino@8.21.0)':
     dependencies:
       '@objectstack/spec': 3.0.4
@@ -13405,6 +13707,14 @@ snapshots:
       zod: 4.3.6
     optionalDependencies:
       pino: 8.21.0
+
+  '@objectstack/core@3.0.6(pino@10.3.1)':
+    dependencies:
+      '@objectstack/spec': 3.0.6
+      pino-pretty: 13.1.3
+      zod: 4.3.6
+    optionalDependencies:
+      pino: 10.3.1
 
   '@objectstack/core@3.0.6(pino@8.21.0)':
     dependencies:
@@ -13414,11 +13724,31 @@ snapshots:
     optionalDependencies:
       pino: 8.21.0
 
+  '@objectstack/driver-memory@3.0.4(pino@10.3.1)':
+    dependencies:
+      '@objectstack/core': 3.0.4(pino@10.3.1)
+      '@objectstack/spec': 3.0.4
+      mingo: 7.2.0
+    transitivePeerDependencies:
+      - pino
+
   '@objectstack/driver-memory@3.0.4(pino@8.21.0)':
     dependencies:
       '@objectstack/core': 3.0.4(pino@8.21.0)
       '@objectstack/spec': 3.0.4
       mingo: 7.2.0
+    transitivePeerDependencies:
+      - pino
+
+  '@objectstack/metadata@3.0.4(pino@10.3.1)':
+    dependencies:
+      '@objectstack/core': 3.0.4(pino@10.3.1)
+      '@objectstack/spec': 3.0.4
+      '@objectstack/types': 3.0.4
+      chokidar: 5.0.0
+      glob: 13.0.5
+      js-yaml: 4.1.1
+      zod: 4.3.6
     transitivePeerDependencies:
       - pino
 
@@ -13439,6 +13769,14 @@ snapshots:
       '@objectstack/core': 3.0.4(pino@8.21.0)
       '@objectstack/spec': 3.0.4
       '@objectstack/types': 3.0.4
+    transitivePeerDependencies:
+      - pino
+
+  '@objectstack/objectql@3.0.6(pino@10.3.1)':
+    dependencies:
+      '@objectstack/core': 3.0.6(pino@10.3.1)
+      '@objectstack/spec': 3.0.6
+      '@objectstack/types': 3.0.6
     transitivePeerDependencies:
       - pino
 
@@ -13477,6 +13815,15 @@ snapshots:
       - vitest
       - vue
 
+  '@objectstack/plugin-hono-server@3.0.4(pino@10.3.1)':
+    dependencies:
+      '@hono/node-server': 1.19.9(hono@4.11.9)
+      '@objectstack/core': 3.0.4(pino@10.3.1)
+      '@objectstack/spec': 3.0.4
+      hono: 4.11.9
+    transitivePeerDependencies:
+      - pino
+
   '@objectstack/plugin-hono-server@3.0.4(pino@8.21.0)':
     dependencies:
       '@hono/node-server': 1.19.9(hono@4.11.9)
@@ -13512,10 +13859,28 @@ snapshots:
       - pino
       - typescript
 
+  '@objectstack/rest@3.0.4(pino@10.3.1)':
+    dependencies:
+      '@objectstack/core': 3.0.4(pino@10.3.1)
+      '@objectstack/spec': 3.0.4
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - pino
+
   '@objectstack/rest@3.0.4(pino@8.21.0)':
     dependencies:
       '@objectstack/core': 3.0.4(pino@8.21.0)
       '@objectstack/spec': 3.0.4
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - pino
+
+  '@objectstack/runtime@3.0.4(pino@10.3.1)':
+    dependencies:
+      '@objectstack/core': 3.0.4(pino@10.3.1)
+      '@objectstack/rest': 3.0.4(pino@10.3.1)
+      '@objectstack/spec': 3.0.4
+      '@objectstack/types': 3.0.4
       zod: 4.3.6
     transitivePeerDependencies:
       - pino
@@ -13616,6 +13981,8 @@ snapshots:
   '@open-draft/until@2.1.0': {}
 
   '@orama/orama@3.1.18': {}
+
+  '@pinojs/redact@0.4.0': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -15139,17 +15506,13 @@ snapshots:
       minimatch: 10.2.1
       path-browserify: 1.0.1
 
-  '@tsconfig/node10@1.0.12':
-    optional: true
+  '@tsconfig/node10@1.0.12': {}
 
-  '@tsconfig/node12@1.0.11':
-    optional: true
+  '@tsconfig/node12@1.0.11': {}
 
-  '@tsconfig/node14@1.0.3':
-    optional: true
+  '@tsconfig/node14@1.0.3': {}
 
-  '@tsconfig/node16@1.0.4':
-    optional: true
+  '@tsconfig/node16@1.0.4': {}
 
   '@tybys/wasm-util@0.10.1':
     dependencies:
@@ -15906,13 +16269,7 @@ snapshots:
 
   acorn@8.15.0: {}
 
-  ag-charts-types@10.3.9: {}
-
   ag-charts-types@13.1.0: {}
-
-  ag-grid-community@32.3.9:
-    dependencies:
-      ag-charts-types: 10.3.9
 
   ag-grid-community@35.1.0:
     dependencies:
@@ -16017,8 +16374,7 @@ snapshots:
 
   archy@1.0.0: {}
 
-  arg@4.1.3:
-    optional: true
+  arg@4.1.3: {}
 
   argparse@1.0.10:
     dependencies:
@@ -16597,8 +16953,7 @@ snapshots:
 
   coverage-v8@0.0.1-security: {}
 
-  create-require@1.1.1:
-    optional: true
+  create-require@1.1.1: {}
 
   cross-spawn@7.0.6:
     dependencies:
@@ -16779,8 +17134,7 @@ snapshots:
 
   diff-sequences@29.6.3: {}
 
-  diff@4.0.4:
-    optional: true
+  diff@4.0.4: {}
 
   diff@8.0.3: {}
 
@@ -19066,8 +19420,7 @@ snapshots:
     dependencies:
       semver: 7.7.4
 
-  make-error@1.3.6:
-    optional: true
+  make-error@1.3.6: {}
 
   makeerror@1.0.12:
     dependencies:
@@ -20119,6 +20472,22 @@ snapshots:
 
   pino-std-serializers@6.2.2: {}
 
+  pino-std-serializers@7.1.0: {}
+
+  pino@10.3.1:
+    dependencies:
+      '@pinojs/redact': 0.4.0
+      atomic-sleep: 1.0.0
+      on-exit-leak-free: 2.1.2
+      pino-abstract-transport: 3.0.0
+      pino-std-serializers: 7.1.0
+      process-warning: 5.0.0
+      quick-format-unescaped: 4.0.4
+      real-require: 0.2.0
+      safe-stable-stringify: 2.5.0
+      sonic-boom: 4.2.1
+      thread-stream: 4.0.0
+
   pino@8.21.0:
     dependencies:
       atomic-sleep: 1.0.0
@@ -20254,6 +20623,8 @@ snapshots:
       fromentries: 1.3.2
 
   process-warning@3.0.0: {}
+
+  process-warning@5.0.0: {}
 
   process@0.11.10: {}
 
@@ -21464,6 +21835,10 @@ snapshots:
     dependencies:
       real-require: 0.2.0
 
+  thread-stream@4.0.0:
+    dependencies:
+      real-require: 0.2.0
+
   tiny-invariant@1.3.3: {}
 
   tinybench@2.9.0: {}
@@ -21553,7 +21928,6 @@ snapshots:
       yn: 3.1.1
     optionalDependencies:
       '@swc/core': 1.15.11
-    optional: true
 
   tsconfig-paths@4.2.0:
     dependencies:
@@ -21856,8 +22230,7 @@ snapshots:
 
   uuid@9.0.1: {}
 
-  v8-compile-cache-lib@3.0.1:
-    optional: true
+  v8-compile-cache-lib@3.0.1: {}
 
   v8-to-istanbul@9.3.0:
     dependencies:
@@ -22347,8 +22720,7 @@ snapshots:
     dependencies:
       buffer-crc32: 0.2.13
 
-  yn@3.1.1:
-    optional: true
+  yn@3.1.1: {}
 
   yocto-queue@0.1.0: {}
 
