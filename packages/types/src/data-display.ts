@@ -420,6 +420,11 @@ export interface DataTableSchema extends BaseSchema {
    */
   frozenColumns?: number;
   /**
+   * Show row numbers in the first column (Airtable-style)
+   * @default false
+   */
+  showRowNumbers?: boolean;
+  /**
    * Column resize handler
    * Called when a column is resized
    */

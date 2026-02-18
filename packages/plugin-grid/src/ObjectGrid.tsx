@@ -342,6 +342,51 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const { groups, isGrouped, toggleGroup } = useGroupedData(schema.grouping, data);
 
   const generateColumns = useCallback(() => {
+    // Auto-infer column type from field name and data values (Airtable-style)
+    const inferColumnType = (col: ListColumn): string | null => {
+      if (col.type) return col.type; // Explicit type takes priority
+
+      const fieldLower = col.field.toLowerCase();
+
+      // Infer boolean fields
+      const booleanFields = ['completed', 'is_completed', 'done', 'active', 'enabled', 'archived'];
+      if (booleanFields.some(f => fieldLower === f || fieldLower === `is_${f}`)) {
+        return 'boolean';
+      }
+
+      // Infer date fields from name patterns
+      const datePatterns = ['date', 'due', 'created', 'updated', 'deadline', 'start', 'end', 'expires'];
+      if (datePatterns.some(p => fieldLower.includes(p))) {
+        // Verify with data: check if sample values look like dates
+        if (data.length > 0) {
+          const sample = data.find(row => row[col.field] != null)?.[col.field];
+          if (typeof sample === 'string' && !isNaN(Date.parse(sample))) {
+            return 'date';
+          }
+        }
+        return 'date';
+      }
+
+      // Infer select/badge fields (status, priority, category, etc.)
+      const selectFields = ['status', 'priority', 'category', 'stage', 'type', 'severity', 'level'];
+      if (selectFields.some(f => fieldLower.includes(f))) {
+        if (data.length > 0) {
+          const uniqueValues = new Set(data.map(row => row[col.field]).filter(Boolean));
+          if (uniqueValues.size > 0 && uniqueValues.size <= 10) {
+            return 'select';
+          }
+        }
+      }
+
+      // Infer user/assignee fields
+      const userFields = ['assignee', 'owner', 'author', 'reporter', 'creator', 'user'];
+      if (userFields.some(f => fieldLower.includes(f))) {
+        return 'user';
+      }
+
+      return null;
+    };
+
     // Use normalized columns (support both new and legacy)
     const cols = normalizeColumns(schemaColumns);
     
@@ -366,14 +411,15 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
               // Build custom cell renderer based on column configuration
               let cellRenderer: ((value: any, row: any) => React.ReactNode) | undefined;
 
-              // Type-based cell renderer (e.g., "currency", "date", "boolean")
-              const CellRenderer = col.type ? getCellRenderer(col.type) : null;
+              // Type-based cell renderer with auto-inference (e.g., "currency", "date", "boolean")
+              const inferredType = inferColumnType(col);
+              const CellRenderer = inferredType ? getCellRenderer(inferredType) : null;
 
               if (col.link && col.action) {
                 // Both link and action: link takes priority for navigation, action executes on secondary interaction
                 cellRenderer = (value: any, row: any) => {
                   const displayContent = CellRenderer
-                    ? <CellRenderer value={value} field={{ name: col.field, type: col.type || 'text' } as any} />
+                    ? <CellRenderer value={value} field={{ name: col.field, type: inferredType || 'text' } as any} />
                     : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground">-</span>);
                   return (
                     <button
@@ -392,7 +438,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 // Link column: clicking navigates to the record detail
                 cellRenderer = (value: any, row: any) => {
                   const displayContent = CellRenderer
-                    ? <CellRenderer value={value} field={{ name: col.field, type: col.type || 'text' } as any} />
+                    ? <CellRenderer value={value} field={{ name: col.field, type: inferredType || 'text' } as any} />
                     : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground">-</span>);
                   return (
                     <button
@@ -411,7 +457,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 // Action column: clicking executes the registered action
                 cellRenderer = (value: any, row: any) => {
                   const displayContent = CellRenderer
-                    ? <CellRenderer value={value} field={{ name: col.field, type: col.type || 'text' } as any} />
+                    ? <CellRenderer value={value} field={{ name: col.field, type: inferredType || 'text' } as any} />
                     : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground">-</span>);
                   return (
                     <button
@@ -432,7 +478,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
               } else if (CellRenderer) {
                 // Type-only cell renderer (no link/action)
                 cellRenderer = (value: any) => (
-                  <CellRenderer value={value} field={{ name: col.field, type: col.type || 'text' } as any} />
+                  <CellRenderer value={value} field={{ name: col.field, type: inferredType || 'text' } as any} />
                 );
               } else {
                 // Default renderer with empty value handling
@@ -445,7 +491,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
 
               // Auto-infer alignment from field type if not explicitly set
               const numericTypes = ['number', 'currency', 'percent'];
-              const inferredAlign = col.align || (col.type && numericTypes.includes(col.type) ? 'right' as const : undefined);
+              const effectiveType = inferredType || col.type;
+              const inferredAlign = col.align || (effectiveType && numericTypes.includes(effectiveType) ? 'right' as const : undefined);
 
               // Determine if column should be hidden on mobile
               const isEssential = colIndex === 0 || (col as any).essential === true;
@@ -512,7 +559,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     });
 
     return generatedColumns;
-  }, [objectSchema, schemaFields, schemaColumns, dataConfig, hasInlineData, navigation.handleClick, executeAction]);
+  }, [objectSchema, schemaFields, schemaColumns, dataConfig, hasInlineData, navigation.handleClick, executeAction, data]);
 
   const handleExport = useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
     const exportConfig = schema.exportOptions;
@@ -675,12 +722,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     editable: schema.editable ?? false,
     className: schema.className,
     cellClassName: rowHeightMode === 'compact'
-      ? 'px-2 py-1 text-xs'
+      ? 'px-3 py-1 text-[13px] leading-tight'
       : rowHeightMode === 'tall'
-        ? 'px-3 py-3 sm:px-4 sm:py-4'
-        : 'px-2 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-2.5',
+        ? 'px-3 py-2.5 text-sm'
+        : 'px-3 py-1.5 text-[13px] leading-normal',
+    showRowNumbers: true,
     rowClassName: schema.rowColor ? (row: any, _idx: number) => getRowClassName(row) : undefined,
-    frozenColumns: schema.frozenColumns ?? 0,
+    frozenColumns: schema.frozenColumns ?? 1,
     onSelectionChange: onRowSelect,
     onRowClick: navigation.handleClick,
     onCellChange: onCellChange,

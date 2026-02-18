@@ -9,7 +9,7 @@
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
 import { ComponentRegistry } from '@object-ui/core';
-import { Badge, Avatar, AvatarFallback, Button } from '@object-ui/components';
+import { Badge, Avatar, AvatarFallback, Button, Checkbox } from '@object-ui/components';
 import { Check, X } from 'lucide-react';
 
 import { TextField } from './widgets/TextField';
@@ -186,22 +186,12 @@ export function PercentCellRenderer({ value, field }: CellRendererProps): React.
 }
 
 /**
- * Boolean field cell renderer
+ * Boolean field cell renderer (Airtable-style checkbox)
  */
 export function BooleanCellRenderer({ value }: CellRendererProps): React.ReactElement {
   return (
-    <div className="flex items-center">
-      {value ? (
-        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1">
-          <Check className="size-3" />
-          True
-        </Badge>
-      ) : (
-        <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-200 gap-1">
-          <X className="size-3" />
-          False
-        </Badge>
-      )}
+    <div className="flex items-center justify-center">
+      <Checkbox checked={!!value} disabled className="pointer-events-none" />
     </div>
   );
 }

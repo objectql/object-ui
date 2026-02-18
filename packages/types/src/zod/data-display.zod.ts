@@ -147,6 +147,8 @@ export const DataTableSchema = BaseSchema.extend({
   onRowDelete: z.function().optional().describe('Row delete handler'),
   onSelectionChange: z.function().optional().describe('Selection change handler'),
   onColumnsReorder: z.function().optional().describe('Column reorder handler'),
+  frozenColumns: z.number().optional().describe('Number of frozen columns'),
+  showRowNumbers: z.boolean().optional().describe('Show row numbers'),
 });
 
 /**
