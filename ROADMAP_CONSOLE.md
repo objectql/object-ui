@@ -161,10 +161,10 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 
 **Pages & Dashboards:**
 - ✅ Dashboard renderer with chart widgets
-- ✅ Report viewer with builder mode
+- ✅ Report viewer with builder mode (dynamic fields from object schema)
 - ✅ Custom page renderer (SchemaRenderer)
 - ✅ Record detail page
-- ✅ View designer page
+- ✅ View designer page (save persisted via API)
 - ✅ Search results page
 
 **Expression Engine:**
@@ -225,6 +225,7 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 - ✅ `AuthGuard` + `ConditionalAuthWrapper`
 - ✅ Login, Register, Forgot Password pages
 - ✅ System admin pages (users, orgs, roles, audit log, profile)
+- ✅ System admin pages CRUD via `dataSource.find/create/delete` (API integration)
 
 ### Resolved Gaps
 
@@ -239,6 +240,10 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 | G7 | No offline support / PWA | ⚠️ | `MobileProvider` with PWA manifest; background sync queue simulated only (no real server sync) |
 | G8 | Bundle size 200KB+ | ✅ | Code splitting (15+ manual chunks), compression, preloading |
 | G9 | NavigationConfig incomplete | ✅ | All 8 view plugins support NavigationConfig with 7 modes |
+| G10 | System admin pages stub-only | ✅ | All 4 system pages wired to `dataSource.find/create/delete` via `useAdapter()` |
+| G11 | Collaboration data hardcoded | ✅ | Presence/activity/comments now fetched from API; fallback to defaults when API unavailable |
+| G12 | ReportBuilder uses mock fields | ✅ | `availableFields` derived from object schema via `useMetadata().objects` |
+| G13 | ViewDesigner save not persisted | ✅ | `handleSave` calls `dataSource.create/update('sys_view', config)` |
 
 ---
 
@@ -814,7 +819,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 **Goal:** Add record-level comments, @mention notifications, activity feed, and threaded discussions.
 
-**Status:** ✅ L2 Complete — `CommentThread` from `@object-ui/collaboration` integrated into console `RecordDetailView` with thread resolution (resolve/reopen), emoji reactions, and sorting. `ActivityFeed` sidebar with notification preference filters (toggle by activity type). Demo activity data wired into AppHeader.
+**Status:** ✅ L2 Complete — `CommentThread` from `@object-ui/collaboration` integrated into console `RecordDetailView` with thread resolution (resolve/reopen), emoji reactions, and sorting. `ActivityFeed` sidebar with notification preference filters (toggle by activity type). Presence and activity data now fetched from API (`sys_presence`, `sys_activity`). Comments persisted via `sys_comment` resource. AppHeader falls back to defaults when API is unavailable.
 
 #### 17.1: Record-Level Comments
 

@@ -14,10 +14,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ViewDesigner } from '@object-ui/plugin-designer';
 import type { ViewDesignerConfig } from '@object-ui/plugin-designer';
 import { toast } from 'sonner';
+import { useAdapter } from '../context/AdapterProvider';
 
 export function ViewDesignerPage({ objects }: { objects: any[] }) {
   const navigate = useNavigate();
   const { objectName, viewId } = useParams();
+  const dataSource = useAdapter();
 
   const objectDef = objects.find((o: any) => o.name === objectName);
 
@@ -48,18 +50,27 @@ export function ViewDesignerPage({ objects }: { objects: any[] }) {
   }, [viewId, objectDef]);
 
   const handleSave = useCallback(
-    (config: ViewDesignerConfig) => {
-      // In a real implementation this would persist the view config.
-      // For now, log and show toast.
-      console.log('[ViewDesigner] Save view config:', config);
-      toast.success(
-        existingView
-          ? `View "${config.viewLabel}" updated`
-          : `View "${config.viewLabel}" created`,
-      );
+    async (config: ViewDesignerConfig) => {
+      try {
+        if (dataSource) {
+          const payload = { objectName: objectDef?.name, viewId: viewId === 'new' ? undefined : viewId, ...config };
+          if (existingView) {
+            await dataSource.update('sys_view', viewId!, payload);
+          } else {
+            await dataSource.create('sys_view', payload);
+          }
+        }
+        toast.success(
+          existingView
+            ? `View "${config.viewLabel}" updated`
+            : `View "${config.viewLabel}" created`,
+        );
+      } catch {
+        toast.error('Failed to save view configuration');
+      }
       navigate(-1);
     },
-    [existingView, navigate],
+    [existingView, navigate, dataSource, objectDef, viewId],
   );
 
   const handleCancel = useCallback(() => {

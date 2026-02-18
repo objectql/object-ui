@@ -22,13 +22,7 @@ interface RecordDetailViewProps {
   onEdit: (record: any) => void;
 }
 
-const MOCK_USER = { id: 'current-user', name: 'Demo User' };
-
-// Demo presence users viewing the current record
-const MOCK_RECORD_VIEWERS: PresenceUser[] = [
-  { userId: 'u1', userName: 'Alice Chen', color: '#3498db', status: 'active', lastActivity: new Date().toISOString() },
-  { userId: 'u3', userName: 'Carol Li', color: '#e74c3c', status: 'active', lastActivity: new Date().toISOString() },
-];
+const FALLBACK_USER = { id: 'current-user', name: 'Demo User' };
 
 export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailViewProps) {
   const { objectName, recordId } = useParams();
@@ -37,14 +31,31 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
   const [isLoading, setIsLoading] = useState(true);
   const [comments, setComments] = useState<Comment[]>([]);
   const [threadResolved, setThreadResolved] = useState(false);
+  const [recordViewers, setRecordViewers] = useState<PresenceUser[]>([]);
   const objectDef = objects.find((o: any) => o.name === objectName);
 
   const currentUser = user
     ? { id: user.id, name: user.name, avatar: user.image }
-    : MOCK_USER;
+    : FALLBACK_USER;
+
+  // Fetch presence and comments from API
+  useEffect(() => {
+    if (!dataSource || !objectName || !recordId) return;
+    const threadId = `${objectName}:${recordId}`;
+
+    // Fetch record viewers
+    dataSource.find('sys_presence', { $filter: `recordId eq '${recordId}'` })
+      .then((res: any) => { if (res.data?.length) setRecordViewers(res.data); })
+      .catch(() => {});
+
+    // Fetch persisted comments
+    dataSource.find('sys_comment', { $filter: `threadId eq '${threadId}'`, $orderby: 'createdAt asc' })
+      .then((res: any) => { if (res.data?.length) setComments(res.data); })
+      .catch(() => {});
+  }, [dataSource, objectName, recordId]);
 
   const handleAddComment = useCallback(
-    (content: string, mentions: string[], parentId?: string) => {
+    async (content: string, mentions: string[], parentId?: string) => {
       const newComment: Comment = {
         id: crypto.randomUUID(),
         author: currentUser,
@@ -54,15 +65,23 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
         parentId,
       };
       setComments(prev => [...prev, newComment]);
+      // Persist to backend
+      if (dataSource) {
+        const threadId = `${objectName}:${recordId}`;
+        dataSource.create('sys_comment', { ...newComment, threadId }).catch(() => {});
+      }
     },
-    [currentUser],
+    [currentUser, dataSource, objectName, recordId],
   );
 
   const handleDeleteComment = useCallback(
-    (commentId: string) => {
+    async (commentId: string) => {
       setComments(prev => prev.filter(c => c.id !== commentId));
+      if (dataSource) {
+        dataSource.delete('sys_comment', commentId).catch(() => {});
+      }
     },
-    [],
+    [dataSource],
   );
 
   const handleReaction = useCallback(
@@ -77,10 +96,15 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
         } else {
           reactions[emoji] = [...userIds, currentUser.id];
         }
-        return { ...c, reactions };
+        const updated = { ...c, reactions };
+        // Persist reaction update to backend
+        if (dataSource) {
+          dataSource.update('sys_comment', commentId, { reactions }).catch(() => {});
+        }
+        return updated;
       }));
     },
-    [currentUser.id],
+    [currentUser.id, dataSource],
   );
 
   useEffect(() => {
@@ -135,10 +159,10 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
     <div className="h-full bg-background overflow-hidden flex flex-col relative">
       <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-50 flex items-center gap-2">
         {/* Presence: who else is viewing this record */}
-        {MOCK_RECORD_VIEWERS.length > 0 && (
+        {recordViewers.length > 0 && (
           <div className="flex items-center gap-1.5" title="Users viewing this record">
             <Users className="h-3.5 w-3.5 text-muted-foreground" />
-            <PresenceAvatars users={MOCK_RECORD_VIEWERS} size="sm" maxVisible={4} showStatus />
+            <PresenceAvatars users={recordViewers} size="sm" maxVisible={4} showStatus />
           </div>
         )}
         <MetadataToggle open={showDebug} onToggle={toggleDebug} />
