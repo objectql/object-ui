@@ -1,17 +1,28 @@
-# Object UI CLI
+# @objectstack/plugin-ui
 
-CLI tool for Object UI - Build applications from JSON schemas.
+> **oclif plugin** for Object UI — Build applications from JSON schemas.
+>
+> Previously published as `@object-ui/cli`. See [MIGRATION.md](./MIGRATION.md) for upgrade details.
 
 ## Installation
 
+### With ObjectStack CLI (recommended)
+
 ```bash
-npm install -g @object-ui/cli
+npm install -g @objectstack/cli @objectstack/plugin-ui
+
+# Commands are auto-discovered under `os ui`
+os ui dev
+os ui build --help
 ```
 
-Or use with npx:
+### Standalone (backward compatible)
 
 ```bash
-npx @object-ui/cli serve app.json
+npm install -g @objectstack/plugin-ui
+
+# Legacy bin still works
+objectui dev app.json
 ```
 
 ## Commands

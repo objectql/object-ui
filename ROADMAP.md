@@ -102,7 +102,7 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 | Documentation Pages | 134 | .mdx/.md files across 8 categories |
 | Test Files | 200+ | 3,235+ tests, 80% coverage |
 | Examples | 4 | todo, crm, kitchen-sink, msw-todo |
-| CLI Commands | 11 | init, build, dev, serve, doctor, etc. |
+| CLI Commands | 15 | init, build, dev, serve, doctor, etc. (oclif plugin) |
 | I18n Locales | 11 | ar, de, en, es, fr, ja, ko, pt, ru, zh + RTL |
 | CI Workflows | 13 | CI, CodeQL, Storybook, perf budget, etc. |
 
@@ -112,7 +112,7 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - Solid architecture with clear layer separation (spec → types → core → react → components)
 - Excellent quick-start guide (`content/docs/guide/quick-start.md`, 197 lines)
 - Clean app bootstrapping (`apps/console/src/main.tsx`, 44 lines, well-commented)
-- 11 CLI commands with `doctor` for environment diagnosis
+- 15 CLI commands with `doctor` for environment diagnosis (oclif plugin architecture)
 - Per-component error boundaries with retry (SchemaErrorBoundary)
 - 13 CI/CD workflows including performance budgets and visual regression
 
@@ -252,7 +252,15 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [x] Add `objectui validate <schema.json>` command
 - [x] Resolve TODO/FIXME items in CLI code
 
-#### P3.5 Package READMEs ✅
+#### P3.5 CLI oclif Migration ✅
+- [x] Refactor `@object-ui/cli` to oclif plugin `@objectstack/plugin-ui`
+- [x] Migrate all 15 commands to oclif Command classes under `src/commands/ui/`
+- [x] Add `@oclif/core` dependency and oclif plugin configuration
+- [x] Preserve backward-compatible `objectui` bin entry
+- [x] Add 55 tests for oclif command classes
+- [x] Create migration documentation (`packages/cli/MIGRATION.md`)
+
+#### P3.6 Package READMEs ✅
 - [x] All 37 packages now have READMEs
 
 ### P4. User Experience 🎨 (Completed Foundation)
@@ -525,7 +533,7 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 
 ### Ecosystem & Marketplace
 - Plugin marketplace website with search, ratings, and install count
-- Plugin publishing CLI (`objectui publish`) with automated validation
+- Plugin publishing CLI (`os ui publish`) with automated validation
 - 25+ official plugins
 - Plugin contract enforcement via contracts module
 
@@ -571,7 +579,7 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 | **Hooks with JSDoc** | 20+/20+ (100%) | 20+/20+ (100%) | Grep `/** */` in hooks |
 | **Console i18n Coverage** | 100% | 100% | No hardcoded strings |
 | **WCAG AA Compliance** | Full Console pages | Full Console pages | axe-core audit |
-| **CLI Commands Working** | 11 | 11 (all verified) | `objectui doctor` |
+| **CLI Commands Working** | 15 | 15 (all verified, oclif plugin) | `os ui --help` |
 | **TODO/FIXME Count** | 0 files | 0 | Grep `TODO\|FIXME\|HACK` |
 
 ### DX Success Criteria ✅
