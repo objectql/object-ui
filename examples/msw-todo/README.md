@@ -36,6 +36,7 @@ Create an `objectstack.config.ts` to define your data models and application str
 ```typescript
 // objectstack.config.ts
 import { defineStack } from '@objectstack/spec';
+import { App } from '@objectstack/spec/ui';
 
 export const TaskObject = {
   name: 'task',
@@ -48,7 +49,22 @@ export const TaskObject = {
 };
 
 export default defineStack({
-  objects: [TaskObject]
+  objects: [TaskObject],
+  apps: [
+    App.create({
+      name: 'task_app',
+      label: 'Task Management',
+      icon: 'check-square',
+      navigation: [/* ... */]
+    })
+  ],
+  manifest: {
+    id: 'com.example.msw-todo',
+    version: '1.0.0',
+    type: 'app',
+    name: 'Task Management',
+    description: 'MSW + React CRUD Example',
+  },
 });
 ```
 
