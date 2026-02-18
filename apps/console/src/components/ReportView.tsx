@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { ReportViewer, ReportBuilder } from '@object-ui/plugin-report';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
@@ -7,8 +7,8 @@ import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataI
 import { useMetadata } from '../context/MetadataProvider';
 import type { DataSource } from '@object-ui/types';
 
-// Mock fields for the builder since we don't have a dynamic schema provider here yet
-const MOCK_FIELDS = [
+// Fallback fields when no schema is available
+const FALLBACK_FIELDS = [
   { name: 'month', label: 'Month', type: 'string' },
   { name: 'revenue', label: 'Revenue', type: 'number' },
   { name: 'count', label: 'Count', type: 'number' },
@@ -25,13 +25,37 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   const [isEditing, setIsEditing] = useState(false);
   
   // Find report definition from API-driven metadata
-  const { reports, loading } = useMetadata();
+  const { reports, objects, loading } = useMetadata();
   const initialReport = reports?.find((r: any) => r.name === reportName);
   const [reportData, setReportData] = useState(initialReport);
 
   // State for report runtime data
   const [reportRuntimeData, setReportRuntimeData] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
+
+  // Derive available fields from object schema when report has objectName/dataSource
+  const availableFields = useMemo(() => {
+    const objName = reportData?.objectName || reportData?.dataSource?.object || reportData?.dataSource?.resource;
+    if (objName && objects?.length) {
+      const objDef = objects.find((o: any) => o.name === objName);
+      if (objDef?.fields) {
+        const fields = objDef.fields;
+        if (Array.isArray(fields)) {
+          return fields.map((f: any) =>
+            typeof f === 'string'
+              ? { name: f, label: f, type: 'text' }
+              : { name: f.name, label: f.label || f.name, type: f.type || 'text' },
+          );
+        }
+        return Object.entries(fields).map(([name, def]: [string, any]) => ({
+          name,
+          label: def.label || name,
+          type: def.type || 'text',
+        }));
+      }
+    }
+    return FALLBACK_FIELDS;
+  }, [reportData, objects]);
 
   // Sync reportData when metadata finishes loading or reportName changes
   useEffect(() => {
@@ -165,7 +189,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
                schema={{ 
                   title: 'Report Builder', 
                   report: reportData,
-                  availableFields: MOCK_FIELDS,
+                  availableFields: availableFields,
                   onSave: handleSave,
                   onCancel: () => setIsEditing(false)
                }} 

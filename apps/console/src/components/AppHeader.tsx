@@ -26,6 +26,7 @@ import {
 } from '@object-ui/components';
 import { Search, HelpCircle, ChevronDown } from 'lucide-react';
 
+import { useState, useEffect, useCallback } from 'react';
 import { useOffline } from '@object-ui/react';
 import { PresenceAvatars, type PresenceUser } from '@object-ui/collaboration';
 import { ModeToggle } from './mode-toggle';
@@ -33,6 +34,7 @@ import { LocaleSwitcher } from './LocaleSwitcher';
 import { ConnectionStatus } from './ConnectionStatus';
 import { ActivityFeed, type ActivityItem } from './ActivityFeed';
 import type { ConnectionState } from '../dataSource';
+import { useAdapter } from '../context/AdapterProvider';
 
 /** Convert a slug like "crm_dashboard" or "audit-log" to "Crm Dashboard" / "Audit Log" */
 function humanizeSlug(slug: string): string {
@@ -41,27 +43,40 @@ function humanizeSlug(slug: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// Demo presence users for local/mock mode
-const MOCK_PRESENCE_USERS: PresenceUser[] = [
+// Fallback presence users when API is unavailable
+const FALLBACK_PRESENCE_USERS: PresenceUser[] = [
   { userId: 'u1', userName: 'Alice Chen', color: '#3498db', status: 'active', lastActivity: new Date().toISOString() },
   { userId: 'u2', userName: 'Bob Smith', color: '#2ecc71', status: 'idle', lastActivity: new Date().toISOString() },
   { userId: 'u3', userName: 'Carol Li', color: '#e74c3c', status: 'active', lastActivity: new Date().toISOString() },
 ];
 
-// Demo activity items for local/mock mode
-const DEMO_ACTIVITIES: ActivityItem[] = [
-  { id: 'a1', type: 'create', objectName: 'Contact', recordId: 'c-101', user: 'Alice Chen', description: 'Created new contact "Acme Corp"', timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString() },
-  { id: 'a2', type: 'update', objectName: 'Deal', recordId: 'd-42', user: 'Bob Smith', description: 'Updated deal stage to "Negotiation"', timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString() },
-  { id: 'a3', type: 'comment', objectName: 'Task', recordId: 't-88', user: 'Carol Li', description: 'Commented on task "Q4 Review"', timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString() },
-  { id: 'a4', type: 'delete', objectName: 'Lead', recordId: 'l-7', user: 'Alice Chen', description: 'Deleted duplicate lead "Test Lead"', timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
-  { id: 'a5', type: 'update', objectName: 'Contact', recordId: 'c-55', user: 'Bob Smith', description: 'Updated email for "Jane Doe"', timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString() },
-];
-
-export function AppHeader({ appName, objects, connectionState, presenceUsers }: { appName: string, objects: any[], connectionState?: ConnectionState, presenceUsers?: PresenceUser[] }) {
+export function AppHeader({ appName, objects, connectionState, presenceUsers, activities }: { appName: string, objects: any[], connectionState?: ConnectionState, presenceUsers?: PresenceUser[], activities?: ActivityItem[] }) {
     const location = useLocation();
     const params = useParams();
     const { isOnline } = useOffline();
-    const activeUsers = presenceUsers ?? MOCK_PRESENCE_USERS;
+    const dataSource = useAdapter();
+
+    const [apiPresenceUsers, setApiPresenceUsers] = useState<PresenceUser[] | null>(null);
+    const [apiActivities, setApiActivities] = useState<ActivityItem[] | null>(null);
+
+    const fetchPresenceAndActivities = useCallback(async () => {
+      if (!dataSource) return;
+      try {
+        const [presenceResult, activityResult] = await Promise.all([
+          dataSource.find('sys_presence').catch(() => ({ data: [] })),
+          dataSource.find('sys_activity', { $orderby: 'timestamp desc', $top: 20 }).catch(() => ({ data: [] })),
+        ]);
+        if (presenceResult.data?.length) setApiPresenceUsers(presenceResult.data);
+        if (activityResult.data?.length) setApiActivities(activityResult.data);
+      } catch {
+        // Fallback to defaults handled below
+      }
+    }, [dataSource]);
+
+    useEffect(() => { fetchPresenceAndActivities(); }, [fetchPresenceAndActivities]);
+
+    const activeUsers = presenceUsers ?? apiPresenceUsers ?? FALLBACK_PRESENCE_USERS;
+    const activeActivities = activities ?? apiActivities ?? [];
     
     // Parse the current route to build breadcrumbs
     const pathParts = location.pathname.split('/').filter(Boolean);
@@ -227,7 +242,7 @@ export function AppHeader({ appName, objects, connectionState, presenceUsers }: 
                 
                 {/* Activity Feed */}
                 <div className="hidden sm:flex shrink-0 relative">
-                  <ActivityFeed activities={DEMO_ACTIVITIES} />
+                  <ActivityFeed activities={activeActivities} />
                 </div>
                 
                 {/* Help */}
