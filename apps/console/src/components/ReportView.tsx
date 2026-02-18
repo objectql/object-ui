@@ -5,6 +5,7 @@ import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/componen
 import { PenLine, ChevronLeft, BarChart3, Loader2 } from 'lucide-react';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useMetadata } from '../context/MetadataProvider';
+import type { DataSource } from '@object-ui/types';
 
 // Mock fields for the builder since we don't have a dynamic schema provider here yet
 const MOCK_FIELDS = [
@@ -18,7 +19,7 @@ const MOCK_FIELDS = [
   { name: 'amount', label: 'Amount', type: 'currency' },
 ];
 
-export function ReportView({ dataSource: _dataSource }: { dataSource?: any }) {
+export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   const { reportName } = useParams<{ reportName: string }>();
   const { showDebug, toggleDebug } = useMetadataInspector();
   const [isEditing, setIsEditing] = useState(false);
@@ -28,10 +29,87 @@ export function ReportView({ dataSource: _dataSource }: { dataSource?: any }) {
   const initialReport = reports?.find((r: any) => r.name === reportName);
   const [reportData, setReportData] = useState(initialReport);
 
+  // State for report runtime data
+  const [reportRuntimeData, setReportRuntimeData] = useState<any[]>([]);
+  const [dataLoading, setDataLoading] = useState(false);
+
   // Sync reportData when metadata finishes loading or reportName changes
   useEffect(() => {
     setReportData(initialReport);
   }, [initialReport]);
+
+  // Load report runtime data when report definition changes
+  useEffect(() => {
+    if (!reportData || !dataSource) {
+      setReportRuntimeData([]);
+      return;
+    }
+
+    // If report has inline data, use it directly
+    if (reportData.data && Array.isArray(reportData.data)) {
+      setReportRuntimeData(reportData.data);
+      return;
+    }
+
+    // If report has a dataSource config, fetch data using it
+    if (reportData.dataSource) {
+      const fetchDataFromSource = async () => {
+        setDataLoading(true);
+        try {
+          // Use the dataSource configuration to fetch data
+          const resource = reportData.dataSource.object || reportData.dataSource.resource;
+          if (!resource) {
+            console.warn('ReportView: dataSource missing object/resource property');
+            setReportRuntimeData([]);
+            return;
+          }
+
+          const result = await dataSource.find(resource, {
+            $filter: reportData.dataSource.filter,
+            $orderby: reportData.dataSource.sort,
+            $top: reportData.dataSource.limit,
+          });
+
+          setReportRuntimeData(result.data || []);
+        } catch (error) {
+          console.error('ReportView: Failed to load data from dataSource', error);
+          setReportRuntimeData([]);
+        } finally {
+          setDataLoading(false);
+        }
+      };
+
+      fetchDataFromSource();
+      return;
+    }
+
+    // If report has an objectName, fetch data from that object
+    if (reportData.objectName) {
+      const fetchDataFromObject = async () => {
+        setDataLoading(true);
+        try {
+          const result = await dataSource.find(reportData.objectName, {
+            $filter: reportData.filters,
+            $orderby: reportData.sort,
+            $top: reportData.limit || 100, // Default limit to avoid fetching too much data
+          });
+
+          setReportRuntimeData(result.data || []);
+        } catch (error) {
+          console.error('ReportView: Failed to load data from objectName', error);
+          setReportRuntimeData([]);
+        } finally {
+          setDataLoading(false);
+        }
+      };
+
+      fetchDataFromObject();
+      return;
+    }
+
+    // No data source configured
+    setReportRuntimeData([]);
+  }, [reportData, dataSource]);
 
   if (loading) {
     return (
@@ -96,8 +174,10 @@ export function ReportView({ dataSource: _dataSource }: { dataSource?: any }) {
   const viewerSchema = {
       type: 'report-viewer',
       report: reportData, // The report definition
+      data: reportRuntimeData, // Runtime data fetched from the data source
       showToolbar: true,
-      allowExport: true
+      allowExport: true,
+      loading: dataLoading, // Loading state for data fetching
   };
 
   return (
