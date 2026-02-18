@@ -7,7 +7,8 @@
  */
 
 import * as React from "react"
-import { cn } from "@object-ui/components"
+import { cn, cva } from "@object-ui/components"
+import type { VariantProps } from "class-variance-authority"
 
 const Timeline = React.forwardRef<
   HTMLOListElement,
@@ -21,40 +22,60 @@ const Timeline = React.forwardRef<
 ))
 Timeline.displayName = "Timeline"
 
+const timelineItemVariants = cva("ml-6", {
+  variants: {
+    density: {
+      default: "mb-10",
+      compact: "mb-3",
+      comfortable: "mb-6",
+    },
+  },
+  defaultVariants: { density: "default" },
+})
+
 const TimelineItem = React.forwardRef<
   HTMLLIElement,
-  React.HTMLAttributes<HTMLLIElement>
->(({ className, ...props }, ref) => (
+  React.HTMLAttributes<HTMLLIElement> & VariantProps<typeof timelineItemVariants>
+>(({ className, density, ...props }, ref) => (
   <li
     ref={ref}
-    className={cn("mb-10 ml-6", className)}
+    className={cn(timelineItemVariants({ density }), className)}
     {...props}
   />
 ))
 TimelineItem.displayName = "TimelineItem"
 
+const timelineMarkerVariants = cva(
+  "absolute -left-3 w-6 h-6 rounded-full border-2 flex items-center justify-center",
+  {
+    variants: {
+      variant: {
+        default: "bg-blue-200 border-blue-400",
+        success: "bg-emerald-200 border-emerald-500",
+        warning: "bg-amber-200 border-amber-500",
+        danger: "bg-red-200 border-red-500",
+        info: "bg-purple-200 border-purple-500",
+        todo: "bg-slate-200 border-slate-400",
+        "in-progress": "bg-blue-200 border-blue-500",
+        done: "bg-emerald-200 border-emerald-500",
+      },
+    },
+    defaultVariants: { variant: "default" },
+  }
+)
+
+type TimelineMarkerVariant = VariantProps<typeof timelineMarkerVariants>["variant"]
+
 const TimelineMarker = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & {
-    variant?: "default" | "success" | "warning" | "danger" | "info"
+    variant?: TimelineMarkerVariant
   }
 >(({ className, variant = "default", ...props }, ref) => {
-  const variantClasses = {
-    default: "bg-gray-200 border-gray-300",
-    success: "bg-green-200 border-green-500",
-    warning: "bg-yellow-200 border-yellow-500",
-    danger: "bg-red-200 border-red-500",
-    info: "bg-blue-200 border-blue-500",
-  }
-
   return (
     <div
       ref={ref}
-      className={cn(
-        "absolute -left-3 w-6 h-6 rounded-full border-2 flex items-center justify-center",
-        variantClasses[variant],
-        className
-      )}
+      className={cn(timelineMarkerVariants({ variant }), className)}
       {...props}
     />
   )
@@ -256,7 +277,9 @@ TimelineGanttBarContent.displayName = "TimelineGanttBarContent"
 export {
   Timeline,
   TimelineItem,
+  timelineItemVariants,
   TimelineMarker,
+  timelineMarkerVariants,
   TimelineContent,
   TimelineTitle,
   TimelineTime,

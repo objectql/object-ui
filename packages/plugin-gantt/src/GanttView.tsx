@@ -180,10 +180,10 @@ export function GanttView({
             <span className="sm:hidden">New</span>
           </Button>
           <div className="h-4 w-px bg-border mx-1 sm:mx-2" />
-          <Button variant="ghost" size="icon" className="h-8 w-8">
+          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Previous period">
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
+          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Next period">
             <ChevronRight className="h-4 w-4" />
           </Button>
           <span className="font-semibold text-xs sm:text-sm">
@@ -204,10 +204,10 @@ export function GanttView({
             </SelectContent>
           </Select>
           <div className="flex bg-muted rounded-md p-1">
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setColumnWidth(prev => Math.max(15, prev - 10))}>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setColumnWidth(prev => Math.max(15, prev - 10))} aria-label="Zoom out">
               <ZoomOut className="h-3 w-3" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setColumnWidth(prev => Math.min(120, prev + 10))}>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setColumnWidth(prev => Math.min(120, prev + 10))} aria-label="Zoom in">
               <ZoomIn className="h-3 w-3" />
             </Button>
           </div>
@@ -305,7 +305,12 @@ export function GanttView({
                       autoFocus
                     />
                   ) : (
-                    task.title
+                    <span className="flex flex-col min-w-0">
+                      <span className="truncate">{task.title}</span>
+                      <span className="text-[10px] text-muted-foreground sm:hidden">
+                        {task.start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })} → {task.end.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
+                      </span>
+                    </span>
                   )}
                 </div>
                 <div className="w-16 sm:w-20 text-right text-xs text-muted-foreground hidden sm:block">
