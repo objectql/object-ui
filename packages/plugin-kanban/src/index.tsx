@@ -13,9 +13,21 @@ import { Skeleton } from '@object-ui/components';
 import { ObjectKanban } from './ObjectKanban';
 
 // Export types for external use
-export type { KanbanSchema, KanbanCard, KanbanColumn } from './types';
+export type { KanbanSchema, KanbanCard, KanbanColumn, CardTemplate, ColumnWidthConfig, InlineFieldDefinition } from './types';
 export { ObjectKanban };
 export type { ObjectKanbanProps } from './ObjectKanban';
+
+// Phase 13 L2/L3: New components and hooks
+export { InlineQuickAdd } from './InlineQuickAdd';
+export type { InlineQuickAddProps } from './InlineQuickAdd';
+export { CardTemplates } from './CardTemplates';
+export type { CardTemplatesProps } from './CardTemplates';
+export { useColumnWidths } from './useColumnWidths';
+export type { UseColumnWidthsOptions, UseColumnWidthsReturn } from './useColumnWidths';
+export { useCrossSwimlaneMove } from './useCrossSwimlaneMove';
+export type { Swimlane, CrossSwimlaneMoveEvent, UseCrossSwimlaneOptions, UseCrossSwimlaneMoveReturn } from './useCrossSwimlaneMove';
+export { useQuickAddReorder } from './useQuickAddReorder';
+export type { UseQuickAddReorderOptions, UseQuickAddReorderReturn } from './useQuickAddReorder';
 
 // 🚀 Lazy load the implementation files
 const LazyKanban = React.lazy(() => import('./KanbanImpl'));
