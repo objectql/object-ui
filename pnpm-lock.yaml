@@ -1231,8 +1231,8 @@ importers:
         specifier: ^35.1.0
         version: 35.1.0
       ag-grid-react:
-        specifier: ^32.3.9
-        version: 32.3.9(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: ^35.1.0
+        version: 35.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -6118,12 +6118,6 @@ packages:
 
   ag-grid-community@35.1.0:
     resolution: {integrity: sha512-yWFQfRNjv3KUBkHHzFdDOYGjPcDMU0B8Up4qG651diFlGRUGEGVs94SK73niWvk1FDZdpV9oWrwq3f30/qAoVg==}
-
-  ag-grid-react@32.3.9:
-    resolution: {integrity: sha512-moC64CHbTOf+OSG2xCHYJdWh3MtYaVNvi5n7ro+ImS5gSFn7c5a42pjcfTmDh2sPsKD7qmBXXQ5Vr+Zwg9DhNA==}
-    peerDependencies:
-      react: 19.2.4
-      react-dom: 19.2.4
 
   ag-grid-react@35.1.0:
     resolution: {integrity: sha512-n8pJh4RTpos8stzz91nEhTCZZdLy9bjQYAGxIxJ8ocVagnEsAk9T5Vz/VEKUhOGz36il68n7TVbVWSuUA3a+mg==}
@@ -15923,13 +15917,6 @@ snapshots:
   ag-grid-community@35.1.0:
     dependencies:
       ag-charts-types: 13.1.0
-
-  ag-grid-react@32.3.9(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
-    dependencies:
-      ag-grid-community: 32.3.9
-      prop-types: 15.8.1
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
 
   ag-grid-react@35.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
