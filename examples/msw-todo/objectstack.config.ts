@@ -1,4 +1,5 @@
 import { defineStack } from '@objectstack/spec';
+import { App } from '@objectstack/spec/ui';
 
 /**
  * Task Object Definition
@@ -26,36 +27,46 @@ export const TaskObject = {
 };
 
 /**
- * App Configuration
+ * App Configuration — Standard ObjectStackDefinition format
  */
 export default defineStack({
-  name: 'task_app',
-  label: 'Task Management',
-  description: 'MSW + React CRUD Example with ObjectStack',
-  version: '1.0.0',
-  icon: 'check-square',
-  branding: {
-    primaryColor: '#3b82f6',
-    logo: '/assets/logo.png',
-  },
   objects: [
     TaskObject
   ],
-  navigation: [
-    {
-      id: 'group_tasks',
-      type: 'group',
-      label: 'Tasks',
-      icon: 'list-todo',
-      children: [
-        { 
-          id: 'nav_tasks',
-          type: 'object', 
-          objectName: 'task',
-          label: 'My Tasks',
-          icon: 'check-circle-2'
+  apps: [
+    App.create({
+      name: 'task_app',
+      label: 'Task Management',
+      description: 'MSW + React CRUD Example with ObjectStack',
+      icon: 'check-square',
+      branding: {
+        primaryColor: '#3b82f6',
+        logo: '/assets/logo.png',
+      },
+      navigation: [
+        {
+          id: 'group_tasks',
+          type: 'group',
+          label: 'Tasks',
+          icon: 'list-todo',
+          children: [
+            {
+              id: 'nav_tasks',
+              type: 'object',
+              objectName: 'task',
+              label: 'My Tasks',
+              icon: 'check-circle-2'
+            }
+          ]
         }
       ]
-    }
-  ]
+    })
+  ],
+  manifest: {
+    id: 'com.example.msw-todo',
+    version: '1.0.0',
+    type: 'app',
+    name: 'Task Management',
+    description: 'MSW + React CRUD Example with ObjectStack',
+  },
 });

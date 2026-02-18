@@ -139,7 +139,7 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [ ] Implement declarative `ActionEngine` pipeline (events → `ActionDef[]` dispatch) — replaces callback-based `useObjectActions`
 - [x] Migrate Console from static config to runtime metadata API (`getView()`/`getApp()`/`getPage()`)
 - [x] Remove `as any` cast in `objectstack.shared.ts` — use properly typed config
-- [ ] Clean up MSW workarounds in `objectstack.config.ts`
+- [x] Clean up MSW workarounds in `objectstack.config.ts`
 - [x] CSV/Excel export for grid views (core data workflow)
 - [x] File upload fields in forms (required for real-world data entry)
 - [x] Related record lookup in forms (essential for relational data)
