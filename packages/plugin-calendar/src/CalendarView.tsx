@@ -25,6 +25,7 @@ import {
 } from "@object-ui/components"
 
 const DEFAULT_EVENT_COLOR = "bg-blue-500 text-white"
+const STABLE_DEFAULT_DATE = new Date()
 
 export interface CalendarEvent {
   id: string | number
@@ -53,7 +54,7 @@ export interface CalendarViewProps {
 function CalendarView({
   events = [],
   view = "month",
-  currentDate = new Date(),
+  currentDate = STABLE_DEFAULT_DATE,
   locale = "default",
   onEventClick,
   onDateClick,
@@ -368,11 +369,34 @@ interface MonthViewProps {
 }
 
 function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: MonthViewProps) {
-  const days = getMonthDays(date)
-  const today = new Date()
+  const days = React.useMemo(() => getMonthDays(date), [date.getFullYear(), date.getMonth()])
+  const today = React.useMemo(() => new Date(), [])
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
   const [draggedEventId, setDraggedEventId] = React.useState<string | number | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = React.useState<number | null>(null)
+
+  // Pre-build event index by date key for O(1) lookup per cell instead of O(N)
+  const eventsByDate = React.useMemo(() => {
+    const map = new Map<string, CalendarEvent[]>()
+    for (const event of events) {
+      const eventStart = new Date(event.start)
+      const eventEnd = event.end ? new Date(event.end) : new Date(eventStart)
+      eventStart.setHours(0, 0, 0, 0)
+      eventEnd.setHours(0, 0, 0, 0)
+      const cursor = new Date(eventStart)
+      while (cursor <= eventEnd) {
+        const key = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`
+        const arr = map.get(key)
+        if (arr) {
+          arr.push(event)
+        } else {
+          map.set(key, [event])
+        }
+        cursor.setDate(cursor.getDate() + 1)
+      }
+    }
+    return map
+  }, [events])
 
   const handleDragStart = (e: React.DragEvent, event: CalendarEvent) => {
     setDraggedEventId(event.id)
@@ -447,7 +471,8 @@ function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: Mon
       {/* Calendar days */}
       <div role="grid" aria-label="Calendar grid" className="grid grid-cols-7 flex-1 auto-rows-fr">
         {days.map((day, index) => {
-          const dayEvents = getEventsForDate(day, events)
+          const key = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`
+          const dayEvents = eventsByDate.get(key) || []
           const isCurrentMonth = day.getMonth() === date.getMonth()
           const isToday = isSameDay(day, today)
 
@@ -487,7 +512,7 @@ function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: Mon
                     onDragEnd={handleDragEnd}
                     className={cn(
                       "text-xs px-2 py-1 rounded truncate cursor-pointer hover:opacity-80",
-                      event.color || DEFAULT_EVENT_COLOR,
+                      event.color?.startsWith("#") ? "text-white" : (event.color || DEFAULT_EVENT_COLOR),
                       draggedEventId === event.id && "opacity-50"
                     )}
                     style={
@@ -600,7 +625,7 @@ function WeekView({ date, events, locale = "default", onEventClick, onDateClick 
                     aria-label={event.title}
                     className={cn(
                       "text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded cursor-pointer hover:opacity-80",
-                      event.color || DEFAULT_EVENT_COLOR
+                      event.color?.startsWith("#") ? "text-white" : (event.color || DEFAULT_EVENT_COLOR)
                     )}
                     style={
                       event.color && event.color.startsWith("#")
@@ -692,7 +717,7 @@ function DayView({ date, events, onEventClick, onDateClick }: DayViewProps) {
                     aria-label={event.title}
                     className={cn(
                       "px-2 sm:px-3 py-1.5 sm:py-2 rounded cursor-pointer hover:opacity-80",
-                      event.color || DEFAULT_EVENT_COLOR
+                      event.color?.startsWith("#") ? "text-white" : (event.color || DEFAULT_EVENT_COLOR)
                     )}
                     style={
                       event.color && event.color.startsWith("#")
