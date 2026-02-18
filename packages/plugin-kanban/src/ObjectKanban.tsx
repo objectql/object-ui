@@ -122,16 +122,31 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
        } 
     }
 
-    // Default to 'name'
-    const finalTitleField = titleField || 'name';
-    
-    return rawData.map(item => ({
-      ...item,
-      // Ensure id exists
-      id: item.id || item._id,
-      // Map title
-      title: item[finalTitleField] || item.title || 'Untitled',
-    }));
+    // Common title field names to try as fallback
+    const TITLE_FALLBACK_FIELDS = ['name', 'title', 'subject', 'label', 'display_name'];
+
+    return rawData.map(item => {
+      // If a specific title field was configured, try it first
+      let resolvedTitle = titleField ? item[titleField] : undefined;
+
+      // Fallback: try common field names
+      if (!resolvedTitle) {
+        for (const field of TITLE_FALLBACK_FIELDS) {
+          if (item[field]) {
+            resolvedTitle = item[field];
+            break;
+          }
+        }
+      }
+
+      return {
+        ...item,
+        // Ensure id exists
+        id: item.id || item._id,
+        // Map title
+        title: resolvedTitle || 'Untitled',
+      };
+    });
   }, [rawData, schema, objectDef]);
 
   // Generate columns if missing but groupBy is present
