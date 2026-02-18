@@ -38,7 +38,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
-      const checkMobile = () => setIsMobile(window.innerWidth < 640);
+      const checkMobile = () => setIsMobile(window.innerWidth < 768);
       checkMobile();
       window.addEventListener('resize', checkMobile);
       return () => window.removeEventListener('resize', checkMobile);
@@ -61,7 +61,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
       };
     }, [schema.refreshInterval, onRefresh, handleRefresh]);
 
-    const renderWidget = (widget: DashboardWidgetSchema, index: number) => {
+    const renderWidget = (widget: DashboardWidgetSchema, index: number, forceMobileFullWidth?: boolean) => {
         const getComponentSchema = () => {
             if (widget.component) return widget.component;
 
@@ -113,7 +113,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
             return (
                 <div 
                     key={widgetKey}
-                    className={cn("h-full w-full", isMobile && "w-[85vw] shrink-0 snap-center")}
+                    className={cn("h-full w-full")}
                     style={!isMobile && widget.layout ? {
                         gridColumn: `span ${widget.layout.w}`,
                         gridRow: `span ${widget.layout.h}`
@@ -130,7 +130,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 className={cn(
                     "overflow-hidden border-border/50 shadow-sm transition-all hover:shadow-md",
                     "bg-card/50 backdrop-blur-sm",
-                    isMobile && "w-[85vw] shrink-0 snap-center"
+                    forceMobileFullWidth && "w-full"
                 )}
                 style={!isMobile && widget.layout ? {
                     gridColumn: `span ${widget.layout.w}`,
@@ -169,15 +169,27 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
     );
 
     if (isMobile) {
+      // Separate metric widgets from other widgets for better mobile layout
+      const metricWidgets = schema.widgets?.filter(w => w.type === 'metric') || [];
+      const otherWidgets = schema.widgets?.filter(w => w.type !== 'metric') || [];
+      
       return (
-        <div ref={ref} className={cn("flex flex-col", className)} {...props}>
+        <div ref={ref} className={cn("flex flex-col gap-4 px-4", className)} {...props}>
           {refreshButton}
-          <div
-            className="flex overflow-x-auto snap-x snap-mandatory gap-3 pb-4 [-webkit-overflow-scrolling:touch]"
-            style={{ scrollPaddingLeft: '0.75rem' }}
-          >
-            {schema.widgets?.map((widget: DashboardWidgetSchema, index: number) => renderWidget(widget, index))}
-          </div>
+          
+          {/* Metric cards: 2-column grid */}
+          {metricWidgets.length > 0 && (
+            <div className="grid grid-cols-2 gap-3">
+              {metricWidgets.map((widget: DashboardWidgetSchema, index: number) => renderWidget(widget, index))}
+            </div>
+          )}
+          
+          {/* Other widgets (charts, tables): full-width vertical stack */}
+          {otherWidgets.length > 0 && (
+            <div className="flex flex-col gap-4">
+              {otherWidgets.map((widget: DashboardWidgetSchema, index: number) => renderWidget(widget, index, true))}
+            </div>
+          )}
         </div>
       );
     }

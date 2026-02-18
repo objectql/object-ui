@@ -236,12 +236,12 @@ export function AppHeader({ appName, objects, connectionState, presenceUsers }: 
                 </Button>
                 
                 {/* Theme toggle */}
-                <div className="shrink-0">
+                <div className="hidden sm:flex shrink-0">
                   <ModeToggle />
                 </div>
                 
                 {/* Language switcher */}
-                <div className="shrink-0">
+                <div className="hidden sm:flex shrink-0">
                   <LocaleSwitcher />
                 </div>
              </div>

@@ -65,7 +65,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col sm:flex-row relative">
-         <div className="flex-1 overflow-auto p-4 sm:p-6">
+         <div className="flex-1 overflow-auto p-0 sm:p-6">
             <DashboardRenderer schema={dashboard} dataSource={dataSource} />
          </div>
 
