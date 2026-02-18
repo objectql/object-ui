@@ -193,7 +193,7 @@ export async function dev(schemaPath: string, options: DevOptions) {
       // We might get the cjs entry, but for aliasing usually fine. 
       // Better yet, if we can find the package root, but require.resolve gives file.
       // Let's just use what require.resolve gives.
-      // @ts-ignore - lucidePath is dynamically resolved
+      // @ts-expect-error - lucidePath is dynamically resolved
       viteConfig.resolve.alias['lucide-react'] = lucidePath;
     } catch (e) {
       console.warn('⚠️ Could not resolve lucide-react automatically:', e);
