@@ -16,12 +16,26 @@ import type { DetailViewSchema } from '@object-ui/types';
 export { DetailView, DetailSection, DetailTabs, RelatedList };
 export { RecordComments } from './RecordComments';
 export { ActivityTimeline } from './ActivityTimeline';
+export { InlineCreateRelated } from './InlineCreateRelated';
+export { RichTextCommentInput } from './RichTextCommentInput';
+export { DiffView } from './DiffView';
+export { RecordNavigationEnhanced } from './RecordNavigationEnhanced';
+export { RelationshipGraph } from './RelationshipGraph';
+export { CommentAttachment } from './CommentAttachment';
+export { PointInTimeRestore } from './PointInTimeRestore';
 export type { DetailViewProps } from './DetailView';
 export type { DetailSectionProps } from './DetailSection';
 export type { DetailTabsProps } from './DetailTabs';
 export type { RelatedListProps } from './RelatedList';
 export type { RecordCommentsProps } from './RecordComments';
 export type { ActivityTimelineProps } from './ActivityTimeline';
+export type { InlineCreateRelatedProps, RelatedFieldDefinition, RelatedRecordOption } from './InlineCreateRelated';
+export type { RichTextCommentInputProps, MentionSuggestion } from './RichTextCommentInput';
+export type { DiffViewProps, DiffFieldType, DiffMode, DiffLine } from './DiffView';
+export type { RecordNavigationEnhancedProps } from './RecordNavigationEnhanced';
+export type { RelationshipGraphProps, GraphNode } from './RelationshipGraph';
+export type { CommentAttachmentProps, Attachment } from './CommentAttachment';
+export type { PointInTimeRestoreProps, RevisionEntry } from './PointInTimeRestore';
 
 // Register DetailView component
 ComponentRegistry.register('detail-view', DetailView, {

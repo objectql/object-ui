@@ -9,6 +9,27 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { GroupingConfig } from '@object-ui/types';
 
+/** Supported aggregation function types. */
+export type AggregationType = 'sum' | 'count' | 'avg' | 'min' | 'max';
+
+/** Describes a single aggregation to compute per group. */
+export interface AggregationConfig {
+  /** The field to aggregate. */
+  field: string;
+  /** The aggregation function. */
+  type: AggregationType;
+}
+
+/** Result of a computed aggregation for a group. */
+export interface AggregationResult {
+  /** The field that was aggregated. */
+  field: string;
+  /** The aggregation function used. */
+  type: AggregationType;
+  /** The computed value. */
+  value: number;
+}
+
 export interface GroupEntry {
   /** Composite key identifying this group (field values joined by ' / ') */
   key: string;
@@ -18,6 +39,8 @@ export interface GroupEntry {
   rows: any[];
   /** Whether the group section is collapsed */
   collapsed: boolean;
+  /** Computed aggregations for this group (empty when no aggregations configured). */
+  aggregations: AggregationResult[];
 }
 
 export interface UseGroupedDataResult {
@@ -49,6 +72,43 @@ function buildGroupLabel(row: Record<string, any>, fields: GroupingConfig['field
 }
 
 /**
+ * Compute aggregation results for a set of rows.
+ */
+function computeAggregations(
+  rows: any[],
+  configs: AggregationConfig[],
+): AggregationResult[] {
+  return configs.map(({ field, type }) => {
+    const nums = rows
+      .map((r) => Number(r[field]))
+      .filter((n) => Number.isFinite(n));
+
+    let value: number;
+    switch (type) {
+      case 'count':
+        value = nums.length;
+        break;
+      case 'sum':
+        value = nums.reduce((a, b) => a + b, 0);
+        break;
+      case 'avg':
+        value = nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
+        break;
+      case 'min':
+        value = nums.length > 0 ? Math.min(...nums) : 0;
+        break;
+      case 'max':
+        value = nums.length > 0 ? Math.max(...nums) : 0;
+        break;
+      default:
+        value = 0;
+    }
+
+    return { field, type, value };
+  });
+}
+
+/**
  * Compare function that respects per-field sort order.
  */
 function compareGroups(a: string, b: string, order: 'asc' | 'desc'): number {
@@ -63,12 +123,14 @@ function compareGroups(a: string, b: string, order: 'asc' | 'desc'): number {
  * collapsed state.  Collapse state is managed internally so the consumer only
  * needs to wire `toggleGroup` to the UI.
  *
- * @param config  - GroupingConfig from the grid schema (optional)
- * @param data    - flat data rows
+ * @param config        - GroupingConfig from the grid schema (optional)
+ * @param data          - flat data rows
+ * @param aggregations  - optional aggregation definitions to compute per group
  */
 export function useGroupedData(
   config: GroupingConfig | undefined,
   data: any[],
+  aggregations?: AggregationConfig[],
 ): UseGroupedDataResult {
   const fields = config?.fields;
   const isGrouped = !!(fields && fields.length > 0);
@@ -107,9 +169,12 @@ export function useGroupedData(
       const entry = map.get(key)!;
       const collapsed =
         key in toggledKeys ? toggledKeys[key] : fieldsDefaultCollapsed;
-      return { key, label: entry.label, rows: entry.rows, collapsed };
+      const agg = aggregations && aggregations.length > 0
+        ? computeAggregations(entry.rows, aggregations)
+        : [];
+      return { key, label: entry.label, rows: entry.rows, collapsed, aggregations: agg };
     });
-  }, [data, fields, isGrouped, toggledKeys, fieldsDefaultCollapsed]);
+  }, [data, fields, isGrouped, toggledKeys, fieldsDefaultCollapsed, aggregations]);
 
   const toggleGroup = useCallback((key: string) => {
     setToggledKeys((prev) => ({

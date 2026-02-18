@@ -17,11 +17,21 @@ export { ObjectGrid, VirtualGrid, ImportWizard };
 export { InlineEditing } from './InlineEditing';
 export { useRowColor } from './useRowColor';
 export { useGroupedData } from './useGroupedData';
+export { useCellClipboard } from './useCellClipboard';
+export { useGradientColor } from './useGradientColor';
+export { useGroupReorder } from './useGroupReorder';
+export { FormulaBar } from './FormulaBar';
+export { SplitPaneGrid } from './SplitPaneGrid';
 export type { ObjectGridProps } from './ObjectGrid';
 export type { VirtualGridProps, VirtualGridColumn } from './VirtualGrid';
 export type { InlineEditingProps } from './InlineEditing';
 export type { ImportWizardProps, ImportResult } from './ImportWizard';
-export type { GroupEntry, UseGroupedDataResult } from './useGroupedData';
+export type { GroupEntry, UseGroupedDataResult, AggregationType, AggregationConfig, AggregationResult } from './useGroupedData';
+export type { CellRange, UseCellClipboardOptions, UseCellClipboardResult } from './useCellClipboard';
+export type { GradientStop, UseGradientColorOptions } from './useGradientColor';
+export type { UseGroupReorderOptions, UseGroupReorderResult } from './useGroupReorder';
+export type { FormulaBarProps } from './FormulaBar';
+export type { SplitPaneGridProps } from './SplitPaneGrid';
 
 // Register object-grid component
 export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {

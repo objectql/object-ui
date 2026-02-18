@@ -118,4 +118,62 @@ export interface KanbanSchema extends BaseSchema {
     backgroundColor?: string;
     borderColor?: string;
   }>;
+
+  /**
+   * Predefined card templates for quick-add.
+   * Each template pre-fills the quick-add form with default values.
+   */
+  cardTemplates?: CardTemplate[];
+
+  /**
+   * Custom column width configuration.
+   * Supports per-column overrides with min/max constraints.
+   */
+  columnWidths?: ColumnWidthConfig;
+}
+
+/**
+ * A predefined card template with pre-filled field values.
+ */
+export interface CardTemplate {
+  /** Unique template identifier */
+  id: string;
+  /** Human-readable template name */
+  name: string;
+  /** Optional Lucide icon name */
+  icon?: string;
+  /** Pre-filled field values */
+  values: Record<string, any>;
+}
+
+/**
+ * Configuration for custom column widths.
+ */
+export interface ColumnWidthConfig {
+  /** Default column width in pixels */
+  defaultWidth?: number;
+  /** Minimum column width in pixels */
+  minWidth?: number;
+  /** Maximum column width in pixels */
+  maxWidth?: number;
+  /** Per-column width overrides keyed by column ID */
+  overrides?: Record<string, number>;
+}
+
+/**
+ * Field definition for inline quick-add forms.
+ */
+export interface InlineFieldDefinition {
+  /** Field name (key in the resulting values object) */
+  name: string;
+  /** Display label */
+  label?: string;
+  /** Field type */
+  type: 'text' | 'number' | 'select';
+  /** Placeholder text */
+  placeholder?: string;
+  /** Default value */
+  defaultValue?: any;
+  /** Options for select fields */
+  options?: Array<{ label: string; value: string }>;
 }
