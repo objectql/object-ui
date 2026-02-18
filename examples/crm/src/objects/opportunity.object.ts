@@ -7,7 +7,14 @@ export const OpportunityObject = ObjectSchema.create({
   fields: {
     name: Field.text({ label: 'Opportunity Name', required: true, searchable: true }),
     amount: Field.currency({ label: 'Amount' }),
-    stage: Field.select(["Prospecting", "Qualification", "Proposal", "Negotiation", "Closed Won", "Closed Lost"], { label: 'Stage' }),
+    stage: Field.select([
+      { value: "Prospecting", label: "Prospecting", color: "purple" },
+      { value: "Qualification", label: "Qualification", color: "indigo" },
+      { value: "Proposal", label: "Proposal", color: "blue" },
+      { value: "Negotiation", label: "Negotiation", color: "yellow" },
+      { value: "Closed Won", label: "Closed Won", color: "green" },
+      { value: "Closed Lost", label: "Closed Lost", color: "red" },
+    ], { label: 'Stage' }),
     close_date: Field.date({ label: 'Close Date' }),
     account: Field.lookup('account', { label: 'Account' }),
     contacts: Field.lookup('contact', { label: 'Contacts', multiple: true }),

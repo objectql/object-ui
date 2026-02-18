@@ -24,9 +24,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction } from '@object-ui/react';
-import { getCellRenderer } from '@object-ui/fields';
+import { getCellRenderer, formatCurrency, formatDate } from '@object-ui/fields';
 import {
-  Button, NavigationOverlay,
+  Badge, Button, NavigationOverlay,
   Popover, PopoverContent, PopoverTrigger,
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@object-ui/components';
@@ -612,6 +612,22 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   }
 
   if (loading && data.length === 0) {
+    if (useCardView) {
+      return (
+        <div className="space-y-2 p-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="border rounded-lg p-3 bg-card animate-pulse">
+              <div className="h-5 bg-muted rounded w-3/4 mb-3" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="h-4 bg-muted rounded w-1/4" />
+                <div className="h-5 bg-muted rounded-full w-20" />
+              </div>
+              <div className="h-3 bg-muted rounded w-1/3" />
+            </div>
+          ))}
+        </div>
+      );
+    }
     return (
       <div className="p-4 sm:p-8 text-center">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -767,25 +783,112 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // Mobile card-view fallback for screens below 480px
   if (useCardView && data.length > 0 && !isGrouped) {
     const displayColumns = generateColumns().filter((c: any) => c.accessorKey !== '_actions');
+
+    // Build a lookup of column metadata for smart rendering
+    const colMap = new Map<string, any>();
+    displayColumns.forEach((col: any) => colMap.set(col.accessorKey, col));
+
+    // Identify special columns by inferred type for visual hierarchy
+    const titleCol = displayColumns[0]; // First column is always the title
+    const amountKeys = ['amount', 'price', 'total', 'revenue', 'cost', 'value', 'budget', 'salary'];
+    const stageKeys = ['stage', 'status', 'priority', 'category', 'severity', 'level'];
+    const dateKeys = ['date', 'due', 'created', 'updated', 'deadline', 'start', 'end', 'expires'];
+
+    // Stage badge color mapping for common pipeline stages
+    const stageBadgeColor = (value: string): string => {
+      const v = (value || '').toLowerCase();
+      if (v.includes('won') || v.includes('completed') || v.includes('done') || v.includes('active'))
+        return 'bg-green-100 text-green-800 border-green-300';
+      if (v.includes('lost') || v.includes('cancelled') || v.includes('rejected') || v.includes('closed lost'))
+        return 'bg-red-100 text-red-800 border-red-300';
+      if (v.includes('negotiation') || v.includes('review') || v.includes('in progress'))
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      if (v.includes('proposal') || v.includes('pending'))
+        return 'bg-blue-100 text-blue-800 border-blue-300';
+      if (v.includes('qualification') || v.includes('qualified'))
+        return 'bg-indigo-100 text-indigo-800 border-indigo-300';
+      if (v.includes('prospecting') || v.includes('new') || v.includes('open'))
+        return 'bg-purple-100 text-purple-800 border-purple-300';
+      return 'bg-gray-100 text-gray-800 border-gray-300';
+    };
+
+    const classify = (key: string): 'amount' | 'stage' | 'date' | 'other' => {
+      const k = key.toLowerCase();
+      if (amountKeys.some(p => k.includes(p))) return 'amount';
+      if (stageKeys.some(p => k.includes(p))) return 'stage';
+      if (dateKeys.some(p => k.includes(p))) return 'date';
+      return 'other';
+    };
+
     return (
       <>
         <div className="space-y-2 p-2">
-          {data.map((row, idx) => (
-            <div
-              key={row.id || row._id || idx}
-              className="border rounded-lg p-3 bg-card hover:bg-accent/50 cursor-pointer transition-colors touch-manipulation"
-              onClick={() => navigation.handleClick(row)}
-            >
-              {displayColumns.slice(0, 4).map((col: any) => (
-                <div key={col.accessorKey} className="flex justify-between items-center py-1">
-                  <span className="text-xs text-muted-foreground">{col.header}</span>
-                  <span className="text-sm font-medium truncate ml-2 text-right">
-                    {col.cell ? col.cell(row[col.accessorKey], row) : String(row[col.accessorKey] ?? '—')}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ))}
+          {data.map((row, idx) => {
+            // Collect secondary fields (skip the title column)
+            const secondaryCols = displayColumns.slice(1, 5);
+            const amountCol = secondaryCols.find((c: any) => classify(c.accessorKey) === 'amount');
+            const stageCol = secondaryCols.find((c: any) => classify(c.accessorKey) === 'stage');
+            const dateCols = secondaryCols.filter((c: any) => classify(c.accessorKey) === 'date');
+            const otherCols = secondaryCols.filter(
+              (c: any) => c !== amountCol && c !== stageCol && !dateCols.includes(c)
+            );
+
+            return (
+              <div
+                key={row.id || row._id || idx}
+                className="border rounded-lg p-3 bg-card hover:bg-accent/50 cursor-pointer transition-colors touch-manipulation"
+                onClick={() => navigation.handleClick(row)}
+              >
+                {/* Title row - Name as bold prominent title */}
+                {titleCol && (
+                  <div className="font-semibold text-sm truncate mb-1.5">
+                    {row[titleCol.accessorKey] ?? '—'}
+                  </div>
+                )}
+
+                {/* Amount + Stage row - side by side for compact display */}
+                {(amountCol || stageCol) && (
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    {amountCol && (
+                      <span className="text-sm tabular-nums font-medium">
+                        {typeof row[amountCol.accessorKey] === 'number'
+                          ? formatCurrency(row[amountCol.accessorKey])
+                          : row[amountCol.accessorKey] ?? '—'}
+                      </span>
+                    )}
+                    {stageCol && row[stageCol.accessorKey] && (
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${stageBadgeColor(String(row[stageCol.accessorKey]))}`}
+                      >
+                        {row[stageCol.accessorKey]}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+
+                {/* Date fields - formatted short date */}
+                {dateCols.map((col: any) => (
+                  <div key={col.accessorKey} className="flex justify-between items-center py-0.5">
+                    <span className="text-xs text-muted-foreground">{col.header}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {row[col.accessorKey] ? formatDate(row[col.accessorKey]) : '—'}
+                    </span>
+                  </div>
+                ))}
+
+                {/* Other fields - standard key-value rows */}
+                {otherCols.map((col: any) => (
+                  <div key={col.accessorKey} className="flex justify-between items-center py-0.5">
+                    <span className="text-xs text-muted-foreground">{col.header}</span>
+                    <span className="text-xs font-medium truncate ml-2 text-right">
+                      {col.cell ? col.cell(row[col.accessorKey], row) : String(row[col.accessorKey] ?? '—')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
         {navigation.isOverlay && (
           <NavigationOverlay {...navigation} title={detailTitle}>

@@ -357,6 +357,11 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Airtable-style row number column (showRowNumbers)
 - [x] Airtable-style compact row density (tighter padding, 13px font)
 - [x] Default freeze first column (frozenColumns: 1)
+- [x] Mobile card view visual hierarchy: Name as bold title, Amount+Stage side-by-side, date formatting
+- [x] Mobile card view currency formatting (Amount displayed as $150,000.00)
+- [x] Mobile card view Stage colored badge (green/red/yellow/blue by pipeline stage)
+- [x] Mobile card view skeleton loading placeholders during async data fetch
+- [x] CRM example Opportunity stage field with color options
 
 ##### ObjectKanban (`plugin-kanban`)
 - [x] Stack columns vertically on mobile with horizontal swipe navigation between columns
