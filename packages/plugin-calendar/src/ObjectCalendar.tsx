@@ -53,6 +53,8 @@ export interface ObjectCalendarProps {
   onDelete?: (record: any) => void;
   onNavigate?: (date: Date) => void;
   onViewChange?: (view: 'month' | 'week' | 'day') => void;
+  onEventDrop?: (record: any, newStart: Date, newEnd?: Date) => void;
+  locale?: string;
 }
 
 /**
@@ -144,6 +146,8 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
   onDateClick,
   onNavigate,
   onViewChange,
+  onEventDrop,
+  locale,
   ...rest
 }) => {
   const [data, setData] = useState<any[]>([]);
@@ -362,6 +366,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
           events={events}
           currentDate={currentDate}
           view={(schema as any).defaultView || 'month'}
+          locale={locale}
           onEventClick={(event) => {
             navigation.handleClick(event.data);
             onEventClick?.(event.data);
@@ -376,6 +381,9 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
             onViewChange?.(v);
           }}
           onAddClick={handleCreate}
+          onEventDrop={onEventDrop ? (event, newStart, newEnd) => {
+            onEventDrop(event.data, newStart, newEnd);
+          } : undefined}
         />
       </div>
       {navigation.isOverlay && (
