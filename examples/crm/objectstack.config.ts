@@ -766,4 +766,4 @@ export default defineStack({
 
   },
   plugins: [],
-} as any);
+});
