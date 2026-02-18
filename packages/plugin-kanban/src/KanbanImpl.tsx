@@ -133,7 +133,7 @@ function SortableCard({ card, onCardClick, conditionalFormatting }: { card: Kanb
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} role="listitem" aria-label={card.title}
       onClick={() => onCardClick?.(card)}
     >
-      <Card className="mb-2 cursor-grab active:cursor-grabbing border-border bg-card/60 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group touch-manipulation" style={cardStyles}>
+      <Card className="mb-2 cursor-grab active:cursor-grabbing border-border border-l-4 border-l-primary/40 bg-card/60 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group touch-manipulation" style={cardStyles}>
         {card.coverImage && (
           <div className="w-full h-32 overflow-hidden rounded-t-lg">
             <img
@@ -260,14 +260,14 @@ function KanbanColumnView({
         column.className
       )}
     >
-      <div className="p-3 sm:p-4 border-b border-border/50 bg-muted/20">
+      <div className="p-3 sm:p-4 border-b border-border/50 bg-muted/30 rounded-t-lg">
         <div className="flex items-center justify-between">
           <h3 id={`kanban-col-${column.id}`} className="font-mono text-xs sm:text-sm font-semibold tracking-wider text-primary/90 uppercase truncate">{column.title}</h3>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-muted-foreground" aria-label={`${safeCards.length} cards${column.limit ? ` of ${column.limit} maximum` : ''}`}>
+            <Badge variant="secondary" className="text-xs font-mono tabular-nums">
               {safeCards.length}
               {column.limit && ` / ${column.limit}`}
-            </span>
+            </Badge>
             {isLimitExceeded && (
               <Badge variant="destructive" className="text-xs">
                 Full
@@ -282,6 +282,11 @@ function KanbanColumnView({
           strategy={verticalListSortingStrategy}
         >
           <div className="space-y-2" role="list" aria-label={`${column.title} cards`}>
+            {safeCards.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50">
+                <span className="text-xs font-mono">No cards</span>
+              </div>
+            )}
             {safeCards.map((card) => (
               <SortableCard key={card.id} card={card} onCardClick={onCardClick} conditionalFormatting={conditionalFormatting} />
             ))}
@@ -567,7 +572,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
         </div>
       ) : (
         /* Standard flat layout */
-        <div className={cn("flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory p-2 sm:p-4 [-webkit-overflow-scrolling:touch]", className)} role="region" aria-label="Kanban board">
+        <div className={cn("flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory p-2 sm:p-4 bg-muted/10 rounded-lg [-webkit-overflow-scrolling:touch]", className)} role="region" aria-label="Kanban board">
           {boardColumns.map((column) => (
             <KanbanColumnView
               key={column.id}
