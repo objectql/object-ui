@@ -154,7 +154,7 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 - ✅ View switcher (multi-view tabs, Airtable-style)
 - ✅ Search, filter, sort UI
 - ✅ Record drawer preview (Sheet)
-- ✅ CRUD dialog (create/edit via ObjectForm)
+- ✅ CRUD dialog (create/edit via ModalForm — unified modal form entry)
 - ✅ Metadata inspector (developer tool, design mode)
 - ✅ Schema-driven toolbar actions (`objectDef.actions[]`)
 - ✅ Real-time data refresh via `useRealtimeSubscription`
