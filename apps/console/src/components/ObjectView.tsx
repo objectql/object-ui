@@ -21,12 +21,13 @@ import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-calendar';
 import { Button, Empty, EmptyTitle, EmptyDescription, NavigationOverlay, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@object-ui/components';
-import { Plus, Table as TableIcon, Settings2, MoreVertical, Wrench, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3 } from 'lucide-react';
+import { Plus, Table as TableIcon, Settings2, Wrench, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3 } from 'lucide-react';
 import type { ListViewSchema, ViewNavigationConfig } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useObjectActions } from '../hooks/useObjectActions';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
+import { useAuth } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
 import { useNavigationOverlay } from '@object-ui/react';
 
@@ -49,8 +50,9 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     const { showDebug, toggleDebug } = useMetadataInspector();
     const { t } = useObjectTranslation();
     
-    // Design mode toggle - default false for end users
-    const [designMode, setDesignMode] = useState(false);
+    // Admin users automatically get design tools (no toggle needed)
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'admin';
     const { can } = usePermissions();
     
     // Get Object Definition
@@ -320,42 +322,36 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                       </Button>
                     ))}
 
-                    {/* Design mode tools menu */}
+                    {/* Design tools menu — visible only to admin users */}
+                    {isAdmin && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button 
                           size="sm" 
-                          variant={designMode ? "secondary" : "ghost"}
+                          variant="ghost"
                           className="shadow-none h-8 sm:h-9 px-2"
                           title={t('console.objectView.designTools')}
                         >
-                          {designMode ? <Wrench className="h-4 w-4" /> : <MoreVertical className="h-4 w-4" />}
+                          <Wrench className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem onClick={() => setDesignMode(!designMode)}>
-                          <Wrench className="h-4 w-4 mr-2" />
-                          {designMode ? t('console.objectView.exitDesignMode') : t('console.objectView.enterDesignMode')}
+                        <DropdownMenuItem onClick={toggleDebug}>
+                          <MetadataToggle open={showDebug} onToggle={toggleDebug} className="hidden" />
+                          {t('console.objectView.metadataInspector')}
                         </DropdownMenuItem>
-                        {designMode && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={toggleDebug}>
-                              <MetadataToggle open={showDebug} onToggle={toggleDebug} className="hidden" />
-                              {t('console.objectView.metadataInspector')}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => navigate(viewId ? `../../views/${viewId}` : `views/${activeViewId}`)}>
-                              <Settings2 className="h-4 w-4 mr-2" />
-                              {t('console.objectView.editView')}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => navigate(viewId ? '../../views/new' : 'views/new')}>
-                              <Plus className="h-4 w-4 mr-2" />
-                              {t('console.objectView.addView')}
-                            </DropdownMenuItem>
-                          </>
-                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => navigate(viewId ? `../../views/${viewId}` : `views/${activeViewId}`, { relative: 'path' })}>
+                          <Settings2 className="h-4 w-4 mr-2" />
+                          {t('console.objectView.editView')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(viewId ? '../../views/new' : 'views/new', { relative: 'path' })}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          {t('console.objectView.addView')}
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    )}
                  </div>
              </div>
 
@@ -374,7 +370,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                    onViewChange={handleViewChange}
                    viewTypeIcons={VIEW_TYPE_ICONS}
                    config={objectDef.viewTabBar}
-                   onAddView={() => navigate(viewId ? '../../views/new' : 'views/new')}
+                   onAddView={isAdmin ? () => navigate(viewId ? '../../views/new' : 'views/new', { relative: 'path' }) : undefined}
                    onRenameView={(id, newName) => {
                      // Rename is wired for future backend integration
                      console.info('[ViewTabBar] Rename view:', id, newName);
@@ -412,9 +408,9 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                         />
                     </div>
                 </div>
-                {/* Metadata panel only shows in design mode */}
+                {/* Metadata panel only shows for admin users */}
                 <MetadataPanel
-                    open={showDebug && designMode}
+                    open={showDebug && isAdmin}
                     sections={[
                         { title: 'View Configuration', data: activeView },
                         { title: 'Object Definition', data: objectDef },

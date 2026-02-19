@@ -24,7 +24,7 @@ vi.mock('@object-ui/components', async (importOriginal) => {
     return {
         ...actual,
         cn: (...inputs: any[]) => inputs.filter(Boolean).join(' '),
-        Button: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
+        Button: ({ children, onClick, title }: any) => <button onClick={onClick} title={title}>{children}</button>,
         Input: (props: any) => <input {...props} data-testid="mock-input" />,
         ToggleGroup: ({ children, value, onValueChange }: any) => <div data-value={value} onChange={onValueChange}>{children}</div>,
         ToggleGroupItem: ({ children, value }: any) => <button data-value={value}>{children}</button>,
@@ -50,20 +50,33 @@ vi.mock('@object-ui/components', async (importOriginal) => {
         },
         Empty: ({ children }: any) => <div data-testid="empty">{children}</div>,
         EmptyTitle: ({ children }: any) => <div data-testid="empty-title">{children}</div>,
-        EmptyDescription: ({ children }: any) => <div data-testid="empty-description">{children}</div>
+        EmptyDescription: ({ children }: any) => <div data-testid="empty-description">{children}</div>,
+        // Simple dropdown mocks — render children directly (no Radix portal)
+        DropdownMenu: ({ children }: any) => <div data-testid="dropdown-menu">{children}</div>,
+        DropdownMenuTrigger: ({ children }: any) => <>{children}</>,
+        DropdownMenuContent: ({ children }: any) => <div data-testid="dropdown-content">{children}</div>,
+        DropdownMenuItem: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
+        DropdownMenuSeparator: () => <hr />,
     };
 });
 
 // Mock React Router
 const mockUseParams = vi.fn();
 const mockSetSearchParams = vi.fn();
+const mockNavigate = vi.fn();
 // Default mock implementation
 let mockSearchParams = new URLSearchParams();
 
 vi.mock('react-router-dom', () => ({
     useParams: () => mockUseParams(),
     useSearchParams: () => [mockSearchParams, mockSetSearchParams],
-    useNavigate: () => vi.fn(),
+    useNavigate: () => mockNavigate,
+}));
+
+// Mock auth — default to non-admin; tests can override via mockAuthUser
+let mockAuthUser: { id: string; name: string; role: string } | null = null;
+vi.mock('@object-ui/auth', () => ({
+    useAuth: () => ({ user: mockAuthUser }),
 }));
 
 describe('ObjectView Component', () => {
@@ -108,6 +121,7 @@ describe('ObjectView Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockSearchParams = new URLSearchParams(); // Reset params
+        mockAuthUser = null; // Default to non-admin
     });
 
     it('renders error when object is not found', () => {
@@ -170,5 +184,67 @@ describe('ObjectView Component', () => {
         
         expect(screen.getByTestId('object-calendar')).toBeInTheDocument();
         expect(screen.getByText('Calendar View: due_date')).toBeInTheDocument();
+    });
+
+    it('shows design tools for admin users without toggle', () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Design tools (wrench button) should be visible directly for admin
+        expect(screen.getByTitle('console.objectView.designTools')).toBeInTheDocument();
+        // No "Enter Design Mode" toggle should exist
+        expect(screen.queryByText('console.objectView.enterDesignMode')).not.toBeInTheDocument();
+    });
+
+    it('hides design tools for non-admin users', () => {
+        mockAuthUser = { id: 'u2', name: 'Viewer', role: 'viewer' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Design tools button should not be visible
+        expect(screen.queryByTitle('console.objectView.designTools')).not.toBeInTheDocument();
+    });
+
+    it('hides design tools when user is not authenticated', () => {
+        mockAuthUser = null;
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        expect(screen.queryByTitle('console.objectView.designTools')).not.toBeInTheDocument();
+    });
+
+    it('navigates to view designer with relative path from nested view route', () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity', viewId: 'pipeline' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Click the design tools button, then "Add View"
+        const designBtn = screen.getByTitle('console.objectView.designTools');
+        fireEvent.click(designBtn);
+
+        const addViewBtn = screen.getByText('console.objectView.addView');
+        fireEvent.click(addViewBtn);
+
+        expect(mockNavigate).toHaveBeenCalledWith('../../views/new', { relative: 'path' });
+    });
+
+    it('navigates to view designer with relative path from root object route', () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        const designBtn = screen.getByTitle('console.objectView.designTools');
+        fireEvent.click(designBtn);
+
+        const addViewBtn = screen.getByText('console.objectView.addView');
+        fireEvent.click(addViewBtn);
+
+        expect(mockNavigate).toHaveBeenCalledWith('views/new', { relative: 'path' });
     });
 });
