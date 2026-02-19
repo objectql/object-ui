@@ -6107,14 +6107,8 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  ag-charts-types@10.3.9:
-    resolution: {integrity: sha512-drcRiJVencliC8LnRwk4MmeQDNNBg5GzmOoLFihO3/k0CUK0VF/N+2nc7iFozwaNG0btSB9vAhYuJLjqHMtRrQ==}
-
   ag-charts-types@13.1.0:
     resolution: {integrity: sha512-DytRM3CXli+Y013SC1Mr8lQBrhVTACK+11ilDHOhwUM0sRpmGuR51XFGcBKOliW1Vas1AycP31Cm3Pp0jx3hqw==}
-
-  ag-grid-community@32.3.9:
-    resolution: {integrity: sha512-l07SB0mCbGPkC1R8rQQFgBtI5+1FoXBi3RUk1+dHKV/UPeorMEFAzCokcsOhz0qwcWCPrHauUsbRa1SIxfVEJQ==}
 
   ag-grid-community@35.1.0:
     resolution: {integrity: sha512-yWFQfRNjv3KUBkHHzFdDOYGjPcDMU0B8Up4qG651diFlGRUGEGVs94SK73niWvk1FDZdpV9oWrwq3f30/qAoVg==}
@@ -13343,7 +13337,7 @@ snapshots:
     dependencies:
       '@objectstack/core': 3.0.4(pino@8.21.0)
       '@objectstack/driver-memory': 3.0.4(pino@8.21.0)
-      '@objectstack/objectql': 3.0.4(pino@8.21.0)
+      '@objectstack/objectql': 3.0.6(pino@8.21.0)
       '@objectstack/plugin-hono-server': 3.0.4(pino@8.21.0)
       '@objectstack/rest': 3.0.4(pino@8.21.0)
       '@objectstack/runtime': 3.0.4(pino@8.21.0)
@@ -13361,7 +13355,7 @@ snapshots:
     dependencies:
       '@objectstack/core': 3.0.6(pino@8.21.0)
       '@objectstack/driver-memory': 3.0.4(pino@8.21.0)
-      '@objectstack/objectql': 3.0.4(pino@8.21.0)
+      '@objectstack/objectql': 3.0.6(pino@8.21.0)
       '@objectstack/plugin-hono-server': 3.0.4(pino@8.21.0)
       '@objectstack/rest': 3.0.4(pino@8.21.0)
       '@objectstack/runtime': 3.0.4(pino@8.21.0)
@@ -15906,13 +15900,7 @@ snapshots:
 
   acorn@8.15.0: {}
 
-  ag-charts-types@10.3.9: {}
-
   ag-charts-types@13.1.0: {}
-
-  ag-grid-community@32.3.9:
-    dependencies:
-      ag-charts-types: 10.3.9
 
   ag-grid-community@35.1.0:
     dependencies:

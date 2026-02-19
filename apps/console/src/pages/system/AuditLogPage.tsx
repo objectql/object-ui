@@ -25,7 +25,7 @@ export function AuditLogPage() {
     if (!dataSource) return;
     setLoading(true);
     try {
-      const result = await dataSource.find('sys_audit_log', { $orderby: 'createdAt desc' });
+      const result = await dataSource.find('sys_audit_log', { $orderby: { createdAt: 'desc' } });
       setRecords(result.data || []);
     } catch {
       toast.error('Failed to load audit logs');

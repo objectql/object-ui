@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 export interface UseGroupReorderOptions {
   /** Initial ordered list of group keys. */
@@ -43,7 +43,7 @@ export function useGroupReorder({ groupKeys }: UseGroupReorderOptions): UseGroup
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
 
   // Keep internal order in sync when the source list changes (new groups added/removed).
-  useMemo(() => {
+  useEffect(() => {
     setOrder((prev) => {
       const prevSet = new Set(prev);
       const nextSet = new Set(groupKeys);

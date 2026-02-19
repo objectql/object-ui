@@ -92,7 +92,7 @@ function computeLayout(
   // Level 2+: related records of related records
   if (levels >= 2) {
     const ringRadius2 = Math.min(width, height) * 0.46;
-    let level2Nodes: { node: GraphNode; parentX: number; parentY: number; parentId: string }[] = [];
+    const level2Nodes: { node: GraphNode; parentX: number; parentY: number; parentId: string }[] = [];
 
     level1Nodes.forEach((parentNode) => {
       const parentLayoutNode = nodes.find((n) => n.id === parentNode.id);
