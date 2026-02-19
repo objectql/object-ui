@@ -373,6 +373,7 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Mobile card view skeleton loading placeholders during async data fetch
 - [x] CRM example Opportunity stage field with color options
 - [x] Airtable-style record count status bar (`{n} records`) in ListView
+- [x] ListView record count i18n keys (`list.recordCount` / `list.recordCountOne`) in all 11 locale files
 - [x] Airtable-style "+ Add record" row (showAddRow / onAddRecord) in data-table
 - [x] Airtable-style compound cells with prefix badge configuration (ListColumn.prefix)
 - [x] Airtable-style datetime split display (date + muted time for created_at/updated_at fields)
@@ -432,6 +433,8 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Add tooltip (`title` attribute) on truncated event titles in all views
 - [x] Enhance cross-month date visual distinction (`opacity-50` for non-current-month dates)
 - [x] Improve today highlight spacing with event cards (`mb-2`)
+- [x] Remove duplicate "New Event" button from calendar area (page-level New button is sufficient)
+- [x] Forward `...props` in ObjectCalendarRenderer so `onRowClick` from ListView is propagated
 
 ##### ObjectTimeline (`plugin-timeline`)
 - [x] Switch from side-by-side to single-column layout on mobile
