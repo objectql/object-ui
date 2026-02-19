@@ -400,6 +400,11 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Add swipe-to-navigate between days/weeks on mobile via `useGesture`
 - [x] Scale event text: `text-xs sm:text-sm` with single-line truncation
 - [x] Make event creation touch-friendly (long-press on timeslot)
+- [x] Fix event click always dispatches action (removed invalid `schema.onEventClick` guard)
+- [x] Locale-aware weekday headers and UI strings (Today, New, Day/Week/Month, +N more)
+- [x] Add tooltip (`title` attribute) on truncated event titles in all views
+- [x] Enhance cross-month date visual distinction (`opacity-50` for non-current-month dates)
+- [x] Improve today highlight spacing with event cards (`mb-2`)
 
 ##### ObjectTimeline (`plugin-timeline`)
 - [x] Switch from side-by-side to single-column layout on mobile
