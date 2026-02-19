@@ -1306,6 +1306,9 @@ importers:
       '@object-ui/fields':
         specifier: workspace:*
         version: link:../fields
+      '@object-ui/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@object-ui/mobile':
         specifier: workspace:*
         version: link:../mobile

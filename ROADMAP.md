@@ -370,6 +370,12 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Airtable-style row refinement (pure white bg, border-border/50, hover:bg-muted/30)
 - [x] Airtable-style inline sort arrows (smaller h-3 icons, hidden until hover, colored when active)
 - [x] Airtable-style column header type icons (Type/Hash/Calendar/Clock/CheckSquare/User/Tag)
+- [x] Airtable-style primary field auto-link (first column clickable to open record detail)
+- [x] Airtable-style row hover expand button (appears on row number hover)
+- [x] Airtable-style column header context menu (right-click for sort/hide)
+- [x] Airtable-style form-based record detail panel (replaces key-value dump)
+- [x] Airtable-style empty value display (italic muted indicator instead of plain dash)
+- [x] Grid i18n keys in all 10 locale files (grid.actions, grid.edit, grid.delete, grid.export, etc.)
 
 ##### ObjectKanban (`plugin-kanban`)
 - [x] Stack columns vertically on mobile with horizontal swipe navigation between columns
@@ -400,6 +406,11 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Add swipe-to-navigate between days/weeks on mobile via `useGesture`
 - [x] Scale event text: `text-xs sm:text-sm` with single-line truncation
 - [x] Make event creation touch-friendly (long-press on timeslot)
+- [x] Fix event click always dispatches action (removed invalid `schema.onEventClick` guard)
+- [x] Locale-aware weekday headers and UI strings (Today, New, Day/Week/Month, +N more)
+- [x] Add tooltip (`title` attribute) on truncated event titles in all views
+- [x] Enhance cross-month date visual distinction (`opacity-50` for non-current-month dates)
+- [x] Improve today highlight spacing with event cards (`mb-2`)
 
 ##### ObjectTimeline (`plugin-timeline`)
 - [x] Switch from side-by-side to single-column layout on mobile

@@ -265,8 +265,8 @@ describe('P3.3 Calendar View States', () => {
           onAddClick={onAdd}
         />
       );
-      // The "New" button should be visible
-      const newButton = screen.getByText('New');
+      // The "New event" button should be visible
+      const newButton = screen.getByText('New event');
       expect(newButton).toBeInTheDocument();
       fireEvent.click(newButton);
       expect(onAdd).toHaveBeenCalledTimes(1);
@@ -280,7 +280,7 @@ describe('P3.3 Calendar View States', () => {
           locale="en-US"
         />
       );
-      expect(screen.queryByText('New')).not.toBeInTheDocument();
+      expect(screen.queryByText('New event')).not.toBeInTheDocument();
     });
 
     it('accepts className prop', () => {

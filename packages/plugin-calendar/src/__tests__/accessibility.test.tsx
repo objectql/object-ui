@@ -276,7 +276,7 @@ describe('CalendarView: Screen Reader & Accessibility', () => {
         />
       );
 
-      const newButton = screen.getByText('New');
+      const newButton = screen.getByText('New event');
       expect(newButton).toBeInTheDocument();
       expect(newButton.closest('button')).toBeInTheDocument();
     });
@@ -284,7 +284,7 @@ describe('CalendarView: Screen Reader & Accessibility', () => {
     it('add button is not shown when onAddClick is absent', () => {
       render(<CalendarView currentDate={defaultDate} locale="en-US" />);
 
-      expect(screen.queryByText('New')).not.toBeInTheDocument();
+      expect(screen.queryByText('New event')).not.toBeInTheDocument();
     });
   });
 });

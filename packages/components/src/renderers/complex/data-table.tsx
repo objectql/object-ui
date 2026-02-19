@@ -47,6 +47,7 @@ import {
   Save,
   X,
   Plus,
+  Expand,
 } from 'lucide-react';
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -133,6 +134,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // Track pending changes for multi-cell editing: rowIndex -> { columnKey -> newValue }
   const [pendingChanges, setPendingChanges] = useState<Map<number, Record<string, any>>>(new Map());
   const [isSaving, setIsSaving] = useState(false);
+  // Column header context menu state
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; columnKey: string } | null>(null);
   
   // Refs for column resizing
   const resizingColumn = useRef<string | null>(null);
@@ -207,6 +210,25 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       setSortDirection('asc');
     }
   };
+
+  // Column header context menu handler
+  const handleColumnContextMenu = (e: React.MouseEvent, columnKey: string) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, columnKey });
+  };
+
+  const hideColumn = (columnKey: string) => {
+    setColumns(prev => prev.filter(c => c.accessorKey !== columnKey));
+    setContextMenu(null);
+  };
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [contextMenu]);
 
   const handleSelectAll = (checked: boolean) => {
     const newSelected = new Set<any>();
@@ -657,6 +679,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                     onDrop={(e) => handleColumnDrop(e, index)}
                     onDragEnd={handleColumnDragEnd}
                     onClick={() => sortable && col.sortable !== false && handleSort(col.accessorKey)}
+                    onContextMenu={(e) => handleColumnContextMenu(e, col.accessorKey)}
                   >
                     <div className={cn(
                       "flex items-center",
@@ -716,7 +739,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       key={rowId} 
                       data-state={isSelected ? 'selected' : undefined}
                       className={cn(
-                        "bg-background border-b border-border/50 hover:bg-muted/30",
+                        "bg-background border-b border-border/50 hover:bg-muted/30 group/row",
                         schema.onRowClick && "cursor-pointer",
                         rowHasChanges && "bg-amber-50 dark:bg-amber-950/20",
                         rowClassName && rowClassName(row, rowIndex)
@@ -741,10 +764,24 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         </TableCell>
                       )}
                       {showRowNumbers && (
-                        <TableCell className={cn("text-center w-12", frozenColumns > 0 && "sticky z-10 bg-background")} style={frozenColumns > 0 ? { left: selectable ? 48 : 0 } : undefined}>
-                          <span className="text-xs text-muted-foreground tabular-nums select-none">
+                        <TableCell className={cn("text-center w-12 relative", frozenColumns > 0 && "sticky z-10 bg-background")} style={frozenColumns > 0 ? { left: selectable ? 48 : 0 } : undefined}>
+                          <span className="text-xs text-muted-foreground tabular-nums select-none group-hover/row:invisible">
                             {globalIndex + 1}
                           </span>
+                          {schema.onRowClick && (
+                            <button
+                              type="button"
+                              className="absolute inset-0 hidden group-hover/row:flex items-center justify-center text-muted-foreground hover:text-primary"
+                              data-testid="row-expand-button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                schema.onRowClick?.(row);
+                              }}
+                              title="Open record"
+                            >
+                              <Expand className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </TableCell>
                       )}
                       {columns.map((col, colIndex) => {
@@ -945,6 +982,54 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Column header context menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 min-w-[160px] rounded-md border bg-popover p-1 shadow-md"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          data-testid="column-context-menu"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {sortable && (
+            <>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                onClick={() => {
+                  setSortColumn(contextMenu.columnKey);
+                  setSortDirection('asc');
+                  setContextMenu(null);
+                }}
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+                Sort ascending
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                onClick={() => {
+                  setSortColumn(contextMenu.columnKey);
+                  setSortDirection('desc');
+                  setContextMenu(null);
+                }}
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+                Sort descending
+              </button>
+              <div className="my-1 h-px bg-border" />
+            </>
+          )}
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+            onClick={() => hideColumn(contextMenu.columnKey)}
+          >
+            <X className="h-3.5 w-3.5" />
+            Hide column
+          </button>
         </div>
       )}
     </div>

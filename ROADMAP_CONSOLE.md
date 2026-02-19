@@ -3,7 +3,7 @@
 > **Last Updated:** February 18, 2026 (L3 Development — Phases 11-13 Complete)
 > **Current Version:** v2.0.0
 > **Target Version:** v2.1.0 (Next Minor)
-> **Spec Alignment:** @objectstack/spec v3.0.2
+> **Spec Alignment:** @objectstack/spec v3.0.7
 > **Bootstrap (Phase 0):** ✅ Complete
 > **Phases 1-5:** ✅ Complete
 > **Phase 6 (Real-Time):** ✅ L2 Complete — PresenceAvatars integrated, conflict resolution wired to reconnection

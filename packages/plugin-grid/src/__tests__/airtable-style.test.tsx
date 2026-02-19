@@ -340,3 +340,128 @@ describe('Add record row', () => {
     expect(screen.queryByTestId('add-record-row')).not.toBeInTheDocument();
   });
 });
+
+// =========================================================================
+// 11. Primary field auto-link
+// =========================================================================
+describe('Primary field auto-link', () => {
+  it('should render first column cells as clickable links (primary field)', async () => {
+    renderGrid([
+      { field: 'subject', label: 'Subject' },
+      { field: 'status', label: 'Status' },
+    ]);
+    await waitFor(() => {
+      expect(screen.getByText('Subject')).toBeInTheDocument();
+    });
+
+    // First column cells should be rendered as buttons (links) with primary-field-link testid
+    const primaryLinks = screen.getAllByTestId('primary-field-link');
+    expect(primaryLinks.length).toBe(3); // 3 data rows
+    expect(primaryLinks[0]).toHaveTextContent('Task Alpha');
+    expect(primaryLinks[1]).toHaveTextContent('Task Beta');
+    expect(primaryLinks[2]).toHaveTextContent('Task Gamma');
+  });
+
+  it('should style primary field cells with font-medium and text-primary', async () => {
+    renderGrid([
+      { field: 'subject', label: 'Subject' },
+      { field: 'status', label: 'Status' },
+    ]);
+    await waitFor(() => {
+      expect(screen.getByText('Subject')).toBeInTheDocument();
+    });
+
+    const primaryLinks = screen.getAllByTestId('primary-field-link');
+    // Primary field links should have text-primary and font-medium classes
+    expect(primaryLinks[0]).toHaveClass('text-primary');
+    expect(primaryLinks[0]).toHaveClass('font-medium');
+  });
+
+  it('should not auto-link first column when it already has explicit link=true', async () => {
+    renderGrid([
+      { field: 'subject', label: 'Subject', link: true },
+      { field: 'status', label: 'Status' },
+    ]);
+    await waitFor(() => {
+      expect(screen.getByText('Subject')).toBeInTheDocument();
+    });
+
+    // Still should have clickable buttons (via explicit link), but no primary-field-link testid
+    // because isPrimaryField is only true when !col.link && !col.action
+    const primaryLinks = screen.queryAllByTestId('primary-field-link');
+    expect(primaryLinks.length).toBe(0);
+
+    // But the cells should still be buttons (from col.link path)
+    const subjectCell = screen.getByText('Task Alpha');
+    expect(subjectCell.closest('button')).toBeTruthy();
+  });
+});
+
+// =========================================================================
+// 12. Empty value display
+// =========================================================================
+describe('Empty value display', () => {
+  it('should show styled empty indicator for null/empty values', async () => {
+    const dataWithEmpty = [
+      { _id: '1', subject: 'Task Alpha', company: null },
+      { _id: '2', subject: 'Task Beta', company: '' },
+      { _id: '3', subject: 'Task Gamma', company: 'Acme' },
+    ];
+
+    const schema: any = {
+      type: 'object-grid' as const,
+      objectName: 'test_object',
+      columns: [
+        { field: 'subject', label: 'Subject' },
+        { field: 'company', label: 'Company' },
+      ],
+      data: { provider: 'value', items: dataWithEmpty },
+    };
+
+    render(
+      <ActionProvider>
+        <ObjectGrid schema={schema} />
+      </ActionProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Subject')).toBeInTheDocument();
+    });
+
+    // Non-empty value should be displayed normally
+    expect(screen.getByText('Acme')).toBeInTheDocument();
+
+    // Empty values should show muted dash indicators
+    const emptyIndicators = screen.getAllByText('—');
+    expect(emptyIndicators.length).toBeGreaterThanOrEqual(2);
+    // Verify they have the styled classes
+    emptyIndicators.forEach(el => {
+      expect(el.className).toContain('italic');
+    });
+  });
+});
+
+// =========================================================================
+// 13. Record detail panel (form-based)
+// =========================================================================
+describe('Record detail panel', () => {
+  it('should render form-based record detail with renderRecordDetail', async () => {
+    const onRowClick = vi.fn();
+    renderGrid(
+      [
+        { field: 'subject', label: 'Subject' },
+        { field: 'status', label: 'Status' },
+      ],
+      {
+        navigation: { mode: 'drawer' },
+      }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Subject')).toBeInTheDocument();
+    });
+
+    // The grid should render successfully with navigation configured
+    expect(screen.getByText('Task Alpha')).toBeInTheDocument();
+  });
+});

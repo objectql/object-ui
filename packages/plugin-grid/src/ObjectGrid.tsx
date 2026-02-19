@@ -440,16 +440,21 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
               const inferredType = inferColumnType(col);
               const CellRenderer = inferredType ? getCellRenderer(inferredType) : null;
 
-              if (col.link && col.action) {
+              // Auto-link primary field (first column) to record detail (Airtable-style)
+              const isPrimaryField = colIndex === 0 && !col.link && !col.action;
+              const isLinked = col.link || isPrimaryField;
+
+              if ((col.link && col.action) || (isPrimaryField && col.action)) {
                 // Both link and action: link takes priority for navigation, action executes on secondary interaction
                 cellRenderer = (value: any, row: any) => {
                   const displayContent = CellRenderer
                     ? <CellRenderer value={value} field={{ name: col.field, type: inferredType || 'text' } as any} />
-                    : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground">-</span>);
+                    : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>);
                   return (
                     <button
                       type="button"
                       className="text-primary font-medium underline-offset-4 hover:underline cursor-pointer bg-transparent border-none p-0 text-left font-inherit"
+                      data-testid={isPrimaryField ? 'primary-field-link' : undefined}
                       onClick={(e) => {
                         e.stopPropagation();
                         navigation.handleClick(row);
@@ -459,16 +464,17 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                     </button>
                   );
                 };
-              } else if (col.link) {
+              } else if (isLinked) {
                 // Link column: clicking navigates to the record detail
                 cellRenderer = (value: any, row: any) => {
                   const displayContent = CellRenderer
                     ? <CellRenderer value={value} field={{ name: col.field, type: inferredType || 'text' } as any} />
-                    : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground">-</span>);
+                    : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>);
                   return (
                     <button
                       type="button"
                       className="text-primary font-medium underline-offset-4 hover:underline cursor-pointer bg-transparent border-none p-0 text-left font-inherit"
+                      data-testid={isPrimaryField ? 'primary-field-link' : undefined}
                       onClick={(e) => {
                         e.stopPropagation();
                         navigation.handleClick(row);
@@ -483,7 +489,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 cellRenderer = (value: any, row: any) => {
                   const displayContent = CellRenderer
                     ? <CellRenderer value={value} field={{ name: col.field, type: inferredType || 'text' } as any} />
-                    : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground">-</span>);
+                    : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>);
                   return (
                     <button
                       type="button"
@@ -510,7 +516,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 cellRenderer = (value: any) => (
                   value != null && value !== ''
                     ? <span>{String(value)}</span>
-                    : <span className="text-muted-foreground">-</span>
+                    : <span className="text-muted-foreground/50 text-xs italic">—</span>
                 );
               }
 
@@ -1023,6 +1029,70 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     </div>
   ) : null;
 
+  // Form-based record detail renderer (replaces simple key-value dump)
+  const renderRecordDetail = (record: any) => {
+    const systemFields = ['_id', 'id', 'created_at', 'updated_at', 'created_by', 'updated_by'];
+    const entries = Object.entries(record);
+    const regularFields = entries.filter(([key]) => !systemFields.includes(key));
+    const metaFields = entries.filter(([key]) => systemFields.includes(key) && key !== '_id' && key !== 'id');
+
+    const formatFieldLabel = (key: string): string =>
+      key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+
+    const renderFieldValue = (key: string, value: any): React.ReactNode => {
+      if (value == null || value === '') {
+        return <span className="text-muted-foreground/50 text-sm italic">Empty</span>;
+      }
+      if (typeof value === 'boolean') {
+        return <Badge variant={value ? 'default' : 'outline'}>{value ? 'Yes' : 'No'}</Badge>;
+      }
+      // Detect date-like values
+      if (typeof value === 'string' && !isNaN(Date.parse(value)) && (key.includes('date') || key.includes('_at') || key.includes('time'))) {
+        return <span className="text-sm">{new Date(value).toLocaleString()}</span>;
+      }
+      return <span className="text-sm break-words">{String(value)}</span>;
+    };
+
+    return (
+      <div className="space-y-4" data-testid="record-detail-panel">
+        {/* Regular fields in form-like layout */}
+        <div className="rounded-lg border bg-card">
+          <div className="divide-y">
+            {regularFields.map(([key, value]) => (
+              <div key={key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 px-4 py-3">
+                <span className="text-xs font-medium text-muted-foreground sm:w-1/3 sm:text-right sm:pt-0.5 uppercase tracking-wide shrink-0">
+                  {formatFieldLabel(key)}
+                </span>
+                <div className="flex-1 min-w-0">
+                  {renderFieldValue(key, value)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* System/meta fields */}
+        {metaFields.length > 0 && (
+          <div className="rounded-lg border bg-muted/30">
+            <div className="px-4 py-2 border-b">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">System</span>
+            </div>
+            <div className="divide-y divide-border/50">
+              {metaFields.map(([key, value]) => (
+                <div key={key} className="flex items-center gap-4 px-4 py-2">
+                  <span className="text-xs text-muted-foreground w-1/3 text-right shrink-0">
+                    {formatFieldLabel(key)}
+                  </span>
+                  <span className="text-xs text-muted-foreground flex-1 min-w-0 break-words">{String(value ?? '')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Render grid content: grouped (multiple tables with headers) or flat (single table)
   const gridContent = isGrouped ? (
     <div className="space-y-2">
@@ -1057,18 +1127,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         title={detailTitle}
         mainContent={<>{gridToolbar}{gridContent}</>}
       >
-        {(record) => (
-          <div className="space-y-3">
-            {Object.entries(record).map(([key, value]) => (
-              <div key={key} className="flex flex-col">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  {key.replace(/_/g, ' ')}
-                </span>
-                <span className="text-sm">{String(value ?? '—')}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        {(record) => renderRecordDetail(record)}
       </NavigationOverlay>
     );
   }
@@ -1090,18 +1149,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           {...navigation}
           title={detailTitle}
         >
-          {(record) => (
-            <div className="space-y-3">
-              {Object.entries(record).map(([key, value]) => (
-                <div key={key} className="flex flex-col">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {key.replace(/_/g, ' ')}
-                  </span>
-                  <span className="text-sm">{String(value ?? '—')}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          {(record) => renderRecordDetail(record)}
         </NavigationOverlay>
       )}
     </div>
