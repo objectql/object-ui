@@ -409,6 +409,7 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Auto-Layout: filter auto-generated fields (formula/summary/auto_number) in create mode
 - [x] Auto-Layout: user configuration always takes priority over inferred defaults
 - [x] Auto-Layout: apply in ModalForm/DrawerForm variants (not just SimpleObjectForm)
+- [x] Auto-Layout: auto-upgrade modal size when inferred columns > 1 (2→lg, 3→xl, 4+→full)
 
 ##### ObjectDashboard (`plugin-dashboard`)
 - [x] Implement responsive grid: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`

@@ -26,7 +26,7 @@ import {
 import { FormSection } from './FormSection';
 import { SchemaRenderer } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
-import { applyAutoLayout } from './autoLayout';
+import { applyAutoLayout, inferModalSize } from './autoLayout';
 
 export interface ModalFormSectionConfig {
   name?: string;
@@ -114,7 +114,23 @@ export const ModalForm: React.FC<ModalFormProps> = ({
   const [error, setError] = useState<Error | null>(null);
 
   const isOpen = schema.open !== false;
-  const sizeClass = modalSizeClasses[schema.modalSize || 'default'] || modalSizeClasses.default;
+
+  // Compute auto-layout for flat fields (no sections) to determine inferred columns
+  const autoLayoutResult = useMemo(() => {
+    if (schema.sections?.length || schema.customFields?.length) return null;
+    return applyAutoLayout(formFields, objectSchema, schema.columns, schema.mode);
+  }, [formFields, objectSchema, schema.columns, schema.mode, schema.sections, schema.customFields]);
+
+  // Auto-upgrade modal size when auto-layout infers multi-column and user hasn't set modalSize
+  const effectiveModalSize = useMemo(() => {
+    if (schema.modalSize) return schema.modalSize;
+    if (autoLayoutResult?.columns && autoLayoutResult.columns > 1) {
+      return inferModalSize(autoLayoutResult.columns);
+    }
+    return 'default';
+  }, [schema.modalSize, autoLayoutResult]);
+
+  const sizeClass = modalSizeClasses[effectiveModalSize] || modalSizeClasses.default;
 
   // Fetch object schema
   useEffect(() => {
@@ -347,16 +363,16 @@ export const ModalForm: React.FC<ModalFormProps> = ({
       );
     }
 
-    // Apply auto-layout for flat fields (infer columns + colSpan)
-    const autoLayoutResult = applyAutoLayout(formFields, objectSchema, schema.columns, schema.mode);
+    // Reuse pre-computed auto-layout result for flat fields
+    const layoutResult = autoLayoutResult ?? applyAutoLayout(formFields, objectSchema, schema.columns, schema.mode);
 
     // Flat fields layout
     return (
       <SchemaRenderer
         schema={{
           ...baseFormSchema,
-          fields: autoLayoutResult.fields,
-          columns: autoLayoutResult.columns,
+          fields: layoutResult.fields,
+          columns: layoutResult.columns,
         }}
       />
     );
