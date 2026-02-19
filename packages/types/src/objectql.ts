@@ -896,6 +896,32 @@ export interface ObjectViewSchema extends BaseSchema {
    * Custom CSS class
    */
   className?: string;
+
+  /**
+   * View tab bar UX configuration (inline add, context menu, overflow, indicators).
+   */
+  viewTabBar?: ViewTabBarConfig;
+}
+
+/**
+ * View Tab Bar Configuration
+ * Controls the UX of the view tab bar (inline add, context menu, overflow, indicators).
+ */
+export interface ViewTabBarConfig {
+  /** Show inline "+" button to create new views @default true */
+  showAddButton?: boolean;
+  /** Allow inline renaming by double-clicking tab @default true */
+  inlineRename?: boolean;
+  /** Show context menu on right-click @default true */
+  contextMenu?: boolean;
+  /** Allow drag-reorder of view tabs @default false */
+  reorderable?: boolean;
+  /** Max visible tabs before overflow → "More" dropdown @default 6 */
+  maxVisibleTabs?: number;
+  /** Show filter/sort indicator badges on tabs @default true */
+  showIndicators?: boolean;
+  /** Show "Save as View" when filters differ from saved @default true */
+  showSaveAsView?: boolean;
 }
 
 /**

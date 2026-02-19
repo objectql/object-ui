@@ -302,6 +302,7 @@ export type {
   ObjectViewSchema,
   NamedListView,
   ViewNavigationConfig,
+  ViewTabBarConfig,
   ObjectQLComponentSchema,
 } from './objectql';
 

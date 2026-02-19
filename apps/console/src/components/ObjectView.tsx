@@ -14,7 +14,8 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { ObjectChart } from '@object-ui/plugin-charts';
 import { ListView } from '@object-ui/plugin-list';
 import { DetailView } from '@object-ui/plugin-detail';
-import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
+import { ObjectView as PluginObjectView, ViewTabBar } from '@object-ui/plugin-view';
+import type { ViewTabItem } from '@object-ui/plugin-view';
 // Import plugins for side-effects (registration)
 import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
@@ -358,30 +359,39 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                  </div>
              </div>
 
-             {/* View Tabs — Airtable-style named-view switcher */}
+             {/* View Tabs — Airtable-style named-view switcher with management UX */}
              {views.length > 1 && (
                <div className="border-b px-3 sm:px-4 bg-background overflow-x-auto shrink-0">
-                 <div className="flex items-center gap-0.5 -mb-px">
-                   {views.map((view: { id: string; label: string; type: string }) => {
-                     const isActive = view.id === activeViewId;
-                     const ViewIcon = VIEW_TYPE_ICONS[view.type] || TableIcon;
-                     return (
-                       <button
-                         key={view.id}
-                         onClick={() => handleViewChange(view.id)}
-                         className={cn(
-                           "inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-                           isActive
-                             ? "border-primary text-primary"
-                             : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-                         )}
-                       >
-                         <ViewIcon className="h-3.5 w-3.5" />
-                         {view.label}
-                       </button>
-                     );
-                   })}
-                 </div>
+                 <ViewTabBar
+                   views={views.map((view: { id: string; label: string; type: string; filter?: any[]; sort?: any[] }) => ({
+                     id: view.id,
+                     label: view.label,
+                     type: view.type,
+                     hasActiveFilters: Array.isArray((view as any).filter) && (view as any).filter.length > 0,
+                     hasActiveSort: Array.isArray((view as any).sort) && (view as any).sort.length > 0,
+                   } as ViewTabItem))}
+                   activeViewId={activeViewId}
+                   onViewChange={handleViewChange}
+                   viewTypeIcons={VIEW_TYPE_ICONS}
+                   config={objectDef.viewTabBar}
+                   onAddView={() => navigate(viewId ? '../../views/new' : 'views/new')}
+                   onRenameView={(id, newName) => {
+                     // Rename is wired for future backend integration
+                     console.info('[ViewTabBar] Rename view:', id, newName);
+                   }}
+                   onDuplicateView={(id) => {
+                     console.info('[ViewTabBar] Duplicate view:', id);
+                   }}
+                   onDeleteView={(id) => {
+                     console.info('[ViewTabBar] Delete view:', id);
+                   }}
+                   onSetDefaultView={(id) => {
+                     console.info('[ViewTabBar] Set default view:', id);
+                   }}
+                   onShareView={(id) => {
+                     console.info('[ViewTabBar] Share view:', id);
+                   }}
+                 />
                </div>
              )}
 

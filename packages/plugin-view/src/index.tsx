@@ -15,8 +15,10 @@ import { SortUI } from './SortUI';
 import { SharedViewLink } from './SharedViewLink';
 
 export { ObjectView, ViewSwitcher, FilterUI, SortUI, SharedViewLink };
+export { ViewTabBar } from './ViewTabBar';
 export type { ObjectViewProps } from './ObjectView';
 export type { ViewSwitcherProps } from './ViewSwitcher';
+export type { ViewTabBarProps, ViewTabItem } from './ViewTabBar';
 export type { FilterUIProps } from './FilterUI';
 export type { SortUIProps } from './SortUI';
 export type { SharedViewLinkProps } from './SharedViewLink';
