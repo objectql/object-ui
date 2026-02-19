@@ -79,6 +79,7 @@ const de = {
     allDay: 'Ganztägig',
     noEvents: 'Keine Termine',
     newEvent: 'Neuer Termin',
+    moreEvents: '+{{count}} weitere',
   },
   kanban: {
     addCard: 'Karte hinzufügen',

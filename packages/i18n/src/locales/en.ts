@@ -79,6 +79,7 @@ const en = {
     allDay: 'All Day',
     noEvents: 'No events',
     newEvent: 'New event',
+    moreEvents: '+{{count}} more',
   },
   kanban: {
     addCard: 'Add card',

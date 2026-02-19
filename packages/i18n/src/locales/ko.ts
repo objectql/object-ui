@@ -79,6 +79,7 @@ const ko = {
     allDay: '종일',
     noEvents: '일정이 없습니다',
     newEvent: '새 일정',
+    moreEvents: '+{{count}} 더보기',
   },
   kanban: {
     addCard: '카드 추가',

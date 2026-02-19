@@ -79,6 +79,7 @@ const ru = {
     allDay: 'Весь день',
     noEvents: 'Нет событий',
     newEvent: 'Новое событие',
+    moreEvents: '+{{count}} ещё',
   },
   kanban: {
     addCard: 'Добавить карточку',

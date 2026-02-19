@@ -79,6 +79,7 @@ const zh = {
     allDay: '全天',
     noEvents: '暂无事件',
     newEvent: '新建事件',
+    moreEvents: '+{{count}} 更多',
   },
   kanban: {
     addCard: '添加卡片',

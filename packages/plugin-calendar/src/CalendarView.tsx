@@ -23,68 +23,59 @@ import {
   PopoverContent,
   PopoverTrigger
 } from "@object-ui/components"
+import { useObjectTranslation } from "@object-ui/i18n"
 
 const DEFAULT_EVENT_COLOR = "bg-blue-500 text-white"
 const STABLE_DEFAULT_DATE = new Date()
 
-/**
- * Generate locale-aware weekday abbreviations (Sun, Mon, etc.)
- */
-function getLocalizedWeekdays(locale: string): string[] {
-  // Use a known Sunday (Jan 7, 2024) as reference
-  const refSunday = new Date(2024, 0, 7)
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(refSunday)
-    d.setDate(d.getDate() + i)
-    return d.toLocaleDateString(locale, { weekday: "short" })
-  })
+// Default English translations for fallback when I18nProvider is not available
+const DEFAULT_TRANSLATIONS: Record<string, string> = {
+  'calendar.today': 'Today',
+  'calendar.month': 'Month',
+  'calendar.week': 'Week',
+  'calendar.day': 'Day',
+  'calendar.newEvent': 'New event',
+  'calendar.moreEvents': '+{{count}} more',
 }
 
 /**
- * Locale-aware UI labels for the calendar
+ * Safe wrapper for useObjectTranslation that falls back to English defaults
+ * when I18nProvider is not available (e.g., standalone usage outside console).
  */
-function getLocaleLabels(locale: string) {
-  const isZh = locale.startsWith("zh")
-  const isJa = locale.startsWith("ja")
-  const isKo = locale.startsWith("ko")
-
-  if (isZh) {
-    return {
-      today: "今天",
-      newEvent: "新建",
-      day: "日",
-      week: "周",
-      month: "月",
-      more: (n: number) => `+${n} 更多`,
+function useCalendarTranslation() {
+  try {
+    const result = useObjectTranslation()
+    // Check if i18n is properly initialized by testing a known key
+    const testValue = result.t('calendar.today')
+    if (testValue === 'calendar.today') {
+      // i18n returned the key itself — not initialized
+      return {
+        t: (key: string, options?: Record<string, unknown>) => {
+          let value = DEFAULT_TRANSLATIONS[key] || key
+          if (options) {
+            for (const [k, v] of Object.entries(options)) {
+              value = value.replace(`{{${k}}}`, String(v))
+            }
+          }
+          return value
+        },
+        language: 'en',
+      }
     }
-  }
-  if (isJa) {
+    return { t: result.t, language: result.language }
+  } catch {
     return {
-      today: "今日",
-      newEvent: "新規",
-      day: "日",
-      week: "週",
-      month: "月",
-      more: (n: number) => `+${n} 件`,
+      t: (key: string, options?: Record<string, unknown>) => {
+        let value = DEFAULT_TRANSLATIONS[key] || key
+        if (options) {
+          for (const [k, v] of Object.entries(options)) {
+            value = value.replace(`{{${k}}}`, String(v))
+          }
+        }
+        return value
+      },
+      language: 'en',
     }
-  }
-  if (isKo) {
-    return {
-      today: "오늘",
-      newEvent: "새로 만들기",
-      day: "일",
-      week: "주",
-      month: "월",
-      more: (n: number) => `+${n} 더보기`,
-    }
-  }
-  return {
-    today: "Today",
-    newEvent: "New",
-    day: "Day",
-    week: "Week",
-    month: "Month",
-    more: (n: number) => `+${n} more`,
   }
 }
 
@@ -127,7 +118,8 @@ function CalendarView({
 }: CalendarViewProps) {
   const [selectedView, setSelectedView] = React.useState(view)
   const [selectedDate, setSelectedDate] = React.useState(currentDate)
-  const labels = React.useMemo(() => getLocaleLabels(locale), [locale])
+  const { t, language } = useCalendarTranslation()
+  const effectiveLocale = locale !== "default" ? locale : language
 
   // Sync state if props change
   React.useEffect(() => {
@@ -194,7 +186,7 @@ function CalendarView({
 
   const getDateLabel = () => {
     if (selectedView === "month") {
-      return selectedDate.toLocaleDateString(locale, {
+      return selectedDate.toLocaleDateString(effectiveLocale, {
         month: "long",
         year: "numeric",
       })
@@ -202,16 +194,16 @@ function CalendarView({
       const weekStart = getWeekStart(selectedDate)
       const weekEnd = new Date(weekStart)
       weekEnd.setDate(weekEnd.getDate() + 6)
-      return `${weekStart.toLocaleDateString(locale, {
+      return `${weekStart.toLocaleDateString(effectiveLocale, {
         month: "short",
         day: "numeric",
-      })} - ${weekEnd.toLocaleDateString(locale, {
+      })} - ${weekEnd.toLocaleDateString(effectiveLocale, {
         month: "short",
         day: "numeric",
         year: "numeric",
       })}`
     } else {
-      return selectedDate.toLocaleDateString(locale, {
+      return selectedDate.toLocaleDateString(effectiveLocale, {
         weekday: "long",
         month: "long",
         day: "numeric",
@@ -251,7 +243,7 @@ function CalendarView({
         <div className="flex items-center gap-4">
           <div className="flex items-center bg-muted/50 rounded-lg p-1 gap-1">
              <Button variant="ghost" size="sm" onClick={handleToday} className="h-8" aria-label="Go to today">
-               {labels.today}
+               {t('calendar.today')}
              </Button>
              <div className="h-4 w-px bg-border mx-1" />
              <Button
@@ -307,16 +299,16 @@ function CalendarView({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="day">{labels.day}</SelectItem>
-              <SelectItem value="week">{labels.week}</SelectItem>
-              <SelectItem value="month">{labels.month}</SelectItem>
+              <SelectItem value="day">{t('calendar.day')}</SelectItem>
+              <SelectItem value="week">{t('calendar.week')}</SelectItem>
+              <SelectItem value="month">{t('calendar.month')}</SelectItem>
             </SelectContent>
           </Select>
           
           {onAddClick && (
             <Button onClick={onAddClick} size="sm" className="gap-1">
               <PlusIcon className="h-4 w-4" />
-              {labels.newEvent}
+              {t('calendar.newEvent')}
             </Button>
           )}
         </div>
@@ -328,7 +320,7 @@ function CalendarView({
           <MonthView
             date={selectedDate}
             events={events}
-            locale={locale}
+            locale={effectiveLocale}
             onEventClick={onEventClick}
             onDateClick={onDateClick}
             onEventDrop={onEventDrop}
@@ -338,7 +330,7 @@ function CalendarView({
           <WeekView
             date={selectedDate}
             events={events}
-            locale={locale}
+            locale={effectiveLocale}
             onEventClick={onEventClick}
             onDateClick={onDateClick}
           />
@@ -435,8 +427,15 @@ interface MonthViewProps {
 function MonthView({ date, events, locale = "default", onEventClick, onDateClick, onEventDrop }: MonthViewProps) {
   const days = React.useMemo(() => getMonthDays(date), [date.getFullYear(), date.getMonth()])
   const today = React.useMemo(() => new Date(), [])
-  const weekDays = React.useMemo(() => getLocalizedWeekdays(locale), [locale])
-  const labels = React.useMemo(() => getLocaleLabels(locale), [locale])
+  const { t } = useCalendarTranslation()
+  const weekDays = React.useMemo(() => {
+    const refSunday = new Date(2024, 0, 7)
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(refSunday)
+      d.setDate(d.getDate() + i)
+      return d.toLocaleDateString(locale, { weekday: "short" })
+    })
+  }, [locale])
   const [draggedEventId, setDraggedEventId] = React.useState<string | number | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = React.useState<number | null>(null)
 
@@ -596,7 +595,7 @@ function MonthView({ date, events, locale = "default", onEventClick, onDateClick
                 ))}
                 {dayEvents.length > 3 && (
                   <div className="text-xs text-muted-foreground px-2">
-                    {labels.more(dayEvents.length - 3)}
+                    {t('calendar.moreEvents', { count: dayEvents.length - 3 })}
                   </div>
                 )}
               </div>

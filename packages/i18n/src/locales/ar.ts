@@ -80,6 +80,7 @@ const ar = {
     allDay: 'طوال اليوم',
     noEvents: 'لا توجد أحداث',
     newEvent: 'حدث جديد',
+    moreEvents: '+{{count}} المزيد',
   },
   kanban: {
     addCard: 'إضافة بطاقة',

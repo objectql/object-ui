@@ -9,7 +9,7 @@
 /**
  * Tests for calendar bug fixes:
  * - Event click always dispatches action (no schema.onEventClick guard)
- * - Localized UI strings (Today, New, Day/Week/Month, weekday headers)
+ * - i18n integration with useObjectTranslation
  * - Tooltip (title attribute) on truncated event titles
  * - Cross-month date visual distinction (opacity)
  * - Today highlight spacing improvement
@@ -20,6 +20,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { CalendarView, type CalendarEvent } from '../CalendarView';
+import { I18nProvider } from '@object-ui/i18n';
 
 // Mock ResizeObserver
 class ResizeObserver {
@@ -72,16 +73,23 @@ const sampleEvents: CalendarEvent[] = [
   },
 ];
 
+function renderWithI18n(ui: React.ReactElement, lang = 'en') {
+  return render(
+    <I18nProvider config={{ defaultLanguage: lang, detectBrowserLanguage: false }}>
+      {ui}
+    </I18nProvider>
+  );
+}
+
 describe('Calendar Bug Fixes', () => {
   describe('event click dispatches action', () => {
     it('fires onEventClick when event is clicked in month view', () => {
       const onClick = vi.fn();
-      render(
+      renderWithI18n(
         <CalendarView
           currentDate={defaultDate}
           events={sampleEvents}
           view="month"
-          locale="en-US"
           onEventClick={onClick}
         />
       );
@@ -93,12 +101,11 @@ describe('Calendar Bug Fixes', () => {
 
   describe('tooltip on truncated event titles', () => {
     it('renders title attribute on event cards in month view', () => {
-      render(
+      renderWithI18n(
         <CalendarView
           currentDate={defaultDate}
           events={sampleEvents}
           view="month"
-          locale="en-US"
         />
       );
       const eventEl = screen.getByText('Short Event');
@@ -106,12 +113,11 @@ describe('Calendar Bug Fixes', () => {
     });
 
     it('renders title attribute with long title in month view', () => {
-      render(
+      renderWithI18n(
         <CalendarView
           currentDate={defaultDate}
           events={sampleEvents}
           view="month"
-          locale="en-US"
         />
       );
       const eventEl = screen.getByText('Design dashboard widget layout and structure');
@@ -122,12 +128,11 @@ describe('Calendar Bug Fixes', () => {
     });
 
     it('renders title attribute on event cards in day view', () => {
-      render(
+      renderWithI18n(
         <CalendarView
           currentDate={defaultDate}
           events={sampleEvents}
           view="day"
-          locale="en-US"
         />
       );
       const eventEl = screen.getByText('Short Event');
@@ -135,87 +140,69 @@ describe('Calendar Bug Fixes', () => {
     });
   });
 
-  describe('localized UI strings', () => {
-    it('renders Chinese labels when locale is zh-CN', () => {
+  describe('i18n integration', () => {
+    it('renders labels from i18n when language is en', () => {
       const onAdd = vi.fn();
-      render(
+      renderWithI18n(
         <CalendarView
           currentDate={defaultDate}
           events={[]}
-          locale="zh-CN"
           onAddClick={onAdd}
-        />
+        />,
+        'en'
       );
-      expect(screen.getByText('今天')).toBeInTheDocument();
-      expect(screen.getByText('新建')).toBeInTheDocument();
+      expect(screen.getByText('Today')).toBeInTheDocument();
+      expect(screen.getByText('New event')).toBeInTheDocument();
     });
 
-    it('renders localized weekday headers for zh-CN', () => {
-      render(
+    it('renders labels from i18n when language is zh', () => {
+      const onAdd = vi.fn();
+      renderWithI18n(
+        <CalendarView
+          currentDate={defaultDate}
+          events={[]}
+          onAddClick={onAdd}
+        />,
+        'zh'
+      );
+      expect(screen.getByText('今天')).toBeInTheDocument();
+      expect(screen.getByText('新建事件')).toBeInTheDocument();
+    });
+
+    it('renders locale-aware weekday headers for zh', () => {
+      renderWithI18n(
         <CalendarView
           currentDate={defaultDate}
           events={[]}
           view="month"
-          locale="zh-CN"
-        />
+        />,
+        'zh'
       );
       expect(screen.getByText('周日')).toBeInTheDocument();
       expect(screen.getByText('周一')).toBeInTheDocument();
-    });
-
-    it('renders English labels when locale is en-US', () => {
-      const onAdd = vi.fn();
-      render(
-        <CalendarView
-          currentDate={defaultDate}
-          events={[]}
-          locale="en-US"
-          onAddClick={onAdd}
-        />
-      );
-      expect(screen.getByText('Today')).toBeInTheDocument();
-      expect(screen.getByText('New')).toBeInTheDocument();
-    });
-
-    it('renders English weekday headers for en-US', () => {
-      render(
-        <CalendarView
-          currentDate={defaultDate}
-          events={[]}
-          view="month"
-          locale="en-US"
-        />
-      );
-      expect(screen.getByText('Sun')).toBeInTheDocument();
-      expect(screen.getByText('Mon')).toBeInTheDocument();
-      expect(screen.getByText('Sat')).toBeInTheDocument();
     });
   });
 
   describe('cross-month date styling', () => {
     it('applies opacity to non-current-month dates', () => {
-      const { container } = render(
+      const { container } = renderWithI18n(
         <CalendarView
           currentDate={new Date(2024, 1, 15)} // Feb 15, 2024
           events={[]}
           view="month"
-          locale="en-US"
         />
       );
-      // Feb 2024 starts on Thursday. Previous month's padding days should have opacity-50
       const gridCells = container.querySelectorAll('[role="gridcell"]');
-      // First few cells should be Jan dates (non-current month)
       const firstCell = gridCells[0];
       expect(firstCell.className).toContain('opacity-50');
     });
 
     it('does not apply opacity to current-month dates', () => {
-      const { container } = render(
+      const { container } = renderWithI18n(
         <CalendarView
           currentDate={new Date(2024, 1, 15)} // Feb 15, 2024
           events={[]}
           view="month"
-          locale="en-US"
         />
       );
       const gridCells = container.querySelectorAll('[role="gridcell"]');
@@ -228,17 +215,15 @@ describe('Calendar Bug Fixes', () => {
   describe('today highlight spacing', () => {
     it('renders today date with mb-2 spacing for better separation', () => {
       const today = new Date();
-      const { container } = render(
+      const { container } = renderWithI18n(
         <CalendarView
           currentDate={today}
           events={[]}
           view="month"
-          locale="en-US"
         />
       );
       const todayEl = container.querySelector('[aria-current="date"]');
       expect(todayEl).toBeInTheDocument();
-      // The parent should have mb-2 for spacing (upgraded from mb-1)
       expect(todayEl?.className).toContain('mb-2');
     });
   });

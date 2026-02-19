@@ -79,6 +79,7 @@ const ja = {
     allDay: '終日',
     noEvents: '予定はありません',
     newEvent: '新しい予定',
+    moreEvents: '+{{count}} 件',
   },
   kanban: {
     addCard: 'カードを追加',

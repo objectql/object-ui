@@ -79,6 +79,7 @@ const pt = {
     allDay: 'Dia inteiro',
     noEvents: 'Sem eventos',
     newEvent: 'Novo evento',
+    moreEvents: '+{{count}} mais',
   },
   kanban: {
     addCard: 'Adicionar cartão',
