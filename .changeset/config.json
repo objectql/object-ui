@@ -12,7 +12,7 @@
       "@object-ui/fields",
       "@object-ui/layout",
       "@object-ui/data-objectstack",
-      "@object-ui/cli",
+      "@objectstack/plugin-ui",
       "@object-ui/create-plugin",
       "@object-ui/runner",
       "@object-ui/auth",
