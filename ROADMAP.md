@@ -184,6 +184,20 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [ ] Column reorder/resize persistence for grid
 - [ ] Drag-to-reschedule calendar events (move between dates)
 
+#### P1.4 View Tab Management UX (Airtable/Salesforce-style)
+- [x] `ViewTabBarConfig` type in `@object-ui/types` — configures tab bar UX (showAddButton, contextMenu, overflow, indicators)
+- [x] `ViewTabBar` reusable component in `plugin-view` — extracted from console inline tabs
+- [x] Inline "+" Add View button on tab bar (configurable via `showAddButton`)
+- [x] Right-click context menu on view tabs: Rename, Duplicate, Delete, Set as Default, Share
+- [x] Tab overflow → "More" dropdown when `maxVisibleTabs` exceeded
+- [x] Filter/sort indicator badge (dot) on view tabs (`showIndicators`)
+- [x] "Save as View" indicator + button when user has unsaved filter/sort changes
+- [x] Double-click inline rename on view tabs (`inlineRename`)
+- [ ] Drag-reorder view tabs (`reorderable` — needs `@dnd-kit/sortable`)
+- [ ] Pin/favorite views
+- [ ] View type quick-switch palette (Notion-style layout menu)
+- [ ] Personal vs. shared views grouping in tab bar
+
 ### P2. Component & Plugin Excellence 🧩 (Completed Foundation)
 
 **Goal:** Every component is polished, consistent, well-tested, and delightful to use.
