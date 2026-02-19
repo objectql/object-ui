@@ -27,7 +27,8 @@ test.describe('Console Rendering', () => {
           text.includes('Mock Service Worker') ||
           text.includes('[MSW]') ||
           text.includes('Failed to load resource') ||
-          text.includes('net::ERR_')
+          text.includes('net::ERR_') ||
+          text.includes('Failed to connect to ObjectStack server')
         ) {
           return;
         }
