@@ -395,6 +395,10 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Increase touch targets for all form controls (min 44×44px)
 - [x] Optimize select/dropdown fields for mobile (bottom sheet pattern on phones)
 - [x] Ensure date pickers and multi-select fields are mobile-friendly
+- [x] Auto-Layout: infer optimal columns from field count (≤3 → 1 col, ≥4 → 2 cols)
+- [x] Auto-Layout: smart colSpan for wide fields (textarea/markdown/html/grid → full row)
+- [x] Auto-Layout: filter auto-generated fields (formula/summary/auto_number) in create mode
+- [x] Auto-Layout: user configuration always takes priority over inferred defaults
 
 ##### ObjectDashboard (`plugin-dashboard`)
 - [x] Implement responsive grid: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`
