@@ -20,7 +20,7 @@ import type { ViewTabItem } from '@object-ui/plugin-view';
 import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-calendar';
-import { cn, Button, Empty, EmptyTitle, EmptyDescription, NavigationOverlay, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@object-ui/components';
+import { Button, Empty, EmptyTitle, EmptyDescription, NavigationOverlay, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@object-ui/components';
 import { Plus, Table as TableIcon, Settings2, MoreVertical, Wrench, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3 } from 'lucide-react';
 import type { ListViewSchema, ViewNavigationConfig } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
