@@ -370,6 +370,12 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Airtable-style row refinement (pure white bg, border-border/50, hover:bg-muted/30)
 - [x] Airtable-style inline sort arrows (smaller h-3 icons, hidden until hover, colored when active)
 - [x] Airtable-style column header type icons (Type/Hash/Calendar/Clock/CheckSquare/User/Tag)
+- [x] Airtable-style primary field auto-link (first column clickable to open record detail)
+- [x] Airtable-style row hover expand button (appears on row number hover)
+- [x] Airtable-style column header context menu (right-click for sort/hide)
+- [x] Airtable-style form-based record detail panel (replaces key-value dump)
+- [x] Airtable-style empty value display (italic muted indicator instead of plain dash)
+- [x] Grid i18n keys in all 10 locale files (grid.actions, grid.edit, grid.delete, grid.export, etc.)
 
 ##### ObjectKanban (`plugin-kanban`)
 - [x] Stack columns vertically on mobile with horizontal swipe navigation between columns
