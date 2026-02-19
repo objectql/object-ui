@@ -97,6 +97,10 @@ const ko = {
     newEvent: '새 일정',
     moreEvents: '+{{count}} 더보기',
   },
+  list: {
+    recordCount: '{{count}}개 레코드',
+    recordCountOne: '{{count}}개 레코드',
+  },
   kanban: {
     addCard: '카드 추가',
     addColumn: '열 추가',

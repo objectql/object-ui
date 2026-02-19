@@ -17,6 +17,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { ExpressionEvaluator } from '@object-ui/core';
+import { useObjectTranslation } from '@object-ui/i18n';
 
 export interface ListViewProps {
   schema: ListViewSchema;
@@ -126,6 +127,50 @@ export function evaluateConditionalFormatting(
   return {};
 }
 
+// Default English translations for fallback when I18nProvider is not available
+const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
+  'list.recordCount': '{{count}} records',
+  'list.recordCountOne': '{{count}} record',
+};
+
+/**
+ * Safe wrapper for useObjectTranslation that falls back to English defaults
+ * when I18nProvider is not available (e.g., standalone usage outside console).
+ */
+function useListViewTranslation() {
+  try {
+    const result = useObjectTranslation();
+    const testValue = result.t('list.recordCount');
+    if (testValue === 'list.recordCount') {
+      // i18n returned the key itself — not initialized
+      return {
+        t: (key: string, options?: Record<string, unknown>) => {
+          let value = LIST_DEFAULT_TRANSLATIONS[key] || key;
+          if (options) {
+            for (const [k, v] of Object.entries(options)) {
+              value = value.replace(`{{${k}}}`, String(v));
+            }
+          }
+          return value;
+        },
+      };
+    }
+    return { t: result.t };
+  } catch {
+    return {
+      t: (key: string, options?: Record<string, unknown>) => {
+        let value = LIST_DEFAULT_TRANSLATIONS[key] || key;
+        if (options) {
+          for (const [k, v] of Object.entries(options)) {
+            value = value.replace(`{{${k}}}`, String(v));
+          }
+        }
+        return value;
+      },
+    };
+  }
+}
+
 export const ListView: React.FC<ListViewProps> = ({
   schema: propSchema,
   className,
@@ -137,6 +182,9 @@ export const ListView: React.FC<ListViewProps> = ({
   showViewSwitcher = false,
   ...props
 }) => {
+  // i18n support for record count and other labels
+  const { t } = useListViewTranslation();
+
   // Kernel level default: Ensure viewType is always defined (default to 'grid')
   const schema = React.useMemo(() => ({
     ...propSchema,
@@ -954,7 +1002,7 @@ export const ListView: React.FC<ListViewProps> = ({
           className="border-t px-4 py-1.5 flex items-center text-xs text-muted-foreground bg-background shrink-0"
           data-testid="record-count-bar"
         >
-          {data.length} {data.length === 1 ? 'record' : 'records'}
+          {data.length === 1 ? t('list.recordCountOne', { count: data.length }) : t('list.recordCount', { count: data.length })}
         </div>
       )}
 

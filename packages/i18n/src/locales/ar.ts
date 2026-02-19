@@ -98,6 +98,10 @@ const ar = {
     newEvent: 'حدث جديد',
     moreEvents: '+{{count}} المزيد',
   },
+  list: {
+    recordCount: '{{count}} سجلات',
+    recordCountOne: '{{count}} سجل',
+  },
   kanban: {
     addCard: 'إضافة بطاقة',
     addColumn: 'إضافة عمود',

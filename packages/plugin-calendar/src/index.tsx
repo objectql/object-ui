@@ -24,9 +24,9 @@ export type { CalendarViewProps, CalendarEvent } from './CalendarView';
 import './calendar-view-renderer';
 
 // Register object-calendar component
-export const ObjectCalendarRenderer: React.FC<{ schema: any }> = ({ schema }) => {
+export const ObjectCalendarRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
   const { dataSource } = useSchemaContext();
-  return <ObjectCalendar schema={schema} dataSource={dataSource} />;
+  return <ObjectCalendar schema={schema} dataSource={dataSource} {...props} />;
 };
 
 ComponentRegistry.register('object-calendar', ObjectCalendarRenderer, {

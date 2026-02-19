@@ -97,6 +97,10 @@ const fr = {
     newEvent: 'Nouvel événement',
     moreEvents: '+{{count}} de plus',
   },
+  list: {
+    recordCount: '{{count}} enregistrements',
+    recordCountOne: '{{count}} enregistrement',
+  },
   kanban: {
     addCard: 'Ajouter une carte',
     addColumn: 'Ajouter une colonne',

@@ -97,6 +97,10 @@ const de = {
     newEvent: 'Neuer Termin',
     moreEvents: '+{{count}} weitere',
   },
+  list: {
+    recordCount: '{{count}} Datensätze',
+    recordCountOne: '{{count}} Datensatz',
+  },
   kanban: {
     addCard: 'Karte hinzufügen',
     addColumn: 'Spalte hinzufügen',
