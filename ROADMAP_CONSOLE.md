@@ -245,6 +245,7 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 | G11 | Collaboration data hardcoded | ✅ | Presence/activity/comments now fetched from API; fallback to defaults when API unavailable |
 | G12 | ReportBuilder uses mock fields | ✅ | `availableFields` derived from object schema via `useMetadata().objects` |
 | G13 | ViewDesigner save not persisted | ✅ | `handleSave` calls `dataSource.create/update('sys_view', config)` |
+| G14 | View add/edit navigates to 404 | ✅ | Fixed relative navigation in ObjectView (added `{ relative: 'path' }` to all view designer navigate calls). Fixes #628 |
 
 ---
 
@@ -374,6 +375,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 | 5.6 | Row-level security | ⚠️ Partial (server-side assumed; client `DataScopeManager` types only) |
 | 5.7 | Permission-denied fallback UI | ✅ Done (`PermissionGuard`) |
 | 5.8 | Integration with ObjectStack RBAC API | ✅ Done |
+| 5.9 | Admin auto-design mode (no toggle) | ✅ Done — design tools (Edit/Add View, Metadata Inspector) auto-visible for `isAdmin` users; non-admin users see no design entry. Fixes #628 |
 
 ---
 
