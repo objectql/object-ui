@@ -53,8 +53,12 @@
 export type {
   AppSchema,
   AppAction,
+  NavigationItem,
+  NavigationItemType,
+  NavigationArea,
   MenuItem as AppMenuItem
 } from './app';
+export { menuItemToNavigationItem } from './app';
 
 // ============================================================================
 // Base Types - The Foundation

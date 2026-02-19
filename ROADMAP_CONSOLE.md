@@ -1,6 +1,6 @@
 # ObjectStack Console — Complete Development Roadmap
 
-> **Last Updated:** February 18, 2026 (L3 Development — Phases 11-13 Complete)
+> **Last Updated:** February 19, 2026 (L3 Development — Phases 11-13 Complete, Phase 19 L1 Complete)
 > **Current Version:** v2.0.0
 > **Target Version:** v2.1.0 (Next Minor)
 > **Spec Alignment:** @objectstack/spec v3.0.7
@@ -19,7 +19,8 @@
 > **Phase 16 (L1+L2):** ✅ L2 Complete — Batch undo, persistent stack, toast UI
 > **Phase 17 (L1+L2):** ✅ L2 Complete — Thread resolution, notification preferences, activity feed
 > **Phase 18 (L1+L2):** ✅ L2 Complete — Conditional triggers, multi-step actions
-> **All L1 Development:** ✅ Complete — All phases through 18 have L1 foundation implemented
+> **Phase 19 (L1):** ✅ L1 Complete — Unified NavigationItem model, NavigationArea support, AppSidebar Area Switcher
+> **All L1 Development:** ✅ Complete — All phases through 19 have L1 foundation implemented
 > **All L2 Development:** ✅ Complete — All phases through 18 have L2 production features implemented
 > **Phases 11-13 L3:** ✅ Complete — Grid excellence, record detail, and kanban views fully implemented through L3
 
@@ -889,6 +890,52 @@ These were the initial tasks to bring the console prototype to production-qualit
 - [ ] Scheduled trigger executes automation daily
 - [ ] Webhook action sends HTTP POST on trigger
 - [x] Run history displays past automation executions (`AutomationRunHistory` component)
+
+---
+
+### Phase 19: Unified Navigation & Area Management ✅ L1 Complete
+
+**Goal:** Unify the application navigation model around `NavigationItem` (aligned with @objectstack/spec), introduce Navigation Areas for business-domain partitioning, and deprecate the legacy `MenuItem` type.
+
+**Status:** ✅ L1 Complete — Unified `NavigationItem` type, `NavigationArea` type, Zod validation schemas, `menuItemToNavigationItem` transform, `AppSchema` extended with `navigation`/`areas` fields, AppSidebar Area Switcher UI, Spec Compliance tests.
+
+**Reference:** [Issue: 统一应用与导航模型](https://github.com/objectstack-ai/objectui/issues) — aligns with Salesforce Lightning App Builder and Microsoft Power Apps Site Map Designer patterns.
+
+#### 19.1: Unified NavigationItem Model
+
+| Maturity Level | Description | Status | Spec Compliance |
+|----------------|-------------|--------|-----------------|
+| **L1 (Foundation)** | Define unified `NavigationItem` type with all navigation types (object, dashboard, page, report, url, group, separator, action). Add Zod validation. Export from `@object-ui/types`. Deprecate `MenuItem` with backward-compatible transform. | ✅ Done | `NavigationItem`, `NavigationArea` in `packages/types/src/app.ts`; `NavigationItemSchema`, `NavigationAreaSchema` in `packages/types/src/zod/app.zod.ts` |
+| **L2 (Production)** | Migrate all Console/CLI consumers from `MenuItem` to `NavigationItem`. Remove `MenuItem` from internal usage. Full spec compliance test coverage. | 🔲 Planned | Deprecate `AppSchema.menu` in favor of `AppSchema.navigation` |
+| **L3 (Excellence)** | Server-side NavigationItem validation, auto-migration tooling (CLI command to convert legacy configs). | 🔲 Planned | CLI migration tooling |
+
+#### 19.2: Navigation Area Support
+
+| Maturity Level | Description | Status | Spec Compliance |
+|----------------|-------------|--------|-----------------|
+| **L1 (Foundation)** | Add `NavigationArea` type, extend `AppSchema` with `areas` field, AppSidebar area switcher UI, resolved navigation from active area. | ✅ Done | `AppSchema.areas?: NavigationArea[]`; Area switcher in `AppSidebar.tsx` |
+| **L2 (Production)** | URL routing update to `/apps/:appName/:area/:object`, CommandPalette area awareness, area-level RBAC. | 🔲 Planned | Route protocol upgrade |
+| **L3 (Excellence)** | Area-specific branding/theming, area analytics, area templates. | 🔲 Planned | Enterprise area features |
+
+#### 19.3: Visual Navigation Designer (Future)
+
+| Maturity Level | Description | Status | Spec Compliance |
+|----------------|-------------|--------|-----------------|
+| **L1 (Foundation)** | Basic NavigationDesigner component: drag-and-drop navigation items, add from object/dashboard/page catalog. | 🔲 Planned | `NavigationDesignerProps` interface |
+| **L2 (Production)** | Live preview sidebar, icon picker (Lucide), expression editor for visibility, export/import JSON. | 🔲 Planned | Visual editing features |
+| **L3 (Excellence)** | App Manager system page, app templates/cloning, app lifecycle (active/inactive). | 🔲 Planned | Full App Manager |
+
+**Success Metrics:**
+- [x] Unified `NavigationItem` type defined and exported
+- [x] `NavigationArea` type defined with Zod validation
+- [x] `menuItemToNavigationItem` transform function
+- [x] `AppSchema` extended with `navigation` and `areas` fields
+- [x] AppSidebar Area switcher UI
+- [x] Spec compliance tests for unified model and areas (24 tests passing)
+- [x] Unit tests for types, Zod schemas, and transform (27 tests passing)
+- [ ] Full consumer migration from `MenuItem` to `NavigationItem`
+- [ ] URL routing with area segment
+- [ ] Visual Navigation Designer component
 
 ---
 

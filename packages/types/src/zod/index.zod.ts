@@ -40,6 +40,9 @@
 export {
   AppSchema,
   AppActionSchema,
+  NavigationItemSchema,
+  NavigationItemTypeSchema,
+  NavigationAreaSchema,
   MenuItemSchema as AppMenuItemSchema,
 } from './app.zod.js';
 
