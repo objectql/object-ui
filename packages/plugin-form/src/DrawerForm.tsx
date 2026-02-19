@@ -26,6 +26,7 @@ import {
 import { FormSection } from './FormSection';
 import { SchemaRenderer } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
+import { applyAutoLayout } from './autoLayout';
 
 export interface DrawerFormSectionConfig {
   name?: string;
@@ -348,13 +349,16 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
       );
     }
 
+    // Apply auto-layout for flat fields (infer columns + colSpan)
+    const autoLayoutResult = applyAutoLayout(formFields, objectSchema, schema.columns, schema.mode);
+
     // Flat fields layout
     return (
       <SchemaRenderer
         schema={{
           ...baseFormSchema,
-          fields: formFields,
-          columns: schema.columns,
+          fields: autoLayoutResult.fields,
+          columns: autoLayoutResult.columns,
         }}
       />
     );
