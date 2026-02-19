@@ -380,7 +380,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
             setView(v);
             onViewChange?.(v);
           }}
-          onAddClick={handleCreate}
+          onAddClick={undefined}
           onEventDrop={onEventDrop ? (event, newStart, newEnd) => {
             onEventDrop(event.data, newStart, newEnd);
           } : undefined}

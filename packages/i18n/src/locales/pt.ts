@@ -97,6 +97,10 @@ const pt = {
     newEvent: 'Novo evento',
     moreEvents: '+{{count}} mais',
   },
+  list: {
+    recordCount: '{{count}} registros',
+    recordCountOne: '{{count}} registro',
+  },
   kanban: {
     addCard: 'Adicionar cartão',
     addColumn: 'Adicionar coluna',

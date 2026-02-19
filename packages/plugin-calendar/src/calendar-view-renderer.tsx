@@ -62,7 +62,6 @@ ComponentRegistry.register('calendar-view',
         className={className}
         events={events}
         onEventClick={handleEventClick}
-        onAddClick={handleAddClick}
         // Pass validation or other props
         {...props}
       />

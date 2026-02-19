@@ -97,6 +97,10 @@ const ru = {
     newEvent: 'Новое событие',
     moreEvents: '+{{count}} ещё',
   },
+  list: {
+    recordCount: '{{count}} записей',
+    recordCountOne: '{{count}} запись',
+  },
   kanban: {
     addCard: 'Добавить карточку',
     addColumn: 'Добавить колонку',

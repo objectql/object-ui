@@ -2121,6 +2121,9 @@ importers:
       '@object-ui/core':
         specifier: workspace:*
         version: link:../core
+      '@object-ui/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@object-ui/mobile':
         specifier: workspace:*
         version: link:../mobile

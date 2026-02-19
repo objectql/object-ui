@@ -97,6 +97,10 @@ const ja = {
     newEvent: '新しい予定',
     moreEvents: '+{{count}} 件',
   },
+  list: {
+    recordCount: '{{count}} 件のレコード',
+    recordCountOne: '{{count}} 件のレコード',
+  },
   kanban: {
     addCard: 'カードを追加',
     addColumn: 'カラムを追加',

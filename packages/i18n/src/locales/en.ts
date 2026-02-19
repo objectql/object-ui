@@ -97,6 +97,10 @@ const en = {
     newEvent: 'New event',
     moreEvents: '+{{count}} more',
   },
+  list: {
+    recordCount: '{{count}} records',
+    recordCountOne: '{{count}} record',
+  },
   kanban: {
     addCard: 'Add card',
     addColumn: 'Add column',

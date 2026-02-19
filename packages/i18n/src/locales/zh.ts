@@ -97,6 +97,10 @@ const zh = {
     newEvent: '新建事件',
     moreEvents: '+{{count}} 更多',
   },
+  list: {
+    recordCount: '{{count}} 条记录',
+    recordCountOne: '{{count}} 条记录',
+  },
   kanban: {
     addCard: '添加卡片',
     addColumn: '添加列',
