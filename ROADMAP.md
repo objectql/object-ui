@@ -376,6 +376,9 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Airtable-style form-based record detail panel (replaces key-value dump)
 - [x] Airtable-style empty value display (italic muted indicator instead of plain dash)
 - [x] Grid i18n keys in all 10 locale files (grid.actions, grid.edit, grid.delete, grid.export, etc.)
+- [x] Auto-infer currency type for amount/price/total fields in grid columns
+- [x] Type-aware rendering in record detail panel (date, currency, boolean, select via getCellRenderer)
+- [x] Type-aware rendering in DetailSection (date formatting, currency formatting, select badges)
 
 ##### ObjectKanban (`plugin-kanban`)
 - [x] Stack columns vertically on mobile with horizontal swipe navigation between columns
