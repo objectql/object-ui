@@ -11,9 +11,140 @@
  * 
  * Defines the metadata structure for a complete application, including
  * global layout, navigation menus, and routing configuration.
+ * 
+ * ## Navigation Model
+ * 
+ * ObjectUI uses a unified `NavigationItem` model aligned with @objectstack/spec.
+ * The legacy `MenuItem` type is retained for backward compatibility but new
+ * configurations should use `NavigationItem` and the `navigation` / `areas` fields.
  */
 
 import type { BaseSchema } from './base';
+
+// ============================================================================
+// Unified Navigation Model (aligned with @objectstack/spec)
+// ============================================================================
+
+/**
+ * Navigation item type — determines the target and required fields.
+ */
+export type NavigationItemType =
+  | 'object'
+  | 'dashboard'
+  | 'page'
+  | 'report'
+  | 'url'
+  | 'group'
+  | 'separator'
+  | 'action';
+
+/**
+ * Unified Navigation Item
+ * 
+ * The single navigation primitive used across ObjectUI and @objectstack/spec.
+ * Replaces the legacy `MenuItem` for application navigation trees.
+ * 
+ * Supports typed navigation targets (object, dashboard, page, report, url),
+ * nested groups, visibility expressions, RBAC permissions, and UX enhancements
+ * like badges, pinning, and sort ordering.
+ */
+export interface NavigationItem {
+  /** Unique identifier */
+  id: string;
+
+  /** Navigation item type */
+  type: NavigationItemType;
+
+  /** Display label */
+  label: string;
+
+  /** Icon name (Lucide) */
+  icon?: string;
+
+  // -- Type-specific target fields --
+
+  /** Target object name (for type: 'object') */
+  objectName?: string;
+
+  /** Target dashboard name (for type: 'dashboard') */
+  dashboardName?: string;
+
+  /** Target page name (for type: 'page') */
+  pageName?: string;
+
+  /** Target report name (for type: 'report') */
+  reportName?: string;
+
+  /** Target URL (for type: 'url') */
+  url?: string;
+
+  /** Link target (for type: 'url') */
+  target?: '_blank' | '_self';
+
+  // -- Grouping --
+
+  /** Child navigation items (for type: 'group') */
+  children?: NavigationItem[];
+
+  // -- Visibility & Permissions --
+
+  /** Visibility expression — boolean or expression string e.g. "${user.role === 'admin'}" */
+  visible?: boolean | string;
+
+  /** Required permissions to see/access this item */
+  requiredPermissions?: string[];
+
+  // -- UX Enhancements --
+
+  /** Badge text or count */
+  badge?: string | number;
+
+  /** Badge visual variant */
+  badgeVariant?: 'default' | 'destructive' | 'outline';
+
+  /** Whether group is expanded by default (for type: 'group') */
+  defaultOpen?: boolean;
+
+  /** Whether this item is pinned */
+  pinned?: boolean;
+
+  /** Sort order weight (lower = higher) */
+  order?: number;
+}
+
+/**
+ * Navigation Area — a business-domain partition of navigation items.
+ * 
+ * Inspired by Salesforce Lightning App → Area → Tab model and
+ * Microsoft Power Apps Area → Group → Subarea pattern.
+ * 
+ * Each area contains an independent navigation tree, allowing large
+ * enterprise applications to organise navigation by domain (e.g.
+ * Sales, Service, Marketing).
+ */
+export interface NavigationArea {
+  /** Unique identifier */
+  id: string;
+
+  /** Display label */
+  label: string;
+
+  /** Icon name (Lucide) */
+  icon?: string;
+
+  /** Navigation items within this area */
+  navigation: NavigationItem[];
+
+  /** Visibility expression */
+  visible?: boolean | string;
+
+  /** Required permissions to see this area */
+  requiredPermissions?: string[];
+}
+
+// ============================================================================
+// Application Schema
+// ============================================================================
 
 /**
  * Top-level Application Configuration (app.json)
@@ -57,8 +188,22 @@ export interface AppSchema extends BaseSchema {
 
   /**
    * Global Navigation Menu
+   * @deprecated Use `navigation` instead. Retained for backward compatibility.
    */
   menu?: MenuItem[];
+
+  /**
+   * Unified navigation tree (aligned with @objectstack/spec NavigationItem model).
+   * Takes precedence over `menu` when both are present.
+   */
+  navigation?: NavigationItem[];
+
+  /**
+   * Navigation areas / business-domain partitions.
+   * When provided, the sidebar displays an area switcher and renders
+   * the selected area's navigation tree.
+   */
+  areas?: NavigationArea[];
 
   /**
    * Global Actions (User Profile, Settings, etc)
@@ -78,8 +223,13 @@ export interface AppSchema extends BaseSchema {
   requiredPermissions?: string[];
 }
 
+// ============================================================================
+// Legacy MenuItem (backward compat — prefer NavigationItem)
+// ============================================================================
+
 /**
  * Navigation Menu Item
+ * @deprecated Use `NavigationItem` instead.
  */
 export interface MenuItem {
   /**
@@ -122,6 +272,80 @@ export interface MenuItem {
    */
   hidden?: boolean | string;
 }
+
+// ============================================================================
+// MenuItem → NavigationItem Transform
+// ============================================================================
+
+/**
+ * Convert a legacy `MenuItem` to a `NavigationItem`.
+ * 
+ * Mapping rules:
+ * - `type: 'item'` → inferred from `href` (url) or `path` (page)
+ * - `type: 'group'` → `type: 'group'`
+ * - `type: 'separator'` → `type: 'separator'`
+ * - `hidden` → `visible` (inverted)
+ * - `path` → `pageName` (last segment) or kept as-is for url
+ * - `href` → `url` with `target: '_blank'`
+ */
+export function menuItemToNavigationItem(
+  item: MenuItem,
+  index: number = 0,
+): NavigationItem {
+  const id = `migrated_${index}`;
+
+  if (item.type === 'separator') {
+    return {
+      id,
+      type: 'separator',
+      label: item.label || '',
+    };
+  }
+
+  if (item.type === 'group') {
+    return {
+      id,
+      type: 'group',
+      label: item.label || '',
+      icon: item.icon,
+      children: (item.children || []).map((child, i) =>
+        menuItemToNavigationItem(child, index * 100 + i),
+      ),
+      visible: item.hidden !== undefined ? !item.hidden : undefined,
+      badge: item.badge,
+      defaultOpen: true,
+    };
+  }
+
+  // Default: 'item' type — infer target from href / path
+  if (item.href) {
+    return {
+      id,
+      type: 'url',
+      label: item.label || '',
+      icon: item.icon,
+      url: item.href,
+      target: '_blank',
+      visible: item.hidden !== undefined ? !item.hidden : undefined,
+      badge: item.badge,
+    };
+  }
+
+  // Path-based item → treat as page navigation
+  return {
+    id,
+    type: 'page',
+    label: item.label || '',
+    icon: item.icon,
+    pageName: item.path || '',
+    visible: item.hidden !== undefined ? !item.hidden : undefined,
+    badge: item.badge,
+  };
+}
+
+// ============================================================================
+// Application Actions
+// ============================================================================
 
 /**
  * Application Header/Toolbar Action
