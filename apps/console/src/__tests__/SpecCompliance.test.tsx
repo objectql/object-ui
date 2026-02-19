@@ -133,7 +133,7 @@ describe('ObjectStack Spec v0.9.0 Compliance', () => {
                 expect(item.type).toBeDefined();
                 
                 // Type must be one of the valid types
-                expect(['object', 'dashboard', 'page', 'url', 'group', 'report']).toContain(item.type);
+                expect(['object', 'dashboard', 'page', 'url', 'group', 'report', 'separator', 'action']).toContain(item.type);
                 
                 // Type-specific validation
                 if (item.type === 'object') {
@@ -163,6 +163,70 @@ describe('ObjectStack Spec v0.9.0 Compliance', () => {
                 if (item.visible !== undefined) {
                     const validTypes = ['string', 'boolean'];
                     expect(validTypes).toContain(typeof item.visible);
+                }
+            });
+        });
+
+        it('should support extended NavigationItem types (separator, action)', () => {
+            // These types are valid per the unified NavigationItem model
+            const validTypes = ['object', 'dashboard', 'page', 'url', 'group', 'report', 'separator', 'action'];
+            const allNavItems = getAllNavItems(appConfig.apps![0].navigation);
+            
+            allNavItems.forEach((item: any) => {
+                expect(validTypes).toContain(item.type);
+            });
+        });
+
+        it('should support optional UX enhancement fields on navigation items', () => {
+            const allNavItems = getAllNavItems(appConfig.apps![0].navigation);
+            
+            allNavItems.forEach((item: any) => {
+                // badge is optional
+                if (item.badge !== undefined) {
+                    expect(['string', 'number']).toContain(typeof item.badge);
+                }
+                // requiredPermissions is optional
+                if (item.requiredPermissions) {
+                    expect(Array.isArray(item.requiredPermissions)).toBe(true);
+                }
+                // order is optional
+                if (item.order !== undefined) {
+                    expect(typeof item.order).toBe('number');
+                }
+            });
+        });
+    });
+
+    describe('NavigationArea Validation', () => {
+        it('should support areas configuration on apps', () => {
+            // areas is optional per unified model
+            appConfig.apps!.forEach((app: any) => {
+                if (app.areas) {
+                    expect(Array.isArray(app.areas)).toBe(true);
+                    
+                    app.areas.forEach((area: any) => {
+                        expect(area.id).toBeDefined();
+                        expect(typeof area.id).toBe('string');
+                        expect(area.label).toBeDefined();
+                        expect(typeof area.label).toBe('string');
+                        expect(area.navigation).toBeDefined();
+                        expect(Array.isArray(area.navigation)).toBe(true);
+                    });
+                }
+            });
+        });
+
+        it('should have valid navigation items inside areas', () => {
+            appConfig.apps!.forEach((app: any) => {
+                if (app.areas) {
+                    app.areas.forEach((area: any) => {
+                        const allNavItems = getAllNavItems(area.navigation);
+                        allNavItems.forEach((item: any) => {
+                            expect(item.id).toBeDefined();
+                            expect(item.label).toBeDefined();
+                            expect(item.type).toBeDefined();
+                        });
+                    });
                 }
             });
         });

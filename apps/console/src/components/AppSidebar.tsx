@@ -47,6 +47,7 @@ import {
   Clock,
   Star,
   StarOff,
+  Layers,
 } from 'lucide-react';
 import { useMetadata } from '../context/MetadataProvider';
 import { useExpressionContext, evaluateVisibility } from '../context/ExpressionProvider';
@@ -202,6 +203,25 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const [dragGroupKey, setDragGroupKey] = React.useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = React.useState<string | null>(null);
 
+  // Area management — track selected area when app defines areas
+  const areas: any[] = activeApp?.areas || [];
+  const [activeAreaId, setActiveAreaId] = React.useState<string | null>(
+    () => areas.length > 0 ? areas[0].id : null,
+  );
+
+  // Reset area when app changes or areas become available
+  React.useEffect(() => {
+    if (areas.length > 0) {
+      setActiveAreaId(prev => areas.some((a: any) => a.id === prev) ? prev : areas[0].id);
+    } else {
+      setActiveAreaId(null);
+    }
+  }, [activeAppName, areas.length]);
+
+  // Resolve navigation items: area navigation > flat navigation > empty
+  const activeArea = areas.find((a: any) => a.id === activeAreaId);
+  const resolvedNavigation: any[] = activeArea?.navigation || activeApp?.navigation || [];
+
   const dndValue = React.useMemo(() => ({
     dragItemId,
     dragGroupKey,
@@ -302,7 +322,37 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
       </SidebarHeader>
 
       <SidebarContent>
-         <NavigationTree items={activeApp.navigation || []} activeAppName={activeAppName} applyOrder={applyOrder} />
+         {/* Area Switcher — shown when app defines areas */}
+         {areas.length > 1 && (
+           <SidebarGroup>
+             <SidebarGroupLabel className="flex items-center gap-1.5">
+               <Layers className="h-3.5 w-3.5" />
+               Area
+             </SidebarGroupLabel>
+             <SidebarGroupContent>
+               <SidebarMenu>
+                 {areas.map((area: any) => {
+                   const AreaIcon = getIcon(area.icon);
+                   const isActiveArea = area.id === activeAreaId;
+                   return (
+                     <SidebarMenuItem key={area.id}>
+                       <SidebarMenuButton
+                         isActive={isActiveArea}
+                         tooltip={area.label}
+                         onClick={() => setActiveAreaId(area.id)}
+                       >
+                         <AreaIcon className="h-4 w-4" />
+                         <span>{area.label}</span>
+                       </SidebarMenuButton>
+                     </SidebarMenuItem>
+                   );
+                 })}
+               </SidebarMenu>
+             </SidebarGroupContent>
+           </SidebarGroup>
+         )}
+
+         <NavigationTree items={resolvedNavigation} activeAppName={activeAppName} applyOrder={applyOrder} />
 
          {/* Favorites */}
          {favorites.length > 0 && (
@@ -431,7 +481,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
     </Sidebar>
     {isMobile && (
       <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t bg-background/95 backdrop-blur-sm px-2 py-1 sm:hidden safe-area-bottom">
-        {(activeApp.navigation || []).filter((n: any) => n.type !== 'group').slice(0, 5).map((item: any) => {
+        {(resolvedNavigation).filter((n: any) => n.type !== 'group').slice(0, 5).map((item: any) => {
           const NavIcon = getIcon(item.icon);
           const baseUrl = `/apps/${activeAppName}`;
           let href = '#';
