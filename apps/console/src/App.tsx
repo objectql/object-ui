@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useCallback, lazy, Suspense, useMemo, type ReactNode } from 'react';
-import { ObjectForm } from '@object-ui/plugin-form';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
+import { ModalForm } from '@object-ui/plugin-form';
+import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { toast } from 'sonner';
 import { SchemaRendererProvider, useActionRunner, useGlobalUndo } from '@object-ui/react';
 import type { ConnectionState } from './dataSource';
@@ -341,51 +341,42 @@ export function AppContent() {
       </Suspense>
       </ErrorBoundary>
 
-       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="h-[100dvh] sm:h-auto sm:max-w-xl sm:max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden w-[100vw] sm:w-full rounded-none sm:rounded-lg">
-             <DialogHeader className="p-4 sm:p-6 pb-3 sm:pb-4 border-b">
-                <div className="mx-auto w-12 h-1.5 rounded-full bg-muted mb-2 sm:hidden" />
-                <DialogTitle className="text-lg sm:text-xl">{editingRecord ? 'Edit' : 'Create'} {currentObjectDef?.label}</DialogTitle>
-                <DialogDescription className="text-sm">
-                    {editingRecord ? `Update details for ${currentObjectDef?.label}` : `Add a new ${currentObjectDef?.label} to your database.`}
-                </DialogDescription>
-             </DialogHeader>
-             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-                {currentObjectDef && (
-                    <ObjectForm
-                        key={editingRecord?.id || 'new'}
-                        schema={{
-                            type: 'object-form',
-                            objectName: currentObjectDef.name,
-                            mode: editingRecord ? 'edit' : 'create',
-                            recordId: editingRecord?.id,
-                            layout: 'vertical',
-                            columns: 1,
-                            fields: currentObjectDef.fields 
-                                ? (Array.isArray(currentObjectDef.fields) 
-                                    ? currentObjectDef.fields
-                                        .filter((f: any) => {
-                                          if (typeof f === 'string') return true;
-                                          return evaluateVisibility(f.visible, expressionEvaluator);
-                                        })
-                                        .map((f: any) => typeof f === 'string' ? f : f.name)
-                                    : Object.entries(currentObjectDef.fields)
-                                        .filter(([_, f]: [string, any]) => evaluateVisibility(f.visible, expressionEvaluator))
-                                        .map(([key]: [string, any]) => key))
-                                : [],
-                            onSuccess: handleCrudSuccess, 
-                            onCancel: handleDialogCancel,
-                            showSubmit: true,
-                            showCancel: true,
-                            submitText: 'Save Record',
-                            cancelText: 'Cancel'
-                        }}
-                        dataSource={dataSource}
-                    />
-                )}
-             </div>
-          </DialogContent>
-       </Dialog>
+       {currentObjectDef && (
+          <ModalForm
+              key={editingRecord?.id || 'new'}
+              schema={{
+                  type: 'object-form',
+                  formType: 'modal',
+                  objectName: currentObjectDef.name,
+                  mode: editingRecord ? 'edit' : 'create',
+                  recordId: editingRecord?.id,
+                  title: `${editingRecord ? 'Edit' : 'Create'} ${currentObjectDef?.label}`,
+                  description: editingRecord ? `Update details for ${currentObjectDef?.label}` : `Add a new ${currentObjectDef?.label} to your database.`,
+                  open: isDialogOpen,
+                  onOpenChange: setIsDialogOpen,
+                  layout: 'vertical',
+                  fields: currentObjectDef.fields 
+                      ? (Array.isArray(currentObjectDef.fields) 
+                          ? currentObjectDef.fields
+                              .filter((f: any) => {
+                                if (typeof f === 'string') return true;
+                                return evaluateVisibility(f.visible, expressionEvaluator);
+                              })
+                              .map((f: any) => typeof f === 'string' ? f : f.name)
+                          : Object.entries(currentObjectDef.fields)
+                              .filter(([_, f]: [string, any]) => evaluateVisibility(f.visible, expressionEvaluator))
+                              .map(([key]: [string, any]) => key))
+                      : [],
+                  onSuccess: handleCrudSuccess, 
+                  onCancel: handleDialogCancel,
+                  showSubmit: true,
+                  showCancel: true,
+                  submitText: 'Save Record',
+                  cancelText: 'Cancel',
+              }}
+              dataSource={dataSource}
+          />
+       )}
       </SchemaRendererProvider>
     </ConsoleLayout>
     </ExpressionProvider>
