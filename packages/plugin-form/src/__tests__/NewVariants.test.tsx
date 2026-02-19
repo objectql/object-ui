@@ -468,6 +468,202 @@ describe('ObjectForm routing to new variants', () => {
   });
 });
 
+// ─── Auto-Layout Integration Tests ──────────────────────────────────────
+
+/**
+ * These tests verify that ModalForm and DrawerForm apply applyAutoLayout
+ * when rendering flat fields (no sections), consistent with SimpleObjectForm.
+ */
+describe('ModalForm auto-layout integration', () => {
+  // Schema with 6 fields (>3) should trigger 2-column inference
+  const manyFieldsSchema = {
+    name: 'contacts',
+    fields: {
+      firstName: { label: 'First Name', type: 'text', required: true },
+      lastName: { label: 'Last Name', type: 'text', required: false },
+      email: { label: 'Email', type: 'email', required: true },
+      phone: { label: 'Phone', type: 'phone', required: false },
+      street: { label: 'Street', type: 'text', required: false },
+      city: { label: 'City', type: 'text', required: false },
+    },
+  };
+
+  it('applies auto-layout with 2 columns for 6 flat fields', async () => {
+    const mockDataSource = createMockDataSource();
+    mockDataSource.getObjectSchema.mockResolvedValue(manyFieldsSchema);
+
+    render(
+      <ModalForm
+        schema={{
+          type: 'object-form',
+          formType: 'modal',
+          objectName: 'contacts',
+          mode: 'create',
+          title: 'Auto Layout Modal',
+          open: true,
+        }}
+        dataSource={mockDataSource as any}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Auto Layout Modal')).toBeInTheDocument();
+    });
+
+    // With 6 fields (>3), auto-layout should infer columns=2
+    // The form element receives columns="2" as an attribute
+    await waitFor(() => {
+      const formEl = document.querySelector('form[columns="2"]');
+      expect(formEl).not.toBeNull();
+    });
+  });
+
+  it('does not apply multi-column for 3 or fewer fields', async () => {
+    const fewFieldsSchema = {
+      name: 'simple',
+      fields: {
+        firstName: { label: 'First Name', type: 'text', required: true },
+        lastName: { label: 'Last Name', type: 'text', required: false },
+      },
+    };
+    const mockDataSource = createMockDataSource();
+    mockDataSource.getObjectSchema.mockResolvedValue(fewFieldsSchema);
+
+    render(
+      <ModalForm
+        schema={{
+          type: 'object-form',
+          formType: 'modal',
+          objectName: 'simple',
+          mode: 'create',
+          title: 'Few Fields Modal',
+          open: true,
+        }}
+        dataSource={mockDataSource as any}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Few Fields Modal')).toBeInTheDocument();
+    });
+
+    // With 2 fields (≤3), auto-layout should infer columns=1
+    await waitFor(() => {
+      const formEl = document.querySelector('form[columns="2"]');
+      expect(formEl).toBeNull();
+    });
+  });
+
+  it('respects explicit columns override', async () => {
+    const mockDataSource = createMockDataSource();
+    mockDataSource.getObjectSchema.mockResolvedValue(manyFieldsSchema);
+
+    render(
+      <ModalForm
+        schema={{
+          type: 'object-form',
+          formType: 'modal',
+          objectName: 'contacts',
+          mode: 'create',
+          title: 'Explicit Columns Modal',
+          open: true,
+          columns: 3,
+        }}
+        dataSource={mockDataSource as any}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Explicit Columns Modal')).toBeInTheDocument();
+    });
+
+    // User specified columns=3
+    await waitFor(() => {
+      const formEl = document.querySelector('form[columns="3"]');
+      expect(formEl).not.toBeNull();
+    });
+  });
+});
+
+describe('DrawerForm auto-layout integration', () => {
+  const manyFieldsSchema = {
+    name: 'contacts',
+    fields: {
+      firstName: { label: 'First Name', type: 'text', required: true },
+      lastName: { label: 'Last Name', type: 'text', required: false },
+      email: { label: 'Email', type: 'email', required: true },
+      phone: { label: 'Phone', type: 'phone', required: false },
+      street: { label: 'Street', type: 'text', required: false },
+      city: { label: 'City', type: 'text', required: false },
+    },
+  };
+
+  it('applies auto-layout with 2 columns for 6 flat fields', async () => {
+    const mockDataSource = createMockDataSource();
+    mockDataSource.getObjectSchema.mockResolvedValue(manyFieldsSchema);
+
+    render(
+      <DrawerForm
+        schema={{
+          type: 'object-form',
+          formType: 'drawer',
+          objectName: 'contacts',
+          mode: 'create',
+          title: 'Auto Layout Drawer',
+          open: true,
+        }}
+        dataSource={mockDataSource as any}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Auto Layout Drawer')).toBeInTheDocument();
+    });
+
+    // With 6 fields (>3), auto-layout should infer columns=2
+    await waitFor(() => {
+      const formEl = document.querySelector('form[columns="2"]');
+      expect(formEl).not.toBeNull();
+    });
+  });
+
+  it('does not apply multi-column for 3 or fewer fields', async () => {
+    const fewFieldsSchema = {
+      name: 'simple',
+      fields: {
+        firstName: { label: 'First Name', type: 'text', required: true },
+        lastName: { label: 'Last Name', type: 'text', required: false },
+      },
+    };
+    const mockDataSource = createMockDataSource();
+    mockDataSource.getObjectSchema.mockResolvedValue(fewFieldsSchema);
+
+    render(
+      <DrawerForm
+        schema={{
+          type: 'object-form',
+          formType: 'drawer',
+          objectName: 'simple',
+          mode: 'create',
+          title: 'Few Fields Drawer',
+          open: true,
+        }}
+        dataSource={mockDataSource as any}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Few Fields Drawer')).toBeInTheDocument();
+    });
+
+    // With 2 fields (≤3), should remain 1 column
+    await waitFor(() => {
+      const formEl = document.querySelector('form[columns="2"]');
+      expect(formEl).toBeNull();
+    });
+  });
+});
+
 // ─── Export Tests ────────────────────────────────────────────────────────
 
 describe('New variant exports', () => {
