@@ -145,11 +145,18 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
     sections: [
       {
         title: 'Details',
-        fields: Object.keys(objectDef.fields || {}).map(key => ({
-          name: key,
-          label: objectDef.fields[key].label || key,
-          type: objectDef.fields[key].type || 'text',
-        })),
+        fields: Object.keys(objectDef.fields || {}).map(key => {
+          const fieldDef = objectDef.fields[key];
+          return {
+            name: key,
+            label: fieldDef.label || key,
+            type: fieldDef.type || 'text',
+            ...(fieldDef.options && { options: fieldDef.options }),
+            ...(fieldDef.reference_to && { reference_to: fieldDef.reference_to }),
+            ...(fieldDef.reference_field && { reference_field: fieldDef.reference_field }),
+            ...(fieldDef.currency && { currency: fieldDef.currency }),
+          };
+        }),
         columns: 2,
       },
     ],

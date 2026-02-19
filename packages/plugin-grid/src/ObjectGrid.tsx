@@ -409,6 +409,17 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         return 'user';
       }
 
+      // Infer currency/amount fields
+      const currencyFields = ['amount', 'price', 'total', 'revenue', 'cost', 'budget', 'salary'];
+      if (currencyFields.some(f => fieldLower.includes(f))) {
+        if (data.length > 0) {
+          const sample = data.find(row => row[col.field] != null)?.[col.field];
+          if (typeof sample === 'number') {
+            return 'currency';
+          }
+        }
+      }
+
       return null;
     };
 
@@ -1043,12 +1054,28 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       if (value == null || value === '') {
         return <span className="text-muted-foreground/50 text-sm italic">Empty</span>;
       }
+
+      // Use objectSchema field type for type-aware rendering
+      const fieldDef = objectSchema?.fields?.[key];
+      if (fieldDef?.type) {
+        const CellRenderer = getCellRenderer(fieldDef.type);
+        if (CellRenderer) {
+          return <CellRenderer value={value} field={fieldDef} />;
+        }
+      }
+
+      // Fallback: infer from value and key name
       if (typeof value === 'boolean') {
         return <Badge variant={value ? 'default' : 'outline'}>{value ? 'Yes' : 'No'}</Badge>;
       }
       // Detect date-like values
       if (typeof value === 'string' && !isNaN(Date.parse(value)) && (key.includes('date') || key.includes('_at') || key.includes('time'))) {
-        return <span className="text-sm">{new Date(value).toLocaleString()}</span>;
+        return <span className="text-sm tabular-nums">{formatDate(value)}</span>;
+      }
+      // Detect currency-like fields by name
+      const currencyFields = ['amount', 'price', 'total', 'revenue', 'cost', 'value', 'budget', 'salary'];
+      if (typeof value === 'number' && currencyFields.some(f => key.toLowerCase().includes(f))) {
+        return <span className="text-sm tabular-nums font-medium">{formatCurrency(value)}</span>;
       }
       return <span className="text-sm break-words">{String(value)}</span>;
     };

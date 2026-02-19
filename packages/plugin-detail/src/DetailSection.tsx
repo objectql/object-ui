@@ -25,6 +25,7 @@ import {
 } from '@object-ui/components';
 import { ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 import { SchemaRenderer } from '@object-ui/react';
+import { getCellRenderer } from '@object-ui/fields';
 import type { DetailViewSection as DetailViewSectionType } from '@object-ui/types';
 
 export interface DetailSectionProps {
@@ -71,7 +72,17 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
                       field.span === 5 ? 'col-span-5' :
                       field.span === 6 ? 'col-span-6' : '';
 
-    const displayValue = value !== null && value !== undefined ? String(value) : '-';
+    const displayValue = (() => {
+      if (value === null || value === undefined) return '-';
+      // Use type-aware cell renderer when field.type is available
+      if (field.type) {
+        const CellRenderer = getCellRenderer(field.type);
+        if (CellRenderer) {
+          return <CellRenderer value={value} field={field} />;
+        }
+      }
+      return String(value);
+    })();
     const canCopy = value !== null && value !== undefined && value !== '';
     const isCopied = copiedField === field.name;
 

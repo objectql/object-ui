@@ -465,3 +465,41 @@ describe('Record detail panel', () => {
     expect(screen.getByText('Task Alpha')).toBeInTheDocument();
   });
 });
+
+// =========================================================================
+// 13. Auto-type inference: Currency/Amount fields
+// =========================================================================
+describe('Auto-type inference: Currency/Amount fields', () => {
+  const currencyData = [
+    { _id: '1', name: 'Order 1', total_amount: 15459.99 },
+    { _id: '2', name: 'Order 2', total_amount: 289.50 },
+  ];
+
+  function renderCurrencyGrid(columns: ListColumn[]) {
+    const schema: any = {
+      type: 'object-grid' as const,
+      objectName: 'test_object',
+      columns,
+      data: { provider: 'value', items: currencyData },
+    };
+
+    return render(
+      <ActionProvider>
+        <ObjectGrid schema={schema} />
+      </ActionProvider>
+    );
+  }
+
+  it('should auto-infer currency type for amount fields and format values', async () => {
+    renderCurrencyGrid([
+      { field: 'name', label: 'Name' },
+      { field: 'total_amount', label: 'Amount' },
+    ]);
+    await waitFor(() => {
+      expect(screen.getByText('Name')).toBeInTheDocument();
+    });
+    // Should show formatted currency (e.g. "$15,459.99") instead of raw "15459.99"
+    expect(screen.queryByText('15459.99')).not.toBeInTheDocument();
+    expect(screen.getByText(/15,459\.99/)).toBeInTheDocument();
+  });
+});
