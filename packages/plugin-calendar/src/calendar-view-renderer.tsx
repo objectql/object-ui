@@ -43,15 +43,10 @@ ComponentRegistry.register('calendar-view',
     }, [schema.data, schema.titleField, schema.startDateField, schema.endDateField, schema.colorField, schema.allDayField]);
 
     const handleEventClick = (event: CalendarEvent) => {
-      if (schema.onEventClick) {
-        // Dispatch configured action
-        // This would use the action runner in a real implementation
-        // For now we just call onAction if provided
-        onAction?.({ 
-          type: 'event-click',
-          payload: event 
-        });
-      }
+      onAction?.({ 
+        type: 'event-click',
+        payload: event 
+      });
     };
     
     const handleAddClick = () => {

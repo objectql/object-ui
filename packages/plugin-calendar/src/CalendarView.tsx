@@ -27,6 +27,67 @@ import {
 const DEFAULT_EVENT_COLOR = "bg-blue-500 text-white"
 const STABLE_DEFAULT_DATE = new Date()
 
+/**
+ * Generate locale-aware weekday abbreviations (Sun, Mon, etc.)
+ */
+function getLocalizedWeekdays(locale: string): string[] {
+  // Use a known Sunday (Jan 7, 2024) as reference
+  const refSunday = new Date(2024, 0, 7)
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(refSunday)
+    d.setDate(d.getDate() + i)
+    return d.toLocaleDateString(locale, { weekday: "short" })
+  })
+}
+
+/**
+ * Locale-aware UI labels for the calendar
+ */
+function getLocaleLabels(locale: string) {
+  const isZh = locale.startsWith("zh")
+  const isJa = locale.startsWith("ja")
+  const isKo = locale.startsWith("ko")
+
+  if (isZh) {
+    return {
+      today: "今天",
+      newEvent: "新建",
+      day: "日",
+      week: "周",
+      month: "月",
+      more: (n: number) => `+${n} 更多`,
+    }
+  }
+  if (isJa) {
+    return {
+      today: "今日",
+      newEvent: "新規",
+      day: "日",
+      week: "週",
+      month: "月",
+      more: (n: number) => `+${n} 件`,
+    }
+  }
+  if (isKo) {
+    return {
+      today: "오늘",
+      newEvent: "새로 만들기",
+      day: "일",
+      week: "주",
+      month: "월",
+      more: (n: number) => `+${n} 더보기`,
+    }
+  }
+  return {
+    today: "Today",
+    newEvent: "New",
+    day: "Day",
+    week: "Week",
+    month: "Month",
+    more: (n: number) => `+${n} more`,
+  }
+}
+
 export interface CalendarEvent {
   id: string | number
   title: string
@@ -66,6 +127,7 @@ function CalendarView({
 }: CalendarViewProps) {
   const [selectedView, setSelectedView] = React.useState(view)
   const [selectedDate, setSelectedDate] = React.useState(currentDate)
+  const labels = React.useMemo(() => getLocaleLabels(locale), [locale])
 
   // Sync state if props change
   React.useEffect(() => {
@@ -189,7 +251,7 @@ function CalendarView({
         <div className="flex items-center gap-4">
           <div className="flex items-center bg-muted/50 rounded-lg p-1 gap-1">
              <Button variant="ghost" size="sm" onClick={handleToday} className="h-8" aria-label="Go to today">
-               Today
+               {labels.today}
              </Button>
              <div className="h-4 w-px bg-border mx-1" />
              <Button
@@ -245,16 +307,16 @@ function CalendarView({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="day">Day</SelectItem>
-              <SelectItem value="week">Week</SelectItem>
-              <SelectItem value="month">Month</SelectItem>
+              <SelectItem value="day">{labels.day}</SelectItem>
+              <SelectItem value="week">{labels.week}</SelectItem>
+              <SelectItem value="month">{labels.month}</SelectItem>
             </SelectContent>
           </Select>
           
           {onAddClick && (
             <Button onClick={onAddClick} size="sm" className="gap-1">
               <PlusIcon className="h-4 w-4" />
-              New
+              {labels.newEvent}
             </Button>
           )}
         </div>
@@ -266,6 +328,7 @@ function CalendarView({
           <MonthView
             date={selectedDate}
             events={events}
+            locale={locale}
             onEventClick={onEventClick}
             onDateClick={onDateClick}
             onEventDrop={onEventDrop}
@@ -363,15 +426,17 @@ function getEventsForDate(date: Date, events: CalendarEvent[]): CalendarEvent[] 
 interface MonthViewProps {
   date: Date
   events: CalendarEvent[]
+  locale?: string
   onEventClick?: (event: CalendarEvent) => void
   onDateClick?: (date: Date) => void
   onEventDrop?: (event: CalendarEvent, newStart: Date, newEnd?: Date) => void
 }
 
-function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: MonthViewProps) {
+function MonthView({ date, events, locale = "default", onEventClick, onDateClick, onEventDrop }: MonthViewProps) {
   const days = React.useMemo(() => getMonthDays(date), [date.getFullYear(), date.getMonth()])
   const today = React.useMemo(() => new Date(), [])
-  const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  const weekDays = React.useMemo(() => getLocalizedWeekdays(locale), [locale])
+  const labels = React.useMemo(() => getLocaleLabels(locale), [locale])
   const [draggedEventId, setDraggedEventId] = React.useState<string | number | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = React.useState<number | null>(null)
 
@@ -483,7 +548,7 @@ function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: Mon
               aria-label={`${day.toLocaleDateString("default", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}${dayEvents.length > 0 ? `, ${dayEvents.length} event${dayEvents.length > 1 ? "s" : ""}` : ""}`}
               className={cn(
                 "border-b border-r last:border-r-0 p-2 min-h-[100px] cursor-pointer hover:bg-accent/50",
-                !isCurrentMonth && "bg-muted/30 text-muted-foreground",
+                !isCurrentMonth && "bg-muted/50 text-muted-foreground opacity-50",
                 dropTargetIndex === index && "ring-2 ring-primary"
               )}
               onClick={() => onDateClick?.(day)}
@@ -493,7 +558,7 @@ function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: Mon
             >
               <div
                 className={cn(
-                  "text-sm font-medium mb-1",
+                  "text-sm font-medium mb-2",
                   isToday &&
                     "inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground h-6 w-6"
                 )}
@@ -506,6 +571,7 @@ function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: Mon
                   <div
                     key={event.id}
                     role="button"
+                    title={event.title}
                     aria-label={event.title}
                     draggable={!!onEventDrop}
                     onDragStart={(e) => handleDragStart(e, event)}
@@ -530,7 +596,7 @@ function MonthView({ date, events, onEventClick, onDateClick, onEventDrop }: Mon
                 ))}
                 {dayEvents.length > 3 && (
                   <div className="text-xs text-muted-foreground px-2">
-                    +{dayEvents.length - 3} more
+                    {labels.more(dayEvents.length - 3)}
                   </div>
                 )}
               </div>
@@ -622,6 +688,7 @@ function WeekView({ date, events, locale = "default", onEventClick, onDateClick 
                   <div
                     key={event.id}
                     role="button"
+                    title={event.title}
                     aria-label={event.title}
                     className={cn(
                       "text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded cursor-pointer hover:opacity-80",
@@ -714,6 +781,7 @@ function DayView({ date, events, onEventClick, onDateClick }: DayViewProps) {
                 {hourEvents.map((event) => (
                   <div
                     key={event.id}
+                    title={event.title}
                     aria-label={event.title}
                     className={cn(
                       "px-2 sm:px-3 py-1.5 sm:py-2 rounded cursor-pointer hover:opacity-80",
