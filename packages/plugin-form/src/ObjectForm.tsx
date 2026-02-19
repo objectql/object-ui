@@ -23,6 +23,7 @@ import { SplitForm } from './SplitForm';
 import { DrawerForm } from './DrawerForm';
 import { ModalForm } from './ModalForm';
 import { FormSection } from './FormSection';
+import { applyAutoLayout } from './autoLayout';
 
 export interface ObjectFormProps {
   /**
@@ -575,12 +576,18 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     );
   }
 
+  // Apply auto-layout: infer columns and colSpan when not explicitly configured
+  const hasSections = schema.sections?.length;
+  const autoLayoutResult = !hasSections
+    ? applyAutoLayout(formFields, objectSchema, schema.columns, schema.mode)
+    : { fields: formFields, columns: schema.columns };
+
   // Default flat form (no sections)
   const formSchema: FormSchema = {
     type: 'form',
-    fields: formFields,
+    fields: autoLayoutResult.fields,
     layout: formLayout,
-    columns: schema.columns,
+    columns: autoLayoutResult.columns,
     submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
     cancelLabel: schema.cancelText,
     showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
