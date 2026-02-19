@@ -27,6 +27,7 @@ import { ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 import { SchemaRenderer } from '@object-ui/react';
 import { getCellRenderer } from '@object-ui/fields';
 import type { DetailViewSection as DetailViewSectionType, DetailViewField, FieldMetadata } from '@object-ui/types';
+import { applyDetailAutoLayout } from './autoLayout';
 
 export interface DetailSectionProps {
   section: DetailViewSectionType;
@@ -152,17 +153,23 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     );
   };
 
+  // Apply auto-layout: infer columns and auto-span wide fields
+  const { fields: layoutFields, columns: effectiveColumns } = applyDetailAutoLayout(
+    section.fields,
+    section.columns
+  );
+
   const content = (
     <div 
       className={cn(
         "grid gap-3 sm:gap-4",
-        section.columns === 1 ? "grid-cols-1" :
-        section.columns === 2 ? "grid-cols-1 sm:grid-cols-2" :
-        section.columns === 3 ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3" :
+        effectiveColumns === 1 ? "grid-cols-1" :
+        effectiveColumns === 2 ? "grid-cols-1 sm:grid-cols-2" :
+        effectiveColumns === 3 ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3" :
         "grid-cols-1 sm:grid-cols-2 md:grid-cols-3"
       )}
     >
-      {section.fields.map(renderField)}
+      {layoutFields.map(renderField)}
     </div>
   );
 

@@ -1227,6 +1227,8 @@ Each app has its own navigation tree, branding, and permissions. The sidebar and
 ### Phase 9 (NavigationConfig) ✅
 - [x] All 8 view plugins support NavigationConfig specification (7 modes)
 - [x] `useNavigationOverlay` hook + `NavigationOverlay` component pattern
+- [x] Console ObjectView uses NavigationOverlay instead of hardcoded Sheet drawer
+- [x] Detail drawer auto-layout: multi-column support (≤3→1col, 4-10→2col, 11+→3col) with wide field auto-spanning
 
 ### Phase 10: Data Interaction Foundation (v1.0 Blockers) — ✅ L1 Complete
 **L1 (Foundation) — v1.0 GA Scope:**

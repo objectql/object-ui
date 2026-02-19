@@ -410,6 +410,8 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Auto-Layout: user configuration always takes priority over inferred defaults
 - [x] Auto-Layout: apply in ModalForm/DrawerForm variants (not just SimpleObjectForm)
 - [x] Auto-Layout: auto-upgrade modal size when inferred columns > 1 (2→lg, 3→xl, 4+→full)
+- [x] Auto-Layout: DetailView/DetailSection auto-infer columns (≤3→1, 4-10→2, 11+→3) with wide field auto-spanning
+- [x] Console: replace hardcoded Sheet drawer with NavigationOverlay (supports drawer/modal/split/popover via ViewNavigationConfig)
 - [x] Console: migrate Dialog+ObjectForm to ModalForm as unified modal form entry (#619)
 
 ##### ObjectDashboard (`plugin-dashboard`)

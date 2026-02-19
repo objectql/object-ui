@@ -453,7 +453,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
         <DetailSection
           section={{
             fields: schema.fields,
-            columns: schema.columns || 2,
+            columns: schema.columns,
           }}
           data={{ ...data, ...editedValues }}
           isEditing={isInlineEditing}

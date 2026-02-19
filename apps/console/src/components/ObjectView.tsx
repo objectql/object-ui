@@ -19,14 +19,15 @@ import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
 import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-calendar';
-import { cn, Button, Empty, EmptyTitle, EmptyDescription, Sheet, SheetContent, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@object-ui/components';
+import { cn, Button, Empty, EmptyTitle, EmptyDescription, NavigationOverlay, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@object-ui/components';
 import { Plus, Table as TableIcon, Settings2, MoreVertical, Wrench, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3 } from 'lucide-react';
-import type { ListViewSchema } from '@object-ui/types';
+import type { ListViewSchema, ViewNavigationConfig } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useObjectActions } from '../hooks/useObjectActions';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
+import { useNavigationOverlay } from '@object-ui/react';
 
 /** Map view types to Lucide icons (Airtable-style) */
 const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
@@ -136,13 +137,27 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
         }
     }, [realtimeMessage, hasConflicts, resolveAllConflicts]);
     
-    // Drawer Logic
+    // Navigation overlay for record detail (supports drawer/modal/split/popover via config)
+    const detailNavigation: ViewNavigationConfig = objectDef.navigation ?? { mode: 'drawer' };
     const drawerRecordId = searchParams.get('recordId');
+    const navOverlay = useNavigationOverlay({
+        navigation: detailNavigation,
+        objectName: objectDef.name,
+    });
     const handleDrawerClose = () => {
+        navOverlay.close();
         const newParams = new URLSearchParams(searchParams);
         newParams.delete('recordId');
         setSearchParams(newParams);
     };
+    // Sync URL-based recordId to overlay state
+    useEffect(() => {
+        if (drawerRecordId && !navOverlay.isOpen) {
+            navOverlay.open({ _id: drawerRecordId, id: drawerRecordId });
+        } else if (!drawerRecordId && navOverlay.isOpen) {
+            navOverlay.close();
+        }
+    }, [drawerRecordId]);
 
     // Render multi-view content via ListView plugin (for kanban, calendar, etc.)
     const renderListView = useCallback(({ schema: listSchema, dataSource: ds, onEdit: editHandler, onRowClick: rowClickHandler, className }: any) => {
@@ -397,38 +412,43 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                 />
              </div>
 
-             {/* Drawer for Record Details */}
-             <Sheet open={!!drawerRecordId} onOpenChange={(open: boolean) => !open && handleDrawerClose()}>
-                <SheetContent side="right" className="w-[90vw] sm:w-150 sm:max-w-none p-0 overflow-hidden">
-                    {drawerRecordId && (
-                        <div className="h-full bg-background overflow-auto p-3 sm:p-4 lg:p-6">
-                            <DetailView
-                                schema={{
-                                    type: 'detail-view',
-                                    objectName: objectDef.name,
-                                    resourceId: drawerRecordId,
-                                    showBack: false,
-                                    showEdit: true,
-                                    title: objectDef.label,
-                                    sections: [
-                                        {
-                                            title: 'Details',
-                                            fields: Object.keys(objectDef.fields || {}).map(key => ({
-                                                name: key,
-                                                label: objectDef.fields[key].label || key,
-                                                type: objectDef.fields[key].type || 'text'
-                                            })),
-                                            columns: 1
-                                        }
-                                    ]
-                                }}
-                                dataSource={dataSource}
-                                onEdit={() => onEdit({ _id: drawerRecordId, id: drawerRecordId })}
-                            />
-                        </div>
-                    )}
-                </SheetContent>
-             </Sheet>
+             {/* Record Detail Overlay — navigation mode driven by objectDef.navigation */}
+             <NavigationOverlay
+                 {...navOverlay}
+                 setIsOpen={(open: boolean) => { if (!open) handleDrawerClose(); }}
+                 title={objectDef.label}
+                 className={navOverlay.mode === 'drawer' ? 'w-[90vw] sm:max-w-2xl p-0 overflow-hidden' : undefined}
+             >
+                 {(record: Record<string, unknown>) => {
+                     const recordId = (record._id || record.id) as string;
+                     return (
+                         <div className="h-full bg-background overflow-auto p-3 sm:p-4 lg:p-6">
+                             <DetailView
+                                 schema={{
+                                     type: 'detail-view',
+                                     objectName: objectDef.name,
+                                     resourceId: recordId,
+                                     showBack: false,
+                                     showEdit: true,
+                                     title: objectDef.label,
+                                     sections: [
+                                         {
+                                             title: 'Details',
+                                             fields: Object.keys(objectDef.fields || {}).map((key: string) => ({
+                                                 name: key,
+                                                 label: objectDef.fields[key].label || key,
+                                                 type: objectDef.fields[key].type || 'text'
+                                             })),
+                                         }
+                                     ]
+                                 }}
+                                 dataSource={dataSource}
+                                 onEdit={() => onEdit({ _id: recordId, id: recordId })}
+                             />
+                         </div>
+                     );
+                 }}
+             </NavigationOverlay>
         </div>
     );
 }

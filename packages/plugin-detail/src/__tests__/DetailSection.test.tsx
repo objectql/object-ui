@@ -99,4 +99,75 @@ describe('DetailSection', () => {
     render(<DetailSection section={section} data={{ name: 'Test' }} />);
     expect(screen.getByText('Basic Information')).toBeInTheDocument();
   });
+
+  it('should auto-infer 2 columns when columns is not set and 5+ fields exist', () => {
+    const section = {
+      title: 'Auto Layout',
+      fields: Array.from({ length: 6 }, (_, i) => ({
+        name: `field_${i}`,
+        label: `Field ${i}`,
+        type: 'text',
+      })),
+    };
+    const { container } = render(
+      <DetailSection section={section} data={{}} />
+    );
+    // The grid container should have the sm:grid-cols-2 class
+    const grid = container.querySelector('.grid');
+    expect(grid).toBeTruthy();
+    expect(grid!.className).toContain('sm:grid-cols-2');
+  });
+
+  it('should auto-infer 3 columns when columns is not set and 11+ fields exist', () => {
+    const section = {
+      title: 'Many Fields',
+      fields: Array.from({ length: 12 }, (_, i) => ({
+        name: `field_${i}`,
+        label: `Field ${i}`,
+        type: 'text',
+      })),
+    };
+    const { container } = render(
+      <DetailSection section={section} data={{}} />
+    );
+    const grid = container.querySelector('.grid');
+    expect(grid).toBeTruthy();
+    expect(grid!.className).toContain('md:grid-cols-3');
+  });
+
+  it('should keep 1 column when columns is not set and ≤3 fields exist', () => {
+    const section = {
+      title: 'Few Fields',
+      fields: [
+        { name: 'a', label: 'A', type: 'text' },
+        { name: 'b', label: 'B', type: 'text' },
+      ],
+    };
+    const { container } = render(
+      <DetailSection section={section} data={{}} />
+    );
+    const grid = container.querySelector('.grid');
+    expect(grid).toBeTruthy();
+    expect(grid!.className).toContain('grid-cols-1');
+    expect(grid!.className).not.toContain('sm:grid-cols-2');
+  });
+
+  it('should respect explicit columns=1 even with many fields', () => {
+    const section = {
+      title: 'Forced Single Column',
+      fields: Array.from({ length: 15 }, (_, i) => ({
+        name: `field_${i}`,
+        label: `Field ${i}`,
+        type: 'text',
+      })),
+      columns: 1,
+    };
+    const { container } = render(
+      <DetailSection section={section} data={{}} />
+    );
+    const grid = container.querySelector('.grid');
+    expect(grid).toBeTruthy();
+    expect(grid!.className).toContain('grid-cols-1');
+    expect(grid!.className).not.toContain('sm:grid-cols-2');
+  });
 });

@@ -14,6 +14,7 @@ import { RelatedList } from './RelatedList';
 import type { DetailViewSchema } from '@object-ui/types';
 
 export { DetailView, DetailSection, DetailTabs, RelatedList };
+export { inferDetailColumns, isWideFieldType, applyAutoSpan, applyDetailAutoLayout } from './autoLayout';
 export { RecordComments } from './RecordComments';
 export { ActivityTimeline } from './ActivityTimeline';
 export { InlineCreateRelated } from './InlineCreateRelated';
