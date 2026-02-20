@@ -192,8 +192,10 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
       </span>
     );
 
+    const userActionsAttr = userActions ? JSON.stringify(userActions) : undefined;
+
     const refreshButton = onRefresh && (
-      <div className={cn(isMobile ? "flex items-center justify-end gap-3 mb-2" : "col-span-full flex items-center justify-end gap-3 mb-2")}>
+      <div className={cn("flex items-center justify-end gap-3 mb-2", !isMobile && "col-span-full")}>
         {recordCountBadge}
         <Button
           variant="outline"
@@ -214,7 +216,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
       const otherWidgets = schema.widgets?.filter(w => w.type !== 'metric') || [];
       
       return (
-        <div ref={ref} className={cn("flex flex-col gap-4 px-4", className)} data-user-actions={userActions ? JSON.stringify(userActions) : undefined} {...props}>
+        <div ref={ref} className={cn("flex flex-col gap-4 px-4", className)} data-user-actions={userActionsAttr} {...props}>
           {headerSection}
           {refreshButton}
           
@@ -247,7 +249,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
             ...(columns > 4 && { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }),
             gap: `${gap * 0.25}rem`
         }}
-        data-user-actions={userActions ? JSON.stringify(userActions) : undefined}
+        data-user-actions={userActionsAttr}
         {...props}
       >
         {headerSection}
