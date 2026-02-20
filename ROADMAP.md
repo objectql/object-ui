@@ -2,8 +2,8 @@
 
 > **Last Updated:** February 20, 2026
 > **Current Version:** v0.5.x
-> **Spec Version:** @objectstack/spec v3.0.7
-> **Client Version:** @objectstack/client v3.0.7
+> **Spec Version:** @objectstack/spec v3.0.8
+> **Client Version:** @objectstack/client v3.0.8
 > **Current Priority:** 🎯 v1.0 UI Essentials · Spec Protocol Alignment · SpecBridge · Action Engine · Expression Engine
 
 ---
@@ -77,7 +77,7 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Layer 1: @objectstack/spec v3.0.7 (The Protocol)                  │
+│  Layer 1: @objectstack/spec v3.0.8 (The Protocol)                  │
 │  Pure TypeScript type definitions — 12 export modules               │
 │  ❌ No runtime code. No React. No dependencies.                    │
 └──────────────────────────────┬──────────────────────────────────────┘
@@ -388,7 +388,7 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 |------|------------|
 | **SpecBridge complexity** | Start with ListView bridge (highest value), iterate to Form/Page/Dashboard; integration tests at each step |
 | **Protocol alignment vs shipping** | P0 focuses on bridge infrastructure; full alignment (i18n/ARIA/all page types) deferred to P1 |
-| **Spec changes (post v3.0.7)** | Strict "import, never redefine" rule; type updates propagate automatically |
+| **Spec changes (post v3.0.8)** | Strict "import, never redefine" rule; type updates propagate automatically |
 | **Performance regression** | Performance budgets in CI, PerformanceConfigSchema monitoring, 10K-record benchmarks |
 | **i18n regression (new hardcoded strings)** | ESLint rule to detect string literals in JSX; i18n coverage metric in CI |
 | **Component API inconsistency** | Audit checklist, automated prop-type validation, Storybook as source of truth |
