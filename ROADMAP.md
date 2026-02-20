@@ -518,6 +518,9 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Full-screen modal on mobile: `h-[100dvh] sm:h-auto sm:max-h-[90vh]`
 - [x] Sticky action buttons at bottom on mobile
 - [x] Add swipe-to-dismiss for mobile dialogs
+- [x] Close button touch target ≥ 44×44px on mobile (WCAG 2.5.5)
+- [x] Skeleton loading state for form fields (replaces spinner)
+- [x] Flex layout with sticky header + scrollable body + sticky footer
 
 #### P6.3 Core Component Primitives
 
@@ -533,6 +536,7 @@ Each plugin view must work seamlessly from 320px (small phone) to 2560px (ultraw
 - [x] Ensure wizard/stepper variant shows 1 step at a time on mobile
 - [x] Scale step indicators for mobile: `text-xs sm:text-sm`, smaller circles
 - [x] Full-width submit/cancel buttons on mobile
+- [x] Force single-column layout on mobile: 2-col starts at `md:` (768px) instead of `sm:` (640px)
 
 ##### Navigation Components
 - [x] Breadcrumb: truncate to current + parent on mobile with "..." overflow

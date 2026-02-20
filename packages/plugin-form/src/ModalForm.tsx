@@ -13,16 +13,19 @@
  * Aligns with @objectstack/spec FormView type: 'modal'
  */
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useId } from 'react';
 import type { FormField, DataSource } from '@object-ui/types';
 import {
   Dialog,
-  DialogContent,
+  MobileDialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  Skeleton,
+  Button,
   cn,
 } from '@object-ui/components';
+import { Loader2 } from 'lucide-react';
 import { FormSection } from './FormSection';
 import { SchemaRenderer } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
@@ -112,8 +115,12 @@ export const ModalForm: React.FC<ModalFormProps> = ({
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isOpen = schema.open !== false;
+
+  // Stable form id for linking the external submit button to the form element
+  const formId = useId();
 
   // Compute auto-layout for flat fields (no sections) to determine inferred columns
   const autoLayoutResult = useMemo(() => {
@@ -263,16 +270,17 @@ export const ModalForm: React.FC<ModalFormProps> = ({
 
   // Handle form submission
   const handleSubmit = useCallback(async (data: Record<string, any>) => {
-    if (!dataSource) {
-      if (schema.onSuccess) {
-        await schema.onSuccess(data);
-      }
-      // Close modal on success
-      schema.onOpenChange?.(false);
-      return data;
-    }
-
+    setIsSubmitting(true);
     try {
+      if (!dataSource) {
+        if (schema.onSuccess) {
+          await schema.onSuccess(data);
+        }
+        // Close modal on success
+        schema.onOpenChange?.(false);
+        return data;
+      }
+
       let result;
       if (schema.mode === 'create') {
         result = await dataSource.create(schema.objectName, data);
@@ -290,6 +298,8 @@ export const ModalForm: React.FC<ModalFormProps> = ({
         schema.onError(err as Error);
       }
       throw err;
+    } finally {
+      setIsSubmitting(false);
     }
   }, [schema, dataSource]);
 
@@ -307,16 +317,24 @@ export const ModalForm: React.FC<ModalFormProps> = ({
     : 'vertical';
 
   // Build base form schema
+  // Actions are hidden inside the form renderer — we render them in a sticky footer instead
+  const showSubmit = schema.showSubmit !== false && schema.mode !== 'view';
+  const showCancel = schema.showCancel !== false;
+  const submitLabel = schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update');
+  const cancelLabel = schema.cancelText || 'Cancel';
+
   const baseFormSchema = {
     type: 'form' as const,
     layout: formLayout,
     defaultValues: formData,
-    submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
-    cancelLabel: schema.cancelText,
-    showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
-    showCancel: schema.showCancel !== false,
+    submitLabel,
+    cancelLabel,
+    showSubmit,
+    showCancel,
     onSubmit: handleSubmit,
     onCancel: handleCancel,
+    showActions: false, // Hide actions — rendered in sticky footer
+    id: formId,        // Link external submit button via form attribute
   };
 
   const renderContent = () => {
@@ -331,9 +349,13 @@ export const ModalForm: React.FC<ModalFormProps> = ({
 
     if (loading) {
       return (
-        <div className="p-8 text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          <p className="mt-2 text-sm text-gray-600">Loading form...</p>
+        <div className="space-y-4" data-testid="modal-form-skeleton">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ))}
         </div>
       );
     }
@@ -353,8 +375,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
                 schema={{
                   ...baseFormSchema,
                   fields: buildSectionFields(section),
-                  showSubmit: index === schema.sections!.length - 1 && baseFormSchema.showSubmit,
-                  showCancel: index === schema.sections!.length - 1 && baseFormSchema.showCancel,
+                  // Actions are in the sticky footer, not inside sections
                 }}
               />
             </FormSection>
@@ -378,20 +399,52 @@ export const ModalForm: React.FC<ModalFormProps> = ({
     );
   };
 
+  const hasFooter = !loading && !error && (showSubmit || showCancel);
+
   return (
     <Dialog open={isOpen} onOpenChange={schema.onOpenChange}>
-      <DialogContent className={cn(sizeClass, 'max-h-[90vh] overflow-y-auto', className, schema.className)}>
+      <MobileDialogContent className={cn(sizeClass, 'flex flex-col h-[100dvh] sm:h-auto sm:max-h-[90vh] overflow-hidden p-0', className, schema.className)}>
         {(schema.title || schema.description) && (
-          <DialogHeader>
+          <DialogHeader className="shrink-0 px-4 pt-4 sm:px-6 sm:pt-6 pb-2 border-b">
             {schema.title && <DialogTitle>{schema.title}</DialogTitle>}
             {schema.description && <DialogDescription>{schema.description}</DialogDescription>}
           </DialogHeader>
         )}
 
-        <div className="py-2">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
           {renderContent()}
         </div>
-      </DialogContent>
+
+        {/* Sticky footer — always visible action buttons */}
+        {hasFooter && (
+          <div className="shrink-0 border-t px-4 sm:px-6 py-3 bg-background" data-testid="modal-form-footer">
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+              {showCancel && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCancel}
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto"
+                >
+                  {cancelLabel}
+                </Button>
+              )}
+              {showSubmit && (
+                <Button
+                  type="submit"
+                  form={formId}
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto"
+                >
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {submitLabel}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </MobileDialogContent>
     </Dialog>
   );
 };
