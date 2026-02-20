@@ -76,7 +76,7 @@ describe('ObjectView Console Features', () => {
     ];
 
     const mockDataSource = {
-        find: vi.fn(),
+        find: vi.fn().mockResolvedValue([]),
         findOne: vi.fn(),
         create: vi.fn(),
         update: vi.fn(), 
@@ -102,7 +102,9 @@ describe('ObjectView Console Features', () => {
     it('renders ListView', () => {
         renderObjectView();
         
-        expect(screen.getByText('Todo Task')).toBeInTheDocument();
+        // "Todo Task" appears in breadcrumb and h1
+        const headers = screen.getAllByText('Todo Task');
+        expect(headers.length).toBeGreaterThanOrEqual(1);
         // Verify ListView is rendered instead of direct Filter button
         expect(screen.getByTestId('list-view')).toBeInTheDocument();
         expect(screen.getByText('ListView for todo_task')).toBeInTheDocument();

@@ -93,7 +93,9 @@ describe('Console View Switching Integration', () => {
     it('renders all view tabs', () => {
         renderObjectView();
         
-        expect(screen.getByText('All Tasks')).toBeInTheDocument();
+        // "All Tasks" appears in breadcrumb and tab, so use getAllByText
+        const allTasksElements = screen.getAllByText('All Tasks');
+        expect(allTasksElements.length).toBeGreaterThanOrEqual(1);
         expect(screen.getByText('Board')).toBeInTheDocument();
         expect(screen.getByText('Schedule')).toBeInTheDocument();
         expect(screen.getByText('Roadmap')).toBeInTheDocument();

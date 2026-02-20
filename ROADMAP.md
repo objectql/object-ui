@@ -49,6 +49,7 @@ Everything below has been built, tested, and verified. These items are stable an
 - **Animation:** 7 presets, reduced-motion aware, page transitions (9 types with View Transitions API).
 - **Notifications:** Toast/banner/snackbar with full CRUD integration.
 - **View Enhancements:** Gallery, column summary, grouping, row color, density modes, view sharing, ViewTabBar (reorder, pin, context menu, type-switch, personal/shared grouping).
+- **Inline View Config Panel:** Airtable-style right sidebar for view configuration (Page, Data, Appearance, User Filters, Actions, Advanced), breadcrumb header, record count footer — no page navigation required.
 
 ### Enterprise Features ✅
 

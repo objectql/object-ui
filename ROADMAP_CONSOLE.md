@@ -1,6 +1,6 @@
 # ObjectStack Console — Complete Development Roadmap
 
-> **Last Updated:** February 19, 2026 (L3 Development — Phases 11-13 Complete, Phase 19 L1 Complete)
+> **Last Updated:** February 20, 2026 (L3 Development — Phases 11-13 Complete, Phase 19 L1 Complete, Phase 20 Inline ViewConfigPanel)
 > **Current Version:** v2.0.0
 > **Target Version:** v2.1.0 (Next Minor)
 > **Spec Alignment:** @objectstack/spec v3.0.8
@@ -1021,6 +1021,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 | **Global Undo/Redo (Ctrl+Z)** | ✅ Done (global UndoManager + batch ops + persistent stack) | Post v1.0 | Phase 16 (L1+L2) |
 | Notification center | ✅ Partial (ActivityFeed with filter preferences) | Post v1.0 | Phase 17 (L2) |
 | Activity feed | ✅ Done | Post v1.0 | Phase 17 (L1) |
+| **Inline View Config Panel** | ✅ Done (Airtable-style right sidebar, breadcrumb header, record count footer) | Post v1.0 | Phase 20 |
 
 ### 5.5 Kanban & Visual Views
 
