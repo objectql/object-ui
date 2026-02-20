@@ -21,9 +21,10 @@ import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-calendar';
 import { Button, Empty, EmptyTitle, EmptyDescription, NavigationOverlay, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@object-ui/components';
-import { Plus, Table as TableIcon, Settings2, Wrench, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3 } from 'lucide-react';
+import { Plus, Table as TableIcon, Settings2, Wrench, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3, ChevronRight } from 'lucide-react';
 import type { ListViewSchema, ViewNavigationConfig } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
+import { ViewConfigPanel } from './ViewConfigPanel';
 import { useObjectActions } from '../hooks/useObjectActions';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
@@ -61,6 +62,12 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     const [searchParams, setSearchParams] = useSearchParams();
     const { showDebug, toggleDebug } = useMetadataInspector();
     const { t } = useObjectTranslation();
+    
+    // Inline view config panel state (Airtable-style right sidebar)
+    const [showViewConfigPanel, setShowViewConfigPanel] = useState(false);
+    
+    // Record count tracking for footer
+    const [recordCount, setRecordCount] = useState<number | undefined>(undefined);
     
     // Admin users automatically get design tools (no toggle needed)
     const { user } = useAuth();
@@ -152,6 +159,23 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
         }
     }, [realtimeMessage, hasConflicts, resolveAllConflicts]);
     
+    // Fetch record count for footer display
+    useEffect(() => {
+        if (dataSource?.find && objectDef.name) {
+            dataSource.find(objectDef.name, { limit: 0 }).then((result: any) => {
+                if (typeof result?.total === 'number') {
+                    setRecordCount(result.total);
+                } else if (Array.isArray(result?.data)) {
+                    setRecordCount(result.data.length);
+                } else if (Array.isArray(result)) {
+                    setRecordCount(result.length);
+                }
+            }).catch(() => {
+                // Silently ignore — record count is non-critical
+            });
+        }
+    }, [dataSource, objectDef.name, refreshKey]);
+
     // Navigation overlay for record detail (supports drawer/modal/split/popover via config)
     const detailNavigation: ViewNavigationConfig = objectDef.navigation ?? { mode: 'drawer' };
     const drawerRecordId = searchParams.get('recordId');
@@ -301,14 +325,23 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
 
     return (
         <div className="h-full flex flex-col bg-background">
-             {/* 1. Simplified Header */}
+             {/* 1. Header with breadcrumb + description */}
              <div className="flex justify-between items-center py-2.5 sm:py-3 px-3 sm:px-4 border-b shrink-0 bg-background z-10">
                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                     <div className="bg-primary/10 p-1.5 sm:p-2 rounded-md shrink-0">
                         <TableIcon className="h-4 w-4 text-primary" />
                     </div>
                     <div className="min-w-0">
+                        {/* Breadcrumb: Object > View */}
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5">
+                            <span className="truncate">{objectDef.label}</span>
+                            <ChevronRight className="h-3 w-3 shrink-0" />
+                            <span className="truncate font-medium text-foreground">{activeView?.label || t('console.objectView.allRecords')}</span>
+                        </div>
                         <h1 className="text-base sm:text-lg font-semibold tracking-tight text-foreground truncate">{objectDef.label}</h1>
+                        {objectDef.description && (
+                            <p className="text-xs text-muted-foreground truncate hidden sm:block max-w-md">{objectDef.description}</p>
+                        )}
                     </div>
                  </div>
                  
@@ -353,7 +386,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                           {t('console.objectView.metadataInspector')}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => navigate(viewId ? `../../views/${viewId}` : `views/${activeViewId}`, { relative: 'path' })}>
+                        <DropdownMenuItem onClick={() => setShowViewConfigPanel(prev => !prev)}>
                           <Settings2 className="h-4 w-4 mr-2" />
                           {t('console.objectView.editView')}
                         </DropdownMenuItem>
@@ -415,8 +448,8 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
 
              {/* 2. Content — Plugin ObjectView with ViewSwitcher + Filter + Sort */}
              <div className="flex-1 overflow-hidden relative flex flex-row">
-                <div className="flex-1 relative h-full">
-                    <div className="absolute inset-0 overflow-auto p-3 sm:p-4">
+                <div className="flex-1 relative h-full flex flex-col">
+                    <div className="flex-1 relative overflow-auto p-3 sm:p-4">
                         <PluginObjectView
                             key={refreshKey}
                             schema={objectViewSchema}
@@ -429,6 +462,12 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                             renderListView={renderListView}
                         />
                     </div>
+                    {/* Footer — Record count */}
+                    {typeof recordCount === 'number' && (
+                        <div data-testid="record-count-footer" className="border-t px-3 sm:px-4 py-1.5 text-xs text-muted-foreground bg-muted/5 shrink-0">
+                            {t('console.objectView.recordCount', { count: recordCount })}
+                        </div>
+                    )}
                 </div>
                 {/* Metadata panel only shows for admin users */}
                 <MetadataPanel
@@ -437,6 +476,14 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                         { title: 'View Configuration', data: activeView },
                         { title: 'Object Definition', data: objectDef },
                     ]}
+                />
+                {/* Inline View Config Panel — Airtable-style right sidebar */}
+                <ViewConfigPanel
+                    open={showViewConfigPanel && isAdmin}
+                    onClose={() => setShowViewConfigPanel(false)}
+                    activeView={activeView}
+                    objectDef={objectDef}
+                    recordCount={recordCount}
                 />
              </div>
 

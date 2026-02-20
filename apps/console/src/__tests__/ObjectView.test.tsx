@@ -137,11 +137,13 @@ describe('ObjectView Component', () => {
         
         render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
         
-        // Check Header
-        expect(screen.getByText('Opportunity')).toBeInTheDocument();
+        // Check Header (appears in breadcrumb and h1)
+        const headers = screen.getAllByText('Opportunity');
+        expect(headers.length).toBeGreaterThanOrEqual(1);
         
-        // Check Tabs exist
-        expect(screen.getByText('All Opportunities')).toBeInTheDocument();
+        // Check Tabs exist (also appears in breadcrumb)
+        const allOppTexts = screen.getAllByText('All Opportunities');
+        expect(allOppTexts.length).toBeGreaterThanOrEqual(1);
         expect(screen.getByText('Pipeline')).toBeInTheDocument();
 
         // Check Grid is rendered (default)
@@ -246,5 +248,94 @@ describe('ObjectView Component', () => {
         fireEvent.click(addViewBtn);
 
         expect(mockNavigate).toHaveBeenCalledWith('views/new', { relative: 'path' });
+    });
+
+    it('shows breadcrumb with object and view name', () => {
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+        
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+        
+        // Breadcrumb should show object label and active view label (may appear in tabs too)
+        const allOppTexts = screen.getAllByText('All Opportunities');
+        expect(allOppTexts.length).toBeGreaterThanOrEqual(2); // breadcrumb + tab
+    });
+
+    it('shows object description when present', () => {
+        const objectsWithDesc = [
+            {
+                ...mockObjects[0],
+                description: 'Track sales pipeline and deals',
+            },
+        ];
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+        
+        render(<ObjectView dataSource={mockDataSource} objects={objectsWithDesc} onEdit={vi.fn()} />);
+        
+        expect(screen.getByText('Track sales pipeline and deals')).toBeInTheDocument();
+    });
+
+    it('toggles ViewConfigPanel when "Edit View" is clicked by admin', () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Panel should not be visible initially
+        expect(screen.queryByTestId('view-config-panel')).not.toBeInTheDocument();
+
+        // Click design tools > Edit View
+        const designBtn = screen.getByTitle('console.objectView.designTools');
+        fireEvent.click(designBtn);
+
+        const editViewBtn = screen.getByText('console.objectView.editView');
+        fireEvent.click(editViewBtn);
+
+        // Panel should now be visible
+        expect(screen.getByTestId('view-config-panel')).toBeInTheDocument();
+    });
+
+    it('closes ViewConfigPanel when close button is clicked', () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Open the panel
+        const designBtn = screen.getByTitle('console.objectView.designTools');
+        fireEvent.click(designBtn);
+        const editViewBtn = screen.getByText('console.objectView.editView');
+        fireEvent.click(editViewBtn);
+
+        expect(screen.getByTestId('view-config-panel')).toBeInTheDocument();
+
+        // Close the panel
+        const closeBtn = screen.getByTitle('console.objectView.closePanel');
+        fireEvent.click(closeBtn);
+
+        expect(screen.queryByTestId('view-config-panel')).not.toBeInTheDocument();
+    });
+
+    it('does not show ViewConfigPanel for non-admin users', () => {
+        mockAuthUser = { id: 'u2', name: 'Viewer', role: 'viewer' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Design tools are not available for non-admin users
+        expect(screen.queryByTestId('view-config-panel')).not.toBeInTheDocument();
+    });
+
+    it('shows record count footer when data is available', async () => {
+        const mockDsWithTotal = {
+            ...mockDataSource,
+            find: vi.fn().mockResolvedValue({ data: [], total: 42 }),
+        };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+        
+        render(<ObjectView dataSource={mockDsWithTotal} objects={mockObjects} onEdit={vi.fn()} />);
+        
+        // Wait for the record count to appear
+        const footer = await screen.findByTestId('record-count-footer');
+        expect(footer).toBeInTheDocument();
     });
 });
