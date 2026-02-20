@@ -13,7 +13,7 @@
  * Aligns with @objectstack/spec FormView type: 'modal'
  */
 
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useId } from 'react';
 import type { FormField, DataSource } from '@object-ui/types';
 import {
   Dialog,
@@ -120,7 +120,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
   const isOpen = schema.open !== false;
 
   // Stable form id for linking the external submit button to the form element
-  const formId = useRef(`modal-form-${Math.random().toString(36).slice(2, 9)}`).current;
+  const formId = useId();
 
   // Compute auto-layout for flat fields (no sections) to determine inferred columns
   const autoLayoutResult = useMemo(() => {
