@@ -194,10 +194,10 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [x] Filter/sort indicator badge (dot) on view tabs (`showIndicators`)
 - [x] "Save as View" indicator + button when user has unsaved filter/sort changes
 - [x] Double-click inline rename on view tabs (`inlineRename`)
-- [ ] Drag-reorder view tabs (`reorderable` — needs `@dnd-kit/sortable`)
-- [ ] Pin/favorite views
-- [ ] View type quick-switch palette (Notion-style layout menu)
-- [ ] Personal vs. shared views grouping in tab bar
+- [x] Drag-reorder view tabs (`reorderable` — needs `@dnd-kit/sortable`)
+- [x] Pin/favorite views
+- [x] View type quick-switch palette (Notion-style layout menu)
+- [x] Personal vs. shared views grouping in tab bar
 
 ### P2. Component & Plugin Excellence 🧩 (Completed Foundation)
 

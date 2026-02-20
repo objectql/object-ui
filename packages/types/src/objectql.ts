@@ -922,6 +922,10 @@ export interface ViewTabBarConfig {
   showIndicators?: boolean;
   /** Show "Save as View" when filters differ from saved @default true */
   showSaveAsView?: boolean;
+  /** Show pinned views section @default true */
+  showPinnedSection?: boolean;
+  /** Group tabs by personal/shared @default false */
+  showVisibilityGroups?: boolean;
 }
 
 /**

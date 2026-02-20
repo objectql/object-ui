@@ -15,7 +15,7 @@ import { ObjectChart } from '@object-ui/plugin-charts';
 import { ListView } from '@object-ui/plugin-list';
 import { DetailView } from '@object-ui/plugin-detail';
 import { ObjectView as PluginObjectView, ViewTabBar } from '@object-ui/plugin-view';
-import type { ViewTabItem } from '@object-ui/plugin-view';
+import type { ViewTabItem, AvailableViewType } from '@object-ui/plugin-view';
 // Import plugins for side-effects (registration)
 import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
@@ -42,6 +42,18 @@ const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
     map: MapPin,
     chart: BarChart3,
 };
+
+/** Available view types for quick-switch palette */
+const AVAILABLE_VIEW_TYPES: AvailableViewType[] = [
+    { type: 'grid', label: 'Grid', description: 'Spreadsheet-style rows and columns' },
+    { type: 'kanban', label: 'Kanban', description: 'Drag cards between columns' },
+    { type: 'calendar', label: 'Calendar', description: 'View records on a calendar' },
+    { type: 'gallery', label: 'Gallery', description: 'Visual card layout' },
+    { type: 'timeline', label: 'Timeline', description: 'Chronological event view' },
+    { type: 'gantt', label: 'Gantt', description: 'Project timeline with dependencies' },
+    { type: 'map', label: 'Map', description: 'Geographic location view' },
+    { type: 'chart', label: 'Chart', description: 'Data visualization' },
+];
 
 export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     const navigate = useNavigate();
@@ -369,7 +381,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                    activeViewId={activeViewId}
                    onViewChange={handleViewChange}
                    viewTypeIcons={VIEW_TYPE_ICONS}
-                   config={objectDef.viewTabBar}
+                   config={{ ...objectDef.viewTabBar, reorderable: isAdmin ? true : objectDef.viewTabBar?.reorderable }}
                    onAddView={isAdmin ? () => navigate(viewId ? '../../views/new' : 'views/new', { relative: 'path' }) : undefined}
                    onRenameView={(id, newName) => {
                      // Rename is wired for future backend integration
@@ -387,6 +399,16 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                    onShareView={(id) => {
                      console.info('[ViewTabBar] Share view:', id);
                    }}
+                   onPinView={(id, pinned) => {
+                     console.info('[ViewTabBar] Pin view:', id, pinned);
+                   }}
+                   onReorderViews={(viewIds) => {
+                     console.info('[ViewTabBar] Reorder views:', viewIds);
+                   }}
+                   onChangeViewType={(id, newType) => {
+                     console.info('[ViewTabBar] Change view type:', id, newType);
+                   }}
+                   availableViewTypes={AVAILABLE_VIEW_TYPES}
                  />
                </div>
              )}
