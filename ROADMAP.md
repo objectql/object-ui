@@ -75,7 +75,7 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 
 ### CRM Example Metadata Enrichment ✅
 
-Enriched all 8 CRM object definitions (`account`, `contact`, `opportunity`, `product`, `order`, `user`, `project_task`, `event`) to exercise the full `@objectstack/spec` feature set. Added `description` to all objects; field enrichments (`required`, `searchable`, `unique`, `defaultValue`, `helpText`, `placeholder`, `readOnly`); diverse field types (`richtext`, `phone`, `avatar`, `color`, `multi-select`); 30+ new fields (tags, linkedin, expected_revenue, shipping_address, etc.); 2+ list views per object with sort/filter; select options with colors across all objects; updated seed data leveraging new fields.
+Enriched all 8 CRM object definitions (`account`, `contact`, `opportunity`, `product`, `order`, `user`, `project_task`, `event`) to exercise the full `@objectstack/spec` feature set. Added `description` to all objects; field enrichments (`required`, `searchable`, `unique`, `defaultValue`, `helpText`, `placeholder`, `readonly`); diverse field types (`richtext`, `phone`, `avatar`, `color`, `multi-select`); 30+ new fields (tags, linkedin, expected_revenue, shipping_address, etc.); 2+ list views per object with sort/filter; select options with colors across all objects; updated seed data leveraging new fields.
 
 ### Architecture
 
