@@ -113,6 +113,14 @@ const preview: Preview = {
         ],
       },
     },
+    viewport: {
+      viewports: {
+        iphoneSE: { name: 'iPhone SE', styles: { width: '375px', height: '667px' } },
+        iphone14: { name: 'iPhone 14', styles: { width: '390px', height: '844px' } },
+        ipadMini: { name: 'iPad Mini', styles: { width: '768px', height: '1024px' } },
+        pixel5: { name: 'Pixel 5', styles: { width: '393px', height: '851px' } },
+      },
+    },
     controls: {
       matchers: {
        color: /(background|color)$/i,
