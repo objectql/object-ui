@@ -81,7 +81,7 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 
 ### CRM Example Metadata Enrichment ✅
 
-Enriched all 8 CRM object definitions (`account`, `contact`, `opportunity`, `product`, `order`, `user`, `project_task`, `event`) to exercise the full `@objectstack/spec` feature set. Added `description` to all objects; field enrichments (`required`, `searchable`, `unique`, `defaultValue`, `helpText`, `placeholder`, `readonly`); diverse field types (`richtext`, `phone`, `avatar`, `color`, `multi-select`); 30+ new fields (tags, linkedin, expected_revenue, shipping_address, etc.); 2+ list views per object with sort/filter; select options with colors across all objects; updated seed data leveraging new fields.
+Enriched all 8 CRM object definitions (`account`, `contact`, `opportunity`, `product`, `order`, `user`, `project_task`, `event`) to exercise the full `@objectstack/spec` feature set. Added `description` to all objects; field enrichments (`required`, `searchable`, `unique`, `defaultValue`, `readonly`); diverse field types (`richtext`, `phone`, `avatar`, `color`, `multi-select`); 30+ new fields (tags, linkedin, expected_revenue, shipping_address, etc.); 2+ list views per object with sort/filter; select options with colors across all objects; updated seed data leveraging new fields. Added 21 object-level actions across all 8 objects (Send Email, Change Status, Assign Owner, Mark as Won/Lost, Generate Invoice, Reset Password, etc.) with `params`, `confirmText`, `variant`, `locations`, and `refreshAfter`. Added sections-based `form_layout` for all 8 objects organizing fields into logical groups (e.g., Basic Info, Financials, Address, Timeline) with `columns`, `collapsible`, and field grouping.
 
 ### Architecture
 
