@@ -38,7 +38,7 @@ Everything below has been built, tested, and verified. These items are stable an
 - **Architecture:** Clean 3-layer separation (spec → types → core/react → components/plugins). 35 packages, 91+ components, 36+ field widgets.
 - **Accessibility:** AriaProps injection, WCAG 2.1 AA audit (axe-core), focus management, keyboard navigation, reduced-motion support.
 - **I18n:** 11 languages (ar, de, en, es, fr, ja, ko, pt, ru, zh + RTL), plural rules, locale-aware formatting, I18nLabel on all schema fields, 100% Console i18n coverage.
-- **Testing:** 4,952+ tests, 90%+ coverage, E2E (Playwright), visual regression (Storybook snapshots), 200+ test files.
+- **Testing:** 5,070+ tests, 90%+ coverage, E2E (Playwright), visual regression (Storybook snapshots), 290+ test files.
 - **DX:** Zero-friction onboarding (<5 min), 37/37 package READMEs, all hooks JSDoc'd, error code system (`OBJUI-001`+), CLI oclif plugin (15 commands), `OBJECTUI_DEBUG` mode.
 - **Documentation:** 134 docs pages, Getting Started / CRUD / Plugin / Theming guides, API reference from TypeScript, interactive schema playground, Storybook as living docs.
 
@@ -305,7 +305,7 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 > ✅ **Mobile implementation is complete** (P6.1-P6.4 done). Testing and QA complete.
 
 - [x] Playwright mobile viewport tests (iPhone SE 375px, iPhone 14 390px, iPad 768px)
-- [x] Visual regression tests for all views at mobile breakpoints — `e2e/mobile-visual-regression.spec.ts`
+- [x] Visual regression tests for all views at mobile breakpoints — `e2e/mobile-visual-regression.spec.ts` (baselines pending: run with `--update-snapshots`)
 - [x] Touch interaction tests (swipe, pinch, long-press) via Playwright touch emulation — `e2e/mobile-touch-interaction.spec.ts`
 - [x] axe-core audit at mobile viewport sizes — `packages/components/src/__tests__/mobile-accessibility.test.tsx`
 - [x] Storybook mobile viewport decorator for all component stories — viewport presets in `.storybook/preview.ts`
