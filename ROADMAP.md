@@ -79,6 +79,10 @@ All 11 plugin views (Grid, Kanban, Form, Dashboard, Calendar, Timeline, List, De
 
 Full adoption of Cloud namespace, contracts/integration/security/studio modules, v3.0.0 PaginatedResult API, ObjectStackAdapter metadata API, 17 compatibility tests, 70+ spec UI types re-exported.
 
+### CRM Example Metadata Enrichment ✅
+
+Enriched all 8 CRM object definitions (`account`, `contact`, `opportunity`, `product`, `order`, `user`, `project_task`, `event`) to exercise the full `@objectstack/spec` feature set. Added `description` to all objects; field enrichments (`required`, `searchable`, `unique`, `defaultValue`, `helpText`, `placeholder`, `readonly`); diverse field types (`richtext`, `phone`, `avatar`, `color`, `multi-select`); 30+ new fields (tags, linkedin, expected_revenue, shipping_address, etc.); 2+ list views per object with sort/filter; select options with colors across all objects; updated seed data leveraging new fields.
+
 ### Architecture
 
 ```

@@ -185,7 +185,7 @@ const SortableTab: React.FC<{
     opacity: isDragging ? 0.5 : undefined,
   };
 
-  return <>{children({ setNodeRef, style, listeners, attributes, isDragging })}</>;
+  return <>{children({ setNodeRef, style, listeners, attributes: attributes as Record<string, unknown>, isDragging })}</>;
 };
 
 /**

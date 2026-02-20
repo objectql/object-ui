@@ -81,7 +81,7 @@ export function applyAutoColSpan(fields: FormField[], columns: number): FormFiel
     if (field.colSpan !== undefined) return field;
 
     // Wide field types should span full row
-    if (isWideFieldType(field.type)) {
+    if (field.type && isWideFieldType(field.type)) {
       return { ...field, colSpan: columns };
     }
 

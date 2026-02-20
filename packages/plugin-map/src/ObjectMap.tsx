@@ -25,7 +25,7 @@ import type { ObjectGridSchema, DataSource, ViewData } from '@object-ui/types';
 import { useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
 import { z } from 'zod';
-import Map, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
+import MapGL, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -538,7 +538,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
         </div>
       )}
       <div className="relative border rounded-lg overflow-hidden bg-muted h-[300px] sm:h-[400px] md:h-[500px] lg:h-[600px] w-full">
-         <Map
+         <MapGL
             initialViewState={initialViewState}
             style={{ width: '100%', height: '100%' }}
             mapStyle="https://demotiles.maplibre.org/style.json"
@@ -613,7 +613,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
                     </div>
                 </Popup>
             )}
-         </Map>
+         </MapGL>
       </div>
       {navigation.isOverlay && (
         <NavigationOverlay {...navigation} title="Location Details">

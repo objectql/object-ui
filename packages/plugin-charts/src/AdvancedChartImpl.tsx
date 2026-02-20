@@ -106,6 +106,7 @@ export default function AdvancedChartImpl({
     donut: PieChart,
     radar: RadarChart,
     scatter: ScatterChart,
+    combo: BarChart,
   }[chartType] || BarChart;
 
   console.log('📈 Rendering Chart:', { chartType, dataLength: data.length, config, series, xAxisKey });

@@ -176,7 +176,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
         )}
         {schema.header.actions && schema.header.actions.length > 0 && (
           <div className="flex gap-2 mt-3">
-            {schema.header.actions.map((action, i) => (
+            {schema.header.actions.map((action: { label: string; actionUrl?: string; actionType?: string; icon?: string }, i: number) => (
               <Button key={i} variant="outline" size="sm">
                 {action.label}
               </Button>
@@ -212,8 +212,8 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
 
     if (isMobile) {
       // Separate metric widgets from other widgets for better mobile layout
-      const metricWidgets = schema.widgets?.filter(w => w.type === 'metric') || [];
-      const otherWidgets = schema.widgets?.filter(w => w.type !== 'metric') || [];
+      const metricWidgets = schema.widgets?.filter((w: DashboardWidgetSchema) => w.type === 'metric') || [];
+      const otherWidgets = schema.widgets?.filter((w: DashboardWidgetSchema) => w.type !== 'metric') || [];
       
       return (
         <div ref={ref} className={cn("flex flex-col gap-4 px-4", className)} data-user-actions={userActionsAttr} {...props}>

@@ -216,7 +216,7 @@ const StepPreview: React.FC<{
     })), [mapping, headers, fields]);
   const previewRows = rows.slice(0, PREVIEW_ROW_COUNT);
 
-  const rowValidations = useMemo(() => previewRows.map((row, rIdx) => {
+  const rowValidations = useMemo(() => previewRows.map((row, _rIdx) => {
     const errs: Record<number, string> = {};
     for (const col of mappedCols) {
       const raw = row[col.csvIdx] ?? '';

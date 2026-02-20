@@ -68,7 +68,7 @@ describe('ObjectGrid MSW Integration', () => {
       // Check that all specified columns are rendered
       expect(screen.getAllByText('415-555-1001')[0]).toBeInTheDocument();
       // expect(screen.getByText('ObjectStack HQ')).toBeInTheDocument();
-      expect(screen.getAllByText('Active')[0]).toBeInTheDocument();
+      expect(screen.getAllByText(/^[Aa]ctive$/)[0]).toBeInTheDocument();
     });
 
     it('should handle empty data gracefully', async () => {
