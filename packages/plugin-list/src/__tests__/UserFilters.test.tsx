@@ -351,11 +351,13 @@ describe('UserFilters', () => {
       expect(container.innerHTML).toBe('');
     });
 
-    it('renders empty dropdown when no fields provided', () => {
+    it('renders empty dropdown with placeholder when no fields provided', () => {
       const config = { element: 'dropdown' as const };
       const onChange = vi.fn();
       render(<UserFilters config={config} onFilterChange={onChange} />);
       expect(screen.getByTestId('user-filters-dropdown')).toBeInTheDocument();
+      expect(screen.getByTestId('user-filters-empty')).toBeInTheDocument();
+      expect(screen.getByText('No filter fields')).toBeInTheDocument();
     });
 
     it('renders empty tabs when no tabs provided', () => {
@@ -363,6 +365,37 @@ describe('UserFilters', () => {
       const onChange = vi.fn();
       render(<UserFilters config={config} onFilterChange={onChange} />);
       expect(screen.getByTestId('user-filters-tabs')).toBeInTheDocument();
+    });
+  });
+
+  // ============================================
+  // Add Filter Entry Point
+  // ============================================
+  describe('Add filter entry', () => {
+    it('renders "Add filter" button in dropdown mode', () => {
+      const config = {
+        element: 'dropdown' as const,
+        fields: [
+          {
+            field: 'status',
+            label: 'Status',
+            options: [
+              { label: 'Active', value: 'active' },
+            ],
+          },
+        ],
+      };
+      const onChange = vi.fn();
+      render(<UserFilters config={config} onFilterChange={onChange} />);
+      expect(screen.getByTestId('user-filters-add')).toBeInTheDocument();
+      expect(screen.getByText('Add filter')).toBeInTheDocument();
+    });
+
+    it('renders "Add filter" button even when no fields are provided', () => {
+      const config = { element: 'dropdown' as const };
+      const onChange = vi.fn();
+      render(<UserFilters config={config} onFilterChange={onChange} />);
+      expect(screen.getByTestId('user-filters-add')).toBeInTheDocument();
     });
   });
 });

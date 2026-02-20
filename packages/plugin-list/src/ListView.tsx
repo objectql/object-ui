@@ -237,6 +237,36 @@ export const ListView: React.FC<ListViewProps> = ({
   // User Filters State (Airtable Interfaces-style)
   const [userFilterConditions, setUserFilterConditions] = React.useState<any[]>([]);
 
+  // Auto-derive userFilters from objectDef when not explicitly configured
+  const resolvedUserFilters = React.useMemo<ListViewSchema['userFilters'] | undefined>(() => {
+    // If explicitly configured, use as-is
+    if (schema.userFilters) return schema.userFilters;
+
+    // Auto-derive from objectDef for select/multi-select/boolean fields
+    if (!objectDef?.fields) return undefined;
+
+    const filterableTypes = new Set(['select', 'multi-select', 'boolean']);
+    const derivedFields: NonNullable<NonNullable<ListViewSchema['userFilters']>['fields']> = [];
+
+    const fieldsEntries: Array<[string, any]> = Array.isArray(objectDef.fields)
+      ? objectDef.fields.map((f: any) => [f.name, f])
+      : Object.entries(objectDef.fields);
+
+    for (const [key, field] of fieldsEntries) {
+      if (filterableTypes.has(field.type) || (field.options && !field.type)) {
+        derivedFields.push({
+          field: key,
+          label: field.label || key,
+          type: field.type === 'boolean' ? 'boolean' : 'select',
+        });
+      }
+    }
+
+    if (derivedFields.length === 0) return undefined;
+
+    return { element: 'dropdown', fields: derivedFields };
+  }, [schema.userFilters, objectDef]);
+
   // Hidden Fields State (initialized from schema)
   const [hiddenFields, setHiddenFields] = React.useState<Set<string>>(
     () => new Set(schema.hiddenFields || [])
@@ -970,10 +1000,10 @@ export const ListView: React.FC<ListViewProps> = ({
       )}
 
       {/* User Filters Row (Airtable Interfaces-style) */}
-      {schema.userFilters && (
+      {resolvedUserFilters && (
         <div className="border-b px-2 sm:px-4 py-1 bg-background" data-testid="user-filters">
           <UserFilters
-            config={schema.userFilters}
+            config={resolvedUserFilters}
             objectDef={objectDef}
             data={data}
             onFilterChange={setUserFilterConditions}

@@ -8,7 +8,7 @@
 
 import * as React from 'react';
 import { cn, Button, Popover, PopoverContent, PopoverTrigger } from '@object-ui/components';
-import { ChevronDown, X, Plus } from 'lucide-react';
+import { ChevronDown, X, Plus, SlidersHorizontal } from 'lucide-react';
 import type { ListViewSchema } from '@object-ui/types';
 
 /** Resolved option with optional count */
@@ -184,80 +184,95 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, className }:
 
   return (
     <div className={cn('flex items-center gap-1 overflow-x-auto', className)} data-testid="user-filters-dropdown">
-      {resolvedFields.map(f => {
-        const selected = selectedValues[f.field] || [];
-        const hasSelection = selected.length > 0;
+      <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+      {resolvedFields.length === 0 ? (
+        <span className="text-xs text-muted-foreground" data-testid="user-filters-empty">
+          No filter fields
+        </span>
+      ) : (
+        resolvedFields.map(f => {
+          const selected = selectedValues[f.field] || [];
+          const hasSelection = selected.length > 0;
 
-        return (
-          <Popover key={f.field}>
-            <PopoverTrigger asChild>
-              <button
-                data-testid={`filter-badge-${f.field}`}
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-md border h-7 px-2.5 text-xs font-medium transition-colors shrink-0',
-                  hasSelection
-                    ? 'border-primary/30 bg-primary/5 text-primary'
-                    : 'border-border bg-background hover:bg-accent text-foreground',
-                )}
-              >
-                <span className="truncate max-w-[100px]">{f.label || f.field}</span>
-                {hasSelection && (
-                  <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary/10 text-[10px]">
-                    {selected.length}
-                  </span>
-                )}
-                {hasSelection ? (
-                  <X
-                    className="h-3 w-3 opacity-60"
-                    data-testid={`filter-clear-${f.field}`}
-                    onClick={e => {
-                      e.stopPropagation();
-                      handleChange(f.field, []);
-                    }}
-                  />
-                ) : (
-                  <ChevronDown className="h-3 w-3 opacity-60" />
-                )}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-56 p-2">
-              <div className="max-h-60 overflow-y-auto space-y-0.5" data-testid={`filter-options-${f.field}`}>
-                {f.options.map(opt => (
-                  <label
-                    key={String(opt.value)}
-                    className={cn(
-                      'flex items-center gap-2 text-sm py-1.5 px-2 rounded cursor-pointer',
-                      selected.includes(opt.value) ? 'bg-primary/5 text-primary' : 'hover:bg-muted',
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(opt.value)}
-                      onChange={() => {
-                        const next = selected.includes(opt.value)
-                          ? selected.filter(v => v !== opt.value)
-                          : [...selected, opt.value];
-                        handleChange(f.field, next);
+          return (
+            <Popover key={f.field}>
+              <PopoverTrigger asChild>
+                <button
+                  data-testid={`filter-badge-${f.field}`}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-md border h-7 px-2.5 text-xs font-medium transition-colors shrink-0',
+                    hasSelection
+                      ? 'border-primary/30 bg-primary/5 text-primary'
+                      : 'border-border bg-background hover:bg-accent text-foreground',
+                  )}
+                >
+                  <span className="truncate max-w-[100px]">{f.label || f.field}</span>
+                  {hasSelection && (
+                    <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary/10 text-[10px]">
+                      {selected.length}
+                    </span>
+                  )}
+                  {hasSelection ? (
+                    <X
+                      className="h-3 w-3 opacity-60"
+                      data-testid={`filter-clear-${f.field}`}
+                      onClick={e => {
+                        e.stopPropagation();
+                        handleChange(f.field, []);
                       }}
-                      className="rounded border-input"
                     />
-                    {opt.color && (
-                      <span
-                        className="h-2.5 w-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: opt.color }}
+                  ) : (
+                    <ChevronDown className="h-3 w-3 opacity-60" />
+                  )}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-56 p-2">
+                <div className="max-h-60 overflow-y-auto space-y-0.5" data-testid={`filter-options-${f.field}`}>
+                  {f.options.map(opt => (
+                    <label
+                      key={String(opt.value)}
+                      className={cn(
+                        'flex items-center gap-2 text-sm py-1.5 px-2 rounded cursor-pointer',
+                        selected.includes(opt.value) ? 'bg-primary/5 text-primary' : 'hover:bg-muted',
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(opt.value)}
+                        onChange={() => {
+                          const next = selected.includes(opt.value)
+                            ? selected.filter(v => v !== opt.value)
+                            : [...selected, opt.value];
+                          handleChange(f.field, next);
+                        }}
+                        className="rounded border-input"
                       />
-                    )}
-                    <span className="truncate flex-1">{opt.label}</span>
-                    {opt.count !== undefined && (
-                      <span className="text-xs text-muted-foreground">{opt.count}</span>
-                    )}
-                  </label>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
-        );
-      })}
+                      {opt.color && (
+                        <span
+                          className="h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: opt.color }}
+                        />
+                      )}
+                      <span className="truncate flex-1">{opt.label}</span>
+                      {opt.count !== undefined && (
+                        <span className="text-xs text-muted-foreground">{opt.count}</span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          );
+        })
+      )}
+      <button
+        className="inline-flex items-center gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors shrink-0"
+        data-testid="user-filters-add"
+        title="Add filter"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Add filter</span>
+      </button>
     </div>
   );
 }
