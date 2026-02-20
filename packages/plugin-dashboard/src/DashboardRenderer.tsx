@@ -26,11 +26,15 @@ export interface DashboardRendererProps {
   className?: string;
   /** Callback invoked when dashboard refresh is triggered (manual or auto) */
   onRefresh?: () => void;
+  /** Total record count to display */
+  recordCount?: number;
+  /** User actions configuration */
+  userActions?: { sort?: boolean; search?: boolean; filter?: boolean };
   [key: string]: any;
 }
 
 export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererProps>(
-  ({ schema, className, dataSource, onRefresh, ...props }, ref) => {
+  ({ schema, className, dataSource, onRefresh, recordCount, userActions, ...props }, ref) => {
     const columns = schema.columns || 4; // Default to 4 columns for better density
     const gap = schema.gap || 4;
     const [refreshing, setRefreshing] = useState(false);
@@ -162,8 +166,37 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
         );
     };
 
+    const headerSection = schema.header && (
+      <div className="col-span-full mb-4">
+        {schema.header.showTitle !== false && schema.title && (
+          <h2 className="text-lg font-semibold tracking-tight">{schema.title}</h2>
+        )}
+        {schema.header.showDescription !== false && schema.description && (
+          <p className="text-sm text-muted-foreground mt-1">{schema.description}</p>
+        )}
+        {schema.header.actions && schema.header.actions.length > 0 && (
+          <div className="flex gap-2 mt-3">
+            {schema.header.actions.map((action, i) => (
+              <Button key={i} variant="outline" size="sm">
+                {action.label}
+              </Button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+
+    const recordCountBadge = recordCount !== undefined && (
+      <span className="text-xs text-muted-foreground">
+        {recordCount.toLocaleString()} records
+      </span>
+    );
+
+    const userActionsAttr = userActions ? JSON.stringify(userActions) : undefined;
+
     const refreshButton = onRefresh && (
-      <div className={cn(isMobile ? "flex justify-end mb-2" : "col-span-full flex justify-end mb-2")}>
+      <div className={cn("flex items-center justify-end gap-3 mb-2", !isMobile && "col-span-full")}>
+        {recordCountBadge}
         <Button
           variant="outline"
           size="sm"
@@ -183,7 +216,8 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
       const otherWidgets = schema.widgets?.filter(w => w.type !== 'metric') || [];
       
       return (
-        <div ref={ref} className={cn("flex flex-col gap-4 px-4", className)} {...props}>
+        <div ref={ref} className={cn("flex flex-col gap-4 px-4", className)} data-user-actions={userActionsAttr} {...props}>
+          {headerSection}
           {refreshButton}
           
           {/* Metric cards: 2-column grid */}
@@ -215,8 +249,10 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
             ...(columns > 4 && { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }),
             gap: `${gap * 0.25}rem`
         }}
+        data-user-actions={userActionsAttr}
         {...props}
       >
+        {headerSection}
         {refreshButton}
         {schema.widgets?.map((widget: DashboardWidgetSchema, index: number) => renderWidget(widget, index))}
       </div>

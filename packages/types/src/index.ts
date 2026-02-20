@@ -1016,6 +1016,30 @@ export type {
 } from '@objectstack/spec/ui';
 
 // ============================================================================
+// v3.0.8 Spec UI Types — Sharing & Embedding (P2.3)
+// ============================================================================
+export type {
+  SharingConfig,
+  SharingConfigSchema,
+  EmbedConfig,
+  EmbedConfigSchema,
+} from '@objectstack/spec/ui';
+
+// ============================================================================
+// v3.0.8 Spec UI Types — View Configuration (P2.4)
+// ============================================================================
+export type {
+  AddRecordConfig,
+  AddRecordConfigSchema,
+  AppearanceConfig,
+  AppearanceConfigSchema,
+  UserActionsConfig,
+  UserActionsConfigSchema,
+  ViewTab,
+  ViewTabSchema,
+} from '@objectstack/spec/ui';
+
+// ============================================================================
 // v3.0.8 Spec UI Types — Form View (P1.2)
 // ============================================================================
 export type {

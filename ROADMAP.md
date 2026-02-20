@@ -114,36 +114,34 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 | **Atom Components** (Button, Input, Badge, etc.) | N/A | ✅ 50+ Shadcn components | ✅ |
 | **Layout Primitives** (Flex, Grid, Card, Tabs) | N/A | ✅ Complete | ✅ |
 | **App Shell / Navigation** | ✅ Complete (7 nav types, areas, mobile) | 🔴 0% | 🔴 |
-| **List View** (Grid/Kanban/Calendar/Gantt/Gallery/Timeline/Map) | ✅ Complete | ⚠️ ~30% (data-table, kanban, calendar exist but not spec-aligned) | 🟡 |
-| **Form View** (simple/tabbed/wizard/split/drawer/modal) | ✅ Complete | ⚠️ ~20% (basic FormSchema only) | 🟡 |
-| **Page Composition** | ✅ Complete (16 types, regions, variables, blank layout) | ⚠️ ~25% (regions aligned, missing page types/components) | 🟡 |
-| **Dashboard** | ✅ Complete (data-binding, filters, measures) | ⚠️ ~15% (grid layout only) | 🟡 |
+| **List View** (Grid/Kanban/Calendar/Gantt/Gallery/Timeline/Map) | ✅ Complete | ✅ All 7 view types spec-aligned | ✅ |
+| **Form View** (simple/tabbed/wizard/split/drawer/modal) | ✅ Complete | ✅ SpecBridge FormView bridge | ✅ |
+| **Page Composition** | ✅ Complete (16 types, regions, variables, blank layout) | ✅ SpecBridge Page bridge (16 types) | ✅ |
+| **Dashboard** | ✅ Complete (data-binding, filters, measures) | ✅ Header, globalFilters, dateRange, measures, refreshInterval | ✅ |
 | **Action Protocol** | ✅ Complete | ✅ ActionEngine + ActionRunner (5 types) | ✅ |
-| **Report** | ✅ Complete | 🔴 0% | 🔴 |
+| **Report** | ✅ Complete | ✅ ReportViewer + ReportRenderer (multi-section, export) | ✅ |
 | **Data Binding Bridge** | ✅ `ViewDataSchema`, `ElementDataSourceSchema` | ✅ ViewDataProvider (object/api/value) | ✅ |
 | **Expression Engine** | ✅ Referenced in `visible`/`disabled`/`events` | ✅ ExpressionEvaluator + SchemaRenderer integration | ✅ |
 | **SpecBridge** | N/A (ObjectUI-specific) | ✅ ListView/FormView/Page/Dashboard bridges | ✅ |
-| **i18n / ARIA** | ✅ On every schema | 🔴 0% | 🔴 |
+| **Spec Protocols** (DnD, Keyboard, Notification, Responsive, Sharing) | ✅ Complete | ✅ Protocol bridges in `@object-ui/core` | ✅ |
+| **i18n / ARIA** | ✅ On every schema | ✅ I18nLabel + AriaProps across all schemas | ✅ |
 
-**Overall Protocol Alignment: ~55%** (up from ~20%)
+**Overall Protocol Alignment: ~85%** (up from ~55%)
 
 ### What CAN Be Built Today
 
-1. **Static component demos** — Buttons, Inputs, Cards, Tables with hardcoded data
-2. **Basic page layouts** — Using Flex/Grid/Container/Tabs
-3. **Storybook component library** — Isolated Shadcn primitives
+1. **Full metadata-driven List Views** — SpecBridge transforms spec field bindings to rendered DataTable
+2. **Metadata-driven Forms** — SpecBridge transforms `FormViewSchema` sections to rendered form fields
+3. **Dashboard with data binding** — Widgets query objects by `categoryField`/`valueField`, global filters, measures
+4. **Action execution** — ActionEngine interprets 5 action types with keyboard shortcuts and bulk operations
+5. **Record pages** — `record:details`, `record:highlights`, `record:related_list`, `record:activity`, `record:chatter`, `record:path`
+6. **Expression evaluation** — `visible: "${data.role === 'admin'}"` evaluates in SchemaRenderer pipeline
+7. **Report rendering** — Multi-section reports with chart/table/text sections and PDF/Excel export
+8. **Real-time filtering / search** — Quick filters, user filters, global dashboard filters
 
 ### What CANNOT Be Built Today
 
-1. **App Shell with dynamic navigation** — No AppSchema renderer, no sidebar from JSON
-2. **Metadata-driven List Views** — No bridge from spec field bindings to rendered DataTable
-3. **Metadata-driven Forms** — No bridge from `FormViewSchema` sections to rendered form fields
-4. **Dashboard with data binding** — Widgets can't auto-query objects by `categoryField`/`valueField`
-5. **Action execution** — No way to interpret `{ type: 'script', target: 'approve_contract' }`
-6. **Record pages** — No `record:details`, `record:related_list`, `record:activity` components
-7. **Expression evaluation** — No `visible: "${data.role === 'admin'}"` support
-8. **Report rendering** — No report engine
-9. **Real-time filtering / search** — No quick filters, searchable fields, or global dashboard filters
+1. **App Shell with dynamic navigation** — No AppSchema renderer, no sidebar from JSON (P0.2 remaining)
 
 ### Codebase Statistics
 
@@ -152,7 +150,7 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 | Packages | 35 | 37 with README (100%) |
 | Components | 91+ | 48 base UI + 14 custom + 29 renderers |
 | Field Widgets | 36+ | Consistent FieldWidgetProps pattern |
-| Test Files | 200+ | 4,752+ tests, 90%+ coverage |
+| Test Files | 290+ | 5,070+ tests, 90%+ coverage |
 | Storybook Stories | 78 | All components covered |
 | CLI Commands | 15 | oclif plugin architecture |
 | I18n Locales | 11 | ar, de, en, es, fr, ja, ko, pt, ru, zh + RTL |
@@ -273,46 +271,46 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 **Goal:** Build remaining view renderers and advanced features from the spec.
 
 #### P2.1 Missing View Renderers
-- [ ] Gallery view renderer (spec-aligned)
-- [ ] Timeline view renderer (spec-aligned, advanced features beyond basic)
-- [ ] Gantt view renderer — inline task editing, marker clustering
-- [ ] Map view renderer — Supercluster for 100+ markers
-- [ ] Combo chart support (bar + line overlay)
+- [x] Gallery view renderer (spec-aligned) — `ObjectGallery` uses `GalleryConfig` from spec
+- [x] Timeline view renderer (spec-aligned) — `ObjectTimeline` uses `TimelineConfig` from spec
+- [x] Gantt view renderer — `ObjectGantt` with dependencies, progress, inline editing
+- [x] Map view renderer — `ObjectMap` with grid-based marker clustering
+- [x] Combo chart support (bar + line overlay) — `AdvancedChartImpl` with dual-axis combo charts
 
 #### P2.2 Report Engine
-- [ ] Build report renderer from `report.zod.ts` spec
-- [ ] Support report data binding, sections, and chart integration
+- [x] Build report renderer from `report.zod.ts` spec — `ReportViewer` + `ReportRenderer` with multi-section support
+- [x] Support report data binding, sections, and chart integration — header/summary/chart/table/text sections, export engine
 
 #### P2.3 Spec Protocols — Advanced
-- [ ] Implement `theme.zod.ts` spec integration (beyond current ThemeEngine)
-- [ ] Implement `dnd.zod.ts` spec protocol (spec-aligned drag-and-drop config)
-- [ ] Implement `keyboard.zod.ts` spec protocol (declarative keyboard shortcuts)
-- [ ] Implement `notification.zod.ts` spec alignment (ToastSchema exists, needs spec shape)
-- [ ] Implement `responsive.zod.ts` spec protocol (per-component responsive config)
-- [ ] Implement `sharing.zod.ts` and `SharingConfigSchema` / `EmbedConfigSchema`
+- [x] Implement `theme.zod.ts` spec integration — `ThemeEngine` with `generateThemeVars`, `mergeThemes`, `resolveThemeInheritance`
+- [x] Implement `dnd.zod.ts` spec protocol — `DndProtocol` bridge (`resolveDndConfig`, `createDragItemProps`, `createDropZoneProps`, `resolveDragConstraints`)
+- [x] Implement `keyboard.zod.ts` spec protocol — `KeyboardProtocol` bridge (`parseShortcutKey`, `matchesShortcut`, `resolveKeyboardConfig`, `createFocusTrapConfig`)
+- [x] Implement `notification.zod.ts` spec alignment — `NotificationProtocol` bridge (`specNotificationToToast`, `mapSeverityToVariant`, `mapPosition`)
+- [x] Implement `responsive.zod.ts` spec protocol — `ResponsiveProtocol` bridge (`getVisibilityClasses`, `getColumnClasses`, `getOrderClasses`, `shouldHideAtBreakpoint`)
+- [x] Implement `sharing.zod.ts` and `SharingConfigSchema` / `EmbedConfigSchema` — `SharingProtocol` bridge + type re-exports from spec
 
 #### P2.4 Dashboard BI Features
-- [ ] Dashboard performance and responsive config
-- [ ] Dashboard auto-refresh with `refreshInterval`
-- [ ] Widget measure and pivot support
-- [ ] Airtable-parity features (userActions, appearance, tabs, addRecord, showRecordCount)
+- [x] Dashboard performance and responsive config — mobile-responsive layout with metric/chart stacking
+- [x] Dashboard auto-refresh with `refreshInterval` — `setInterval`-based auto-refresh in `DashboardRenderer`
+- [x] Widget measure and pivot support — `PivotTable` component + `WidgetMeasure` type + `measures` on widget schema
+- [x] Airtable-parity features — `userActions`, `appearance`, `tabs`, `addRecord`, `showRecordCount` in types + header/recordCount rendering in `DashboardRenderer`
 
 #### P2.5 Remaining Plugin Polish
-- [ ] Column reorder/resize persistence for grid
-- [ ] Drag-to-reschedule calendar events
-- [ ] Marker clustering for map plugin
+- [x] Column reorder/resize persistence for grid — localStorage via `columnStorageKey` in `ObjectGrid`
+- [x] Drag-to-reschedule calendar events — `onEventDrop` callback in `ObjectCalendar`
+- [x] Marker clustering for map plugin — grid-based `clusterMarkers()` in `ObjectMap`
 
 ### P3. Mobile Testing & Quality Assurance 📱
 
-> ✅ **Mobile implementation is largely complete** (P6.1-P6.4 done). Only testing and QA remain.
+> ✅ **Mobile implementation is complete** (P6.1-P6.4 done). Testing and QA complete.
 
 - [x] Playwright mobile viewport tests (iPhone SE 375px, iPhone 14 390px, iPad 768px)
-- [ ] Visual regression tests for all views at mobile breakpoints
-- [ ] Touch interaction tests (swipe, pinch, long-press) via Playwright touch emulation
-- [ ] axe-core audit at mobile viewport sizes
-- [ ] Storybook mobile viewport decorator for all component stories
-- [ ] On-screen keyboard interaction tests for all form fields
-- [ ] Performance benchmark on simulated mobile CPU (4× slowdown) and 3G network
+- [x] Visual regression tests for all views at mobile breakpoints — `e2e/mobile-visual-regression.spec.ts`
+- [x] Touch interaction tests (swipe, pinch, long-press) via Playwright touch emulation — `e2e/mobile-touch-interaction.spec.ts`
+- [x] axe-core audit at mobile viewport sizes — `packages/components/src/__tests__/mobile-accessibility.test.tsx`
+- [x] Storybook mobile viewport decorator for all component stories — viewport presets in `.storybook/preview.ts`
+- [x] On-screen keyboard interaction tests for all form fields — `e2e/mobile-keyboard.spec.ts`
+- [x] Performance benchmark on simulated mobile CPU (4× slowdown) and 3G network — `e2e/mobile-performance.spec.ts`
 
 ---
 
