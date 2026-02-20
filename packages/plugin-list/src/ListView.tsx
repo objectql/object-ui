@@ -12,6 +12,7 @@ import type { SortItem } from '@object-ui/components';
 import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Share2, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
 import { ViewSwitcher, ViewType } from './ViewSwitcher';
+import { UserFilters } from './UserFilters';
 import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
@@ -233,6 +234,9 @@ export const ListView: React.FC<ListViewProps> = ({
     return defaults;
   });
 
+  // User Filters State (Airtable Interfaces-style)
+  const [userFilterConditions, setUserFilterConditions] = React.useState<any[]>([]);
+
   // Hidden Fields State (initialized from schema)
   const [hiddenFields, setHiddenFields] = React.useState<Set<string>>(
     () => new Set(schema.hiddenFields || [])
@@ -314,11 +318,12 @@ export const ListView: React.FC<ListViewProps> = ({
           });
         }
         
-        // Merge base filters, user filters, and quick filters
+        // Merge base filters, user filters, quick filters, and user filter bar conditions
         const allFilters = [
           ...(baseFilter.length > 0 ? [baseFilter] : []),
           ...(userFilter.length > 0 ? [userFilter] : []),
           ...quickFilterConditions,
+          ...userFilterConditions,
         ];
         
         if (allFilters.length > 1) {
@@ -365,7 +370,7 @@ export const ListView: React.FC<ListViewProps> = ({
     fetchData();
     
     return () => { isMounted = false; };
-  }, [schema.objectName, dataSource, schema.filters, currentSort, currentFilters, activeQuickFilters, refreshKey]); // Re-fetch on filter/sort change
+  }, [schema.objectName, dataSource, schema.filters, currentSort, currentFilters, activeQuickFilters, userFilterConditions, refreshKey]); // Re-fetch on filter/sort change
 
   // Available view types based on schema configuration
   const availableViews = React.useMemo(() => {
@@ -961,6 +966,18 @@ export const ListView: React.FC<ListViewProps> = ({
               </Button>
             );
           })}
+        </div>
+      )}
+
+      {/* User Filters Row (Airtable Interfaces-style) */}
+      {schema.userFilters && (
+        <div className="border-b px-2 sm:px-4 py-1 bg-background" data-testid="user-filters">
+          <UserFilters
+            config={schema.userFilters}
+            objectDef={objectDef}
+            data={data}
+            onFilterChange={setUserFilterConditions}
+          />
         </div>
       )}
 

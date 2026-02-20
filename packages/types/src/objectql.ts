@@ -1202,6 +1202,64 @@ export interface ListViewSchema extends BaseSchema {
     /** Whether sharing controls are shown in the toolbar */
     enabled?: boolean;
   };
+
+  /**
+   * User Filters Configuration (Airtable Interfaces-style).
+   *
+   * Supports three display modes configured by `element`:
+   * - 'dropdown': Each field renders as a dropdown selector badge (e.g., "Status ∨")
+   * - 'tabs': Named filter presets rendered as a tab bar (e.g., "Tab | my customers | All records")
+   * - 'toggle': Each filter field renders as an on/off toggle button
+   */
+  userFilters?: {
+    /** UI element type for displaying filters */
+    element: 'dropdown' | 'tabs' | 'toggle';
+
+    /**
+     * Field-level filter definitions (used by 'dropdown' and 'toggle' modes).
+     * Each field appears as an independent filter control in the toolbar.
+     */
+    fields?: Array<{
+      /** Field name to filter on */
+      field: string;
+      /** Display label (defaults to field label from objectDef) */
+      label?: string;
+      /** Filter input type */
+      type?: 'select' | 'multi-select' | 'boolean' | 'date-range' | 'text';
+      /** Static options (overrides auto-derived from objectDef) */
+      options?: Array<{
+        label: string;
+        value: string | number | boolean;
+        color?: string;
+      }>;
+      /** Show record count per option */
+      showCount?: boolean;
+      /** Default selected values */
+      defaultValues?: (string | number | boolean)[];
+    }>;
+
+    /**
+     * Named filter presets (used by 'tabs' mode).
+     * Each tab represents a pre-configured filter combination.
+     */
+    tabs?: Array<{
+      /** Unique tab identifier */
+      id: string;
+      /** Tab display label */
+      label: string;
+      /** Filter conditions to apply when this tab is active */
+      filters: Array<any[] | string>;
+      /** Icon name (Lucide icon identifier) */
+      icon?: string;
+      /** Whether this is the default active tab */
+      default?: boolean;
+    }>;
+
+    /** Allow users to add new filter tabs at runtime */
+    allowAddTab?: boolean;
+    /** Show "All records" tab (tabs mode) */
+    showAllRecords?: boolean;
+  };
 }
 
 /**

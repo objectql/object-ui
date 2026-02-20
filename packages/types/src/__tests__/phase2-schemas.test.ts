@@ -27,6 +27,7 @@ import {
   FilterUISchema,
   SortUISchema,
   AnyComponentSchema,
+  ListViewSchema,
 } from '../zod/index.zod';
 
 describe('Phase 2: AppSchema Zod Validation', () => {
@@ -630,5 +631,88 @@ describe('Phase 2: AnyComponentSchema Union Type', () => {
       const result = AnyComponentSchema.safeParse(schema);
       expect(result.success).toBe(true);
     });
+  });
+});
+
+describe('ListViewSchema userFilters Zod Validation', () => {
+  it('should validate dropdown mode userFilters', () => {
+    const schema = {
+      type: 'list-view',
+      objectName: 'accounts',
+      userFilters: {
+        element: 'dropdown',
+        fields: [
+          {
+            field: 'status',
+            label: 'Status',
+            type: 'multi-select',
+            showCount: true,
+            options: [
+              { label: 'Active', value: 'active' },
+              { label: 'Inactive', value: 'inactive', color: '#dc2626' },
+            ],
+            defaultValues: ['active'],
+          },
+        ],
+      },
+    };
+    const result = ListViewSchema.safeParse(schema);
+    expect(result.success).toBe(true);
+  });
+
+  it('should validate tabs mode userFilters', () => {
+    const schema = {
+      type: 'list-view',
+      objectName: 'accounts',
+      userFilters: {
+        element: 'tabs',
+        showAllRecords: true,
+        allowAddTab: true,
+        tabs: [
+          { id: 'tab-1', label: 'Active', filters: [['status', '=', 'active']], default: true },
+          { id: 'tab-2', label: 'My Items', filters: [['owner', '=', '$currentUser']] },
+        ],
+      },
+    };
+    const result = ListViewSchema.safeParse(schema);
+    expect(result.success).toBe(true);
+  });
+
+  it('should validate toggle mode userFilters', () => {
+    const schema = {
+      type: 'list-view',
+      objectName: 'accounts',
+      userFilters: {
+        element: 'toggle',
+        fields: [
+          { field: 'is_active', label: 'Active Only' },
+          { field: 'is_vip', label: 'VIP', defaultValues: [true] },
+        ],
+      },
+    };
+    const result = ListViewSchema.safeParse(schema);
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject invalid element type', () => {
+    const schema = {
+      type: 'list-view',
+      objectName: 'accounts',
+      userFilters: {
+        element: 'invalid',
+      },
+    };
+    const result = ListViewSchema.safeParse(schema);
+    expect(result.success).toBe(false);
+  });
+
+  it('should validate ListViewSchema without userFilters (backward compat)', () => {
+    const schema = {
+      type: 'list-view',
+      objectName: 'accounts',
+      fields: ['name', 'email'],
+    };
+    const result = ListViewSchema.safeParse(schema);
+    expect(result.success).toBe(true);
   });
 });

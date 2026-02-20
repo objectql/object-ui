@@ -194,6 +194,49 @@ export const ObjectViewSchema = BaseSchema.extend({
 });
 
 /**
+ * User Filters — field-level filter option
+ */
+const UserFilterOptionSchema = z.object({
+  label: z.string().describe('Option display label'),
+  value: z.union([z.string(), z.number(), z.boolean()]).describe('Option value'),
+  color: z.string().optional().describe('Option badge color'),
+});
+
+/**
+ * User Filters — field-level filter definition (dropdown & toggle modes)
+ */
+const UserFilterFieldSchema = z.object({
+  field: z.string().describe('Field name to filter on'),
+  label: z.string().optional().describe('Display label'),
+  type: z.enum(['select', 'multi-select', 'boolean', 'date-range', 'text']).optional().describe('Filter input type'),
+  options: z.array(UserFilterOptionSchema).optional().describe('Static options'),
+  showCount: z.boolean().optional().describe('Show record count per option'),
+  defaultValues: z.array(z.union([z.string(), z.number(), z.boolean()])).optional().describe('Default selected values'),
+});
+
+/**
+ * User Filters — tab preset definition (tabs mode)
+ */
+const UserFilterTabSchema = z.object({
+  id: z.string().describe('Unique tab identifier'),
+  label: z.string().describe('Tab display label'),
+  filters: z.array(z.union([z.array(z.any()), z.string()])).describe('Filter conditions'),
+  icon: z.string().optional().describe('Icon name'),
+  default: z.boolean().optional().describe('Default active tab'),
+});
+
+/**
+ * User Filters Configuration Schema (Airtable Interfaces-style)
+ */
+const UserFiltersSchema = z.object({
+  element: z.enum(['dropdown', 'tabs', 'toggle']).describe('UI element type'),
+  fields: z.array(UserFilterFieldSchema).optional().describe('Field-level filters'),
+  tabs: z.array(UserFilterTabSchema).optional().describe('Named filter presets'),
+  allowAddTab: z.boolean().optional().describe('Allow adding new tabs'),
+  showAllRecords: z.boolean().optional().describe('Show All records tab'),
+});
+
+/**
  * ListView Schema
  */
 export const ListViewSchema = BaseSchema.extend({
@@ -204,6 +247,7 @@ export const ListViewSchema = BaseSchema.extend({
   filters: z.array(z.union([z.array(z.any()), z.string()])).optional().describe('Filter conditions'),
   sort: z.array(SortConfigSchema).optional().describe('Sort order'),
   options: z.record(z.string(), z.any()).optional().describe('Component overrides'),
+  userFilters: UserFiltersSchema.optional().describe('User filters configuration'),
 });
 
 /**

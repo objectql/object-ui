@@ -160,6 +160,7 @@ All 4 phases complete across 5 designers (Page, View, DataModel, Process, Report
 - [x] Implement `emptyState` spec property (custom no-data UI — critical for UX)
 - [x] Implement `hiddenFields` and `fieldOrder` spec properties (view customization)
 - [x] Implement `quickFilters` spec property (predefined filter buttons)
+- [x] Implement `userFilters` spec property — Airtable Interfaces-style user filters (dropdown / tabs / toggle modes)
 
 ### P1. Spec Compliance — UI-Facing 📐
 

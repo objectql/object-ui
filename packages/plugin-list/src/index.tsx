@@ -12,6 +12,8 @@ import { ViewSwitcher } from './ViewSwitcher';
 import { ObjectGallery } from './ObjectGallery';
 
 export { ListView, ViewSwitcher, ObjectGallery };
+export { UserFilters } from './UserFilters';
+export type { UserFiltersProps } from './UserFilters';
 export { evaluateConditionalFormatting } from './ListView';
 export type { ListViewProps } from './ListView';
 export type { ObjectGalleryProps } from './ObjectGallery';
