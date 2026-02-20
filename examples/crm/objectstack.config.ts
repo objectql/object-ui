@@ -134,7 +134,7 @@ export default defineStack({
           type: 'grid',
           data: { provider: 'object', object: 'order' },
           columns: ['name', 'customer', 'amount', 'order_date'],
-          filter: ['status', '=', 'Pending'],
+          filter: ['status', '=', 'pending'],
         },
       },
     },
@@ -188,7 +188,7 @@ export default defineStack({
           type: 'grid',
           data: { provider: 'object', object: 'event' },
           columns: ['subject', 'start', 'location', 'organizer'],
-          filter: ['type', '=', 'Meeting'],
+          filter: ['type', '=', 'meeting'],
           sort: [{ field: 'start', direction: 'asc' }],
         },
       },
@@ -535,7 +535,7 @@ export default defineStack({
             phone: "415-555-0101",
             linkedin_url: "https://linkedin.com/company/objectstack",
             tags: ['enterprise', 'strategic'],
-            rating: "Hot",
+            rating: "hot",
             founded_date: new Date("2020-06-01"),
             owner: "1",
             created_at: new Date("2023-01-15")
@@ -553,7 +553,7 @@ export default defineStack({
             phone: "415-555-0102",
             linkedin_url: "https://linkedin.com/company/salesforce",
             tags: ['enterprise'],
-            rating: "Hot",
+            rating: "hot",
             annual_revenue: 26000000,
             owner: "1",
             created_at: new Date("2023-02-20")
@@ -570,7 +570,7 @@ export default defineStack({
             website: "https://globalfin.example.com",
             phone: "212-555-0103",
             tags: ['enterprise'],
-            rating: "Warm",
+            rating: "warm",
             annual_revenue: 8500000,
             owner: "2",
             created_at: new Date("2023-03-10")
@@ -587,7 +587,7 @@ export default defineStack({
             website: "https://lcg.example.co.uk",
             phone: "+44-555-0104",
             tags: ['smb'],
-            rating: "Warm",
+            rating: "warm",
             owner: "2",
             created_at: new Date("2023-04-05")
           },
@@ -603,7 +603,7 @@ export default defineStack({
             website: "https://tokyoshop.example.jp",
             phone: "+81-555-0105",
             tags: ['startup'],
-            rating: "Cold",
+            rating: "cold",
             owner: "1",
             created_at: new Date("2023-05-20")
           },
@@ -620,7 +620,7 @@ export default defineStack({
             website: "https://berlinauto.example.de",
             phone: "+49-555-0106",
             tags: ['enterprise', 'strategic'],
-            rating: "Hot",
+            rating: "hot",
             annual_revenue: 42000000,
             owner: "1",
             created_at: new Date("2023-06-15")
@@ -637,7 +637,7 @@ export default defineStack({
             website: "https://mode.example.fr",
             phone: "+33-555-0107",
             tags: ['smb'],
-            rating: "Warm",
+            rating: "warm",
             annual_revenue: 3200000,
             owner: "2",
             created_at: new Date("2023-07-01")
@@ -656,8 +656,8 @@ export default defineStack({
             title: "VP Sales", 
             department: "Sales",
             account: "1",
-            status: "Active",
-            priority: "High",
+            status: "active",
+            priority: "high",
             lead_source: "Partner",
             linkedin: "https://linkedin.com/in/alicejohnson",
             birthdate: new Date("1985-04-12"),
@@ -673,8 +673,8 @@ export default defineStack({
             title: "CTO", 
             department: "Engineering",
             account: "2",
-            status: "Active",
-            priority: "High",
+            status: "active",
+            priority: "high",
             lead_source: "Referral",
             linkedin: "https://linkedin.com/in/bobsmith",
             birthdate: new Date("1980-08-23"),
@@ -690,8 +690,8 @@ export default defineStack({
             title: "Procurement Manager", 
             department: "Purchasing",
             account: "3",
-            status: "Customer",
-            priority: "Medium",
+            status: "customer",
+            priority: "medium",
             lead_source: "Web",
             birthdate: new Date("1990-01-15"),
             latitude: 40.7056,
@@ -706,8 +706,8 @@ export default defineStack({
             title: "Director", 
             department: "Management",
             account: "4",
-            status: "Active",
-            priority: "High",
+            status: "active",
+            priority: "high",
             lead_source: "Referral",
             birthdate: new Date("1988-06-05"),
             latitude: 51.5034,
@@ -723,8 +723,8 @@ export default defineStack({
             title: "Head of Operations", 
             department: "Operations",
             account: "6",
-            status: "Lead",
-            priority: "High",
+            status: "lead",
+            priority: "high",
             lead_source: "Web",
             birthdate: new Date("1975-11-30"),
             latitude: 52.5200,
@@ -739,8 +739,8 @@ export default defineStack({
             title: "Creative Director", 
             department: "Design",
             account: "7",
-            status: "Customer",
-            priority: "Low",
+            status: "customer",
+            priority: "low",
             lead_source: "Trade Show",
             birthdate: new Date("1992-03-18"),
             latitude: 48.8698,
@@ -755,8 +755,8 @@ export default defineStack({
             title: "Senior Developer", 
             department: "Engineering",
             account: "2",
-            status: "Active",
-            priority: "Low",
+            status: "active",
+            priority: "low",
             lead_source: "Phone",
             birthdate: new Date("1995-12-12"),
             latitude: 37.7897,
@@ -896,47 +896,47 @@ export default defineStack({
           object: 'product',
           mode: 'upsert',
           records: [
-              { _id: "p1", sku: 'HW-LAP-001', name: 'Workstation Pro Laptop', category: 'Electronics', price: 2499.99, stock: 15, is_active: true, manufacturer: 'TechPro', weight: 2.1, tags: ['best_seller'], image: 'https://images.unsplash.com/photo-1593642702821-c8da6771f0c6?w=600&q=80' },
-              { _id: "p2", sku: 'HW-ACC-002', name: 'Wireless Ergonomic Mouse', category: 'Electronics', price: 89.99, stock: 120, is_active: true, manufacturer: 'ErgoTech', weight: 0.12, tags: ['new'], image: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=600&q=80' },
-              { _id: "p3", sku: 'FUR-CHR-003', name: 'Executive Mesh Chair', category: 'Furniture', price: 549.99, stock: 8, is_active: true, manufacturer: 'SitWell', weight: 15.5, image: 'https://images.unsplash.com/photo-1505843490538-5133c6c7d0e1?w=600&q=80' },
-              { _id: "p4", sku: 'FUR-DSK-004', name: 'Adjustable Standing Desk', category: 'Furniture', price: 799.99, stock: 20, is_active: true, manufacturer: 'StandUp Co', weight: 32.0, tags: ['best_seller'], image: 'https://images.unsplash.com/photo-1595515106969-1ce29566ff1c?w=600&q=80' },
-              { _id: "p5", sku: 'HW-AUD-005', name: 'Studio Noise Cancelling Headphones', category: 'Electronics', price: 349.99, stock: 45, is_active: true, manufacturer: 'SoundPro', weight: 0.35, tags: ['new', 'best_seller'], image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&q=80' },
-              { _id: "p6", sku: 'HW-MON-006', name: '4K UltraWide Monitor', category: 'Electronics', price: 899.99, stock: 30, is_active: true, manufacturer: 'ViewMax', weight: 8.5, image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=600&q=80' },
-              { _id: "p7", sku: 'SVC-CNS-007', name: 'Implementation Service (Hourly)', category: 'Services', price: 250.00, stock: 1000, is_active: true, image: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=600&q=80' },
-              { _id: "p8", sku: 'SVC-SUP-008', name: 'Premium Support (Annual)', category: 'Services', price: 5000.00, stock: 1000, is_active: true, tags: ['on_sale'], image: 'https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=600&q=80' }
+              { _id: "p1", sku: 'HW-LAP-001', name: 'Workstation Pro Laptop', category: 'electronics', price: 2499.99, stock: 15, is_active: true, manufacturer: 'TechPro', weight: 2.1, tags: ['best_seller'], image: 'https://images.unsplash.com/photo-1593642702821-c8da6771f0c6?w=600&q=80' },
+              { _id: "p2", sku: 'HW-ACC-002', name: 'Wireless Ergonomic Mouse', category: 'electronics', price: 89.99, stock: 120, is_active: true, manufacturer: 'ErgoTech', weight: 0.12, tags: ['new'], image: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=600&q=80' },
+              { _id: "p3", sku: 'FUR-CHR-003', name: 'Executive Mesh Chair', category: 'furniture', price: 549.99, stock: 8, is_active: true, manufacturer: 'SitWell', weight: 15.5, image: 'https://images.unsplash.com/photo-1505843490538-5133c6c7d0e1?w=600&q=80' },
+              { _id: "p4", sku: 'FUR-DSK-004', name: 'Adjustable Standing Desk', category: 'furniture', price: 799.99, stock: 20, is_active: true, manufacturer: 'StandUp Co', weight: 32.0, tags: ['best_seller'], image: 'https://images.unsplash.com/photo-1595515106969-1ce29566ff1c?w=600&q=80' },
+              { _id: "p5", sku: 'HW-AUD-005', name: 'Studio Noise Cancelling Headphones', category: 'electronics', price: 349.99, stock: 45, is_active: true, manufacturer: 'SoundPro', weight: 0.35, tags: ['new', 'best_seller'], image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&q=80' },
+              { _id: "p6", sku: 'HW-MON-006', name: '4K UltraWide Monitor', category: 'electronics', price: 899.99, stock: 30, is_active: true, manufacturer: 'ViewMax', weight: 8.5, image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=600&q=80' },
+              { _id: "p7", sku: 'SVC-CNS-007', name: 'Implementation Service (Hourly)', category: 'services', price: 250.00, stock: 1000, is_active: true, image: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=600&q=80' },
+              { _id: "p8", sku: 'SVC-SUP-008', name: 'Premium Support (Annual)', category: 'services', price: 5000.00, stock: 1000, is_active: true, tags: ['on_sale'], image: 'https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=600&q=80' }
           ]
       },
       {
           object: 'order',
           mode: 'upsert',
           records: [
-              { _id: "o1", name: 'ORD-2024-001', customer: "2", account: "2", order_date: new Date('2024-01-15'), amount: 15459.99, status: 'Paid', payment_method: 'Wire Transfer', shipping_address: '415 Mission St, San Francisco, CA 94105', tracking_number: '1Z999AA10123456784' },
-              { _id: "o2", name: 'ORD-2024-002', customer: "3", account: "3", order_date: new Date('2024-01-18'), amount: 289.50, status: 'Pending', payment_method: 'Credit Card', discount: 5 }
+              { _id: "o1", name: 'ORD-2024-001', customer: "2", account: "2", order_date: new Date('2024-01-15'), amount: 15459.99, status: 'paid', payment_method: 'Wire Transfer', shipping_address: '415 Mission St, San Francisco, CA 94105', tracking_number: '1Z999AA10123456784' },
+              { _id: "o2", name: 'ORD-2024-002', customer: "3", account: "3", order_date: new Date('2024-01-18'), amount: 289.50, status: 'pending', payment_method: 'Credit Card', discount: 5 }
           ]
       },
       {
           object: 'project_task',
           mode: 'upsert',
           records: [
-              { _id: "t1", name: "Requirements Gathering", start_date: new Date("2024-02-01"), end_date: new Date("2024-02-14"), progress: 100, estimated_hours: 40, actual_hours: 38, status: 'Completed', color: '#10b981', priority: 'High', manager: "1", assignee: "2" },
-              { _id: "t2", name: "Architecture Design", start_date: new Date("2024-02-15"), end_date: new Date("2024-03-01"), progress: 100, estimated_hours: 60, actual_hours: 55, status: 'Completed', color: '#3b82f6', priority: 'High', dependencies: 't1', manager: "1", assignee: "1" },
-              { _id: "t3", name: "Frontend Development", start_date: new Date("2024-03-02"), end_date: new Date("2024-04-15"), progress: 75, estimated_hours: 120, actual_hours: 90, status: 'In Progress', color: '#8b5cf6', priority: 'High', dependencies: 't2', manager: "2", assignee: "2" },
-              { _id: "t4", name: "Backend API Integration", start_date: new Date("2024-03-02"), end_date: new Date("2024-04-10"), progress: 80, estimated_hours: 100, actual_hours: 80, status: 'In Progress', color: '#6366f1', priority: 'High', dependencies: 't2', manager: "2", assignee: "1" },
-              { _id: "t5", name: "QA & Testing", start_date: new Date("2024-04-16"), end_date: new Date("2024-05-01"), progress: 0, estimated_hours: 50, status: 'Planned', color: '#f59e0b', priority: 'Medium', dependencies: 't3,t4', manager: "1" },
-              { _id: "t6", name: "UAT", start_date: new Date("2024-05-02"), end_date: new Date("2024-05-15"), progress: 0, estimated_hours: 30, status: 'Planned', color: '#f43f5e', priority: 'Medium', dependencies: 't5', manager: "1" },
-              { _id: "t7", name: "Go Live & Launch", start_date: new Date("2024-05-20"), end_date: new Date("2024-05-20"), progress: 0, estimated_hours: 8, status: 'Planned', color: '#ef4444', priority: 'Critical', dependencies: 't6', manager: "1" }
+              { _id: "t1", name: "Requirements Gathering", start_date: new Date("2024-02-01"), end_date: new Date("2024-02-14"), progress: 100, estimated_hours: 40, actual_hours: 38, status: 'completed', color: '#10b981', priority: 'high', manager: "1", assignee: "2" },
+              { _id: "t2", name: "Architecture Design", start_date: new Date("2024-02-15"), end_date: new Date("2024-03-01"), progress: 100, estimated_hours: 60, actual_hours: 55, status: 'completed', color: '#3b82f6', priority: 'high', dependencies: 't1', manager: "1", assignee: "1" },
+              { _id: "t3", name: "Frontend Development", start_date: new Date("2024-03-02"), end_date: new Date("2024-04-15"), progress: 75, estimated_hours: 120, actual_hours: 90, status: 'in_progress', color: '#8b5cf6', priority: 'high', dependencies: 't2', manager: "2", assignee: "2" },
+              { _id: "t4", name: "Backend API Integration", start_date: new Date("2024-03-02"), end_date: new Date("2024-04-10"), progress: 80, estimated_hours: 100, actual_hours: 80, status: 'in_progress', color: '#6366f1', priority: 'high', dependencies: 't2', manager: "2", assignee: "1" },
+              { _id: "t5", name: "QA & Testing", start_date: new Date("2024-04-16"), end_date: new Date("2024-05-01"), progress: 0, estimated_hours: 50, status: 'planned', color: '#f59e0b', priority: 'medium', dependencies: 't3,t4', manager: "1" },
+              { _id: "t6", name: "UAT", start_date: new Date("2024-05-02"), end_date: new Date("2024-05-15"), progress: 0, estimated_hours: 30, status: 'planned', color: '#f43f5e', priority: 'medium', dependencies: 't5', manager: "1" },
+              { _id: "t7", name: "Go Live & Launch", start_date: new Date("2024-05-20"), end_date: new Date("2024-05-20"), progress: 0, estimated_hours: 8, status: 'planned', color: '#ef4444', priority: 'critical', dependencies: 't6', manager: "1" }
           ]
       },
       {
           object: 'event',
           mode: 'upsert',
           records: [
-              { _id: "e1", subject: "Weekly Standup", start: new Date("2024-02-05T09:00:00"), end: new Date("2024-02-05T10:00:00"), location: "Conference Room A", type: "Meeting", status: "completed", organizer: "1", reminder: "15 minutes", description: "Team synchronization regarding Project Alpha" },
-              { _id: "e2", subject: "Client Call - TechCorp", start: new Date("2024-02-06T14:00:00"), end: new Date("2024-02-06T15:00:00"), location: "Zoom", type: "Call", status: "completed", organizer: "2", reminder: "5 minutes", description: "Reviewing Q1 Goals and Roadblocks" },
-              { _id: "e3", subject: "Project Review", start: new Date("2024-02-08T10:00:00"), end: new Date("2024-02-08T11:30:00"), location: "Board Room", type: "Meeting", status: "completed", organizer: "1", reminder: "30 minutes", description: "Milestone review with stakeholders" },
-              { _id: "e4", subject: "Lunch with Partners", start: new Date("2024-02-09T12:00:00"), end: new Date("2024-02-09T13:30:00"), location: "Downtown Cafe", type: "Other", status: "completed", organizer: "2", description: "Networking event" },
-              { _id: "e5", subject: "Product Demo - Berlin Auto", start: new Date("2024-03-10T11:00:00"), end: new Date("2024-03-10T12:30:00"), location: "Online", type: "Meeting", status: "scheduled", organizer: "1", reminder: "1 hour", is_private: false, description: "Showcasing the new automation suite capabilities" },
-              { _id: "e6", subject: "Internal Training", start: new Date("2024-03-15T09:00:00"), end: new Date("2024-03-15T16:00:00"), location: "Training Center", type: "Other", status: "scheduled", organizer: "1", is_all_day: true, reminder: "1 day", description: "Security compliance training for all staff" }
+              { _id: "e1", subject: "Weekly Standup", start: new Date("2024-02-05T09:00:00"), end: new Date("2024-02-05T10:00:00"), location: "Conference Room A", type: "meeting", status: "completed", organizer: "1", reminder: "15 minutes", description: "Team synchronization regarding Project Alpha" },
+              { _id: "e2", subject: "Client Call - TechCorp", start: new Date("2024-02-06T14:00:00"), end: new Date("2024-02-06T15:00:00"), location: "Zoom", type: "call", status: "completed", organizer: "2", reminder: "5 minutes", description: "Reviewing Q1 Goals and Roadblocks" },
+              { _id: "e3", subject: "Project Review", start: new Date("2024-02-08T10:00:00"), end: new Date("2024-02-08T11:30:00"), location: "Board Room", type: "meeting", status: "completed", organizer: "1", reminder: "30 minutes", description: "Milestone review with stakeholders" },
+              { _id: "e4", subject: "Lunch with Partners", start: new Date("2024-02-09T12:00:00"), end: new Date("2024-02-09T13:30:00"), location: "Downtown Cafe", type: "other", status: "completed", organizer: "2", description: "Networking event" },
+              { _id: "e5", subject: "Product Demo - Berlin Auto", start: new Date("2024-03-10T11:00:00"), end: new Date("2024-03-10T12:30:00"), location: "Online", type: "meeting", status: "scheduled", organizer: "1", reminder: "1 hour", is_private: false, description: "Showcasing the new automation suite capabilities" },
+              { _id: "e6", subject: "Internal Training", start: new Date("2024-03-15T09:00:00"), end: new Date("2024-03-15T16:00:00"), location: "Training Center", type: "other", status: "scheduled", organizer: "1", is_all_day: true, reminder: "1 day", description: "Security compliance training for all staff" }
           ]
       }
     ]
