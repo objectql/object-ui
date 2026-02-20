@@ -1,7 +1,5 @@
 packages:
   - 'packages/*'
   - 'examples/*'
-  - '!examples/hotcrm'
-  - 'examples/hotcrm/packages/*'
   - 'apps/*'
   - 'docs'
