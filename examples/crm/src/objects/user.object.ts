@@ -6,7 +6,7 @@ export const UserObject = ObjectSchema.create({
   icon: 'user-check',
   description: 'System users with roles and profile information',
   fields: {
-    name: Field.text({ label: 'Full Name', required: true, searchable: true, placeholder: 'First and last name' }),
+    name: Field.text({ label: 'Full Name', required: true, searchable: true }),
     email: Field.email({ label: 'Email', required: true, searchable: true, unique: true }),
     username: Field.text({ label: 'Username', required: true, unique: true }),
     role: Field.select([
@@ -14,11 +14,11 @@ export const UserObject = ObjectSchema.create({
       { value: 'user', label: 'User', color: 'blue' },
       { value: 'guest', label: 'Guest', color: 'gray' },
     ], { label: 'Role', defaultValue: 'user' }),
-    title: Field.text({ label: 'Job Title', placeholder: 'e.g. Sales Manager' }),
+    title: Field.text({ label: 'Job Title' }),
     department: Field.text({ label: 'Department' }),
     phone: Field.phone({ label: 'Phone' }),
     avatar: Field.avatar({ label: 'Avatar' }),
-    bio: Field.textarea({ label: 'Bio', placeholder: 'Short biography', helpText: 'Visible on user profile' }),
+    bio: Field.textarea({ label: 'Bio' }),
     active: Field.boolean({ label: 'Active', defaultValue: true })
   }
 });

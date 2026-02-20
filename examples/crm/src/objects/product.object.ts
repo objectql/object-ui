@@ -6,19 +6,19 @@ export const ProductObject = ObjectSchema.create({
   icon: 'package',
   description: 'Product catalog with pricing, inventory, and categorization',
   fields: {
-    name: Field.text({ label: 'Product Name', required: true, searchable: true, placeholder: 'Enter product name' }),
-    sku: Field.text({ label: 'SKU', required: true, searchable: true, unique: true, helpText: 'Stock Keeping Unit — must be unique' }),
+    name: Field.text({ label: 'Product Name', required: true, searchable: true }),
+    sku: Field.text({ label: 'SKU', required: true, searchable: true, unique: true }),
     category: Field.select([
       { value: 'electronics', label: 'Electronics', color: 'blue' },
       { value: 'furniture', label: 'Furniture', color: 'yellow' },
       { value: 'clothing', label: 'Clothing', color: 'pink' },
       { value: 'services', label: 'Services', color: 'green' },
     ], { label: 'Category' }),
-    price: Field.currency({ label: 'Price', scale: 2, helpText: 'Unit price in USD' }),
-    stock: Field.number({ label: 'Stock', helpText: 'Current inventory count' }),
-    weight: Field.number({ label: 'Weight (kg)', scale: 2, helpText: 'Shipping weight in kilograms' }),
+    price: Field.currency({ label: 'Price', scale: 2 }),
+    stock: Field.number({ label: 'Stock' }),
+    weight: Field.number({ label: 'Weight (kg)', scale: 2 }),
     manufacturer: Field.text({ label: 'Manufacturer', searchable: true }),
-    is_active: Field.boolean({ label: 'Active', defaultValue: true, helpText: 'Inactive products are hidden from the catalog' }),
+    is_active: Field.boolean({ label: 'Active', defaultValue: true }),
     tags: Field.select({
       options: [
         { label: 'New Arrival', value: 'new', color: 'green' },

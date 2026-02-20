@@ -6,9 +6,9 @@ export const OpportunityObject = ObjectSchema.create({
   icon: 'trending-up',
   description: 'Sales deals and revenue opportunities tracked through the pipeline',
   fields: {
-    name: Field.text({ label: 'Opportunity Name', required: true, searchable: true, placeholder: 'Enter deal name' }),
-    amount: Field.currency({ label: 'Amount', helpText: 'Total deal value in USD' }),
-    expected_revenue: Field.currency({ label: 'Expected Revenue', readonly: true, helpText: 'Amount × Probability' }),
+    name: Field.text({ label: 'Opportunity Name', required: true, searchable: true }),
+    amount: Field.currency({ label: 'Amount' }),
+    expected_revenue: Field.currency({ label: 'Expected Revenue', readonly: true }),
     stage: Field.select([
       { value: "prospecting", label: "Prospecting", color: "purple" },
       { value: "qualification", label: "Qualification", color: "indigo" },
@@ -22,15 +22,15 @@ export const OpportunityObject = ObjectSchema.create({
       { value: 'best_case', label: 'Best Case', color: 'green' },
       { value: 'commit', label: 'Commit', color: 'purple' },
       { value: 'omitted', label: 'Omitted', color: 'gray' },
-    ], { label: 'Forecast Category', helpText: 'Revenue forecast classification' }),
+    ], { label: 'Forecast Category' }),
     close_date: Field.date({ label: 'Close Date', required: true }),
     account: Field.lookup('account', { label: 'Account' }),
     contacts: Field.lookup('contact', { label: 'Contacts', multiple: true }),
-    probability: Field.percent({ label: 'Probability', helpText: '0–100% chance of closing' }),
+    probability: Field.percent({ label: 'Probability' }),
     type: Field.select(['New Business', 'Existing Business', 'Upgrade', 'Renewal'], { label: 'Type' }),
     lead_source: Field.select(['Web', 'Phone', 'Partner', 'Referral', 'Trade Show', 'Other'], { label: 'Lead Source' }),
-    campaign_source: Field.text({ label: 'Campaign Source', placeholder: 'e.g. Q1-2024-Webinar', helpText: 'Marketing campaign that generated this lead' }),
-    next_step: Field.text({ label: 'Next Step', placeholder: 'e.g. Schedule demo, Send proposal' }),
+    campaign_source: Field.text({ label: 'Campaign Source' }),
+    next_step: Field.text({ label: 'Next Step' }),
     description: Field.richtext({ label: 'Description' })
   }
 });
