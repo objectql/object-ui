@@ -123,6 +123,8 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
         // The plugin ObjectView returns the view ID directly via onViewChange
         const matchedView = views.find((v: any) => v.id === newViewId);
         if (!matchedView) return;
+        // Auto-close the config panel when switching views
+        setShowViewConfigPanel(false);
         if (viewId) {
              navigate(`../${matchedView.id}`, { relative: "path" });
         } else {

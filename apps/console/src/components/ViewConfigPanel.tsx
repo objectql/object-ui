@@ -9,7 +9,7 @@
  * following the same pattern as MetadataPanel.
  */
 
-import { useMemo } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { Button } from '@object-ui/components';
 import { X, ChevronRight } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -96,6 +96,14 @@ function ToggleIndicator({ enabled }: { enabled: boolean }) {
 
 export function ViewConfigPanel({ open, onClose, activeView, objectDef }: ViewConfigPanelProps) {
     const { t } = useObjectTranslation();
+    const panelRef = useRef<HTMLDivElement>(null);
+
+    // Focus the panel when it opens for keyboard accessibility
+    useEffect(() => {
+        if (open && panelRef.current) {
+            panelRef.current.focus();
+        }
+    }, [open]);
 
     const viewLabel = activeView.label || activeView.id;
     const viewType = activeView.type || 'grid';
@@ -124,8 +132,12 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef }: ViewCo
 
     return (
         <div
+            ref={panelRef}
             data-testid="view-config-panel"
-            className="w-72 lg:w-80 border-l bg-background flex flex-col shrink-0 z-20 transition-all overflow-hidden"
+            role="complementary"
+            aria-label={t('console.objectView.configureView')}
+            tabIndex={-1}
+            className="absolute inset-y-0 right-0 w-full sm:w-72 lg:w-80 sm:relative sm:inset-auto border-l bg-background flex flex-col shrink-0 z-20 transition-all overflow-hidden"
         >
             {/* Panel Header */}
             <div className="px-4 py-3 border-b flex items-center justify-between shrink-0">

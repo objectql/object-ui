@@ -1021,7 +1021,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 | **Global Undo/Redo (Ctrl+Z)** | ✅ Done (global UndoManager + batch ops + persistent stack) | Post v1.0 | Phase 16 (L1+L2) |
 | Notification center | ✅ Partial (ActivityFeed with filter preferences) | Post v1.0 | Phase 17 (L2) |
 | Activity feed | ✅ Done | Post v1.0 | Phase 17 (L1) |
-| **Inline View Config Panel** | ✅ Done (Airtable-style right sidebar, breadcrumb header, record count footer) | Post v1.0 | Phase 20 |
+| **Inline View Config Panel** | ✅ Done (Airtable-style right sidebar, breadcrumb header, record count footer, responsive mobile overlay, ARIA accessibility, auto-close on view switch) | Post v1.0 | Phase 20 |
 
 ### 5.5 Kanban & Visual Views
 
@@ -1100,6 +1100,10 @@ These were the initial tasks to bring the console prototype to production-qualit
 2027 Q1+ — v2.0: AUTOMATION & WORKFLOWS (✅ L1 Complete)
 ═══════════════════════════════════════════════════════════
   Phase 18: Automation & Workflows    ██████████████  ✅ L1 Complete: AutomationBuilder, AutomationRunHistory, registered in ComponentRegistry
+
+2027 Q1+ — v2.1: INLINE VIEW DESIGNER (✅ Complete)
+═══════════════════════════════════════════════════════════
+  Phase 20: Inline ViewConfigPanel    ██████████████  ✅ Complete: Airtable-style right sidebar, breadcrumb header, record count footer, responsive mobile overlay, ARIA accessibility, auto-close on view switch
 ```
 
 ### Milestone Summary
@@ -1114,6 +1118,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 | **v1.1** | v1.1.0 | ✅ Complete | Kanban + Forms + Import/Export (Phases 13-15); all L1 ✅ |
 | **v1.2** | v1.2.0 | ✅ L1 Complete | Undo/Redo + Collaboration (Phases 16-17); L1 integrated into console |
 | **v2.0** | v2.0.0 | ✅ L2 Complete | All L2 features: batch undo, expression formatting, conditional triggers, multi-step actions, swimlane persistence, keyboard nav, file validation, thread resolution, notification prefs |
+| **v2.1** | v2.1.0 | ✅ Complete | Inline ViewConfigPanel (Phase 20): Airtable-style right sidebar for view configuration |
 
 ---
 

@@ -218,4 +218,37 @@ describe('ViewConfigPanel', () => {
         const noneTexts = screen.getAllByText('console.objectView.none');
         expect(noneTexts.length).toBeGreaterThanOrEqual(2);
     });
+
+    it('has correct ARIA attributes when open', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        const panel = screen.getByTestId('view-config-panel');
+        expect(panel).toHaveAttribute('role', 'complementary');
+        expect(panel).toHaveAttribute('aria-label', 'console.objectView.configureView');
+    });
+
+    it('is full-width on mobile via CSS classes', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        const panel = screen.getByTestId('view-config-panel');
+        // On mobile: absolute full-width overlay; on desktop: relative w-72
+        expect(panel.className).toContain('w-full');
+        expect(panel.className).toContain('sm:w-72');
+        expect(panel.className).toContain('absolute');
+        expect(panel.className).toContain('sm:relative');
+    });
 });
