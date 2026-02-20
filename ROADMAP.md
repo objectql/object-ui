@@ -216,6 +216,7 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 - [x] Implement empty state spec property
 - [x] Implement selection and pagination spec alignment
 - [x] Implement `quickFilters` and `userFilters` spec properties
+- [x] Auto-derive `userFilters` from objectDef (select/multi-select/boolean fields) when not explicitly configured
 - [x] Implement `hiddenFields` and `fieldOrder` spec properties
 - [x] Implement `emptyState` spec property
 

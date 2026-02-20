@@ -471,4 +471,131 @@ describe('ListView', () => {
     });
     expect(screen.queryByTestId('record-count-bar')).not.toBeInTheDocument();
   });
+
+  // ============================================
+  // Auto-derived User Filters
+  // ============================================
+  describe('auto-derived userFilters', () => {
+    it('should render userFilters when schema.userFilters is explicitly configured', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'status'],
+        userFilters: {
+          element: 'dropdown',
+          fields: [
+            { field: 'status', label: 'Status', options: [{ label: 'Active', value: 'active' }] },
+          ],
+        },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByTestId('user-filters')).toBeInTheDocument();
+      expect(screen.getByTestId('user-filters-dropdown')).toBeInTheDocument();
+    });
+
+    it('should auto-derive userFilters from objectDef select/boolean fields', async () => {
+      const mockDs = {
+        find: vi.fn().mockResolvedValue([]),
+        findOne: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+        getObjectSchema: vi.fn().mockResolvedValue({
+          name: 'tasks',
+          fields: {
+            name: { type: 'text', label: 'Name' },
+            status: {
+              type: 'select',
+              label: 'Status',
+              options: [
+                { label: 'Open', value: 'open' },
+                { label: 'Closed', value: 'closed' },
+              ],
+            },
+            is_active: { type: 'boolean', label: 'Active' },
+            description: { type: 'text', label: 'Description' },
+          },
+        }),
+      };
+
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'tasks',
+        viewType: 'grid',
+        fields: ['name', 'status', 'is_active'],
+      };
+
+      render(
+        <SchemaRendererProvider dataSource={mockDs}>
+          <ListView schema={schema} dataSource={mockDs} />
+        </SchemaRendererProvider>
+      );
+
+      // Wait for objectDef to load and userFilters to render
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('user-filters')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('user-filters-dropdown')).toBeInTheDocument();
+      // Should have badges for status and is_active (select + boolean)
+      expect(screen.getByTestId('filter-badge-status')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-badge-is_active')).toBeInTheDocument();
+    });
+
+    it('should show Add filter button in userFilters', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'status'],
+        userFilters: {
+          element: 'dropdown',
+          fields: [
+            { field: 'status', label: 'Status', options: [{ label: 'Active', value: 'active' }] },
+          ],
+        },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByTestId('user-filters-add')).toBeInTheDocument();
+    });
+
+    it('should not render userFilters when objectDef has no filterable fields', async () => {
+      const mockDs = {
+        find: vi.fn().mockResolvedValue([]),
+        findOne: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+        getObjectSchema: vi.fn().mockResolvedValue({
+          name: 'notes',
+          fields: {
+            title: { type: 'text', label: 'Title' },
+            body: { type: 'text', label: 'Body' },
+          },
+        }),
+      };
+
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'notes',
+        viewType: 'grid',
+        fields: ['title', 'body'],
+      };
+
+      render(
+        <SchemaRendererProvider dataSource={mockDs}>
+          <ListView schema={schema} dataSource={mockDs} />
+        </SchemaRendererProvider>
+      );
+
+      // Wait for objectDef to load
+      await vi.waitFor(() => {
+        expect(mockDs.getObjectSchema).toHaveBeenCalled();
+      });
+      // userFilters should not render since no filterable fields
+      expect(screen.queryByTestId('user-filters')).not.toBeInTheDocument();
+    });
+  });
 });
