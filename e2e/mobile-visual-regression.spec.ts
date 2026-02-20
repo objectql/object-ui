@@ -18,6 +18,10 @@ const MOBILE_VIEWPORTS = [
 const ROUTES = ['/', '/dashboard'];
 
 test.describe('Mobile Visual Regression', () => {
+  // These tests require baseline snapshots and are only run via manual trigger
+  // (workflow_dispatch). Set VISUAL_REGRESSION=true to enable locally.
+  test.skip(!process.env.VISUAL_REGRESSION, 'Visual regression tests are manual-trigger only');
+
   for (const viewport of MOBILE_VIEWPORTS) {
     for (const route of ROUTES) {
       test(`${viewport.name} - ${route} renders consistently`, async ({ page }) => {
