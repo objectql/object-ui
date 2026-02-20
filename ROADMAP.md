@@ -118,13 +118,14 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 | **Form View** (simple/tabbed/wizard/split/drawer/modal) | ✅ Complete | ⚠️ ~20% (basic FormSchema only) | 🟡 |
 | **Page Composition** | ✅ Complete (16 types, regions, variables, blank layout) | ⚠️ ~25% (regions aligned, missing page types/components) | 🟡 |
 | **Dashboard** | ✅ Complete (data-binding, filters, measures) | ⚠️ ~15% (grid layout only) | 🟡 |
-| **Action Protocol** | ✅ Complete | 🔴 0% | 🔴 |
+| **Action Protocol** | ✅ Complete | ✅ ActionEngine + ActionRunner (5 types) | ✅ |
 | **Report** | ✅ Complete | 🔴 0% | 🔴 |
-| **Data Binding Bridge** | ✅ `ViewDataSchema`, `ElementDataSourceSchema` | 🔴 0% | 🔴 |
-| **Expression Engine** | ✅ Referenced in `visible`/`disabled`/`events` | 🔴 0% (static booleans only) | 🔴 |
+| **Data Binding Bridge** | ✅ `ViewDataSchema`, `ElementDataSourceSchema` | ✅ ViewDataProvider (object/api/value) | ✅ |
+| **Expression Engine** | ✅ Referenced in `visible`/`disabled`/`events` | ✅ ExpressionEvaluator + SchemaRenderer integration | ✅ |
+| **SpecBridge** | N/A (ObjectUI-specific) | ✅ ListView/FormView/Page/Dashboard bridges | ✅ |
 | **i18n / ARIA** | ✅ On every schema | 🔴 0% | 🔴 |
 
-**Overall Protocol Alignment: ~20%**
+**Overall Protocol Alignment: ~55%** (up from ~20%)
 
 ### What CAN Be Built Today
 
@@ -168,11 +169,11 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 **Goal:** Build the foundational bridge layers that enable ObjectUI to render a Console from `@objectstack/spec` JSON metadata. Without these, no metadata-driven application can be built.
 
 #### P0.1 SpecBridge — `@object-ui/react`
-- [ ] Build `SpecBridge` module — transforms `@objectstack/spec` View/Page/App JSON → ObjectUI `SchemaNode` tree
-- [ ] Implement `ListViewSchema` → `DataTableSchema` bridge (field → column mapping, data provider resolution)
-- [ ] Implement `FormViewSchema` → `FormSchema` bridge (sections, columns, widget overrides)
-- [ ] Implement `PageSchema` → ObjectUI page composition bridge (16 page types → renderer tree)
-- [ ] Implement `DashboardSchema` → dashboard widget bridge (data binding, filter resolution)
+- [x] Build `SpecBridge` module — transforms `@objectstack/spec` View/Page/App JSON → ObjectUI `SchemaNode` tree
+- [x] Implement `ListViewSchema` → `DataTableSchema` bridge (field → column mapping, data provider resolution)
+- [x] Implement `FormViewSchema` → `FormSchema` bridge (sections, columns, widget overrides)
+- [x] Implement `PageSchema` → ObjectUI page composition bridge (16 page types → renderer tree)
+- [x] Implement `DashboardSchema` → dashboard widget bridge (data binding, filter resolution)
 
 #### P0.2 AppShell & Navigation Renderer
 - [ ] Implement `AppSchema` renderer consuming spec JSON (name, label, icon, branding)
@@ -182,20 +183,20 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 - [ ] Add permission guards (`requiredPermissions`, `visible`) on navigation items
 
 #### P0.3 Expression Engine — `@object-ui/core`
-- [ ] Implement expression string evaluation for `visible` / `disabled` / `events` (e.g., `"${data.age > 18}"`)
-- [ ] Support data context binding in expressions (row data, page variables, user context)
-- [ ] Integrate expression evaluation into SchemaRenderer pipeline
+- [x] Implement expression string evaluation for `visible` / `disabled` / `events` (e.g., `"${data.age > 18}"`)
+- [x] Support data context binding in expressions (row data, page variables, user context)
+- [x] Integrate expression evaluation into SchemaRenderer pipeline
 
 #### P0.4 Action Runtime — `@object-ui/core`
-- [ ] Implement `ActionSchema` interpreter (5 types: script, url, modal, flow, api)
-- [ ] Implement declarative `ActionEngine` pipeline (events → `ActionDef[]` dispatch) — replaces callback-based `useObjectActions`
-- [ ] Support action locations (list_toolbar, list_item, record_header, record_more, global_nav)
-- [ ] Implement confirmation dialog (`confirmText`), keyboard shortcuts, bulk operations, `refreshAfter`
+- [x] Implement `ActionSchema` interpreter (5 types: script, url, modal, flow, api)
+- [x] Implement declarative `ActionEngine` pipeline (events → `ActionDef[]` dispatch) — replaces callback-based `useObjectActions`
+- [x] Support action locations (list_toolbar, list_item, record_header, record_more, global_nav)
+- [x] Implement confirmation dialog (`confirmText`), keyboard shortcuts, bulk operations, `refreshAfter`
 
 #### P0.5 Data Binding Layer
-- [ ] Implement `ViewDataSchema` discriminated union (object/api/value data providers)
-- [ ] Build `ElementDataSourceSchema` binding for component-level data resolution
-- [ ] Connect data providers to existing `ObjectStackAdapter` for server communication
+- [x] Implement `ViewDataSchema` discriminated union (object/api/value data providers)
+- [x] Build `ElementDataSourceSchema` binding for component-level data resolution
+- [x] Connect data providers to existing `ObjectStackAdapter` for server communication
 
 #### P0.6 Console Core UI (Remaining)
 - [x] Migrate Console from static config to runtime metadata API (`getView()`/`getApp()`/`getPage()`)
@@ -349,12 +350,12 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 
 | Metric | Current | v1.0 Target | How Measured |
 |--------|---------|-------------|--------------|
-| **Protocol Alignment** | ~20% | 80%+ (UI-facing) | Protocol Consistency Assessment |
-| **SpecBridge** | Not started | View/Page/App/Dashboard bridges working | Integration tests |
-| **Expression Engine** | Static booleans only | Dynamic `visible`/`disabled`/`events` evaluation | Unit tests + Console demo |
-| **Action Runtime** | Callback-based | `ActionSchema` interpreter (5 types) | ActionEngine integration test |
+| **Protocol Alignment** | ~55% | 80%+ (UI-facing) | Protocol Consistency Assessment |
+| **SpecBridge** | ✅ ListView/FormView/Page/Dashboard | View/Page/App/Dashboard bridges working | Integration tests |
+| **Expression Engine** | ✅ Dynamic `visible`/`disabled`/`events` | Dynamic `visible`/`disabled`/`events` evaluation | Unit tests + Console demo |
+| **Action Runtime** | ✅ ActionEngine (5 types + shortcuts + bulk) | `ActionSchema` interpreter (5 types) | ActionEngine integration test |
 | **AppShell Renderer** | No spec renderer | Sidebar + nav tree from `AppSchema` JSON | Console renders from spec JSON |
-| **Data Binding** | Raw `data[]` props | `ViewDataSchema` → ObjectStackAdapter | Data-driven view rendering |
+| **Data Binding** | ✅ ViewDataProvider (object/api/value) | `ViewDataSchema` → ObjectStackAdapter | Data-driven view rendering |
 | **Build Status** | 42/42 pass | 42/42 pass | `pnpm build` |
 
 ### Quality Metrics (Ongoing)
@@ -362,7 +363,7 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 | Metric | Current (Feb 2026) | Target | How Measured |
 |--------|--------------------|--------------------|--------------|
 | **Test Coverage** | 90%+ | 90%+ | `pnpm test:coverage` |
-| **Test Count** | 4,752+ | 5,000+ | `pnpm test` summary |
+| **Test Count** | 4,885+ | 5,000+ | `pnpm test` summary |
 | **Storybook Stories** | 78 | 91+ (1 per component) | Story file count |
 | **Package READMEs** | 37/37 (100%) | 37/37 (100%) | README.md presence |
 | **Console i18n Coverage** | 100% | 100% | No hardcoded strings |

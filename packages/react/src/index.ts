@@ -11,6 +11,7 @@ export * from './hooks'; // will be empty for now
 export * from './context'; // will be empty for now
 export * from './components/form';
 export * from './LazyPluginLoader';
+export * from './spec-bridge';
 
 // Built-in i18n support
 export {

@@ -7,5 +7,6 @@
  */
 
 export * from './ActionRunner.js';
+export * from './ActionEngine.js';
 export * from './TransactionManager.js';
 export * from './UndoManager.js';

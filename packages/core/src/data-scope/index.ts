@@ -14,3 +14,11 @@ export {
   type RowLevelFilter,
   type DataScopeConfig,
 } from './DataScopeManager.js';
+
+export {
+  ViewDataProvider,
+  type ViewDataConfig,
+  type ElementDataSourceConfig,
+  type DataFetcher,
+  type ResolvedData,
+} from './ViewDataProvider.js';

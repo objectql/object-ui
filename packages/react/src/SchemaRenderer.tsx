@@ -133,10 +133,48 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
       newSchema.props = newProps;
     }
 
+    // Evaluate visibility: visible / visibleOn / hidden / hiddenOn
+    const shouldHide = (() => {
+      if (newSchema.visible !== undefined) {
+        return !evaluator.evaluateCondition(newSchema.visible);
+      }
+      if (newSchema.visibleOn !== undefined) {
+        return !evaluator.evaluateCondition(newSchema.visibleOn);
+      }
+      if (newSchema.hidden !== undefined) {
+        return evaluator.evaluateCondition(newSchema.hidden);
+      }
+      if (newSchema.hiddenOn !== undefined) {
+        return evaluator.evaluateCondition(newSchema.hiddenOn);
+      }
+      return false;
+    })();
+
+    if (shouldHide) {
+      newSchema._hidden = true;
+    }
+
+    // Evaluate disabled: disabled / disabledOn
+    const isDisabled = (() => {
+      if (newSchema.disabled !== undefined) {
+        return evaluator.evaluateCondition(newSchema.disabled);
+      }
+      if (newSchema.disabledOn !== undefined) {
+        return evaluator.evaluateCondition(newSchema.disabledOn);
+      }
+      return false;
+    })();
+
+    if (isDisabled) {
+      newSchema._disabled = true;
+    }
+
     return newSchema;
   }, [schema, dataSource]);
 
   if (!evaluatedSchema) return null;
+  // Handle visibility: if evaluated schema is hidden, render nothing
+  if (evaluatedSchema?._hidden) return null;
   // If schema is just a string, render it as text
   if (typeof evaluatedSchema === 'string') return <>{evaluatedSchema}</>;
 
@@ -173,6 +211,8 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     hiddenOn: _hiddenOn,
     disabled: _disabled,
     disabledOn: _disabledOn,
+    _hidden: __hidden,    // stripped: internal visibility flag
+    _disabled: __disabled, // stripped: internal disabled flag
     ...componentProps
   } = evaluatedSchema;
 
@@ -187,6 +227,7 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
         ...componentProps,  // Spread non-metadata schema properties as props
         ...(evaluatedSchema.props || {}),  // Override with explicit props if provided
         ...ariaProps,  // Inject ARIA attributes from AriaPropsSchema
+        disabled: __disabled || undefined,
         className: evaluatedSchema.className,
         'data-obj-id': evaluatedSchema.id,
         'data-obj-type': evaluatedSchema.type,
