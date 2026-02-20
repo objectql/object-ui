@@ -38,7 +38,7 @@ Everything below has been built, tested, and verified. These items are stable an
 - **Architecture:** Clean 3-layer separation (spec → types → core/react → components/plugins). 35 packages, 91+ components, 36+ field widgets.
 - **Accessibility:** AriaProps injection, WCAG 2.1 AA audit (axe-core), focus management, keyboard navigation, reduced-motion support.
 - **I18n:** 11 languages (ar, de, en, es, fr, ja, ko, pt, ru, zh + RTL), plural rules, locale-aware formatting, I18nLabel on all schema fields, 100% Console i18n coverage.
-- **Testing:** 4,752+ tests, 90%+ coverage, E2E (Playwright), visual regression (Storybook snapshots), 200+ test files.
+- **Testing:** 4,952+ tests, 90%+ coverage, E2E (Playwright), visual regression (Storybook snapshots), 200+ test files.
 - **DX:** Zero-friction onboarding (<5 min), 37/37 package READMEs, all hooks JSDoc'd, error code system (`OBJUI-001`+), CLI oclif plugin (15 commands), `OBJECTUI_DEBUG` mode.
 - **Documentation:** 134 docs pages, Getting Started / CRUD / Plugin / Theming guides, API reference from TypeScript, interactive schema playground, Storybook as living docs.
 
@@ -209,51 +209,51 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 **Goal:** Align all existing view plugins and components with `@objectstack/spec` contracts. Close the gap between ObjectUI's data-driven approach and spec's metadata-driven approach.
 
 #### P1.1 ListView Spec Alignment
-- [ ] Align `ListColumnSchema` shape (field, width, align, pinned, summary, link, action) with spec — currently uses TanStack-style `accessorKey`
-- [ ] Implement `rowHeight`, `grouping`, `rowColor` spec properties
-- [ ] Implement row/bulk actions (`rowActions`, `bulkActions`)
-- [ ] Implement conditional formatting
-- [ ] Implement inline edit spec property
-- [ ] Implement export, virtual scroll spec properties
-- [ ] Implement empty state spec property
-- [ ] Implement selection and pagination spec alignment
+- [x] Align `ListColumnSchema` shape (field, width, align, pinned, summary, link, action) with spec — currently uses TanStack-style `accessorKey`
+- [x] Implement `rowHeight`, `grouping`, `rowColor` spec properties
+- [x] Implement row/bulk actions (`rowActions`, `bulkActions`)
+- [x] Implement conditional formatting
+- [x] Implement inline edit spec property
+- [x] Implement export, virtual scroll spec properties
+- [x] Implement empty state spec property
+- [x] Implement selection and pagination spec alignment
 - [x] Implement `quickFilters` and `userFilters` spec properties
 - [x] Implement `hiddenFields` and `fieldOrder` spec properties
 - [x] Implement `emptyState` spec property
 
 #### P1.2 FormView Spec Alignment
-- [ ] Implement form layout types: tabbed, wizard, split, drawer, modal (currently flat form only)
-- [ ] Implement `FormSectionSchema` with 1-4 column layout
-- [ ] Implement `FormFieldSchema` properties: widget override, `dependsOn`, `visibleOn`, `colSpan`
+- [x] Implement form layout types: tabbed, wizard, split, drawer, modal (currently flat form only)
+- [x] Implement `FormSectionSchema` with 1-4 column layout
+- [x] Implement `FormFieldSchema` properties: widget override, `dependsOn`, `visibleOn`, `colSpan`
 
 #### P1.3 Dashboard Spec Alignment
-- [ ] Implement widget data binding (object, filter, `categoryField`, `valueField`, aggregate)
-- [ ] Implement `GlobalFilterSchema` with dynamic `optionsFrom`
-- [ ] Implement date range filter (14 presets + custom)
-- [ ] Implement `DashboardHeaderSchema` (actions, show/hide title)
-- [ ] Implement widget color variants (8 spec variants)
-- [ ] Implement multi-measure (pivot/matrix) via `WidgetMeasureSchema`
+- [x] Implement widget data binding (object, filter, `categoryField`, `valueField`, aggregate)
+- [x] Implement `GlobalFilterSchema` with dynamic `optionsFrom`
+- [x] Implement date range filter (14 presets + custom)
+- [x] Implement `DashboardHeaderSchema` (actions, show/hide title)
+- [x] Implement widget color variants (8 spec variants)
+- [x] Implement multi-measure (pivot/matrix) via `WidgetMeasureSchema`
 
 #### P1.4 Page Composition Spec Alignment
-- [ ] Expand page types from 4 → 16 (add grid, list, gallery, kanban, calendar, timeline, form, record_detail, record_review, overview, dashboard, blank)
-- [ ] Implement `PageComponentType` enum (30+ namespaced component types)
-- [ ] Implement event handlers (expression-based actions on page components)
-- [ ] Implement blank page layout (grid canvas)
-- [ ] Implement responsive config per-component
-- [ ] Add `record_id` to `PageVariable` types (minor gap)
+- [x] Expand page types from 4 → 16 (add grid, list, gallery, kanban, calendar, timeline, form, record_detail, record_review, overview, dashboard, blank)
+- [x] Implement `PageComponentType` enum (30+ namespaced component types)
+- [x] Implement event handlers (expression-based actions on page components)
+- [x] Implement blank page layout (grid canvas)
+- [x] Implement responsive config per-component
+- [x] Add `record_id` to `PageVariable` types (minor gap)
 
 #### P1.5 Record Components
-- [ ] Build `record:details` component
-- [ ] Build `record:related_list` component
-- [ ] Build `record:highlights` component
-- [ ] Build `record:activity` component (spec-aligned, replaces loose TimelineSchema)
-- [ ] Build `record:chatter` component
-- [ ] Build `record:path` component
+- [x] Build `record:details` component
+- [x] Build `record:related_list` component
+- [x] Build `record:highlights` component
+- [x] Build `record:activity` component (spec-aligned, replaces loose TimelineSchema)
+- [x] Build `record:chatter` component
+- [x] Build `record:path` component
 
 #### P1.6 i18n & ARIA Protocol Alignment
-- [ ] Support `I18nLabelSchema` (string | { en, zh, ... }) across all component `label` props
-- [ ] Add `AriaPropsSchema` support to all renderable schemas
-- [ ] Integrate i18n label resolution into SpecBridge pipeline
+- [x] Support `I18nLabelSchema` (string | { en, zh, ... }) across all component `label` props
+- [x] Add `AriaPropsSchema` support to all renderable schemas
+- [x] Integrate i18n label resolution into SpecBridge pipeline
 
 #### P1.7 View Enhancement Properties (Completed Subset)
 - [x] Implement `rowHeight` → density mode (compact/medium/tall)
@@ -350,7 +350,7 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 
 | Metric | Current | v1.0 Target | How Measured |
 |--------|---------|-------------|--------------|
-| **Protocol Alignment** | ~55% | 80%+ (UI-facing) | Protocol Consistency Assessment |
+| **Protocol Alignment** | ~75% | 80%+ (UI-facing) | Protocol Consistency Assessment |
 | **SpecBridge** | ✅ ListView/FormView/Page/Dashboard | View/Page/App/Dashboard bridges working | Integration tests |
 | **Expression Engine** | ✅ Dynamic `visible`/`disabled`/`events` | Dynamic `visible`/`disabled`/`events` evaluation | Unit tests + Console demo |
 | **Action Runtime** | ✅ ActionEngine (5 types + shortcuts + bulk) | `ActionSchema` interpreter (5 types) | ActionEngine integration test |
@@ -363,7 +363,7 @@ Full adoption of Cloud namespace, contracts/integration/security/studio modules,
 | Metric | Current (Feb 2026) | Target | How Measured |
 |--------|--------------------|--------------------|--------------|
 | **Test Coverage** | 90%+ | 90%+ | `pnpm test:coverage` |
-| **Test Count** | 4,885+ | 5,000+ | `pnpm test` summary |
+| **Test Count** | 4,952+ | 5,000+ | `pnpm test` summary |
 | **Storybook Stories** | 78 | 91+ (1 per component) | Story file count |
 | **Package READMEs** | 37/37 (100%) | 37/37 (100%) | README.md presence |
 | **Console i18n Coverage** | 100% | 100% | No hardcoded strings |
