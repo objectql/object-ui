@@ -40,6 +40,26 @@ interface ListViewSpec {
   rowHeight?: string;
   grouping?: any;
   rowColor?: any;
+  // P1.1 additions
+  rowActions?: string[];
+  bulkActions?: string[];
+  virtualScroll?: boolean;
+  conditionalFormatting?: Array<{ condition: string; style: Record<string, string> }>;
+  inlineEdit?: boolean;
+  exportOptions?: any;
+  emptyState?: { title?: string; message?: string; icon?: string };
+  userActions?: any;
+  appearance?: any;
+  tabs?: any[];
+  addRecord?: any;
+  showRecordCount?: boolean;
+  allowPrinting?: boolean;
+  // P1.6 i18n & ARIA
+  aria?: { ariaLabel?: string; ariaDescribedBy?: string; role?: string };
+  sharing?: any;
+  hiddenFields?: string[];
+  fieldOrder?: string[];
+  description?: string;
 }
 
 function mapColumn(col: ListColumn): Record<string, any> {
@@ -103,6 +123,28 @@ export const bridgeListView: BridgeFn<ListViewSpec> = (
   if (spec.rowColor) node.rowColor = spec.rowColor;
   if (spec.searchableFields) node.searchableFields = spec.searchableFields;
   if (spec.quickFilters) node.quickFilters = spec.quickFilters;
+
+  // P1.1 — Spec Protocol Alignment additions
+  if (spec.rowActions) node.rowActions = spec.rowActions;
+  if (spec.bulkActions) node.bulkActions = spec.bulkActions;
+  if (spec.virtualScroll != null) node.virtualScroll = spec.virtualScroll;
+  if (spec.conditionalFormatting) node.conditionalFormatting = spec.conditionalFormatting;
+  if (spec.inlineEdit != null) node.inlineEdit = spec.inlineEdit;
+  if (spec.exportOptions) node.exportOptions = spec.exportOptions;
+  if (spec.emptyState) node.emptyState = spec.emptyState;
+  if (spec.userActions) node.userActions = spec.userActions;
+  if (spec.appearance) node.appearance = spec.appearance;
+  if (spec.tabs) node.tabs = spec.tabs;
+  if (spec.addRecord) node.addRecord = spec.addRecord;
+  if (spec.showRecordCount != null) node.showRecordCount = spec.showRecordCount;
+  if (spec.allowPrinting != null) node.allowPrinting = spec.allowPrinting;
+
+  // P1.6 — i18n & ARIA
+  if (spec.aria) node.aria = spec.aria;
+  if (spec.sharing) node.sharing = spec.sharing;
+  if (spec.hiddenFields) node.hiddenFields = spec.hiddenFields;
+  if (spec.fieldOrder) node.fieldOrder = spec.fieldOrder;
+  if (spec.description) node.description = spec.description;
 
   return node;
 };

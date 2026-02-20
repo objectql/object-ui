@@ -450,6 +450,50 @@ export interface ObjectGridSchema extends BaseSchema {
    * Called with recordId and action ('view' | 'edit').
    */
   onNavigate?: (recordId: string | number, action?: string) => void;
+
+  /**
+   * Conditional formatting rules for row/cell styling.
+   * Aligned with @objectstack/spec ListViewSchema.conditionalFormatting.
+   * Uses expression-based conditions with style maps.
+   */
+  conditionalFormatting?: Array<{
+    /** Expression-based condition (e.g., '${data.amount > 1000}') */
+    condition: string;
+    /** Style map (e.g., { backgroundColor: '#fee2e2', textColor: '#991b1b' }) */
+    style: Record<string, string>;
+  }>;
+
+  /**
+   * Enable virtual scrolling for large datasets.
+   * Aligned with @objectstack/spec ListViewSchema.virtualScroll.
+   * @default false
+   */
+  virtualScroll?: boolean;
+
+  /**
+   * Row action identifiers (action names from ActionSchema).
+   * Aligned with @objectstack/spec ListViewSchema.rowActions.
+   */
+  rowSpecActions?: string[];
+
+  /**
+   * Bulk action identifiers (action names from ActionSchema).
+   * Aligned with @objectstack/spec ListViewSchema.bulkActions.
+   */
+  bulkSpecActions?: string[];
+
+  /**
+   * Empty state configuration shown when no data is available.
+   * Aligned with @objectstack/spec ListViewSchema.emptyState.
+   */
+  emptyState?: {
+    /** Title text for the empty state */
+    title?: string;
+    /** Message/description for the empty state */
+    message?: string;
+    /** Icon name (Lucide icon identifier) */
+    icon?: string;
+  };
 }
 
 /**
@@ -1264,11 +1308,90 @@ export interface ListViewSchema extends BaseSchema {
     /** Show "All records" tab (tabs mode) */
     showAllRecords?: boolean;
   };
-}
 
-/**
- * Object Map Component Schema
- */
+  /**
+   * Row action identifiers (action names from ActionSchema).
+   * Aligned with @objectstack/spec ListViewSchema.rowActions.
+   */
+  rowActions?: string[];
+
+  /**
+   * Bulk action identifiers (action names from ActionSchema).
+   * Aligned with @objectstack/spec ListViewSchema.bulkActions.
+   */
+  bulkActions?: string[];
+
+  /**
+   * Enable virtual scrolling for large datasets.
+   * Aligned with @objectstack/spec ListViewSchema.virtualScroll.
+   * @default false
+   */
+  virtualScroll?: boolean;
+
+  /**
+   * User actions configuration.
+   * Controls what UI actions are available to end users.
+   * Aligned with @objectstack/spec ListViewSchema.userActions.
+   */
+  userActions?: {
+    sort?: boolean;
+    search?: boolean;
+    filter?: boolean;
+    rowHeight?: boolean;
+    addRecordForm?: boolean;
+    buttons?: string[];
+  };
+
+  /**
+   * Appearance configuration.
+   * Aligned with @objectstack/spec ListViewSchema.appearance.
+   */
+  appearance?: {
+    showDescription?: boolean;
+    allowedVisualizations?: string[];
+  };
+
+  /**
+   * View tabs configuration.
+   * Aligned with @objectstack/spec ListViewSchema.tabs.
+   */
+  tabs?: Array<{
+    name: string;
+    label: string;
+    icon?: string;
+    view?: string;
+    filter?: any;
+    order?: number;
+    pinned?: boolean;
+    isDefault?: boolean;
+    visible?: string;
+  }>;
+
+  /**
+   * Add record configuration.
+   * Aligned with @objectstack/spec ListViewSchema.addRecord.
+   */
+  addRecord?: {
+    enabled?: boolean;
+    position?: string;
+    mode?: string;
+    formView?: string;
+  };
+
+  /**
+   * Show total record count in the view.
+   * Aligned with @objectstack/spec ListViewSchema.showRecordCount.
+   * @default false
+   */
+  showRecordCount?: boolean;
+
+  /**
+   * Allow printing the view.
+   * Aligned with @objectstack/spec ListViewSchema.allowPrinting.
+   * @default false
+   */
+  allowPrinting?: boolean;
+}
 export interface ObjectMapSchema extends BaseSchema {
   type: 'object-map';
   /** ObjectQL object name */

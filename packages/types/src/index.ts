@@ -311,6 +311,19 @@ export type {
 } from './objectql';
 
 // ============================================================================
+// Record Components - Spec-aligned record:* page component props
+// ============================================================================
+export type {
+  RecordComponentAriaProps,
+  RecordDetailsComponentProps,
+  RecordHighlightsComponentProps,
+  RecordRelatedListComponentProps,
+  RecordActivityComponentProps,
+  RecordChatterComponentProps,
+  RecordPathComponentProps,
+} from './record-components';
+
+// ============================================================================
 // Field Types - ObjectQL Field Type System
 // ============================================================================
 export type {
@@ -978,6 +991,82 @@ export type {
   NavigationConfigSchema,
   ViewSharing,
   ViewSharingSchema,
+} from '@objectstack/spec/ui';
+
+// ============================================================================
+// v3.0.8 Spec UI Types — Dashboard (P1.3)
+// ============================================================================
+export type {
+  Dashboard as SpecDashboard,
+  DashboardSchema as SpecDashboardSchema,
+  DashboardWidget as SpecDashboardWidget,
+  DashboardWidgetSchema as SpecDashboardWidgetSchema,
+  DashboardHeader as SpecDashboardHeader,
+  DashboardHeaderSchema as SpecDashboardHeaderSchema,
+  DashboardHeaderAction as SpecDashboardHeaderAction,
+  DashboardHeaderActionSchema as SpecDashboardHeaderActionSchema,
+  GlobalFilter as SpecGlobalFilter,
+  GlobalFilterSchema as SpecGlobalFilterSchema,
+  GlobalFilterOptionsFrom,
+  GlobalFilterOptionsFromSchema,
+  WidgetMeasure,
+  WidgetMeasureSchema,
+  WidgetColorVariant,
+  WidgetColorVariantSchema,
+} from '@objectstack/spec/ui';
+
+// ============================================================================
+// v3.0.8 Spec UI Types — Form View (P1.2)
+// ============================================================================
+export type {
+  FormView as SpecFormView,
+  FormViewSchema as SpecFormViewSchema,
+  FormSection as SpecFormSection,
+  FormSectionSchema as SpecFormSectionSchema,
+  FormField as SpecFormField,
+  FormFieldSchema as SpecFormFieldSchema,
+} from '@objectstack/spec/ui';
+
+// ============================================================================
+// v3.0.8 Spec UI Types — ListView (P1.1)
+// ============================================================================
+export type {
+  ListView as SpecListView,
+  ListViewSchema as SpecListViewSchema,
+  ListColumn as SpecListColumn,
+  ListColumnSchema as SpecListColumnSchema,
+} from '@objectstack/spec/ui';
+
+// ============================================================================
+// v3.0.8 Spec UI Types — Record Components (P1.5)
+// ============================================================================
+export type {
+  RecordDetailsProps as SpecRecordDetailsProps,
+  RecordHighlightsProps as SpecRecordHighlightsProps,
+  RecordRelatedListProps as SpecRecordRelatedListProps,
+  RecordActivityProps as SpecRecordActivityProps,
+  RecordChatterProps as SpecRecordChatterProps,
+  RecordPathProps as SpecRecordPathProps,
+} from '@objectstack/spec/ui';
+
+// ============================================================================
+// v3.0.8 Spec UI Types — Page (P1.4)
+// ============================================================================
+export type {
+  Page as SpecPage,
+  PageSchema as SpecPageSchema,
+  PageComponent as SpecPageComponent,
+  PageComponentSchema as SpecPageComponentSchema,
+  PageRegion as SpecPageRegion,
+  PageRegionSchema as SpecPageRegionSchema,
+  PageType as SpecPageType,
+  PageTypeSchema as SpecPageTypeSchema,
+  PageVariable as SpecPageVariable,
+  PageVariableSchema as SpecPageVariableSchema,
+  BlankPageLayout,
+  BlankPageLayoutSchema,
+  BlankPageLayoutItem,
+  BlankPageLayoutItemSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================

@@ -429,7 +429,23 @@ export interface AspectRatioSchema extends BaseSchema {
  * Determines page behavior and default layout template.
  * Aligned with @objectstack/spec Page.type
  */
-export type PageType = 'record' | 'home' | 'app' | 'utility';
+export type PageType =
+  | 'record'
+  | 'home'
+  | 'app'
+  | 'utility'
+  | 'dashboard'
+  | 'grid'
+  | 'list'
+  | 'gallery'
+  | 'kanban'
+  | 'calendar'
+  | 'timeline'
+  | 'form'
+  | 'record_detail'
+  | 'record_review'
+  | 'overview'
+  | 'blank';
 
 /**
  * Page Variable
@@ -440,9 +456,11 @@ export interface PageVariable {
   /** Variable name */
   name: string;
   /** Variable type @default 'string' */
-  type?: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'record_id';
   /** Default value for initialization */
   defaultValue?: any;
+  /** Variable data source (e.g. URL param, context, expression) */
+  source?: string;
 }
 
 /**
@@ -523,6 +541,32 @@ export interface PageSchema extends BaseSchema {
    */
   regions?: PageRegion[];
   /**
+   * Blank page grid layout
+   * Used when pageType is 'blank' for free-form grid canvas.
+   * Aligned with @objectstack/spec BlankPageLayoutSchema.
+   */
+  blankLayout?: {
+    /** Number of grid columns */
+    columns?: number;
+    /** Row height in pixels */
+    rowHeight?: number;
+    /** Gap between grid items in pixels */
+    gap?: number;
+    /** Items placed on the grid */
+    items?: Array<{
+      /** Component ID reference */
+      componentId: string;
+      /** Grid column position */
+      x: number;
+      /** Grid row position */
+      y: number;
+      /** Width in grid columns */
+      width: number;
+      /** Height in grid rows */
+      height: number;
+    }>;
+  };
+  /**
    * Main content array (Legacy/Simple mode)
    */
   body?: SchemaNode[];
@@ -539,6 +583,15 @@ export interface PageSchema extends BaseSchema {
    * Profiles that can access this page
    */
   assignedProfiles?: string[];
+  /**
+   * ARIA accessibility attributes.
+   * Aligned with @objectstack/spec AriaPropsSchema.
+   */
+  aria?: {
+    ariaLabel?: string;
+    ariaDescribedBy?: string;
+    role?: string;
+  };
 }
 
 /**

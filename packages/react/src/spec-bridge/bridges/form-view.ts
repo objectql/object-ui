@@ -36,6 +36,10 @@ interface FormViewSpec {
   data?: any;
   sections?: FormSection[];
   groups?: any;
+  // P1.2 additions
+  defaultSort?: any;
+  sharing?: any;
+  aria?: { ariaLabel?: string; ariaDescribedBy?: string; role?: string };
 }
 
 function mapField(field: FormField): Record<string, any> {
@@ -70,12 +74,20 @@ function mapSection(section: FormSection): Record<string, any> {
   return mapped;
 }
 
+/** Maps spec formType to ObjectUI formType */
+function mapFormType(type?: string): string | undefined {
+  if (!type) return undefined;
+  const validTypes = ['simple', 'tabbed', 'wizard', 'split', 'drawer', 'modal'];
+  return validTypes.includes(type) ? type : undefined;
+}
+
 /** Transforms a FormView spec into a Form SchemaNode */
 export const bridgeFormView: BridgeFn<FormViewSpec> = (
   spec: FormViewSpec,
   _context: BridgeContext,
 ): SchemaNode => {
   const sections = (spec.sections ?? []).map(mapSection);
+  const formType = mapFormType(spec.type);
 
   const node: SchemaNode = {
     type: 'object-form',
@@ -84,7 +96,14 @@ export const bridgeFormView: BridgeFn<FormViewSpec> = (
     data: spec.data,
   };
 
+  // P1.2 — formType mapping (tabbed, wizard, split, drawer, modal)
+  if (formType) node.formType = formType;
   if (spec.groups) node.groups = spec.groups;
+  if (spec.defaultSort) node.defaultSort = spec.defaultSort;
+
+  // P1.6 — i18n & ARIA
+  if (spec.sharing) node.sharing = spec.sharing;
+  if (spec.aria) node.aria = spec.aria;
 
   return node;
 };

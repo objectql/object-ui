@@ -482,6 +482,8 @@ export interface DashboardWidgetLayout {
 export interface DashboardWidgetSchema {
   id?: string;
   title?: string;
+  /** Widget description */
+  description?: string;
   /** Component schema (legacy format) */
   component?: SchemaNode;
   layout?: DashboardWidgetLayout;
@@ -489,6 +491,68 @@ export interface DashboardWidgetSchema {
   type?: string;
   /** Widget-specific configuration (spec shorthand format) */
   options?: unknown;
+  /** Chart configuration for chart-type widgets */
+  chartConfig?: any;
+  /**
+   * Widget color variant.
+   * Aligned with @objectstack/spec WidgetColorVariantSchema.
+   */
+  colorVariant?: 'default' | 'blue' | 'teal' | 'orange' | 'purple' | 'success' | 'warning' | 'danger';
+  /** Action URL for clickable widgets */
+  actionUrl?: string;
+  /** Action type for widget interactions */
+  actionType?: string;
+  /** Action icon name */
+  actionIcon?: string;
+  /**
+   * Data binding: Object name for data source.
+   * Aligned with @objectstack/spec DashboardWidgetSchema.object.
+   */
+  object?: string;
+  /**
+   * Data binding: Filter conditions.
+   * Aligned with @objectstack/spec DashboardWidgetSchema.filter.
+   */
+  filter?: any;
+  /**
+   * Data binding: Category field for grouping.
+   * Aligned with @objectstack/spec DashboardWidgetSchema.categoryField.
+   */
+  categoryField?: string;
+  /**
+   * Data binding: Value field for aggregation.
+   * Aligned with @objectstack/spec DashboardWidgetSchema.valueField.
+   */
+  valueField?: string;
+  /**
+   * Aggregation function.
+   * Aligned with @objectstack/spec DashboardWidgetSchema.aggregate.
+   */
+  aggregate?: string;
+  /**
+   * Multiple measures for pivot/matrix display.
+   * Aligned with @objectstack/spec WidgetMeasureSchema.
+   */
+  measures?: Array<{
+    valueField: string;
+    aggregate: string;
+    label?: string;
+    format?: string;
+  }>;
+  /**
+   * Responsive configuration per breakpoint.
+   * Aligned with @objectstack/spec DashboardWidgetSchema.responsive.
+   */
+  responsive?: any;
+  /**
+   * ARIA accessibility attributes.
+   * Aligned with @objectstack/spec AriaPropsSchema.
+   */
+  aria?: {
+    ariaLabel?: string;
+    ariaDescribedBy?: string;
+    role?: string;
+  };
 }
 
 /**
@@ -501,6 +565,60 @@ export interface DashboardSchema extends BaseSchema {
   widgets: DashboardWidgetSchema[];
   /** Auto-refresh interval in seconds. When set, the dashboard will periodically trigger onRefresh. */
   refreshInterval?: number;
+  /**
+   * Dashboard header configuration.
+   * Aligned with @objectstack/spec DashboardHeaderSchema.
+   */
+  header?: {
+    showTitle?: boolean;
+    showDescription?: boolean;
+    actions?: Array<{
+      label: string;
+      actionUrl?: string;
+      actionType?: string;
+      icon?: string;
+    }>;
+  };
+  /**
+   * Global filter configurations.
+   * Applied across all dashboard widgets.
+   * Aligned with @objectstack/spec GlobalFilterSchema.
+   */
+  globalFilters?: Array<{
+    field: string;
+    label?: string;
+    type?: 'text' | 'select' | 'date' | 'number' | 'lookup';
+    options?: string[];
+    optionsFrom?: {
+      object: string;
+      valueField: string;
+      labelField?: string;
+      filter?: any;
+    };
+    defaultValue?: any;
+    scope?: string;
+    targetWidgets?: string[];
+  }>;
+  /**
+   * Date range filter configuration.
+   * Aligned with @objectstack/spec DashboardSchema.dateRange.
+   */
+  dateRange?: {
+    field?: string;
+    defaultRange?: 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month'
+      | 'this_quarter' | 'last_quarter' | 'this_year' | 'last_year'
+      | 'last_7_days' | 'last_30_days' | 'last_90_days' | 'custom';
+    allowCustomRange?: boolean;
+  };
+  /**
+   * ARIA accessibility attributes.
+   * Aligned with @objectstack/spec AriaPropsSchema.
+   */
+  aria?: {
+    ariaLabel?: string;
+    ariaDescribedBy?: string;
+    role?: string;
+  };
 }
 
 /**
