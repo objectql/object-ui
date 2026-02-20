@@ -80,7 +80,6 @@ export function UserFilters({
       return (
         <ToggleFilters
           fields={config.fields || []}
-          objectDef={objectDef}
           onFilterChange={onFilterChange}
           className={className}
         />
@@ -345,12 +344,11 @@ function TabFilters({ tabs, showAllRecords, allowAddTab, onFilterChange, classNa
 // ============================================
 interface ToggleFiltersProps {
   fields: NonNullable<NonNullable<ListViewSchema['userFilters']>['fields']>;
-  objectDef?: any;
   onFilterChange: (filters: any[]) => void;
   className?: string;
 }
 
-function ToggleFilters({ fields, objectDef: _objectDef, onFilterChange, className }: ToggleFiltersProps) {
+function ToggleFilters({ fields, onFilterChange, className }: ToggleFiltersProps) {
   const [activeToggles, setActiveToggles] = React.useState<Set<string>>(() => {
     const defaults = new Set<string>();
     fields.forEach(f => {
