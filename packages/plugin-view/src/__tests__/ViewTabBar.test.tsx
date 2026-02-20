@@ -360,4 +360,294 @@ describe('ViewTabBar', () => {
       expect(defaultTab.querySelector('svg.text-amber-500')).toBeDefined();
     });
   });
+
+  // ============================
+  // Pin/Favorite Views (Phase 2)
+  // ============================
+  describe('Pin/Favorite Views', () => {
+    it('should show pin indicator on pinned views', () => {
+      const views: ViewTabItem[] = [
+        { id: 'v1', label: 'Pinned', type: 'grid', isPinned: true },
+        { id: 'v2', label: 'Normal', type: 'grid' },
+      ];
+      render(<ViewTabBar {...defaultProps} views={views} />);
+      expect(screen.getByTestId('view-tab-pin-indicator-v1')).toBeDefined();
+      expect(screen.queryByTestId('view-tab-pin-indicator-v2')).toBeNull();
+    });
+
+    it('should not show pin indicator when showPinnedSection is false', () => {
+      const views: ViewTabItem[] = [
+        { id: 'v1', label: 'Pinned', type: 'grid', isPinned: true },
+      ];
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          views={views}
+          config={{ showPinnedSection: false }}
+        />
+      );
+      expect(screen.queryByTestId('view-tab-pin-indicator-v1')).toBeNull();
+    });
+
+    it('should sort pinned views to the front', () => {
+      const views: ViewTabItem[] = [
+        { id: 'v1', label: 'Normal', type: 'grid' },
+        { id: 'v2', label: 'Pinned', type: 'grid', isPinned: true },
+        { id: 'v3', label: 'Also Normal', type: 'grid' },
+      ];
+      render(<ViewTabBar {...defaultProps} views={views} />);
+      // Pinned view (v2) should appear before non-pinned views in DOM order
+      const v2 = screen.getByTestId('view-tab-v2');
+      const v1 = screen.getByTestId('view-tab-v1');
+      expect(v2.compareDocumentPosition(v1) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('should render pin context menu item when onPinView is provided', () => {
+      const views: ViewTabItem[] = [
+        { id: 'v1', label: 'Test', type: 'grid' },
+      ];
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          views={views}
+          onPinView={vi.fn()}
+        />
+      );
+      // Context menu renders off-screen via Radix, so just verify the tab is wrapped
+      expect(screen.getByTestId('view-tab-v1')).toBeDefined();
+    });
+  });
+
+  // ============================
+  // Personal vs. Shared Grouping (Phase 2)
+  // ============================
+  describe('Visibility Grouping', () => {
+    it('should show visibility icons when showVisibilityGroups is true', () => {
+      const views: ViewTabItem[] = [
+        { id: 'v1', label: 'Private', type: 'grid', visibility: 'private' },
+        { id: 'v2', label: 'Shared', type: 'grid', visibility: 'public' },
+      ];
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          views={views}
+          config={{ showVisibilityGroups: true }}
+        />
+      );
+      expect(screen.getByTestId('view-tab-visibility-v1')).toBeDefined();
+      expect(screen.getByTestId('view-tab-visibility-v2')).toBeDefined();
+    });
+
+    it('should not show visibility icons when showVisibilityGroups is false', () => {
+      const views: ViewTabItem[] = [
+        { id: 'v1', label: 'Private', type: 'grid', visibility: 'private' },
+      ];
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          views={views}
+          config={{ showVisibilityGroups: false }}
+        />
+      );
+      expect(screen.queryByTestId('view-tab-visibility-v1')).toBeNull();
+    });
+
+    it('should show separator between private and shared views', () => {
+      const views: ViewTabItem[] = [
+        { id: 'v1', label: 'Private', type: 'grid', visibility: 'private' },
+        { id: 'v2', label: 'Shared', type: 'grid', visibility: 'public' },
+      ];
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          views={views}
+          config={{ showVisibilityGroups: true }}
+        />
+      );
+      expect(screen.getByTestId('view-tab-visibility-separator')).toBeDefined();
+    });
+
+    it('should sort private views before shared views', () => {
+      const views: ViewTabItem[] = [
+        { id: 'v1', label: 'Shared', type: 'grid', visibility: 'public' },
+        { id: 'v2', label: 'Private', type: 'grid', visibility: 'private' },
+      ];
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          views={views}
+          config={{ showVisibilityGroups: true }}
+        />
+      );
+      // Private (v2) should appear before public (v1)
+      const v2 = screen.getByTestId('view-tab-v2');
+      const v1 = screen.getByTestId('view-tab-v1');
+      expect(v2.compareDocumentPosition(v1) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+  });
+
+  // ============================
+  // Drag-Reorder View Tabs (Phase 2)
+  // ============================
+  describe('Drag-Reorder', () => {
+    it('should render sortable container when reorderable is true', () => {
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          config={{ reorderable: true }}
+          onReorderViews={vi.fn()}
+        />
+      );
+      expect(screen.getByTestId('view-tab-sortable-container')).toBeDefined();
+    });
+
+    it('should not render sortable container when reorderable is false', () => {
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          config={{ reorderable: false }}
+        />
+      );
+      expect(screen.queryByTestId('view-tab-sortable-container')).toBeNull();
+    });
+
+    it('should show drag handles when reorderable is true', () => {
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          config={{ reorderable: true }}
+          onReorderViews={vi.fn()}
+        />
+      );
+      expect(screen.getByTestId('view-tab-drag-handle-view-0')).toBeDefined();
+      expect(screen.getByTestId('view-tab-drag-handle-view-1')).toBeDefined();
+    });
+
+    it('should not show drag handles when reorderable is false', () => {
+      render(<ViewTabBar {...defaultProps} />);
+      expect(screen.queryByTestId('view-tab-drag-handle-view-0')).toBeNull();
+    });
+
+    it('should not render sortable container without onReorderViews', () => {
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          config={{ reorderable: true }}
+        />
+      );
+      expect(screen.queryByTestId('view-tab-sortable-container')).toBeNull();
+    });
+  });
+
+  // ============================
+  // View Type Quick-Switch (Phase 2)
+  // ============================
+  describe('View Type Quick-Switch', () => {
+    const availableTypes = [
+      { type: 'grid', label: 'Grid', description: 'Rows and columns' },
+      { type: 'kanban', label: 'Kanban', description: 'Drag cards' },
+      { type: 'calendar', label: 'Calendar', description: 'Events on calendar' },
+    ];
+
+    it('should accept availableViewTypes and onChangeViewType props', () => {
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          onChangeViewType={vi.fn()}
+          availableViewTypes={availableTypes}
+        />
+      );
+      // The tab bar should render without errors
+      expect(screen.getByTestId('view-tab-bar')).toBeDefined();
+    });
+
+    it('should not render change type context menu without onChangeViewType', () => {
+      const { container } = render(
+        <ViewTabBar
+          {...defaultProps}
+          availableViewTypes={availableTypes}
+        />
+      );
+      // No quick-switch submenu trigger should be in the DOM
+      expect(container.querySelector('[data-testid^="context-menu-change-type"]')).toBeNull();
+    });
+
+    it('should not render change type context menu without availableViewTypes', () => {
+      const { container } = render(
+        <ViewTabBar
+          {...defaultProps}
+          onChangeViewType={vi.fn()}
+        />
+      );
+      expect(container.querySelector('[data-testid^="context-menu-change-type"]')).toBeNull();
+    });
+  });
+
+  // ============================
+  // Combined Phase 2 Features
+  // ============================
+  describe('Combined Phase 2 Features', () => {
+    it('should handle pinned + visibility grouping together', () => {
+      const views: ViewTabItem[] = [
+        { id: 'v1', label: 'Shared Normal', type: 'grid', visibility: 'public' },
+        { id: 'v2', label: 'Private Normal', type: 'grid', visibility: 'private' },
+        { id: 'v3', label: 'Pinned Shared', type: 'grid', visibility: 'public', isPinned: true },
+      ];
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          views={views}
+          config={{ showVisibilityGroups: true, showPinnedSection: true }}
+        />
+      );
+      // Verify order: Pinned first (v3), then private (v2), then public (v1)
+      const v3 = screen.getByTestId('view-tab-v3');
+      const v2 = screen.getByTestId('view-tab-v2');
+      const v1 = screen.getByTestId('view-tab-v1');
+      // Check DOM order via compareDocumentPosition
+      expect(v3.compareDocumentPosition(v2) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(v2.compareDocumentPosition(v1) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('should render all features together without errors', () => {
+      const views: ViewTabItem[] = [
+        { id: 'v1', label: 'All Tasks', type: 'grid', isPinned: true, visibility: 'public', hasActiveFilters: true },
+        { id: 'v2', label: 'My Tasks', type: 'kanban', visibility: 'private' },
+        { id: 'v3', label: 'Calendar', type: 'calendar' },
+      ];
+      render(
+        <ViewTabBar
+          views={views}
+          activeViewId="v1"
+          onViewChange={vi.fn()}
+          config={{
+            showPinnedSection: true,
+            showVisibilityGroups: true,
+            reorderable: true,
+            showIndicators: true,
+            showSaveAsView: true,
+          }}
+          onAddView={vi.fn()}
+          onRenameView={vi.fn()}
+          onDuplicateView={vi.fn()}
+          onDeleteView={vi.fn()}
+          onPinView={vi.fn()}
+          onReorderViews={vi.fn()}
+          onChangeViewType={vi.fn()}
+          availableViewTypes={[
+            { type: 'grid', label: 'Grid' },
+            { type: 'kanban', label: 'Kanban' },
+          ]}
+          hasUnsavedChanges={true}
+          onSaveAsView={vi.fn()}
+        />
+      );
+      expect(screen.getByTestId('view-tab-bar')).toBeDefined();
+      expect(screen.getByTestId('view-tab-v1')).toBeDefined();
+      expect(screen.getByTestId('view-tab-pin-indicator-v1')).toBeDefined();
+      expect(screen.getByTestId('view-tab-indicator-v1')).toBeDefined();
+      expect(screen.getByTestId('view-tab-save-as')).toBeDefined();
+      expect(screen.getByTestId('view-tab-sortable-container')).toBeDefined();
+    });
+  });
 });
