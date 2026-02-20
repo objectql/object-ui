@@ -560,6 +560,8 @@ export interface DashboardWidgetSchema {
  */
 export interface DashboardSchema extends BaseSchema {
   type: 'dashboard';
+  /** Dashboard title displayed in the header */
+  title?: string;
   columns?: number;
   gap?: number;
   widgets: DashboardWidgetSchema[];
