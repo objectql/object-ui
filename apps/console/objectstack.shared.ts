@@ -3,7 +3,6 @@ import type { ObjectStackDefinition } from '@objectstack/spec';
 import crmConfigImport from '@object-ui/example-crm/objectstack.config';
 import todoConfigImport from '@object-ui/example-todo/objectstack.config';
 import kitchenSinkConfigImport from '@object-ui/example-kitchen-sink/objectstack.config';
-import { hotcrmObjects, hotcrmApps, mergeObjects } from '../../examples/hotcrm-bridge.js';
 
 /** Resolve ESM default-export interop without `as any`. */
 type MaybeDefault<T> = T | { default: T };
@@ -80,24 +79,20 @@ export const sharedConfig = {
   description: 'ObjectStack Console',
   
   // ============================================================================
-  // Merged Stack Configuration (CRM + Todo + Kitchen Sink + HotCRM + Mock Metadata)
+  // Merged Stack Configuration (CRM + Todo + Kitchen Sink + Mock Metadata)
   // ============================================================================
   objects: mergeViewsIntoObjects(
-    mergeObjects(
-      [
-        ...(crmConfig.objects || []),
-        ...(todoConfig.objects || []),
-        ...(kitchenSinkConfig.objects || []),
-      ],
-      hotcrmObjects,
-    ),
+    [
+      ...(crmConfig.objects || []),
+      ...(todoConfig.objects || []),
+      ...(kitchenSinkConfig.objects || []),
+    ],
     allConfigs,
   ),
   apps: [
     ...crmApps,
     ...(todoConfig.apps || []),
     ...(kitchenSinkConfig.apps || []),
-    ...hotcrmApps,
   ],
   dashboards: [
     ...(crmConfig.dashboards || []),

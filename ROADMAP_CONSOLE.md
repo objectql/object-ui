@@ -148,7 +148,7 @@ The Console is the **canonical proof** that ObjectUI's Server-Driven UI (SDUI) e
 - ✅ Metadata caching (ETag-based)
 - ✅ MSW browser-based mock server
 - ✅ Runtime metadata loading via `MetadataProvider` → `client.meta.getItems()` (replaces static config)
-- ✅ Graceful hotcrm submodule fallback (empty arrays when not initialized)
+
 
 **Object Views:**
 - ✅ Plugin-based ObjectView (grid, kanban, calendar, timeline, chart, map, gantt, gallery)
