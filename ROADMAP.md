@@ -69,6 +69,12 @@ All 4 phases across 5 designers (Page, View, DataModel, Process, Report): drag-a
 
 All 11 plugin views (Grid, Kanban, Form, Dashboard, Calendar, Timeline, List, Detail, Charts, Map, Gantt) have responsive mobile-first layouts with touch targets ≥ 44px, responsive typography, overflow handling, and mobile-specific interactions. Console pages (AppHeader, AppSidebar, Dashboard, RecordDetail, Create/Edit Dialogs) are responsive. Core primitives (DataTable, Form Renderer, Navigation) support mobile. Infrastructure (touch/gesture system, PWA support, viewport handling, progressive loading) is complete.
 
+- Base `DialogContent` upgraded to mobile-first layout: full-screen on mobile (`inset-0 h-[100dvh]`), centered on desktop (`sm:inset-auto sm:max-w-lg sm:rounded-lg`), close button touch target ≥ 44×44px (WCAG 2.5.5).
+- `MobileDialogContent` custom component for ModalForm with flex layout (sticky header + scrollable body + sticky footer).
+- ModalForm: skeleton loading state, sticky action buttons, form grid forced to 1-column on mobile (`md:` breakpoint for multi-column).
+- Date/DateTime fields use native HTML5 inputs (`type="date"`, `type="datetime-local"`) for optimal mobile picker UX.
+- Form sections supported via `ModalFormSectionConfig` for visual field grouping.
+
 ### v3.0.0 Spec Integration ✅
 
 Full adoption of Cloud namespace, contracts/integration/security/studio modules, v3.0.0 PaginatedResult API, ObjectStackAdapter metadata API, 17 compatibility tests, 70+ spec UI types re-exported.
