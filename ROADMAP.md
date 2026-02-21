@@ -13,11 +13,11 @@
 
 ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn. It renders JSON metadata from the @objectstack/spec protocol into pixel-perfect, accessible, and interactive enterprise interfaces.
 
-**Where We Are:** Foundation is **solid and shipping** — 35 packages, 91+ components, 5,070+ tests, 78 Storybook stories, 42/42 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Designer Phase 1, Console through Phase 19 (L3), and **AppShell Navigation Renderer** (P0.1) — all ✅ complete.
+**Where We Are:** Foundation is **solid and shipping** — 35 packages, 91+ components, 5,100+ tests, 78 Storybook stories, 42/42 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Designer Phase 1 (ViewDesigner drag-to-reorder ✅), Console through Phase 20 (L3), and **AppShell Navigation Renderer** (P0.1) — all ✅ complete.
 
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
-2. **Designer Interaction** — ViewDesigner and DataModelDesigner have undo/redo, field type selectors, inline editing, Ctrl+S save (column drag-to-reorder with dnd-kit pending)
+2. **Designer Interaction** — ViewDesigner and DataModelDesigner have undo/redo, field type selectors, inline editing, Ctrl+S save, column drag-to-reorder with dnd-kit ✅
 3. **Dashboard Config Panel** — Airtable-style right-side configuration panel for dashboards (data source, layout, widget properties, sub-editors, type definitions)
 4. **Console Advanced Polish** — Remaining upgrades for forms, import/export, automation, comments
 5. **PWA Sync** — Background sync is simulated only
@@ -47,7 +47,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 > Source: ROADMAP_DESIGNER Phase 2. These two designers are the core user workflow.
 
 **ViewDesigner:**
-- [ ] Column drag-to-reorder via `@dnd-kit/core` (replace up/down buttons with drag handles)
+- [x] Column drag-to-reorder via `@dnd-kit/core` (replace up/down buttons with drag handles)
 - [x] Add `Ctrl+S`/`Cmd+S` keyboard shortcut to save
 - [x] Add field type selector dropdown with icons from `DESIGNER_FIELD_TYPES`
 - [x] Column width validation (min/max/pattern check)
@@ -139,7 +139,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 > Airtable-style right-side configuration panel for dashboards. Phased rollout from shared infrastructure to full type-safe editing.
 
 **Phase 0 — Component Infrastructure:**
-- [ ] Extract `ConfigRow` / `SectionHeader` from `ViewConfigPanel` into `@object-ui/components` as reusable primitives
+- [x] Extract `ConfigRow` / `SectionHeader` from `ViewConfigPanel` into `@object-ui/components` as reusable primitives
 
 **Phase 1 — Dashboard-Level Config Panel:**
 - [ ] Develop `DashboardConfigPanel` supporting data source, layout (columns/gap), filtering, appearance, user filters & actions
@@ -156,8 +156,8 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [ ] Add Storybook stories for `DashboardConfigPanel` and `DashboardWithConfig`
 
 **Phase 5 — Type Definitions & Validation:**
-- [ ] Add `DashboardConfig` types to `@object-ui/types`
-- [ ] Add Zod schema validation for `DashboardConfig`
+- [x] Add `DashboardConfig` types to `@object-ui/types`
+- [x] Add Zod schema validation for `DashboardConfig`
 
 ### P1.9 Console — Content Area Layout & Responsiveness
 

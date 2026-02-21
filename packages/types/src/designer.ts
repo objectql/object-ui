@@ -551,6 +551,123 @@ export interface UnifiedViewConfig {
 }
 
 // ============================================================================
+// Dashboard Configuration
+// ============================================================================
+
+/** All supported color variants for dashboard widgets */
+export const DASHBOARD_COLOR_VARIANTS = [
+  'default', 'blue', 'teal', 'orange', 'purple', 'success', 'warning', 'danger',
+] as const;
+
+/** Color variant for dashboard widgets */
+export type DashboardColorVariant = (typeof DASHBOARD_COLOR_VARIANTS)[number];
+
+/** All supported widget visualization types */
+export const DASHBOARD_WIDGET_TYPES = [
+  'metric', 'bar', 'line', 'pie', 'donut', 'area', 'scatter', 'table', 'list', 'custom',
+] as const;
+
+/** Widget visualization type */
+export type DashboardWidgetType = (typeof DASHBOARD_WIDGET_TYPES)[number];
+
+/** Layout position for a single dashboard widget */
+export interface DashboardWidgetConfig {
+  /** Widget identifier */
+  id: string;
+  /** Widget title */
+  title?: string;
+  /** Widget description */
+  description?: string;
+  /** Visualization type */
+  type?: DashboardWidgetType;
+  /** Data source object name */
+  object?: string;
+  /** Filter conditions applied to widget data */
+  filter?: any[];
+  /** Category / x-axis field */
+  categoryField?: string;
+  /** Value / y-axis field */
+  valueField?: string;
+  /** Aggregation function (count, sum, avg, min, max) */
+  aggregate?: string;
+  /** Chart-specific configuration */
+  chartConfig?: any;
+  /** Color variant */
+  colorVariant?: DashboardColorVariant;
+  /** Grid layout position */
+  layout?: { x: number; y: number; w: number; h: number };
+  /** Clickable action URL */
+  actionUrl?: string;
+}
+
+/**
+ * Unified data model for dashboard configuration.
+ *
+ * Used by the DashboardConfigPanel for create/edit workflows.
+ * Mirrors the pattern of UnifiedViewConfig for view configuration.
+ */
+export interface DashboardConfig {
+  /** Dashboard identifier */
+  id?: string;
+  /** Display title */
+  title?: string;
+  /** Dashboard description */
+  description?: string;
+  /** Number of grid columns (default: 12) */
+  columns?: number;
+  /** Grid gap in pixels */
+  gap?: number;
+  /** Auto-refresh interval in seconds */
+  refreshInterval?: number;
+  /** Dashboard widgets */
+  widgets?: DashboardWidgetConfig[];
+
+  // -- Global filters --------------------------------------------------------
+
+  /** Global filter conditions applied across all widgets */
+  globalFilters?: any[];
+  /** Date range filter configuration */
+  dateRange?: {
+    enabled?: boolean;
+    field?: string;
+    presets?: string[];
+  };
+  /** User-selectable filter fields */
+  userFilters?: Array<{
+    field: string;
+    label?: string;
+    type?: string;
+  }>;
+
+  // -- Appearance ------------------------------------------------------------
+
+  /** Show dashboard header with title/description */
+  showHeader?: boolean;
+  /** Show global filter bar */
+  showFilters?: boolean;
+  /** Show date range picker */
+  showDateRange?: boolean;
+  /** Action buttons in dashboard header */
+  headerActions?: Array<{
+    label: string;
+    action?: string;
+    icon?: string;
+    variant?: string;
+  }>;
+
+  // -- Accessibility ---------------------------------------------------------
+
+  /** ARIA properties */
+  aria?: {
+    label?: string;
+    description?: string;
+  };
+
+  /** Catch-all for additional properties */
+  [key: string]: any;
+}
+
+// ============================================================================
 // Multi-User Collaborative Editing
 // ============================================================================
 

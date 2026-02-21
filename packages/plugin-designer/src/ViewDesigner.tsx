@@ -14,8 +14,6 @@ import {
   Trash2,
   Eye,
   EyeOff,
-  ArrowUp,
-  ArrowDown,
   Save,
   X,
   Columns3,
@@ -32,6 +30,22 @@ import {
   Copy,
   Clipboard,
 } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useDesignerHistory } from './hooks/useDesignerHistory';
@@ -119,10 +133,7 @@ const LABELS = {
   asc: 'Asc',
   desc: 'Desc',
   selectField: 'Select field...',
-  moveUp: 'Move up',
-  moveDown: 'Move down',
-  moveColumnUp: 'Move column up',
-  moveColumnDown: 'Move column down',
+  dragToReorder: 'Drag to reorder',
   hideColumn: 'Hide column',
   showColumn: 'Show column',
   toggleVisibility: 'Toggle column visibility',
@@ -189,6 +200,104 @@ const DESIGNER_FIELD_TYPES = [
 /** Column width constraints */
 const COLUMN_WIDTH_MIN = 50;
 const COLUMN_WIDTH_MAX = 1000;
+
+/** Sortable column item for drag-to-reorder */
+function SortableColumnItem({
+  col,
+  index,
+  isSelected,
+  readOnly,
+  onSelect,
+  onToggleVisibility,
+  onRemove,
+}: {
+  col: ViewDesignerColumn;
+  index: number;
+  isSelected: boolean;
+  readOnly?: boolean;
+  onSelect: () => void;
+  onToggleVisibility: () => void;
+  onRemove: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: `col-${index}`, disabled: readOnly });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      className={cn(
+        'flex items-center gap-2 px-3 py-2 rounded border transition-colors cursor-pointer',
+        isSelected
+          ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+          : 'border-border hover:border-primary/50',
+        !col.visible && 'opacity-50',
+      )}
+      onClick={onSelect}
+      data-testid={`column-${col.field}`}
+    >
+      <span
+        {...(readOnly ? {} : listeners)}
+        className={cn(
+          'shrink-0 touch-none',
+          !readOnly && 'cursor-grab',
+        )}
+        title={readOnly ? undefined : LABELS.dragToReorder}
+        aria-label={readOnly ? undefined : LABELS.dragToReorder}
+      >
+        <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+      </span>
+      <span className="text-sm font-medium truncate flex-1">
+        {col.label || col.field}
+      </span>
+      <span className="text-xs text-muted-foreground">{col.field}</span>
+      {!readOnly && (
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleVisibility();
+            }}
+            className="p-0.5 rounded hover:bg-accent"
+            title={col.visible !== false ? LABELS.hideColumn : LABELS.showColumn}
+            aria-label={LABELS.toggleVisibility}
+          >
+            {col.visible !== false ? (
+              <Eye className="h-3 w-3" />
+            ) : (
+              <EyeOff className="h-3 w-3" />
+            )}
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            className="p-0.5 rounded hover:bg-destructive/10"
+            title={LABELS.removeColumn}
+            aria-label={LABELS.removeColumn}
+          >
+            <Trash2 className="h-3 w-3 text-destructive" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Visual designer for creating and editing list views.
@@ -294,19 +403,38 @@ export function ViewDesigner({
     [readOnly, columns, pushState],
   );
 
-  const handleMoveColumn = useCallback(
-    (index: number, direction: 'up' | 'down') => {
+  // --- Drag-reorder sensors ---
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
       if (readOnly) return;
-      const newIndex = direction === 'up' ? index - 1 : index + 1;
-      if (newIndex < 0 || newIndex >= columns.length) return;
-      const updated = [...columns];
-      const temp = updated[index];
-      updated[index] = updated[newIndex];
-      updated[newIndex] = temp;
-      pushState({ columns: updated });
-      setSelectedColumnIndex(newIndex);
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      const oldIndex = columns.findIndex((_, i) => `col-${i}` === active.id);
+      const newIndex = columns.findIndex((_, i) => `col-${i}` === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      const reordered = arrayMove(columns, oldIndex, newIndex);
+      pushState({ columns: reordered });
+
+      // Update selection to follow the dragged column
+      if (selectedColumnIndex === oldIndex) {
+        setSelectedColumnIndex(newIndex);
+      } else if (selectedColumnIndex !== null) {
+        // Adjust selection if it was affected by the move
+        if (oldIndex < selectedColumnIndex && newIndex >= selectedColumnIndex) {
+          setSelectedColumnIndex(selectedColumnIndex - 1);
+        } else if (oldIndex > selectedColumnIndex && newIndex <= selectedColumnIndex) {
+          setSelectedColumnIndex(selectedColumnIndex + 1);
+        }
+      }
     },
-    [readOnly, columns, pushState],
+    [readOnly, columns, pushState, selectedColumnIndex],
   );
 
   const handleAddFilter = useCallback(() => {
@@ -624,80 +752,22 @@ export function ViewDesigner({
                 <div className="text-xs font-medium text-muted-foreground mb-2">
                   {LABELS.columnsCount(columns.length)}
                 </div>
-                {columns.map((col, index) => (
-                  <div
-                    key={`${col.field}-${index}`}
-                    className={cn(
-                      'flex items-center gap-2 px-3 py-2 rounded border transition-colors cursor-pointer',
-                      selectedColumnIndex === index
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                        : 'border-border hover:border-primary/50',
-                      !col.visible && 'opacity-50',
-                    )}
-                    onClick={() => setSelectedColumnIndex(index)}
-                    data-testid={`column-${col.field}`}
-                  >
-                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <span className="text-sm font-medium truncate flex-1">
-                      {col.label || col.field}
-                    </span>
-                    <span className="text-xs text-muted-foreground">{col.field}</span>
-                    {!readOnly && (
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleMoveColumn(index, 'up');
-                          }}
-                          disabled={index === 0}
-                          className="p-0.5 rounded hover:bg-accent disabled:opacity-30"
-                          title={LABELS.moveUp}
-                          aria-label={LABELS.moveColumnUp}
-                        >
-                          <ArrowUp className="h-3 w-3" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleMoveColumn(index, 'down');
-                          }}
-                          disabled={index === columns.length - 1}
-                          className="p-0.5 rounded hover:bg-accent disabled:opacity-30"
-                          title={LABELS.moveDown}
-                          aria-label={LABELS.moveColumnDown}
-                        >
-                          <ArrowDown className="h-3 w-3" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleColumnVisibility(index);
-                          }}
-                          className="p-0.5 rounded hover:bg-accent"
-                          title={col.visible !== false ? LABELS.hideColumn : LABELS.showColumn}
-                          aria-label={LABELS.toggleVisibility}
-                        >
-                          {col.visible !== false ? (
-                            <Eye className="h-3 w-3" />
-                          ) : (
-                            <EyeOff className="h-3 w-3" />
-                          )}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveColumn(index);
-                          }}
-                          className="p-0.5 rounded hover:bg-destructive/10"
-                          title={LABELS.removeColumn}
-                          aria-label={LABELS.removeColumn}
-                        >
-                          <Trash2 className="h-3 w-3 text-destructive" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={columns.map((_, i) => `col-${i}`)} strategy={verticalListSortingStrategy}>
+                    {columns.map((col, index) => (
+                      <SortableColumnItem
+                        key={`${col.field}-${index}`}
+                        col={col}
+                        index={index}
+                        isSelected={selectedColumnIndex === index}
+                        readOnly={readOnly}
+                        onSelect={() => setSelectedColumnIndex(index)}
+                        onToggleVisibility={() => handleToggleColumnVisibility(index)}
+                        onRemove={() => handleRemoveColumn(index)}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
               </div>
             )}
           </div>

@@ -51,6 +51,25 @@ vi.mock('@object-ui/components', () => ({
             {...props}
         />
     ),
+    ConfigRow: ({ label, value, onClick, children, className }: any) => {
+        const Wrapper = onClick ? 'button' : 'div';
+        return (
+            <Wrapper className={className} onClick={onClick} type={onClick ? 'button' : undefined}>
+                <span>{label}</span>
+                {children || <span>{value}</span>}
+            </Wrapper>
+        );
+    },
+    SectionHeader: ({ title, collapsible, collapsed, onToggle, testId }: any) => {
+        if (collapsible) {
+            return (
+                <button data-testid={testId} onClick={onToggle} type="button" aria-expanded={!collapsed}>
+                    <h3>{title}</h3>
+                </button>
+            );
+        }
+        return <div data-testid={testId}><h3>{title}</h3></div>;
+    },
     FilterBuilder: ({ fields, value, onChange }: any) => {
         let counter = 0;
         return (

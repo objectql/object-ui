@@ -671,4 +671,104 @@ describe('ViewDesigner', () => {
       expect(config.columns[0].width).toBe(50);
     });
   });
+
+  // ============================
+  // Column Drag-to-Reorder
+  // ============================
+  describe('Column Drag-to-Reorder', () => {
+    it('should render drag handles on columns', () => {
+      const columns: ViewDesignerColumn[] = [
+        { field: 'name', label: 'Name', visible: true, order: 0 },
+        { field: 'email', label: 'Email', visible: true, order: 1 },
+      ];
+
+      render(
+        <ViewDesigner
+          objectName="contacts"
+          columns={columns}
+          availableFields={MOCK_FIELDS}
+        />,
+      );
+
+      const nameColumn = screen.getByTestId('column-name');
+      const dragHandle = nameColumn.querySelector('[aria-label="Drag to reorder"]');
+      expect(dragHandle).toBeDefined();
+      expect(dragHandle).not.toBeNull();
+    });
+
+    it('should not have ArrowUp/ArrowDown buttons', () => {
+      const columns: ViewDesignerColumn[] = [
+        { field: 'name', label: 'Name', visible: true, order: 0 },
+        { field: 'email', label: 'Email', visible: true, order: 1 },
+      ];
+
+      render(
+        <ViewDesigner
+          objectName="contacts"
+          columns={columns}
+          availableFields={MOCK_FIELDS}
+        />,
+      );
+
+      const nameColumn = screen.getByTestId('column-name');
+      expect(nameColumn.querySelector('[title="Move up"]')).toBeNull();
+      expect(nameColumn.querySelector('[title="Move down"]')).toBeNull();
+    });
+
+    it('should not render drag handles as interactive in read-only mode', () => {
+      const columns: ViewDesignerColumn[] = [
+        { field: 'name', label: 'Name', visible: true, order: 0 },
+      ];
+
+      render(
+        <ViewDesigner
+          objectName="contacts"
+          columns={columns}
+          availableFields={MOCK_FIELDS}
+          readOnly
+        />,
+      );
+
+      const nameColumn = screen.getByTestId('column-name');
+      // Drag handle should not have aria-label in read-only mode
+      const dragHandle = nameColumn.querySelector('[aria-label="Drag to reorder"]');
+      expect(dragHandle).toBeNull();
+    });
+
+    it('should still allow column selection when drag handles are present', () => {
+      const columns: ViewDesignerColumn[] = [
+        { field: 'name', label: 'Name', visible: true, order: 0 },
+        { field: 'email', label: 'Email', visible: true, order: 1 },
+      ];
+
+      render(
+        <ViewDesigner
+          objectName="contacts"
+          columns={columns}
+          availableFields={MOCK_FIELDS}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId('column-name'));
+      expect(screen.getByTestId('column-field-type')).toBeDefined();
+    });
+
+    it('should still allow visibility toggle and removal alongside drag handle', () => {
+      const columns: ViewDesignerColumn[] = [
+        { field: 'name', label: 'Name', visible: true, order: 0 },
+      ];
+
+      render(
+        <ViewDesigner
+          objectName="contacts"
+          columns={columns}
+          availableFields={MOCK_FIELDS}
+        />,
+      );
+
+      const nameColumn = screen.getByTestId('column-name');
+      expect(nameColumn.querySelector('[title="Hide column"]')).not.toBeNull();
+      expect(nameColumn.querySelector('[title="Remove column"]')).not.toBeNull();
+    });
+  });
 });

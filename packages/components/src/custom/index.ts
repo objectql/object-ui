@@ -1,5 +1,6 @@
 export * from './button-group';
 export * from './combobox';
+export * from './config-row';
 export * from './date-picker';
 export * from './empty';
 export * from './field';
@@ -9,6 +10,7 @@ export * from './item';
 export * from './kbd';
 export * from './native-select';
 export * from './navigation-overlay';
+export * from './section-header';
 export * from './spinner';
 export * from './sort-builder';
 export * from './action-param-dialog';

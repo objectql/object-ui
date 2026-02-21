@@ -544,6 +544,15 @@ export type {
   ViewDesignerSchema,
   UnifiedViewType,
   UnifiedViewConfig,
+  DashboardColorVariant,
+  DashboardWidgetType,
+  DashboardWidgetConfig,
+  DashboardConfig,
+} from './designer';
+
+export {
+  DASHBOARD_COLOR_VARIANTS,
+  DASHBOARD_WIDGET_TYPES,
 } from './designer';
 
 // ============================================================================

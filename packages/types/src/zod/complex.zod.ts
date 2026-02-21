@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
+import { DASHBOARD_COLOR_VARIANTS, DASHBOARD_WIDGET_TYPES } from '../designer.js';
 
 /**
  * Kanban Card Schema
@@ -249,6 +250,64 @@ export const DashboardSchema = BaseSchema.extend({
   columns: z.number().optional().describe('Number of columns'),
   gap: z.number().optional().describe('Grid gap'),
   widgets: z.array(DashboardWidgetSchema).describe('Dashboard widgets'),
+});
+
+/**
+ * Dashboard Widget Config Schema (for DashboardConfigPanel)
+ */
+export const DashboardWidgetConfigSchema = z.object({
+  id: z.string().describe('Widget ID'),
+  title: z.string().optional().describe('Widget title'),
+  description: z.string().optional().describe('Widget description'),
+  type: z.enum(DASHBOARD_WIDGET_TYPES).optional().describe('Widget visualization type'),
+  object: z.string().optional().describe('Data source object name'),
+  filter: z.array(z.any()).optional().describe('Widget filter conditions'),
+  categoryField: z.string().optional().describe('Category/x-axis field'),
+  valueField: z.string().optional().describe('Value/y-axis field'),
+  aggregate: z.string().optional().describe('Aggregation function'),
+  chartConfig: z.any().optional().describe('Chart configuration'),
+  colorVariant: z.enum(DASHBOARD_COLOR_VARIANTS).optional().describe('Color variant'),
+  layout: DashboardWidgetLayoutSchema.optional().describe('Widget grid layout'),
+  actionUrl: z.string().optional().describe('Clickable action URL'),
+});
+
+/**
+ * Dashboard Config Schema — Zod validator for DashboardConfigPanel data model.
+ *
+ * Validates the unified dashboard configuration used by create/edit workflows.
+ */
+export const DashboardConfigSchema = z.object({
+  id: z.string().optional().describe('Dashboard identifier'),
+  title: z.string().optional().describe('Dashboard title'),
+  description: z.string().optional().describe('Dashboard description'),
+  columns: z.number().min(1).max(24).optional().describe('Grid columns (1-24)'),
+  gap: z.number().min(0).optional().describe('Grid gap in pixels'),
+  refreshInterval: z.number().min(0).optional().describe('Auto-refresh interval in seconds'),
+  widgets: z.array(DashboardWidgetConfigSchema).optional().describe('Dashboard widgets'),
+  globalFilters: z.array(z.any()).optional().describe('Global filter conditions'),
+  dateRange: z.object({
+    enabled: z.boolean().optional(),
+    field: z.string().optional(),
+    presets: z.array(z.string()).optional(),
+  }).optional().describe('Date range filter'),
+  userFilters: z.array(z.object({
+    field: z.string(),
+    label: z.string().optional(),
+    type: z.string().optional(),
+  })).optional().describe('User-selectable filters'),
+  showHeader: z.boolean().optional().describe('Show dashboard header'),
+  showFilters: z.boolean().optional().describe('Show global filter bar'),
+  showDateRange: z.boolean().optional().describe('Show date range picker'),
+  headerActions: z.array(z.object({
+    label: z.string(),
+    action: z.string().optional(),
+    icon: z.string().optional(),
+    variant: z.string().optional(),
+  })).optional().describe('Header action buttons'),
+  aria: z.object({
+    label: z.string().optional(),
+    description: z.string().optional(),
+  }).optional().describe('ARIA accessibility attributes'),
 });
 
 /**
