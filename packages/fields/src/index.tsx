@@ -88,7 +88,7 @@ export function formatCompactCurrency(value: number, currency: string = 'USD'): 
     }).format(value);
     // Strip trailing ".0" before compact suffix for consistent cross-environment output
     // e.g. "$150.0K" → "$150K" while keeping "$1.5M" intact
-    return formatted.replace(/\.0(?=[KMBT]|$)/, '');
+    return formatted.replace(/\.0(?=[KMBT])/, '');
   } catch {
     return `${currency} ${value}`;
   }
