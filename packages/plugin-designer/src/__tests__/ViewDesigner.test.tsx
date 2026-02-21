@@ -506,4 +506,169 @@ describe('ViewDesigner', () => {
       expect(config.viewId).toBe('existing-view');
     });
   });
+
+  // ============================
+  // Ctrl+S Keyboard Shortcut
+  // ============================
+  describe('Keyboard Shortcut: Ctrl+S', () => {
+    it('should call onSave when Ctrl+S is pressed', () => {
+      const onSave = vi.fn();
+
+      const { container } = render(
+        <ViewDesigner
+          objectName="contacts"
+          viewLabel="My View"
+          onSave={onSave}
+        />,
+      );
+
+      // Focus the container
+      const root = container.firstElementChild as HTMLElement;
+      root.focus();
+
+      fireEvent.keyDown(root, { key: 's', ctrlKey: true });
+
+      expect(onSave).toHaveBeenCalledTimes(1);
+      expect(onSave.mock.calls[0][0].viewLabel).toBe('My View');
+    });
+
+    it('should not trigger save in read-only mode on Ctrl+S', () => {
+      const onSave = vi.fn();
+
+      const { container } = render(
+        <ViewDesigner
+          objectName="contacts"
+          onSave={onSave}
+          readOnly
+        />,
+      );
+
+      const root = container.firstElementChild as HTMLElement;
+      root.focus();
+
+      fireEvent.keyDown(root, { key: 's', ctrlKey: true });
+
+      expect(onSave).not.toHaveBeenCalled();
+    });
+  });
+
+  // ============================
+  // Field Type Selector
+  // ============================
+  describe('Field Type Selector', () => {
+    it('should render field type dropdown when column is selected', () => {
+      const columns = [
+        { field: 'name', label: 'Name', visible: true, order: 0 },
+      ];
+
+      render(
+        <ViewDesigner
+          objectName="contacts"
+          columns={columns}
+          availableFields={MOCK_FIELDS}
+        />,
+      );
+
+      // Click the column to select it
+      fireEvent.click(screen.getByTestId('column-name'));
+
+      expect(screen.getByTestId('column-field-type')).toBeDefined();
+    });
+
+    it('should show field type options', () => {
+      const columns = [
+        { field: 'name', label: 'Name', visible: true, order: 0 },
+      ];
+
+      render(
+        <ViewDesigner
+          objectName="contacts"
+          columns={columns}
+          availableFields={MOCK_FIELDS}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId('column-name'));
+
+      const select = screen.getByTestId('column-field-type') as HTMLSelectElement;
+      const options = Array.from(select.options).map((o) => o.value);
+      expect(options).toContain('text');
+      expect(options).toContain('number');
+      expect(options).toContain('date');
+      expect(options).toContain('email');
+    });
+  });
+
+  // ============================
+  // Column Width Validation
+  // ============================
+  describe('Column Width Validation', () => {
+    it('should show width hint text', () => {
+      const columns = [
+        { field: 'name', label: 'Name', visible: true, order: 0 },
+      ];
+
+      render(
+        <ViewDesigner
+          objectName="contacts"
+          columns={columns}
+          availableFields={MOCK_FIELDS}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId('column-name'));
+
+      expect(screen.getByText(/50–1000px/)).toBeDefined();
+    });
+
+    it('should accept auto as width value', () => {
+      const onSave = vi.fn();
+      const columns = [
+        { field: 'name', label: 'Name', visible: true, order: 0 },
+      ];
+
+      render(
+        <ViewDesigner
+          objectName="contacts"
+          columns={columns}
+          availableFields={MOCK_FIELDS}
+          onSave={onSave}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId('column-name'));
+      const widthInput = screen.getByTestId('column-width-input') as HTMLInputElement;
+      fireEvent.change(widthInput, { target: { value: 'auto' } });
+
+      fireEvent.click(screen.getByTestId('view-designer-save'));
+      const config = onSave.mock.calls[0][0];
+      expect(config.columns[0].width).toBe('auto');
+    });
+
+    it('should clamp numeric width to min/max range', () => {
+      const onSave = vi.fn();
+      const columns = [
+        { field: 'name', label: 'Name', visible: true, order: 0 },
+      ];
+
+      render(
+        <ViewDesigner
+          objectName="contacts"
+          columns={columns}
+          availableFields={MOCK_FIELDS}
+          onSave={onSave}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId('column-name'));
+      const widthInput = screen.getByTestId('column-width-input') as HTMLInputElement;
+
+      // Set to value below min (50)
+      fireEvent.change(widthInput, { target: { value: '10' } });
+
+      fireEvent.click(screen.getByTestId('view-designer-save'));
+      const config = onSave.mock.calls[0][0];
+      expect(config.columns[0].width).toBe(50);
+    });
+  });
 });

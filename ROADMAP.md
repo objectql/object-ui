@@ -17,7 +17,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
-2. **Designer Interaction** — ViewDesigner and DataModelDesigner need drag-and-drop, undo/redo
+2. **Designer Interaction** — ViewDesigner and DataModelDesigner have undo/redo, field type selectors, inline editing, Ctrl+S save (column drag-to-reorder with dnd-kit pending)
 3. **Console Advanced Polish** — Remaining upgrades for forms, import/export, automation, comments
 4. **PWA Sync** — Background sync is simulated only
 
@@ -47,19 +47,19 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 **ViewDesigner:**
 - [ ] Column drag-to-reorder via `@dnd-kit/core` (replace up/down buttons with drag handles)
-- [ ] Add `Ctrl+S`/`Cmd+S` keyboard shortcut to save
-- [ ] Add field type selector dropdown with icons from `DESIGNER_FIELD_TYPES`
-- [ ] Column width validation (min/max/pattern check)
+- [x] Add `Ctrl+S`/`Cmd+S` keyboard shortcut to save
+- [x] Add field type selector dropdown with icons from `DESIGNER_FIELD_TYPES`
+- [x] Column width validation (min/max/pattern check)
 
 **DataModelDesigner:**
-- [ ] Entity drag-to-move on canvas
-- [ ] Inline editing for entity labels (click to edit)
-- [ ] Field type selector dropdown (replaces hardcoded `'text'` type)
-- [ ] Confirmation dialogs for destructive actions (delete entity cascades to relationships)
+- [x] Entity drag-to-move on canvas
+- [x] Inline editing for entity labels (click to edit)
+- [x] Field type selector dropdown (replaces hardcoded `'text'` type)
+- [x] Confirmation dialogs for destructive actions (delete entity cascades to relationships)
 
 **Shared Infrastructure:**
-- [ ] Implement `useDesignerHistory` hook (command pattern with undo/redo stacks)
-- [ ] Wire undo/redo to ViewDesigner and DataModelDesigner
+- [x] Implement `useDesignerHistory` hook (command pattern with undo/redo stacks)
+- [x] Wire undo/redo to ViewDesigner and DataModelDesigner
 
 ### P1.2 Console — Forms & Data Collection
 
@@ -205,7 +205,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 |--------|---------|-------------|--------------|
 | **Protocol Alignment** | ~85% | 90%+ (UI-facing) | Protocol Consistency Assessment |
 | **AppShell Renderer** | ✅ Complete | Sidebar + nav tree from `AppSchema` JSON | Console renders from spec JSON |
-| **Designer Interaction** | Phase 1 only | ViewDesigner + DataModelDesigner drag/undo | Manual UX testing |
+| **Designer Interaction** | Phase 2 (most complete) | ViewDesigner + DataModelDesigner drag/undo | Manual UX testing |
 | **Build Status** | 42/42 pass | 42/42 pass | `pnpm build` |
 | **Test Count** | 5,070+ | 5,500+ | `pnpm test` summary |
 | **Test Coverage** | 90%+ | 90%+ | `pnpm test:coverage` |

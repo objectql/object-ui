@@ -28,6 +28,7 @@ export type { ViewDesignerProps, ViewDesignerConfig } from './ViewDesigner';
 
 // Shared hooks
 export { useUndoRedo } from './hooks/useUndoRedo';
+export { useDesignerHistory } from './hooks/useDesignerHistory';
 export { useConfirmDialog } from './hooks/useConfirmDialog';
 export { useClipboard } from './hooks/useClipboard';
 export { useMultiSelect } from './hooks/useMultiSelect';
