@@ -18,7 +18,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. **AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)
 2. **Designer Interaction** — ViewDesigner and DataModelDesigner need drag-and-drop, undo/redo
-3. **Console L3 Polish** — Remaining L2→L3 upgrades for forms, import/export, automation, comments
+3. **Console Advanced Polish** — Remaining upgrades for forms, import/export, automation, comments
 4. **PWA Sync** — Background sync is simulated only
 
 ---
@@ -61,7 +61,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [ ] Implement `useDesignerHistory` hook (command pattern with undo/redo stacks)
 - [ ] Wire undo/redo to ViewDesigner and DataModelDesigner
 
-### P1.2 Console — Forms & Data Collection (L2→L3)
+### P1.2 Console — Forms & Data Collection
 
 - [ ] Camera capture for mobile file upload
 - [ ] Image cropping/rotation in file fields
@@ -73,7 +73,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [ ] Form conditional logic with branching
 - [ ] Multi-page forms with progress indicator
 
-### P1.3 Console — Import/Export Excellence (L2→L3)
+### P1.3 Console — Import/Export Excellence
 
 - [ ] Excel (XLSX) export with formatting
 - [ ] PDF export with custom formatting
@@ -85,21 +85,21 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [ ] Import validation preview with error correction
 - [ ] Duplicate detection during import
 
-### P1.4 Console — Undo/Redo & History (L2→L3)
+### P1.4 Console — Undo/Redo & History
 
 - [ ] Cross-session undo stack persistence (survive page refresh)
 - [ ] Undo grouping (batch multiple field changes as one undo step)
 - [ ] Visual undo history panel (timeline of changes)
 - [ ] Undo/redo for bulk operations
 
-### P1.5 Console — Comments & Collaboration (L2→L3)
+### P1.5 Console — Comments & Collaboration
 
 - [ ] @mention notification delivery (email/push)
 - [ ] Comment search across all records
 - [ ] Comment pinning/starring
 - [ ] Activity feed filtering (comments only / field changes only)
 
-### P1.6 Console — Automation (L2→L3)
+### P1.6 Console — Automation
 
 - [ ] Multi-step automation builder (if-then chains)
 - [ ] Scheduled automations (cron-based triggers)
@@ -107,7 +107,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [ ] Email notification actions
 - [ ] Automation execution history and logs
 
-### P1.7 Console — Navigation Enhancements (L2→L3)
+### P1.7 Console — Navigation Enhancements
 
 - [ ] AppShell `AppSchema` renderer (spec-driven sidebar from JSON)
 - [ ] Area switcher with grouped navigation
