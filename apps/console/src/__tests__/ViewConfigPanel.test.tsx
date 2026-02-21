@@ -43,6 +43,42 @@ vi.mock('@object-ui/components', () => ({
             {...props}
         />
     ),
+    Checkbox: ({ checked, onCheckedChange, ...props }: any) => (
+        <input
+            type="checkbox"
+            checked={!!checked}
+            onChange={() => onCheckedChange?.(!checked)}
+            {...props}
+        />
+    ),
+    FilterBuilder: ({ fields, value, onChange, ...props }: any) => {
+        let counter = 0;
+        return (
+        <div data-testid="mock-filter-builder" data-field-count={fields?.length || 0} data-condition-count={value?.conditions?.length || 0}>
+            <button data-testid="filter-builder-add" onClick={() => {
+                const newConditions = [...(value?.conditions || []), { id: `mock-filter-${Date.now()}-${++counter}`, field: fields?.[0]?.value || '', operator: 'equals', value: '' }];
+                onChange?.({ ...value, conditions: newConditions });
+            }}>Add filter</button>
+            {value?.conditions?.map((c: any, i: number) => (
+                <span key={c.id || i} data-testid={`filter-condition-${i}`}>{c.field} {c.operator} {String(c.value)}</span>
+            ))}
+        </div>
+        );
+    },
+    SortBuilder: ({ fields, value, onChange, ...props }: any) => {
+        let counter = 0;
+        return (
+        <div data-testid="mock-sort-builder" data-field-count={fields?.length || 0} data-sort-count={value?.length || 0}>
+            <button data-testid="sort-builder-add" onClick={() => {
+                const newItems = [...(value || []), { id: `mock-sort-${Date.now()}-${++counter}`, field: fields?.[0]?.value || '', order: 'asc' }];
+                onChange?.(newItems);
+            }}>Add sort</button>
+            {value?.map((s: any, i: number) => (
+                <span key={s.id || i} data-testid={`sort-item-${i}`}>{s.field} {s.order}</span>
+            ))}
+        </div>
+        );
+    },
 }));
 
 const mockActiveView = {
@@ -140,7 +176,7 @@ describe('ViewConfigPanel', () => {
         expect(screen.getByText('console.objectView.noDescription')).toBeInTheDocument();
     });
 
-    it('displays column count', () => {
+    it('displays column checkboxes for each field', () => {
         render(
             <ViewConfigPanel
                 open={true}
@@ -150,8 +186,15 @@ describe('ViewConfigPanel', () => {
             />
         );
 
-        // 3 columns configured
-        expect(screen.getByText('console.objectView.columnsConfigured'.replace('{{count}}', '3'))).toBeInTheDocument();
+        // 3 fields → 3 checkboxes
+        expect(screen.getByTestId('column-selector')).toBeInTheDocument();
+        expect(screen.getByTestId('col-checkbox-name')).toBeInTheDocument();
+        expect(screen.getByTestId('col-checkbox-stage')).toBeInTheDocument();
+        expect(screen.getByTestId('col-checkbox-amount')).toBeInTheDocument();
+        // Columns in activeView should be checked
+        expect(screen.getByTestId('col-checkbox-name')).toBeChecked();
+        expect(screen.getByTestId('col-checkbox-stage')).toBeChecked();
+        expect(screen.getByTestId('col-checkbox-amount')).toBeChecked();
     });
 
     it('displays object source name', () => {
@@ -225,7 +268,7 @@ describe('ViewConfigPanel', () => {
         expect(screen.getByTestId('view-type-select')).toHaveValue('kanban');
     });
 
-    it('shows "None" for empty filters and columns', () => {
+    it('shows inline builders with zero items for empty view', () => {
         render(
             <ViewConfigPanel
                 open={true}
@@ -235,9 +278,10 @@ describe('ViewConfigPanel', () => {
             />
         );
 
-        // Should show "None" for columns, filters
-        const noneTexts = screen.getAllByText('console.objectView.none');
-        expect(noneTexts.length).toBeGreaterThanOrEqual(2);
+        // FilterBuilder should have 0 conditions
+        expect(screen.getByTestId('mock-filter-builder')).toHaveAttribute('data-condition-count', '0');
+        // SortBuilder should have 0 items
+        expect(screen.getByTestId('mock-sort-builder')).toHaveAttribute('data-sort-count', '0');
     });
 
     it('has correct ARIA attributes when open', () => {
@@ -403,62 +447,85 @@ describe('ViewConfigPanel', () => {
         expect(onViewUpdate).toHaveBeenCalledWith('type', 'kanban');
     });
 
-    it('calls onOpenEditor when clicking columns row', () => {
-        const onOpenEditor = vi.fn();
+    it('renders inline FilterBuilder with correct conditions from activeView', () => {
         render(
             <ViewConfigPanel
                 open={true}
                 onClose={vi.fn()}
                 activeView={mockActiveView}
                 objectDef={mockObjectDef}
-                onOpenEditor={onOpenEditor}
             />
         );
 
-        // Click the columns row — it's a button with the columns label
-        const columnsRow = screen.getByText('console.objectView.columns').closest('button');
-        expect(columnsRow).toBeTruthy();
-        fireEvent.click(columnsRow!);
-
-        expect(onOpenEditor).toHaveBeenCalledWith('columns');
+        const fb = screen.getByTestId('mock-filter-builder');
+        expect(fb).toHaveAttribute('data-condition-count', '1');
+        expect(fb).toHaveAttribute('data-field-count', '3');
+        expect(screen.getByTestId('filter-condition-0')).toHaveTextContent('stage = active');
     });
 
-    it('calls onOpenEditor when clicking filters row', () => {
-        const onOpenEditor = vi.fn();
+    it('renders inline SortBuilder with correct items from activeView', () => {
         render(
             <ViewConfigPanel
                 open={true}
                 onClose={vi.fn()}
                 activeView={mockActiveView}
                 objectDef={mockObjectDef}
-                onOpenEditor={onOpenEditor}
             />
         );
 
-        const filterRow = screen.getByText('console.objectView.filterBy').closest('button');
-        expect(filterRow).toBeTruthy();
-        fireEvent.click(filterRow!);
-
-        expect(onOpenEditor).toHaveBeenCalledWith('filters');
+        const sb = screen.getByTestId('mock-sort-builder');
+        expect(sb).toHaveAttribute('data-sort-count', '1');
+        expect(sb).toHaveAttribute('data-field-count', '3');
+        expect(screen.getByTestId('sort-item-0')).toHaveTextContent('name asc');
     });
 
-    it('calls onOpenEditor when clicking sort row', () => {
-        const onOpenEditor = vi.fn();
+    it('updates draft when adding a filter via FilterBuilder', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ id: 'empty', label: 'Empty', type: 'grid' }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('filter-builder-add'));
+        expect(onViewUpdate).toHaveBeenCalledWith('filter', expect.any(Array));
+    });
+
+    it('updates draft when adding a sort via SortBuilder', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ id: 'empty', label: 'Empty', type: 'grid' }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('sort-builder-add'));
+        expect(onViewUpdate).toHaveBeenCalledWith('sort', expect.any(Array));
+    });
+
+    it('toggles column checkbox and calls onViewUpdate with updated columns', () => {
+        const onViewUpdate = vi.fn();
         render(
             <ViewConfigPanel
                 open={true}
                 onClose={vi.fn()}
                 activeView={mockActiveView}
                 objectDef={mockObjectDef}
-                onOpenEditor={onOpenEditor}
+                onViewUpdate={onViewUpdate}
             />
         );
 
-        const sortRow = screen.getByText('console.objectView.sortBy').closest('button');
-        expect(sortRow).toBeTruthy();
-        fireEvent.click(sortRow!);
-
-        expect(onOpenEditor).toHaveBeenCalledWith('sort');
+        // Uncheck the 'stage' column
+        fireEvent.click(screen.getByTestId('col-checkbox-stage'));
+        expect(onViewUpdate).toHaveBeenCalledWith('columns', ['name', 'amount']);
     });
 
     it('saves draft via onSave when Save button is clicked', () => {

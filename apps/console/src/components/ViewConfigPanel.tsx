@@ -13,8 +13,9 @@
  */
 
 import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
-import { Button, Switch, Input } from '@object-ui/components';
-import { X, ChevronRight, Save, RotateCcw } from 'lucide-react';
+import { Button, Switch, Input, Checkbox, FilterBuilder, SortBuilder } from '@object-ui/components';
+import type { FilterGroup, SortItem } from '@object-ui/components';
+import { X, Save, RotateCcw } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 
 /** View type labels for display */
@@ -147,9 +148,6 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUp
 
     const viewLabel = draft.label || draft.id || activeView.id;
     const viewType = draft.type || 'grid';
-    const columnCount = draft.columns?.length || 0;
-    const filterCount = Array.isArray(draft.filter) ? draft.filter.length : 0;
-    const sortCount = Array.isArray(draft.sort) ? draft.sort.length : 0;
 
     const hasSearch = draft.showSearch !== false;
     const hasFilter = draft.showFilters !== false;
@@ -158,17 +156,69 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUp
     const hasAddForm = draft.addRecordViaForm === true;
     const hasShowDescription = draft.showDescription !== false;
 
-    // Format filter summary
-    const filterSummary = useMemo(() => {
-        if (filterCount === 0) return t('console.objectView.none');
-        return `${filterCount} ${t('console.objectView.filterBy').toLowerCase()}`;
-    }, [filterCount, t]);
+    // Derive field options from objectDef for FilterBuilder/SortBuilder
+    const fieldOptions = useMemo(() => {
+        if (!objectDef.fields) return [];
+        return Object.entries(objectDef.fields).map(([key, field]: [string, any]) => ({
+            value: key,
+            label: field.label || key,
+            type: field.type || 'text',
+            options: field.options,
+        }));
+    }, [objectDef.fields]);
 
-    // Format sort summary
-    const sortSummary = useMemo(() => {
-        if (sortCount === 0) return t('console.objectView.none');
-        return draft.sort?.map((s: any) => `${s.field} ${s.order || s.direction || 'asc'}`).join(', ') || t('console.objectView.none');
-    }, [draft.sort, sortCount, t]);
+    // Bridge: view filter array → FilterGroup
+    const filterGroupValue = useMemo<FilterGroup>(() => {
+        const conditions = (Array.isArray(draft.filter) ? draft.filter : []).map((f: any) => ({
+            id: f.id || crypto.randomUUID(),
+            field: f.field || '',
+            operator: f.operator || 'equals',
+            value: f.value ?? '',
+        }));
+        return { id: 'root', logic: 'and' as const, conditions };
+    }, [draft.filter]);
+
+    // Bridge: view sort array → SortItem[]
+    const sortItemsValue = useMemo<SortItem[]>(() => {
+        return (Array.isArray(draft.sort) ? draft.sort : []).map((s: any) => ({
+            id: s.id || crypto.randomUUID(),
+            field: s.field || '',
+            order: (s.order || s.direction || 'asc') as 'asc' | 'desc',
+        }));
+    }, [draft.sort]);
+
+    /** Handle FilterBuilder changes → update draft.filter */
+    const handleFilterChange = useCallback((group: FilterGroup) => {
+        const filters = group.conditions.map(c => ({
+            id: c.id,
+            field: c.field,
+            operator: c.operator,
+            value: c.value,
+        }));
+        updateDraft('filter', filters);
+    }, [updateDraft]);
+
+    /** Handle SortBuilder changes → update draft.sort */
+    const handleSortChange = useCallback((items: SortItem[]) => {
+        const sortArr = items.map(s => ({
+            id: s.id,
+            field: s.field,
+            order: s.order,
+        }));
+        updateDraft('sort', sortArr);
+    }, [updateDraft]);
+
+    /** Handle column checkbox toggle */
+    const handleColumnToggle = useCallback((fieldName: string, checked: boolean) => {
+        const currentCols: string[] = Array.isArray(draft.columns) ? [...draft.columns] : [];
+        if (checked && !currentCols.includes(fieldName)) {
+            currentCols.push(fieldName);
+        } else if (!checked) {
+            const idx = currentCols.indexOf(fieldName);
+            if (idx >= 0) currentCols.splice(idx, 1);
+        }
+        updateDraft('columns', currentCols);
+    }, [draft.columns, updateDraft]);
 
     if (!open) return null;
 
@@ -219,26 +269,56 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUp
 
                 {/* Data Section */}
                 <SectionHeader title={t('console.objectView.data')} />
-                <div className="space-y-0.5">
+                <div className="space-y-2">
                     <ConfigRow label={t('console.objectView.source')} value={objectDef.label || objectDef.name} />
-                    <ConfigRow label={t('console.objectView.columns')} onClick={() => onOpenEditor?.('columns')}>
-                        <span className="text-xs text-foreground flex items-center gap-1">
-                            {columnCount > 0 ? t('console.objectView.columnsConfigured', { count: columnCount }) : t('console.objectView.none')}
-                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                        </span>
-                    </ConfigRow>
-                    <ConfigRow label={t('console.objectView.filterBy')} onClick={() => onOpenEditor?.('filters')}>
-                        <span className="text-xs text-foreground flex items-center gap-1">
-                            {filterSummary}
-                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                        </span>
-                    </ConfigRow>
-                    <ConfigRow label={t('console.objectView.sortBy')} onClick={() => onOpenEditor?.('sort')}>
-                        <span className="text-xs text-foreground flex items-center gap-1 truncate max-w-[140px]">
-                            {sortSummary}
-                            <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                        </span>
-                    </ConfigRow>
+
+                    {/* Columns — inline checkbox list */}
+                    <div className="pt-1">
+                        <span className="text-xs text-muted-foreground">{t('console.objectView.columns')}</span>
+                        <div data-testid="column-selector" className="mt-1 space-y-1 max-h-36 overflow-auto">
+                            {fieldOptions.map((f) => {
+                                const checked = Array.isArray(draft.columns) ? draft.columns.includes(f.value) : false;
+                                return (
+                                    <label key={f.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
+                                        <Checkbox
+                                            data-testid={`col-checkbox-${f.value}`}
+                                            checked={checked}
+                                            onCheckedChange={(c: boolean) => handleColumnToggle(f.value, c)}
+                                            className="h-3.5 w-3.5"
+                                        />
+                                        <span className="truncate">{f.label}</span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Filters — inline FilterBuilder */}
+                    <div className="pt-1">
+                        <span className="text-xs text-muted-foreground">{t('console.objectView.filterBy')}</span>
+                        <div data-testid="inline-filter-builder" className="mt-1">
+                            <FilterBuilder
+                                fields={fieldOptions}
+                                value={filterGroupValue}
+                                onChange={handleFilterChange}
+                                className="[&_button]:h-7 [&_button]:text-xs [&_input]:h-7 [&_input]:text-xs"
+                                showClearAll
+                            />
+                        </div>
+                    </div>
+
+                    {/* Sort — inline SortBuilder */}
+                    <div className="pt-1">
+                        <span className="text-xs text-muted-foreground">{t('console.objectView.sortBy')}</span>
+                        <div data-testid="inline-sort-builder" className="mt-1">
+                            <SortBuilder
+                                fields={fieldOptions.map(f => ({ value: f.value, label: f.label }))}
+                                value={sortItemsValue}
+                                onChange={handleSortChange}
+                                className="[&_button]:h-7 [&_button]:text-xs"
+                            />
+                        </div>
+                    </div>
                 </div>
 
                 {/* Appearance Section */}
