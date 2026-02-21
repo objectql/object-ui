@@ -39,17 +39,17 @@ export const ProjectView = {
     sections: [
       {
         label: 'Task Information',
-        columns: 2 as const,
+        columns: '2' as const,
         fields: ['name', 'status', 'priority', 'color', 'manager', 'assignee'],
       },
       {
         label: 'Timeline & Progress',
-        columns: 2 as const,
+        columns: '2' as const,
         fields: ['start_date', 'end_date', 'progress', 'estimated_hours', 'actual_hours'],
       },
       {
         label: 'Details',
-        columns: 1 as const,
+        columns: '1' as const,
         collapsible: true,
         fields: ['dependencies', 'description'],
       },
