@@ -207,6 +207,8 @@ const ja = {
       noDescription: '説明なし',
       none: 'なし',
       columnsConfigured: '{{count}} 列',
+      save: '保存',
+      discard: '破棄',
     },
     localeSwitcher: {
       label: '言語',

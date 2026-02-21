@@ -212,6 +212,8 @@ const zh = {
       noDescription: '无描述',
       none: '无',
       columnsConfigured: '{{count}} 列',
+      save: '保存',
+      discard: '丢弃',
     },
     localeSwitcher: {
       label: '语言',

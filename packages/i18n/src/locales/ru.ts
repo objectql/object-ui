@@ -207,6 +207,8 @@ const ru = {
       noDescription: 'Нет описания',
       none: 'Нет',
       columnsConfigured: '{{count}} столбцов',
+      save: 'Сохранить',
+      discard: 'Отменить',
     },
     localeSwitcher: {
       label: 'Язык',

@@ -207,6 +207,8 @@ const ko = {
       noDescription: '설명 없음',
       none: '없음',
       columnsConfigured: '{{count}}개 열',
+      save: '저장',
+      discard: '취소',
     },
     localeSwitcher: {
       label: '언어',

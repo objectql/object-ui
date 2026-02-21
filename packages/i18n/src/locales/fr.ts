@@ -212,6 +212,8 @@ const fr = {
       noDescription: 'Aucune description',
       none: 'Aucun',
       columnsConfigured: '{{count}} colonnes',
+      save: 'Enregistrer',
+      discard: 'Annuler',
     },
     localeSwitcher: {
       label: 'Langue',

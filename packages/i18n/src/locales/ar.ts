@@ -208,6 +208,8 @@ const ar = {
       noDescription: 'لا يوجد وصف',
       none: 'لا شيء',
       columnsConfigured: '{{count}} أعمدة',
+      save: 'حفظ',
+      discard: 'تجاهل',
     },
     localeSwitcher: {
       label: 'اللغة',

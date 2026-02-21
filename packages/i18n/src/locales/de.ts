@@ -212,6 +212,8 @@ const de = {
       noDescription: 'Keine Beschreibung',
       none: 'Keine',
       columnsConfigured: '{{count}} Spalten',
+      save: 'Speichern',
+      discard: 'Verwerfen',
     },
     localeSwitcher: {
       label: 'Sprache',

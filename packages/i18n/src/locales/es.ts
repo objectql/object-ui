@@ -207,6 +207,8 @@ const es = {
       noDescription: 'Sin descripción',
       none: 'Ninguno',
       columnsConfigured: '{{count}} columnas',
+      save: 'Guardar',
+      discard: 'Descartar',
     },
     localeSwitcher: {
       label: 'Idioma',
