@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { waitForReactMount, CONSOLE_BASE } from './helpers';
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 
 /**
  * P3 Mobile Visual Regression tests.
@@ -22,7 +23,7 @@ const MOBILE_VIEWPORTS = [
 // Keep in sync with Console app route definitions (apps/console/src/routes).
 const ROUTES = ['/', '/dashboard'];
 
-const snapshotsDir = join(__dirname, 'mobile-visual-regression.spec.ts-snapshots');
+const snapshotsDir = join(dirname(fileURLToPath(import.meta.url)), 'mobile-visual-regression.spec.ts-snapshots');
 const hasBaselines = existsSync(snapshotsDir);
 
 test.describe('Mobile Visual Regression', () => {
