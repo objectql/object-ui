@@ -22,6 +22,8 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarMenuAction,
+  SidebarInput,
+  Badge,
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -48,7 +50,9 @@ import {
   Star,
   StarOff,
   Layers,
+  Search,
 } from 'lucide-react';
+import { filterNavigationItems } from '@object-ui/layout';
 import { useMetadata } from '../context/MetadataProvider';
 import { useExpressionContext, evaluateVisibility } from '../context/ExpressionProvider';
 import { useAuth, getUserInitials } from '@object-ui/auth';
@@ -222,6 +226,13 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const activeArea = areas.find((a: any) => a.id === activeAreaId);
   const resolvedNavigation: any[] = activeArea?.navigation || activeApp?.navigation || [];
 
+  // Search filter state for sidebar navigation
+  const [navSearchQuery, setNavSearchQuery] = React.useState('');
+  const filteredNavigation = React.useMemo(
+    () => navSearchQuery ? filterNavigationItems(resolvedNavigation, navSearchQuery) : resolvedNavigation,
+    [resolvedNavigation, navSearchQuery],
+  );
+
   const dndValue = React.useMemo(() => ({
     dragItemId,
     dragGroupKey,
@@ -352,7 +363,20 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
            </SidebarGroup>
          )}
 
-         <NavigationTree items={resolvedNavigation} activeAppName={activeAppName} applyOrder={applyOrder} />
+         {/* Navigation Search */}
+         <SidebarGroup className="py-0">
+           <SidebarGroupContent className="relative">
+             <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 select-none opacity-50" />
+             <SidebarInput
+               placeholder="Search navigation..."
+               value={navSearchQuery}
+               onChange={(e) => setNavSearchQuery(e.target.value)}
+               className="pl-8"
+             />
+           </SidebarGroupContent>
+         </SidebarGroup>
+
+         <NavigationTree items={filteredNavigation} activeAppName={activeAppName} applyOrder={applyOrder} />
 
          {/* Favorites */}
          {favorites.length > 0 && (
@@ -656,11 +680,21 @@ function NavigationItemRenderer({ item, activeAppName, groupKey, groupItems, app
                     <a href={href} target="_blank" rel="noopener noreferrer">
                         <Icon className="h-4 w-4" />
                         <span>{item.label}</span>
+                        {item.badge != null && (
+                            <Badge variant={item.badgeVariant ?? 'default'} className="ml-auto text-[10px] px-1.5 py-0">
+                                {item.badge}
+                            </Badge>
+                        )}
                     </a>
                 ) : (
                     <Link to={href} className="py-2.5 sm:py-2">
                         <Icon className="h-4 w-4" />
                         <span>{item.label}</span>
+                        {item.badge != null && (
+                            <Badge variant={item.badgeVariant ?? 'default'} className="ml-auto text-[10px] px-1.5 py-0">
+                                {item.badge}
+                            </Badge>
+                        )}
                     </Link>
                 )}
             </SidebarMenuButton>
