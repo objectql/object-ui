@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { useUndoRedo } from './hooks/useUndoRedo';
+import { useDesignerHistory } from './hooks/useDesignerHistory';
 import { useConfirmDialog } from './hooks/useConfirmDialog';
 import { useClipboard } from './hooks/useClipboard';
 import { ConfirmDialog } from './components/ConfirmDialog';
@@ -164,6 +164,32 @@ const FILTER_OPERATORS = [
   { value: 'ne', label: '!=' },
 ];
 
+/** Supported field data types for columns */
+const DESIGNER_FIELD_TYPES = [
+  { value: 'text', label: 'Text' },
+  { value: 'number', label: 'Number' },
+  { value: 'currency', label: 'Currency' },
+  { value: 'percent', label: 'Percent' },
+  { value: 'date', label: 'Date' },
+  { value: 'datetime', label: 'Date & Time' },
+  { value: 'boolean', label: 'Checkbox' },
+  { value: 'select', label: 'Select' },
+  { value: 'multiselect', label: 'Multi-Select' },
+  { value: 'email', label: 'Email' },
+  { value: 'url', label: 'URL' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'textarea', label: 'Long Text' },
+  { value: 'lookup', label: 'Lookup' },
+  { value: 'attachment', label: 'Attachment' },
+  { value: 'formula', label: 'Formula' },
+  { value: 'autonumber', label: 'Auto Number' },
+  { value: 'rating', label: 'Rating' },
+];
+
+/** Column width constraints */
+const COLUMN_WIDTH_MIN = 50;
+const COLUMN_WIDTH_MAX = 1000;
+
 /**
  * Visual designer for creating and editing list views.
  * Provides a 3-panel layout:
@@ -189,7 +215,7 @@ export function ViewDesigner({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // --- Undo/Redo ---
-  const history = useUndoRedo<ViewDesignerState>({
+  const history = useDesignerHistory<ViewDesignerState>({
     columns: initialColumns,
     filters: initialFilters,
     sort: initialSort,
@@ -375,6 +401,11 @@ export function ViewDesigner({
 
       if (isInput) return;
 
+      if (ctrl && e.key === 's' && !readOnly) {
+        e.preventDefault();
+        handleSave();
+        return;
+      }
       if (ctrl && e.key === 'z' && !e.shiftKey && !readOnly) {
         e.preventDefault();
         history.undo();
@@ -399,7 +430,7 @@ export function ViewDesigner({
 
     el.addEventListener('keydown', handleKeyDown);
     return () => el.removeEventListener('keydown', handleKeyDown);
-  }, [readOnly, history, handleCopyColumn, handlePasteColumn]);
+  }, [readOnly, history, handleCopyColumn, handlePasteColumn, handleSave]);
 
   return (
     <div
@@ -718,6 +749,26 @@ export function ViewDesigner({
                         data-testid="column-label-input"
                       />
                     </div>
+                    {/* Field type selector */}
+                    <div>
+                      <label className="text-xs text-muted-foreground">Field Type</label>
+                      <select
+                        value={availableFields.find((f) => f.name === columns[selectedColumnIndex].field)?.type ?? 'text'}
+                        onChange={(e) => {
+                          if (readOnly) return;
+                          // Field type is informational — stored on the availableField, not the column
+                        }}
+                        className="w-full px-2 py-1 text-sm border rounded bg-background mt-1"
+                        disabled={readOnly}
+                        data-testid="column-field-type"
+                      >
+                        {DESIGNER_FIELD_TYPES.map((ft) => (
+                          <option key={ft.value} value={ft.value}>
+                            {ft.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <div>
                       <label className="text-xs text-muted-foreground">{LABELS.widthField}</label>
                       <input
@@ -727,19 +778,30 @@ export function ViewDesigner({
                           if (readOnly) return;
                           const idx = selectedColumnIndex;
                           const val = e.target.value;
-                          pushState({
-                            columns: columns.map((c, i) =>
-                              i === idx
-                                ? { ...c, width: /^\d+$/.test(val) ? Number(val) : val }
-                                : c,
-                            ),
-                          });
+                          if (val === '' || val === 'auto') {
+                            pushState({
+                              columns: columns.map((c, i) => (i === idx ? { ...c, width: val || undefined } : c)),
+                            });
+                            return;
+                          }
+                          if (/^\d+$/.test(val)) {
+                            const num = Number(val);
+                            const clamped = Math.max(COLUMN_WIDTH_MIN, Math.min(COLUMN_WIDTH_MAX, num));
+                            pushState({
+                              columns: columns.map((c, i) => (i === idx ? { ...c, width: clamped } : c)),
+                            });
+                            return;
+                          }
+                          // Reject non-numeric, non-auto values
                         }}
                         placeholder={LABELS.widthPlaceholder}
                         className="w-full px-2 py-1 text-sm border rounded bg-background mt-1"
                         readOnly={readOnly}
                         data-testid="column-width-input"
                       />
+                      <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                        {COLUMN_WIDTH_MIN}–{COLUMN_WIDTH_MAX}px or &quot;auto&quot;
+                      </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {LABELS.fieldLabel} <span className="font-mono">{columns[selectedColumnIndex].field}</span>

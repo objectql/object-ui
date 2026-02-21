@@ -11,7 +11,7 @@ import type { DataModelEntity, DataModelField, DataModelRelationship, DesignerCa
 import { Database, Plus, Trash2, Link2, Undo2, Redo2, Grid3X3, ZoomIn, ZoomOut, RotateCcw, ChevronDown, ChevronRight, Copy, Clipboard, Users } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { useUndoRedo } from './hooks/useUndoRedo';
+import { useDesignerHistory } from './hooks/useDesignerHistory';
 import { useConfirmDialog } from './hooks/useConfirmDialog';
 import { useMultiSelect } from './hooks/useMultiSelect';
 import { useClipboard } from './hooks/useClipboard';
@@ -24,6 +24,14 @@ import { useCollaboration } from './CollaborationProvider';
 function cn(...inputs: (string | undefined | false)[]) {
   return twMerge(clsx(inputs));
 }
+
+/** Supported data field types for the DataModel designer */
+const DATA_MODEL_FIELD_TYPES = [
+  'text', 'number', 'boolean', 'date', 'datetime', 'uuid',
+  'email', 'url', 'phone', 'json', 'integer', 'float',
+  'decimal', 'currency', 'percent', 'textarea', 'select',
+  'multiselect', 'lookup', 'attachment', 'formula', 'autonumber',
+] as const;
 
 /** Arrange entities in a grid layout */
 function calculateGridAutoLayout(
@@ -88,7 +96,7 @@ export function DataModelDesigner({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // --- Undo/Redo ---
-  const undoRedo = useUndoRedo<DesignerState>(
+  const undoRedo = useDesignerHistory<DesignerState>(
     { entities: initialEntities, relationships: initialRelationships },
     { maxHistory: 50 },
   );
@@ -130,6 +138,10 @@ export function DataModelDesigner({
   // --- Inline field editing ---
   const [editingField, setEditingField] = useState<{ entityId: string; fieldIndex: number } | null>(null);
   const [editingFieldValue, setEditingFieldValue] = useState('');
+
+  // --- Inline entity label editing ---
+  const [editingEntityLabel, setEditingEntityLabel] = useState<string | null>(null);
+  const [editingEntityLabelValue, setEditingEntityLabelValue] = useState('');
 
   // --- Drag state ---
   const dragRef = useRef<{ entityId: string; offsetX: number; offsetY: number } | null>(null);
@@ -305,6 +317,58 @@ export function DataModelDesigner({
     setEditingField(null);
   }, []);
 
+  // --- Inline entity label editing ---
+  const handleStartEntityLabelEdit = useCallback(
+    (entityId: string, currentLabel: string) => {
+      if (readOnly) return;
+      setEditingEntityLabel(entityId);
+      setEditingEntityLabelValue(currentLabel);
+    },
+    [readOnly],
+  );
+
+  const handleCommitEntityLabelEdit = useCallback(() => {
+    if (!editingEntityLabel) return;
+    const trimmed = editingEntityLabelValue.trim();
+    if (trimmed === '') {
+      setEditingEntityLabel(null);
+      return;
+    }
+    const current = undoRedo.current;
+    const next: DesignerState = {
+      entities: current.entities.map((e) =>
+        e.id === editingEntityLabel ? { ...e, label: trimmed } : e,
+      ),
+      relationships: current.relationships,
+    };
+    pushState(next);
+    setEditingEntityLabel(null);
+  }, [editingEntityLabel, editingEntityLabelValue, undoRedo, pushState]);
+
+  const handleCancelEntityLabelEdit = useCallback(() => {
+    setEditingEntityLabel(null);
+  }, []);
+
+  // --- Field type change ---
+  const handleFieldTypeChange = useCallback(
+    (entityId: string, fieldIndex: number, newType: string) => {
+      if (readOnly) return;
+      const current = undoRedo.current;
+      const next: DesignerState = {
+        entities: current.entities.map((e) => {
+          if (e.id !== entityId) return e;
+          const fields = e.fields.map((f, i) =>
+            i === fieldIndex ? { ...f, type: newType } : f,
+          );
+          return { ...e, fields };
+        }),
+        relationships: current.relationships,
+      };
+      pushState(next);
+    },
+    [readOnly, undoRedo, pushState],
+  );
+
   // --- Drag to reposition ---
   const handleDragStart = useCallback(
     (e: React.DragEvent, entityId: string) => {
@@ -411,6 +475,7 @@ export function DataModelDesigner({
       } else if (e.key === 'Escape') {
         multiSelect.clearSelection();
         setEditingField(null);
+        setEditingEntityLabel(null);
       }
     };
     el.addEventListener('keydown', handleKeyDown);
@@ -654,7 +719,34 @@ export function DataModelDesigner({
                   style={{ backgroundColor: entity.color ?? 'hsl(var(--primary) / 0.1)' }}
                 >
                   <Database className="h-3.5 w-3.5" />
-                  <span className="truncate">{entity.label}</span>
+                  {editingEntityLabel === entity.id ? (
+                    <input
+                      type="text"
+                      value={editingEntityLabelValue}
+                      onChange={(e) => setEditingEntityLabelValue(e.target.value)}
+                      onBlur={handleCommitEntityLabelEdit}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleCommitEntityLabelEdit();
+                        if (e.key === 'Escape') handleCancelEntityLabelEdit();
+                      }}
+                      className="text-sm font-medium px-1 py-0 border rounded bg-background w-32 focus:outline-none focus:ring-1 focus:ring-primary"
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                      data-testid={`entity-label-input-${entity.id}`}
+                    />
+                  ) : (
+                    <span
+                      className="truncate cursor-text"
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        handleStartEntityLabelEdit(entity.id, entity.label);
+                      }}
+                      title="Double-click to edit label"
+                      data-testid={`entity-label-${entity.id}`}
+                    >
+                      {entity.label}
+                    </span>
+                  )}
                   {!readOnly && (
                     <button
                       onClick={(e) => {
@@ -709,7 +801,24 @@ export function DataModelDesigner({
                           {field.name}
                         </span>
                       )}
-                      <span className="text-muted-foreground ml-auto">{field.type}</span>
+                      {!readOnly ? (
+                        <select
+                          value={field.type}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            handleFieldTypeChange(entity.id, fieldIndex, e.target.value);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-muted-foreground ml-auto bg-transparent border-none focus:ring-1 focus:ring-primary rounded cursor-pointer p-0"
+                          data-testid={`field-type-${entity.id}-${fieldIndex}`}
+                        >
+                          {DATA_MODEL_FIELD_TYPES.map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-muted-foreground ml-auto">{field.type}</span>
+                      )}
                       {field.required && <span className="text-destructive">*</span>}
                     </div>
                   ))}
