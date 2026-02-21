@@ -119,13 +119,13 @@ describe('Mobile Card View: Title hierarchy', () => {
 // 2. Currency Formatting
 // =========================================================================
 describe('Mobile Card View: Currency formatting', () => {
-  it('should format Amount as currency ($150,000.00)', async () => {
+  it('should format Amount as compact currency ($150K)', async () => {
     renderGrid(opportunityData, opportunityColumns);
 
     await waitFor(() => {
-      expect(screen.getByText('$150,000.00')).toBeInTheDocument();
-      expect(screen.getByText('$45,000.00')).toBeInTheDocument();
-      expect(screen.getByText('$85,000.00')).toBeInTheDocument();
+      expect(screen.getByText('$150K')).toBeInTheDocument();
+      expect(screen.getByText('$45K')).toBeInTheDocument();
+      expect(screen.getByText('$85K')).toBeInTheDocument();
     });
   });
 });
@@ -185,7 +185,7 @@ describe('Mobile Card View: Stage colored badge', () => {
 // 4. Date Formatting
 // =========================================================================
 describe('Mobile Card View: Date formatting', () => {
-  it('should format close_date as short date (not ISO string)', async () => {
+  it('should format close_date as compact short date (not ISO string)', async () => {
     renderGrid(opportunityData, opportunityColumns);
 
     await waitFor(() => {
@@ -193,8 +193,8 @@ describe('Mobile Card View: Date formatting', () => {
       expect(screen.queryByText('2024-01-15T00:00:00.000Z')).not.toBeInTheDocument();
       expect(screen.queryByText('2024-03-30T00:00:00.000Z')).not.toBeInTheDocument();
 
-      // Should show formatted date (en-US short format)
-      expect(screen.getByText('Jan 15, 2024')).toBeInTheDocument();
+      // Should show compact date format (e.g. "Jan 15, '24")
+      expect(screen.getByText("Jan 15, '24")).toBeInTheDocument();
     });
   });
 });
@@ -239,12 +239,117 @@ describe('Mobile Card View: Card structure', () => {
     });
   });
 
-  it('should render Close Date label in the card', async () => {
+  it('should render compact date and percent in combined row', async () => {
     renderGrid(opportunityData, opportunityColumns);
 
     await waitFor(() => {
-      const labels = screen.getAllByText('Close Date');
-      expect(labels.length).toBeGreaterThanOrEqual(1);
+      // Compact date visible
+      const dateEls = screen.getAllByText("Jan 15, '24");
+      expect(dateEls.length).toBeGreaterThanOrEqual(1);
+      // Probability shown as percent
+      expect(screen.getByText('100%')).toBeInTheDocument();
+    });
+  });
+});
+
+// =========================================================================
+// 7. Percent/Probability Display
+// =========================================================================
+describe('Mobile Card View: Percent field display', () => {
+  it('should render probability values with % suffix', async () => {
+    renderGrid(opportunityData, opportunityColumns);
+
+    await waitFor(() => {
+      expect(screen.getByText('100%')).toBeInTheDocument();
+      expect(screen.getByText('80%')).toBeInTheDocument();
+      expect(screen.getByText('60%')).toBeInTheDocument();
+    });
+  });
+
+  it('should hide empty/null percent fields', async () => {
+    const dataWithNull = [
+      { _id: '201', name: 'Test Deal', amount: 50000, stage: 'Proposal', close_date: '2024-06-01', probability: null },
+    ];
+    renderGrid(dataWithNull, opportunityColumns);
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Deal')).toBeInTheDocument();
+      // "Probability" label should NOT appear since value is null
+      expect(screen.queryByText('Probability')).not.toBeInTheDocument();
+    });
+  });
+});
+
+// =========================================================================
+// 8. Left Border Stage Color
+// =========================================================================
+describe('Mobile Card View: Left border stage accent', () => {
+  it('should add green left border for Closed Won stage', async () => {
+    const { container } = renderGrid(opportunityData, opportunityColumns);
+
+    await waitFor(() => {
+      const cards = container.querySelectorAll('.border.rounded-lg');
+      expect(cards[0].className).toContain('border-l-green-500');
+    });
+  });
+
+  it('should add yellow left border for Negotiation stage', async () => {
+    const { container } = renderGrid(opportunityData, opportunityColumns);
+
+    await waitFor(() => {
+      const cards = container.querySelectorAll('.border.rounded-lg');
+      expect(cards[1].className).toContain('border-l-yellow-500');
+    });
+  });
+
+  it('should add blue left border for Proposal stage', async () => {
+    const { container } = renderGrid(opportunityData, opportunityColumns);
+
+    await waitFor(() => {
+      const cards = container.querySelectorAll('.border.rounded-lg');
+      expect(cards[2].className).toContain('border-l-blue-500');
+    });
+  });
+});
+
+// =========================================================================
+// 9. Badge Truncation Fix
+// =========================================================================
+describe('Mobile Card View: Badge truncation handling', () => {
+  it('should have shrink-0, max-w, and truncate classes on stage badges', async () => {
+    renderGrid(opportunityData, opportunityColumns);
+
+    await waitFor(() => {
+      const badge = screen.getByText('Closed Won');
+      expect(badge.className).toContain('shrink-0');
+      expect(badge.className).toContain('max-w-[140px]');
+      expect(badge.className).toContain('truncate');
+    });
+  });
+});
+
+// =========================================================================
+// 10. Empty field hiding
+// =========================================================================
+describe('Mobile Card View: Empty field hiding', () => {
+  it('should not render "other" fields with null/empty values', async () => {
+    const columnsWithExtra: ListColumn[] = [
+      { field: 'name', label: 'Name' },
+      { field: 'amount', label: 'Amount' },
+      { field: 'stage', label: 'Stage' },
+      { field: 'description', label: 'Description' },
+    ];
+    const dataWithEmpty = [
+      { _id: '301', name: 'Deal A', amount: 10000, stage: 'Proposal', description: null },
+      { _id: '302', name: 'Deal B', amount: 20000, stage: 'Proposal', description: 'Has value' },
+    ];
+    renderGrid(dataWithEmpty, columnsWithExtra);
+
+    await waitFor(() => {
+      // "Description" label should appear only for Deal B (has value), not Deal A (null)
+      const descLabels = screen.getAllByText('Description');
+      expect(descLabels.length).toBe(1);
+      expect(screen.getByText('Has value')).toBeInTheDocument();
     });
   });
 });

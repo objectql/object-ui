@@ -24,7 +24,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction } from '@object-ui/react';
-import { getCellRenderer, formatCurrency, formatDate } from '@object-ui/fields';
+import { getCellRenderer, formatCurrency, formatCompactCurrency, formatDate, formatPercent } from '@object-ui/fields';
 import {
   Badge, Button, NavigationOverlay,
   Popover, PopoverContent, PopoverTrigger,
@@ -859,6 +859,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     const amountKeys = ['amount', 'price', 'total', 'revenue', 'cost', 'value', 'budget', 'salary'];
     const stageKeys = ['stage', 'status', 'priority', 'category', 'severity', 'level'];
     const dateKeys = ['date', 'due', 'created', 'updated', 'deadline', 'start', 'end', 'expires'];
+    const percentKeys = ['probability', 'percent', 'rate', 'ratio', 'confidence', 'score'];
 
     // Stage badge color mapping for common pipeline stages
     const stageBadgeColor = (value: string): string => {
@@ -878,11 +879,30 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       return 'bg-gray-100 text-gray-800 border-gray-300';
     };
 
-    const classify = (key: string): 'amount' | 'stage' | 'date' | 'other' => {
+    // Left border color for card accent based on stage
+    const stageBorderLeft = (value: string): string => {
+      const v = (value || '').toLowerCase();
+      if (v.includes('won') || v.includes('completed') || v.includes('done') || v.includes('active'))
+        return 'border-l-green-500';
+      if (v.includes('lost') || v.includes('cancelled') || v.includes('rejected'))
+        return 'border-l-red-500';
+      if (v.includes('negotiation') || v.includes('review') || v.includes('in progress'))
+        return 'border-l-yellow-500';
+      if (v.includes('proposal') || v.includes('pending'))
+        return 'border-l-blue-500';
+      if (v.includes('qualification') || v.includes('qualified'))
+        return 'border-l-indigo-500';
+      if (v.includes('prospecting') || v.includes('new') || v.includes('open'))
+        return 'border-l-purple-500';
+      return 'border-l-gray-300';
+    };
+
+    const classify = (key: string): 'amount' | 'stage' | 'date' | 'percent' | 'other' => {
       const k = key.toLowerCase();
       if (amountKeys.some(p => k.includes(p))) return 'amount';
       if (stageKeys.some(p => k.includes(p))) return 'stage';
       if (dateKeys.some(p => k.includes(p))) return 'date';
+      if (percentKeys.some(p => k.includes(p))) return 'percent';
       return 'other';
     };
 
@@ -895,37 +915,46 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
             const amountCol = secondaryCols.find((c: any) => classify(c.accessorKey) === 'amount');
             const stageCol = secondaryCols.find((c: any) => classify(c.accessorKey) === 'stage');
             const dateCols = secondaryCols.filter((c: any) => classify(c.accessorKey) === 'date');
+            const percentCols = secondaryCols.filter((c: any) => classify(c.accessorKey) === 'percent');
             const otherCols = secondaryCols.filter(
-              (c: any) => c !== amountCol && c !== stageCol && !dateCols.includes(c)
+              (c: any) => c !== amountCol && c !== stageCol && !dateCols.includes(c) && !percentCols.includes(c)
             );
+
+            // Determine left border accent color from stage value
+            const stageValue = stageCol ? String(row[stageCol.accessorKey] ?? '') : '';
+            const leftBorderClass = stageValue ? stageBorderLeft(stageValue) : '';
+            const cardClassName = [
+              'border rounded-lg p-2.5 bg-card hover:bg-accent/50 cursor-pointer transition-colors touch-manipulation',
+              leftBorderClass ? `border-l-[3px] ${leftBorderClass}` : '',
+            ].filter(Boolean).join(' ');
 
             return (
               <div
                 key={row.id || row._id || idx}
-                className="border rounded-lg p-3 bg-card hover:bg-accent/50 cursor-pointer transition-colors touch-manipulation"
+                className={cardClassName}
                 onClick={() => navigation.handleClick(row)}
               >
                 {/* Title row - Name as bold prominent title */}
                 {titleCol && (
-                  <div className="font-semibold text-sm truncate mb-1.5">
+                  <div className="font-semibold text-sm truncate mb-1">
                     {row[titleCol.accessorKey] ?? '—'}
                   </div>
                 )}
 
                 {/* Amount + Stage row - side by side for compact display */}
                 {(amountCol || stageCol) && (
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <div className="flex items-center justify-between gap-2 mb-1">
                     {amountCol && (
                       <span className="text-sm tabular-nums font-medium">
                         {typeof row[amountCol.accessorKey] === 'number'
-                          ? formatCurrency(row[amountCol.accessorKey])
+                          ? formatCompactCurrency(row[amountCol.accessorKey])
                           : row[amountCol.accessorKey] ?? '—'}
                       </span>
                     )}
                     {stageCol && row[stageCol.accessorKey] && (
                       <Badge
                         variant="outline"
-                        className={`text-xs ${stageBadgeColor(String(row[stageCol.accessorKey]))}`}
+                        className={`text-xs shrink-0 max-w-[140px] truncate ${stageBadgeColor(String(row[stageCol.accessorKey]))}`}
                       >
                         {row[stageCol.accessorKey]}
                       </Badge>
@@ -933,25 +962,47 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                   </div>
                 )}
 
-                {/* Date fields - formatted short date */}
-                {dateCols.map((col: any) => (
+                {/* Date + Percent combined row for density */}
+                {(dateCols.length > 0 || percentCols.length > 0) && (
+                  <div className="flex items-center justify-between py-0.5 text-xs text-muted-foreground">
+                    {dateCols[0] && (
+                      <span className="tabular-nums">
+                        {row[dateCols[0].accessorKey]
+                          ? formatDate(row[dateCols[0].accessorKey], 'short')
+                          : '—'}
+                      </span>
+                    )}
+                    {percentCols[0] && row[percentCols[0].accessorKey] != null && (
+                      <span className="tabular-nums">
+                        {formatPercent(Number(row[percentCols[0].accessorKey]))}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Additional date fields beyond the first */}
+                {dateCols.slice(1).map((col: any) => (
                   <div key={col.accessorKey} className="flex justify-between items-center py-0.5">
                     <span className="text-xs text-muted-foreground">{col.header}</span>
                     <span className="text-xs text-muted-foreground tabular-nums">
-                      {row[col.accessorKey] ? formatDate(row[col.accessorKey]) : '—'}
+                      {row[col.accessorKey] ? formatDate(row[col.accessorKey], 'short') : '—'}
                     </span>
                   </div>
                 ))}
 
-                {/* Other fields - standard key-value rows */}
-                {otherCols.map((col: any) => (
-                  <div key={col.accessorKey} className="flex justify-between items-center py-0.5">
-                    <span className="text-xs text-muted-foreground">{col.header}</span>
-                    <span className="text-xs font-medium truncate ml-2 text-right">
-                      {col.cell ? col.cell(row[col.accessorKey], row) : String(row[col.accessorKey] ?? '—')}
-                    </span>
-                  </div>
-                ))}
+                {/* Other fields - hide empty values on mobile */}
+                {otherCols.map((col: any) => {
+                  const val = row[col.accessorKey];
+                  if (val == null || val === '') return null;
+                  return (
+                    <div key={col.accessorKey} className="flex justify-between items-center py-0.5">
+                      <span className="text-xs text-muted-foreground">{col.header}</span>
+                      <span className="text-xs font-medium truncate ml-2 text-right">
+                        {col.cell ? col.cell(val, row) : String(val)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             );
           })}

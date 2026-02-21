@@ -75,6 +75,23 @@ export function formatCurrency(value: number, currency: string = 'USD'): string 
 }
 
 /**
+ * Format currency value in compact form for mobile display.
+ * E.g., $150,000 → $150K, $1,200,000 → $1.2M
+ */
+export function formatCompactCurrency(value: number, currency: string = 'USD'): string {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(value);
+  } catch {
+    return `${currency} ${value}`;
+  }
+}
+
+/**
  * Format percent value
  * Handles both decimal (0.8 = 80%) and whole number (80 = 80%) inputs.
  */
@@ -87,10 +104,18 @@ export function formatPercent(value: number, precision: number = 0): string {
 /**
  * Format date value
  */
-export function formatDate(value: string | Date, _format?: string): string {
+export function formatDate(value: string | Date, style?: string): string {
   if (!value) return '-';
   const date = typeof value === 'string' ? new Date(value) : value;
   if (isNaN(date.getTime())) return '-';
+
+  if (style === 'short') {
+    // Compact format for mobile: "Jan 15, '24"
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const day = date.getDate();
+    const year = String(date.getFullYear()).slice(-2);
+    return `${month} ${day}, '${year}`;
+  }
   
   // Default format: MMM DD, YYYY
   return date.toLocaleDateString('en-US', {

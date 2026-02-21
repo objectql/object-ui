@@ -75,6 +75,13 @@ All 11 plugin views (Grid, Kanban, Form, Dashboard, Calendar, Timeline, List, De
 - ModalForm: skeleton loading state, sticky action buttons, form grid forced to 1-column on mobile (`md:` breakpoint for multi-column).
 - Date/DateTime fields use native HTML5 inputs (`type="date"`, `type="datetime-local"`) for optimal mobile picker UX.
 - Form sections supported via `ModalFormSectionConfig` for visual field grouping.
+- Mobile card view optimizations for Opportunity list view:
+  - Stage badge truncation fix: `shrink-0 max-w-[140px] truncate` classes prevent right-edge overflow.
+  - Percent/probability field classification: auto-detected and rendered with `%` suffix; empty values hidden.
+  - Compact date format on mobile cards: `Jan 15, '24` (short style) saves horizontal space.
+  - Compact currency format: `$150K` notation (via `formatCompactCurrency`) replaces `$150,000.00`.
+  - Left border accent color per stage (green/red/yellow/blue/indigo/purple) for visual differentiation.
+  - Improved card density: combined date+percent row, reduced padding (`p-2.5`), tighter margins.
 
 ### v3.0.0 Spec Integration ✅
 
