@@ -69,10 +69,6 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     // Draft state for view config edits — cached locally, saved on demand
     const [viewDraft, setViewDraft] = useState<Record<string, any> | null>(null);
     
-    const handleViewConfigUpdate = useCallback((field: string, value: any) => {
-        // Buffered locally — ViewConfigPanel manages its own draft
-    }, []);
-    
     const handleViewConfigSave = useCallback((draft: Record<string, any>) => {
         setViewDraft(draft);
         setRefreshKey(k => k + 1);
@@ -505,7 +501,6 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                     activeView={activeView}
                     objectDef={objectDef}
                     recordCount={recordCount}
-                    onViewUpdate={handleViewConfigUpdate}
                     onOpenEditor={handleOpenEditor}
                     onSave={handleViewConfigSave}
                 />

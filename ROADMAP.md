@@ -49,7 +49,7 @@ Everything below has been built, tested, and verified. These items are stable an
 - **Animation:** 7 presets, reduced-motion aware, page transitions (9 types with View Transitions API).
 - **Notifications:** Toast/banner/snackbar with full CRUD integration.
 - **View Enhancements:** Gallery, column summary, grouping, row color, density modes, view sharing, ViewTabBar (reorder, pin, context menu, type-switch, personal/shared grouping).
-- **Inline View Config Panel:** Airtable-style right sidebar for view configuration (Page, Data, Appearance, User Filters, Actions, Advanced), breadcrumb header, record count footer, responsive mobile overlay, ARIA accessibility, auto-close on view switch — no page navigation required.
+- **Inline View Config Panel:** Airtable-style right sidebar for view configuration (Page, Data, Appearance, User Filters, Actions, Advanced), breadcrumb header, record count footer, responsive mobile overlay, ARIA accessibility, auto-close on view switch — no page navigation required. Full interactive editing support: inline title editing, Switch toggles for all boolean settings, ViewType select, clickable rows to open sub-editors (columns/filters/sort), local draft state with Save/Discard workflow, i18n in all 10 locales.
 
 ### Enterprise Features ✅
 

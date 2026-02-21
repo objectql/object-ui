@@ -114,7 +114,7 @@ describe('ViewConfigPanel', () => {
         expect(titleInput).toHaveValue('All Records');
     });
 
-    it('displays object description in readonly input', () => {
+    it('displays object description as plain text', () => {
         render(
             <ViewConfigPanel
                 open={true}
@@ -124,12 +124,10 @@ describe('ViewConfigPanel', () => {
             />
         );
 
-        const descInput = screen.getByTestId('view-description-input');
-        expect(descInput).toHaveValue('Track sales pipeline and deals');
-        expect(descInput).toHaveAttribute('readOnly');
+        expect(screen.getByText('Track sales pipeline and deals')).toBeInTheDocument();
     });
 
-    it('shows placeholder when object has no description', () => {
+    it('shows "no description" when object has no description', () => {
         render(
             <ViewConfigPanel
                 open={true}
@@ -139,8 +137,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
-        const descInput = screen.getByTestId('view-description-input');
-        expect(descInput).toHaveAttribute('placeholder', 'console.objectView.noDescription');
+        expect(screen.getByText('console.objectView.noDescription')).toBeInTheDocument();
     });
 
     it('displays column count', () => {

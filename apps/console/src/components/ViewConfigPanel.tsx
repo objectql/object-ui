@@ -208,13 +208,9 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUp
                         />
                     </ConfigRow>
                     <ConfigRow label={t('console.objectView.description')}>
-                        <Input
-                            data-testid="view-description-input"
-                            className="h-7 text-xs w-32 text-right italic"
-                            value={objectDef.description || ''}
-                            placeholder={t('console.objectView.noDescription')}
-                            readOnly
-                        />
+                        <span className="text-xs text-muted-foreground italic truncate ml-4 text-right">
+                            {objectDef.description || t('console.objectView.noDescription')}
+                        </span>
                     </ConfigRow>
                 </div>
 
