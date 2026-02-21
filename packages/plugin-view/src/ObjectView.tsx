@@ -914,7 +914,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     : layout;
 
   return (
-    <div className={cn('flex flex-col h-full', className)}>
+    <div className={cn('flex flex-col h-full min-w-0 overflow-hidden', className)}>
       {/* Title and description */}
       {(schema.title || schema.description) && (
         <div className="mb-4 shrink-0">
@@ -933,7 +933,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
         {renderContent()}
       </div>
 

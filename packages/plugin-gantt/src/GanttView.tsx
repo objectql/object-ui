@@ -138,7 +138,8 @@ export function GanttView({
     return cols;
   }, [timelineRange]);
 
-  const taskListWidth = 300;
+  // Responsive task list width — narrower on small screens
+  const taskListWidth = typeof window !== 'undefined' && window.innerWidth < 640 ? 120 : typeof window !== 'undefined' && window.innerWidth < 1024 ? 200 : 300;
   
   const headerRef = React.useRef<HTMLDivElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
@@ -170,7 +171,7 @@ export function GanttView({
   };
 
   return (
-    <div className={cn("flex flex-col h-full bg-background border rounded-lg overflow-hidden", className)}>
+    <div className={cn("flex flex-col h-full bg-background border rounded-lg overflow-hidden min-w-0", className)}>
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 border-b bg-card">
         <div className="flex items-center gap-2">

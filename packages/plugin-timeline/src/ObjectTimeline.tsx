@@ -185,7 +185,7 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   }
 
   return (
-    <div ref={pullRef} className="relative overflow-auto h-full">
+    <div ref={pullRef} className="relative overflow-auto h-full min-w-0">
       {pullDistance > 0 && (
         <div
           className="flex items-center justify-center text-xs text-muted-foreground"

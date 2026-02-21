@@ -23,7 +23,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData } from '@object-ui/types';
 import { useNavigationOverlay } from '@object-ui/react';
-import { NavigationOverlay } from '@object-ui/components';
+import { NavigationOverlay, cn } from '@object-ui/components';
 import { z } from 'zod';
 import MapGL, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
@@ -501,7 +501,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
 
   if (loading) {
     return (
-      <div className={className}>
+      <div className={cn("min-w-0 overflow-hidden", className)}>
         <div className="flex items-center justify-center h-96 bg-muted rounded-lg border">
           <div className="text-muted-foreground">Loading map...</div>
         </div>
@@ -511,7 +511,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
 
   if (error) {
     return (
-      <div className={className}>
+      <div className={cn("min-w-0 overflow-hidden", className)}>
         <div className="flex items-center justify-center h-96 bg-muted rounded-lg border">
           <div className="text-destructive">Error: {error.message}</div>
         </div>
@@ -520,7 +520,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
   }
 
   return (
-    <div className={className}>
+    <div className={cn("min-w-0 overflow-hidden", className)}>
       {invalidCount > 0 && (
         <div className="mb-2 p-2 text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded">
           {`${invalidCount} record${invalidCount !== 1 ? 's' : ''} with missing or invalid coordinates excluded from the map.`}

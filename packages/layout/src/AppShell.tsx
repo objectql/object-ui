@@ -140,7 +140,7 @@ export function AppShell({
           <div className="w-px h-4 bg-border mx-1 sm:mx-2" />
           {navbar}
         </header>
-        <main className={cn("flex-1 overflow-auto p-3 sm:p-4 md:p-6", className)}>
+        <main className={cn("flex-1 min-w-0 overflow-auto p-3 sm:p-4 md:p-6", className)}>
           {children}
         </main>
       </SidebarInset>

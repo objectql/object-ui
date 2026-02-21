@@ -388,7 +388,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     }), [objectDef.name, onEdit, activeView?.showSearch, activeView?.showFilters]);
 
     return (
-        <div className="h-full flex flex-col bg-background">
+        <div className="h-full flex flex-col bg-background min-w-0 overflow-hidden">
              {/* 1. Header with breadcrumb + description */}
              <div className="flex justify-between items-center py-2.5 sm:py-3 px-3 sm:px-4 border-b shrink-0 bg-background z-10">
                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
@@ -517,7 +517,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
 
              {/* 2. Content — Plugin ObjectView with ViewSwitcher + Filter + Sort */}
              <div className="flex-1 overflow-hidden relative flex flex-row">
-                <div className="flex-1 relative h-full flex flex-col">
+                <div className="flex-1 min-w-0 relative h-full flex flex-col">
                     <div className="flex-1 relative overflow-auto p-3 sm:p-4">
                         <PluginObjectView
                             key={refreshKey}

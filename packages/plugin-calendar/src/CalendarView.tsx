@@ -237,9 +237,9 @@ function CalendarView({
   }
 
   return (
-    <div role="region" aria-label="Calendar" className={cn("flex flex-col h-full bg-background", className)}>
+    <div role="region" aria-label="Calendar" className={cn("flex flex-col h-full bg-background min-w-0 overflow-hidden", className)}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-2 sm:p-4 border-b min-w-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center bg-muted/50 rounded-lg p-1 gap-1">
              <Button variant="ghost" size="sm" onClick={handleToday} className="h-8" aria-label="Go to today">
@@ -272,7 +272,7 @@ function CalendarView({
                 variant="ghost" 
                 aria-label={`Current date: ${getDateLabel()}`}
                 className={cn(
-                  "text-xl font-semibold h-auto px-3 py-1 hover:bg-muted/50 transition-colors",
+                  "text-base sm:text-xl font-semibold h-auto px-2 sm:px-3 py-1 hover:bg-muted/50 transition-colors",
                   "flex items-center gap-2"
                 )}
               >

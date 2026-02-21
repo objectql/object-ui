@@ -515,7 +515,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
 
       {swimlanes ? (
         /* Swimlane (2D) layout */
-        <div className={cn("flex flex-col gap-1 p-2 sm:p-4", className)} role="region" aria-label="Kanban board with swimlanes">
+        <div className={cn("flex flex-col gap-1 p-2 sm:p-4 min-w-0 overflow-hidden", className)} role="region" aria-label="Kanban board with swimlanes">
           {/* Column headers */}
           <div className="flex gap-3 sm:gap-4 pl-36 sm:pl-44 overflow-x-auto">
             {boardColumns.map(col => (
@@ -572,7 +572,7 @@ function KanbanBoardInner({ columns, onCardMove, onCardClick, className, dnd, qu
         </div>
       ) : (
         /* Standard flat layout */
-        <div className={cn("flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory p-2 sm:p-4 bg-muted/10 rounded-lg [-webkit-overflow-scrolling:touch]", className)} role="region" aria-label="Kanban board">
+        <div className={cn("flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory p-2 sm:p-4 bg-muted/10 rounded-lg [-webkit-overflow-scrolling:touch] min-w-0", className)} role="region" aria-label="Kanban board">
           {boardColumns.map((column) => (
             <KanbanColumnView
               key={column.id}

@@ -785,7 +785,7 @@ export const ListView: React.FC<ListViewProps> = ({
   return (
     <div
       ref={pullRef}
-      className={cn('flex flex-col h-full bg-background relative', className)}
+      className={cn('flex flex-col h-full bg-background relative min-w-0 overflow-hidden', className)}
       {...(schema.aria?.label ? { 'aria-label': schema.aria.label } : {})}
       {...(schema.aria?.describedBy ? { 'aria-describedby': schema.aria.describedBy } : {})}
       {...(schema.aria?.live ? { 'aria-live': schema.aria.live } : {})}
