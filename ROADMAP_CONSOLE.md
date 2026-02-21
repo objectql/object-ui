@@ -1103,7 +1103,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 2027 Q1+ — v2.1: INLINE VIEW DESIGNER (✅ Complete)
 ═══════════════════════════════════════════════════════════
-  Phase 20: Inline ViewConfigPanel    ██████████████  ✅ Complete: Airtable-style right sidebar, full interactive editing (Switch toggles, inline title, ViewType select, sub-editor rows, draft Save/Discard), ARIA accessibility
+  Phase 20: Inline ViewConfigPanel    ██████████████  ✅ Complete: Airtable-style right sidebar, full interactive editing (Switch toggles, inline title, ViewType select, sub-editor rows, draft Save/Discard), ARIA accessibility, backend persistence via DataSource.updateViewConfig
 ```
 
 ### Milestone Summary
@@ -1118,7 +1118,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 | **v1.1** | v1.1.0 | ✅ Complete | Kanban + Forms + Import/Export (Phases 13-15); all L1 ✅ |
 | **v1.2** | v1.2.0 | ✅ L1 Complete | Undo/Redo + Collaboration (Phases 16-17); L1 integrated into console |
 | **v2.0** | v2.0.0 | ✅ L2 Complete | All L2 features: batch undo, expression formatting, conditional triggers, multi-step actions, swimlane persistence, keyboard nav, file validation, thread resolution, notification prefs |
-| **v2.1** | v2.1.0 | ✅ Complete | Inline ViewConfigPanel (Phase 20): Airtable-style right sidebar with full interactive editing support |
+| **v2.1** | v2.1.0 | ✅ Complete | Inline ViewConfigPanel (Phase 20): Airtable-style right sidebar with full interactive editing support, backend persistence via DataSource.updateViewConfig |
 
 ---
 

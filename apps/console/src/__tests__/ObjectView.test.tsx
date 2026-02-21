@@ -24,8 +24,16 @@ vi.mock('@object-ui/components', async (importOriginal) => {
     return {
         ...actual,
         cn: (...inputs: any[]) => inputs.filter(Boolean).join(' '),
-        Button: ({ children, onClick, title }: any) => <button onClick={onClick} title={title}>{children}</button>,
-        Input: (props: any) => <input {...props} data-testid="mock-input" />,
+        Button: ({ children, onClick, title, ...rest }: any) => <button onClick={onClick} title={title} {...rest}>{children}</button>,
+        Input: (props: any) => <input {...props} />,
+        Switch: ({ checked, onCheckedChange, ...props }: any) => (
+            <button
+                role="switch"
+                aria-checked={checked}
+                onClick={() => onCheckedChange?.(!checked)}
+                {...props}
+            />
+        ),
         ToggleGroup: ({ children, value, onValueChange }: any) => <div data-value={value} onChange={onValueChange}>{children}</div>,
         ToggleGroupItem: ({ children, value }: any) => <button data-value={value}>{children}</button>,
         Tabs: ({ value, onValueChange, children }: any) => (
@@ -337,5 +345,91 @@ describe('ObjectView Component', () => {
         // Wait for the record count to appear
         const footer = await screen.findByTestId('record-count-footer');
         expect(footer).toBeInTheDocument();
+    });
+
+    it('calls dataSource.updateViewConfig when saving view config', async () => {
+        const mockUpdateViewConfig = vi.fn().mockResolvedValue({});
+        const dsWithUpdate = {
+            ...mockDataSource,
+            updateViewConfig: mockUpdateViewConfig,
+        };
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={dsWithUpdate} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Open config panel
+        fireEvent.click(screen.getByTitle('console.objectView.designTools'));
+        fireEvent.click(screen.getByText('console.objectView.editView'));
+        expect(screen.getByTestId('view-config-panel')).toBeInTheDocument();
+
+        // Wait for draft to be initialized from activeView, then modify
+        const titleInput = await screen.findByDisplayValue('All Opportunities');
+        fireEvent.change(titleInput, { target: { value: 'My Custom View' } });
+
+        // Save button should appear after dirty state
+        const saveBtn = await screen.findByTestId('view-config-save');
+        fireEvent.click(saveBtn);
+
+        expect(mockUpdateViewConfig).toHaveBeenCalledOnce();
+        expect(mockUpdateViewConfig).toHaveBeenCalledWith(
+            'opportunity',
+            'all',
+            expect.objectContaining({ label: 'My Custom View' }),
+        );
+    });
+
+    it('logs warning when dataSource.updateViewConfig is not available', async () => {
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Open config panel
+        fireEvent.click(screen.getByTitle('console.objectView.designTools'));
+        fireEvent.click(screen.getByText('console.objectView.editView'));
+
+        // Make a change and save
+        const titleInput = await screen.findByDisplayValue('All Opportunities');
+        fireEvent.change(titleInput, { target: { value: 'Changed' } });
+        const saveBtn = await screen.findByTestId('view-config-save');
+        fireEvent.click(saveBtn);
+
+        expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining('updateViewConfig is not available'),
+        );
+        warnSpy.mockRestore();
+    });
+
+    it('logs error when dataSource.updateViewConfig rejects', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const dsWithFailingUpdate = {
+            ...mockDataSource,
+            updateViewConfig: vi.fn().mockRejectedValue(new Error('Network error')),
+        };
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={dsWithFailingUpdate} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Open config panel
+        fireEvent.click(screen.getByTitle('console.objectView.designTools'));
+        fireEvent.click(screen.getByText('console.objectView.editView'));
+
+        // Make a change and save
+        const titleInput = await screen.findByDisplayValue('All Opportunities');
+        fireEvent.change(titleInput, { target: { value: 'Failed' } });
+        const saveBtn = await screen.findByTestId('view-config-save');
+        fireEvent.click(saveBtn);
+
+        // Wait for the promise rejection to be caught
+        await vi.waitFor(() => {
+            expect(errorSpy).toHaveBeenCalledWith(
+                expect.stringContaining('Failed to persist view config'),
+                expect.any(Error),
+            );
+        });
+        errorSpy.mockRestore();
     });
 });

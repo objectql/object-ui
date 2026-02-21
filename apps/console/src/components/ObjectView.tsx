@@ -72,7 +72,22 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     const handleViewConfigSave = useCallback((draft: Record<string, any>) => {
         setViewDraft(draft);
         setRefreshKey(k => k + 1);
-    }, []);
+
+        // Persist to backend if dataSource supports it
+        if (dataSource?.updateViewConfig) {
+            const objName = objectName;
+            const vid = draft.id;
+            if (objName && vid) {
+                dataSource.updateViewConfig(objName, vid, draft).catch((err: any) => {
+                    console.error('[ViewConfigPanel] Failed to persist view config:', err);
+                });
+            } else {
+                console.warn('[ViewConfigPanel] Cannot persist view config: missing objectName or viewId.');
+            }
+        } else {
+            console.warn('[ViewConfigPanel] dataSource.updateViewConfig is not available. View config saved locally only.');
+        }
+    }, [dataSource, objectName]);
     
     const handleOpenEditor = useCallback((editor: EditorPanelType) => {
         console.info('[ViewConfigPanel] Open editor:', editor);

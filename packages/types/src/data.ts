@@ -238,6 +238,19 @@ export interface DataSource<T = any> {
   getView?(objectName: string, viewId: string): Promise<any | null>;
 
   /**
+   * Persist a view configuration to the backend.
+   * Called when a user saves view settings (columns, filters, sort, toggles, etc.)
+   * from the inline ViewConfigPanel.
+   * Optional — implementations that do not support view persistence may omit this.
+   *
+   * @param objectName - Object name
+   * @param viewId - View identifier (e.g., 'all', 'pipeline')
+   * @param config - The full view configuration to persist
+   * @returns Promise resolving to the persisted config (or void)
+   */
+  updateViewConfig?(objectName: string, viewId: string, config: Record<string, any>): Promise<Record<string, any> | void>;
+
+  /**
    * Get an application definition by name or ID.
    * Used by app shells to render server-defined navigation, branding, and layout.
    * Optional — implementations may return null to fall back to static config.
