@@ -14,12 +14,33 @@
  * url, action, group — plus separators, badges, visibility expressions,
  * and RBAC permission guards.
  *
+ * Enhanced with:
+ * - Search filtering across navigation tree
+ * - Pin/favorite navigation items (pinned items in "Favorites" section)
+ * - Drag-to-reorder navigation items via @dnd-kit
+ *
  * @module NavigationRenderer
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import * as LucideIcons from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -27,6 +48,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuAction,
   Collapsible,
   CollapsibleTrigger,
   CollapsibleContent,
@@ -74,6 +96,23 @@ export interface NavigationRendererProps {
 
   /** Called when an `action`-type item is clicked */
   onAction?: (item: NavigationItem) => void;
+
+  // --- P1.7 Navigation Enhancements ---
+
+  /** Search query to filter navigation items by label */
+  searchQuery?: string;
+
+  /** Enable pin/favorite toggle on navigation items */
+  enablePinning?: boolean;
+
+  /** Called when a navigation item is pinned or unpinned */
+  onPinToggle?: (itemId: string, pinned: boolean) => void;
+
+  /** Enable drag-to-reorder for navigation items */
+  enableReorder?: boolean;
+
+  /** Called when navigation items are reordered via drag */
+  onReorder?: (reorderedItems: NavigationItem[]) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +184,100 @@ function resolveHref(item: NavigationItem, basePath: string): { href: string; ex
 }
 
 // ---------------------------------------------------------------------------
+// Search filter helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Recursively filter navigation items by search query (case-insensitive label match).
+ * Groups are kept if any child matches, with non-matching children pruned.
+ */
+export function filterNavigationItems(
+  items: NavigationItem[],
+  query: string,
+): NavigationItem[] {
+  if (!query.trim()) return items;
+  const lowerQuery = query.toLowerCase().trim();
+
+  return items.reduce<NavigationItem[]>((acc, item) => {
+    // Separators are excluded during search
+    if (item.type === 'separator') return acc;
+
+    // Groups: recursively filter children
+    if (item.type === 'group' && item.children?.length) {
+      const filteredChildren = filterNavigationItems(item.children, query);
+      if (filteredChildren.length > 0) {
+        acc.push({ ...item, children: filteredChildren });
+      }
+      return acc;
+    }
+
+    // Leaf items: match label
+    if (item.label.toLowerCase().includes(lowerQuery)) {
+      acc.push(item);
+    }
+    return acc;
+  }, []);
+}
+
+/** Minimum drag distance in pixels to activate reorder */
+const DRAG_ACTIVATION_DISTANCE = 5;
+
+// ---------------------------------------------------------------------------
+// SortableNavigationItem (drag-reorder wrapper)
+// ---------------------------------------------------------------------------
+
+function SortableNavigationItem({
+  item,
+  basePath,
+  evalVis,
+  checkPerm,
+  onAction,
+  enablePinning,
+  onPinToggle,
+  enableReorder,
+}: {
+  item: NavigationItem;
+  basePath: string;
+  evalVis: VisibilityEvaluator;
+  checkPerm: PermissionChecker;
+  onAction?: (item: NavigationItem) => void;
+  enablePinning?: boolean;
+  onPinToggle?: (itemId: string, pinned: boolean) => void;
+  enableReorder?: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id, disabled: !enableReorder });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <NavigationItemRenderer
+        item={item}
+        basePath={basePath}
+        evalVis={evalVis}
+        checkPerm={checkPerm}
+        onAction={onAction}
+        enablePinning={enablePinning}
+        onPinToggle={onPinToggle}
+        dragListeners={enableReorder ? listeners : undefined}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // NavigationItemRenderer (recursive)
 // ---------------------------------------------------------------------------
 
@@ -154,12 +287,18 @@ function NavigationItemRenderer({
   evalVis,
   checkPerm,
   onAction,
+  enablePinning,
+  onPinToggle,
+  dragListeners,
 }: {
   item: NavigationItem;
   basePath: string;
   evalVis: VisibilityEvaluator;
   checkPerm: PermissionChecker;
   onAction?: (item: NavigationItem) => void;
+  enablePinning?: boolean;
+  onPinToggle?: (itemId: string, pinned: boolean) => void;
+  dragListeners?: Record<string, any>;
 }) {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(item.defaultOpen !== false);
@@ -203,6 +342,8 @@ function NavigationItemRenderer({
                     evalVis={evalVis}
                     checkPerm={checkPerm}
                     onAction={onAction}
+                    enablePinning={enablePinning}
+                    onPinToggle={onPinToggle}
                   />
                 ))}
               </SidebarMenu>
@@ -218,6 +359,11 @@ function NavigationItemRenderer({
     const Icon = resolveIcon(item.icon);
     return (
       <SidebarMenuItem>
+        {dragListeners && (
+          <span className="absolute left-0.5 top-1/2 -translate-y-1/2 cursor-grab text-muted-foreground" aria-label="Drag to reorder" {...dragListeners}>
+            <LucideIcons.GripVertical className="h-3.5 w-3.5" />
+          </span>
+        )}
         <SidebarMenuButton
           tooltip={item.label}
           onClick={() => onAction?.(item)}
@@ -230,6 +376,18 @@ function NavigationItemRenderer({
             </Badge>
           )}
         </SidebarMenuButton>
+        {enablePinning && onPinToggle && (
+          <SidebarMenuAction
+            onClick={() => onPinToggle(item.id, !item.pinned)}
+            aria-label={item.pinned ? `Unpin ${item.label}` : `Pin ${item.label}`}
+          >
+            {item.pinned ? (
+              <LucideIcons.PinOff className="h-3.5 w-3.5" />
+            ) : (
+              <LucideIcons.Pin className="h-3.5 w-3.5" />
+            )}
+          </SidebarMenuAction>
+        )}
       </SidebarMenuItem>
     );
   }
@@ -253,6 +411,11 @@ function NavigationItemRenderer({
 
   return (
     <SidebarMenuItem>
+      {dragListeners && (
+        <span className="absolute left-0.5 top-1/2 -translate-y-1/2 cursor-grab text-muted-foreground" aria-label="Drag to reorder" {...dragListeners}>
+          <LucideIcons.GripVertical className="h-3.5 w-3.5" />
+        </span>
+      )}
       <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
         {external ? (
           <a href={href} target="_blank" rel="noopener noreferrer">
@@ -264,6 +427,18 @@ function NavigationItemRenderer({
           </Link>
         )}
       </SidebarMenuButton>
+      {enablePinning && onPinToggle && (
+        <SidebarMenuAction
+          onClick={() => onPinToggle(item.id, !item.pinned)}
+          aria-label={item.pinned ? `Unpin ${item.label}` : `Pin ${item.label}`}
+        >
+          {item.pinned ? (
+            <LucideIcons.PinOff className="h-3.5 w-3.5" />
+          ) : (
+            <LucideIcons.Pin className="h-3.5 w-3.5" />
+          )}
+        </SidebarMenuAction>
+      )}
     </SidebarMenuItem>
   );
 }
@@ -282,6 +457,9 @@ function NavigationItemRenderer({
  * - Visibility expression evaluation
  * - RBAC permission guards
  * - Active-route highlighting
+ * - Search filtering across navigation tree
+ * - Pin/favorite items with dedicated "Favorites" section
+ * - Drag-to-reorder navigation items
  *
  * @example
  * ```tsx
@@ -290,6 +468,11 @@ function NavigationItemRenderer({
  *   basePath="/apps/crm"
  *   evaluateVisibility={(expr) => evaluateVisibility(expr, evaluator)}
  *   checkPermission={(perms) => perms.every(p => can(p))}
+ *   searchQuery={searchTerm}
+ *   enablePinning
+ *   onPinToggle={(id, pinned) => updatePin(id, pinned)}
+ *   enableReorder
+ *   onReorder={(items) => saveOrder(items)}
  * />
  * ```
  */
@@ -299,31 +482,121 @@ export function NavigationRenderer({
   evaluateVisibility: evalVis = defaultVisibility,
   checkPermission: checkPerm = defaultPermission,
   onAction,
+  searchQuery,
+  enablePinning,
+  onPinToggle,
+  enableReorder,
+  onReorder,
 }: NavigationRendererProps) {
-  // Sort top-level items by order
-  const sorted = items.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  // --- Search filtering ---
+  const filteredItems = useMemo(
+    () => (searchQuery ? filterNavigationItems(items, searchQuery) : items),
+    [items, searchQuery],
+  );
+
+  // --- Pinned items (favorites section) ---
+  const pinnedItems = useMemo(
+    () => collectPinnedItems(filteredItems),
+    [filteredItems],
+  );
+
+  // --- Sort top-level items by order ---
+  const sorted = filteredItems.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  // --- Drag-reorder sensors ---
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE } }),
+    useSensor(KeyboardSensor),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !onReorder) return;
+
+    const oldIndex = sorted.findIndex((i) => i.id === active.id);
+    const newIndex = sorted.findIndex((i) => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(sorted, oldIndex, newIndex).map((item, idx) => ({
+      ...item,
+      order: idx,
+    }));
+    onReorder(reordered);
+  };
+
+  // --- Shared renderer props ---
+  const itemProps = {
+    basePath,
+    evalVis,
+    checkPerm,
+    onAction,
+    enablePinning,
+    onPinToggle,
+  };
 
   const hasGroups = sorted.some((i) => i.type === 'group');
 
-  // No explicit groups → wrap in a single SidebarGroup
+  // --- Favorites section (pinned items) ---
+  const favoritesSection = pinnedItems.length > 0 && enablePinning ? (
+    <SidebarGroup>
+      <SidebarGroupLabel className="flex items-center gap-1.5">
+        <LucideIcons.Star className="h-3.5 w-3.5" />
+        Favorites
+      </SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {pinnedItems.map((item) => (
+            <NavigationItemRenderer
+              key={`fav-${item.id}`}
+              item={item}
+              {...itemProps}
+            />
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  ) : null;
+
+  // --- No explicit groups → wrap in a single SidebarGroup ---
   if (!hasGroups) {
-    return (
-      <SidebarGroup>
-        <SidebarGroupContent>
+    const topLevelIds = sorted.filter((i) => i.type !== 'group').map((i) => i.id);
+
+    const menuContent = enableReorder ? (
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={topLevelIds} strategy={verticalListSortingStrategy}>
           <SidebarMenu>
             {sorted.map((item) => (
-              <NavigationItemRenderer
+              <SortableNavigationItem
                 key={item.id}
                 item={item}
-                basePath={basePath}
-                evalVis={evalVis}
-                checkPerm={checkPerm}
-                onAction={onAction}
+                enableReorder={enableReorder}
+                {...itemProps}
               />
             ))}
           </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
+        </SortableContext>
+      </DndContext>
+    ) : (
+      <SidebarMenu>
+        {sorted.map((item) => (
+          <NavigationItemRenderer
+            key={item.id}
+            item={item}
+            {...itemProps}
+          />
+        ))}
+      </SidebarMenu>
+    );
+
+    return (
+      <>
+        {favoritesSection}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            {menuContent}
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </>
     );
   }
 
@@ -343,10 +616,7 @@ export function NavigationRenderer({
               <NavigationItemRenderer
                 key={item.id}
                 item={item}
-                basePath={basePath}
-                evalVis={evalVis}
-                checkPerm={checkPerm}
-                onAction={onAction}
+                {...itemProps}
               />
             ))}
           </SidebarMenu>
@@ -362,10 +632,7 @@ export function NavigationRenderer({
         <NavigationItemRenderer
           key={item.id}
           item={item}
-          basePath={basePath}
-          evalVis={evalVis}
-          checkPerm={checkPerm}
-          onAction={onAction}
+          {...itemProps}
         />,
       );
     } else {
@@ -375,5 +642,27 @@ export function NavigationRenderer({
 
   flushLeaves('leaf-end');
 
-  return <>{fragments}</>;
+  return (
+    <>
+      {favoritesSection}
+      {fragments}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Helper: collect all pinned items (leaf-only) from a navigation tree
+// ---------------------------------------------------------------------------
+
+function collectPinnedItems(items: NavigationItem[]): NavigationItem[] {
+  const pinned: NavigationItem[] = [];
+  for (const item of items) {
+    if (item.pinned && item.type !== 'group' && item.type !== 'separator') {
+      pinned.push(item);
+    }
+    if (item.children?.length) {
+      pinned.push(...collectPinnedItems(item.children));
+    }
+  }
+  return pinned;
 }

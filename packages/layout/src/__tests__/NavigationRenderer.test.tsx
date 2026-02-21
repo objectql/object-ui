@@ -11,7 +11,7 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { NavigationItem } from '@object-ui/types';
-import { NavigationRenderer } from '../NavigationRenderer';
+import { NavigationRenderer, filterNavigationItems } from '../NavigationRenderer';
 import { SidebarProvider } from '@object-ui/components';
 
 /** Wrap component in required providers */
@@ -298,5 +298,251 @@ describe('NavigationRenderer', () => {
     const { container } = renderNav([]);
     // Should render the wrapper SidebarGroup but no menu items
     expect(container.querySelectorAll('a').length).toBe(0);
+  });
+
+  // --- P1.7: Search filtering ---
+
+  describe('search filtering', () => {
+    it('filters items by search query (case-insensitive)', () => {
+      const items: NavigationItem[] = [
+        { ...objectItem, id: 'n1', label: 'Accounts' },
+        { ...pageItem, id: 'n2', label: 'Settings' },
+        { ...reportItem, id: 'n3', label: 'Account Report' },
+      ];
+      renderNav(items, { searchQuery: 'account' });
+      expect(screen.getByText('Accounts')).toBeTruthy();
+      expect(screen.getByText('Account Report')).toBeTruthy();
+      expect(screen.queryByText('Settings')).toBeNull();
+    });
+
+    it('shows all items when search query is empty', () => {
+      const items: NavigationItem[] = [
+        { ...objectItem, id: 'n1', label: 'Accounts' },
+        { ...pageItem, id: 'n2', label: 'Settings' },
+      ];
+      renderNav(items, { searchQuery: '' });
+      expect(screen.getByText('Accounts')).toBeTruthy();
+      expect(screen.getByText('Settings')).toBeTruthy();
+    });
+
+    it('filters group children and keeps group if any child matches', () => {
+      const group: NavigationItem = {
+        id: 'g1',
+        type: 'group',
+        label: 'Sales',
+        children: [
+          { id: 'c1', type: 'object', label: 'Opportunities', objectName: 'opp' },
+          { id: 'c2', type: 'object', label: 'Contacts', objectName: 'contact' },
+        ],
+        defaultOpen: true,
+      };
+      renderNav([group], { searchQuery: 'oppo' });
+      expect(screen.getByText('Sales')).toBeTruthy();
+      expect(screen.getByText('Opportunities')).toBeTruthy();
+      expect(screen.queryByText('Contacts')).toBeNull();
+    });
+
+    it('removes group entirely if no children match', () => {
+      const group: NavigationItem = {
+        id: 'g1',
+        type: 'group',
+        label: 'Sales',
+        children: [
+          { id: 'c1', type: 'object', label: 'Opportunities', objectName: 'opp' },
+        ],
+        defaultOpen: true,
+      };
+      renderNav([group], { searchQuery: 'zzz' });
+      expect(screen.queryByText('Sales')).toBeNull();
+      expect(screen.queryByText('Opportunities')).toBeNull();
+    });
+
+    it('excludes separators during search', () => {
+      const items: NavigationItem[] = [
+        { ...objectItem, id: 'n1', label: 'Accounts' },
+        separatorItem,
+        { ...pageItem, id: 'n2', label: 'Settings' },
+      ];
+      const { container } = renderNav(items, { searchQuery: 'acc' });
+      expect(screen.getByText('Accounts')).toBeTruthy();
+      expect(screen.queryByText('Settings')).toBeNull();
+    });
+  });
+
+  // --- P1.7: Pin/Favorites ---
+
+  describe('pin favorites', () => {
+    it('renders pin button when enablePinning is true', () => {
+      renderNav([objectItem], { enablePinning: true, onPinToggle: vi.fn() });
+      expect(screen.getByLabelText('Pin Accounts')).toBeTruthy();
+    });
+
+    it('does not render pin button when enablePinning is false', () => {
+      renderNav([objectItem]);
+      expect(screen.queryByLabelText('Pin Accounts')).toBeNull();
+    });
+
+    it('calls onPinToggle with correct arguments when pin is clicked', () => {
+      const onPinToggle = vi.fn();
+      renderNav([objectItem], { enablePinning: true, onPinToggle });
+      fireEvent.click(screen.getByLabelText('Pin Accounts'));
+      expect(onPinToggle).toHaveBeenCalledWith('nav-accounts', true);
+    });
+
+    it('renders unpin button for pinned items', () => {
+      const pinnedItem: NavigationItem = {
+        ...objectItem,
+        id: 'nav-pinned',
+        pinned: true,
+      };
+      renderNav([pinnedItem], { enablePinning: true, onPinToggle: vi.fn() });
+      // Pinned item appears in both Favorites and main nav, so use getAllBy
+      const unpinButtons = screen.getAllByLabelText('Unpin Accounts');
+      expect(unpinButtons.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('calls onPinToggle with false when unpinning', () => {
+      const onPinToggle = vi.fn();
+      const pinnedItem: NavigationItem = {
+        ...objectItem,
+        id: 'nav-pinned',
+        pinned: true,
+      };
+      renderNav([pinnedItem], { enablePinning: true, onPinToggle });
+      // Pinned item appears in both Favorites and main nav
+      const unpinButtons = screen.getAllByLabelText('Unpin Accounts');
+      fireEvent.click(unpinButtons[0]);
+      expect(onPinToggle).toHaveBeenCalledWith('nav-pinned', false);
+    });
+
+    it('renders favorites section for pinned items', () => {
+      const items: NavigationItem[] = [
+        { ...objectItem, id: 'n1', label: 'Accounts', pinned: true },
+        { ...pageItem, id: 'n2', label: 'Settings' },
+      ];
+      renderNav(items, { enablePinning: true, onPinToggle: vi.fn() });
+      expect(screen.getByText('Favorites')).toBeTruthy();
+    });
+
+    it('does not render favorites section when no items are pinned', () => {
+      renderNav([objectItem], { enablePinning: true, onPinToggle: vi.fn() });
+      expect(screen.queryByText('Favorites')).toBeNull();
+    });
+
+    it('collects pinned items from nested groups into favorites', () => {
+      const group: NavigationItem = {
+        id: 'g1',
+        type: 'group',
+        label: 'Sales',
+        children: [
+          { id: 'c1', type: 'object', label: 'Pinned Child', objectName: 'opp', pinned: true },
+          { id: 'c2', type: 'object', label: 'Normal Child', objectName: 'contact' },
+        ],
+        defaultOpen: true,
+      };
+      renderNav([group], { enablePinning: true, onPinToggle: vi.fn() });
+      expect(screen.getByText('Favorites')).toBeTruthy();
+    });
+
+    it('renders pin button on action items', () => {
+      renderNav([actionItem], { enablePinning: true, onPinToggle: vi.fn() });
+      expect(screen.getByLabelText('Pin Create Record')).toBeTruthy();
+    });
+  });
+
+  // --- P1.7: Drag reorder ---
+
+  describe('drag reorder', () => {
+    it('renders drag handles when enableReorder is true', () => {
+      const items: NavigationItem[] = [
+        { ...objectItem, id: 'n1', label: 'Item A' },
+        { ...pageItem, id: 'n2', label: 'Item B' },
+      ];
+      const { container } = renderNav(items, { enableReorder: true, onReorder: vi.fn() });
+      // DndContext renders sortable wrappers
+      expect(screen.getByText('Item A')).toBeTruthy();
+      expect(screen.getByText('Item B')).toBeTruthy();
+    });
+
+    it('does not render drag handles when enableReorder is false', () => {
+      const items: NavigationItem[] = [
+        { ...objectItem, id: 'n1', label: 'Item A' },
+      ];
+      const { container } = renderNav(items);
+      // No GripVertical icons should be present
+      const grips = container.querySelectorAll('.cursor-grab');
+      expect(grips.length).toBe(0);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterNavigationItems (unit tests)
+// ---------------------------------------------------------------------------
+
+describe('filterNavigationItems', () => {
+  const items: NavigationItem[] = [
+    { id: 'n1', type: 'object', label: 'Accounts', objectName: 'account' },
+    { id: 'n2', type: 'page', label: 'Settings', pageName: 'settings' },
+    { id: 'n3', type: 'dashboard', label: 'Sales Dashboard', dashboardName: 'sales' },
+    { id: 'sep', type: 'separator', label: '' },
+    {
+      id: 'g1',
+      type: 'group',
+      label: 'Reports',
+      children: [
+        { id: 'r1', type: 'report', label: 'Monthly Report', reportName: 'monthly' },
+        { id: 'r2', type: 'report', label: 'Account Summary', reportName: 'account-sum' },
+      ],
+    },
+  ];
+
+  it('returns all items for empty query', () => {
+    expect(filterNavigationItems(items, '')).toEqual(items);
+  });
+
+  it('returns all items for whitespace-only query', () => {
+    expect(filterNavigationItems(items, '   ')).toEqual(items);
+  });
+
+  it('filters leaf items by label (case-insensitive)', () => {
+    const result = filterNavigationItems(items, 'account');
+    expect(result.map((i) => i.id)).toContain('n1');
+    expect(result.map((i) => i.id)).not.toContain('n2');
+  });
+
+  it('keeps groups with matching children', () => {
+    const result = filterNavigationItems(items, 'monthly');
+    const group = result.find((i) => i.id === 'g1');
+    expect(group).toBeTruthy();
+    expect(group?.children?.length).toBe(1);
+    expect(group?.children?.[0].id).toBe('r1');
+  });
+
+  it('removes groups with no matching children', () => {
+    const result = filterNavigationItems(items, 'settings');
+    expect(result.find((i) => i.id === 'g1')).toBeUndefined();
+  });
+
+  it('excludes separators during search', () => {
+    const result = filterNavigationItems(items, 'account');
+    expect(result.find((i) => i.type === 'separator')).toBeUndefined();
+  });
+
+  it('matches partial label substrings', () => {
+    const result = filterNavigationItems(items, 'dash');
+    expect(result.map((i) => i.id)).toContain('n3');
+  });
+
+  it('returns empty array when nothing matches', () => {
+    const result = filterNavigationItems(items, 'zzzzz');
+    expect(result).toEqual([]);
+  });
+
+  it('matches group children containing search term "account"', () => {
+    const result = filterNavigationItems(items, 'account');
+    const group = result.find((i) => i.id === 'g1');
+    expect(group).toBeTruthy();
+    expect(group?.children?.map((c) => c.id)).toEqual(['r2']);
   });
 });

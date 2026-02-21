@@ -110,10 +110,10 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 ### P1.7 Console — Navigation Enhancements
 
-- [ ] AppShell `AppSchema` renderer (spec-driven sidebar from JSON)
-- [ ] Area switcher with grouped navigation
-- [ ] User-customizable sidebar (drag reorder, pin favorites)
-- [ ] Search within sidebar navigation
+- [x] AppShell `AppSchema` renderer (spec-driven sidebar from JSON)
+- [x] Area switcher with grouped navigation
+- [x] User-customizable sidebar (drag reorder, pin favorites)
+- [x] Search within sidebar navigation
 
 ### P1.8 Console — View Config Panel (Phase 20)
 

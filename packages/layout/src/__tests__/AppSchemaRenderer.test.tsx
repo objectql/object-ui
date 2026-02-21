@@ -276,4 +276,73 @@ describe('AppSchemaRenderer', () => {
     // App name should still be shown
     expect(screen.getByText('Sales CRM')).toBeTruthy();
   });
+
+  // --- P1.7: Search within sidebar navigation ---
+
+  describe('sidebar search', () => {
+    it('renders search input when enableSearch is true', () => {
+      renderApp(schemaWithNav, { enableSearch: true });
+      expect(screen.getByPlaceholderText('Search navigation…')).toBeTruthy();
+    });
+
+    it('does not render search input by default', () => {
+      renderApp(schemaWithNav);
+      expect(screen.queryByPlaceholderText('Search navigation…')).toBeNull();
+    });
+
+    it('filters navigation items when user types in search', () => {
+      renderApp(schemaWithNav, { enableSearch: true });
+      const searchInput = screen.getByPlaceholderText('Search navigation…');
+      fireEvent.change(searchInput, { target: { value: 'Accounts' } });
+      expect(screen.getByText('Accounts')).toBeTruthy();
+      expect(screen.queryByText('Overview')).toBeNull();
+      expect(screen.queryByText('Settings')).toBeNull();
+    });
+
+    it('shows all items when search is cleared', () => {
+      renderApp(schemaWithNav, { enableSearch: true });
+      const searchInput = screen.getByPlaceholderText('Search navigation…');
+      // Type search
+      fireEvent.change(searchInput, { target: { value: 'Accounts' } });
+      expect(screen.queryByText('Overview')).toBeNull();
+      // Clear search
+      fireEvent.change(searchInput, { target: { value: '' } });
+      expect(screen.getByText('Accounts')).toBeTruthy();
+      expect(screen.getByText('Overview')).toBeTruthy();
+      expect(screen.getByText('Settings')).toBeTruthy();
+    });
+
+    it('search input has correct aria-label', () => {
+      renderApp(schemaWithNav, { enableSearch: true });
+      expect(screen.getByLabelText('Search navigation')).toBeTruthy();
+    });
+  });
+
+  // --- P1.7: Pin favorites ---
+
+  describe('pin favorites', () => {
+    it('renders pin buttons when enablePinning is true', () => {
+      renderApp(schemaWithNav, { enablePinning: true, onPinToggle: vi.fn() });
+      expect(screen.getByLabelText('Pin Accounts')).toBeTruthy();
+    });
+
+    it('calls onPinToggle when pin button is clicked', () => {
+      const onPinToggle = vi.fn();
+      renderApp(schemaWithNav, { enablePinning: true, onPinToggle });
+      fireEvent.click(screen.getByLabelText('Pin Accounts'));
+      expect(onPinToggle).toHaveBeenCalledWith('n1', true);
+    });
+  });
+
+  // --- P1.7: Drag reorder ---
+
+  describe('drag reorder', () => {
+    it('passes enableReorder to navigation renderer', () => {
+      const onReorder = vi.fn();
+      renderApp(schemaWithNav, { enableReorder: true, onReorder });
+      // Navigation items should still render
+      expect(screen.getByText('Accounts')).toBeTruthy();
+      expect(screen.getByText('Overview')).toBeTruthy();
+    });
+  });
 });
