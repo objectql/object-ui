@@ -185,7 +185,7 @@ const SortableTab: React.FC<{
     opacity: isDragging ? 0.5 : undefined,
   };
 
-  return <>{children({ setNodeRef, style, listeners, attributes: attributes as Record<string, unknown>, isDragging })}</>;
+  return <>{children({ setNodeRef, style, listeners, attributes: attributes as unknown as Record<string, unknown>, isDragging })}</>;
 };
 
 /**
@@ -322,7 +322,7 @@ export const ViewTabBar: React.FC<ViewTabBarProps> = ({
       if (view.visibility === 'private') {
         return <Lock data-testid={`view-tab-visibility-${view.id}`} className="h-3 w-3 text-muted-foreground shrink-0" />;
       }
-      if (view.visibility && view.visibility !== 'private') {
+      if (view.visibility) {
         return <Globe data-testid={`view-tab-visibility-${view.id}`} className="h-3 w-3 text-muted-foreground shrink-0" />;
       }
       return null;
@@ -365,14 +365,14 @@ export const ViewTabBar: React.FC<ViewTabBarProps> = ({
             ref={renameInputRef}
             data-testid={`view-tab-rename-input-${view.id}`}
             value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRenameValue(e.target.value)}
             onBlur={commitRename}
-            onKeyDown={(e) => {
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
               if (e.key === 'Enter') commitRename();
               if (e.key === 'Escape') cancelRename();
             }}
             className="h-5 w-24 px-1 py-0 text-sm border-none focus-visible:ring-1"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e: React.MouseEvent<HTMLInputElement>) => e.stopPropagation()}
           />
         ) : (
           <span>{view.label}</span>
