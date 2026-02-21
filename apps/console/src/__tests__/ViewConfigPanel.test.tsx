@@ -127,13 +127,13 @@ describe('ViewConfigPanel', () => {
 
         expect(screen.getByTestId('view-config-panel')).toBeInTheDocument();
 
-        // Check section headers
-        expect(screen.getByText('console.objectView.page')).toBeInTheDocument();
+        // Check section headers (page appears in both breadcrumb and section)
+        expect(screen.getAllByText('console.objectView.page').length).toBeGreaterThanOrEqual(1);
         expect(screen.getByText('console.objectView.data')).toBeInTheDocument();
         expect(screen.getByText('console.objectView.appearance')).toBeInTheDocument();
-        expect(screen.getByText('console.objectView.userFilters')).toBeInTheDocument();
         expect(screen.getByText('console.objectView.userActions')).toBeInTheDocument();
-        expect(screen.getByText('console.objectView.advanced')).toBeInTheDocument();
+        // Breadcrumb shows view type label
+        expect(screen.getByTestId('panel-breadcrumb')).toBeInTheDocument();
     });
 
     it('displays view title in editable input', () => {
@@ -185,6 +185,10 @@ describe('ViewConfigPanel', () => {
                 objectDef={mockObjectDef}
             />
         );
+
+        // Expand the Fields sub-section by clicking the summary row
+        const fieldsRow = screen.getByText('console.objectView.fields');
+        fireEvent.click(fieldsRow);
 
         // 3 fields → 3 checkboxes
         expect(screen.getByTestId('column-selector')).toBeInTheDocument();
@@ -277,6 +281,10 @@ describe('ViewConfigPanel', () => {
                 objectDef={mockObjectDef}
             />
         );
+
+        // Expand sort and filter sub-sections
+        fireEvent.click(screen.getByText('console.objectView.sortBy'));
+        fireEvent.click(screen.getByText('console.objectView.filterBy'));
 
         // FilterBuilder should have 0 conditions
         expect(screen.getByTestId('mock-filter-builder')).toHaveAttribute('data-condition-count', '0');
@@ -457,6 +465,9 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        // Expand filter sub-section
+        fireEvent.click(screen.getByText('console.objectView.filterBy'));
+
         const fb = screen.getByTestId('mock-filter-builder');
         expect(fb).toHaveAttribute('data-condition-count', '1');
         expect(fb).toHaveAttribute('data-field-count', '3');
@@ -472,6 +483,9 @@ describe('ViewConfigPanel', () => {
                 objectDef={mockObjectDef}
             />
         );
+
+        // Expand sort sub-section
+        fireEvent.click(screen.getByText('console.objectView.sortBy'));
 
         const sb = screen.getByTestId('mock-sort-builder');
         expect(sb).toHaveAttribute('data-sort-count', '1');
@@ -491,6 +505,9 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        // Expand filter sub-section
+        fireEvent.click(screen.getByText('console.objectView.filterBy'));
+
         fireEvent.click(screen.getByTestId('filter-builder-add'));
         expect(onViewUpdate).toHaveBeenCalledWith('filter', expect.any(Array));
     });
@@ -507,6 +524,9 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        // Expand sort sub-section
+        fireEvent.click(screen.getByText('console.objectView.sortBy'));
+
         fireEvent.click(screen.getByTestId('sort-builder-add'));
         expect(onViewUpdate).toHaveBeenCalledWith('sort', expect.any(Array));
     });
@@ -522,6 +542,9 @@ describe('ViewConfigPanel', () => {
                 onViewUpdate={onViewUpdate}
             />
         );
+
+        // Expand the Fields sub-section
+        fireEvent.click(screen.getByText('console.objectView.fields'));
 
         // Uncheck the 'stage' column
         fireEvent.click(screen.getByTestId('col-checkbox-stage'));
@@ -717,6 +740,9 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        // Expand filter sub-section
+        fireEvent.click(screen.getByText('console.objectView.filterBy'));
+
         const fb = screen.getByTestId('mock-filter-builder');
         expect(fb).toHaveAttribute('data-condition-count', '2');
         expect(screen.getByTestId('filter-condition-0')).toHaveTextContent('stage equals active');
@@ -735,6 +761,9 @@ describe('ViewConfigPanel', () => {
                 objectDef={mockObjectDef}
             />
         );
+
+        // Expand filter sub-section
+        fireEvent.click(screen.getByText('console.objectView.filterBy'));
 
         const fb = screen.getByTestId('mock-filter-builder');
         expect(fb).toHaveAttribute('data-condition-count', '2');
@@ -758,6 +787,9 @@ describe('ViewConfigPanel', () => {
                 }}
             />
         );
+
+        // Expand filter sub-section
+        fireEvent.click(screen.getByText('console.objectView.filterBy'));
 
         // The mock FilterBuilder receives normalized fields via data-field-count
         const fb = screen.getByTestId('mock-filter-builder');
@@ -991,5 +1023,244 @@ describe('ViewConfigPanel', () => {
 
         // Now kanban groupBy should appear
         expect(screen.getByTestId('type-opt-kanban-groupByField')).toBeInTheDocument();
+    });
+
+    // ── Breadcrumb header tests ──
+
+    it('renders breadcrumb header with Page > ViewType', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        const breadcrumb = screen.getByTestId('panel-breadcrumb');
+        expect(breadcrumb).toBeInTheDocument();
+        expect(breadcrumb).toHaveTextContent('Grid');
+    });
+
+    it('breadcrumb updates when view type changes', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, type: 'kanban' }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        const breadcrumb = screen.getByTestId('panel-breadcrumb');
+        expect(breadcrumb).toHaveTextContent('Kanban');
+    });
+
+    // ── Collapsible section tests ──
+
+    it('collapses and expands Data section', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        // Data section is expanded by default — source row visible
+        expect(screen.getByText('Opportunity')).toBeInTheDocument();
+
+        // Click section header to collapse
+        const sectionBtn = screen.getByTestId('section-data');
+        fireEvent.click(sectionBtn);
+
+        // Source row should be hidden
+        expect(screen.queryByText('Opportunity')).not.toBeInTheDocument();
+
+        // Click again to expand
+        fireEvent.click(sectionBtn);
+        expect(screen.getByText('Opportunity')).toBeInTheDocument();
+    });
+
+    it('collapses and expands Appearance section', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        // Appearance section is expanded by default
+        expect(screen.getByTestId('toggle-showDescription')).toBeInTheDocument();
+
+        // Click section header to collapse
+        fireEvent.click(screen.getByTestId('section-appearance'));
+
+        // Toggle should be hidden
+        expect(screen.queryByTestId('toggle-showDescription')).not.toBeInTheDocument();
+    });
+
+    // ── Appearance fields tests ──
+
+    it('renders new appearance fields: color, fieldTextColor, rowHeight, wrapHeaders, collapseAllByDefault', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('appearance-color')).toBeInTheDocument();
+        expect(screen.getByTestId('appearance-fieldTextColor')).toBeInTheDocument();
+        expect(screen.getByTestId('appearance-rowHeight')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-wrapHeaders')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-collapseAllByDefault')).toBeInTheDocument();
+    });
+
+    it('changes row height via icon buttons', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        const mediumBtn = screen.getByTestId('row-height-medium');
+        fireEvent.click(mediumBtn);
+        expect(onViewUpdate).toHaveBeenCalledWith('rowHeight', 'medium');
+    });
+
+    it('toggles wrapHeaders via Switch', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('toggle-wrapHeaders'));
+        expect(onViewUpdate).toHaveBeenCalledWith('wrapHeaders', true);
+    });
+
+    // ── User actions fields tests ──
+
+    it('renders new user action fields: editRecordsInline, addDeleteRecordsInline, clickIntoRecordDetails', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('toggle-editRecordsInline')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-addDeleteRecordsInline')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-clickIntoRecordDetails')).toBeInTheDocument();
+    });
+
+    it('toggles editRecordsInline via Switch', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('toggle-editRecordsInline'));
+        expect(onViewUpdate).toHaveBeenCalledWith('editRecordsInline', false);
+    });
+
+    // ── Data section: Group by and Prefix field tests ──
+
+    it('renders Group by and Prefix field selectors in Data section', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('data-groupBy')).toBeInTheDocument();
+        expect(screen.getByTestId('data-prefixField')).toBeInTheDocument();
+    });
+
+    it('changes groupBy and propagates to kanban type option', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, type: 'kanban' }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        const groupBySelect = screen.getByTestId('data-groupBy');
+        fireEvent.change(groupBySelect, { target: { value: 'stage' } });
+
+        expect(onViewUpdate).toHaveBeenCalledWith('groupBy', 'stage');
+        expect(onViewUpdate).toHaveBeenCalledWith('kanban', expect.objectContaining({ groupByField: 'stage' }));
+    });
+
+    // ── Calendar endDateField test ──
+
+    it('shows calendar endDateField when view type is calendar', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, type: 'calendar' }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('type-opt-calendar-startDateField')).toBeInTheDocument();
+        expect(screen.getByTestId('type-opt-calendar-endDateField')).toBeInTheDocument();
+        expect(screen.getByTestId('type-opt-calendar-titleField')).toBeInTheDocument();
+    });
+
+    // ── Data sub-section expand/collapse tests ──
+
+    it('expands and collapses sort/filter/fields sub-sections in Data', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        // Sort sub-section starts collapsed
+        expect(screen.queryByTestId('inline-sort-builder')).not.toBeInTheDocument();
+
+        // Click to expand
+        fireEvent.click(screen.getByText('console.objectView.sortBy'));
+        expect(screen.getByTestId('inline-sort-builder')).toBeInTheDocument();
+
+        // Click again to collapse
+        fireEvent.click(screen.getByText('console.objectView.sortBy'));
+        expect(screen.queryByTestId('inline-sort-builder')).not.toBeInTheDocument();
     });
 });

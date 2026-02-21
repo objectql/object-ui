@@ -123,7 +123,14 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Unified create/edit mode (`mode="create"|"edit"`) — single panel entry point
 - [x] Unified data model (`UnifiedViewConfig`) for view configuration
 - [x] ViewDesigner retained as "Advanced Editor" with weaker entry point
-- [ ] View appearance settings (density, row color, conditional formatting)
+- [x] Panel header breadcrumb navigation (Page > List/Kanban/Gallery)
+- [x] Collapsible/expandable sections with chevron toggle
+- [x] Data section: Sort by (summary), Group by, Prefix field, Fields (count visible)
+- [x] Appearance section: Color, Field text color, Row height (icon toggle), Wrap headers, Show field descriptions, Collapse all by default
+- [x] User actions section: Edit records inline, Add/delete records inline, Click into record details
+- [x] Calendar endDateField support
+- [x] i18n for all 11 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko)
+- [ ] Conditional formatting rules
 
 ---
 
