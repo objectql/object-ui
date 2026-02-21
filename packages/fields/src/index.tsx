@@ -80,12 +80,15 @@ export function formatCurrency(value: number, currency: string = 'USD'): string 
  */
 export function formatCompactCurrency(value: number, currency: string = 'USD'): string {
   try {
-    return new Intl.NumberFormat('en-US', {
+    const formatted = new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency,
       notation: 'compact',
       maximumFractionDigits: 1,
     }).format(value);
+    // Strip trailing ".0" before compact suffix for consistent cross-environment output
+    // e.g. "$150.0K" → "$150K" while keeping "$1.5M" intact
+    return formatted.replace(/\.0(?=[KMBT]|$)/, '');
   } catch {
     return `${currency} ${value}`;
   }
