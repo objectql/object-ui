@@ -187,6 +187,8 @@ export interface ViewConfigPanelProps {
     open: boolean;
     /** Close callback */
     onClose: () => void;
+    /** Panel mode: "edit" for existing views, "create" for new views */
+    mode?: 'create' | 'edit';
     /** The active view definition */
     activeView: {
         id: string;
@@ -219,6 +221,8 @@ export interface ViewConfigPanelProps {
     onViewUpdate?: (field: string, value: any) => void;
     /** Called to persist all draft changes */
     onSave?: (draft: Record<string, any>) => void;
+    /** Called when create-mode view is created */
+    onCreate?: (config: Record<string, any>) => void;
 }
 
 /** A single labeled row in the config panel */
@@ -247,9 +251,24 @@ function SectionHeader({ title }: { title: string }) {
     );
 }
 
-export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUpdate, onSave }: ViewConfigPanelProps) {
+export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, objectDef, onViewUpdate, onSave, onCreate }: ViewConfigPanelProps) {
     const { t } = useObjectTranslation();
     const panelRef = useRef<HTMLDivElement>(null);
+
+    // Default empty view for create mode
+    const defaultNewView = useMemo(() => ({
+        id: `view_${Date.now()}`,
+        label: t('console.objectView.newView'),
+        type: 'grid',
+        columns: [],
+        filter: [],
+        sort: [],
+        showSearch: true,
+        showFilters: true,
+        showSort: true,
+    }), []);
+
+    const effectiveActiveView = mode === 'create' ? defaultNewView : activeView;
 
     // Local draft state — clone of activeView, mutated by UI interactions
     const [draft, setDraft] = useState<Record<string, any>>({});
@@ -260,9 +279,9 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUp
     // object so that real-time draft propagation (via onViewUpdate → parent
     // setViewDraft → merged activeView) does not reset isDirty to false.
     useEffect(() => {
-        setDraft({ ...activeView });
-        setIsDirty(false);
-    }, [activeView.id]);
+        setDraft({ ...effectiveActiveView });
+        setIsDirty(mode === 'create');
+    }, [mode === 'create' ? mode : activeView.id]);
 
     // Focus the panel when it opens for keyboard accessibility
     useEffect(() => {
@@ -280,16 +299,27 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUp
 
     /** Discard all draft changes */
     const handleDiscard = useCallback(() => {
+        if (mode === 'create') {
+            onClose();
+            return;
+        }
         setDraft({ ...activeView });
         setIsDirty(false);
-    }, [activeView]);
+    }, [activeView, mode, onClose]);
 
     /** Save draft via parent callback */
     const handleSave = useCallback(() => {
-        onSave?.(draft);
+        if (mode === 'create') {
+            onCreate?.(draft);
+        } else {
+            onSave?.(draft);
+        }
         setIsDirty(false);
-    }, [draft, onSave]);
+    }, [draft, onSave, onCreate, mode]);
 
+    const panelTitle = mode === 'create'
+        ? t('console.objectView.createView')
+        : t('console.objectView.configureView');
     const viewLabel = draft.label || draft.id || activeView.id;
     const viewType = draft.type || 'grid';
 
@@ -361,6 +391,12 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUp
         updateDraft('columns', currentCols);
     }, [draft.columns, updateDraft]);
 
+    /** Handle type-specific option change (e.g., kanban.groupByField, calendar.startDateField) */
+    const handleTypeOptionChange = useCallback((typeKey: string, optionKey: string, value: any) => {
+        const current = draft[typeKey] || {};
+        updateDraft(typeKey, { ...current, [optionKey]: value });
+    }, [draft, updateDraft]);
+
     if (!open) return null;
 
     return (
@@ -368,14 +404,14 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUp
             ref={panelRef}
             data-testid="view-config-panel"
             role="complementary"
-            aria-label={t('console.objectView.configureView')}
+            aria-label={panelTitle}
             tabIndex={-1}
             className="absolute inset-y-0 right-0 w-full sm:w-72 lg:w-80 sm:relative sm:inset-auto border-l bg-background flex flex-col shrink-0 z-20 transition-all overflow-hidden"
         >
             {/* Panel Header */}
             <div className="px-4 py-3 border-b flex items-center justify-between shrink-0">
                 <span className="text-sm font-semibold text-foreground truncate">
-                    {t('console.objectView.configureView')}
+                    {panelTitle}
                 </span>
                 <Button
                     size="sm"
@@ -486,6 +522,146 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUp
                         </select>
                     </ConfigRow>
                 </div>
+
+                {/* Type-Specific Options Section */}
+                {viewType !== 'grid' && (
+                    <>
+                        <SectionHeader title={t('console.objectView.typeOptions')} />
+                        <div data-testid="type-options-section" className="space-y-2">
+                            {viewType === 'kanban' && (
+                                <div>
+                                    <span className="text-xs text-muted-foreground">{t('console.objectView.groupByField')}</span>
+                                    <select
+                                        data-testid="type-opt-kanban-groupByField"
+                                        className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                        value={draft.kanban?.groupByField || draft.kanban?.groupField || ''}
+                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('kanban', 'groupByField', e.target.value)}
+                                    >
+                                        <option value="">{t('console.objectView.selectField')}</option>
+                                        {fieldOptions.map(f => (
+                                            <option key={f.value} value={f.value}>{f.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                            {viewType === 'calendar' && (
+                                <>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.startDateField')}</span>
+                                        <select
+                                            data-testid="type-opt-calendar-startDateField"
+                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                            value={draft.calendar?.startDateField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('calendar', 'startDateField', e.target.value)}
+                                        >
+                                            <option value="">{t('console.objectView.selectField')}</option>
+                                            {fieldOptions.map(f => (
+                                                <option key={f.value} value={f.value}>{f.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.titleField')}</span>
+                                        <select
+                                            data-testid="type-opt-calendar-titleField"
+                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                            value={draft.calendar?.titleField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('calendar', 'titleField', e.target.value)}
+                                        >
+                                            <option value="">{t('console.objectView.selectField')}</option>
+                                            {fieldOptions.map(f => (
+                                                <option key={f.value} value={f.value}>{f.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </>
+                            )}
+                            {viewType === 'map' && (
+                                <>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.latitudeField')}</span>
+                                        <select
+                                            data-testid="type-opt-map-latitudeField"
+                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                            value={draft.map?.latitudeField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('map', 'latitudeField', e.target.value)}
+                                        >
+                                            <option value="">{t('console.objectView.selectField')}</option>
+                                            {fieldOptions.map(f => (
+                                                <option key={f.value} value={f.value}>{f.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.longitudeField')}</span>
+                                        <select
+                                            data-testid="type-opt-map-longitudeField"
+                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                            value={draft.map?.longitudeField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('map', 'longitudeField', e.target.value)}
+                                        >
+                                            <option value="">{t('console.objectView.selectField')}</option>
+                                            {fieldOptions.map(f => (
+                                                <option key={f.value} value={f.value}>{f.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </>
+                            )}
+                            {viewType === 'gallery' && (
+                                <div>
+                                    <span className="text-xs text-muted-foreground">{t('console.objectView.imageField')}</span>
+                                    <select
+                                        data-testid="type-opt-gallery-imageField"
+                                        className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                        value={draft.gallery?.imageField || ''}
+                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('gallery', 'imageField', e.target.value)}
+                                    >
+                                        <option value="">{t('console.objectView.selectField')}</option>
+                                        {fieldOptions.map(f => (
+                                            <option key={f.value} value={f.value}>{f.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                            {(viewType === 'timeline' || viewType === 'gantt') && (
+                                <>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.dateField')}</span>
+                                        <select
+                                            data-testid={`type-opt-${viewType}-dateField`}
+                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                            value={draft[viewType]?.dateField || draft[viewType]?.startDateField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange(viewType, 'dateField', e.target.value)}
+                                        >
+                                            <option value="">{t('console.objectView.selectField')}</option>
+                                            {fieldOptions.map(f => (
+                                                <option key={f.value} value={f.value}>{f.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.titleField')}</span>
+                                        <select
+                                            data-testid={`type-opt-${viewType}-titleField`}
+                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                            value={draft[viewType]?.titleField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange(viewType, 'titleField', e.target.value)}
+                                        >
+                                            <option value="">{t('console.objectView.selectField')}</option>
+                                            {fieldOptions.map(f => (
+                                                <option key={f.value} value={f.value}>{f.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </>
+                )}
+                {viewType === 'grid' && (
+                    <div data-testid="type-options-section" className="hidden" />
+                )}
 
                 {/* User Filters Section */}
                 <SectionHeader title={t('console.objectView.userFilters')} />

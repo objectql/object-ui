@@ -444,6 +444,113 @@ export interface ViewDesignerSchema extends BaseSchema {
 }
 
 // ============================================================================
+// Unified View Configuration
+// ============================================================================
+
+/** View type union */
+export type UnifiedViewType = 'grid' | 'kanban' | 'gallery' | 'calendar' | 'timeline' | 'gantt' | 'map' | 'chart';
+
+/**
+ * Unified data model for view configuration.
+ *
+ * Used by both ViewConfigPanel (create/edit) and ViewDesigner (advanced editor).
+ * Columns may be simple field-name strings or rich ViewDesignerColumn objects;
+ * consumers should handle both.
+ */
+export interface UnifiedViewConfig {
+  /** View identifier */
+  id?: string;
+  /** Display label */
+  label?: string;
+  /** View type */
+  type?: UnifiedViewType;
+  /** Column configuration — simple field names or rich ViewDesignerColumn objects */
+  columns?: Array<string | ViewDesignerColumn>;
+  /** Filter conditions in @objectstack/spec JSON-rules array format */
+  filter?: any[];
+  /** Sort configuration */
+  sort?: Array<{ field: string; order?: string; direction?: string; id?: string }>;
+  /** Description */
+  description?: string;
+  /** Enable search bar */
+  showSearch?: boolean;
+  /** Enable user filter controls */
+  showFilters?: boolean;
+  /** Enable user sort controls */
+  showSort?: boolean;
+  /** Allow data export */
+  allowExport?: boolean;
+  /** Show view description */
+  showDescription?: boolean;
+  /** Enable "add record via form" action */
+  addRecordViaForm?: boolean;
+  /** Export options */
+  exportOptions?: any;
+
+  // -- Type-specific options (nested per @objectstack/spec protocol) ----------
+
+  /** Kanban-specific options */
+  kanban?: {
+    groupByField?: string;
+    groupField?: string;
+    titleField?: string;
+    columns?: string[];
+  };
+  /** Calendar-specific options */
+  calendar?: {
+    startDateField?: string;
+    endDateField?: string;
+    titleField?: string;
+    colorField?: string;
+    allDayField?: string;
+    defaultView?: string;
+  };
+  /** Map-specific options */
+  map?: {
+    locationField?: string;
+    titleField?: string;
+    latitudeField?: string;
+    longitudeField?: string;
+    zoom?: number;
+    center?: { lat: number; lng: number };
+  };
+  /** Gallery-specific options */
+  gallery?: {
+    imageField?: string;
+    titleField?: string;
+    subtitleField?: string;
+  };
+  /** Timeline-specific options */
+  timeline?: {
+    dateField?: string;
+    titleField?: string;
+    descriptionField?: string;
+  };
+  /** Gantt-specific options */
+  gantt?: {
+    startDateField?: string;
+    endDateField?: string;
+    titleField?: string;
+    progressField?: string;
+    dependenciesField?: string;
+    colorField?: string;
+  };
+  /** Chart-specific options */
+  chart?: {
+    chartType?: string;
+    xAxisField?: string;
+    yAxisFields?: string[];
+    aggregation?: string;
+    series?: any[];
+    config?: any;
+    filter?: any;
+  };
+
+  /** Catch-all for additional properties */
+  [key: string]: any;
+}
+
+// ============================================================================
 // Multi-User Collaborative Editing
 // ============================================================================
 

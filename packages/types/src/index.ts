@@ -542,6 +542,8 @@ export type {
   CollaborationConfig,
   ViewDesignerColumn,
   ViewDesignerSchema,
+  UnifiedViewType,
+  UnifiedViewConfig,
 } from './designer';
 
 // ============================================================================

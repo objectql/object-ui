@@ -65,6 +65,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     
     // Inline view config panel state (Airtable-style right sidebar)
     const [showViewConfigPanel, setShowViewConfigPanel] = useState(false);
+    const [viewConfigPanelMode, setViewConfigPanelMode] = useState<'create' | 'edit'>('edit');
     
     // Draft state for view config edits — cached locally, saved on demand
     const [viewDraft, setViewDraft] = useState<Record<string, any> | null>(null);
@@ -86,6 +87,21 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
             }
         } else {
             console.warn('[ViewConfigPanel] dataSource.updateViewConfig is not available. View config saved locally only.');
+        }
+    }, [dataSource, objectName]);
+
+    /** Create a new view via the config panel */
+    const handleViewCreate = useCallback(async (config: Record<string, any>) => {
+        try {
+            if (dataSource?.create) {
+                const payload = { objectName, ...config };
+                await dataSource.create('sys_view', payload);
+            }
+            setShowViewConfigPanel(false);
+            setViewConfigPanelMode('edit');
+            setRefreshKey(k => k + 1);
+        } catch (err) {
+            console.error('[ViewConfigPanel] Failed to create view:', err);
         }
     }, [dataSource, objectName]);
     
@@ -434,13 +450,18 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                           {t('console.objectView.metadataInspector')}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setShowViewConfigPanel(prev => !prev)}>
+                        <DropdownMenuItem onClick={() => { setViewConfigPanelMode('edit'); setShowViewConfigPanel(prev => !prev); }}>
                           <Settings2 className="h-4 w-4 mr-2" />
                           {t('console.objectView.editView')}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => navigate(viewId ? '../../views/new' : 'views/new', { relative: 'path' })}>
+                        <DropdownMenuItem onClick={() => { setViewConfigPanelMode('create'); setShowViewConfigPanel(true); }}>
                           <Plus className="h-4 w-4 mr-2" />
                           {t('console.objectView.addView')}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => navigate(viewId ? '../../views/new' : 'views/new', { relative: 'path' })}>
+                          <Wrench className="h-4 w-4 mr-2" />
+                          {t('console.objectView.advancedEditor')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -463,7 +484,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                    onViewChange={handleViewChange}
                    viewTypeIcons={VIEW_TYPE_ICONS}
                    config={{ ...objectDef.viewTabBar, reorderable: isAdmin ? true : objectDef.viewTabBar?.reorderable }}
-                   onAddView={isAdmin ? () => navigate(viewId ? '../../views/new' : 'views/new', { relative: 'path' }) : undefined}
+                   onAddView={isAdmin ? () => { setViewConfigPanelMode('create'); setShowViewConfigPanel(true); } : undefined}
                    onRenameView={(id, newName) => {
                      // Rename is wired for future backend integration
                      console.info('[ViewTabBar] Rename view:', id, newName);
@@ -528,12 +549,14 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                 {/* Inline View Config Panel — Airtable-style right sidebar */}
                 <ViewConfigPanel
                     open={showViewConfigPanel && isAdmin}
-                    onClose={() => setShowViewConfigPanel(false)}
+                    onClose={() => { setShowViewConfigPanel(false); setViewConfigPanelMode('edit'); }}
+                    mode={viewConfigPanelMode}
                     activeView={activeView}
                     objectDef={objectDef}
                     recordCount={recordCount}
                     onSave={handleViewConfigSave}
                     onViewUpdate={handleViewUpdate}
+                    onCreate={handleViewCreate}
                 />
              </div>
 

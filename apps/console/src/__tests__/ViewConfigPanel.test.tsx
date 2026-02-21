@@ -763,4 +763,233 @@ describe('ViewConfigPanel', () => {
         const fb = screen.getByTestId('mock-filter-builder');
         expect(fb).toHaveAttribute('data-field-count', '5');
     });
+
+    // ── Create mode (mode="create") tests ──
+
+    it('renders in create mode with "Create View" title', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                mode="create"
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        const panel = screen.getByTestId('view-config-panel');
+        expect(panel).toHaveAttribute('aria-label', 'console.objectView.createView');
+    });
+
+    it('shows save/discard footer immediately in create mode', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                mode="create"
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('view-config-footer')).toBeInTheDocument();
+    });
+
+    it('calls onCreate (not onSave) when saving in create mode', () => {
+        const onCreate = vi.fn();
+        const onSave = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                mode="create"
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onSave={onSave}
+                onCreate={onCreate}
+            />
+        );
+
+        // Change title first
+        const titleInput = screen.getByTestId('view-title-input');
+        fireEvent.change(titleInput, { target: { value: 'New Kanban' } });
+
+        fireEvent.click(screen.getByTestId('view-config-save'));
+
+        expect(onCreate).toHaveBeenCalledOnce();
+        expect(onCreate.mock.calls[0][0]).toMatchObject({ label: 'New Kanban' });
+        expect(onSave).not.toHaveBeenCalled();
+    });
+
+    it('calls onClose when discarding in create mode', () => {
+        const onClose = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={onClose}
+                mode="create"
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('view-config-discard'));
+        expect(onClose).toHaveBeenCalledOnce();
+    });
+
+    it('starts with default label in create mode', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                mode="create"
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        const titleInput = screen.getByTestId('view-title-input');
+        // In create mode, draft starts with the "New View" i18n key
+        expect(titleInput).toHaveValue('console.objectView.newView');
+    });
+
+    // ── Type-specific options tests ──
+
+    it('shows kanban groupByField when view type is kanban', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, type: 'kanban' }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('type-options-section')).toBeInTheDocument();
+        expect(screen.getByTestId('type-opt-kanban-groupByField')).toBeInTheDocument();
+    });
+
+    it('shows calendar fields when view type is calendar', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, type: 'calendar' }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('type-opt-calendar-startDateField')).toBeInTheDocument();
+        expect(screen.getByTestId('type-opt-calendar-titleField')).toBeInTheDocument();
+    });
+
+    it('shows map fields when view type is map', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, type: 'map' }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('type-opt-map-latitudeField')).toBeInTheDocument();
+        expect(screen.getByTestId('type-opt-map-longitudeField')).toBeInTheDocument();
+    });
+
+    it('shows gallery imageField when view type is gallery', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, type: 'gallery' }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('type-opt-gallery-imageField')).toBeInTheDocument();
+    });
+
+    it('shows timeline dateField and titleField when view type is timeline', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, type: 'timeline' }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('type-opt-timeline-dateField')).toBeInTheDocument();
+        expect(screen.getByTestId('type-opt-timeline-titleField')).toBeInTheDocument();
+    });
+
+    it('shows gantt dateField and titleField when view type is gantt', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, type: 'gantt' }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('type-opt-gantt-dateField')).toBeInTheDocument();
+        expect(screen.getByTestId('type-opt-gantt-titleField')).toBeInTheDocument();
+    });
+
+    it('does not show type options section for grid view', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, type: 'grid' }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        // Grid type options section is a hidden placeholder
+        const section = screen.getByTestId('type-options-section');
+        expect(section.className).toContain('hidden');
+    });
+
+    it('updates kanban groupByField via type option select', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, type: 'kanban' }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        const select = screen.getByTestId('type-opt-kanban-groupByField');
+        fireEvent.change(select, { target: { value: 'stage' } });
+
+        expect(onViewUpdate).toHaveBeenCalledWith('kanban', expect.objectContaining({ groupByField: 'stage' }));
+    });
+
+    it('shows type options when view type changes from grid to kanban', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        // Initially grid — type options hidden
+        expect(screen.getByTestId('type-options-section').className).toContain('hidden');
+
+        // Change to kanban
+        fireEvent.change(screen.getByTestId('view-type-select'), { target: { value: 'kanban' } });
+
+        // Now kanban groupBy should appear
+        expect(screen.getByTestId('type-opt-kanban-groupByField')).toBeInTheDocument();
+    });
 });
