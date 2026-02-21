@@ -360,7 +360,7 @@ function NavigationItemRenderer({
     return (
       <SidebarMenuItem>
         {dragListeners && (
-          <span className="absolute left-0.5 top-1/2 -translate-y-1/2 cursor-grab text-muted-foreground" {...dragListeners}>
+          <span className="absolute left-0.5 top-1/2 -translate-y-1/2 cursor-grab text-muted-foreground" aria-label="Drag to reorder" {...dragListeners}>
             <LucideIcons.GripVertical className="h-3.5 w-3.5" />
           </span>
         )}
@@ -412,7 +412,7 @@ function NavigationItemRenderer({
   return (
     <SidebarMenuItem>
       {dragListeners && (
-        <span className="absolute left-0.5 top-1/2 -translate-y-1/2 cursor-grab text-muted-foreground" {...dragListeners}>
+        <span className="absolute left-0.5 top-1/2 -translate-y-1/2 cursor-grab text-muted-foreground" aria-label="Drag to reorder" {...dragListeners}>
           <LucideIcons.GripVertical className="h-3.5 w-3.5" />
         </span>
       )}
