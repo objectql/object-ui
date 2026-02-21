@@ -1,6 +1,6 @@
 export const ContactData = {
   object: 'contact',
-  mode: 'upsert',
+  mode: 'upsert' as const,
   records: [
     { 
       _id: "1", 

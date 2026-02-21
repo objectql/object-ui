@@ -1,7 +1,7 @@
 export const GettingStartedPage = {
   name: 'crm_getting_started',
   label: 'Getting Started',
-  type: 'app',
+  type: 'app' as const,
   regions: [
     {
       name: 'main',

@@ -1,6 +1,6 @@
 export const AccountData = {
   object: 'account',
-  mode: 'upsert',
+  mode: 'upsert' as const,
   records: [
     { 
       _id: "1", 

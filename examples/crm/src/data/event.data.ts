@@ -1,6 +1,6 @@
 export const EventData = {
   object: 'event',
-  mode: 'upsert',
+  mode: 'upsert' as const,
   records: [
     { _id: "e1", subject: "Weekly Standup", start: new Date("2024-02-05T09:00:00"), end: new Date("2024-02-05T10:00:00"), location: "Conference Room A", type: "meeting", status: "completed", organizer: "1", reminder: "min_15", description: "Team synchronization regarding Project Alpha", participants: ["1", "2", "5"] },
     { _id: "e2", subject: "Client Call - TechCorp", start: new Date("2024-02-06T14:00:00"), end: new Date("2024-02-06T15:00:00"), location: "Zoom", type: "call", status: "completed", organizer: "2", reminder: "min_5", description: "Reviewing Q1 Goals and Roadblocks", participants: ["2", "7"] },

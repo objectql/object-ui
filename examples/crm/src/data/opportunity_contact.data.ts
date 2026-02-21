@@ -1,6 +1,6 @@
 export const OpportunityContactData = {
   object: 'opportunity_contact',
-  mode: 'upsert',
+  mode: 'upsert' as const,
   records: [
     { _id: "oc1", name: 'Bob Smith — Enterprise License', opportunity: "101", contact: "2", role: 'decision_maker', is_primary: true },
     { _id: "oc2", name: 'George Martin — Enterprise License', opportunity: "101", contact: "7", role: 'evaluator', is_primary: false },

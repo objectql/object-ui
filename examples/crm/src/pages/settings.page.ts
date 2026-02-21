@@ -1,7 +1,7 @@
 export const SettingsPage = {
   name: 'crm_settings',
   label: 'Settings',
-  type: 'utility',
+  type: 'utility' as const,
   regions: [
     {
       name: 'main',

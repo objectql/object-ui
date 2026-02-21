@@ -4,42 +4,42 @@ export const CrmDashboard = {
   widgets: [
     // --- KPI Row ---
     {
-      type: 'metric',
+      type: 'metric' as const,
       layout: { x: 0, y: 0, w: 1, h: 1 },
       options: {
         label: 'Total Revenue',
         value: '$652,000',
-        trend: { value: 12.5, direction: 'up', label: 'vs last month' },
+        trend: { value: 12.5, direction: 'up' as const, label: 'vs last month' },
         icon: 'DollarSign'
       }
     },
     {
-      type: 'metric',
+      type: 'metric' as const,
       layout: { x: 1, y: 0, w: 1, h: 1 },
       options: {
         label: 'Active Deals',
         value: '5',
-        trend: { value: 2.1, direction: 'down', label: 'vs last month' },
+        trend: { value: 2.1, direction: 'down' as const, label: 'vs last month' },
         icon: 'Briefcase'
       }
     },
     {
-      type: 'metric',
+      type: 'metric' as const,
       layout: { x: 2, y: 0, w: 1, h: 1 },
       options: {
         label: 'Win Rate',
         value: '42%',
-        trend: { value: 4.3, direction: 'up', label: 'vs last month' },
+        trend: { value: 4.3, direction: 'up' as const, label: 'vs last month' },
         icon: 'Trophy'
       }
     },
     {
-      type: 'metric',
+      type: 'metric' as const,
       layout: { x: 3, y: 0, w: 1, h: 1 },
       options: {
         label: 'Avg Deal Size',
         value: '$93,000',
-        trend: { value: 1.2, direction: 'up', label: 'vs last month' },
+        trend: { value: 1.2, direction: 'up' as const, label: 'vs last month' },
         icon: 'BarChart3'
       }
     },
@@ -47,13 +47,13 @@ export const CrmDashboard = {
     // --- Row 2: Charts ---
     {
         title: 'Revenue Trends',
-        type: 'area', 
+        type: 'area' as const, 
         layout: { x: 0, y: 1, w: 3, h: 2 },
         options: {
             xField: 'month',
             yField: 'revenue',
             data: {
-                provider: 'value',
+                provider: 'value' as const,
                 items: [
                    { month: 'Jan', revenue: 155000 },
                    { month: 'Feb', revenue: 87000 },
@@ -68,13 +68,13 @@ export const CrmDashboard = {
     },
     {
         title: 'Lead Source',
-        type: 'donut',
+        type: 'donut' as const,
         layout: { x: 3, y: 1, w: 1, h: 2 },
         options: {
             xField: 'source',
             yField: 'value',
             data: {
-                provider: 'value',
+                provider: 'value' as const,
                 items: [
                     { source: 'Web', value: 2 },
                     { source: 'Referral', value: 1 },
@@ -88,13 +88,13 @@ export const CrmDashboard = {
     // --- Row 3: More Charts ---
     {
         title: 'Pipeline by Stage',
-        type: 'bar',
+        type: 'bar' as const,
         layout: { x: 0, y: 3, w: 2, h: 2 },
         options: {
             xField: 'stage',
             yField: 'amount',
             data: {
-                provider: 'value',
+                provider: 'value' as const,
                 items: [
                     { stage: 'Prospecting', amount: 250000 },
                     { stage: 'Qualification', amount: 35000 },
@@ -107,13 +107,13 @@ export const CrmDashboard = {
     },
     {
         title: 'Top Products',
-        type: 'bar',
+        type: 'bar' as const,
         layout: { x: 2, y: 3, w: 2, h: 2 },
         options: {
             xField: 'name',
             yField: 'sales',
             data: {
-                provider: 'value',
+                provider: 'value' as const,
                 items: [
                     { name: 'Workstation Pro Laptop', sales: 45000 },
                     { name: 'Implementation Service', sales: 32000 },
@@ -127,7 +127,7 @@ export const CrmDashboard = {
     // --- Row 4: Table ---
     {
         title: 'Recent Opportunities',
-        type: 'table',
+        type: 'table' as const,
         layout: { x: 0, y: 5, w: 4, h: 2 },
         options: {
             columns: [
@@ -137,7 +137,7 @@ export const CrmDashboard = {
                 { header: 'Close Date', accessorKey: 'date' }
             ],
             data: {
-                provider: 'value',
+                provider: 'value' as const,
                 items: [
                    { name: 'Berlin Automation Project', amount: '$250,000', stage: 'Prospecting', date: '2024-09-01' },
                    { name: 'ObjectStack Enterprise License', amount: '$150,000', stage: 'Closed Won', date: '2024-01-15' },
@@ -152,15 +152,15 @@ export const CrmDashboard = {
     // --- Row 5: Dynamic KPI from Object Data ---
     {
         title: 'Revenue by Account',
-        type: 'bar',
+        type: 'bar' as const,
         layout: { x: 0, y: 7, w: 4, h: 2 },
         options: {
             xField: 'account',
             yField: 'total',
             data: {
-                provider: 'object',
+                provider: 'object' as const,
                 object: 'opportunity',
-                aggregate: { field: 'amount', function: 'sum', groupBy: 'account' }
+                aggregate: { field: 'amount', function: 'sum' as const, groupBy: 'account' }
             }
         },
     }

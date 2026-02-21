@@ -1,6 +1,6 @@
 export const OrderItemData = {
   object: 'order_item',
-  mode: 'upsert',
+  mode: 'upsert' as const,
   records: [
     { _id: "li1", name: 'LI-001', order: "o1", product: "p1", quantity: 5, unit_price: 2499.99, discount: 0, line_total: 12499.95, item_type: 'product' },
     { _id: "li2", name: 'LI-002', order: "o1", product: "p2", quantity: 10, unit_price: 89.99, discount: 0, line_total: 899.90, item_type: 'product' },

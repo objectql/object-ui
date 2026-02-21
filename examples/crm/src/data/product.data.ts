@@ -1,6 +1,6 @@
 export const ProductData = {
   object: 'product',
-  mode: 'upsert',
+  mode: 'upsert' as const,
   records: [
     { _id: "p1", sku: 'HW-LAP-001', name: 'Workstation Pro Laptop', category: 'electronics', price: 2499.99, stock: 15, is_active: true, manufacturer: 'TechPro', weight: 2.1, tags: ['best_seller'], image: 'https://images.unsplash.com/photo-1593642702821-c8da6771f0c6?w=600&q=80' },
     { _id: "p2", sku: 'HW-ACC-002', name: 'Wireless Ergonomic Mouse', category: 'electronics', price: 89.99, stock: 120, is_active: true, manufacturer: 'ErgoTech', weight: 0.12, tags: ['new'], image: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=600&q=80' },

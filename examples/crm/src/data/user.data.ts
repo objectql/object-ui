@@ -1,6 +1,6 @@
 export const UserData = {
   object: 'user',
-  mode: 'upsert',
+  mode: 'upsert' as const,
   records: [
     { _id: "1", name: 'Martin CEO', email: 'martin@example.com', username: 'martin', role: 'admin', title: 'Chief Executive Officer', department: 'Executive', phone: '415-555-2001', active: true },
     { _id: "2", name: 'Sarah Sales', email: 'sarah@example.com', username: 'sarah', role: 'user', title: 'Sales Manager', department: 'Sales', phone: '415-555-2002', active: true },

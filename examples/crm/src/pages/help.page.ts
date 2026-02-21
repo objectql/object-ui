@@ -1,7 +1,7 @@
 export const HelpPage = {
   name: 'crm_help',
   label: 'Help & Resources',
-  type: 'app',
+  type: 'app' as const,
   regions: [
     {
       name: 'main',

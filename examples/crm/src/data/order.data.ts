@@ -1,6 +1,6 @@
 export const OrderData = {
   object: 'order',
-  mode: 'upsert',
+  mode: 'upsert' as const,
   records: [
     { _id: "o1", name: 'ORD-2024-001', customer: "2", account: "2", order_date: new Date('2024-01-15'), amount: 15459.99, status: 'paid', payment_method: 'Wire Transfer', shipping_address: '415 Mission St, San Francisco, CA 94105', tracking_number: '1Z999AA10123456784' },
     { _id: "o2", name: 'ORD-2024-002', customer: "3", account: "3", order_date: new Date('2024-01-18'), amount: 289.50, status: 'pending', payment_method: 'Credit Card', discount: 5 },

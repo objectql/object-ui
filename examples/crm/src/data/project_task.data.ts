@@ -1,6 +1,6 @@
 export const ProjectTaskData = {
   object: 'project_task',
-  mode: 'upsert',
+  mode: 'upsert' as const,
   records: [
     { _id: "t1", name: "Requirements Gathering", start_date: new Date("2024-02-01"), end_date: new Date("2024-02-14"), progress: 100, estimated_hours: 40, actual_hours: 38, status: 'completed', color: '#10b981', priority: 'high', manager: "1", assignee: "2" },
     { _id: "t2", name: "Architecture Design", start_date: new Date("2024-02-15"), end_date: new Date("2024-03-01"), progress: 100, estimated_hours: 60, actual_hours: 55, status: 'completed', color: '#3b82f6', priority: 'high', dependencies: 't1', manager: "1", assignee: "1" },

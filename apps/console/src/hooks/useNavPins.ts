@@ -7,7 +7,7 @@
  * @module
  */
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { NavigationItem } from '@object-ui/types';
 
 const STORAGE_KEY = 'objectui-nav-pins';

@@ -1,6 +1,6 @@
 export const OpportunityData = {
   object: 'opportunity',
-  mode: 'upsert',
+  mode: 'upsert' as const,
   records: [
     { 
         _id: "101", 
