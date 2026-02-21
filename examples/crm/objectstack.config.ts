@@ -208,7 +208,6 @@ export default defineStack({
         primaryColor: '#3B82F6',
         logo: 'https://objectstack.com/logo.svg',
         favicon: 'https://objectstack.com/favicon.ico',
-        backgroundColor: '#F8FAFC',
       },
       navigation: [
         {
