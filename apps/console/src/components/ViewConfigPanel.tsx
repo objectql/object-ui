@@ -281,7 +281,7 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
     useEffect(() => {
         setDraft({ ...effectiveActiveView });
         setIsDirty(mode === 'create');
-    }, [mode === 'create' ? mode : activeView.id]);
+    }, [mode, activeView.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Focus the panel when it opens for keyboard accessibility
     useEffect(() => {
