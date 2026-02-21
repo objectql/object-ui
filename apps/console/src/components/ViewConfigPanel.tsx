@@ -182,8 +182,6 @@ const VIEW_TYPE_LABELS: Record<string, string> = {
 const VIEW_TYPE_OPTIONS = Object.keys(VIEW_TYPE_LABELS);
 
 /** Editor panel types that can be opened from clickable rows */
-export type EditorPanelType = 'columns' | 'filters' | 'sort';
-
 export interface ViewConfigPanelProps {
     /** Whether the panel is open */
     open: boolean;
@@ -219,8 +217,6 @@ export interface ViewConfigPanelProps {
     recordCount?: number;
     /** Called when any view config field changes (local draft update) */
     onViewUpdate?: (field: string, value: any) => void;
-    /** Called to open a sub-editor panel (columns, filters, sort) */
-    onOpenEditor?: (editor: EditorPanelType) => void;
     /** Called to persist all draft changes */
     onSave?: (draft: Record<string, any>) => void;
 }

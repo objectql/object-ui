@@ -24,7 +24,7 @@ import { Button, Empty, EmptyTitle, EmptyDescription, NavigationOverlay, Dropdow
 import { Plus, Table as TableIcon, Settings2, Wrench, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3, ChevronRight } from 'lucide-react';
 import type { ListViewSchema, ViewNavigationConfig } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import { ViewConfigPanel, type EditorPanelType } from './ViewConfigPanel';
+import { ViewConfigPanel } from './ViewConfigPanel';
 import { useObjectActions } from '../hooks/useObjectActions';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
@@ -88,10 +88,6 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
             console.warn('[ViewConfigPanel] dataSource.updateViewConfig is not available. View config saved locally only.');
         }
     }, [dataSource, objectName]);
-    
-    const handleOpenEditor = useCallback((editor: EditorPanelType) => {
-        console.info('[ViewConfigPanel] Open editor:', editor);
-    }, []);
     
     // Record count tracking for footer
     const [recordCount, setRecordCount] = useState<number | undefined>(undefined);
@@ -536,7 +532,6 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                     activeView={activeView}
                     objectDef={objectDef}
                     recordCount={recordCount}
-                    onOpenEditor={handleOpenEditor}
                     onSave={handleViewConfigSave}
                     onViewUpdate={handleViewUpdate}
                 />
