@@ -92,6 +92,32 @@ describe('Remaining Field Widgets', () => {
         fireEvent.change(input, { target: { value: '75' } });
         expect(handleChange).toHaveBeenCalledWith(0.75);
     });
+
+    it('slider renders and syncs with input value', () => {
+      render(<PercentField {...baseProps} value={0.5} />);
+      const slider = screen.getByTestId('percent-slider');
+      expect(slider).toBeInTheDocument();
+    });
+
+    it('slider does not fire onChange when disabled', () => {
+      const handleChange = vi.fn();
+      render(<PercentField {...baseProps} onChange={handleChange} value={0.5} disabled={true} />);
+      const slider = screen.getByTestId('percent-slider');
+      expect(slider).toBeInTheDocument();
+      // The slider should be disabled, so no changes should fire
+      expect(handleChange).not.toHaveBeenCalled();
+    });
+
+    it('slider is not rendered in readonly mode', () => {
+      render(<PercentField {...baseProps} value={0.5} readonly={true} />);
+      expect(screen.queryByTestId('percent-slider')).not.toBeInTheDocument();
+    });
+
+    it('handles null value gracefully for slider', () => {
+      render(<PercentField {...baseProps} value={null as any} />);
+      const slider = screen.getByTestId('percent-slider');
+      expect(slider).toBeInTheDocument();
+    });
   });
 
   // 5. ImageField

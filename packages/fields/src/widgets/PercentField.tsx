@@ -35,8 +35,18 @@ export function PercentField({ value, onChange, field, readonly, errorMessage, c
   };
 
   const handleSliderChange = (values: number[]) => {
-    onChange(values[0] / 100);
+    if (readonly || props.disabled) return;
+    if (!Array.isArray(values) || values.length === 0) {
+      onChange(null as any);
+      return;
+    }
+    const raw = values[0];
+    const nextValue = typeof raw === 'number' ? raw / 100 : null;
+    onChange(nextValue as any);
   };
+
+  // Derive slider step from precision so slider granularity matches the input
+  const sliderStep = Math.pow(10, -precision);
 
   return (
     <div className="space-y-2">
@@ -61,7 +71,7 @@ export function PercentField({ value, onChange, field, readonly, errorMessage, c
         onValueChange={handleSliderChange}
         min={0}
         max={100}
-        step={1}
+        step={sliderStep}
         disabled={readonly || props.disabled}
         className="w-full"
         aria-label="Percentage"
