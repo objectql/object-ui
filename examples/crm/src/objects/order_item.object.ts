@@ -18,6 +18,6 @@ export const OrderItemObject = ObjectSchema.create({
       { value: 'service', label: 'Service', color: 'green' },
       { value: 'subscription', label: 'Subscription', color: 'purple' },
     ], { label: 'Item Type', defaultValue: 'product' }),
-    notes: Field.text({ label: 'Notes' })
+    notes: Field.text({ label: 'Notes' }),
   }
 });

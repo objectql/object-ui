@@ -16,6 +16,6 @@ export const OpportunityContactObject = ObjectSchema.create({
       { value: 'end_user', label: 'End User', color: 'gray' },
       { value: 'evaluator', label: 'Evaluator', color: 'yellow' },
     ], { label: 'Role' }),
-    is_primary: Field.boolean({ label: 'Primary Contact', defaultValue: false })
+    is_primary: Field.boolean({ label: 'Primary Contact', defaultValue: false }),
   }
 });
