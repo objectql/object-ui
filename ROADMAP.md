@@ -5,7 +5,7 @@
 > **Spec Version:** @objectstack/spec v3.0.8
 > **Client Version:** @objectstack/client v3.0.8
 > **Target UX Benchmark:** 🎯 Airtable parity
-> **Current Priority:** AppShell Navigation · Designer Interaction · Airtable UX Polish
+> **Current Priority:** AppShell Navigation · Designer Interaction · Dashboard Config Panel · Airtable UX Polish
 
 ---
 
@@ -18,8 +18,9 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
 2. **Designer Interaction** — ViewDesigner and DataModelDesigner have undo/redo, field type selectors, inline editing, Ctrl+S save (column drag-to-reorder with dnd-kit pending)
-3. **Console Advanced Polish** — Remaining upgrades for forms, import/export, automation, comments
-4. **PWA Sync** — Background sync is simulated only
+3. **Dashboard Config Panel** — Airtable-style right-side configuration panel for dashboards (data source, layout, widget properties, sub-editors, type definitions)
+4. **Console Advanced Polish** — Remaining upgrades for forms, import/export, automation, comments
+5. **PWA Sync** — Background sync is simulated only
 
 ---
 
@@ -132,6 +133,31 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Calendar endDateField support
 - [x] i18n for all 11 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko)
 - [ ] Conditional formatting rules
+
+### P1.10 Console — Dashboard Config Panel
+
+> Airtable-style right-side configuration panel for dashboards. Phased rollout from shared infrastructure to full type-safe editing.
+
+**Phase 0 — Component Infrastructure:**
+- [ ] Extract `ConfigRow` / `SectionHeader` from `ViewConfigPanel` into `@object-ui/components` as reusable primitives
+
+**Phase 1 — Dashboard-Level Config Panel:**
+- [ ] Develop `DashboardConfigPanel` supporting data source, layout (columns/gap), filtering, appearance, user filters & actions
+
+**Phase 2 — Widget-Level Configuration:**
+- [ ] Support click-to-select widget → sidebar switches to widget property editor (title, type, data binding, layout)
+
+**Phase 3 — Sub-Editor Integration:**
+- [ ] Integrate `FilterBuilder` for dashboard global filters
+- [ ] Dropdown filter selector and action button sub-panel visual editing
+
+**Phase 4 — Composition & Storybook:**
+- [ ] Build `DashboardWithConfig` composite component (dashboard + config sidebar)
+- [ ] Add Storybook stories for `DashboardConfigPanel` and `DashboardWithConfig`
+
+**Phase 5 — Type Definitions & Validation:**
+- [ ] Add `DashboardConfig` types to `@object-ui/types`
+- [ ] Add Zod schema validation for `DashboardConfig`
 
 ### P1.9 Console — Content Area Layout & Responsiveness
 
@@ -258,6 +284,6 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 ---
 
-**Roadmap Status:** 🎯 Active — AppShell · Designer Interaction · Airtable UX Parity
+**Roadmap Status:** 🎯 Active — AppShell · Designer Interaction · Dashboard Config Panel · Airtable UX Parity
 **Next Review:** March 15, 2026
 **Contact:** hello@objectui.org | https://github.com/objectstack-ai/objectui
