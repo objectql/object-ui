@@ -554,29 +554,21 @@ export interface UnifiedViewConfig {
 // Dashboard Configuration
 // ============================================================================
 
+/** All supported color variants for dashboard widgets */
+export const DASHBOARD_COLOR_VARIANTS = [
+  'default', 'blue', 'teal', 'orange', 'purple', 'success', 'warning', 'danger',
+] as const;
+
 /** Color variant for dashboard widgets */
-export type DashboardColorVariant =
-  | 'default'
-  | 'blue'
-  | 'teal'
-  | 'orange'
-  | 'purple'
-  | 'success'
-  | 'warning'
-  | 'danger';
+export type DashboardColorVariant = (typeof DASHBOARD_COLOR_VARIANTS)[number];
+
+/** All supported widget visualization types */
+export const DASHBOARD_WIDGET_TYPES = [
+  'metric', 'bar', 'line', 'pie', 'donut', 'area', 'scatter', 'table', 'list', 'custom',
+] as const;
 
 /** Widget visualization type */
-export type DashboardWidgetType =
-  | 'metric'
-  | 'bar'
-  | 'line'
-  | 'pie'
-  | 'donut'
-  | 'area'
-  | 'scatter'
-  | 'table'
-  | 'list'
-  | 'custom';
+export type DashboardWidgetType = (typeof DASHBOARD_WIDGET_TYPES)[number];
 
 /** Layout position for a single dashboard widget */
 export interface DashboardWidgetConfig {

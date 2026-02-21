@@ -550,6 +550,11 @@ export type {
   DashboardConfig,
 } from './designer';
 
+export {
+  DASHBOARD_COLOR_VARIANTS,
+  DASHBOARD_WIDGET_TYPES,
+} from './designer';
+
 // ============================================================================
 // API and Events - API Integration and Event Handling
 // ============================================================================

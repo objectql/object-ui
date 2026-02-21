@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
+import { DASHBOARD_COLOR_VARIANTS, DASHBOARD_WIDGET_TYPES } from '../designer.js';
 
 /**
  * Kanban Card Schema
@@ -258,14 +259,14 @@ export const DashboardWidgetConfigSchema = z.object({
   id: z.string().describe('Widget ID'),
   title: z.string().optional().describe('Widget title'),
   description: z.string().optional().describe('Widget description'),
-  type: z.enum(['metric', 'bar', 'line', 'pie', 'donut', 'area', 'scatter', 'table', 'list', 'custom']).optional().describe('Widget visualization type'),
+  type: z.enum(DASHBOARD_WIDGET_TYPES).optional().describe('Widget visualization type'),
   object: z.string().optional().describe('Data source object name'),
   filter: z.array(z.any()).optional().describe('Widget filter conditions'),
   categoryField: z.string().optional().describe('Category/x-axis field'),
   valueField: z.string().optional().describe('Value/y-axis field'),
   aggregate: z.string().optional().describe('Aggregation function'),
   chartConfig: z.any().optional().describe('Chart configuration'),
-  colorVariant: z.enum(['default', 'blue', 'teal', 'orange', 'purple', 'success', 'warning', 'danger']).optional().describe('Color variant'),
+  colorVariant: z.enum(DASHBOARD_COLOR_VARIANTS).optional().describe('Color variant'),
   layout: DashboardWidgetLayoutSchema.optional().describe('Widget grid layout'),
   actionUrl: z.string().optional().describe('Clickable action URL'),
 });
