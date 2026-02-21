@@ -33,6 +33,7 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
+  SidebarInput,
   useSidebar,
 } from '@object-ui/components';
 import type { AppSchema, NavigationItem, NavigationArea } from '@object-ui/types';
@@ -85,6 +86,23 @@ export interface AppSchemaRendererProps {
 
   /** Whether the sidebar starts open @default true */
   defaultOpen?: boolean;
+
+  // --- P1.7 Navigation Enhancements ---
+
+  /** Show a search input in the sidebar to filter navigation items */
+  enableSearch?: boolean;
+
+  /** Enable pin/favorite toggle on navigation items */
+  enablePinning?: boolean;
+
+  /** Called when a navigation item is pinned or unpinned */
+  onPinToggle?: (itemId: string, pinned: boolean) => void;
+
+  /** Enable drag-to-reorder for navigation items */
+  enableReorder?: boolean;
+
+  /** Called when navigation items are reordered via drag */
+  onReorder?: (reorderedItems: NavigationItem[]) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,6 +227,11 @@ function InternalSidebar({
   activeAreaId,
   setActiveAreaId,
   resolvedNavigation,
+  enableSearch,
+  enablePinning,
+  onPinToggle,
+  enableReorder,
+  onReorder,
 }: {
   schema: AppSchema;
   basePath: string;
@@ -219,9 +242,15 @@ function InternalSidebar({
   activeAreaId: string | null;
   setActiveAreaId: (id: string) => void;
   resolvedNavigation: NavigationItem[];
+  enableSearch?: boolean;
+  enablePinning?: boolean;
+  onPinToggle?: (itemId: string, pinned: boolean) => void;
+  enableReorder?: boolean;
+  onReorder?: (reorderedItems: NavigationItem[]) => void;
 }) {
   const Icon = resolveIcon(schema.logo);
   const areas = schema.areas ?? [];
+  const [searchQuery, setSearchQuery] = useState('');
 
   return (
     <Sidebar collapsible="icon">
@@ -254,6 +283,15 @@ function InternalSidebar({
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        {/* Search input */}
+        {enableSearch && (
+          <SidebarInput
+            placeholder="Search navigation…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search navigation"
+          />
+        )}
       </SidebarHeader>
 
       <SidebarContent>
@@ -275,6 +313,11 @@ function InternalSidebar({
           evaluateVisibility={evalVis}
           checkPermission={checkPerm}
           onAction={onAction}
+          searchQuery={searchQuery}
+          enablePinning={enablePinning}
+          onPinToggle={onPinToggle}
+          enableReorder={enableReorder}
+          onReorder={onReorder}
         />
       </SidebarContent>
 
@@ -324,6 +367,11 @@ export function AppSchemaRenderer({
   children,
   className,
   defaultOpen = true,
+  enableSearch,
+  enablePinning,
+  onPinToggle,
+  enableReorder,
+  onReorder,
 }: AppSchemaRendererProps) {
   // Default evaluators
   const evalVis: VisibilityEvaluator = evalVisProp ?? ((expr) => {
@@ -379,6 +427,11 @@ export function AppSchemaRenderer({
       activeAreaId={activeAreaId}
       setActiveAreaId={setActiveAreaId}
       resolvedNavigation={resolvedNavigation}
+      enableSearch={enableSearch}
+      enablePinning={enablePinning}
+      onPinToggle={onPinToggle}
+      enableReorder={enableReorder}
+      onReorder={onReorder}
     />
   );
 
