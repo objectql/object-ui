@@ -8,3 +8,6 @@
 @source '../../packages/components/src/**/*.{ts,tsx}';
 @source '../../packages/react/src/**/*.{ts,tsx}';
 @source '../../packages/plugin-*/src/**/*.{ts,tsx}';
+
+/* Safelist container-query grid utilities used by ModalForm / DrawerForm */
+@source inline("@container @md:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4 grid-cols-1");

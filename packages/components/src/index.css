@@ -3,6 +3,11 @@
 /* Scan sources for Tailwind classes */
 @source '../src/**/*.{ts,tsx}';
 
+/* Safelist container-query grid utilities used by ModalForm / DrawerForm.
+   These are assembled at runtime in TypeScript strings and may not be
+   detected by Tailwind's automatic content scanner. */
+@source inline("@container @md:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4 grid-cols-1");
+
 /* Tailwind plugin for animations */
 @plugin 'tailwindcss-animate';
 

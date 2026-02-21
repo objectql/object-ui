@@ -342,18 +342,21 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
         <div className="space-y-6">
           {schema.sections.map((section, index) => {
             const sectionCols = section.columns || 1;
+            const sectionGridClass = CONTAINER_GRID_COLS[sectionCols];
             return (
               <FormSection
                 key={section.name || section.label || index}
                 label={section.label}
                 description={section.description}
-                columns={sectionCols}
-                gridClassName={CONTAINER_GRID_COLS[sectionCols]}
+                columns={1}
+                gridClassName={undefined}
               >
                 <SchemaRenderer
                   schema={{
                     ...baseFormSchema,
                     fields: buildSectionFields(section),
+                    columns: sectionCols,
+                    ...(sectionGridClass ? { fieldContainerClass: sectionGridClass } : {}),
                     showSubmit: index === schema.sections!.length - 1 && baseFormSchema.showSubmit,
                     showCancel: index === schema.sections!.length - 1 && baseFormSchema.showCancel,
                   }}

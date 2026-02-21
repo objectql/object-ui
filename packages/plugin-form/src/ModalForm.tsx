@@ -379,18 +379,21 @@ export const ModalForm: React.FC<ModalFormProps> = ({
         <div className="space-y-6">
           {schema.sections.map((section, index) => {
             const sectionCols = section.columns || 1;
+            const sectionGridClass = CONTAINER_GRID_COLS[sectionCols];
             return (
               <FormSection
                 key={section.name || section.label || index}
                 label={section.label}
                 description={section.description}
-                columns={sectionCols}
-                gridClassName={CONTAINER_GRID_COLS[sectionCols]}
+                columns={1}
+                gridClassName={undefined}
               >
                 <SchemaRenderer
                   schema={{
                     ...baseFormSchema,
                     fields: buildSectionFields(section),
+                    columns: sectionCols,
+                    ...(sectionGridClass ? { fieldContainerClass: sectionGridClass } : {}),
                     // Actions are in the sticky footer, not inside sections
                   }}
                 />

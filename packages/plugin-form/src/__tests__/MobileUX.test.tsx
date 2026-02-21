@@ -320,4 +320,121 @@ describe('ModalForm Container Query Layout', () => {
     const gridEl = containerEl!.querySelector('[class*="@md:grid-cols"]');
     expect(gridEl).toBeNull();
   });
+
+  it('uses container-query grid classes for multi-column sections (not viewport-based)', async () => {
+    const sectionSchema = {
+      name: 'deals',
+      fields: {
+        name: { label: 'Deal Name', type: 'text', required: true },
+        amount: { label: 'Amount', type: 'currency', required: false },
+        stage: { label: 'Stage', type: 'select', required: false, options: [{ value: 'open', label: 'Open' }] },
+        close_date: { label: 'Close Date', type: 'date', required: false },
+        owner: { label: 'Owner', type: 'text', required: false },
+        notes: { label: 'Notes', type: 'textarea', required: false },
+      },
+    };
+    const mockDataSource = createMockDataSource();
+    mockDataSource.getObjectSchema.mockResolvedValue(sectionSchema);
+
+    render(
+      <ModalForm
+        schema={{
+          type: 'object-form',
+          formType: 'modal',
+          objectName: 'deals',
+          mode: 'create',
+          title: 'Create Deal',
+          open: true,
+          sections: [
+            {
+              label: 'Deal Info',
+              columns: 2,
+              fields: ['name', 'amount', 'stage', 'close_date'],
+            },
+            {
+              label: 'Additional',
+              columns: 1,
+              fields: ['owner', 'notes'],
+            },
+          ],
+        }}
+        dataSource={mockDataSource as any}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Create Deal')).toBeInTheDocument();
+    });
+
+    // Wait for sections to render
+    await waitFor(() => {
+      expect(screen.getByText('Deal Info')).toBeInTheDocument();
+    });
+
+    const dialogContent = document.querySelector('[role="dialog"]');
+    const containerEl = dialogContent!.querySelector(CONTAINER_SELECTOR);
+    expect(containerEl).not.toBeNull();
+
+    // The 2-column section should use container-query classes
+    const gridEl = containerEl!.querySelector('[class*="@md:grid-cols-2"]');
+    expect(gridEl).not.toBeNull();
+    expect(gridEl!.className).toContain('@md:grid-cols-2');
+    // Should NOT use viewport-based md:grid-cols-2 (without @ prefix)
+    expect(gridEl!.className).not.toContain(' md:grid-cols-2');
+  });
+
+  it('section fieldContainerClass is never overridden by viewport-based fallback', async () => {
+    const sectionSchema = {
+      name: 'contacts',
+      fields: {
+        first_name: { label: 'First Name', type: 'text', required: true },
+        last_name: { label: 'Last Name', type: 'text', required: true },
+        email: { label: 'Email', type: 'email', required: false },
+        phone: { label: 'Phone', type: 'phone', required: false },
+      },
+    };
+    const mockDataSource = createMockDataSource();
+    mockDataSource.getObjectSchema.mockResolvedValue(sectionSchema);
+
+    render(
+      <ModalForm
+        schema={{
+          type: 'object-form',
+          formType: 'modal',
+          objectName: 'contacts',
+          mode: 'create',
+          title: 'Create Contact',
+          open: true,
+          sections: [
+            {
+              label: 'Contact Info',
+              columns: 2,
+              fields: ['first_name', 'last_name', 'email', 'phone'],
+            },
+          ],
+        }}
+        dataSource={mockDataSource as any}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Create Contact')).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Contact Info')).toBeInTheDocument();
+    });
+
+    // Ensure no viewport-based md:grid-cols-* classes exist anywhere in the dialog
+    const dialogContent = document.querySelector('[role="dialog"]');
+    const allElements = dialogContent!.querySelectorAll('*');
+    for (const el of allElements) {
+      const cls = el.className;
+      if (typeof cls === 'string' && cls.includes('grid-cols-')) {
+        // Any grid-cols class should be either plain grid-cols-1 or @-prefixed container query
+        const gridColMatches = cls.match(/(?:^|\s)(md:|lg:|xl:)(grid-cols-\d)/g);
+        expect(gridColMatches).toBeNull();
+      }
+    }
+  });
 });
