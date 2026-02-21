@@ -15,7 +15,7 @@
 import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
 import { Button, Switch, Input, Checkbox, FilterBuilder, SortBuilder } from '@object-ui/components';
 import type { FilterGroup, SortItem } from '@object-ui/components';
-import { X, Save, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, Save, RotateCcw, ChevronDown, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 
 // ---------------------------------------------------------------------------
@@ -190,6 +190,8 @@ const ROW_HEIGHT_OPTIONS = [
 ];
 
 /** Editor panel types that can be opened from clickable rows */
+export type EditorPanelType = 'columns' | 'filter' | 'sort';
+
 export interface ViewConfigPanelProps {
     /** Whether the panel is open */
     open: boolean;
@@ -427,6 +429,18 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
         updateDraft('columns', currentCols);
     }, [draft.columns, updateDraft]);
 
+    /** Move a column up or down in the columns array */
+    const handleColumnMove = useCallback((fieldName: string, direction: 'up' | 'down') => {
+        const currentCols: string[] = Array.isArray(draft.columns) ? [...draft.columns] : [];
+        const idx = currentCols.indexOf(fieldName);
+        if (idx < 0) return;
+        const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (targetIdx < 0 || targetIdx >= currentCols.length) return;
+        // Swap
+        [currentCols[idx], currentCols[targetIdx]] = [currentCols[targetIdx], currentCols[idx]];
+        updateDraft('columns', currentCols);
+    }, [draft.columns, updateDraft]);
+
     /** Handle type-specific option change (e.g., kanban.groupByField, calendar.startDateField) */
     const handleTypeOptionChange = useCallback((typeKey: string, optionKey: string, value: any) => {
         const current = draft[typeKey] || {};
@@ -584,21 +598,61 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                             onClick={() => toggleDataSub('fields')}
                         />
                         {expandedDataSubs.fields && (
-                            <div data-testid="column-selector" className="pb-2 space-y-1 max-h-36 overflow-auto">
-                                {fieldOptions.map((f) => {
-                                    const checked = Array.isArray(draft.columns) ? draft.columns.includes(f.value) : false;
-                                    return (
+                            <div data-testid="column-selector" className="pb-2 space-y-0.5 max-h-48 overflow-auto">
+                                {/* Selected columns — shown in draft order with reorder buttons */}
+                                {Array.isArray(draft.columns) && draft.columns.length > 0 && (
+                                    <div data-testid="selected-columns" className="space-y-0.5 pb-1 mb-1 border-b border-border/50">
+                                        {draft.columns.map((colName: string, idx: number) => {
+                                            const field = fieldOptions.find(f => f.value === colName);
+                                            return (
+                                                <div key={colName} className="flex items-center gap-1 text-xs hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
+                                                    <Checkbox
+                                                        data-testid={`col-checkbox-${colName}`}
+                                                        checked={true}
+                                                        onCheckedChange={() => handleColumnToggle(colName, false)}
+                                                        className="h-3.5 w-3.5 shrink-0"
+                                                    />
+                                                    <span className="truncate flex-1">{field?.label || colName}</span>
+                                                    <button
+                                                        type="button"
+                                                        data-testid={`col-move-up-${colName}`}
+                                                        className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent disabled:opacity-30 shrink-0"
+                                                        disabled={idx === 0}
+                                                        onClick={() => handleColumnMove(colName, 'up')}
+                                                        aria-label={`Move ${field?.label || colName} up`}
+                                                    >
+                                                        <ArrowUp className="h-3 w-3" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        data-testid={`col-move-down-${colName}`}
+                                                        className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent disabled:opacity-30 shrink-0"
+                                                        disabled={idx === draft.columns.length - 1}
+                                                        onClick={() => handleColumnMove(colName, 'down')}
+                                                        aria-label={`Move ${field?.label || colName} down`}
+                                                    >
+                                                        <ArrowDown className="h-3 w-3" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                {/* Unselected fields — available to add */}
+                                {fieldOptions
+                                    .filter(f => !Array.isArray(draft.columns) || !draft.columns.includes(f.value))
+                                    .map((f) => (
                                         <label key={f.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
                                             <Checkbox
                                                 data-testid={`col-checkbox-${f.value}`}
-                                                checked={checked}
-                                                onCheckedChange={(c) => handleColumnToggle(f.value, c === true)}
+                                                checked={false}
+                                                onCheckedChange={() => handleColumnToggle(f.value, true)}
                                                 className="h-3.5 w-3.5"
                                             />
                                             <span className="truncate">{f.label}</span>
                                         </label>
-                                    );
-                                })}
+                                    ))
+                                }
                             </div>
                         )}
 

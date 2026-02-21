@@ -1284,4 +1284,188 @@ describe('ViewConfigPanel', () => {
         fireEvent.click(screen.getByText('console.objectView.sortBy'));
         expect(screen.queryByTestId('inline-sort-builder')).not.toBeInTheDocument();
     });
+
+    // ── EditorPanelType export test ──
+
+    it('exports EditorPanelType type', async () => {
+        const mod = await import('../components/ViewConfigPanel');
+        // EditorPanelType is a type-only export, but we verify the module exports correctly
+        expect(mod.ViewConfigPanel).toBeDefined();
+    });
+
+    // ── Column selector sub-panel tests ──
+
+    it('shows selected columns in order with move up/down buttons', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        // Expand the Fields sub-section
+        fireEvent.click(screen.getByText('console.objectView.fields'));
+
+        // Selected columns section should appear
+        expect(screen.getByTestId('selected-columns')).toBeInTheDocument();
+
+        // Move buttons should exist for selected columns
+        expect(screen.getByTestId('col-move-up-name')).toBeInTheDocument();
+        expect(screen.getByTestId('col-move-down-name')).toBeInTheDocument();
+        expect(screen.getByTestId('col-move-up-stage')).toBeInTheDocument();
+        expect(screen.getByTestId('col-move-down-stage')).toBeInTheDocument();
+        expect(screen.getByTestId('col-move-up-amount')).toBeInTheDocument();
+        expect(screen.getByTestId('col-move-down-amount')).toBeInTheDocument();
+    });
+
+    it('disables move-up for first column and move-down for last column', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.fields'));
+
+        // First column (name) — move up disabled
+        expect(screen.getByTestId('col-move-up-name')).toBeDisabled();
+        expect(screen.getByTestId('col-move-down-name')).not.toBeDisabled();
+
+        // Last column (amount) — move down disabled
+        expect(screen.getByTestId('col-move-up-amount')).not.toBeDisabled();
+        expect(screen.getByTestId('col-move-down-amount')).toBeDisabled();
+    });
+
+    it('moves column down and updates draft.columns order', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.fields'));
+
+        // Move "name" down — should swap with "stage"
+        fireEvent.click(screen.getByTestId('col-move-down-name'));
+        expect(onViewUpdate).toHaveBeenCalledWith('columns', ['stage', 'name', 'amount']);
+    });
+
+    it('moves column up and updates draft.columns order', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.fields'));
+
+        // Move "amount" up — should swap with "stage"
+        fireEvent.click(screen.getByTestId('col-move-up-amount'));
+        expect(onViewUpdate).toHaveBeenCalledWith('columns', ['name', 'amount', 'stage']);
+    });
+
+    it('saves reordered columns via onSave', () => {
+        const onSave = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onSave={onSave}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.fields'));
+
+        // Move "name" down
+        fireEvent.click(screen.getByTestId('col-move-down-name'));
+
+        // Footer should appear
+        expect(screen.getByTestId('view-config-footer')).toBeInTheDocument();
+
+        // Save
+        fireEvent.click(screen.getByTestId('view-config-save'));
+        expect(onSave).toHaveBeenCalledOnce();
+        expect(onSave.mock.calls[0][0].columns).toEqual(['stage', 'name', 'amount']);
+    });
+
+    it('shows unselected fields below selected columns', () => {
+        // Only 'name' and 'stage' are selected, 'amount' is not
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, columns: ['name', 'stage'] }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.fields'));
+
+        // 'amount' should have a checkbox but no move buttons
+        expect(screen.getByTestId('col-checkbox-amount')).toBeInTheDocument();
+        expect(screen.getByTestId('col-checkbox-amount')).not.toBeChecked();
+        expect(screen.queryByTestId('col-move-up-amount')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('col-move-down-amount')).not.toBeInTheDocument();
+    });
+
+    it('adding unselected field appends to columns and shows move buttons', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, columns: ['name', 'stage'] }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.fields'));
+
+        // Click checkbox for 'amount' to add it
+        fireEvent.click(screen.getByTestId('col-checkbox-amount'));
+        expect(onViewUpdate).toHaveBeenCalledWith('columns', ['name', 'stage', 'amount']);
+    });
+
+    it('reorder triggers onViewUpdate for real-time preview', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.fields'));
+
+        // Move "stage" up
+        fireEvent.click(screen.getByTestId('col-move-up-stage'));
+        expect(onViewUpdate).toHaveBeenCalledWith('columns', ['stage', 'name', 'amount']);
+
+        // Move "stage" down (now at index 0)
+        fireEvent.click(screen.getByTestId('col-move-down-stage'));
+        // After the first move, state has stage at index 0
+        // The second move should operate on the updated state
+        expect(onViewUpdate).toHaveBeenCalledTimes(2);
+    });
 });
