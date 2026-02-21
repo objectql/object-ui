@@ -923,11 +923,15 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
             // Determine left border accent color from stage value
             const stageValue = stageCol ? String(row[stageCol.accessorKey] ?? '') : '';
             const leftBorderClass = stageValue ? stageBorderLeft(stageValue) : '';
+            const cardClassName = [
+              'border rounded-lg p-2.5 bg-card hover:bg-accent/50 cursor-pointer transition-colors touch-manipulation',
+              leftBorderClass ? `border-l-[3px] ${leftBorderClass}` : '',
+            ].filter(Boolean).join(' ');
 
             return (
               <div
                 key={row.id || row._id || idx}
-                className={`border rounded-lg p-2.5 bg-card hover:bg-accent/50 cursor-pointer transition-colors touch-manipulation ${leftBorderClass ? `border-l-[3px] ${leftBorderClass}` : ''}`}
+                className={cardClassName}
                 onClick={() => navigation.handleClick(row)}
               >
                 {/* Title row - Name as bold prominent title */}
