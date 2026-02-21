@@ -230,6 +230,8 @@ export {
   DashboardWidgetLayoutSchema,
   DashboardWidgetSchema,
   DashboardSchema,
+  DashboardWidgetConfigSchema,
+  DashboardConfigSchema,
   ComplexSchema,
 } from './complex.zod.js';
 
