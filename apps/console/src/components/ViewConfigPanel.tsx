@@ -13,9 +13,9 @@
  */
 
 import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
-import { Button, Switch, Input, Checkbox, FilterBuilder, SortBuilder } from '@object-ui/components';
+import { Button, Switch, Input, Checkbox, FilterBuilder, SortBuilder, ConfigRow, SectionHeader } from '@object-ui/components';
 import type { FilterGroup, SortItem } from '@object-ui/components';
-import { X, Save, RotateCcw, ChevronDown, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react';
+import { X, Save, RotateCcw, ArrowUp, ArrowDown } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 
 // ---------------------------------------------------------------------------
@@ -233,50 +233,6 @@ export interface ViewConfigPanelProps {
     onSave?: (draft: Record<string, any>) => void;
     /** Called when create-mode view is created */
     onCreate?: (config: Record<string, any>) => void;
-}
-
-/** A single labeled row in the config panel */
-function ConfigRow({ label, value, onClick, children }: { label: string; value?: string; onClick?: () => void; children?: React.ReactNode }) {
-    const Wrapper = onClick ? 'button' : 'div';
-    return (
-        <Wrapper
-            className={`flex items-center justify-between py-1.5 min-h-[32px] w-full text-left ${onClick ? 'cursor-pointer hover:bg-accent/50 rounded-sm -mx-1 px-1' : ''}`}
-            onClick={onClick}
-            type={onClick ? 'button' : undefined}
-        >
-            <span className="text-xs text-muted-foreground shrink-0">{label}</span>
-            {children || (
-                <span className="text-xs text-foreground truncate ml-4 text-right">{value}</span>
-            )}
-        </Wrapper>
-    );
-}
-
-/** Section heading with optional collapse/expand support */
-function SectionHeader({ title, collapsible, collapsed, onToggle, testId }: { title: string; collapsible?: boolean; collapsed?: boolean; onToggle?: () => void; testId?: string }) {
-    if (collapsible) {
-        return (
-            <button
-                data-testid={testId}
-                className="flex items-center justify-between pt-4 pb-1.5 first:pt-0 w-full text-left"
-                onClick={onToggle}
-                type="button"
-                aria-expanded={!collapsed}
-            >
-                <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{title}</h3>
-                {collapsed ? (
-                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                ) : (
-                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                )}
-            </button>
-        );
-    }
-    return (
-        <div className="pt-4 pb-1.5 first:pt-0" data-testid={testId}>
-            <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{title}</h3>
-        </div>
-    );
 }
 
 export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, objectDef, onViewUpdate, onSave, onCreate }: ViewConfigPanelProps) {
