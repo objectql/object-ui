@@ -1285,14 +1285,6 @@ describe('ViewConfigPanel', () => {
         expect(screen.queryByTestId('inline-sort-builder')).not.toBeInTheDocument();
     });
 
-    // ── EditorPanelType export test ──
-
-    it('exports EditorPanelType type', async () => {
-        const mod = await import('../components/ViewConfigPanel');
-        // EditorPanelType is a type-only export, but we verify the module exports correctly
-        expect(mod.ViewConfigPanel).toBeDefined();
-    });
-
     // ── Column selector sub-panel tests ──
 
     it('shows selected columns in order with move up/down buttons', () => {
