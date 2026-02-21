@@ -259,6 +259,7 @@ function SectionHeader({ title, collapsible, collapsed, onToggle, testId }: { ti
                 className="flex items-center justify-between pt-4 pb-1.5 first:pt-0 w-full text-left"
                 onClick={onToggle}
                 type="button"
+                aria-expanded={!collapsed}
             >
                 <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{title}</h3>
                 {collapsed ? (
@@ -833,11 +834,14 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                             </select>
                         </ConfigRow>
                         <ConfigRow label={t('console.objectView.rowHeight')}>
-                            <div className="flex gap-0.5" data-testid="appearance-rowHeight">
+                            <div className="flex gap-0.5" data-testid="appearance-rowHeight" role="radiogroup" aria-label={t('console.objectView.rowHeight')}>
                                 {ROW_HEIGHT_OPTIONS.map(opt => (
                                     <button
                                         key={opt.value}
                                         type="button"
+                                        role="radio"
+                                        aria-checked={(draft.rowHeight || 'short') === opt.value}
+                                        aria-label={opt.value}
                                         data-testid={`row-height-${opt.value}`}
                                         className={`h-7 w-7 rounded border flex items-center justify-center ${
                                             (draft.rowHeight || 'short') === opt.value
