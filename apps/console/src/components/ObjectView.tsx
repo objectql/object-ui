@@ -24,7 +24,7 @@ import { Button, Empty, EmptyTitle, EmptyDescription, NavigationOverlay, Dropdow
 import { Plus, Table as TableIcon, Settings2, Wrench, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3, ChevronRight } from 'lucide-react';
 import type { ListViewSchema, ViewNavigationConfig } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import { ViewConfigPanel } from './ViewConfigPanel';
+import { ViewConfigPanel, type EditorPanelType } from './ViewConfigPanel';
 import { useObjectActions } from '../hooks/useObjectActions';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
@@ -65,6 +65,22 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     
     // Inline view config panel state (Airtable-style right sidebar)
     const [showViewConfigPanel, setShowViewConfigPanel] = useState(false);
+    
+    // Draft state for view config edits — cached locally, saved on demand
+    const [viewDraft, setViewDraft] = useState<Record<string, any> | null>(null);
+    
+    const handleViewConfigUpdate = useCallback((field: string, value: any) => {
+        // Buffered locally — ViewConfigPanel manages its own draft
+    }, []);
+    
+    const handleViewConfigSave = useCallback((draft: Record<string, any>) => {
+        setViewDraft(draft);
+        setRefreshKey(k => k + 1);
+    }, []);
+    
+    const handleOpenEditor = useCallback((editor: EditorPanelType) => {
+        console.info('[ViewConfigPanel] Open editor:', editor);
+    }, []);
     
     // Record count tracking for footer
     const [recordCount, setRecordCount] = useState<number | undefined>(undefined);
@@ -115,9 +131,12 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
         return viewList;
     }, [objectDef]);
 
-    // Active View State
+    // Active View State — merge saved draft if available for this view
     const activeViewId = viewId || searchParams.get('view') || views[0]?.id;
-    const activeView = views.find((v: any) => v.id === activeViewId) || views[0];
+    const baseView = views.find((v: any) => v.id === activeViewId) || views[0];
+    const activeView = viewDraft && viewDraft.id === baseView?.id
+        ? { ...baseView, ...viewDraft }
+        : baseView;
 
     const handleViewChange = (newViewId: string) => {
         // The plugin ObjectView returns the view ID directly via onViewChange
@@ -486,6 +505,9 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                     activeView={activeView}
                     objectDef={objectDef}
                     recordCount={recordCount}
+                    onViewUpdate={handleViewConfigUpdate}
+                    onOpenEditor={handleOpenEditor}
+                    onSave={handleViewConfigSave}
                 />
              </div>
 

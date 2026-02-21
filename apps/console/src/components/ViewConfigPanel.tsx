@@ -2,16 +2,19 @@
  * ViewConfigPanel
  *
  * Airtable-style right-side configuration panel for inline view editing.
- * Displays view settings organized into sections: Page, Data, Appearance,
- * User Filters, User Actions, and Advanced.
+ * Supports full interactive editing: inline text fields, toggle switches,
+ * view type selection, and clickable rows for opening sub-editors.
+ *
+ * All changes are buffered in a local draft state. Clicking Save commits
+ * the draft via onSave; Discard resets to the original activeView.
  *
  * Designed to be rendered inline (no overlay/Sheet) alongside the main content,
  * following the same pattern as MetadataPanel.
  */
 
-import { useMemo, useEffect, useRef } from 'react';
-import { Button } from '@object-ui/components';
-import { X, ChevronRight } from 'lucide-react';
+import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
+import { Button, Switch, Input } from '@object-ui/components';
+import { X, ChevronRight, Save, RotateCcw } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 
 /** View type labels for display */
@@ -25,6 +28,12 @@ const VIEW_TYPE_LABELS: Record<string, string> = {
     map: 'Map',
     chart: 'Chart',
 };
+
+/** All available view type keys */
+const VIEW_TYPE_OPTIONS = Object.keys(VIEW_TYPE_LABELS);
+
+/** Editor panel types that can be opened from clickable rows */
+export type EditorPanelType = 'columns' | 'filters' | 'sort';
 
 export interface ViewConfigPanelProps {
     /** Whether the panel is open */
@@ -40,6 +49,13 @@ export interface ViewConfigPanelProps {
         filter?: any[];
         sort?: any[];
         description?: string;
+        showSearch?: boolean;
+        showFilters?: boolean;
+        showSort?: boolean;
+        allowExport?: boolean;
+        showDescription?: boolean;
+        addRecordViaForm?: boolean;
+        exportOptions?: any;
         [key: string]: any;
     };
     /** The object definition */
@@ -52,17 +68,28 @@ export interface ViewConfigPanelProps {
     };
     /** Optional record count to display */
     recordCount?: number;
+    /** Called when any view config field changes (local draft update) */
+    onViewUpdate?: (field: string, value: any) => void;
+    /** Called to open a sub-editor panel (columns, filters, sort) */
+    onOpenEditor?: (editor: EditorPanelType) => void;
+    /** Called to persist all draft changes */
+    onSave?: (draft: Record<string, any>) => void;
 }
 
 /** A single labeled row in the config panel */
-function ConfigRow({ label, value, children }: { label: string; value?: string; children?: React.ReactNode }) {
+function ConfigRow({ label, value, onClick, children }: { label: string; value?: string; onClick?: () => void; children?: React.ReactNode }) {
+    const Wrapper = onClick ? 'button' : 'div';
     return (
-        <div className="flex items-center justify-between py-1.5 min-h-[32px]">
+        <Wrapper
+            className={`flex items-center justify-between py-1.5 min-h-[32px] w-full text-left ${onClick ? 'cursor-pointer hover:bg-accent/50 rounded-sm -mx-1 px-1' : ''}`}
+            onClick={onClick}
+            type={onClick ? 'button' : undefined}
+        >
             <span className="text-xs text-muted-foreground shrink-0">{label}</span>
             {children || (
                 <span className="text-xs text-foreground truncate ml-4 text-right">{value}</span>
             )}
-        </div>
+        </Wrapper>
     );
 }
 
@@ -75,28 +102,19 @@ function SectionHeader({ title }: { title: string }) {
     );
 }
 
-/** A toggle-style indicator (read-only for now, shows on/off state) */
-function ToggleIndicator({ enabled }: { enabled: boolean }) {
-    return (
-        <div
-            className={`w-8 h-5 rounded-full relative transition-colors ${
-                enabled ? 'bg-primary' : 'bg-muted'
-            }`}
-            role="img"
-            aria-label={enabled ? 'Enabled' : 'Disabled'}
-        >
-            <div
-                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
-                    enabled ? 'translate-x-3.5' : 'translate-x-0.5'
-                }`}
-            />
-        </div>
-    );
-}
-
-export function ViewConfigPanel({ open, onClose, activeView, objectDef }: ViewConfigPanelProps) {
+export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUpdate, onOpenEditor, onSave }: ViewConfigPanelProps) {
     const { t } = useObjectTranslation();
     const panelRef = useRef<HTMLDivElement>(null);
+
+    // Local draft state — clone of activeView, mutated by UI interactions
+    const [draft, setDraft] = useState<Record<string, any>>({});
+    const [isDirty, setIsDirty] = useState(false);
+
+    // Reset draft when activeView changes (e.g. switching views)
+    useEffect(() => {
+        setDraft({ ...activeView });
+        setIsDirty(false);
+    }, [activeView]);
 
     // Focus the panel when it opens for keyboard accessibility
     useEffect(() => {
@@ -105,16 +123,37 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef }: ViewCo
         }
     }, [open]);
 
-    const viewLabel = activeView.label || activeView.id;
-    const viewType = activeView.type || 'grid';
-    const columnCount = activeView.columns?.length || 0;
-    const filterCount = Array.isArray(activeView.filter) ? activeView.filter.length : 0;
-    const sortCount = Array.isArray(activeView.sort) ? activeView.sort.length : 0;
+    /** Update a single field in the draft */
+    const updateDraft = useCallback((field: string, value: any) => {
+        setDraft(prev => ({ ...prev, [field]: value }));
+        setIsDirty(true);
+        onViewUpdate?.(field, value);
+    }, [onViewUpdate]);
 
-    const hasSearch = activeView.showSearch !== false;
-    const hasFilter = activeView.showFilters !== false;
-    const hasSort = activeView.showSort !== false;
-    const hasExport = activeView.exportOptions !== undefined || activeView.allowExport !== false;
+    /** Discard all draft changes */
+    const handleDiscard = useCallback(() => {
+        setDraft({ ...activeView });
+        setIsDirty(false);
+    }, [activeView]);
+
+    /** Save draft via parent callback */
+    const handleSave = useCallback(() => {
+        onSave?.(draft);
+        setIsDirty(false);
+    }, [draft, onSave]);
+
+    const viewLabel = draft.label || draft.id || activeView.id;
+    const viewType = draft.type || 'grid';
+    const columnCount = draft.columns?.length || 0;
+    const filterCount = Array.isArray(draft.filter) ? draft.filter.length : 0;
+    const sortCount = Array.isArray(draft.sort) ? draft.sort.length : 0;
+
+    const hasSearch = draft.showSearch !== false;
+    const hasFilter = draft.showFilters !== false;
+    const hasSort = draft.showSort !== false;
+    const hasExport = draft.exportOptions !== undefined || draft.allowExport !== false;
+    const hasAddForm = draft.addRecordViaForm === true;
+    const hasShowDescription = draft.showDescription !== false;
 
     // Format filter summary
     const filterSummary = useMemo(() => {
@@ -125,8 +164,8 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef }: ViewCo
     // Format sort summary
     const sortSummary = useMemo(() => {
         if (sortCount === 0) return t('console.objectView.none');
-        return activeView.sort?.map((s: any) => `${s.field} ${s.order || s.direction || 'asc'}`).join(', ') || t('console.objectView.none');
-    }, [activeView.sort, sortCount, t]);
+        return draft.sort?.map((s: any) => `${s.field} ${s.order || s.direction || 'asc'}`).join(', ') || t('console.objectView.none');
+    }, [draft.sort, sortCount, t]);
 
     if (!open) return null;
 
@@ -160,11 +199,22 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef }: ViewCo
                 {/* Page Section */}
                 <SectionHeader title={t('console.objectView.page')} />
                 <div className="space-y-0.5">
-                    <ConfigRow label={t('console.objectView.title')} value={viewLabel} />
+                    <ConfigRow label={t('console.objectView.title')}>
+                        <Input
+                            data-testid="view-title-input"
+                            className="h-7 text-xs w-32 text-right"
+                            value={viewLabel}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateDraft('label', e.target.value)}
+                        />
+                    </ConfigRow>
                     <ConfigRow label={t('console.objectView.description')}>
-                        <span className="text-xs text-muted-foreground italic truncate ml-4 text-right">
-                            {objectDef.description || t('console.objectView.noDescription')}
-                        </span>
+                        <Input
+                            data-testid="view-description-input"
+                            className="h-7 text-xs w-32 text-right italic"
+                            value={objectDef.description || ''}
+                            placeholder={t('console.objectView.noDescription')}
+                            readOnly
+                        />
                     </ConfigRow>
                 </div>
 
@@ -172,19 +222,19 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef }: ViewCo
                 <SectionHeader title={t('console.objectView.data')} />
                 <div className="space-y-0.5">
                     <ConfigRow label={t('console.objectView.source')} value={objectDef.label || objectDef.name} />
-                    <ConfigRow label={t('console.objectView.columns')}>
+                    <ConfigRow label={t('console.objectView.columns')} onClick={() => onOpenEditor?.('columns')}>
                         <span className="text-xs text-foreground flex items-center gap-1">
                             {columnCount > 0 ? t('console.objectView.columnsConfigured', { count: columnCount }) : t('console.objectView.none')}
                             <ChevronRight className="h-3 w-3 text-muted-foreground" />
                         </span>
                     </ConfigRow>
-                    <ConfigRow label={t('console.objectView.filterBy')}>
+                    <ConfigRow label={t('console.objectView.filterBy')} onClick={() => onOpenEditor?.('filters')}>
                         <span className="text-xs text-foreground flex items-center gap-1">
                             {filterSummary}
                             <ChevronRight className="h-3 w-3 text-muted-foreground" />
                         </span>
                     </ConfigRow>
-                    <ConfigRow label={t('console.objectView.sortBy')}>
+                    <ConfigRow label={t('console.objectView.sortBy')} onClick={() => onOpenEditor?.('sort')}>
                         <span className="text-xs text-foreground flex items-center gap-1 truncate max-w-[140px]">
                             {sortSummary}
                             <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
@@ -196,22 +246,53 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef }: ViewCo
                 <SectionHeader title={t('console.objectView.appearance')} />
                 <div className="space-y-0.5">
                     <ConfigRow label={t('console.objectView.showDescription')}>
-                        <ToggleIndicator enabled={!!objectDef.description} />
+                        <Switch
+                            data-testid="toggle-showDescription"
+                            checked={hasShowDescription}
+                            onCheckedChange={(checked: boolean) => updateDraft('showDescription', checked)}
+                            className="scale-75"
+                        />
                     </ConfigRow>
-                    <ConfigRow label={t('console.objectView.viewType')} value={VIEW_TYPE_LABELS[viewType] || viewType} />
+                    <ConfigRow label={t('console.objectView.viewType')}>
+                        <select
+                            data-testid="view-type-select"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground"
+                            value={viewType}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateDraft('type', e.target.value)}
+                        >
+                            {VIEW_TYPE_OPTIONS.map(vt => (
+                                <option key={vt} value={vt}>{VIEW_TYPE_LABELS[vt]}</option>
+                            ))}
+                        </select>
+                    </ConfigRow>
                 </div>
 
                 {/* User Filters Section */}
                 <SectionHeader title={t('console.objectView.userFilters')} />
                 <div className="space-y-0.5">
                     <ConfigRow label={t('console.objectView.enableSearch')}>
-                        <ToggleIndicator enabled={hasSearch} />
+                        <Switch
+                            data-testid="toggle-showSearch"
+                            checked={hasSearch}
+                            onCheckedChange={(checked: boolean) => updateDraft('showSearch', checked)}
+                            className="scale-75"
+                        />
                     </ConfigRow>
                     <ConfigRow label={t('console.objectView.enableFilter')}>
-                        <ToggleIndicator enabled={hasFilter} />
+                        <Switch
+                            data-testid="toggle-showFilters"
+                            checked={hasFilter}
+                            onCheckedChange={(checked: boolean) => updateDraft('showFilters', checked)}
+                            className="scale-75"
+                        />
                     </ConfigRow>
                     <ConfigRow label={t('console.objectView.enableSort')}>
-                        <ToggleIndicator enabled={hasSort} />
+                        <Switch
+                            data-testid="toggle-showSort"
+                            checked={hasSort}
+                            onCheckedChange={(checked: boolean) => updateDraft('showSort', checked)}
+                            className="scale-75"
+                        />
                     </ConfigRow>
                 </div>
 
@@ -219,7 +300,12 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef }: ViewCo
                 <SectionHeader title={t('console.objectView.userActions')} />
                 <div className="space-y-0.5">
                     <ConfigRow label={t('console.objectView.addRecordViaForm')}>
-                        <ToggleIndicator enabled={false} />
+                        <Switch
+                            data-testid="toggle-addRecordViaForm"
+                            checked={hasAddForm}
+                            onCheckedChange={(checked: boolean) => updateDraft('addRecordViaForm', checked)}
+                            className="scale-75"
+                        />
                     </ConfigRow>
                 </div>
 
@@ -227,10 +313,40 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef }: ViewCo
                 <SectionHeader title={t('console.objectView.advanced')} />
                 <div className="space-y-0.5">
                     <ConfigRow label={t('console.objectView.allowExport')}>
-                        <ToggleIndicator enabled={hasExport} />
+                        <Switch
+                            data-testid="toggle-allowExport"
+                            checked={hasExport}
+                            onCheckedChange={(checked: boolean) => updateDraft('allowExport', checked)}
+                            className="scale-75"
+                        />
                     </ConfigRow>
                 </div>
             </div>
+
+            {/* Footer — Save / Discard buttons */}
+            {isDirty && (
+                <div data-testid="view-config-footer" className="px-4 py-3 border-t flex items-center justify-end gap-2 shrink-0 bg-background">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5"
+                        onClick={handleDiscard}
+                        data-testid="view-config-discard"
+                    >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        {t('console.objectView.discard')}
+                    </Button>
+                    <Button
+                        size="sm"
+                        className="h-8 gap-1.5"
+                        onClick={handleSave}
+                        data-testid="view-config-save"
+                    >
+                        <Save className="h-3.5 w-3.5" />
+                        {t('console.objectView.save')}
+                    </Button>
+                </div>
+            )}
         </div>
     );
 }

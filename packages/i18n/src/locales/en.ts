@@ -212,6 +212,8 @@ const en = {
       noDescription: 'No description',
       none: 'None',
       columnsConfigured: '{{count}} columns',
+      save: 'Save',
+      discard: 'Discard',
     },
     localeSwitcher: {
       label: 'Language',
