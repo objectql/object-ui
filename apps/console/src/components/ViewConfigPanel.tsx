@@ -13,9 +13,158 @@
  */
 
 import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
-import { Button, Switch, Input } from '@object-ui/components';
-import { X, ChevronRight, Save, RotateCcw } from 'lucide-react';
+import { Button, Switch, Input, Checkbox, FilterBuilder, SortBuilder } from '@object-ui/components';
+import type { FilterGroup, SortItem } from '@object-ui/components';
+import { X, Save, RotateCcw } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
+
+// ---------------------------------------------------------------------------
+// Operator mapping: @objectstack/spec ↔ FilterBuilder
+// ---------------------------------------------------------------------------
+const SPEC_TO_BUILDER_OP: Record<string, string> = {
+    '=': 'equals',
+    '==': 'equals',
+    '!=': 'notEquals',
+    '<>': 'notEquals',
+    '>': 'greaterThan',
+    '<': 'lessThan',
+    '>=': 'greaterOrEqual',
+    '<=': 'lessOrEqual',
+    'contains': 'contains',
+    'not_contains': 'notContains',
+    'is_empty': 'isEmpty',
+    'is_not_empty': 'isNotEmpty',
+    'in': 'in',
+    'not_in': 'notIn',
+    'not in': 'notIn',
+    'before': 'before',
+    'after': 'after',
+    'between': 'between',
+    // Pass-through for already-normalized IDs
+    'equals': 'equals',
+    'notEquals': 'notEquals',
+    'greaterThan': 'greaterThan',
+    'lessThan': 'lessThan',
+    'greaterOrEqual': 'greaterOrEqual',
+    'lessOrEqual': 'lessOrEqual',
+    'notContains': 'notContains',
+    'isEmpty': 'isEmpty',
+    'isNotEmpty': 'isNotEmpty',
+    'notIn': 'notIn',
+};
+
+const BUILDER_TO_SPEC_OP: Record<string, string> = {
+    'equals': '=',
+    'notEquals': '!=',
+    'greaterThan': '>',
+    'lessThan': '<',
+    'greaterOrEqual': '>=',
+    'lessOrEqual': '<=',
+    'contains': 'contains',
+    'notContains': 'not_contains',
+    'isEmpty': 'is_empty',
+    'isNotEmpty': 'is_not_empty',
+    'in': 'in',
+    'notIn': 'not in',
+    'before': 'before',
+    'after': 'after',
+    'between': 'between',
+};
+
+// ---------------------------------------------------------------------------
+// Field type normalization: ObjectUI → FilterBuilder
+// ---------------------------------------------------------------------------
+function normalizeFieldType(rawType?: string): 'text' | 'number' | 'boolean' | 'date' | 'select' {
+    const t = (rawType || '').toLowerCase();
+    if (['integer', 'int', 'float', 'double', 'number', 'currency', 'money', 'percent', 'rating'].includes(t)) return 'number';
+    if (['date', 'datetime', 'datetime_tz', 'timestamp'].includes(t)) return 'date';
+    if (['boolean', 'bool', 'checkbox', 'switch'].includes(t)) return 'boolean';
+    if (['select', 'picklist', 'single_select', 'multi_select', 'enum'].includes(t)) return 'select';
+    return 'text';
+}
+
+// ---------------------------------------------------------------------------
+// Spec-style filter bridge: parse any supported format → FilterGroup conditions
+// Formats: ['field','=',val], [['f','=',v],['f2','!=',v2]], ['and'|'or', ...]
+// Also supports object-style: { field, operator, value }
+// ---------------------------------------------------------------------------
+function parseSpecFilter(raw: any): { logic: 'and' | 'or'; conditions: Array<{ id: string; field: string; operator: string; value: any }> } {
+    if (!Array.isArray(raw) || raw.length === 0) {
+        return { logic: 'and', conditions: [] };
+    }
+
+    // Detect ['and', ...conditions] or ['or', ...conditions]
+    if (typeof raw[0] === 'string' && (raw[0] === 'and' || raw[0] === 'or')) {
+        const logic = raw[0] as 'and' | 'or';
+        const rest = raw.slice(1);
+        const conditions = rest.flatMap((item: any) => parseSingleOrNested(item));
+        return { logic, conditions };
+    }
+
+    // Detect single triplet: ['field', '=', value] (all primitives at top level)
+    if (raw.length >= 2 && raw.length <= 3 && typeof raw[0] === 'string' && typeof raw[1] === 'string' && !Array.isArray(raw[0])) {
+        // Check it's not an array of arrays
+        if (!Array.isArray(raw[2])) {
+            const cond = parseTriplet(raw);
+            return { logic: 'and', conditions: cond ? [cond] : [] };
+        }
+    }
+
+    // Detect array of conditions: [[...], [...]] or [{...}, {...}]
+    if (Array.isArray(raw[0]) || (typeof raw[0] === 'object' && raw[0] !== null && !Array.isArray(raw[0]))) {
+        const conditions = raw.flatMap((item: any) => parseSingleOrNested(item));
+        return { logic: 'and', conditions };
+    }
+
+    // Fallback: try as single triplet
+    const cond = parseTriplet(raw);
+    return { logic: 'and', conditions: cond ? [cond] : [] };
+}
+
+function parseTriplet(arr: any[]): { id: string; field: string; operator: string; value: any } | null {
+    if (!Array.isArray(arr) || arr.length < 2) return null;
+    const [field, op, value] = arr;
+    if (typeof field !== 'string' || typeof op !== 'string') return null;
+    return {
+        id: crypto.randomUUID(),
+        field,
+        operator: SPEC_TO_BUILDER_OP[op] || op,
+        value: value ?? '',
+    };
+}
+
+function parseSingleOrNested(item: any): Array<{ id: string; field: string; operator: string; value: any }> {
+    if (Array.isArray(item)) {
+        const triplet = parseTriplet(item);
+        return triplet ? [triplet] : [];
+    }
+    if (typeof item === 'object' && item !== null && item.field) {
+        return [{
+            id: item.id || crypto.randomUUID(),
+            field: item.field,
+            operator: SPEC_TO_BUILDER_OP[item.operator] || item.operator || 'equals',
+            value: item.value ?? '',
+        }];
+    }
+    return [];
+}
+
+/**
+ * Convert FilterGroup conditions back to spec-style filter array.
+ * Produces [['field','op',value], ...] for multiple conditions,
+ * or ['field','op',value] for single condition,
+ * or ['and'|'or', ...] when logic is 'or'.
+ */
+function toSpecFilter(logic: 'and' | 'or', conditions: Array<{ field: string; operator: string; value: any }>): any[] {
+    const triplets = conditions
+        .filter(c => c.field) // skip empty
+        .map(c => [c.field, BUILDER_TO_SPEC_OP[c.operator] || c.operator, c.value]);
+
+    if (triplets.length === 0) return [];
+    if (triplets.length === 1 && logic === 'and') return triplets[0];
+    if (logic === 'or') return ['or', ...triplets];
+    return triplets;
+}
 
 /** View type labels for display */
 const VIEW_TYPE_LABELS: Record<string, string> = {
@@ -110,11 +259,14 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUp
     const [draft, setDraft] = useState<Record<string, any>>({});
     const [isDirty, setIsDirty] = useState(false);
 
-    // Reset draft when activeView changes (e.g. switching views)
+    // Reset draft when switching to a different view (by ID change only).
+    // We intentionally depend on activeView.id rather than the full activeView
+    // object so that real-time draft propagation (via onViewUpdate → parent
+    // setViewDraft → merged activeView) does not reset isDirty to false.
     useEffect(() => {
         setDraft({ ...activeView });
         setIsDirty(false);
-    }, [activeView]);
+    }, [activeView.id]);
 
     // Focus the panel when it opens for keyboard accessibility
     useEffect(() => {
@@ -144,9 +296,6 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUp
 
     const viewLabel = draft.label || draft.id || activeView.id;
     const viewType = draft.type || 'grid';
-    const columnCount = draft.columns?.length || 0;
-    const filterCount = Array.isArray(draft.filter) ? draft.filter.length : 0;
-    const sortCount = Array.isArray(draft.sort) ? draft.sort.length : 0;
 
     const hasSearch = draft.showSearch !== false;
     const hasFilter = draft.showFilters !== false;
@@ -155,17 +304,66 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUp
     const hasAddForm = draft.addRecordViaForm === true;
     const hasShowDescription = draft.showDescription !== false;
 
-    // Format filter summary
-    const filterSummary = useMemo(() => {
-        if (filterCount === 0) return t('console.objectView.none');
-        return `${filterCount} ${t('console.objectView.filterBy').toLowerCase()}`;
-    }, [filterCount, t]);
+    // Derive field options from objectDef for FilterBuilder/SortBuilder
+    const fieldOptions = useMemo(() => {
+        if (!objectDef.fields) return [];
+        return Object.entries(objectDef.fields).map(([key, field]: [string, any]) => ({
+            value: key,
+            label: field.label || key,
+            type: normalizeFieldType(field.type),
+            options: field.options,
+        }));
+    }, [objectDef.fields]);
 
-    // Format sort summary
-    const sortSummary = useMemo(() => {
-        if (sortCount === 0) return t('console.objectView.none');
-        return draft.sort?.map((s: any) => `${s.field} ${s.order || s.direction || 'asc'}`).join(', ') || t('console.objectView.none');
-    }, [draft.sort, sortCount, t]);
+    // Bridge: view filter (any spec format) → FilterGroup
+    const filterGroupValue = useMemo<FilterGroup>(() => {
+        const parsed = parseSpecFilter(draft.filter);
+        return { id: 'root', logic: parsed.logic, conditions: parsed.conditions };
+    }, [draft.filter]);
+
+    // Bridge: view sort array → SortItem[]
+    const sortItemsValue = useMemo<SortItem[]>(() => {
+        return (Array.isArray(draft.sort) ? draft.sort : []).map((s: any) => ({
+            id: s.id || crypto.randomUUID(),
+            field: s.field || '',
+            order: (s.order || s.direction || 'asc') as 'asc' | 'desc',
+        }));
+    }, [draft.sort]);
+
+    /** Handle FilterBuilder changes → update draft.filter in spec format */
+    const handleFilterChange = useCallback((group: FilterGroup) => {
+        const specFilter = toSpecFilter(
+            group.logic,
+            group.conditions.map(c => ({
+                field: c.field,
+                operator: c.operator,
+                value: c.value,
+            }))
+        );
+        updateDraft('filter', specFilter);
+    }, [updateDraft]);
+
+    /** Handle SortBuilder changes → update draft.sort */
+    const handleSortChange = useCallback((items: SortItem[]) => {
+        const sortArr = items.map(s => ({
+            id: s.id,
+            field: s.field,
+            order: s.order,
+        }));
+        updateDraft('sort', sortArr);
+    }, [updateDraft]);
+
+    /** Handle column checkbox toggle */
+    const handleColumnToggle = useCallback((fieldName: string, checked: boolean) => {
+        const currentCols: string[] = Array.isArray(draft.columns) ? [...draft.columns] : [];
+        if (checked && !currentCols.includes(fieldName)) {
+            currentCols.push(fieldName);
+        } else if (!checked) {
+            const idx = currentCols.indexOf(fieldName);
+            if (idx >= 0) currentCols.splice(idx, 1);
+        }
+        updateDraft('columns', currentCols);
+    }, [draft.columns, updateDraft]);
 
     if (!open) return null;
 
@@ -216,26 +414,56 @@ export function ViewConfigPanel({ open, onClose, activeView, objectDef, onViewUp
 
                 {/* Data Section */}
                 <SectionHeader title={t('console.objectView.data')} />
-                <div className="space-y-0.5">
+                <div className="space-y-2">
                     <ConfigRow label={t('console.objectView.source')} value={objectDef.label || objectDef.name} />
-                    <ConfigRow label={t('console.objectView.columns')} onClick={() => onOpenEditor?.('columns')}>
-                        <span className="text-xs text-foreground flex items-center gap-1">
-                            {columnCount > 0 ? t('console.objectView.columnsConfigured', { count: columnCount }) : t('console.objectView.none')}
-                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                        </span>
-                    </ConfigRow>
-                    <ConfigRow label={t('console.objectView.filterBy')} onClick={() => onOpenEditor?.('filters')}>
-                        <span className="text-xs text-foreground flex items-center gap-1">
-                            {filterSummary}
-                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                        </span>
-                    </ConfigRow>
-                    <ConfigRow label={t('console.objectView.sortBy')} onClick={() => onOpenEditor?.('sort')}>
-                        <span className="text-xs text-foreground flex items-center gap-1 truncate max-w-[140px]">
-                            {sortSummary}
-                            <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                        </span>
-                    </ConfigRow>
+
+                    {/* Columns — inline checkbox list */}
+                    <div className="pt-1">
+                        <span className="text-xs text-muted-foreground">{t('console.objectView.columns')}</span>
+                        <div data-testid="column-selector" className="mt-1 space-y-1 max-h-36 overflow-auto">
+                            {fieldOptions.map((f) => {
+                                const checked = Array.isArray(draft.columns) ? draft.columns.includes(f.value) : false;
+                                return (
+                                    <label key={f.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
+                                        <Checkbox
+                                            data-testid={`col-checkbox-${f.value}`}
+                                            checked={checked}
+                                            onCheckedChange={(c) => handleColumnToggle(f.value, c === true)}
+                                            className="h-3.5 w-3.5"
+                                        />
+                                        <span className="truncate">{f.label}</span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Filters — inline FilterBuilder */}
+                    <div className="pt-1">
+                        <span className="text-xs text-muted-foreground">{t('console.objectView.filterBy')}</span>
+                        <div data-testid="inline-filter-builder" className="mt-1">
+                            <FilterBuilder
+                                fields={fieldOptions}
+                                value={filterGroupValue}
+                                onChange={handleFilterChange}
+                                className="[&_button]:h-7 [&_button]:text-xs [&_input]:h-7 [&_input]:text-xs"
+                                showClearAll
+                            />
+                        </div>
+                    </div>
+
+                    {/* Sort — inline SortBuilder */}
+                    <div className="pt-1">
+                        <span className="text-xs text-muted-foreground">{t('console.objectView.sortBy')}</span>
+                        <div data-testid="inline-sort-builder" className="mt-1">
+                            <SortBuilder
+                                fields={fieldOptions.map(f => ({ value: f.value, label: f.label }))}
+                                value={sortItemsValue}
+                                onChange={handleSortChange}
+                                className="[&_button]:h-7 [&_button]:text-xs"
+                            />
+                        </div>
+                    </div>
                 </div>
 
                 {/* Appearance Section */}

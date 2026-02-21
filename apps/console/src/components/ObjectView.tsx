@@ -149,6 +149,15 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
         ? { ...baseView, ...viewDraft }
         : baseView;
 
+    /** Real-time draft field update — propagates each toggle/input change immediately */
+    const handleViewUpdate = useCallback((field: string, value: any) => {
+        setViewDraft(prev => ({
+            ...(prev || {}),
+            id: baseView?.id,
+            [field]: value,
+        }));
+    }, [baseView?.id]);
+
     const handleViewChange = (newViewId: string) => {
         // The plugin ObjectView returns the view ID directly via onViewChange
         const matchedView = views.find((v: any) => v.id === newViewId);
@@ -339,13 +348,24 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
         );
     }, [activeView, objectDef, objectName, refreshKey]);
 
-    // Build the ObjectViewSchema for the plugin
+    // Memoize the merged views array so PluginObjectView doesn't get a new
+    // reference on every render (which would trigger unnecessary data refetches).
+    const mergedViews = useMemo(() =>
+        views.map((v: any) =>
+            v.id === activeViewId && viewDraft && viewDraft.id === v.id
+                ? { ...v, ...viewDraft }
+                : v
+        ),
+        [views, activeViewId, viewDraft]
+    );
+
+    // Build the ObjectViewSchema for the plugin — reads from activeView (which merges draft)
     const objectViewSchema = useMemo(() => ({
         type: 'object-view' as const,
         objectName: objectDef.name,
         layout: 'page' as const,
-        showSearch: true,
-        showFilters: true,
+        showSearch: activeView?.showSearch !== false,
+        showFilters: activeView?.showFilters !== false,
         showCreate: false, // We render our own create button in the header
         showRefresh: true,
         onNavigate: (recordId: string | number, mode: 'view' | 'edit') => {
@@ -353,7 +373,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                 onEdit?.({ _id: recordId, id: recordId });
             }
         },
-    }), [objectDef.name, onEdit]);
+    }), [objectDef.name, onEdit, activeView?.showSearch, activeView?.showFilters]);
 
     return (
         <div className="h-full flex flex-col bg-background">
@@ -486,7 +506,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                             key={refreshKey}
                             schema={objectViewSchema}
                             dataSource={dataSource}
-                            views={views}
+                            views={mergedViews}
                             activeViewId={activeViewId}
                             onViewChange={handleViewChange}
                             onEdit={(record: any) => onEdit?.(record)}
@@ -518,6 +538,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                     recordCount={recordCount}
                     onOpenEditor={handleOpenEditor}
                     onSave={handleViewConfigSave}
+                    onViewUpdate={handleViewUpdate}
                 />
              </div>
 

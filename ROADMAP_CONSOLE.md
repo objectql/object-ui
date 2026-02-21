@@ -1021,7 +1021,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 | **Global Undo/Redo (Ctrl+Z)** | ✅ Done (global UndoManager + batch ops + persistent stack) | Post v1.0 | Phase 16 (L1+L2) |
 | Notification center | ✅ Partial (ActivityFeed with filter preferences) | Post v1.0 | Phase 17 (L2) |
 | Activity feed | ✅ Done | Post v1.0 | Phase 17 (L1) |
-| **Inline View Config Panel** | ✅ Done (Airtable-style right sidebar, breadcrumb header, record count footer, responsive mobile overlay, ARIA accessibility, auto-close on view switch, full interactive editing: Switch toggles, inline title edit, ViewType select, clickable sub-editor rows, draft state with Save/Discard) | Post v1.0 | Phase 20 |
+| **Inline View Config Panel** | ✅ Done (Airtable-style right sidebar, breadcrumb header, record count footer, responsive mobile overlay, ARIA accessibility, auto-close on view switch, full interactive editing: Switch toggles, inline title edit, ViewType select, clickable sub-editor rows, draft state with Save/Discard, real-time draft preview in main view) | Post v1.0 | Phase 20 |
 
 ### 5.5 Kanban & Visual Views
 
@@ -1103,7 +1103,7 @@ These were the initial tasks to bring the console prototype to production-qualit
 
 2027 Q1+ — v2.1: INLINE VIEW DESIGNER (✅ Complete)
 ═══════════════════════════════════════════════════════════
-  Phase 20: Inline ViewConfigPanel    ██████████████  ✅ Complete: Airtable-style right sidebar, full interactive editing (Switch toggles, inline title, ViewType select, sub-editor rows, draft Save/Discard), ARIA accessibility, backend persistence via DataSource.updateViewConfig
+  Phase 20: Inline ViewConfigPanel    ██████████████  ✅ Complete: Airtable-style right sidebar, full interactive editing (Switch toggles, inline title, ViewType select, sub-editor rows, draft Save/Discard, real-time draft preview), ARIA accessibility
 ```
 
 ### Milestone Summary
