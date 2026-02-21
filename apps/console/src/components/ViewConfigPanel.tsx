@@ -491,9 +491,13 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                         />
                     </ConfigRow>
                     <ConfigRow label={t('console.objectView.description')}>
-                        <span className="text-xs text-muted-foreground italic truncate ml-4 text-right">
-                            {objectDef.description || t('console.objectView.noDescription')}
-                        </span>
+                        <Input
+                            data-testid="view-description-input"
+                            className="h-7 text-xs w-32 text-right"
+                            value={draft.description ?? ''}
+                            placeholder={objectDef.description || t('console.objectView.noDescription')}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateDraft('description', e.target.value)}
+                        />
                     </ConfigRow>
                     <ConfigRow label={t('console.objectView.viewType')}>
                         <select

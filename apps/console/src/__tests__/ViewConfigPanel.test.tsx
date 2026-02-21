@@ -150,7 +150,7 @@ describe('ViewConfigPanel', () => {
         expect(titleInput).toHaveValue('All Records');
     });
 
-    it('displays object description as plain text', () => {
+    it('displays description as editable input with placeholder from objectDef', () => {
         render(
             <ViewConfigPanel
                 open={true}
@@ -160,10 +160,12 @@ describe('ViewConfigPanel', () => {
             />
         );
 
-        expect(screen.getByText('Track sales pipeline and deals')).toBeInTheDocument();
+        const descInput = screen.getByTestId('view-description-input');
+        expect(descInput).toBeInTheDocument();
+        expect(descInput).toHaveAttribute('placeholder', 'Track sales pipeline and deals');
     });
 
-    it('shows "no description" when object has no description', () => {
+    it('shows "no description" placeholder when object has no description', () => {
         render(
             <ViewConfigPanel
                 open={true}
@@ -173,7 +175,26 @@ describe('ViewConfigPanel', () => {
             />
         );
 
-        expect(screen.getByText('console.objectView.noDescription')).toBeInTheDocument();
+        const descInput = screen.getByTestId('view-description-input');
+        expect(descInput).toHaveAttribute('placeholder', 'console.objectView.noDescription');
+    });
+
+    it('updates draft when description is edited', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        const descInput = screen.getByTestId('view-description-input');
+        fireEvent.change(descInput, { target: { value: 'My custom description' } });
+        expect(descInput).toHaveValue('My custom description');
+        expect(onViewUpdate).toHaveBeenCalledWith('description', 'My custom description');
     });
 
     it('displays column checkboxes for each field', () => {
