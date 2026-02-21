@@ -25,7 +25,7 @@ vi.mock('@object-ui/components', async (importOriginal) => {
         ...actual,
         cn: (...inputs: any[]) => inputs.filter(Boolean).join(' '),
         Button: ({ children, onClick, title, ...rest }: any) => <button onClick={onClick} title={title} {...rest}>{children}</button>,
-        Input: ({ ...props }: any) => <input {...props} />,
+        Input: (props: any) => <input {...props} />,
         Switch: ({ checked, onCheckedChange, ...props }: any) => (
             <button
                 role="switch"

@@ -75,9 +75,15 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
 
         // Persist to backend if dataSource supports it
         if (dataSource?.updateViewConfig) {
-            dataSource.updateViewConfig(objectName || '', draft.id || '', draft).catch((err: any) => {
-                console.error('[ViewConfigPanel] Failed to persist view config:', err);
-            });
+            const objName = objectName;
+            const vid = draft.id;
+            if (objName && vid) {
+                dataSource.updateViewConfig(objName, vid, draft).catch((err: any) => {
+                    console.error('[ViewConfigPanel] Failed to persist view config:', err);
+                });
+            } else {
+                console.warn('[ViewConfigPanel] Cannot persist view config: missing objectName or viewId.');
+            }
         } else {
             console.warn('[ViewConfigPanel] dataSource.updateViewConfig is not available. View config saved locally only.');
         }
