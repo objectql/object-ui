@@ -15,7 +15,7 @@
 import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
 import { Button, Switch, Input, Checkbox, FilterBuilder, SortBuilder } from '@object-ui/components';
 import type { FilterGroup, SortItem } from '@object-ui/components';
-import { X, Save, RotateCcw } from 'lucide-react';
+import { X, Save, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 
 // ---------------------------------------------------------------------------
@@ -181,6 +181,14 @@ const VIEW_TYPE_LABELS: Record<string, string> = {
 /** All available view type keys */
 const VIEW_TYPE_OPTIONS = Object.keys(VIEW_TYPE_LABELS);
 
+/** Row height options with Tailwind gap classes for visual icons */
+const ROW_HEIGHT_OPTIONS = [
+    { value: 'short', gapClass: 'gap-0' },
+    { value: 'medium', gapClass: 'gap-0.5' },
+    { value: 'tall', gapClass: 'gap-1' },
+    { value: 'extraTall', gapClass: 'gap-1.5' },
+];
+
 /** Editor panel types that can be opened from clickable rows */
 export interface ViewConfigPanelProps {
     /** Whether the panel is open */
@@ -242,10 +250,27 @@ function ConfigRow({ label, value, onClick, children }: { label: string; value?:
     );
 }
 
-/** Section heading */
-function SectionHeader({ title }: { title: string }) {
+/** Section heading with optional collapse/expand support */
+function SectionHeader({ title, collapsible, collapsed, onToggle, testId }: { title: string; collapsible?: boolean; collapsed?: boolean; onToggle?: () => void; testId?: string }) {
+    if (collapsible) {
+        return (
+            <button
+                data-testid={testId}
+                className="flex items-center justify-between pt-4 pb-1.5 first:pt-0 w-full text-left"
+                onClick={onToggle}
+                type="button"
+            >
+                <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{title}</h3>
+                {collapsed ? (
+                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                ) : (
+                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                )}
+            </button>
+        );
+    }
     return (
-        <div className="pt-4 pb-1.5 first:pt-0">
+        <div className="pt-4 pb-1.5 first:pt-0" data-testid={testId}>
             <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{title}</h3>
         </div>
     );
@@ -273,6 +298,16 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
     // Local draft state — clone of activeView, mutated by UI interactions
     const [draft, setDraft] = useState<Record<string, any>>({});
     const [isDirty, setIsDirty] = useState(false);
+    // Collapsible section state
+    const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+    const toggleSection = useCallback((section: string) => {
+        setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
+    }, []);
+    // Expandable sub-rows within Data section (sort, filter, fields)
+    const [expandedDataSubs, setExpandedDataSubs] = useState<Record<string, boolean>>({});
+    const toggleDataSub = useCallback((key: string) => {
+        setExpandedDataSubs(prev => ({ ...prev, [key]: !prev[key] }));
+    }, []);
 
     // Reset draft when switching to a different view (by ID change only).
     // We intentionally depend on activeView.id rather than the full activeView
@@ -399,6 +434,21 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
 
     if (!open) return null;
 
+    // Summary values for compact Data section ConfigRows
+    const sortCount = Array.isArray(draft.sort) ? draft.sort.filter((s: any) => s.field).length : 0;
+    const filterCount = filterGroupValue.conditions.length;
+    const visibleColumnsCount = Array.isArray(draft.columns) ? draft.columns.length : 0;
+    const sortSummary = sortCount > 0
+        ? t('console.objectView.sortsCount', { count: sortCount })
+        : t('console.objectView.none');
+    const filterSummary = filterCount > 0
+        ? t('console.objectView.filtersCount', { count: filterCount })
+        : t('console.objectView.none');
+    const fieldsSummary = visibleColumnsCount > 0
+        ? t('console.objectView.fieldsVisible', { count: visibleColumnsCount })
+        : t('console.objectView.none');
+    const groupByValue = draft.kanban?.groupByField || draft.kanban?.groupField || draft.groupBy || '';
+
     return (
         <div
             ref={panelRef}
@@ -408,11 +458,13 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
             tabIndex={-1}
             className="absolute inset-y-0 right-0 w-full sm:w-72 lg:w-80 sm:relative sm:inset-auto border-l bg-background flex flex-col shrink-0 z-20 transition-all overflow-hidden"
         >
-            {/* Panel Header */}
+            {/* Panel Header — breadcrumb hierarchy: Page > ViewType */}
             <div className="px-4 py-3 border-b flex items-center justify-between shrink-0">
-                <span className="text-sm font-semibold text-foreground truncate">
-                    {panelTitle}
-                </span>
+                <div className="flex items-center gap-1 text-sm truncate" data-testid="panel-breadcrumb">
+                    <span className="text-muted-foreground">{t('console.objectView.page')}</span>
+                    <span className="text-muted-foreground">›</span>
+                    <span className="text-foreground font-semibold">{VIEW_TYPE_LABELS[viewType] || viewType}</span>
+                </div>
                 <Button
                     size="sm"
                     variant="ghost"
@@ -426,7 +478,7 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-auto px-4 pb-4">
-                {/* Page Section */}
+                {/* Page Section — title, description, view type */}
                 <SectionHeader title={t('console.objectView.page')} />
                 <div className="space-y-0.5">
                     <ConfigRow label={t('console.objectView.title')}>
@@ -442,73 +494,6 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                             {objectDef.description || t('console.objectView.noDescription')}
                         </span>
                     </ConfigRow>
-                </div>
-
-                {/* Data Section */}
-                <SectionHeader title={t('console.objectView.data')} />
-                <div className="space-y-2">
-                    <ConfigRow label={t('console.objectView.source')} value={objectDef.label || objectDef.name} />
-
-                    {/* Columns — inline checkbox list */}
-                    <div className="pt-1">
-                        <span className="text-xs text-muted-foreground">{t('console.objectView.columns')}</span>
-                        <div data-testid="column-selector" className="mt-1 space-y-1 max-h-36 overflow-auto">
-                            {fieldOptions.map((f) => {
-                                const checked = Array.isArray(draft.columns) ? draft.columns.includes(f.value) : false;
-                                return (
-                                    <label key={f.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
-                                        <Checkbox
-                                            data-testid={`col-checkbox-${f.value}`}
-                                            checked={checked}
-                                            onCheckedChange={(c) => handleColumnToggle(f.value, c === true)}
-                                            className="h-3.5 w-3.5"
-                                        />
-                                        <span className="truncate">{f.label}</span>
-                                    </label>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Filters — inline FilterBuilder */}
-                    <div className="pt-1">
-                        <span className="text-xs text-muted-foreground">{t('console.objectView.filterBy')}</span>
-                        <div data-testid="inline-filter-builder" className="mt-1">
-                            <FilterBuilder
-                                fields={fieldOptions}
-                                value={filterGroupValue}
-                                onChange={handleFilterChange}
-                                className="[&_button]:h-7 [&_button]:text-xs [&_input]:h-7 [&_input]:text-xs"
-                                showClearAll
-                            />
-                        </div>
-                    </div>
-
-                    {/* Sort — inline SortBuilder */}
-                    <div className="pt-1">
-                        <span className="text-xs text-muted-foreground">{t('console.objectView.sortBy')}</span>
-                        <div data-testid="inline-sort-builder" className="mt-1">
-                            <SortBuilder
-                                fields={fieldOptions.map(f => ({ value: f.value, label: f.label }))}
-                                value={sortItemsValue}
-                                onChange={handleSortChange}
-                                className="[&_button]:h-7 [&_button]:text-xs"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Appearance Section */}
-                <SectionHeader title={t('console.objectView.appearance')} />
-                <div className="space-y-0.5">
-                    <ConfigRow label={t('console.objectView.showDescription')}>
-                        <Switch
-                            data-testid="toggle-showDescription"
-                            checked={hasShowDescription}
-                            onCheckedChange={(checked: boolean) => updateDraft('showDescription', checked)}
-                            className="scale-75"
-                        />
-                    </ConfigRow>
                     <ConfigRow label={t('console.objectView.viewType')}>
                         <select
                             data-testid="view-type-select"
@@ -523,36 +508,124 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                     </ConfigRow>
                 </div>
 
-                {/* Type-Specific Options Section */}
-                {viewType !== 'grid' && (
-                    <>
-                        <SectionHeader title={t('console.objectView.typeOptions')} />
-                        <div data-testid="type-options-section" className="space-y-2">
-                            {viewType === 'kanban' && (
-                                <div>
-                                    <span className="text-xs text-muted-foreground">{t('console.objectView.groupByField')}</span>
-                                    <select
-                                        data-testid="type-opt-kanban-groupByField"
-                                        className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
-                                        value={draft.kanban?.groupByField || draft.kanban?.groupField || ''}
-                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('kanban', 'groupByField', e.target.value)}
-                                    >
-                                        <option value="">{t('console.objectView.selectField')}</option>
-                                        {fieldOptions.map(f => (
-                                            <option key={f.value} value={f.value}>{f.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-                            {viewType === 'calendar' && (
-                                <>
+                {/* Data Section — collapsible */}
+                <SectionHeader
+                    title={t('console.objectView.data')}
+                    collapsible
+                    collapsed={collapsedSections.data}
+                    onToggle={() => toggleSection('data')}
+                    testId="section-data"
+                />
+                {!collapsedSections.data && (
+                    <div className="space-y-0.5">
+                        <ConfigRow label={t('console.objectView.source')} value={objectDef.label || objectDef.name} />
+
+                        {/* Sort by — compact summary row, click to expand */}
+                        <ConfigRow
+                            label={t('console.objectView.sortBy')}
+                            value={sortSummary}
+                            onClick={() => toggleDataSub('sort')}
+                        />
+                        {expandedDataSubs.sort && (
+                            <div data-testid="inline-sort-builder" className="pb-2">
+                                <SortBuilder
+                                    fields={fieldOptions.map(f => ({ value: f.value, label: f.label }))}
+                                    value={sortItemsValue}
+                                    onChange={handleSortChange}
+                                    className="[&_button]:h-7 [&_button]:text-xs"
+                                />
+                            </div>
+                        )}
+
+                        {/* Group by — universal field selector */}
+                        <ConfigRow label={t('console.objectView.groupBy')}>
+                            <select
+                                data-testid="data-groupBy"
+                                className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                                value={groupByValue}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                    updateDraft('groupBy', e.target.value);
+                                    if (viewType === 'kanban') {
+                                        handleTypeOptionChange('kanban', 'groupByField', e.target.value);
+                                    }
+                                }}
+                            >
+                                <option value="">{t('console.objectView.none')}</option>
+                                {fieldOptions.map(f => (
+                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                ))}
+                            </select>
+                        </ConfigRow>
+
+                        {/* Prefix field */}
+                        <ConfigRow label={t('console.objectView.prefixField')}>
+                            <select
+                                data-testid="data-prefixField"
+                                className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                                value={draft.prefixField || ''}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateDraft('prefixField', e.target.value)}
+                            >
+                                <option value="">{t('console.objectView.none')}</option>
+                                {fieldOptions.map(f => (
+                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                ))}
+                            </select>
+                        </ConfigRow>
+
+                        {/* Fields — compact summary, click to expand column selector */}
+                        <ConfigRow
+                            label={t('console.objectView.fields')}
+                            value={fieldsSummary}
+                            onClick={() => toggleDataSub('fields')}
+                        />
+                        {expandedDataSubs.fields && (
+                            <div data-testid="column-selector" className="pb-2 space-y-1 max-h-36 overflow-auto">
+                                {fieldOptions.map((f) => {
+                                    const checked = Array.isArray(draft.columns) ? draft.columns.includes(f.value) : false;
+                                    return (
+                                        <label key={f.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
+                                            <Checkbox
+                                                data-testid={`col-checkbox-${f.value}`}
+                                                checked={checked}
+                                                onCheckedChange={(c) => handleColumnToggle(f.value, c === true)}
+                                                className="h-3.5 w-3.5"
+                                            />
+                                            <span className="truncate">{f.label}</span>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Filter by — compact summary, click to expand */}
+                        <ConfigRow
+                            label={t('console.objectView.filterBy')}
+                            value={filterSummary}
+                            onClick={() => toggleDataSub('filter')}
+                        />
+                        {expandedDataSubs.filter && (
+                            <div data-testid="inline-filter-builder" className="pb-2">
+                                <FilterBuilder
+                                    fields={fieldOptions}
+                                    value={filterGroupValue}
+                                    onChange={handleFilterChange}
+                                    className="[&_button]:h-7 [&_button]:text-xs [&_input]:h-7 [&_input]:text-xs"
+                                    showClearAll
+                                />
+                            </div>
+                        )}
+
+                        {/* Type-Specific Data Fields */}
+                        {viewType !== 'grid' && (
+                            <div data-testid="type-options-section" className="pt-1 space-y-2">
+                                {viewType === 'kanban' && (
                                     <div>
-                                        <span className="text-xs text-muted-foreground">{t('console.objectView.startDateField')}</span>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.groupByField')}</span>
                                         <select
-                                            data-testid="type-opt-calendar-startDateField"
+                                            data-testid="type-opt-kanban-groupByField"
                                             className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
-                                            value={draft.calendar?.startDateField || ''}
-                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('calendar', 'startDateField', e.target.value)}
+                                            value={draft.kanban?.groupByField || draft.kanban?.groupField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('kanban', 'groupByField', e.target.value)}
                                         >
                                             <option value="">{t('console.objectView.selectField')}</option>
                                             {fieldOptions.map(f => (
@@ -560,13 +633,93 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                                             ))}
                                         </select>
                                     </div>
+                                )}
+                                {viewType === 'calendar' && (
+                                    <>
+                                        <div>
+                                            <span className="text-xs text-muted-foreground">{t('console.objectView.startDateField')}</span>
+                                            <select
+                                                data-testid="type-opt-calendar-startDateField"
+                                                className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                                value={draft.calendar?.startDateField || ''}
+                                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('calendar', 'startDateField', e.target.value)}
+                                            >
+                                                <option value="">{t('console.objectView.selectField')}</option>
+                                                {fieldOptions.map(f => (
+                                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <span className="text-xs text-muted-foreground">{t('console.objectView.endDateField')}</span>
+                                            <select
+                                                data-testid="type-opt-calendar-endDateField"
+                                                className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                                value={draft.calendar?.endDateField || ''}
+                                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('calendar', 'endDateField', e.target.value)}
+                                            >
+                                                <option value="">{t('console.objectView.selectField')}</option>
+                                                {fieldOptions.map(f => (
+                                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <span className="text-xs text-muted-foreground">{t('console.objectView.titleField')}</span>
+                                            <select
+                                                data-testid="type-opt-calendar-titleField"
+                                                className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                                value={draft.calendar?.titleField || ''}
+                                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('calendar', 'titleField', e.target.value)}
+                                            >
+                                                <option value="">{t('console.objectView.selectField')}</option>
+                                                {fieldOptions.map(f => (
+                                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </>
+                                )}
+                                {viewType === 'map' && (
+                                    <>
+                                        <div>
+                                            <span className="text-xs text-muted-foreground">{t('console.objectView.latitudeField')}</span>
+                                            <select
+                                                data-testid="type-opt-map-latitudeField"
+                                                className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                                value={draft.map?.latitudeField || ''}
+                                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('map', 'latitudeField', e.target.value)}
+                                            >
+                                                <option value="">{t('console.objectView.selectField')}</option>
+                                                {fieldOptions.map(f => (
+                                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <span className="text-xs text-muted-foreground">{t('console.objectView.longitudeField')}</span>
+                                            <select
+                                                data-testid="type-opt-map-longitudeField"
+                                                className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                                value={draft.map?.longitudeField || ''}
+                                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('map', 'longitudeField', e.target.value)}
+                                            >
+                                                <option value="">{t('console.objectView.selectField')}</option>
+                                                {fieldOptions.map(f => (
+                                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </>
+                                )}
+                                {viewType === 'gallery' && (
                                     <div>
-                                        <span className="text-xs text-muted-foreground">{t('console.objectView.titleField')}</span>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.imageField')}</span>
                                         <select
-                                            data-testid="type-opt-calendar-titleField"
+                                            data-testid="type-opt-gallery-imageField"
                                             className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
-                                            value={draft.calendar?.titleField || ''}
-                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('calendar', 'titleField', e.target.value)}
+                                            value={draft.gallery?.imageField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('gallery', 'imageField', e.target.value)}
                                         >
                                             <option value="">{t('console.objectView.selectField')}</option>
                                             {fieldOptions.map(f => (
@@ -574,149 +727,214 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                                             ))}
                                         </select>
                                     </div>
-                                </>
-                            )}
-                            {viewType === 'map' && (
-                                <>
-                                    <div>
-                                        <span className="text-xs text-muted-foreground">{t('console.objectView.latitudeField')}</span>
-                                        <select
-                                            data-testid="type-opt-map-latitudeField"
-                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
-                                            value={draft.map?.latitudeField || ''}
-                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('map', 'latitudeField', e.target.value)}
-                                        >
-                                            <option value="">{t('console.objectView.selectField')}</option>
-                                            {fieldOptions.map(f => (
-                                                <option key={f.value} value={f.value}>{f.label}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <span className="text-xs text-muted-foreground">{t('console.objectView.longitudeField')}</span>
-                                        <select
-                                            data-testid="type-opt-map-longitudeField"
-                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
-                                            value={draft.map?.longitudeField || ''}
-                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('map', 'longitudeField', e.target.value)}
-                                        >
-                                            <option value="">{t('console.objectView.selectField')}</option>
-                                            {fieldOptions.map(f => (
-                                                <option key={f.value} value={f.value}>{f.label}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </>
-                            )}
-                            {viewType === 'gallery' && (
-                                <div>
-                                    <span className="text-xs text-muted-foreground">{t('console.objectView.imageField')}</span>
-                                    <select
-                                        data-testid="type-opt-gallery-imageField"
-                                        className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
-                                        value={draft.gallery?.imageField || ''}
-                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('gallery', 'imageField', e.target.value)}
-                                    >
-                                        <option value="">{t('console.objectView.selectField')}</option>
-                                        {fieldOptions.map(f => (
-                                            <option key={f.value} value={f.value}>{f.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-                            {(viewType === 'timeline' || viewType === 'gantt') && (
-                                <>
-                                    <div>
-                                        <span className="text-xs text-muted-foreground">{t('console.objectView.dateField')}</span>
-                                        <select
-                                            data-testid={`type-opt-${viewType}-dateField`}
-                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
-                                            value={draft[viewType]?.dateField || draft[viewType]?.startDateField || ''}
-                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange(viewType, 'dateField', e.target.value)}
-                                        >
-                                            <option value="">{t('console.objectView.selectField')}</option>
-                                            {fieldOptions.map(f => (
-                                                <option key={f.value} value={f.value}>{f.label}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <span className="text-xs text-muted-foreground">{t('console.objectView.titleField')}</span>
-                                        <select
-                                            data-testid={`type-opt-${viewType}-titleField`}
-                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
-                                            value={draft[viewType]?.titleField || ''}
-                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange(viewType, 'titleField', e.target.value)}
-                                        >
-                                            <option value="">{t('console.objectView.selectField')}</option>
-                                            {fieldOptions.map(f => (
-                                                <option key={f.value} value={f.value}>{f.label}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </>
-                            )}
+                                )}
+                                {(viewType === 'timeline' || viewType === 'gantt') && (
+                                    <>
+                                        <div>
+                                            <span className="text-xs text-muted-foreground">{t('console.objectView.dateField')}</span>
+                                            <select
+                                                data-testid={`type-opt-${viewType}-dateField`}
+                                                className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                                value={draft[viewType]?.dateField || draft[viewType]?.startDateField || ''}
+                                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange(viewType, 'dateField', e.target.value)}
+                                            >
+                                                <option value="">{t('console.objectView.selectField')}</option>
+                                                {fieldOptions.map(f => (
+                                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <span className="text-xs text-muted-foreground">{t('console.objectView.titleField')}</span>
+                                            <select
+                                                data-testid={`type-opt-${viewType}-titleField`}
+                                                className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                                value={draft[viewType]?.titleField || ''}
+                                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange(viewType, 'titleField', e.target.value)}
+                                            >
+                                                <option value="">{t('console.objectView.selectField')}</option>
+                                                {fieldOptions.map(f => (
+                                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                        {viewType === 'grid' && (
+                            <div data-testid="type-options-section" className="hidden" />
+                        )}
+
+                        {/* Data options — search/filter/sort enables */}
+                        <div className="pt-1 space-y-0.5">
+                            <ConfigRow label={t('console.objectView.enableSearch')}>
+                                <Switch
+                                    data-testid="toggle-showSearch"
+                                    checked={hasSearch}
+                                    onCheckedChange={(checked: boolean) => updateDraft('showSearch', checked)}
+                                    className="scale-75"
+                                />
+                            </ConfigRow>
+                            <ConfigRow label={t('console.objectView.enableFilter')}>
+                                <Switch
+                                    data-testid="toggle-showFilters"
+                                    checked={hasFilter}
+                                    onCheckedChange={(checked: boolean) => updateDraft('showFilters', checked)}
+                                    className="scale-75"
+                                />
+                            </ConfigRow>
+                            <ConfigRow label={t('console.objectView.enableSort')}>
+                                <Switch
+                                    data-testid="toggle-showSort"
+                                    checked={hasSort}
+                                    onCheckedChange={(checked: boolean) => updateDraft('showSort', checked)}
+                                    className="scale-75"
+                                />
+                            </ConfigRow>
                         </div>
-                    </>
-                )}
-                {viewType === 'grid' && (
-                    <div data-testid="type-options-section" className="hidden" />
+                    </div>
                 )}
 
-                {/* User Filters Section */}
-                <SectionHeader title={t('console.objectView.userFilters')} />
-                <div className="space-y-0.5">
-                    <ConfigRow label={t('console.objectView.enableSearch')}>
-                        <Switch
-                            data-testid="toggle-showSearch"
-                            checked={hasSearch}
-                            onCheckedChange={(checked: boolean) => updateDraft('showSearch', checked)}
-                            className="scale-75"
-                        />
-                    </ConfigRow>
-                    <ConfigRow label={t('console.objectView.enableFilter')}>
-                        <Switch
-                            data-testid="toggle-showFilters"
-                            checked={hasFilter}
-                            onCheckedChange={(checked: boolean) => updateDraft('showFilters', checked)}
-                            className="scale-75"
-                        />
-                    </ConfigRow>
-                    <ConfigRow label={t('console.objectView.enableSort')}>
-                        <Switch
-                            data-testid="toggle-showSort"
-                            checked={hasSort}
-                            onCheckedChange={(checked: boolean) => updateDraft('showSort', checked)}
-                            className="scale-75"
-                        />
-                    </ConfigRow>
-                </div>
+                {/* Appearance Section — collapsible */}
+                <SectionHeader
+                    title={t('console.objectView.appearance')}
+                    collapsible
+                    collapsed={collapsedSections.appearance}
+                    onToggle={() => toggleSection('appearance')}
+                    testId="section-appearance"
+                />
+                {!collapsedSections.appearance && (
+                    <div className="space-y-0.5">
+                        <ConfigRow label={t('console.objectView.color')}>
+                            <select
+                                data-testid="appearance-color"
+                                className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                                value={draft.color || ''}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateDraft('color', e.target.value)}
+                            >
+                                <option value="">{t('console.objectView.none')}</option>
+                                {fieldOptions.map(f => (
+                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                ))}
+                            </select>
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.fieldTextColor')}>
+                            <select
+                                data-testid="appearance-fieldTextColor"
+                                className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                                value={draft.fieldTextColor || ''}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateDraft('fieldTextColor', e.target.value)}
+                            >
+                                <option value="">{t('console.objectView.none')}</option>
+                                {fieldOptions.map(f => (
+                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                ))}
+                            </select>
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.rowHeight')}>
+                            <div className="flex gap-0.5" data-testid="appearance-rowHeight">
+                                {ROW_HEIGHT_OPTIONS.map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        data-testid={`row-height-${opt.value}`}
+                                        className={`h-7 w-7 rounded border flex items-center justify-center ${
+                                            (draft.rowHeight || 'short') === opt.value
+                                                ? 'border-primary bg-primary/10 text-primary'
+                                                : 'border-input text-muted-foreground hover:bg-accent/50'
+                                        }`}
+                                        onClick={() => updateDraft('rowHeight', opt.value)}
+                                        title={opt.value}
+                                    >
+                                        <div className={`flex flex-col items-center justify-center w-4 h-4 ${opt.gapClass}`}>
+                                            <div className="w-3.5 h-px bg-current rounded-full" />
+                                            <div className="w-3.5 h-px bg-current rounded-full" />
+                                            <div className="w-3.5 h-px bg-current rounded-full" />
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.wrapHeaders')}>
+                            <Switch
+                                data-testid="toggle-wrapHeaders"
+                                checked={draft.wrapHeaders === true}
+                                onCheckedChange={(checked: boolean) => updateDraft('wrapHeaders', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.showFieldDescriptions')}>
+                            <Switch
+                                data-testid="toggle-showDescription"
+                                checked={hasShowDescription}
+                                onCheckedChange={(checked: boolean) => updateDraft('showDescription', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.collapseAllByDefault')}>
+                            <Switch
+                                data-testid="toggle-collapseAllByDefault"
+                                checked={draft.collapseAllByDefault === true}
+                                onCheckedChange={(checked: boolean) => updateDraft('collapseAllByDefault', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                    </div>
+                )}
 
-                {/* User Actions Section */}
-                <SectionHeader title={t('console.objectView.userActions')} />
-                <div className="space-y-0.5">
-                    <ConfigRow label={t('console.objectView.addRecordViaForm')}>
-                        <Switch
-                            data-testid="toggle-addRecordViaForm"
-                            checked={hasAddForm}
-                            onCheckedChange={(checked: boolean) => updateDraft('addRecordViaForm', checked)}
-                            className="scale-75"
-                        />
-                    </ConfigRow>
-                </div>
-
-                {/* Advanced Section */}
-                <SectionHeader title={t('console.objectView.advanced')} />
-                <div className="space-y-0.5">
-                    <ConfigRow label={t('console.objectView.allowExport')}>
-                        <Switch
-                            data-testid="toggle-allowExport"
-                            checked={hasExport}
-                            onCheckedChange={(checked: boolean) => updateDraft('allowExport', checked)}
-                            className="scale-75"
-                        />
-                    </ConfigRow>
-                </div>
+                {/* User Actions Section — collapsible */}
+                <SectionHeader
+                    title={t('console.objectView.userActions')}
+                    collapsible
+                    collapsed={collapsedSections.userActions}
+                    onToggle={() => toggleSection('userActions')}
+                    testId="section-userActions"
+                />
+                {!collapsedSections.userActions && (
+                    <div className="space-y-0.5">
+                        <ConfigRow label={t('console.objectView.editRecordsInline')}>
+                            <Switch
+                                data-testid="toggle-editRecordsInline"
+                                checked={draft.editRecordsInline !== false}
+                                onCheckedChange={(checked: boolean) => updateDraft('editRecordsInline', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.addDeleteRecordsInline')}>
+                            <Switch
+                                data-testid="toggle-addDeleteRecordsInline"
+                                checked={draft.addDeleteRecordsInline !== false}
+                                onCheckedChange={(checked: boolean) => updateDraft('addDeleteRecordsInline', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.clickIntoRecordDetails')}>
+                            <Switch
+                                data-testid="toggle-clickIntoRecordDetails"
+                                checked={draft.clickIntoRecordDetails !== false}
+                                onCheckedChange={(checked: boolean) => updateDraft('clickIntoRecordDetails', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.addRecordViaForm')}>
+                            <Switch
+                                data-testid="toggle-addRecordViaForm"
+                                checked={hasAddForm}
+                                onCheckedChange={(checked: boolean) => updateDraft('addRecordViaForm', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.allowExport')}>
+                            <Switch
+                                data-testid="toggle-allowExport"
+                                checked={hasExport}
+                                onCheckedChange={(checked: boolean) => updateDraft('allowExport', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                    </div>
+                )}
             </div>
 
             {/* Footer — Save / Discard buttons */}
