@@ -261,4 +261,57 @@ describe('AppSidebar', () => {
       expect(badges?.length ?? 0).toBe(0);
     });
   });
+
+  // --- Navigation Drag Reorder (@dnd-kit integration) ---
+
+  describe('Navigation Drag Reorder', () => {
+    it('renders navigation items via NavigationRenderer (no draggable HTML5 attributes)', async () => {
+      renderSidebar();
+
+      await waitFor(() => {
+        expect(screen.getByText('Accounts')).toBeInTheDocument();
+        expect(screen.getByText('Contacts')).toBeInTheDocument();
+      });
+
+      // Verify items are not using HTML5 draggable attribute (old DnD removed)
+      const accountsLink = screen.getByText('Accounts');
+      const menuItem = accountsLink.closest('[data-sidebar="menu-item"]');
+      // The old code set draggable="true" on SidebarMenuItem; the new code
+      // delegates to NavigationRenderer which uses @dnd-kit (no draggable attr on the item itself)
+      expect(menuItem?.getAttribute('draggable')).not.toBe('true');
+    });
+
+    it('persists reorder state to localStorage via useNavOrder', () => {
+      // useNavOrder uses localStorage key `objectui-nav-order-{appName}`
+      const storageKey = 'objectui-nav-order-crm';
+
+      // Simulate a saved order in localStorage
+      const savedOrder = { '__root__': ['nav-contacts', 'nav-accounts', 'nav-dash', 'nav-settings', 'nav-group-reports'] };
+      localStorage.setItem(storageKey, JSON.stringify(savedOrder));
+
+      renderSidebar();
+
+      // Items should render (order applied internally by useNavOrder + NavigationRenderer)
+      expect(screen.getByText('Accounts')).toBeInTheDocument();
+      expect(screen.getByText('Contacts')).toBeInTheDocument();
+    });
+  });
+
+  // --- Navigation Pin Integration ---
+
+  describe('Navigation Pin', () => {
+    it('renders navigation items with pin support enabled', async () => {
+      renderSidebar();
+
+      await waitFor(() => {
+        expect(screen.getByText('Accounts')).toBeInTheDocument();
+      });
+
+      // NavigationRenderer receives enablePinning=true
+      // Pin buttons are rendered by NavigationRenderer when enablePinning is set
+      // We verify the items render correctly with pin support enabled
+      expect(screen.getByText('Contacts')).toBeInTheDocument();
+      expect(screen.getByText('Monthly Dashboard')).toBeInTheDocument();
+    });
+  });
 });

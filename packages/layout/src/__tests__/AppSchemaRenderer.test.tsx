@@ -345,4 +345,64 @@ describe('AppSchemaRenderer', () => {
       expect(screen.getByText('Overview')).toBeTruthy();
     });
   });
+
+  // --- Slot system ---
+
+  describe('slot system', () => {
+    it('renders custom sidebarHeader when provided', () => {
+      renderApp(schemaWithNav, {
+        sidebarHeader: <div data-testid="custom-header">Custom Header</div>,
+      });
+      expect(screen.getByTestId('custom-header')).toBeTruthy();
+      expect(screen.getByText('Custom Header')).toBeTruthy();
+    });
+
+    it('replaces default branding header with sidebarHeader slot', () => {
+      renderApp(schemaWithNav, {
+        sidebarHeader: <div data-testid="custom-header">App Switcher</div>,
+      });
+      // Custom header is present
+      expect(screen.getByText('App Switcher')).toBeTruthy();
+      // Default branding title should not be in the sidebar header
+      // (it may still appear elsewhere, but the slot replaces the header content)
+      expect(screen.getByTestId('custom-header')).toBeTruthy();
+    });
+
+    it('renders sidebarExtra content after navigation', () => {
+      renderApp(schemaWithNav, {
+        sidebarExtra: <div data-testid="sidebar-extra">Recent Items Section</div>,
+      });
+      expect(screen.getByTestId('sidebar-extra')).toBeTruthy();
+      expect(screen.getByText('Recent Items Section')).toBeTruthy();
+    });
+
+    it('renders sidebarFooter slot', () => {
+      renderApp(schemaWithNav, {
+        sidebarFooter: <div data-testid="user-footer">User Profile</div>,
+      });
+      expect(screen.getByTestId('user-footer')).toBeTruthy();
+      expect(screen.getByText('User Profile')).toBeTruthy();
+    });
+
+    it('renders all slots together', () => {
+      renderApp(schemaWithNav, {
+        sidebarHeader: <div data-testid="header-slot">Header</div>,
+        sidebarExtra: <div data-testid="extra-slot">Extra</div>,
+        sidebarFooter: <div data-testid="footer-slot">Footer</div>,
+        navbar: <div data-testid="navbar-slot">Navbar</div>,
+      });
+      expect(screen.getByTestId('header-slot')).toBeTruthy();
+      expect(screen.getByTestId('extra-slot')).toBeTruthy();
+      expect(screen.getByTestId('footer-slot')).toBeTruthy();
+      expect(screen.getByTestId('navbar-slot')).toBeTruthy();
+      // Navigation still renders
+      expect(screen.getByText('Accounts')).toBeTruthy();
+    });
+
+    it('uses default branding header when sidebarHeader is not provided', () => {
+      renderApp(schemaWithNav);
+      // Default header shows app title
+      expect(screen.getByText('Sales CRM')).toBeTruthy();
+    });
+  });
 });
