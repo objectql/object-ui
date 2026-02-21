@@ -193,6 +193,9 @@ describe('ModalForm Mobile UX', () => {
 });
 
 describe('ModalForm Container Query Layout', () => {
+  /** CSS selector for the @container query context element */
+  const CONTAINER_SELECTOR = '.\\@container';
+
   it('applies @container class on scrollable content area', async () => {
     const mockDataSource = createMockDataSource();
 
@@ -217,7 +220,7 @@ describe('ModalForm Container Query Layout', () => {
     // The scrollable content wrapper should be a @container query context
     const dialogContent = document.querySelector('[role="dialog"]');
     expect(dialogContent).not.toBeNull();
-    const scrollArea = dialogContent!.querySelector('.\\@container');
+    const scrollArea = dialogContent!.querySelector(CONTAINER_SELECTOR);
     expect(scrollArea).not.toBeNull();
     expect(scrollArea!.className).toContain('overflow-y-auto');
   });
@@ -264,14 +267,15 @@ describe('ModalForm Container Query Layout', () => {
     // The form field container should use container-query classes (@md:grid-cols-2)
     // instead of viewport-based classes (md:grid-cols-2)
     const dialogContent = document.querySelector('[role="dialog"]');
-    const containerEl = dialogContent!.querySelector('.\\@container');
+    const containerEl = dialogContent!.querySelector(CONTAINER_SELECTOR);
     expect(containerEl).not.toBeNull();
 
     // Look for the grid container with @md:grid-cols-2
     const gridEl = containerEl!.querySelector('[class*="@md:grid-cols-2"]');
     expect(gridEl).not.toBeNull();
-    // Should NOT use viewport-based md:grid-cols-2
-    expect(gridEl!.className).not.toMatch(/(?<![@ ])md:grid-cols-2/);
+    expect(gridEl!.className).toContain('@md:grid-cols-2');
+    // Should NOT use viewport-based md:grid-cols-2 (without @ prefix)
+    expect(gridEl!.className).not.toContain(' md:grid-cols-2');
   });
 
   it('single-column forms do not get container grid override', async () => {
@@ -311,7 +315,7 @@ describe('ModalForm Container Query Layout', () => {
 
     // Single column form should not have @md:grid-cols-2
     const dialogContent = document.querySelector('[role="dialog"]');
-    const containerEl = dialogContent!.querySelector('.\\@container');
+    const containerEl = dialogContent!.querySelector(CONTAINER_SELECTOR);
     expect(containerEl).not.toBeNull();
     const gridEl = containerEl!.querySelector('[class*="@md:grid-cols"]');
     expect(gridEl).toBeNull();
