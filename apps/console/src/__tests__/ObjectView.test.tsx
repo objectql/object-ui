@@ -227,7 +227,7 @@ describe('ObjectView Component', () => {
         expect(screen.queryByTitle('console.objectView.designTools')).not.toBeInTheDocument();
     });
 
-    it('navigates to view designer with relative path from nested view route', () => {
+    it('opens config panel in create mode when Add View is clicked from nested view route', () => {
         mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
         mockUseParams.mockReturnValue({ objectName: 'opportunity', viewId: 'pipeline' });
 
@@ -240,10 +240,12 @@ describe('ObjectView Component', () => {
         const addViewBtn = screen.getByText('console.objectView.addView');
         fireEvent.click(addViewBtn);
 
-        expect(mockNavigate).toHaveBeenCalledWith('../../views/new', { relative: 'path' });
+        // Should open config panel instead of navigating
+        expect(mockNavigate).not.toHaveBeenCalledWith('../../views/new', { relative: 'path' });
+        expect(screen.getByTestId('view-config-panel')).toBeInTheDocument();
     });
 
-    it('navigates to view designer with relative path from root object route', () => {
+    it('opens config panel in create mode when Add View is clicked from root object route', () => {
         mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
         mockUseParams.mockReturnValue({ objectName: 'opportunity' });
 
@@ -254,6 +256,23 @@ describe('ObjectView Component', () => {
 
         const addViewBtn = screen.getByText('console.objectView.addView');
         fireEvent.click(addViewBtn);
+
+        // Should open config panel instead of navigating
+        expect(mockNavigate).not.toHaveBeenCalledWith('views/new', { relative: 'path' });
+        expect(screen.getByTestId('view-config-panel')).toBeInTheDocument();
+    });
+
+    it('navigates to view designer when Advanced Editor is clicked', () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        const designBtn = screen.getByTitle('console.objectView.designTools');
+        fireEvent.click(designBtn);
+
+        const advancedBtn = screen.getByText('console.objectView.advancedEditor');
+        fireEvent.click(advancedBtn);
 
         expect(mockNavigate).toHaveBeenCalledWith('views/new', { relative: 'path' });
     });

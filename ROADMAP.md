@@ -116,9 +116,13 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 ### P1.8 Console — View Config Panel (Phase 20)
 
-- [ ] Inline ViewConfigPanel for all view types (Airtable-style right sidebar)
-- [ ] Column visibility toggle from config panel
-- [ ] Sort/filter/group config from right sidebar
+- [x] Inline ViewConfigPanel for all view types (Airtable-style right sidebar)
+- [x] Column visibility toggle from config panel
+- [x] Sort/filter/group config from right sidebar
+- [x] Type-specific options in config panel (kanban/calendar/map/gallery/timeline/gantt)
+- [x] Unified create/edit mode (`mode="create"|"edit"`) — single panel entry point
+- [x] Unified data model (`UnifiedViewConfig`) for view configuration
+- [x] ViewDesigner retained as "Advanced Editor" with weaker entry point
 - [ ] View appearance settings (density, row color, conditional formatting)
 
 ---
