@@ -321,3 +321,113 @@ describe('ModalForm Container Query Layout', () => {
     expect(gridEl).toBeNull();
   });
 });
+
+describe('ModalForm Sections — Modal Size Auto-Upgrade', () => {
+  it('auto-upgrades modal to lg when sections use 2-column layout', async () => {
+    const mockDataSource = createMockDataSource();
+
+    render(
+      <ModalForm
+        schema={{
+          type: 'object-form',
+          formType: 'modal',
+          objectName: 'events',
+          mode: 'create',
+          title: 'Create Task',
+          open: true,
+          sections: [
+            {
+              label: 'Task Information',
+              columns: 2,
+              fields: ['subject', 'start', 'end', 'location'],
+            },
+            {
+              label: 'Details',
+              columns: 1,
+              fields: ['description'],
+            },
+          ],
+        }}
+        dataSource={mockDataSource as any}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Create Task')).toBeInTheDocument();
+    });
+
+    // Dialog should auto-upgrade to lg (max-w-2xl) because sections have columns: 2
+    const dialogContent = document.querySelector('[role="dialog"]');
+    expect(dialogContent).not.toBeNull();
+    expect(dialogContent!.className).toContain('max-w-2xl');
+  });
+
+  it('keeps default size when all sections use 1-column layout', async () => {
+    const mockDataSource = createMockDataSource();
+
+    render(
+      <ModalForm
+        schema={{
+          type: 'object-form',
+          formType: 'modal',
+          objectName: 'events',
+          mode: 'create',
+          title: 'Create Task',
+          open: true,
+          sections: [
+            {
+              label: 'Basic Info',
+              columns: 1,
+              fields: ['subject', 'start'],
+            },
+          ],
+        }}
+        dataSource={mockDataSource as any}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Create Task')).toBeInTheDocument();
+    });
+
+    // Dialog should remain at default size (max-w-lg)
+    const dialogContent = document.querySelector('[role="dialog"]');
+    expect(dialogContent).not.toBeNull();
+    expect(dialogContent!.className).toContain('max-w-lg');
+  });
+
+  it('respects explicit modalSize over section auto-upgrade', async () => {
+    const mockDataSource = createMockDataSource();
+
+    render(
+      <ModalForm
+        schema={{
+          type: 'object-form',
+          formType: 'modal',
+          objectName: 'events',
+          mode: 'create',
+          title: 'Create Task',
+          open: true,
+          modalSize: 'sm',
+          sections: [
+            {
+              label: 'Task Information',
+              columns: 2,
+              fields: ['subject', 'start', 'end', 'location'],
+            },
+          ],
+        }}
+        dataSource={mockDataSource as any}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Create Task')).toBeInTheDocument();
+    });
+
+    // Explicit modalSize: 'sm' should override section auto-upgrade
+    const dialogContent = document.querySelector('[role="dialog"]');
+    expect(dialogContent).not.toBeNull();
+    expect(dialogContent!.className).toContain('max-w-sm');
+  });
+});

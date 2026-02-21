@@ -64,6 +64,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 ### P1.2 Console — Forms & Data Collection
 
+- [x] ModalForm responsive optimization: sections layout auto-upgrades modal size, slider for percent/progress fields, tablet 2-column layout
 - [ ] Camera capture for mobile file upload
 - [ ] Image cropping/rotation in file fields
 - [ ] Cloud storage integration (S3, Azure Blob) for file upload

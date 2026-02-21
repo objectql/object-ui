@@ -147,8 +147,13 @@ export const ModalForm: React.FC<ModalFormProps> = ({
     if (autoLayoutResult?.columns && autoLayoutResult.columns > 1) {
       return inferModalSize(autoLayoutResult.columns);
     }
+    // Auto-upgrade for sections: use the max columns across all sections
+    if (schema.sections?.length) {
+      const maxCols = Math.max(...schema.sections.map(s => Number(s.columns) || 1));
+      if (maxCols > 1) return inferModalSize(maxCols);
+    }
     return 'default';
-  }, [schema.modalSize, autoLayoutResult]);
+  }, [schema.modalSize, autoLayoutResult, schema.sections]);
 
   const sizeClass = modalSizeClasses[effectiveModalSize] || modalSizeClasses.default;
 
