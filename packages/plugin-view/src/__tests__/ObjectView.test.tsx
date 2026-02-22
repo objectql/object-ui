@@ -549,5 +549,64 @@ describe('ObjectView', () => {
       // Component renders without crash — showSort is respected
       expect(screen.getByTestId('object-grid')).toBeInTheDocument();
     });
+
+    it('should include showSearch/showFilters/showSort in renderListView schema', async () => {
+      const schema: ObjectViewSchema = {
+        type: 'object-view',
+        objectName: 'contacts',
+        showSearch: false,
+        showFilters: false,
+        showSort: false,
+      };
+
+      const renderListViewSpy = vi.fn(({ schema: listSchema }: any) => (
+        <div data-testid="custom-list">Custom ListView</div>
+      ));
+
+      render(
+        <ObjectView
+          schema={schema}
+          dataSource={mockDataSource}
+          renderListView={renderListViewSpy}
+        />,
+      );
+
+      expect(renderListViewSpy).toHaveBeenCalled();
+      const callSchema = renderListViewSpy.mock.calls[0]?.[0]?.schema;
+      expect(callSchema?.showSearch).toBe(false);
+      expect(callSchema?.showFilters).toBe(false);
+      expect(callSchema?.showSort).toBe(false);
+    });
+
+    it('should propagate showSearch/showFilters/showSort from activeView in renderListView', async () => {
+      const schema: ObjectViewSchema = {
+        type: 'object-view',
+        objectName: 'contacts',
+      };
+
+      const renderListViewSpy = vi.fn(({ schema: listSchema }: any) => (
+        <div data-testid="custom-list">Custom ListView</div>
+      ));
+
+      const views = [
+        { id: 'v1', label: 'View 1', type: 'grid' as const, showSearch: false, showFilters: false, showSort: false },
+      ];
+
+      render(
+        <ObjectView
+          schema={schema}
+          dataSource={mockDataSource}
+          views={views}
+          activeViewId="v1"
+          renderListView={renderListViewSpy}
+        />,
+      );
+
+      expect(renderListViewSpy).toHaveBeenCalled();
+      const callSchema = renderListViewSpy.mock.calls[0]?.[0]?.schema;
+      expect(callSchema?.showSearch).toBe(false);
+      expect(callSchema?.showFilters).toBe(false);
+      expect(callSchema?.showSort).toBe(false);
+    });
   });
 });

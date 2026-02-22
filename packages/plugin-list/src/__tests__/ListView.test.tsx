@@ -598,4 +598,99 @@ describe('ListView', () => {
       expect(screen.queryByTestId('user-filters')).not.toBeInTheDocument();
     });
   });
+
+  // ============================
+  // Toolbar Toggle Visibility
+  // ============================
+  describe('Toolbar Toggle Visibility', () => {
+    it('should hide Search button when showSearch is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        showSearch: false,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByRole('button', { name: /search/i })).not.toBeInTheDocument();
+    });
+
+    it('should show Search button when showSearch is true', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        showSearch: true,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByRole('button', { name: /search/i })).toBeInTheDocument();
+    });
+
+    it('should show Search button when showSearch is undefined (default)', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByRole('button', { name: /search/i })).toBeInTheDocument();
+    });
+
+    it('should hide Filter button when showFilters is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        showFilters: false,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByRole('button', { name: /filter/i })).not.toBeInTheDocument();
+    });
+
+    it('should show Filter button when showFilters is true', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        showFilters: true,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByRole('button', { name: /filter/i })).toBeInTheDocument();
+    });
+
+    it('should hide Sort button when showSort is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        showSort: false,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByRole('button', { name: /^sort$/i })).not.toBeInTheDocument();
+    });
+
+    it('should show Sort button when showSort is true', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        showSort: true,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByRole('button', { name: /^sort$/i })).toBeInTheDocument();
+    });
+  });
 });
