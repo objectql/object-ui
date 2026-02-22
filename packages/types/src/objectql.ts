@@ -1033,6 +1033,33 @@ export interface NamedListView {
 
   /** Color field for row/card coloring */
   color?: string;
+
+  /** Enable inline editing @default false */
+  inlineEdit?: boolean;
+
+  /** Wrap column headers in grid view @default false */
+  wrapHeaders?: boolean;
+
+  /** Navigate to record detail view when row is clicked @default true */
+  clickIntoRecordDetails?: boolean;
+
+  /** Add records via a form dialog @default false */
+  addRecordViaForm?: boolean;
+
+  /** Enable inline add/delete of records @default false */
+  addDeleteRecordsInline?: boolean;
+
+  /** Collapse all grouped sections by default @default false */
+  collapseAllByDefault?: boolean;
+
+  /** Field name for custom text color */
+  fieldTextColor?: string;
+
+  /** Prefix field displayed before the main title */
+  prefixField?: string;
+
+  /** Show field descriptions below headers @default false */
+  showDescription?: boolean;
 }
 
 /**
@@ -1292,6 +1319,30 @@ export interface ListViewSchema extends BaseSchema {
    * When true, cells become editable on click/double-click.
    */
   inlineEdit?: boolean;
+
+  /** Wrap column headers in grid view @default false */
+  wrapHeaders?: boolean;
+
+  /** Navigate to record detail view when row is clicked @default true */
+  clickIntoRecordDetails?: boolean;
+
+  /** Add records via a form dialog @default false */
+  addRecordViaForm?: boolean;
+
+  /** Enable inline add/delete of records @default false */
+  addDeleteRecordsInline?: boolean;
+
+  /** Collapse all grouped sections by default @default false */
+  collapseAllByDefault?: boolean;
+
+  /** Field name for custom text color */
+  fieldTextColor?: string;
+
+  /** Prefix field displayed before the main title */
+  prefixField?: string;
+
+  /** Show field descriptions below headers @default false */
+  showDescription?: boolean;
 
   /**
    * ARIA attributes for accessibility.

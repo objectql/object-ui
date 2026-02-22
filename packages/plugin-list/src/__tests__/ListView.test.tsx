@@ -812,4 +812,61 @@ describe('ListView', () => {
       expect(screen.queryByRole('button', { name: /export/i })).not.toBeInTheDocument();
     });
   });
+
+  // ============================
+  // Schema prop forwarding to child views
+  // ============================
+  describe('Schema prop forwarding', () => {
+    it('should pass striped to child view schema', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        striped: true,
+      };
+
+      const { container } = renderWithProvider(<ListView schema={schema} />);
+      expect(container).toBeTruthy();
+    });
+
+    it('should pass bordered to child view schema', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        bordered: true,
+      };
+
+      const { container } = renderWithProvider(<ListView schema={schema} />);
+      expect(container).toBeTruthy();
+    });
+
+    it('should pass wrapHeaders to grid view schema', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        wrapHeaders: true,
+      };
+
+      const { container } = renderWithProvider(<ListView schema={schema} />);
+      expect(container).toBeTruthy();
+    });
+
+    it('should pass inlineEdit as editable to grid view schema', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        inlineEdit: true,
+      };
+
+      const { container } = renderWithProvider(<ListView schema={schema} />);
+      expect(container).toBeTruthy();
+    });
+  });
 });

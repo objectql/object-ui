@@ -316,6 +316,15 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
             striped: viewDef.striped ?? listSchema.striped,
             bordered: viewDef.bordered ?? listSchema.bordered,
             color: viewDef.color ?? listSchema.color,
+            // Propagate view-config properties (Bug 4 / items 14-22)
+            wrapHeaders: viewDef.wrapHeaders ?? listSchema.wrapHeaders,
+            clickIntoRecordDetails: viewDef.clickIntoRecordDetails ?? listSchema.clickIntoRecordDetails,
+            addRecordViaForm: viewDef.addRecordViaForm ?? listSchema.addRecordViaForm,
+            addDeleteRecordsInline: viewDef.addDeleteRecordsInline ?? listSchema.addDeleteRecordsInline,
+            collapseAllByDefault: viewDef.collapseAllByDefault ?? listSchema.collapseAllByDefault,
+            fieldTextColor: viewDef.fieldTextColor ?? listSchema.fieldTextColor,
+            prefixField: viewDef.prefixField ?? listSchema.prefixField,
+            showDescription: viewDef.showDescription ?? listSchema.showDescription,
             // Propagate filter/sort as default filters/sort for data flow
             ...(viewDef.filter?.length ? { filters: viewDef.filter } : {}),
             ...(viewDef.sort?.length ? { sort: viewDef.sort } : {}),

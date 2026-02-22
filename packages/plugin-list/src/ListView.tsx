@@ -610,6 +610,9 @@ export const ListView: React.FC<ListViewProps> = ({
       showSearch: false,
       // Pass navigation click handler to child views
       onRowClick: navigation.handleClick,
+      // Forward display properties to child views
+      ...(schema.striped != null ? { striped: schema.striped } : {}),
+      ...(schema.bordered != null ? { bordered: schema.bordered } : {}),
     };
 
     switch (currentView) {
@@ -620,6 +623,7 @@ export const ListView: React.FC<ListViewProps> = ({
           columns: effectiveFields,
           ...(schema.conditionalFormatting ? { conditionalFormatting: schema.conditionalFormatting } : {}),
           ...(schema.inlineEdit != null ? { editable: schema.inlineEdit } : {}),
+          ...(schema.wrapHeaders != null ? { wrapHeaders: schema.wrapHeaders } : {}),
           ...(schema.options?.grid || {}),
         };
       case 'kanban':

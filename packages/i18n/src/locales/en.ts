@@ -246,6 +246,8 @@ const en = {
       wrapHeaders: 'Wrap headers',
       showFieldDescriptions: 'Show field descriptions',
       collapseAllByDefault: 'Collapse all by default',
+      striped: 'Striped rows',
+      bordered: 'Bordered cells',
       editRecordsInline: 'Edit records inline',
       addDeleteRecordsInline: 'Add/delete records inline',
       clickIntoRecordDetails: 'Click into record details',

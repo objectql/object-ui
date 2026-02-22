@@ -1616,4 +1616,31 @@ describe('ViewConfigPanel', () => {
         const exportSwitch = screen.getByTestId('toggle-allowExport');
         expect(exportSwitch).toHaveAttribute('aria-checked', 'false');
     });
+
+    it('striped and bordered toggles call onViewUpdate correctly', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        // Expand appearance section if collapsed
+        const appearanceSection = screen.getByTestId('section-appearance');
+        if (appearanceSection.getAttribute('aria-expanded') === 'false') {
+            fireEvent.click(appearanceSection);
+        }
+
+        // Toggle striped on
+        fireEvent.click(screen.getByTestId('toggle-striped'));
+        expect(onViewUpdate).toHaveBeenCalledWith('striped', true);
+
+        // Toggle bordered on
+        fireEvent.click(screen.getByTestId('toggle-bordered'));
+        expect(onViewUpdate).toHaveBeenCalledWith('bordered', true);
+    });
 });

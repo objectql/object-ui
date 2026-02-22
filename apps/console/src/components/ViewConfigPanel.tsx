@@ -957,6 +957,22 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                                 className="scale-75"
                             />
                         </ConfigRow>
+                        <ConfigRow label={t('console.objectView.striped')}>
+                            <Switch
+                                data-testid="toggle-striped"
+                                checked={draft.striped === true}
+                                onCheckedChange={(checked: boolean) => updateDraft('striped', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.bordered')}>
+                            <Switch
+                                data-testid="toggle-bordered"
+                                checked={draft.bordered === true}
+                                onCheckedChange={(checked: boolean) => updateDraft('bordered', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
                     </div>
                 )}
 
