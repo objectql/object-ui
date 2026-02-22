@@ -871,6 +871,7 @@ export const ListView: React.FC<ListViewProps> = ({
           </Popover>
 
           {/* Filter */}
+          {schema.showFilters !== false && (
           <Popover open={showFilters} onOpenChange={setShowFilters}>
             <PopoverTrigger asChild>
               <Button
@@ -906,6 +907,7 @@ export const ListView: React.FC<ListViewProps> = ({
               </div>
             </PopoverContent>
           </Popover>
+          )}
 
           {/* Group */}
           <Button
@@ -919,6 +921,7 @@ export const ListView: React.FC<ListViewProps> = ({
           </Button>
 
           {/* Sort */}
+          {schema.showSort !== false && (
           <Popover open={showSort} onOpenChange={setShowSort}>
             <PopoverTrigger asChild>
               <Button
@@ -954,6 +957,7 @@ export const ListView: React.FC<ListViewProps> = ({
               </div>
             </PopoverContent>
           </Popover>
+          )}
 
           {/* Color */}
           <Button
@@ -1026,6 +1030,7 @@ export const ListView: React.FC<ListViewProps> = ({
         </div>
 
         {/* Right: Search */}
+        {schema.showSearch !== false && (
         <div className="flex items-center gap-1">
           {searchExpanded ? (
             <div className="relative w-36 sm:w-48 lg:w-64">
@@ -1064,6 +1069,7 @@ export const ListView: React.FC<ListViewProps> = ({
             </Button>
           )}
         </div>
+        )}
       </div>
 
 

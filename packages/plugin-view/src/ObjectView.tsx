@@ -813,6 +813,14 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           densityMode: activeView?.densityMode,
           groupBy: activeView?.groupBy,
           options: currentNamedViewConfig?.options || activeView,
+          // Propagate toolbar toggle flags
+          showSearch: activeView?.showSearch ?? schema.showSearch,
+          showFilters: activeView?.showFilters ?? schema.showFilters,
+          showSort: activeView?.showSort ?? schema.showSort,
+          // Propagate display properties
+          striped: activeView?.striped ?? (schema as any).striped,
+          bordered: activeView?.bordered ?? (schema as any).bordered,
+          color: activeView?.color ?? (schema as any).color,
         },
         dataSource,
         onEdit: handleEdit,

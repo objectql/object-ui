@@ -216,12 +216,16 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 1. ~~**`generateViewSchema` (plugin-view):** Hardcodes `showSearch: false` for non-grid views~~ → Now propagates from `activeView`
 2. ~~**Console `renderListView`:** Omits toolbar/display flags from `fullSchema`~~ → Now passes all config properties
 3. ~~**`NamedListView` type:** Missing toolbar/display properties~~ → Added as first-class properties
-4. **No per-view-type integration tests:** Pending — tests verify config reaches `fullSchema`, but per-renderer integration tests still needed
+4. ~~**Plugin `renderListView` schema missing toolbar flags:** `renderContent` → `renderListView` schema did not include `showSearch`/`showFilters`/`showSort`~~ → Now propagated (PR #771)
+5. ~~**ListView toolbar unconditionally rendered:** Search/Filter/Sort buttons always visible regardless of schema flags~~ → Now conditionally rendered based on `schema.showSearch`/`showFilters`/`showSort` (PR #771)
+6. **No per-view-type integration tests:** Pending — tests verify config reaches `fullSchema`, but per-renderer integration tests still needed
 
 **Phase 1 — Grid/Table View (baseline, already complete):**
 - [x] `gridSchema` includes `striped`/`bordered` from `activeView`
 - [x] `showSort`/`showSearch`/`showFilters` passed via `ObjectViewSchema`
 - [x] `useMemo` dependency arrays cover all grid config
+- [x] ListView toolbar buttons conditionally rendered based on `schema.showSearch`/`showFilters`/`showSort` (PR #771)
+- [x] `renderListView` schema includes toolbar toggle flags (`showSearch`/`showFilters`/`showSort`) and display props (`striped`/`bordered`/`color`) (PR #771)
 
 **Phase 2 — Kanban Live Preview:**
 - [x] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` kanban branch
