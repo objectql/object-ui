@@ -528,3 +528,49 @@ describe('P1.6 i18n & ARIA Protocol Alignment', () => {
     expect(schema.aria?.ariaLabel).toBe('Home Page');
   });
 });
+
+// ============================================================================
+// NamedListView & ListViewSchema — Toolbar/Display Properties
+// ============================================================================
+describe('NamedListView toolbar and display properties', () => {
+  it('should accept showSearch, showSort, showFilters on NamedListView', () => {
+    const view: import('../index').NamedListView = {
+      label: 'My View',
+      type: 'grid',
+      showSearch: false,
+      showSort: true,
+      showFilters: false,
+    };
+    expect(view.showSearch).toBe(false);
+    expect(view.showSort).toBe(true);
+    expect(view.showFilters).toBe(false);
+  });
+
+  it('should accept striped, bordered, color on NamedListView', () => {
+    const view: import('../index').NamedListView = {
+      label: 'Styled View',
+      type: 'kanban',
+      striped: true,
+      bordered: true,
+      color: 'status',
+    };
+    expect(view.striped).toBe(true);
+    expect(view.bordered).toBe(true);
+    expect(view.color).toBe('status');
+  });
+
+  it('should accept showSearch, showSort, showFilters, color on ListViewSchema', () => {
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'Account',
+      showSearch: true,
+      showSort: false,
+      showFilters: true,
+      color: 'priority',
+    };
+    expect(schema.showSearch).toBe(true);
+    expect(schema.showSort).toBe(false);
+    expect(schema.showFilters).toBe(true);
+    expect(schema.color).toBe('priority');
+  });
+});

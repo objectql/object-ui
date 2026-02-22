@@ -715,4 +715,28 @@ describe('ListViewSchema userFilters Zod Validation', () => {
     const result = ListViewSchema.safeParse(schema);
     expect(result.success).toBe(true);
   });
+
+  it('should validate ListViewSchema with showSearch/showSort/showFilters/striped/bordered/color', () => {
+    const schema = {
+      type: 'list-view',
+      objectName: 'accounts',
+      fields: ['name', 'email'],
+      showSearch: true,
+      showSort: false,
+      showFilters: true,
+      striped: true,
+      bordered: false,
+      color: 'status',
+    };
+    const result = ListViewSchema.safeParse(schema);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.showSearch).toBe(true);
+      expect(result.data.showSort).toBe(false);
+      expect(result.data.showFilters).toBe(true);
+      expect(result.data.striped).toBe(true);
+      expect(result.data.bordered).toBe(false);
+      expect(result.data.color).toBe('status');
+    }
+  });
 });

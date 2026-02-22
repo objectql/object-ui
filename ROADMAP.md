@@ -145,10 +145,11 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
   - ✅ `gridSchema` in plugin-view includes `striped`/`bordered` from active view config (Grid only)
   - ✅ Plugin `renderContent` passes `rowHeight`, `densityMode`, `groupBy` to `renderListView` schema
   - ✅ `useMemo` dependency arrays expanded to cover full view config
-  - ⚠️ `showSort`/`showSearch`/`showFilters` only wired to Grid — not propagated to Kanban/Calendar/Timeline/Gallery/Map/Gantt
-  - ⚠️ `striped`/`bordered` only applied via `gridSchema` — not passed to non-grid views through `renderListView`
-  - ⚠️ `generateViewSchema` sets `showSearch: false` unconditionally for all non-grid types
-  - ⚠️ Console `renderListView` callback does not pass `showSort`/`showSearch`/`showFilters`/`striped`/`bordered` to `fullSchema`
+  - ✅ `generateViewSchema` propagates `showSearch`/`showSort`/`showFilters`/`striped`/`bordered`/`color` from `activeView` for all view types (hardcoded `showSearch: false` removed)
+  - ✅ Console `renderListView` passes `showSort`/`showSearch`/`showFilters`/`striped`/`bordered`/`color`/`filter`/`sort` to `fullSchema`
+  - ✅ `NamedListView` type declares `showSearch`/`showSort`/`showFilters`/`striped`/`bordered`/`color` as first-class properties
+  - ✅ `ListViewSchema` TypeScript interface and Zod schema include `showSearch`/`showSort`/`showFilters`/`color`
+  - ✅ ViewConfigPanel refactored into Page Config (toolbar/shell) and ListView Config (data/appearance) sections
   - ⚠️ No per-view-type integration tests verifying config properties reach non-grid renderers
 - [ ] Conditional formatting rules
 
@@ -160,22 +161,23 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 | Property | Grid | Kanban | Calendar | Timeline | Gallery | Map | Gantt |
 |----------|:----:|:------:|:--------:|:--------:|:-------:|:---:|:-----:|
-| `showSearch` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `showSort` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `showFilters` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `showSearch` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `showSort` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `showFilters` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `rowHeight` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `densityMode` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `striped` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `bordered` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `striped` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `bordered` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `groupBy` | N/A | ✅ | N/A | N/A | N/A | N/A | N/A |
-| `color` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `color` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `filter`/`sort` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Type-specific options | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-**Root Causes:**
-1. **`generateViewSchema` (plugin-view):** Hardcodes `showSearch: false` for non-grid views; does not propagate `showSort`/`showFilters`/`striped`/`bordered`/`color` from `activeView`
-2. **Console `renderListView`:** Omits `showSort`/`showSearch`/`showFilters`/`striped`/`bordered` from the `fullSchema` passed to `ListView`
-3. **`NamedListView` type:** Does not declare `showSearch`/`showSort`/`showFilters`/`striped`/`bordered`/`color` as first-class properties
-4. **No per-view-type integration tests:** Tests verify config reaches the `ViewConfigPanel` switch, but not that non-grid renderers actually receive and apply the properties
+**Root Causes (resolved):**
+1. ~~**`generateViewSchema` (plugin-view):** Hardcodes `showSearch: false` for non-grid views~~ → Now propagates from `activeView`
+2. ~~**Console `renderListView`:** Omits toolbar/display flags from `fullSchema`~~ → Now passes all config properties
+3. ~~**`NamedListView` type:** Missing toolbar/display properties~~ → Added as first-class properties
+4. **No per-view-type integration tests:** Pending — tests verify config reaches `fullSchema`, but per-renderer integration tests still needed
 
 **Phase 1 — Grid/Table View (baseline, already complete):**
 - [x] `gridSchema` includes `striped`/`bordered` from `activeView`
@@ -183,34 +185,34 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] `useMemo` dependency arrays cover all grid config
 
 **Phase 2 — Kanban Live Preview:**
-- [ ] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` kanban branch
-- [ ] Pass `color`/`striped`/`bordered` in `renderContent` → `renderListView` for kanban
-- [ ] Ensure `groupBy` config changes reflect immediately (currently ✅ via `renderListView`)
+- [x] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` kanban branch
+- [x] Pass `color`/`striped`/`bordered` in `renderContent` → `renderListView` for kanban
+- [x] Ensure `groupBy` config changes reflect immediately (currently ✅ via `renderListView`)
 - [ ] Add integration test: ViewConfigPanel kanban config change → Kanban renderer receives updated props
 
 **Phase 3 — Calendar Live Preview:**
-- [ ] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` calendar branch
-- [ ] Pass `filter`/`sort`/appearance properties to calendar renderer in real-time
-- [ ] Verify `startDateField`/`endDateField` config changes trigger re-render via `useMemo` deps
+- [x] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` calendar branch
+- [x] Pass `filter`/`sort`/appearance properties to calendar renderer in real-time
+- [x] Verify `startDateField`/`endDateField` config changes trigger re-render via `useMemo` deps
 - [ ] Add integration test: ViewConfigPanel calendar config change → Calendar renderer receives updated props
 
 **Phase 4 — Timeline/Gantt Live Preview:**
-- [ ] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` timeline/gantt branches
-- [ ] Pass appearance properties (`color`, `striped`, `bordered`) through `renderListView` schema
-- [ ] Ensure `dateField`/`startDateField`/`endDateField` config changes trigger re-render
+- [x] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` timeline/gantt branches
+- [x] Pass appearance properties (`color`, `striped`, `bordered`) through `renderListView` schema
+- [x] Ensure `dateField`/`startDateField`/`endDateField` config changes trigger re-render
 - [ ] Add integration tests for timeline and gantt config sync
 
 **Phase 5 — Gallery & Map Live Preview:**
-- [ ] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` gallery/map branches
-- [ ] Pass appearance properties through `renderListView` schema for gallery/map
-- [ ] Ensure gallery `imageField`/`titleField` and map `locationField`/`zoom`/`center` config changes trigger re-render
+- [x] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` gallery/map branches
+- [x] Pass appearance properties through `renderListView` schema for gallery/map
+- [x] Ensure gallery `imageField`/`titleField` and map `locationField`/`zoom`/`center` config changes trigger re-render
 - [ ] Add integration tests for gallery and map config sync
 
 **Phase 6 — Data Flow & Dependency Refactor:**
-- [ ] Add `showSearch`/`showSort`/`showFilters`/`striped`/`bordered`/`color` to `NamedListView` type in `@object-ui/types`
-- [ ] Update Console `renderListView` to pass all config properties in `fullSchema`
+- [x] Add `showSearch`/`showSort`/`showFilters`/`striped`/`bordered`/`color` to `NamedListView` type in `@object-ui/types`
+- [x] Update Console `renderListView` to pass all config properties in `fullSchema`
 - [ ] Audit all `useMemo`/`useEffect` dependency arrays in `plugin-view/ObjectView.tsx` for missing `activeView` sub-properties
-- [ ] Remove hardcoded `showSearch: false` from `generateViewSchema` — use `activeView.showSearch ?? schema.showSearch` instead
+- [x] Remove hardcoded `showSearch: false` from `generateViewSchema` — use `activeView.showSearch ?? schema.showSearch` instead
 
 **Phase 7 — End-to-End Integration Tests:**
 - [ ] Per-view-type test: Grid config sync (showSort, showSearch, showFilters, striped, bordered)
