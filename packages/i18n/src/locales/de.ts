@@ -248,7 +248,7 @@ const de = {
       collapseAllByDefault: 'Standardmäßig alle einklappen',
       striped: 'Gestreifte Zeilen',
       bordered: 'Umrandete Zellen',
-      editRecordsInline: 'Datensätze inline bearbeiten',
+      inlineEdit: 'Datensätze inline bearbeiten',
       addDeleteRecordsInline: 'Datensätze inline hinzufügen/löschen',
       clickIntoRecordDetails: 'Klicken für Datensatzdetails',
     },

@@ -1481,10 +1481,9 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                 />
                 {!collapsedSections.userActions && (
                     <div className="space-y-0.5">
-                        {/* Semantic fix A: editRecordsInline → inlineEdit */}
-                        <ConfigRow label={t('console.objectView.editRecordsInline')}>
+                        <ConfigRow label={t('console.objectView.inlineEdit')}>
                             <Switch
-                                data-testid="toggle-editRecordsInline"
+                                data-testid="toggle-inlineEdit"
                                 checked={draft.inlineEdit !== false}
                                 onCheckedChange={(checked: boolean) => updateDraft('inlineEdit', checked)}
                                 className="scale-75"

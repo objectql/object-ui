@@ -204,11 +204,12 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
   - ✅ `NamedListView` type extended with 24 new properties: navigation, selection, pagination, searchableFields, filterableFields, resizable, densityMode, rowHeight, hiddenFields, exportOptions, rowActions, bulkActions, sharing, addRecord, conditionalFormatting, quickFilters, showRecordCount, allowPrinting, virtualScroll, emptyState, aria
   - ✅ `ListViewSchema` Zod schema extended with all new properties
   - ✅ ViewConfigPanel aligned to full `ListViewSchema` spec: navigation mode, selection, pagination, export sub-config, searchable/filterable/hidden fields, resizable, density mode, row/bulk actions, sharing, addRecord sub-editor, conditional formatting, quick filters, showRecordCount, allowPrinting, virtualScroll, empty state, ARIA accessibility
-  - ✅ Semantic fix: `editRecordsInline` → `inlineEdit` field name alignment
+  - ✅ Semantic fix: `editRecordsInline` → `inlineEdit` field name alignment (i18n keys, data-testid, component label all unified to `inlineEdit`)
   - ✅ Semantic fix: `rowHeight` values aligned to spec (`compact`/`medium`/`tall`)
+  - ✅ i18n keys verified complete for en/zh and all 10 locale files
   - ✅ Console ObjectView fullSchema propagates all 18 new spec properties
   - ✅ PluginObjectView renderListView schema propagates all 18 new spec properties
-  - ⚠️ No per-view-type integration tests verifying config properties reach non-grid renderers
+  - ✅ Per-view-type integration tests added for Grid/Kanban/Calendar/Timeline/Gantt/Gallery/Map config sync (Phase 7 complete)
 - [x] Conditional formatting rules (editor in Appearance section)
 
 ### P1.8.1 Live Preview — Gap Analysis & Phased Remediation
@@ -267,25 +268,25 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` kanban branch
 - [x] Pass `color`/`striped`/`bordered` in `renderContent` → `renderListView` for kanban
 - [x] Ensure `groupBy` config changes reflect immediately (currently ✅ via `renderListView`)
-- [ ] Add integration test: ViewConfigPanel kanban config change → Kanban renderer receives updated props
+- [x] Add integration test: ViewConfigPanel kanban config change → Kanban renderer receives updated props
 
 **Phase 3 — Calendar Live Preview:**
 - [x] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` calendar branch
 - [x] Pass `filter`/`sort`/appearance properties to calendar renderer in real-time
 - [x] Verify `startDateField`/`endDateField` config changes trigger re-render via `useMemo` deps
-- [ ] Add integration test: ViewConfigPanel calendar config change → Calendar renderer receives updated props
+- [x] Add integration test: ViewConfigPanel calendar config change → Calendar renderer receives updated props
 
 **Phase 4 — Timeline/Gantt Live Preview:**
 - [x] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` timeline/gantt branches
 - [x] Pass appearance properties (`color`, `striped`, `bordered`) through `renderListView` schema
 - [x] Ensure `dateField`/`startDateField`/`endDateField` config changes trigger re-render
-- [ ] Add integration tests for timeline and gantt config sync
+- [x] Add integration tests for timeline and gantt config sync
 
 **Phase 5 — Gallery & Map Live Preview:**
 - [x] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` gallery/map branches
 - [x] Pass appearance properties through `renderListView` schema for gallery/map
 - [x] Ensure gallery `imageField`/`titleField` and map `locationField`/`zoom`/`center` config changes trigger re-render
-- [ ] Add integration tests for gallery and map config sync
+- [x] Add integration tests for gallery and map config sync
 
 **Phase 6 — Data Flow & Dependency Refactor:**
 - [x] Add `showSearch`/`showSort`/`showFilters`/`striped`/`bordered`/`color` to `NamedListView` type in `@object-ui/types`
@@ -296,13 +297,13 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Remove hardcoded `showSearch: false` from `generateViewSchema` — use `activeView.showSearch ?? schema.showSearch` instead
 
 **Phase 7 — End-to-End Integration Tests:**
-- [ ] Per-view-type test: Grid config sync (showSort, showSearch, showFilters, striped, bordered)
-- [ ] Per-view-type test: Kanban config sync (groupBy, color, showSearch)
-- [ ] Per-view-type test: Calendar config sync (startDateField, endDateField, showFilters)
-- [ ] Per-view-type test: Timeline/Gantt config sync (dateField, appearance)
-- [ ] Per-view-type test: Gallery config sync (imageField, titleField, appearance)
-- [ ] Per-view-type test: Map config sync (locationField, zoom, center, appearance)
-- [ ] Cross-view-type test: Switch view type in ViewConfigPanel → verify config properties transfer correctly
+- [x] Per-view-type test: Grid config sync (showSort, showSearch, showFilters, striped, bordered)
+- [x] Per-view-type test: Kanban config sync (groupBy, color, showSearch)
+- [x] Per-view-type test: Calendar config sync (startDateField, endDateField, showFilters)
+- [x] Per-view-type test: Timeline/Gantt config sync (dateField, appearance)
+- [x] Per-view-type test: Gallery config sync (imageField, titleField, appearance)
+- [x] Per-view-type test: Map config sync (locationField, zoom, center, appearance)
+- [x] Cross-view-type test: Switch view type in ViewConfigPanel → verify config properties transfer correctly
 
 ### P1.10 Console — Dashboard Config Panel
 

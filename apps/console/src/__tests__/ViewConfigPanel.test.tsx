@@ -1198,7 +1198,7 @@ describe('ViewConfigPanel', () => {
 
     // ── User actions fields tests ──
 
-    it('renders new user action fields: editRecordsInline, addDeleteRecordsInline, and navigation mode select', () => {
+    it('renders new user action fields: inlineEdit, addDeleteRecordsInline, and navigation mode select', () => {
         render(
             <ViewConfigPanel
                 open={true}
@@ -1208,12 +1208,12 @@ describe('ViewConfigPanel', () => {
             />
         );
 
-        expect(screen.getByTestId('toggle-editRecordsInline')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-inlineEdit')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-addDeleteRecordsInline')).toBeInTheDocument();
         expect(screen.getByTestId('select-navigation-mode')).toBeInTheDocument();
     });
 
-    it('toggles editRecordsInline via Switch (maps to inlineEdit)', () => {
+    it('toggles inlineEdit via Switch', () => {
         const onViewUpdate = vi.fn();
         render(
             <ViewConfigPanel
@@ -1225,7 +1225,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
-        fireEvent.click(screen.getByTestId('toggle-editRecordsInline'));
+        fireEvent.click(screen.getByTestId('toggle-inlineEdit'));
         expect(onViewUpdate).toHaveBeenCalledWith('inlineEdit', false);
     });
 
@@ -1520,7 +1520,7 @@ describe('ViewConfigPanel', () => {
         expect(screen.getByText('console.objectView.listConfigHint')).toBeInTheDocument();
     });
 
-    it('renders list-level inline action items in the User Actions section (editRecordsInline, addDeleteRecordsInline)', () => {
+    it('renders list-level inline action items in the User Actions section (inlineEdit, addDeleteRecordsInline)', () => {
         render(
             <ViewConfigPanel
                 open={true}
@@ -1531,7 +1531,7 @@ describe('ViewConfigPanel', () => {
         );
 
         // List-level inline actions should be in the User Actions collapsible section
-        expect(screen.getByTestId('toggle-editRecordsInline')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-inlineEdit')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-addDeleteRecordsInline')).toBeInTheDocument();
     });
 
@@ -2149,5 +2149,185 @@ describe('ViewConfigPanel', () => {
         // Click tall and verify update
         fireEvent.click(screen.getByTestId('row-height-tall'));
         expect(onViewUpdate).toHaveBeenCalledWith('rowHeight', 'tall');
+    });
+
+    // ── Interaction tests for emptyState, ARIA, rowActions, bulkActions, showRecordCount, allowPrinting, virtualScroll ──
+
+    it('updates emptyState title via input and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.change(screen.getByTestId('input-emptyState-title'), { target: { value: 'No data' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('emptyState', expect.objectContaining({ title: 'No data' }));
+    });
+
+    it('updates emptyState message via input and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.change(screen.getByTestId('input-emptyState-message'), { target: { value: 'Try adding records' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('emptyState', expect.objectContaining({ message: 'Try adding records' }));
+    });
+
+    it('updates emptyState icon via input and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.change(screen.getByTestId('input-emptyState-icon'), { target: { value: 'inbox' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('emptyState', expect.objectContaining({ icon: 'inbox' }));
+    });
+
+    it('updates ARIA label via input and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.change(screen.getByTestId('input-aria-label'), { target: { value: 'Contacts table' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('aria', expect.objectContaining({ label: 'Contacts table' }));
+    });
+
+    it('updates ARIA describedBy via input and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.change(screen.getByTestId('input-aria-describedBy'), { target: { value: 'table-desc' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('aria', expect.objectContaining({ describedBy: 'table-desc' }));
+    });
+
+    it('changes ARIA live region and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.change(screen.getByTestId('select-aria-live'), { target: { value: 'polite' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('aria', expect.objectContaining({ live: 'polite' }));
+    });
+
+    it('updates rowActions via input and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.rowActions'));
+        fireEvent.change(screen.getByTestId('input-rowActions'), { target: { value: 'edit, delete' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('rowActions', ['edit', 'delete']);
+    });
+
+    it('updates bulkActions via input and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.bulkActions'));
+        fireEvent.change(screen.getByTestId('input-bulkActions'), { target: { value: 'delete, export' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('bulkActions', ['delete', 'export']);
+    });
+
+    it('toggles showRecordCount and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('toggle-showRecordCount'));
+        expect(onViewUpdate).toHaveBeenCalledWith('showRecordCount', true);
+    });
+
+    it('toggles allowPrinting and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('toggle-allowPrinting'));
+        expect(onViewUpdate).toHaveBeenCalledWith('allowPrinting', true);
+    });
+
+    it('toggles virtualScroll and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('toggle-virtualScroll'));
+        expect(onViewUpdate).toHaveBeenCalledWith('virtualScroll', true);
     });
 });

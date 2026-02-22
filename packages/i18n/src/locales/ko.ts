@@ -243,7 +243,7 @@ const ko = {
       collapseAllByDefault: '기본적으로 모두 접기',
       striped: '줄무늬 행',
       bordered: '테두리 셀',
-      editRecordsInline: '인라인으로 레코드 편집',
+      inlineEdit: '인라인으로 레코드 편집',
       addDeleteRecordsInline: '인라인으로 레코드 추가/삭제',
       clickIntoRecordDetails: '레코드 상세 보기 클릭',
     },

@@ -243,7 +243,7 @@ const es = {
       collapseAllByDefault: 'Contraer todo por defecto',
       striped: 'Filas alternadas',
       bordered: 'Celdas con borde',
-      editRecordsInline: 'Editar registros en línea',
+      inlineEdit: 'Editar registros en línea',
       addDeleteRecordsInline: 'Agregar/eliminar registros en línea',
       clickIntoRecordDetails: 'Clic para detalles del registro',
     },
