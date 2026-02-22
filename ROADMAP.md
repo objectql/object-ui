@@ -175,7 +175,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Collapsible/expandable sections with chevron toggle
 - [x] Data section: Sort by (summary), Group by, Prefix field, Fields (count visible)
 - [x] Appearance section: Color, Field text color, Row height (icon toggle), Wrap headers, Show field descriptions, Collapse all by default
-- [x] User actions section: Edit records inline, Add/delete records inline, Click into record details
+- [x] User actions section: Edit records inline (→ inlineEdit), Add/delete records inline, Navigation mode (page/drawer/modal/split/popover/new_window/none)
 - [x] Calendar endDateField support
 - [x] i18n for all 11 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko)
 - [ ] **Live preview: ViewConfigPanel changes sync in real-time to all list types (Grid/Kanban/Calendar/Timeline/Gallery/Map)** _(partially complete — see P1.8.1 gap analysis below)_
@@ -189,8 +189,15 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
   - ✅ `NamedListView` type declares `showSearch`/`showSort`/`showFilters`/`striped`/`bordered`/`color` as first-class properties
   - ✅ `ListViewSchema` TypeScript interface and Zod schema include `showSearch`/`showSort`/`showFilters`/`color`
   - ✅ ViewConfigPanel refactored into Page Config (toolbar/shell) and ListView Config (data/appearance) sections
+  - ✅ `NamedListView` type extended with 24 new properties: navigation, selection, pagination, searchableFields, filterableFields, resizable, densityMode, rowHeight, hiddenFields, exportOptions, rowActions, bulkActions, sharing, addRecord, conditionalFormatting, quickFilters, showRecordCount, allowPrinting, virtualScroll, emptyState, aria
+  - ✅ `ListViewSchema` Zod schema extended with all new properties
+  - ✅ ViewConfigPanel aligned to full `ListViewSchema` spec: navigation mode, selection, pagination, export sub-config, searchable/filterable/hidden fields, resizable, density mode, row/bulk actions, sharing, addRecord sub-editor, conditional formatting, quick filters, showRecordCount, allowPrinting, virtualScroll, empty state, ARIA accessibility
+  - ✅ Semantic fix: `editRecordsInline` → `inlineEdit` field name alignment
+  - ✅ Semantic fix: `rowHeight` values aligned to spec (`compact`/`medium`/`tall`)
+  - ✅ Console ObjectView fullSchema propagates all 18 new spec properties
+  - ✅ PluginObjectView renderListView schema propagates all 18 new spec properties
   - ⚠️ No per-view-type integration tests verifying config properties reach non-grid renderers
-- [ ] Conditional formatting rules
+- [x] Conditional formatting rules (editor in Appearance section)
 
 ### P1.8.1 Live Preview — Gap Analysis & Phased Remediation
 

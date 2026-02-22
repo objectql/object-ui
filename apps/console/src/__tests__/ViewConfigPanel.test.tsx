@@ -442,7 +442,7 @@ describe('ViewConfigPanel', () => {
         expect(onViewUpdate).toHaveBeenCalledWith('allowExport', true);
     });
 
-    it('toggles addRecordViaForm via Switch', () => {
+    it('toggles addRecord enabled via Switch', () => {
         const onViewUpdate = vi.fn();
         render(
             <ViewConfigPanel
@@ -454,9 +454,10 @@ describe('ViewConfigPanel', () => {
             />
         );
 
-        const formSwitch = screen.getByTestId('toggle-addRecordViaForm');
+        const formSwitch = screen.getByTestId('toggle-addRecord-enabled');
         fireEvent.click(formSwitch);
         expect(onViewUpdate).toHaveBeenCalledWith('addRecordViaForm', true);
+        expect(onViewUpdate).toHaveBeenCalledWith('addRecord', expect.objectContaining({ enabled: true }));
     });
 
     it('edits view title via inline input', () => {
@@ -670,7 +671,7 @@ describe('ViewConfigPanel', () => {
             <ViewConfigPanel
                 open={true}
                 onClose={vi.fn()}
-                activeView={{ ...mockActiveView, showSearch: false, showFilters: true, showSort: false, allowExport: false, addRecordViaForm: true }}
+                activeView={{ ...mockActiveView, showSearch: false, showFilters: true, showSort: false, allowExport: false, addRecordViaForm: true, addRecord: { enabled: true } }}
                 objectDef={mockObjectDef}
             />
         );
@@ -679,7 +680,7 @@ describe('ViewConfigPanel', () => {
         expect(screen.getByTestId('toggle-showFilters')).toHaveAttribute('aria-checked', 'true');
         expect(screen.getByTestId('toggle-showSort')).toHaveAttribute('aria-checked', 'false');
         expect(screen.getByTestId('toggle-allowExport')).toHaveAttribute('aria-checked', 'false');
-        expect(screen.getByTestId('toggle-addRecordViaForm')).toHaveAttribute('aria-checked', 'true');
+        expect(screen.getByTestId('toggle-addRecord-enabled')).toHaveAttribute('aria-checked', 'true');
     });
 
     // ── Real-time draft propagation tests (issue fix) ──
@@ -1197,7 +1198,7 @@ describe('ViewConfigPanel', () => {
 
     // ── User actions fields tests ──
 
-    it('renders new user action fields: editRecordsInline, addDeleteRecordsInline, clickIntoRecordDetails', () => {
+    it('renders new user action fields: editRecordsInline, addDeleteRecordsInline, and navigation mode select', () => {
         render(
             <ViewConfigPanel
                 open={true}
@@ -1209,10 +1210,10 @@ describe('ViewConfigPanel', () => {
 
         expect(screen.getByTestId('toggle-editRecordsInline')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-addDeleteRecordsInline')).toBeInTheDocument();
-        expect(screen.getByTestId('toggle-clickIntoRecordDetails')).toBeInTheDocument();
+        expect(screen.getByTestId('select-navigation-mode')).toBeInTheDocument();
     });
 
-    it('toggles editRecordsInline via Switch', () => {
+    it('toggles editRecordsInline via Switch (maps to inlineEdit)', () => {
         const onViewUpdate = vi.fn();
         render(
             <ViewConfigPanel
@@ -1225,7 +1226,7 @@ describe('ViewConfigPanel', () => {
         );
 
         fireEvent.click(screen.getByTestId('toggle-editRecordsInline'));
-        expect(onViewUpdate).toHaveBeenCalledWith('editRecordsInline', false);
+        expect(onViewUpdate).toHaveBeenCalledWith('inlineEdit', false);
     });
 
     // ── Data section: Group by and Prefix field tests ──
@@ -1482,7 +1483,7 @@ describe('ViewConfigPanel', () => {
 
     // ── Section Layout Tests: Page vs ListView Config ──
 
-    it('renders page-level config items in the Page section (showSearch, showFilters, showSort, clickIntoRecordDetails, addRecordViaForm, allowExport)', () => {
+    it('renders page-level config items in the Page section (showSearch, showFilters, showSort, navigation, addRecord, allowExport)', () => {
         render(
             <ViewConfigPanel
                 open={true}
@@ -1500,8 +1501,8 @@ describe('ViewConfigPanel', () => {
         expect(screen.getByTestId('toggle-showSearch')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-showFilters')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-showSort')).toBeInTheDocument();
-        expect(screen.getByTestId('toggle-clickIntoRecordDetails')).toBeInTheDocument();
-        expect(screen.getByTestId('toggle-addRecordViaForm')).toBeInTheDocument();
+        expect(screen.getByTestId('select-navigation-mode')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-addRecord-enabled')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-allowExport')).toBeInTheDocument();
     });
 
@@ -1558,12 +1559,12 @@ describe('ViewConfigPanel', () => {
         fireEvent.click(screen.getByTestId('toggle-showSort'));
         expect(onViewUpdate).toHaveBeenCalledWith('showSort', false);
 
-        // Toggle clickIntoRecordDetails off
-        fireEvent.click(screen.getByTestId('toggle-clickIntoRecordDetails'));
-        expect(onViewUpdate).toHaveBeenCalledWith('clickIntoRecordDetails', false);
+        // Change navigation mode
+        fireEvent.change(screen.getByTestId('select-navigation-mode'), { target: { value: 'none' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('navigation', expect.objectContaining({ mode: 'none' }));
 
-        // Toggle addRecordViaForm on
-        fireEvent.click(screen.getByTestId('toggle-addRecordViaForm'));
+        // Toggle addRecord enabled on
+        fireEvent.click(screen.getByTestId('toggle-addRecord-enabled'));
         expect(onViewUpdate).toHaveBeenCalledWith('addRecordViaForm', true);
 
         // Toggle allowExport on (starts unchecked by default)
@@ -1642,5 +1643,501 @@ describe('ViewConfigPanel', () => {
         // Toggle bordered on
         fireEvent.click(screen.getByTestId('toggle-bordered'));
         expect(onViewUpdate).toHaveBeenCalledWith('bordered', true);
+    });
+
+    // ── New spec controls tests (P0/P1/P2) ──
+
+    it('renders navigation mode select with default value "page"', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        const navSelect = screen.getByTestId('select-navigation-mode');
+        expect(navSelect).toBeInTheDocument();
+        expect(navSelect).toHaveValue('page');
+    });
+
+    it('shows navigation width input when mode is drawer', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, navigation: { mode: 'drawer' } }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        expect(screen.getByTestId('input-navigation-width')).toBeInTheDocument();
+    });
+
+    it('shows openNewTab toggle when navigation mode is page', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, navigation: { mode: 'page' } }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('toggle-navigation-openNewTab')).toBeInTheDocument();
+    });
+
+    it('changes navigation mode and syncs clickIntoRecordDetails', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.change(screen.getByTestId('select-navigation-mode'), { target: { value: 'none' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('navigation', expect.objectContaining({ mode: 'none' }));
+        expect(onViewUpdate).toHaveBeenCalledWith('clickIntoRecordDetails', false);
+    });
+
+    it('renders selection type select', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('select-selection-type')).toBeInTheDocument();
+    });
+
+    it('changes selection type and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.change(screen.getByTestId('select-selection-type'), { target: { value: 'single' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('selection', { type: 'single' });
+    });
+
+    it('renders pagination pageSize input', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('input-pagination-pageSize')).toBeInTheDocument();
+    });
+
+    it('updates pagination pageSize via input', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.change(screen.getByTestId('input-pagination-pageSize'), { target: { value: '50' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('pagination', expect.objectContaining({ pageSize: 50 }));
+    });
+
+    it('shows export sub-config when allowExport is true', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, allowExport: true }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('export-formats')).toBeInTheDocument();
+        expect(screen.getByTestId('input-export-maxRecords')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-export-includeHeaders')).toBeInTheDocument();
+        expect(screen.getByTestId('input-export-fileNamePrefix')).toBeInTheDocument();
+    });
+
+    it('renders showRecordCount toggle', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('toggle-showRecordCount')).toBeInTheDocument();
+    });
+
+    it('renders allowPrinting toggle', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('toggle-allowPrinting')).toBeInTheDocument();
+    });
+
+    it('renders searchable fields selector when expanded', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        // Click to expand searchable fields
+        fireEvent.click(screen.getByText('console.objectView.searchableFields'));
+        expect(screen.getByTestId('searchable-fields-selector')).toBeInTheDocument();
+        expect(screen.getByTestId('searchable-field-name')).toBeInTheDocument();
+    });
+
+    it('updates searchableFields when field checkbox is toggled', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.searchableFields'));
+        fireEvent.click(screen.getByTestId('searchable-field-name'));
+        expect(onViewUpdate).toHaveBeenCalledWith('searchableFields', ['name']);
+    });
+
+    it('renders filterable fields selector when expanded', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.filterableFields'));
+        expect(screen.getByTestId('filterable-fields-selector')).toBeInTheDocument();
+    });
+
+    it('renders hidden fields selector when expanded', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.hiddenFields'));
+        expect(screen.getByTestId('hidden-fields-selector')).toBeInTheDocument();
+    });
+
+    it('renders virtualScroll toggle in data section', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('toggle-virtualScroll')).toBeInTheDocument();
+    });
+
+    it('renders resizable toggle in appearance section', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('toggle-resizable')).toBeInTheDocument();
+    });
+
+    it('toggles resizable and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('toggle-resizable'));
+        expect(onViewUpdate).toHaveBeenCalledWith('resizable', true);
+    });
+
+    it('renders density mode select in appearance section', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('select-densityMode')).toBeInTheDocument();
+    });
+
+    it('changes densityMode and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.change(screen.getByTestId('select-densityMode'), { target: { value: 'compact' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('densityMode', 'compact');
+    });
+
+    it('renders conditional formatting editor when expanded', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.conditionalFormatting'));
+        expect(screen.getByTestId('conditional-formatting-editor')).toBeInTheDocument();
+        expect(screen.getByTestId('add-conditional-rule')).toBeInTheDocument();
+    });
+
+    it('adds a conditional formatting rule', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.conditionalFormatting'));
+        fireEvent.click(screen.getByTestId('add-conditional-rule'));
+        expect(onViewUpdate).toHaveBeenCalledWith('conditionalFormatting', expect.arrayContaining([
+            expect.objectContaining({ field: '', operator: 'equals', value: '' }),
+        ]));
+    });
+
+    it('renders quick filters editor when expanded', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.quickFilters'));
+        expect(screen.getByTestId('quick-filters-editor')).toBeInTheDocument();
+        expect(screen.getByTestId('add-quick-filter')).toBeInTheDocument();
+    });
+
+    it('adds a quick filter', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.quickFilters'));
+        fireEvent.click(screen.getByTestId('add-quick-filter'));
+        expect(onViewUpdate).toHaveBeenCalledWith('quickFilters', expect.arrayContaining([
+            expect.objectContaining({ label: '', filters: [], defaultActive: false }),
+        ]));
+    });
+
+    it('renders empty state inputs in appearance section', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('input-emptyState-title')).toBeInTheDocument();
+        expect(screen.getByTestId('input-emptyState-message')).toBeInTheDocument();
+        expect(screen.getByTestId('input-emptyState-icon')).toBeInTheDocument();
+    });
+
+    it('renders sharing section with enabled toggle', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('toggle-sharing-enabled')).toBeInTheDocument();
+    });
+
+    it('shows sharing visibility select when sharing is enabled', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, sharing: { enabled: true, visibility: 'team' } }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('select-sharing-visibility')).toBeInTheDocument();
+        expect(screen.getByTestId('select-sharing-visibility')).toHaveValue('team');
+    });
+
+    it('toggles sharing enabled and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('toggle-sharing-enabled'));
+        expect(onViewUpdate).toHaveBeenCalledWith('sharing', expect.objectContaining({ enabled: true }));
+    });
+
+    it('renders accessibility section with ARIA inputs', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('input-aria-label')).toBeInTheDocument();
+        expect(screen.getByTestId('input-aria-describedBy')).toBeInTheDocument();
+        expect(screen.getByTestId('select-aria-live')).toBeInTheDocument();
+    });
+
+    it('renders addRecord sub-editor when enabled', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, addRecordViaForm: true, addRecord: { enabled: true } }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('select-addRecord-position')).toBeInTheDocument();
+        expect(screen.getByTestId('select-addRecord-mode')).toBeInTheDocument();
+        expect(screen.getByTestId('input-addRecord-formView')).toBeInTheDocument();
+    });
+
+    it('renders row actions selector when expanded', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.rowActions'));
+        expect(screen.getByTestId('row-actions-selector')).toBeInTheDocument();
+    });
+
+    it('renders bulk actions selector when expanded', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.bulkActions'));
+        expect(screen.getByTestId('bulk-actions-selector')).toBeInTheDocument();
+    });
+
+    it('renders row height buttons with spec-aligned values (compact/medium/tall)', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('row-height-compact')).toBeInTheDocument();
+        expect(screen.getByTestId('row-height-medium')).toBeInTheDocument();
+        expect(screen.getByTestId('row-height-tall')).toBeInTheDocument();
+        // Old values should not exist
+        expect(screen.queryByTestId('row-height-short')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('row-height-extraTall')).not.toBeInTheDocument();
     });
 });
