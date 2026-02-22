@@ -13,7 +13,7 @@
 
 ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn. It renders JSON metadata from the @objectstack/spec protocol into pixel-perfect, accessible, and interactive enterprise interfaces.
 
-**Where We Are:** Foundation is **solid and shipping** — 35 packages, 91+ components, 5,110+ tests, 78 Storybook stories, 42/42 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Designer Phase 1 (ViewDesigner drag-to-reorder ✅), Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), and **Flow Designer** (P2.4) — all ✅ complete.
+**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 5,177+ tests, 78 Storybook stories, 42/42 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Designer Phase 1 (ViewDesigner drag-to-reorder ✅), Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), and **Feed/Chatter UI** (P1.5) — all ✅ complete.
 
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
@@ -130,6 +130,16 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Comment search across all records
 - [x] Comment pinning/starring
 - [x] Activity feed filtering (comments only / field changes only)
+- [x] Airtable-style Feed/Chatter UI components (P0/P1/P2):
+  - [x] `FeedItem`/`FieldChangeEntry`/`Mention`/`Reaction`/`RecordSubscription` types
+  - [x] `RecordActivityTimeline` — unified timeline renderer (filter, pagination, actor display)
+  - [x] `RecordChatterPanel` — sidebar/inline/drawer panel (collapsible)
+  - [x] `CommentInput` — comment input with Ctrl+Enter submit
+  - [x] `FieldChangeItem` — field change history (old→new display values)
+  - [x] `MentionAutocomplete` — @mention autocomplete dropdown
+  - [x] `SubscriptionToggle` — bell notification toggle
+  - [x] `ReactionPicker` — emoji reaction selector
+  - [x] `ThreadedReplies` — collapsible comment reply threading
 
 ### P1.6 Console — Automation
 

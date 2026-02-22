@@ -256,6 +256,119 @@ export interface ActivityEntry {
   description?: string;
 }
 
+// ============================================================================
+// Feed / Chatter Protocol Types
+// Aligned with @objectstack/spec FeedItemSchema, MentionSchema, ReactionSchema,
+// FieldChangeEntrySchema, RecordSubscriptionSchema
+// ============================================================================
+
+/**
+ * Feed item type — determines rendering style in the activity timeline.
+ * Aligned with @objectstack/spec FeedItemSchema.type enum.
+ */
+export type FeedItemType = 'comment' | 'field_change' | 'task' | 'event' | 'system' | 'email' | 'call';
+
+/**
+ * FeedItem — A single item in the unified activity feed.
+ * Aligned with @objectstack/spec FeedItemSchema.
+ */
+export interface FeedItem {
+  /** Unique identifier */
+  id: string | number;
+  /** Feed item type */
+  type: FeedItemType;
+  /** Actor / author display name */
+  actor: string;
+  /** Actor avatar URL */
+  actorAvatarUrl?: string;
+  /** Main body / text content (may contain Markdown) */
+  body?: string;
+  /** Creation timestamp (ISO 8601) */
+  createdAt: string;
+  /** Last update timestamp (ISO 8601) */
+  updatedAt?: string;
+  /** Source of the feed item (e.g., 'manual', 'api', 'automation') */
+  source?: string;
+  /** Parent feed item ID (for threading) */
+  parentId?: string | number;
+  /** Number of replies (if this is a root comment) */
+  replyCount?: number;
+  /** Field change entries (for field_change type) */
+  fieldChanges?: FieldChangeEntry[];
+  /** Mentions within this feed item */
+  mentions?: Mention[];
+  /** Reactions on this feed item */
+  reactions?: Reaction[];
+  /** Whether this item is pinned */
+  pinned?: boolean;
+  /** Whether this item has been edited */
+  edited?: boolean;
+}
+
+/**
+ * FieldChangeEntry — A single field change within a feed item.
+ * Aligned with @objectstack/spec FieldChangeEntrySchema.
+ */
+export interface FieldChangeEntry {
+  /** Field API name */
+  field: string;
+  /** Field display label */
+  fieldLabel?: string;
+  /** Previous raw value */
+  oldValue?: unknown;
+  /** New raw value */
+  newValue?: unknown;
+  /** Previous human-readable display value */
+  oldDisplayValue?: string;
+  /** New human-readable display value */
+  newDisplayValue?: string;
+}
+
+/**
+ * Mention — An @mention within a feed item.
+ * Aligned with @objectstack/spec MentionSchema.
+ */
+export interface Mention {
+  /** Mention target type */
+  type: 'user' | 'team' | 'group';
+  /** Mentioned entity ID */
+  id: string;
+  /** Display name */
+  name: string;
+  /** Offset in the body text */
+  offset?: number;
+  /** Length of the mention text */
+  length?: number;
+}
+
+/**
+ * Reaction — An emoji reaction on a feed item.
+ * Aligned with @objectstack/spec ReactionSchema.
+ */
+export interface Reaction {
+  /** Emoji identifier (e.g. '👍', '❤️', '🎉') */
+  emoji: string;
+  /** Number of users who reacted with this emoji */
+  count: number;
+  /** Whether the current user reacted with this emoji */
+  reacted?: boolean;
+  /** IDs of users who reacted */
+  userIds?: string[];
+}
+
+/**
+ * RecordSubscription — Notification subscription state for a record.
+ * Aligned with @objectstack/spec RecordSubscriptionSchema.
+ */
+export interface RecordSubscription {
+  /** Record ID */
+  recordId: string | number;
+  /** Whether the current user is subscribed */
+  subscribed: boolean;
+  /** Notification channels */
+  channels?: Array<'in_app' | 'email' | 'push'>;
+}
+
 /**
  * Detail View Schema - Display detailed information about a single record
  * Enhanced in Phase 2 with better organization and features
