@@ -1000,6 +1000,24 @@ export interface NamedListView {
   
   /** Type-specific options (kanban groupField, calendar startDateField, etc.) */
   options?: Record<string, any>;
+
+  /** Show search box in toolbar @default true */
+  showSearch?: boolean;
+
+  /** Show sort controls in toolbar @default true */
+  showSort?: boolean;
+
+  /** Show filter controls in toolbar @default true */
+  showFilters?: boolean;
+
+  /** Show alternating row colors @default false */
+  striped?: boolean;
+
+  /** Show cell borders @default false */
+  bordered?: boolean;
+
+  /** Color field for row/card coloring */
+  color?: string;
 }
 
 /**
@@ -1097,6 +1115,18 @@ export interface ListViewSchema extends BaseSchema {
   
   /** Show cell borders @default false */
   bordered?: boolean;
+
+  /** Show search box in toolbar @default true */
+  showSearch?: boolean;
+
+  /** Show sort controls in toolbar @default true */
+  showSort?: boolean;
+
+  /** Show filter controls in toolbar @default true */
+  showFilters?: boolean;
+
+  /** Color field for row/card coloring */
+  color?: string;
   
   /** Navigation config for row click behavior */
   navigation?: ViewNavigationConfig;

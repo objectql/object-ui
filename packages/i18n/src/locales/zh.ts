@@ -190,6 +190,8 @@ const zh = {
       configureView: '配置视图',
       closePanel: '关闭面板',
       page: '页面',
+      pageConfigHint: '工具栏、导航与视图外壳设置',
+      listConfigHint: '此列表类型的数据渲染、列与外观',
       title: '标题',
       description: '描述',
       data: '数据',

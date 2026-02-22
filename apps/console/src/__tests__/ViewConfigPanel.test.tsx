@@ -1479,4 +1479,95 @@ describe('ViewConfigPanel', () => {
         // The second move should operate on the updated state
         expect(onViewUpdate).toHaveBeenCalledTimes(2);
     });
+
+    // ── Section Layout Tests: Page vs ListView Config ──
+
+    it('renders page-level config items in the Page section (showSearch, showFilters, showSort, clickIntoRecordDetails, addRecordViaForm, allowExport)', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        // Page section should contain toolbar toggles
+        const panel = screen.getByTestId('view-config-panel');
+        expect(panel).toBeInTheDocument();
+
+        // These toggles should be rendered in the page section (always visible, not behind a collapsible)
+        expect(screen.getByTestId('toggle-showSearch')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-showFilters')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-showSort')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-clickIntoRecordDetails')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-addRecordViaForm')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-allowExport')).toBeInTheDocument();
+    });
+
+    it('renders section description hints for Page and ListView config', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByText('console.objectView.pageConfigHint')).toBeInTheDocument();
+        expect(screen.getByText('console.objectView.listConfigHint')).toBeInTheDocument();
+    });
+
+    it('renders list-level inline action items in the User Actions section (editRecordsInline, addDeleteRecordsInline)', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        // List-level inline actions should be in the User Actions collapsible section
+        expect(screen.getByTestId('toggle-editRecordsInline')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-addDeleteRecordsInline')).toBeInTheDocument();
+    });
+
+    it('page-level toggles call onViewUpdate correctly for live preview', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        // Toggle showSearch off
+        fireEvent.click(screen.getByTestId('toggle-showSearch'));
+        expect(onViewUpdate).toHaveBeenCalledWith('showSearch', false);
+
+        // Toggle showFilters off
+        fireEvent.click(screen.getByTestId('toggle-showFilters'));
+        expect(onViewUpdate).toHaveBeenCalledWith('showFilters', false);
+
+        // Toggle showSort off
+        fireEvent.click(screen.getByTestId('toggle-showSort'));
+        expect(onViewUpdate).toHaveBeenCalledWith('showSort', false);
+
+        // Toggle clickIntoRecordDetails off
+        fireEvent.click(screen.getByTestId('toggle-clickIntoRecordDetails'));
+        expect(onViewUpdate).toHaveBeenCalledWith('clickIntoRecordDetails', false);
+
+        // Toggle addRecordViaForm on
+        fireEvent.click(screen.getByTestId('toggle-addRecordViaForm'));
+        expect(onViewUpdate).toHaveBeenCalledWith('addRecordViaForm', true);
+
+        // Toggle allowExport off
+        fireEvent.click(screen.getByTestId('toggle-allowExport'));
+        expect(onViewUpdate).toHaveBeenCalledWith('allowExport', false);
+    });
 });

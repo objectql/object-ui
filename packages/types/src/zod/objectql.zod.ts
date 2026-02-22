@@ -249,6 +249,12 @@ export const ListViewSchema = BaseSchema.extend({
   sort: z.array(SortConfigSchema).optional().describe('Sort order'),
   options: z.record(z.string(), z.any()).optional().describe('Component overrides'),
   userFilters: UserFiltersSchema.optional().describe('User filters configuration'),
+  showSearch: z.boolean().optional().describe('Show search in toolbar'),
+  showSort: z.boolean().optional().describe('Show sort controls in toolbar'),
+  showFilters: z.boolean().optional().describe('Show filter controls in toolbar'),
+  striped: z.boolean().optional().describe('Alternating row colors'),
+  bordered: z.boolean().optional().describe('Show cell borders'),
+  color: z.string().optional().describe('Color field for row/card coloring'),
 });
 
 /**

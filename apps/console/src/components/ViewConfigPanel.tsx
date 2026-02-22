@@ -449,8 +449,9 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-auto px-4 pb-4">
-                {/* Page Section — title, description, view type */}
+                {/* ── Page Config — toolbar, navigation, view shell ── */}
                 <SectionHeader title={t('console.objectView.page')} />
+                <p className="text-[10px] text-muted-foreground mb-1">{t('console.objectView.pageConfigHint')}</p>
                 <div className="space-y-0.5">
                     <ConfigRow label={t('console.objectView.title')}>
                         <Input
@@ -481,9 +482,58 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                             ))}
                         </select>
                     </ConfigRow>
+                    {/* Page-level toolbar toggles */}
+                    <ConfigRow label={t('console.objectView.enableSearch')}>
+                        <Switch
+                            data-testid="toggle-showSearch"
+                            checked={hasSearch}
+                            onCheckedChange={(checked: boolean) => updateDraft('showSearch', checked)}
+                            className="scale-75"
+                        />
+                    </ConfigRow>
+                    <ConfigRow label={t('console.objectView.enableFilter')}>
+                        <Switch
+                            data-testid="toggle-showFilters"
+                            checked={hasFilter}
+                            onCheckedChange={(checked: boolean) => updateDraft('showFilters', checked)}
+                            className="scale-75"
+                        />
+                    </ConfigRow>
+                    <ConfigRow label={t('console.objectView.enableSort')}>
+                        <Switch
+                            data-testid="toggle-showSort"
+                            checked={hasSort}
+                            onCheckedChange={(checked: boolean) => updateDraft('showSort', checked)}
+                            className="scale-75"
+                        />
+                    </ConfigRow>
+                    <ConfigRow label={t('console.objectView.clickIntoRecordDetails')}>
+                        <Switch
+                            data-testid="toggle-clickIntoRecordDetails"
+                            checked={draft.clickIntoRecordDetails !== false}
+                            onCheckedChange={(checked: boolean) => updateDraft('clickIntoRecordDetails', checked)}
+                            className="scale-75"
+                        />
+                    </ConfigRow>
+                    <ConfigRow label={t('console.objectView.addRecordViaForm')}>
+                        <Switch
+                            data-testid="toggle-addRecordViaForm"
+                            checked={hasAddForm}
+                            onCheckedChange={(checked: boolean) => updateDraft('addRecordViaForm', checked)}
+                            className="scale-75"
+                        />
+                    </ConfigRow>
+                    <ConfigRow label={t('console.objectView.allowExport')}>
+                        <Switch
+                            data-testid="toggle-allowExport"
+                            checked={hasExport}
+                            onCheckedChange={(checked: boolean) => updateDraft('allowExport', checked)}
+                            className="scale-75"
+                        />
+                    </ConfigRow>
                 </div>
 
-                {/* Data Section — collapsible */}
+                {/* ── Data Section — list-level data, filtering, sorting ── */}
                 <SectionHeader
                     title={t('console.objectView.data')}
                     collapsible
@@ -491,6 +541,7 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                     onToggle={() => toggleSection('data')}
                     testId="section-data"
                 />
+                <p className="text-[10px] text-muted-foreground mb-1">{t('console.objectView.listConfigHint')}</p>
                 {!collapsedSections.data && (
                     <div className="space-y-0.5">
                         <ConfigRow label={t('console.objectView.source')} value={objectDef.label || objectDef.name} />
@@ -780,38 +831,10 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                         {viewType === 'grid' && (
                             <div data-testid="type-options-section" className="hidden" />
                         )}
-
-                        {/* Data options — search/filter/sort enables */}
-                        <div className="pt-1 space-y-0.5">
-                            <ConfigRow label={t('console.objectView.enableSearch')}>
-                                <Switch
-                                    data-testid="toggle-showSearch"
-                                    checked={hasSearch}
-                                    onCheckedChange={(checked: boolean) => updateDraft('showSearch', checked)}
-                                    className="scale-75"
-                                />
-                            </ConfigRow>
-                            <ConfigRow label={t('console.objectView.enableFilter')}>
-                                <Switch
-                                    data-testid="toggle-showFilters"
-                                    checked={hasFilter}
-                                    onCheckedChange={(checked: boolean) => updateDraft('showFilters', checked)}
-                                    className="scale-75"
-                                />
-                            </ConfigRow>
-                            <ConfigRow label={t('console.objectView.enableSort')}>
-                                <Switch
-                                    data-testid="toggle-showSort"
-                                    checked={hasSort}
-                                    onCheckedChange={(checked: boolean) => updateDraft('showSort', checked)}
-                                    className="scale-75"
-                                />
-                            </ConfigRow>
-                        </div>
                     </div>
                 )}
 
-                {/* Appearance Section — collapsible */}
+                {/* Appearance Section — collapsible (list-level) */}
                 <SectionHeader
                     title={t('console.objectView.appearance')}
                     collapsible
@@ -901,7 +924,7 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                     </div>
                 )}
 
-                {/* User Actions Section — collapsible */}
+                {/* Inline Actions Section — list-level (collapsible) */}
                 <SectionHeader
                     title={t('console.objectView.userActions')}
                     collapsible
@@ -924,30 +947,6 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                                 data-testid="toggle-addDeleteRecordsInline"
                                 checked={draft.addDeleteRecordsInline !== false}
                                 onCheckedChange={(checked: boolean) => updateDraft('addDeleteRecordsInline', checked)}
-                                className="scale-75"
-                            />
-                        </ConfigRow>
-                        <ConfigRow label={t('console.objectView.clickIntoRecordDetails')}>
-                            <Switch
-                                data-testid="toggle-clickIntoRecordDetails"
-                                checked={draft.clickIntoRecordDetails !== false}
-                                onCheckedChange={(checked: boolean) => updateDraft('clickIntoRecordDetails', checked)}
-                                className="scale-75"
-                            />
-                        </ConfigRow>
-                        <ConfigRow label={t('console.objectView.addRecordViaForm')}>
-                            <Switch
-                                data-testid="toggle-addRecordViaForm"
-                                checked={hasAddForm}
-                                onCheckedChange={(checked: boolean) => updateDraft('addRecordViaForm', checked)}
-                                className="scale-75"
-                            />
-                        </ConfigRow>
-                        <ConfigRow label={t('console.objectView.allowExport')}>
-                            <Switch
-                                data-testid="toggle-allowExport"
-                                checked={hasExport}
-                                onCheckedChange={(checked: boolean) => updateDraft('allowExport', checked)}
                                 className="scale-75"
                             />
                         </ConfigRow>

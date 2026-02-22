@@ -186,6 +186,8 @@ const ar = {
       configureView: 'تكوين العرض',
       closePanel: 'إغلاق اللوحة',
       page: 'الصفحة',
+      pageConfigHint: 'شريط الأدوات والتنقل وإعدادات غلاف العرض',
+      listConfigHint: 'عرض البيانات والأعمدة والمظهر لهذا النوع من القائمة',
       title: 'العنوان',
       description: 'الوصف',
       data: 'البيانات',

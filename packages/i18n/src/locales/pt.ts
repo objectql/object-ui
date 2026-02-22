@@ -185,6 +185,8 @@ const pt = {
       configureView: 'Configurar visualização',
       closePanel: 'Fechar painel',
       page: 'Página',
+      pageConfigHint: 'Barra de ferramentas, navegação e configurações do shell de visualização',
+      listConfigHint: 'Renderização de dados, colunas e aparência para este tipo de lista',
       title: 'Título',
       description: 'Descrição',
       data: 'Dados',

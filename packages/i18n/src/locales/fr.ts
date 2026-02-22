@@ -190,6 +190,8 @@ const fr = {
       configureView: 'Configurer la vue',
       closePanel: 'Fermer le panneau',
       page: 'Page',
+      pageConfigHint: 'Barre d\'outils, navigation et paramètres du shell de vue',
+      listConfigHint: 'Rendu des données, colonnes et apparence pour ce type de liste',
       title: 'Titre',
       description: 'Description',
       data: 'Données',

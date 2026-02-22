@@ -185,6 +185,8 @@ const ko = {
       configureView: '뷰 구성',
       closePanel: '패널 닫기',
       page: '페이지',
+      pageConfigHint: '도구 모음, 탐색 및 뷰 셸 설정',
+      listConfigHint: '이 목록 유형의 데이터 렌더링, 열 및 모양',
       title: '제목',
       description: '설명',
       data: '데이터',

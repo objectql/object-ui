@@ -190,6 +190,8 @@ const en = {
       configureView: 'Configure View',
       closePanel: 'Close panel',
       page: 'Page',
+      pageConfigHint: 'Toolbar, navigation & view shell settings',
+      listConfigHint: 'Data rendering, columns & appearance for this list type',
       title: 'Title',
       description: 'Description',
       data: 'Data',

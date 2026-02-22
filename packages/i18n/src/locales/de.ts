@@ -190,6 +190,8 @@ const de = {
       configureView: 'Ansicht konfigurieren',
       closePanel: 'Panel schließen',
       page: 'Seite',
+      pageConfigHint: 'Symbolleiste, Navigation & Ansichts-Shell-Einstellungen',
+      listConfigHint: 'Daten-Rendering, Spalten & Erscheinungsbild für diesen Listentyp',
       title: 'Titel',
       description: 'Beschreibung',
       data: 'Daten',

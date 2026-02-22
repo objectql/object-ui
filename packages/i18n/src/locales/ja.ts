@@ -185,6 +185,8 @@ const ja = {
       configureView: 'ビューを設定',
       closePanel: 'パネルを閉じる',
       page: 'ページ',
+      pageConfigHint: 'ツールバー、ナビゲーション、ビューシェル設定',
+      listConfigHint: 'このリストタイプのデータレンダリング、列、外観',
       title: 'タイトル',
       description: '説明',
       data: 'データ',

@@ -185,6 +185,8 @@ const es = {
       configureView: 'Configurar vista',
       closePanel: 'Cerrar panel',
       page: 'Página',
+      pageConfigHint: 'Barra de herramientas, navegación y configuración del shell de vista',
+      listConfigHint: 'Renderizado de datos, columnas y apariencia para este tipo de lista',
       title: 'Título',
       description: 'Descripción',
       data: 'Datos',

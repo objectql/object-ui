@@ -585,7 +585,12 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       objectName: schema.objectName,
       fields: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.fields,
       className: 'h-full w-full',
-      showSearch: false,
+      showSearch: activeView?.showSearch ?? schema.showSearch ?? false,
+      showSort: activeView?.showSort ?? schema.showSort ?? false,
+      showFilters: activeView?.showFilters ?? schema.showFilters ?? false,
+      striped: activeView?.striped ?? false,
+      bordered: activeView?.bordered ?? false,
+      color: activeView?.color,
     };
 
     // Resolve type-specific options from current named view or active view

@@ -303,6 +303,16 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
             appearance: viewDef.showDescription != null
                 ? { showDescription: viewDef.showDescription }
                 : listSchema.appearance,
+            // Propagate toolbar/display flags for all view types
+            showSearch: viewDef.showSearch ?? listSchema.showSearch,
+            showSort: viewDef.showSort ?? listSchema.showSort,
+            showFilters: viewDef.showFilters ?? listSchema.showFilters,
+            striped: viewDef.striped ?? listSchema.striped,
+            bordered: viewDef.bordered ?? listSchema.bordered,
+            color: viewDef.color ?? listSchema.color,
+            // Propagate filter/sort as default filters/sort for data flow
+            ...(viewDef.filter?.length ? { filters: viewDef.filter } : {}),
+            ...(viewDef.sort?.length ? { sort: viewDef.sort } : {}),
             options: {
                 kanban: {
                     groupBy: viewDef.kanban?.groupByField || viewDef.kanban?.groupField || 'status',
