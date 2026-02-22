@@ -701,6 +701,13 @@ export type {
   MentionNotification,
   CommentSearchResult,
   ActivityEntry,
+  // Feed / Chatter Protocol Types
+  FeedItemType,
+  FeedItem,
+  FieldChangeEntry,
+  Mention,
+  Reaction,
+  RecordSubscription,
 } from './views';
 
 export type {

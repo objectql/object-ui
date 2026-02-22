@@ -24,6 +24,14 @@ export { RecordNavigationEnhanced } from './RecordNavigationEnhanced';
 export { RelationshipGraph } from './RelationshipGraph';
 export { CommentAttachment } from './CommentAttachment';
 export { PointInTimeRestore } from './PointInTimeRestore';
+export { RecordActivityTimeline } from './RecordActivityTimeline';
+export { RecordChatterPanel } from './RecordChatterPanel';
+export { CommentInput } from './CommentInput';
+export { FieldChangeItem } from './FieldChangeItem';
+export { MentionAutocomplete, createMentionFromSuggestion } from './MentionAutocomplete';
+export { SubscriptionToggle } from './SubscriptionToggle';
+export { ReactionPicker } from './ReactionPicker';
+export { ThreadedReplies } from './ThreadedReplies';
 export type { DetailViewProps } from './DetailView';
 export type { DetailSectionProps } from './DetailSection';
 export type { DetailTabsProps } from './DetailTabs';
@@ -37,6 +45,14 @@ export type { RecordNavigationEnhancedProps } from './RecordNavigationEnhanced';
 export type { RelationshipGraphProps, GraphNode } from './RelationshipGraph';
 export type { CommentAttachmentProps, Attachment } from './CommentAttachment';
 export type { PointInTimeRestoreProps, RevisionEntry } from './PointInTimeRestore';
+export type { RecordActivityTimelineProps, FeedFilterMode } from './RecordActivityTimeline';
+export type { RecordChatterPanelProps } from './RecordChatterPanel';
+export type { CommentInputProps } from './CommentInput';
+export type { FieldChangeItemProps } from './FieldChangeItem';
+export type { MentionAutocompleteProps, MentionSuggestionItem } from './MentionAutocomplete';
+export type { SubscriptionToggleProps } from './SubscriptionToggle';
+export type { ReactionPickerProps } from './ReactionPicker';
+export type { ThreadedRepliesProps } from './ThreadedReplies';
 
 // Register DetailView component
 ComponentRegistry.register('detail-view', DetailView, {
