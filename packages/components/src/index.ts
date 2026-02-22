@@ -23,6 +23,18 @@ export { registerPlaceholders } from './renderers/placeholders';
 export * from './ui';
 export * from './custom';
 
+// Export hooks
+export { useConfigDraft } from './hooks/use-config-draft';
+export type { UseConfigDraftOptions, UseConfigDraftReturn } from './hooks/use-config-draft';
+
+// Export config panel types
+export type {
+  ControlType,
+  ConfigField,
+  ConfigSection,
+  ConfigPanelSchema,
+} from './types/config-panel';
+
 // Export an init function to ensure components are registered
 // This is a workaround for bundlers that might tree-shake side-effect imports
 export function initializeComponents() {
