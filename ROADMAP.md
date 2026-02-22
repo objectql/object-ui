@@ -142,7 +142,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
   - [x] `ThreadedReplies` — collapsible comment reply threading
   - [x] Comprehensive unit tests for all 6 core Feed/Chatter components (96 tests)
   - [x] Console `RecordDetailView` integration: `CommentThread` → `RecordChatterPanel` with `FeedItem[]` data model
-
+  - [ ] Documentation for Feed/Chatter plugin in `content/docs/plugins/plugin-detail.mdx` (purpose/use cases, JSON schema, props, and Console integration for `RecordChatterPanel`, `RecordActivityTimeline`, and related components)
 ### P1.6 Console — Automation
 
 > **Spec v3.0.9** significantly expanded the automation/workflow protocol. New node types, BPMN interop, execution tracking, and wait/timer executors are now available in the spec.
