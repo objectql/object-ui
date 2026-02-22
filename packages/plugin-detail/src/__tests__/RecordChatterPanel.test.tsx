@@ -126,4 +126,102 @@ describe('RecordChatterPanel', () => {
       expect(screen.queryByLabelText('Filter activity')).not.toBeInTheDocument();
     });
   });
+
+  describe('left sidebar mode', () => {
+    it('should render with border-r in left position', () => {
+      const { container } = render(
+        <RecordChatterPanel config={{ position: 'left' }} items={mockItems} />,
+      );
+      const panel = container.firstChild as HTMLElement;
+      expect(panel).toHaveClass('border-r');
+    });
+  });
+
+  describe('right sidebar width', () => {
+    it('should apply configured width via style', () => {
+      const { container } = render(
+        <RecordChatterPanel config={{ position: 'right', width: '400px' }} items={mockItems} />,
+      );
+      const panel = container.firstChild as HTMLElement;
+      expect(panel.style.width).toBe('400px');
+    });
+  });
+
+  describe('collapsible=false', () => {
+    it('should not show collapse button when collapsible is false', () => {
+      render(
+        <RecordChatterPanel
+          config={{ position: 'right', collapsible: false }}
+          items={mockItems}
+        />,
+      );
+      expect(screen.getByText('Discussion')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Close discussion panel')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('sidebar timeline styling', () => {
+    it('should pass border-0 shadow-none to embedded timeline', () => {
+      const { container } = render(
+        <RecordChatterPanel config={{ position: 'right' }} items={mockItems} />,
+      );
+      // The RecordActivityTimeline renders a Card; in sidebar mode it gets border-0 shadow-none
+      const card = container.querySelector('.border-0.shadow-none');
+      expect(card).toBeInTheDocument();
+    });
+  });
+
+  describe('callback passthrough', () => {
+    it('should forward onAddComment to embedded timeline', () => {
+      const onAddComment = vi.fn().mockResolvedValue(undefined);
+      render(
+        <RecordChatterPanel
+          config={{ position: 'right' }}
+          items={[]}
+          onAddComment={onAddComment}
+        />,
+      );
+      expect(screen.getByPlaceholderText(/Leave a comment/)).toBeInTheDocument();
+    });
+  });
+
+  describe('inline collapsible buttons', () => {
+    it('should show "Show Discussion (N)" when collapsed inline', () => {
+      render(
+        <RecordChatterPanel
+          config={{ position: 'bottom', collapsible: true, defaultCollapsed: true }}
+          items={mockItems}
+        />,
+      );
+      expect(screen.getByText('Show Discussion (2)')).toBeInTheDocument();
+    });
+
+    it('should show "Hide discussion" button when expanded inline', () => {
+      render(
+        <RecordChatterPanel
+          config={{ position: 'bottom', collapsible: true }}
+          items={mockItems}
+        />,
+      );
+      expect(screen.getByLabelText('Hide discussion')).toBeInTheDocument();
+    });
+
+    it('should toggle between collapsed and expanded inline', () => {
+      render(
+        <RecordChatterPanel
+          config={{ position: 'bottom', collapsible: true, defaultCollapsed: true }}
+          items={mockItems}
+        />,
+      );
+      // Collapsed
+      expect(screen.getByLabelText('Show discussion')).toBeInTheDocument();
+      fireEvent.click(screen.getByLabelText('Show discussion'));
+      // Expanded
+      expect(screen.getByText('Activity')).toBeInTheDocument();
+      // Click hide
+      fireEvent.click(screen.getByLabelText('Hide discussion'));
+      // Collapsed again
+      expect(screen.getByLabelText('Show discussion')).toBeInTheDocument();
+    });
+  });
 });
