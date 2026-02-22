@@ -5,7 +5,7 @@
 > **Spec Version:** @objectstack/spec v3.0.9
 > **Client Version:** @objectstack/client v3.0.9
 > **Target UX Benchmark:** 🎯 Airtable parity
-> **Current Priority:** AppShell Navigation · Designer Interaction · View Config Live Preview Sync · Dashboard Config Panel · Airtable UX Polish
+> **Current Priority:** AppShell Navigation · Designer Interaction · View Config Live Preview Sync · Dashboard Config Panel · Airtable UX Polish · **Flow Designer ✅**
 
 ---
 
@@ -13,7 +13,7 @@
 
 ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn. It renders JSON metadata from the @objectstack/spec protocol into pixel-perfect, accessible, and interactive enterprise interfaces.
 
-**Where We Are:** Foundation is **solid and shipping** — 35 packages, 91+ components, 5,110+ tests, 78 Storybook stories, 42/42 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Designer Phase 1 (ViewDesigner drag-to-reorder ✅), Console through Phase 20 (L3), and **AppShell Navigation Renderer** (P0.1) — all ✅ complete.
+**Where We Are:** Foundation is **solid and shipping** — 35 packages, 91+ components, 5,110+ tests, 78 Storybook stories, 42/42 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Designer Phase 1 (ViewDesigner drag-to-reorder ✅), Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), and **Flow Designer** (P2.4) — all ✅ complete.
 
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
@@ -307,15 +307,56 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 ## 🧩 P2 — Polish & Advanced Features
 
+### P2.0 Flow Designer ✅
+
+> **Status:** Complete — `FlowDesigner` component shipped in `@object-ui/plugin-workflow`.
+
+The `FlowDesigner` is a canvas-based flow editor that bridges the gap between the approval-focused `WorkflowDesigner` and the BPMN-heavyweight `ProcessDesigner`. It targets automation/integration flows with spec v3.0.9 types.
+
+**Core Canvas:**
+- [x] Drag-to-reposition nodes on SVG canvas
+- [x] Undo/redo with keyboard shortcuts (`Ctrl+Z` / `Ctrl+Y`)
+- [x] Ctrl+S save shortcut with `onSave` callback
+- [x] Zoom in/out/reset controls
+- [x] Edge creation by clicking source → target connection ports
+- [x] Node deletion via delete button or `Delete` key
+
+**Node Types (spec v3.0.9):**
+- [x] Standard nodes: `start`, `end`, `task`, `user_task`, `service_task`, `script_task`, `approval`, `condition`
+- [x] Gateway nodes: `parallel_gateway`, `join_gateway`
+- [x] Event nodes: `boundary_event`, `delay`, `notification`, `webhook`
+
+**Edges (spec v3.0.9):**
+- [x] Edge types: `default`, `conditional`, `timeout`
+- [x] Conditional edges with `condition` expression field
+- [x] `isDefault` flag for default/fallthrough edge marking
+- [x] Visual differentiation: dashed lines for conditional, dotted for default
+
+**Property Panel:**
+- [x] Node property editor: label, type, description
+- [x] Node executor configuration: `FlowNodeExecutorDescriptor` (type, `inputSchema`, `outputSchema`, `timeoutMs`, retry policy)
+- [x] Wait event config for delay nodes: `FlowWaitEventType` (condition/manual/webhook/timer/signal)
+- [x] Boundary event config: `FlowBoundaryConfig` (`attachedToNodeId`, `eventType`, `cancelActivity`, `timer`, `errorCode`)
+- [x] Edge property editor: label, type, condition expression, `isDefault` toggle
+
+**Spec v3.0.9 Protocol Features:**
+- [x] `FlowVersionEntry[]` version history panel with current/previous entries
+- [x] `FlowConcurrencyPolicy` badge display (allow/forbid/replace/queue)
+- [x] `FlowExecutionStep[]` execution monitoring overlay with per-node status icons
+- [x] `FlowBpmnInteropResult` BPMN XML export with warning/error reporting
+
+**ComponentRegistry:**
+- [x] Registered as `'flow-designer'` with all inputs documented
+
 ### P2.1 Designer — Remaining Interaction (Post-v1.0)
 
 - [ ] PageDesigner: Component drag-to-reorder and drag-to-position
 - [ ] ProcessDesigner: Node drag-to-move
-- [ ] ProcessDesigner: Support v3.0.9 node types (`parallel_gateway`, `join_gateway`, `boundary_event`)
-- [ ] ProcessDesigner: Support v3.0.9 conditional edges and default edge marking
+- [x] ProcessDesigner/FlowDesigner: Support v3.0.9 node types (`parallel_gateway`, `join_gateway`, `boundary_event`) — implemented in FlowDesigner
+- [x] ProcessDesigner/FlowDesigner: Support v3.0.9 conditional edges and default edge marking — implemented in FlowDesigner
 - [ ] ReportDesigner: Element drag-to-reposition within sections
-- [ ] Edge creation UI in ProcessDesigner (click source → click target)
-- [ ] Property editing for node labels/types in ProcessDesigner
+- [x] FlowDesigner: Edge creation UI (click source port → click target port)
+- [x] FlowDesigner: Property editing for node labels/types + executor config + boundary config
 - [ ] Confirmation dialogs for ProcessDesigner destructive actions
 
 ### P2.2 Designer — Advanced Features
@@ -346,11 +387,17 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [ ] `@object-ui/components`: ErrorBoundary wrapper per component
 - [ ] `@object-ui/fields`: Inline validation message rendering
 - [ ] `@object-ui/plugin-charts`: Drill-down click handler for chart segments
-- [ ] `@object-ui/plugin-workflow`: React Flow integration for production canvas
-- [ ] `@object-ui/plugin-workflow`: Support v3.0.9 BPMN interop types (`BpmnElementMapping`, `BpmnDiagnostic`, `BpmnVersion`)
-- [ ] `@object-ui/plugin-workflow`: Support v3.0.9 node executor descriptors (`NodeExecutorDescriptor`, `WAIT_EXECUTOR_DESCRIPTOR`)
-- [ ] `@object-ui/plugin-workflow`: Support v3.0.9 `inputSchema`/`outputSchema` on flow nodes
-- [ ] `@object-ui/plugin-workflow`: Support v3.0.9 `boundaryConfig` for boundary event nodes
+- [x] `@object-ui/plugin-workflow`: **FlowDesigner** — canvas-based flow editor (`flow-designer` component) with drag-to-reposition nodes, edge creation UI, undo/redo, Ctrl+S save, property panel, and BPMN export
+- [x] `@object-ui/plugin-workflow`: Support v3.0.9 BPMN interop types — `FlowBpmnInteropResult` with `bpmnXml` export, `nodeCount`, `edgeCount`, `warnings`
+- [x] `@object-ui/plugin-workflow`: Support v3.0.9 node executor descriptors — `FlowNodeExecutorDescriptor` with `inputSchema`, `outputSchema`, wait event config, retry policy
+- [x] `@object-ui/plugin-workflow`: Support v3.0.9 `inputSchema`/`outputSchema` on flow nodes via `FlowNodeExecutorDescriptor`
+- [x] `@object-ui/plugin-workflow`: Support v3.0.9 `boundaryConfig` for boundary event nodes — `FlowBoundaryConfig` with `attachedToNodeId`, `eventType`, `cancelActivity`, `timer`, `errorCode`
+- [x] `@object-ui/plugin-workflow`: Support v3.0.9 node types — `parallel_gateway`, `join_gateway`, `boundary_event` in `FlowNodeType`
+- [x] `@object-ui/plugin-workflow`: Support v3.0.9 conditional edges — `FlowEdge.type = 'conditional'` + `isDefault` flag
+- [x] `@object-ui/plugin-workflow`: Support v3.0.9 `FlowVersionHistory` — `FlowVersionEntry[]` with version number, author, changeNote, isCurrent
+- [x] `@object-ui/plugin-workflow`: Support v3.0.9 `ConcurrencyPolicy` — `FlowConcurrencyPolicy` (allow/forbid/replace/queue)
+- [x] `@object-ui/plugin-workflow`: Support v3.0.9 `WaitEventType` — `FlowWaitEventType` (condition/manual/webhook/timer/signal)
+- [x] `@object-ui/plugin-workflow`: Support v3.0.9 execution tracking — `FlowExecutionStep` with status overlay on nodes
 - [ ] `@object-ui/plugin-ai`: Configurable AI endpoint adapter (OpenAI, Anthropic)
 - [ ] Navigation `width` property: apply to drawer/modal overlays across all plugins
 - [ ] Navigation `view` property: specify target form/view on record click across all plugins

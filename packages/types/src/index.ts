@@ -643,6 +643,20 @@ export type {
   ApprovalHistoryItem,
   ApprovalProcessSchema,
   WorkflowInstanceSchema,
+  // Flow Designer (spec v3.0.9)
+  FlowNodeType,
+  FlowWaitEventType,
+  FlowNodeExecutionStatus,
+  FlowNodeExecutorDescriptor,
+  FlowBoundaryConfig,
+  FlowNode,
+  FlowEdgeType,
+  FlowEdge,
+  FlowVersionEntry,
+  FlowConcurrencyPolicy,
+  FlowBpmnInteropResult,
+  FlowExecutionStep,
+  FlowDesignerSchema,
 } from './workflow';
 
 export type {

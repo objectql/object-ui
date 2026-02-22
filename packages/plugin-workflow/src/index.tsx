@@ -11,10 +11,12 @@ import { WorkflowDesigner } from './WorkflowDesigner';
 import { ApprovalProcess } from './ApprovalProcess';
 import { AutomationBuilder } from './AutomationBuilder';
 import { AutomationRunHistory } from './AutomationRunHistory';
+import { FlowDesigner } from './FlowDesigner';
 
-export { WorkflowDesigner, ApprovalProcess, AutomationBuilder, AutomationRunHistory };
+export { WorkflowDesigner, ApprovalProcess, AutomationBuilder, AutomationRunHistory, FlowDesigner };
 export type { AutomationDefinition, AutomationBuilderProps, TriggerConfig, ActionConfig } from './AutomationBuilder';
 export type { AutomationRun, AutomationRunHistoryProps } from './AutomationRunHistory';
+export type { FlowDesignerProps } from './FlowDesigner';
 
 // Register workflow designer component
 ComponentRegistry.register(
@@ -74,6 +76,29 @@ ComponentRegistry.register(
     category: 'Enterprise',
     inputs: [
       { name: 'runs', type: 'code', label: 'Run History' },
+    ]
+  }
+);
+
+// Register flow designer component (spec v3.0.9)
+ComponentRegistry.register(
+  'flow-designer',
+  FlowDesigner,
+  {
+    label: 'Flow Designer',
+    category: 'Enterprise',
+    inputs: [
+      { name: 'nodes', type: 'code', label: 'Flow Nodes' },
+      { name: 'edges', type: 'code', label: 'Flow Edges' },
+      { name: 'title', type: 'string', label: 'Flow Title' },
+      { name: 'readOnly', type: 'boolean', label: 'Read Only', defaultValue: false },
+      { name: 'showToolbar', type: 'boolean', label: 'Show Toolbar', defaultValue: true },
+      { name: 'showMinimap', type: 'boolean', label: 'Show Minimap', defaultValue: false },
+      { name: 'showVersionHistory', type: 'boolean', label: 'Show Version History', defaultValue: false },
+      { name: 'showExecutionOverlay', type: 'boolean', label: 'Show Execution Overlay', defaultValue: false },
+      { name: 'concurrencyPolicy', type: 'string', label: 'Concurrency Policy' },
+      { name: 'versionHistory', type: 'code', label: 'Version History' },
+      { name: 'executionSteps', type: 'code', label: 'Execution Steps' },
     ]
   }
 );
