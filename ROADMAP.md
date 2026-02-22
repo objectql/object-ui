@@ -2,8 +2,8 @@
 
 > **Last Updated:** February 22, 2026
 > **Current Version:** v0.5.x
-> **Spec Version:** @objectstack/spec v3.0.8
-> **Client Version:** @objectstack/client v3.0.8
+> **Spec Version:** @objectstack/spec v3.0.9
+> **Client Version:** @objectstack/client v3.0.9
 > **Target UX Benchmark:** 🎯 Airtable parity
 > **Current Priority:** AppShell Navigation · Designer Interaction · View Config Live Preview Sync · Dashboard Config Panel · Airtable UX Polish
 
@@ -22,6 +22,30 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 4. **Dashboard Config Panel** — Airtable-style right-side configuration panel for dashboards (data source, layout, widget properties, sub-editors, type definitions)
 5. **Console Advanced Polish** — Remaining upgrades for forms, import/export, automation, comments
 6. **PWA Sync** — Background sync is simulated only
+
+---
+
+## 🔄 Spec v3.0.9 Upgrade Summary
+
+> Upgraded from `@objectstack/spec v3.0.8` → `v3.0.9` on February 22, 2026. UI sub-export is unchanged; changes are in Automation, Kernel, Data, and API layers.
+
+**New Protocol Capabilities (v3.0.9):**
+
+| Area | What's New | Impact on ObjectUI |
+|------|------------|-------------------|
+| **Workflow Nodes** | `parallel_gateway`, `join_gateway`, `boundary_event` node types | ProcessDesigner (P2.1) & Automation builder (P1.6) |
+| **BPMN Interop** | `BpmnImportOptions`, `BpmnExportOptions`, `BpmnInteropResult`, `BpmnElementMapping` | plugin-workflow BPMN import/export (P2.4) |
+| **Wait/Timer Executors** | `WaitEventType` (condition/manual/webhook/timer/signal), `WaitExecutorConfig`, `WaitTimeoutBehavior` | Automation builder wait-step UI (P1.6) |
+| **Execution Tracking** | `ExecutionLog`, `ExecutionStepLog`, `Checkpoint`, `ExecutionError`, `ExecutionStatus` | Automation execution history (P1.6) |
+| **Flow Edges** | `conditional` edge type, `isDefault` flag | ProcessDesigner conditional routing (P2.1) |
+| **Retry Config** | `backoffMultiplier`, `maxRetryDelayMs`, `jitter` on retry policy | Automation retry settings UI (P1.6) |
+| **Flow Versioning** | `FlowVersionHistory`, `ConcurrencyPolicy`, `ScheduleState` | Flow version management & scheduling (P1.6) |
+| **Data Export** | `ExportFormat`, `ExportJobStatus`, `CreateExportJobRequest` (export.zod) | Import/Export feature (P1.3) |
+| **App Engine** | Optional `engine: { objectstack: string }` on App config | Version pinning support (P2.4) |
+| **Package Upgrade** | `PackageArtifact`, `ArtifactChecksum`, `UpgradeContext`, `DependencyStatus` | Package management (P2.4) |
+| **Kernel Enhancements** | `PluginBuildOptions`, `PluginPublishOptions`, `PluginValidateOptions`, `MetadataCategory`, `NamespaceConflictError` | Plugin development tooling (P2.4) |
+
+**UI Sub-Export:** No breaking changes — `@objectstack/spec/ui` types are identical between v3.0.8 and v3.0.9.
 
 ---
 
@@ -78,6 +102,8 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 ### P1.3 Console — Import/Export Excellence
 
+> **Spec v3.0.9** introduces a formal Data Export/Import Protocol (`export.zod`) with streaming export, import validation, field mapping templates, and scheduled export jobs.
+
 - [ ] Excel (XLSX) export with formatting
 - [ ] PDF export with custom formatting
 - [ ] Export all data (not just visible rows)
@@ -87,6 +113,9 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [ ] Import field mapping UI (map CSV columns to object fields)
 - [ ] Import validation preview with error correction
 - [ ] Duplicate detection during import
+- [ ] Integrate spec v3.0.9 `ExportFormat` enum (json, csv, xlsx, jsonl, parquet)
+- [ ] Integrate spec v3.0.9 `CreateExportJobRequest` / `ExportJobStatus` for async streaming exports
+- [ ] Import template-based field mapping using spec protocol schemas
 
 ### P1.4 Console — Undo/Redo & History
 
@@ -104,11 +133,21 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 ### P1.6 Console — Automation
 
+> **Spec v3.0.9** significantly expanded the automation/workflow protocol. New node types, BPMN interop, execution tracking, and wait/timer executors are now available in the spec.
+
 - [ ] Multi-step automation builder (if-then chains)
 - [ ] Scheduled automations (cron-based triggers)
 - [ ] Webhook triggers and actions
 - [ ] Email notification actions
 - [ ] Automation execution history and logs
+- [ ] Support new v3.0.9 workflow node types: `parallel_gateway`, `join_gateway`, `boundary_event`
+- [ ] BPMN import/export interop (spec provides `BpmnImportOptions`, `BpmnExportOptions`, `BpmnInteropResult`)
+- [ ] Wait/timer executor UI (`waitEventConfig`: condition, manual, webhook, timer, signal events)
+- [ ] Execution tracking dashboard (`ExecutionLog`, `ExecutionStepLog`, `Checkpoint`, `ExecutionError`)
+- [ ] Conditional edge support (`conditional` edge type, `isDefault` flag on edges)
+- [ ] Enhanced retry configuration UI (`backoffMultiplier`, `maxRetryDelayMs`, `jitter`)
+- [ ] Flow version history viewer (`FlowVersionHistory`)
+- [ ] Concurrency policy configuration (`ConcurrencyPolicy`)
 
 ### P1.7 Console — Navigation Enhancements
 
@@ -268,6 +307,8 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 - [ ] PageDesigner: Component drag-to-reorder and drag-to-position
 - [ ] ProcessDesigner: Node drag-to-move
+- [ ] ProcessDesigner: Support v3.0.9 node types (`parallel_gateway`, `join_gateway`, `boundary_event`)
+- [ ] ProcessDesigner: Support v3.0.9 conditional edges and default edge marking
 - [ ] ReportDesigner: Element drag-to-reposition within sections
 - [ ] Edge creation UI in ProcessDesigner (click source → click target)
 - [ ] Property editing for node labels/types in ProcessDesigner
@@ -302,9 +343,15 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [ ] `@object-ui/fields`: Inline validation message rendering
 - [ ] `@object-ui/plugin-charts`: Drill-down click handler for chart segments
 - [ ] `@object-ui/plugin-workflow`: React Flow integration for production canvas
+- [ ] `@object-ui/plugin-workflow`: Support v3.0.9 BPMN interop types (`BpmnElementMapping`, `BpmnDiagnostic`, `BpmnVersion`)
+- [ ] `@object-ui/plugin-workflow`: Support v3.0.9 node executor descriptors (`NodeExecutorDescriptor`, `WAIT_EXECUTOR_DESCRIPTOR`)
+- [ ] `@object-ui/plugin-workflow`: Support v3.0.9 `inputSchema`/`outputSchema` on flow nodes
+- [ ] `@object-ui/plugin-workflow`: Support v3.0.9 `boundaryConfig` for boundary event nodes
 - [ ] `@object-ui/plugin-ai`: Configurable AI endpoint adapter (OpenAI, Anthropic)
 - [ ] Navigation `width` property: apply to drawer/modal overlays across all plugins
 - [ ] Navigation `view` property: specify target form/view on record click across all plugins
+- [ ] Support App `engine` field (`{ objectstack: string }`) for version pinning (v3.0.9)
+- [ ] Integrate v3.0.9 package upgrade protocol (`PackageArtifact`, `ArtifactChecksum`, `UpgradeContext`)
 
 ### P2.5 PWA & Offline (Real Sync)
 
