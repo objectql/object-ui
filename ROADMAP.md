@@ -5,7 +5,7 @@
 > **Spec Version:** @objectstack/spec v3.0.8
 > **Client Version:** @objectstack/client v3.0.8
 > **Target UX Benchmark:** 🎯 Airtable parity
-> **Current Priority:** AppShell Navigation · Designer Interaction · Dashboard Config Panel · Airtable UX Polish
+> **Current Priority:** AppShell Navigation · Designer Interaction · View Config Live Preview Sync · Dashboard Config Panel · Airtable UX Polish
 
 ---
 
@@ -18,9 +18,10 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
 2. **Designer Interaction** — ViewDesigner and DataModelDesigner have undo/redo, field type selectors, inline editing, Ctrl+S save, column drag-to-reorder with dnd-kit ✅
-3. **Dashboard Config Panel** — Airtable-style right-side configuration panel for dashboards (data source, layout, widget properties, sub-editors, type definitions)
-4. **Console Advanced Polish** — Remaining upgrades for forms, import/export, automation, comments
-5. **PWA Sync** — Background sync is simulated only
+3. **View Config Live Preview Sync** — Config panel changes sync in real-time for Grid, but `showSort`/`showSearch`/`showFilters`/`striped`/`bordered` not yet propagated to Kanban/Calendar/Timeline/Gallery/Map/Gantt (see P1.8.1)
+4. **Dashboard Config Panel** — Airtable-style right-side configuration panel for dashboards (data source, layout, widget properties, sub-editors, type definitions)
+5. **Console Advanced Polish** — Remaining upgrades for forms, import/export, automation, comments
+6. **PWA Sync** — Background sync is simulated only
 
 ---
 
@@ -138,13 +139,87 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] User actions section: Edit records inline, Add/delete records inline, Click into record details
 - [x] Calendar endDateField support
 - [x] i18n for all 11 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko)
-- [x] **Live preview: ViewConfigPanel changes sync in real-time to all list types (Grid/Kanban/Calendar/Timeline/Gallery/Map)**
-  - `showSort` added to `ObjectViewSchema` and propagated through plugin-view
-  - Appearance properties (`rowHeight`, `densityMode`, `color`, etc.) flow through `renderListView` schema
-  - `gridSchema` in plugin-view includes `striped`/`bordered` from active view config
-  - Plugin `renderContent` passes `rowHeight`, `densityMode`, `groupBy` to `renderListView` schema
-  - All `useMemo` dependency arrays expanded to cover full view config
+- [ ] **Live preview: ViewConfigPanel changes sync in real-time to all list types (Grid/Kanban/Calendar/Timeline/Gallery/Map)** _(partially complete — see P1.8.1 gap analysis below)_
+  - ✅ `showSort` added to `ObjectViewSchema` and propagated through plugin-view (Grid only)
+  - ✅ Appearance properties (`rowHeight`, `densityMode`) flow through `renderListView` schema for all view types
+  - ✅ `gridSchema` in plugin-view includes `striped`/`bordered` from active view config (Grid only)
+  - ✅ Plugin `renderContent` passes `rowHeight`, `densityMode`, `groupBy` to `renderListView` schema
+  - ✅ `useMemo` dependency arrays expanded to cover full view config
+  - ⚠️ `showSort`/`showSearch`/`showFilters` only wired to Grid — not propagated to Kanban/Calendar/Timeline/Gallery/Map/Gantt
+  - ⚠️ `striped`/`bordered` only applied via `gridSchema` — not passed to non-grid views through `renderListView`
+  - ⚠️ `generateViewSchema` sets `showSearch: false` unconditionally for all non-grid types
+  - ⚠️ Console `renderListView` callback does not pass `showSort`/`showSearch`/`showFilters`/`striped`/`bordered` to `fullSchema`
+  - ⚠️ No per-view-type integration tests verifying config properties reach non-grid renderers
 - [ ] Conditional formatting rules
+
+### P1.8.1 Live Preview — Gap Analysis & Phased Remediation
+
+> **Ref:** Issue [#711](https://github.com/objectstack-ai/objectui/issues/711) — Right-side view config panel changes not syncing in real-time to all list types.
+
+**Current Config Property Propagation Matrix:**
+
+| Property | Grid | Kanban | Calendar | Timeline | Gallery | Map | Gantt |
+|----------|:----:|:------:|:--------:|:--------:|:-------:|:---:|:-----:|
+| `showSearch` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `showSort` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `showFilters` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `rowHeight` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `densityMode` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `striped` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `bordered` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `groupBy` | N/A | ✅ | N/A | N/A | N/A | N/A | N/A |
+| `color` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Type-specific options | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+**Root Causes:**
+1. **`generateViewSchema` (plugin-view):** Hardcodes `showSearch: false` for non-grid views; does not propagate `showSort`/`showFilters`/`striped`/`bordered`/`color` from `activeView`
+2. **Console `renderListView`:** Omits `showSort`/`showSearch`/`showFilters`/`striped`/`bordered` from the `fullSchema` passed to `ListView`
+3. **`NamedListView` type:** Does not declare `showSearch`/`showSort`/`showFilters`/`striped`/`bordered`/`color` as first-class properties
+4. **No per-view-type integration tests:** Tests verify config reaches the `ViewConfigPanel` switch, but not that non-grid renderers actually receive and apply the properties
+
+**Phase 1 — Grid/Table View (baseline, already complete):**
+- [x] `gridSchema` includes `striped`/`bordered` from `activeView`
+- [x] `showSort`/`showSearch`/`showFilters` passed via `ObjectViewSchema`
+- [x] `useMemo` dependency arrays cover all grid config
+
+**Phase 2 — Kanban Live Preview:**
+- [ ] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` kanban branch
+- [ ] Pass `color`/`striped`/`bordered` in `renderContent` → `renderListView` for kanban
+- [ ] Ensure `groupBy` config changes reflect immediately (currently ✅ via `renderListView`)
+- [ ] Add integration test: ViewConfigPanel kanban config change → Kanban renderer receives updated props
+
+**Phase 3 — Calendar Live Preview:**
+- [ ] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` calendar branch
+- [ ] Pass `filter`/`sort`/appearance properties to calendar renderer in real-time
+- [ ] Verify `startDateField`/`endDateField` config changes trigger re-render via `useMemo` deps
+- [ ] Add integration test: ViewConfigPanel calendar config change → Calendar renderer receives updated props
+
+**Phase 4 — Timeline/Gantt Live Preview:**
+- [ ] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` timeline/gantt branches
+- [ ] Pass appearance properties (`color`, `striped`, `bordered`) through `renderListView` schema
+- [ ] Ensure `dateField`/`startDateField`/`endDateField` config changes trigger re-render
+- [ ] Add integration tests for timeline and gantt config sync
+
+**Phase 5 — Gallery & Map Live Preview:**
+- [ ] Propagate `showSort`/`showSearch`/`showFilters` through `generateViewSchema` gallery/map branches
+- [ ] Pass appearance properties through `renderListView` schema for gallery/map
+- [ ] Ensure gallery `imageField`/`titleField` and map `locationField`/`zoom`/`center` config changes trigger re-render
+- [ ] Add integration tests for gallery and map config sync
+
+**Phase 6 — Data Flow & Dependency Refactor:**
+- [ ] Add `showSearch`/`showSort`/`showFilters`/`striped`/`bordered`/`color` to `NamedListView` type in `@object-ui/types`
+- [ ] Update Console `renderListView` to pass all config properties in `fullSchema`
+- [ ] Audit all `useMemo`/`useEffect` dependency arrays in `plugin-view/ObjectView.tsx` for missing `activeView` sub-properties
+- [ ] Remove hardcoded `showSearch: false` from `generateViewSchema` — use `activeView.showSearch ?? schema.showSearch` instead
+
+**Phase 7 — End-to-End Integration Tests:**
+- [ ] Per-view-type test: Grid config sync (showSort, showSearch, showFilters, striped, bordered)
+- [ ] Per-view-type test: Kanban config sync (groupBy, color, showSearch)
+- [ ] Per-view-type test: Calendar config sync (startDateField, endDateField, showFilters)
+- [ ] Per-view-type test: Timeline/Gantt config sync (dateField, appearance)
+- [ ] Per-view-type test: Gallery config sync (imageField, titleField, appearance)
+- [ ] Per-view-type test: Map config sync (locationField, zoom, center, appearance)
+- [ ] Cross-view-type test: Switch view type in ViewConfigPanel → verify config properties transfer correctly
 
 ### P1.10 Console — Dashboard Config Panel
 
@@ -301,6 +376,8 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 | Airtable UX bar is high | Focus on Grid + Kanban + Form triad first; defer Gallery/Timeline polish |
 | PWA real sync complexity | Keep simulated sync as fallback; real sync behind feature flag |
 | Performance regression | Performance budgets in CI, 10K-record benchmarks |
+| View config live preview dependency chain breakage | `generateViewSchema` hardcodes non-grid defaults; per-view-type integration tests required (see P1.8.1) |
+| Config property type gaps (`NamedListView` missing fields) | Add first-class properties to `@object-ui/types`; use Zod schema to validate at runtime |
 
 ---
 
@@ -312,6 +389,6 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 ---
 
-**Roadmap Status:** 🎯 Active — AppShell · Designer Interaction · Dashboard Config Panel · Airtable UX Parity
+**Roadmap Status:** 🎯 Active — AppShell · Designer Interaction · View Config Live Preview Sync (P1.8.1) · Dashboard Config Panel · Airtable UX Parity
 **Next Review:** March 15, 2026
 **Contact:** hello@objectui.org | https://github.com/objectstack-ai/objectui
