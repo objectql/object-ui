@@ -1060,6 +1060,104 @@ export interface NamedListView {
 
   /** Show field descriptions below headers @default false */
   showDescription?: boolean;
+
+  /** Navigation configuration for row click behavior */
+  navigation?: ViewNavigationConfig;
+
+  /** Row selection mode */
+  selection?: { type: 'none' | 'single' | 'multiple' };
+
+  /** Pagination configuration */
+  pagination?: { pageSize: number; pageSizeOptions?: number[] };
+
+  /** Fields that support text search */
+  searchableFields?: string[];
+
+  /** Fields available for filter UI */
+  filterableFields?: string[];
+
+  /** Allow column resizing @default false */
+  resizable?: boolean;
+
+  /** Density mode for controlling row/item spacing */
+  densityMode?: 'compact' | 'comfortable' | 'spacious';
+
+  /** Row height for list/grid view rows */
+  rowHeight?: 'compact' | 'medium' | 'tall';
+
+  /** Fields to hide from the current view */
+  hiddenFields?: string[];
+
+  /** Export options configuration */
+  exportOptions?: {
+    formats?: Array<'csv' | 'xlsx' | 'json' | 'pdf'>;
+    maxRecords?: number;
+    includeHeaders?: boolean;
+    fileNamePrefix?: string;
+  };
+
+  /** Row action identifiers */
+  rowActions?: string[];
+
+  /** Bulk action identifiers */
+  bulkActions?: string[];
+
+  /** View sharing configuration */
+  sharing?: {
+    visibility?: 'private' | 'team' | 'organization' | 'public';
+    enabled?: boolean;
+  };
+
+  /** Add record configuration */
+  addRecord?: {
+    enabled?: boolean;
+    position?: string;
+    mode?: string;
+    formView?: string;
+  };
+
+  /** Conditional formatting rules */
+  conditionalFormatting?: Array<{
+    field: string;
+    operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'in';
+    value: unknown;
+    backgroundColor?: string;
+    textColor?: string;
+    borderColor?: string;
+    expression?: string;
+  }>;
+
+  /** Quick filter buttons for predefined filter presets */
+  quickFilters?: Array<{
+    id: string;
+    label: string;
+    filters: Array<unknown[] | string>;
+    icon?: string;
+    defaultActive?: boolean;
+  }>;
+
+  /** Show total record count @default false */
+  showRecordCount?: boolean;
+
+  /** Allow printing the view @default false */
+  allowPrinting?: boolean;
+
+  /** Enable virtual scrolling for large datasets @default false */
+  virtualScroll?: boolean;
+
+  /** Empty state configuration */
+  emptyState?: {
+    title?: string;
+    message?: string;
+    icon?: string;
+  };
+
+  /** ARIA attributes for accessibility */
+  aria?: {
+    label?: string;
+    describedBy?: string;
+    live?: 'polite' | 'assertive' | 'off';
+  };
 }
 
 /**
