@@ -126,10 +126,10 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 ### P1.5 Console — Comments & Collaboration
 
-- [ ] @mention notification delivery (email/push)
-- [ ] Comment search across all records
-- [ ] Comment pinning/starring
-- [ ] Activity feed filtering (comments only / field changes only)
+- [x] @mention notification delivery (email/push)
+- [x] Comment search across all records
+- [x] Comment pinning/starring
+- [x] Activity feed filtering (comments only / field changes only)
 
 ### P1.6 Console — Automation
 
