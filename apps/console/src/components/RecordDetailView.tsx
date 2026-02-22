@@ -8,14 +8,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { DetailView } from '@object-ui/plugin-detail';
+import { DetailView, RecordChatterPanel } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
-import { CommentThread, PresenceAvatars, type Comment, type PresenceUser } from '@object-ui/collaboration';
+import { PresenceAvatars, type PresenceUser } from '@object-ui/collaboration';
 import { useAuth } from '@object-ui/auth';
-import { Database, MessageSquare, Users } from 'lucide-react';
+import { Database, Users } from 'lucide-react';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { SkeletonDetail } from './skeletons';
-import type { DetailViewSchema } from '@object-ui/types';
+import type { DetailViewSchema, FeedItem } from '@object-ui/types';
 
 interface RecordDetailViewProps {
   dataSource: any;
@@ -30,8 +30,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
   const { showDebug, toggleDebug } = useMetadataInspector();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [threadResolved, setThreadResolved] = useState(false);
+  const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [recordViewers, setRecordViewers] = useState<PresenceUser[]>([]);
   const objectDef = objects.find((o: any) => o.name === objectName);
 
@@ -49,58 +48,122 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
       .then((res: any) => { if (res.data?.length) setRecordViewers(res.data); })
       .catch(() => {});
 
-    // Fetch persisted comments
+    // Fetch persisted comments and map to FeedItem[]
     dataSource.find('sys_comment', { $filter: `threadId eq '${threadId}'`, $orderby: 'createdAt asc' })
-      .then((res: any) => { if (res.data?.length) setComments(res.data); })
+      .then((res: any) => {
+        if (res.data?.length) {
+          setFeedItems(res.data.map((c: any) => ({
+            id: c.id,
+            type: 'comment' as const,
+            actor: c.author?.name ?? 'Unknown',
+            actorAvatarUrl: c.author?.avatar,
+            body: c.content,
+            createdAt: c.createdAt,
+            updatedAt: c.updatedAt,
+            parentId: c.parentId,
+            reactions: c.reactions
+              ? Object.entries(c.reactions as Record<string, string[]>).map(([emoji, userIds]) => ({
+                  emoji,
+                  count: userIds.length,
+                  reacted: userIds.includes(currentUser.id),
+                }))
+              : undefined,
+          })));
+        }
+      })
       .catch(() => {});
-  }, [dataSource, objectName, recordId]);
+  }, [dataSource, objectName, recordId, currentUser]);
 
   const handleAddComment = useCallback(
-    async (content: string, mentions: string[], parentId?: string) => {
-      const newComment: Comment = {
+    async (text: string) => {
+      const newItem: FeedItem = {
         id: crypto.randomUUID(),
-        author: currentUser,
-        content,
-        mentions,
+        type: 'comment',
+        actor: currentUser.name,
+        actorAvatarUrl: 'avatar' in currentUser ? (currentUser as any).avatar : undefined,
+        body: text,
         createdAt: new Date().toISOString(),
-        parentId,
       };
-      setComments(prev => [...prev, newComment]);
+      setFeedItems(prev => [...prev, newItem]);
       // Persist to backend
       if (dataSource) {
         const threadId = `${objectName}:${recordId}`;
-        dataSource.create('sys_comment', { ...newComment, threadId }).catch(() => {});
+        dataSource.create('sys_comment', {
+          id: newItem.id,
+          threadId,
+          author: currentUser,
+          content: text,
+          mentions: [],
+          createdAt: newItem.createdAt,
+        }).catch(() => {});
       }
     },
     [currentUser, dataSource, objectName, recordId],
   );
 
-  const handleDeleteComment = useCallback(
-    async (commentId: string) => {
-      setComments(prev => prev.filter(c => c.id !== commentId));
+  const handleAddReply = useCallback(
+    async (parentId: string | number, text: string) => {
+      const newItem: FeedItem = {
+        id: crypto.randomUUID(),
+        type: 'comment',
+        actor: currentUser.name,
+        actorAvatarUrl: 'avatar' in currentUser ? (currentUser as any).avatar : undefined,
+        body: text,
+        createdAt: new Date().toISOString(),
+        parentId,
+      };
+      setFeedItems(prev => {
+        const updated = [...prev, newItem];
+        // Increment replyCount on parent
+        return updated.map(item =>
+          item.id === parentId
+            ? { ...item, replyCount: (item.replyCount ?? 0) + 1 }
+            : item
+        );
+      });
       if (dataSource) {
-        dataSource.delete('sys_comment', commentId).catch(() => {});
+        const threadId = `${objectName}:${recordId}`;
+        dataSource.create('sys_comment', {
+          id: newItem.id,
+          threadId,
+          author: currentUser,
+          content: text,
+          mentions: [],
+          createdAt: newItem.createdAt,
+          parentId,
+        }).catch(() => {});
       }
     },
-    [dataSource],
+    [currentUser, dataSource, objectName, recordId],
   );
 
-  const handleReaction = useCallback(
-    (commentId: string, emoji: string) => {
-      setComments(prev => prev.map(c => {
-        if (c.id !== commentId) return c;
-        const reactions = { ...(c.reactions || {}) };
-        const userIds = reactions[emoji] || [];
-        if (userIds.includes(currentUser.id)) {
-          reactions[emoji] = userIds.filter(id => id !== currentUser.id);
-          if (reactions[emoji].length === 0) delete reactions[emoji];
+  const handleToggleReaction = useCallback(
+    (itemId: string | number, emoji: string) => {
+      setFeedItems(prev => prev.map(item => {
+        if (item.id !== itemId) return item;
+        const reactions = [...(item.reactions ?? [])];
+        const idx = reactions.findIndex(r => r.emoji === emoji);
+        if (idx >= 0) {
+          const r = reactions[idx];
+          if (r.reacted) {
+            // Remove user's reaction
+            if (r.count <= 1) {
+              reactions.splice(idx, 1);
+            } else {
+              reactions[idx] = { ...r, count: r.count - 1, reacted: false };
+            }
+          } else {
+            reactions[idx] = { ...r, count: r.count + 1, reacted: true };
+          }
         } else {
-          reactions[emoji] = [...userIds, currentUser.id];
+          reactions.push({ emoji, count: 1, reacted: true });
         }
-        const updated = { ...c, reactions };
-        // Persist reaction update to backend
+        const updated = { ...item, reactions };
+        // Persist reaction toggle to backend
         if (dataSource) {
-          dataSource.update('sys_comment', commentId, { reactions }).catch(() => {});
+          dataSource.update('sys_comment', String(itemId), {
+            $toggleReaction: { emoji, userId: currentUser.id },
+          }).catch(() => {});
         }
         return updated;
       }));
@@ -186,19 +249,20 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
 
           {/* Comments & Discussion */}
           <div className="mt-6 border-t pt-6">
-            <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Comments & Discussion
-            </h3>
-            <CommentThread
-              threadId={`${objectName}:${recordId}`}
-              comments={comments}
-              currentUser={currentUser}
+            <RecordChatterPanel
+              config={{
+                position: 'bottom',
+                collapsible: false,
+                feed: {
+                  enableReactions: true,
+                  enableThreading: true,
+                  showCommentInput: true,
+                },
+              }}
+              items={feedItems}
               onAddComment={handleAddComment}
-              onDeleteComment={handleDeleteComment}
-              onReaction={handleReaction}
-              resolved={threadResolved}
-              onResolve={setThreadResolved}
+              onAddReply={handleAddReply}
+              onToggleReaction={handleToggleReaction}
             />
           </div>
         </div>

@@ -69,4 +69,51 @@ describe('FieldChangeItem', () => {
     const { container } = render(<FieldChangeItem change={change} className="custom-class" />);
     expect(container.firstChild).toHaveClass('custom-class');
   });
+
+  it('should render arrow icon between old and new values', () => {
+    const change: FieldChangeEntry = {
+      field: 'status',
+      fieldLabel: 'Status',
+      oldValue: 'Open',
+      newValue: 'Closed',
+    };
+    const { container } = render(<FieldChangeItem change={change} />);
+    // ArrowRight renders as an SVG with lucide classes
+    const svg = container.querySelector('svg');
+    expect(svg).toBeInTheDocument();
+  });
+
+  it('should render old value with line-through style', () => {
+    const change: FieldChangeEntry = {
+      field: 'status',
+      fieldLabel: 'Status',
+      oldDisplayValue: 'Open',
+      newDisplayValue: 'Closed',
+    };
+    render(<FieldChangeItem change={change} />);
+    const oldEl = screen.getByText('Open');
+    expect(oldEl).toHaveClass('line-through');
+  });
+
+  it('should use fieldLabel priority over auto-generated label', () => {
+    const change: FieldChangeEntry = {
+      field: 'first_name',
+      fieldLabel: 'Custom Label',
+      oldValue: 'A',
+      newValue: 'B',
+    };
+    render(<FieldChangeItem change={change} />);
+    expect(screen.getByText('Custom Label')).toBeInTheDocument();
+    expect(screen.queryByText('First name')).not.toBeInTheDocument();
+  });
+
+  it('should show (empty) for both null old and new values', () => {
+    const change: FieldChangeEntry = {
+      field: 'notes',
+      fieldLabel: 'Notes',
+    };
+    render(<FieldChangeItem change={change} />);
+    const emptyTexts = screen.getAllByText('(empty)');
+    expect(emptyTexts).toHaveLength(2);
+  });
 });

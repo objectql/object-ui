@@ -50,6 +50,16 @@ const mockItems: FeedItem[] = [
   },
 ];
 
+const allTypeItems: FeedItem[] = [
+  { id: 'c1', type: 'comment', actor: 'A', body: 'comment', createdAt: '2026-02-20T10:00:00Z' },
+  { id: 'fc1', type: 'field_change', actor: 'B', createdAt: '2026-02-20T10:01:00Z', fieldChanges: [{ field: 'x', oldValue: '1', newValue: '2' }] },
+  { id: 't1', type: 'task', actor: 'C', body: 'task', createdAt: '2026-02-20T10:02:00Z' },
+  { id: 'e1', type: 'event', actor: 'D', body: 'event', createdAt: '2026-02-20T10:03:00Z' },
+  { id: 's1', type: 'system', actor: 'E', body: 'system', createdAt: '2026-02-20T10:04:00Z' },
+  { id: 'm1', type: 'email', actor: 'F', body: 'email', createdAt: '2026-02-20T10:05:00Z' },
+  { id: 'p1', type: 'call', actor: 'G', body: 'call', createdAt: '2026-02-20T10:06:00Z' },
+];
+
 describe('RecordActivityTimeline', () => {
   it('should render activity heading with count', () => {
     render(<RecordActivityTimeline items={mockItems} />);
@@ -205,5 +215,176 @@ describe('RecordActivityTimeline', () => {
       />,
     );
     expect(screen.getByLabelText('Unsubscribe from notifications')).toBeInTheDocument();
+  });
+
+  it('should render all 7 item types', () => {
+    render(<RecordActivityTimeline items={allTypeItems} />);
+    expect(screen.getByText('A')).toBeInTheDocument();
+    expect(screen.getByText('B')).toBeInTheDocument();
+    expect(screen.getByText('C')).toBeInTheDocument();
+    expect(screen.getByText('D')).toBeInTheDocument();
+    expect(screen.getByText('E')).toBeInTheDocument();
+    expect(screen.getByText('F')).toBeInTheDocument();
+    expect(screen.getByText('G')).toBeInTheDocument();
+  });
+
+  it('should render actor avatar when actorAvatarUrl is provided', () => {
+    const items: FeedItem[] = [
+      { id: '1', type: 'comment', actor: 'Alice', actorAvatarUrl: 'https://example.com/alice.png', body: 'Hi', createdAt: '2026-02-20T10:00:00Z' },
+    ];
+    render(<RecordActivityTimeline items={items} />);
+    const img = screen.getByAltText('Alice');
+    expect(img).toBeInTheDocument();
+    expect(img).toHaveAttribute('src', 'https://example.com/alice.png');
+  });
+
+  it('should submit comment via Ctrl+Enter', () => {
+    const onAdd = vi.fn().mockResolvedValue(undefined);
+    render(
+      <RecordActivityTimeline items={[]} onAddComment={onAdd} />,
+    );
+    const textarea = screen.getByPlaceholderText(/Leave a comment/);
+    fireEvent.change(textarea, { target: { value: 'Ctrl enter test' } });
+    fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true });
+    expect(onAdd).toHaveBeenCalledWith('Ctrl enter test');
+  });
+
+  it('should clear input after successful comment submission', async () => {
+    const onAdd = vi.fn().mockResolvedValue(undefined);
+    render(
+      <RecordActivityTimeline items={[]} onAddComment={onAdd} />,
+    );
+    const textarea = screen.getByPlaceholderText(/Leave a comment/) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'Will be cleared' } });
+    fireEvent.click(screen.getByLabelText('Submit comment'));
+    await vi.waitFor(() => {
+      expect(textarea.value).toBe('');
+    });
+  });
+
+  it('should disable input and button during submission', async () => {
+    let resolveSubmit: () => void;
+    const onAdd = vi.fn(() => new Promise<void>((r) => { resolveSubmit = r; }));
+    render(
+      <RecordActivityTimeline items={[]} onAddComment={onAdd} />,
+    );
+    const textarea = screen.getByPlaceholderText(/Leave a comment/) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'submitting' } });
+    fireEvent.click(screen.getByLabelText('Submit comment'));
+    expect(textarea).toBeDisabled();
+    expect(screen.getByLabelText('Submit comment')).toBeDisabled();
+    resolveSubmit!();
+    await vi.waitFor(() => {
+      expect(textarea).not.toBeDisabled();
+    });
+  });
+
+  it('should show loading spinner when loading more', async () => {
+    let resolveLoad: () => void;
+    const onLoadMore = vi.fn(() => new Promise<void>((r) => { resolveLoad = r; }));
+    render(
+      <RecordActivityTimeline items={mockItems} hasMore onLoadMore={onLoadMore} />,
+    );
+    fireEvent.click(screen.getByLabelText('Load more activity'));
+    // Loader2 spinner should be present while loading
+    expect(screen.getByLabelText('Load more activity')).toBeDisabled();
+    resolveLoad!();
+    await vi.waitFor(() => {
+      expect(screen.getByLabelText('Load more activity')).not.toBeDisabled();
+    });
+  });
+
+  it('should use controlled filterMode and call onFilterChange', () => {
+    const onFilterChange = vi.fn();
+    render(
+      <RecordActivityTimeline
+        items={mockItems}
+        filterMode="comments_only"
+        onFilterChange={onFilterChange}
+      />,
+    );
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.queryByText('Bob')).not.toBeInTheDocument();
+    // Change filter via select
+    fireEvent.change(screen.getByLabelText('Filter activity'), { target: { value: 'all' } });
+    expect(onFilterChange).toHaveBeenCalledWith('all');
+  });
+
+  it('should use internal filter state when no controlled filterMode', () => {
+    render(
+      <RecordActivityTimeline items={mockItems} />,
+    );
+    // Initially all visible
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+    // Switch to comments_only
+    fireEvent.change(screen.getByLabelText('Filter activity'), { target: { value: 'comments_only' } });
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.queryByText('Bob')).not.toBeInTheDocument();
+  });
+
+  it('should not render comment input when onAddComment is not provided', () => {
+    render(<RecordActivityTimeline items={[]} />);
+    expect(screen.queryByPlaceholderText(/Leave a comment/)).not.toBeInTheDocument();
+  });
+
+  it('should render reactions when enableReactions is true', () => {
+    const items: FeedItem[] = [
+      {
+        id: '1',
+        type: 'comment',
+        actor: 'Alice',
+        body: 'Nice!',
+        createdAt: '2026-02-20T10:00:00Z',
+        reactions: [{ emoji: '👍', count: 2, reacted: true }],
+      },
+    ];
+    render(
+      <RecordActivityTimeline items={items} config={{ enableReactions: true }} />,
+    );
+    expect(screen.getByText('👍')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+  });
+
+  it('should not render reactions when enableReactions is false', () => {
+    const items: FeedItem[] = [
+      {
+        id: '1',
+        type: 'comment',
+        actor: 'Alice',
+        body: 'Nice!',
+        createdAt: '2026-02-20T10:00:00Z',
+        reactions: [{ emoji: '👍', count: 2, reacted: true }],
+      },
+    ];
+    render(
+      <RecordActivityTimeline items={items} config={{ enableReactions: false }} />,
+    );
+    expect(screen.queryByText('👍')).not.toBeInTheDocument();
+  });
+
+  it('should group items by parentId when enableThreading is true', () => {
+    const items: FeedItem[] = [
+      { id: 'p1', type: 'comment', actor: 'Alice', body: 'Root comment', createdAt: '2026-02-20T10:00:00Z', replyCount: 1 },
+      { id: 'r1', type: 'comment', actor: 'Bob', body: 'Reply', createdAt: '2026-02-20T11:00:00Z', parentId: 'p1' },
+    ];
+    render(
+      <RecordActivityTimeline items={items} config={{ enableThreading: true }} />,
+    );
+    // Root comment rendered
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.getByText('Root comment')).toBeInTheDocument();
+    // Reply is shown as threaded reply (collapsed)
+    expect(screen.getByText('1 reply')).toBeInTheDocument();
+    // Reply actor should not be directly visible (collapsed in ThreadedReplies)
+    expect(screen.queryByText('Bob')).not.toBeInTheDocument();
+  });
+
+  it('should show "via {source}" label', () => {
+    const items: FeedItem[] = [
+      { id: '1', type: 'comment', actor: 'Alice', body: 'Hi', createdAt: '2026-02-20T10:00:00Z', source: 'slack' },
+    ];
+    render(<RecordActivityTimeline items={items} />);
+    expect(screen.getByText('via slack')).toBeInTheDocument();
   });
 });

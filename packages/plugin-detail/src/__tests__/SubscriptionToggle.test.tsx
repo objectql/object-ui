@@ -48,4 +48,37 @@ describe('SubscriptionToggle', () => {
     render(<SubscriptionToggle subscription={sub} />);
     expect(screen.getByRole('button')).toBeDisabled();
   });
+
+  it('should show title for subscribed state', () => {
+    const sub: RecordSubscription = { recordId: '1', subscribed: true };
+    render(<SubscriptionToggle subscription={sub} onToggle={() => {}} />);
+    expect(screen.getByRole('button')).toHaveAttribute('title', 'Subscribed — click to unsubscribe');
+  });
+
+  it('should show title for unsubscribed state', () => {
+    const sub: RecordSubscription = { recordId: '1', subscribed: false };
+    render(<SubscriptionToggle subscription={sub} onToggle={() => {}} />);
+    expect(screen.getByRole('button')).toHaveAttribute('title', 'Subscribe to notifications');
+  });
+
+  it('should be disabled during loading after click', async () => {
+    let resolveToggle: () => void;
+    const onToggle = vi.fn(() => new Promise<void>((r) => { resolveToggle = r; }));
+    const sub: RecordSubscription = { recordId: '1', subscribed: false };
+    render(<SubscriptionToggle subscription={sub} onToggle={onToggle} />);
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByRole('button')).toBeDisabled();
+    resolveToggle!();
+    await vi.waitFor(() => {
+      expect(screen.getByRole('button')).not.toBeDisabled();
+    });
+  });
+
+  it('should update aria-label based on subscribed state', () => {
+    const sub: RecordSubscription = { recordId: '1', subscribed: true };
+    const { rerender } = render(<SubscriptionToggle subscription={sub} onToggle={() => {}} />);
+    expect(screen.getByRole('button')).toHaveAttribute('aria-label', 'Unsubscribe from notifications');
+    rerender(<SubscriptionToggle subscription={{ ...sub, subscribed: false }} onToggle={() => {}} />);
+    expect(screen.getByRole('button')).toHaveAttribute('aria-label', 'Subscribe to notifications');
+  });
 });

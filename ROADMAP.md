@@ -13,7 +13,7 @@
 
 ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn. It renders JSON metadata from the @objectstack/spec protocol into pixel-perfect, accessible, and interactive enterprise interfaces.
 
-**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 5,177+ tests, 78 Storybook stories, 42/42 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Designer Phase 1 (ViewDesigner drag-to-reorder ✅), Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), and **Feed/Chatter UI** (P1.5) — all ✅ complete.
+**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 5,618+ tests, 78 Storybook stories, 42/42 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Designer Phase 1 (ViewDesigner drag-to-reorder ✅), Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), and **Feed/Chatter UI** (P1.5) — all ✅ complete.
 
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
@@ -140,7 +140,9 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
   - [x] `SubscriptionToggle` — bell notification toggle
   - [x] `ReactionPicker` — emoji reaction selector
   - [x] `ThreadedReplies` — collapsible comment reply threading
-
+  - [x] Comprehensive unit tests for all 6 core Feed/Chatter components (96 tests)
+  - [x] Console `RecordDetailView` integration: `CommentThread` → `RecordChatterPanel` with `FeedItem[]` data model
+  - [ ] Documentation for Feed/Chatter plugin in `content/docs/plugins/plugin-detail.mdx` (purpose/use cases, JSON schema, props, and Console integration for `RecordChatterPanel`, `RecordActivityTimeline`, and related components)
 ### P1.6 Console — Automation
 
 > **Spec v3.0.9** significantly expanded the automation/workflow protocol. New node types, BPMN interop, execution tracking, and wait/timer executors are now available in the spec.
@@ -496,7 +498,7 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 | **AppShell Renderer** | ✅ Complete | Sidebar + nav tree from `AppSchema` JSON | Console renders from spec JSON |
 | **Designer Interaction** | Phase 2 (most complete) | ViewDesigner + DataModelDesigner drag/undo | Manual UX testing |
 | **Build Status** | 42/42 pass | 42/42 pass | `pnpm build` |
-| **Test Count** | 5,070+ | 5,500+ | `pnpm test` summary |
+| **Test Count** | 5,070+ | 5,618+ | `pnpm test` summary |
 | **Test Coverage** | 90%+ | 90%+ | `pnpm test:coverage` |
 | **Storybook Stories** | 78 | 91+ (1 per component) | Story file count |
 | **Console i18n** | 100% | 100% | No hardcoded strings |
