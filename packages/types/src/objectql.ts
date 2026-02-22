@@ -1131,7 +1131,7 @@ export interface NamedListView {
   quickFilters?: Array<{
     id: string;
     label: string;
-    filters: Array<unknown[] | string>;
+    filters: Array<any[] | string>;
     icon?: string;
     defaultActive?: boolean;
   }>;

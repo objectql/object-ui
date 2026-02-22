@@ -269,6 +269,73 @@ export const ListViewSchema = BaseSchema.extend({
   fieldTextColor: z.string().optional().describe('Field for custom text color'),
   prefixField: z.string().optional().describe('Prefix field before title'),
   showDescription: z.boolean().optional().describe('Show field descriptions'),
+  navigation: z.object({
+    mode: z.enum(['page', 'drawer', 'modal', 'split', 'popover', 'new_window', 'none']),
+    view: z.string().optional(),
+    preventNavigation: z.boolean().optional(),
+    openNewTab: z.boolean().optional(),
+    width: z.union([z.string(), z.number()]).optional(),
+  }).optional().describe('Navigation configuration'),
+  selection: z.object({
+    type: z.enum(['none', 'single', 'multiple']),
+  }).optional().describe('Row selection mode'),
+  pagination: z.object({
+    pageSize: z.number(),
+    pageSizeOptions: z.array(z.number()).optional(),
+  }).optional().describe('Pagination configuration'),
+  searchableFields: z.array(z.string()).optional().describe('Searchable fields'),
+  filterableFields: z.array(z.string()).optional().describe('Filterable fields'),
+  resizable: z.boolean().optional().describe('Allow column resizing'),
+  densityMode: z.enum(['compact', 'comfortable', 'spacious']).optional().describe('Density mode'),
+  rowHeight: z.enum(['compact', 'medium', 'tall']).optional().describe('Row height'),
+  hiddenFields: z.array(z.string()).optional().describe('Hidden fields'),
+  exportOptions: z.object({
+    formats: z.array(z.enum(['csv', 'xlsx', 'json', 'pdf'])).optional(),
+    maxRecords: z.number().optional(),
+    includeHeaders: z.boolean().optional(),
+    fileNamePrefix: z.string().optional(),
+  }).optional().describe('Export options'),
+  rowActions: z.array(z.string()).optional().describe('Row action identifiers'),
+  bulkActions: z.array(z.string()).optional().describe('Bulk action identifiers'),
+  sharing: z.object({
+    visibility: z.enum(['private', 'team', 'organization', 'public']).optional(),
+    enabled: z.boolean().optional(),
+  }).optional().describe('Sharing configuration'),
+  addRecord: z.object({
+    enabled: z.boolean().optional(),
+    position: z.string().optional(),
+    mode: z.string().optional(),
+    formView: z.string().optional(),
+  }).optional().describe('Add record configuration'),
+  conditionalFormatting: z.array(z.object({
+    field: z.string(),
+    operator: z.enum(['equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'in']),
+    value: z.any(),
+    backgroundColor: z.string().optional(),
+    textColor: z.string().optional(),
+    borderColor: z.string().optional(),
+    expression: z.string().optional(),
+  })).optional().describe('Conditional formatting rules'),
+  quickFilters: z.array(z.object({
+    id: z.string(),
+    label: z.string(),
+    filters: z.array(z.union([z.array(z.any()), z.string()])),
+    icon: z.string().optional(),
+    defaultActive: z.boolean().optional(),
+  })).optional().describe('Quick filter presets'),
+  showRecordCount: z.boolean().optional().describe('Show total record count'),
+  allowPrinting: z.boolean().optional().describe('Allow printing'),
+  virtualScroll: z.boolean().optional().describe('Enable virtual scrolling'),
+  emptyState: z.object({
+    title: z.string().optional(),
+    message: z.string().optional(),
+    icon: z.string().optional(),
+  }).optional().describe('Empty state configuration'),
+  aria: z.object({
+    label: z.string().optional(),
+    describedBy: z.string().optional(),
+    live: z.enum(['polite', 'assertive', 'off']).optional(),
+  }).optional().describe('ARIA attributes'),
 });
 
 /**

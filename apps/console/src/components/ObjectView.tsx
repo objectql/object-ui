@@ -299,7 +299,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
             // Propagate appearance/view-config properties for live preview
             rowHeight: viewDef.rowHeight ?? listSchema.rowHeight,
             densityMode: viewDef.densityMode ?? listSchema.densityMode,
-            inlineEdit: viewDef.editRecordsInline ?? listSchema.inlineEdit,
+            inlineEdit: viewDef.inlineEdit ?? viewDef.editRecordsInline ?? listSchema.inlineEdit,
             appearance: viewDef.showDescription != null
                 ? { showDescription: viewDef.showDescription }
                 : listSchema.appearance,
@@ -325,6 +325,25 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
             fieldTextColor: viewDef.fieldTextColor ?? listSchema.fieldTextColor,
             prefixField: viewDef.prefixField ?? listSchema.prefixField,
             showDescription: viewDef.showDescription ?? listSchema.showDescription,
+            // Propagate new spec properties (P0/P1/P2)
+            navigation: viewDef.navigation ?? listSchema.navigation,
+            selection: viewDef.selection ?? listSchema.selection,
+            pagination: viewDef.pagination ?? listSchema.pagination,
+            searchableFields: viewDef.searchableFields ?? listSchema.searchableFields,
+            filterableFields: viewDef.filterableFields ?? listSchema.filterableFields,
+            resizable: viewDef.resizable ?? listSchema.resizable,
+            hiddenFields: viewDef.hiddenFields ?? listSchema.hiddenFields,
+            rowActions: viewDef.rowActions ?? listSchema.rowActions,
+            bulkActions: viewDef.bulkActions ?? listSchema.bulkActions,
+            sharing: viewDef.sharing ?? listSchema.sharing,
+            addRecord: viewDef.addRecord ?? listSchema.addRecord,
+            conditionalFormatting: viewDef.conditionalFormatting ?? listSchema.conditionalFormatting,
+            quickFilters: viewDef.quickFilters ?? listSchema.quickFilters,
+            showRecordCount: viewDef.showRecordCount ?? listSchema.showRecordCount,
+            allowPrinting: viewDef.allowPrinting ?? listSchema.allowPrinting,
+            virtualScroll: viewDef.virtualScroll ?? listSchema.virtualScroll,
+            emptyState: viewDef.emptyState ?? listSchema.emptyState,
+            aria: viewDef.aria ?? listSchema.aria,
             // Propagate filter/sort as default filters/sort for data flow
             ...(viewDef.filter?.length ? { filters: viewDef.filter } : {}),
             ...(viewDef.sort?.length ? { sort: viewDef.sort } : {}),

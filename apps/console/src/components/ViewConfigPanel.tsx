@@ -181,12 +181,11 @@ const VIEW_TYPE_LABELS: Record<string, string> = {
 /** All available view type keys */
 const VIEW_TYPE_OPTIONS = Object.keys(VIEW_TYPE_LABELS);
 
-/** Row height options with Tailwind gap classes for visual icons */
+/** Row height options with Tailwind gap classes for visual icons — aligned with spec: compact/medium/tall */
 const ROW_HEIGHT_OPTIONS = [
-    { value: 'short', gapClass: 'gap-0' },
+    { value: 'compact', gapClass: 'gap-0' },
     { value: 'medium', gapClass: 'gap-0.5' },
     { value: 'tall', gapClass: 'gap-1' },
-    { value: 'extraTall', gapClass: 'gap-1.5' },
 ];
 
 /** Editor panel types that can be opened from clickable rows */
@@ -325,8 +324,9 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
     const hasColor = draft.showColor !== false;
     const hasDensity = draft.showDensity !== false;
     const hasExport = draft.exportOptions != null || draft.allowExport === true;
-    const hasAddForm = draft.addRecordViaForm === true;
+    const hasAddForm = draft.addRecordViaForm === true || draft.addRecord?.enabled === true;
     const hasShowDescription = draft.showDescription !== false;
+    const navigationMode = draft.navigation?.mode || 'page';
 
     // Derive field options from objectDef for FilterBuilder/SortBuilder
     const fieldOptions = useMemo(() => {
@@ -543,27 +543,205 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                             className="scale-75"
                         />
                     </ConfigRow>
-                    <ConfigRow label={t('console.objectView.clickIntoRecordDetails')}>
-                        <Switch
-                            data-testid="toggle-clickIntoRecordDetails"
-                            checked={draft.clickIntoRecordDetails !== false}
-                            onCheckedChange={(checked: boolean) => updateDraft('clickIntoRecordDetails', checked)}
-                            className="scale-75"
-                        />
+                    {/* Navigation mode — replaces clickIntoRecordDetails toggle */}
+                    <ConfigRow label={t('console.objectView.navigationMode')}>
+                        <select
+                            data-testid="select-navigation-mode"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                            value={navigationMode}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                const mode = e.target.value;
+                                updateDraft('navigation', { ...(draft.navigation || {}), mode });
+                                // Sync clickIntoRecordDetails for backward compatibility
+                                updateDraft('clickIntoRecordDetails', mode !== 'none');
+                            }}
+                        >
+                            <option value="page">Page</option>
+                            <option value="drawer">Drawer</option>
+                            <option value="modal">Modal</option>
+                            <option value="split">Split</option>
+                            <option value="popover">Popover</option>
+                            <option value="new_window">New Window</option>
+                            <option value="none">None</option>
+                        </select>
                     </ConfigRow>
-                    <ConfigRow label={t('console.objectView.addRecordViaForm')}>
+                    {/* navigation.width — shown for drawer/modal/split */}
+                    {['drawer', 'modal', 'split'].includes(navigationMode) && (
+                        <ConfigRow label={t('console.objectView.navigationWidth')}>
+                            <Input
+                                data-testid="input-navigation-width"
+                                className="h-7 text-xs w-24 text-right"
+                                value={draft.navigation?.width ?? ''}
+                                placeholder="600px"
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                    updateDraft('navigation', { ...(draft.navigation || {}), mode: navigationMode, width: e.target.value })
+                                }
+                            />
+                        </ConfigRow>
+                    )}
+                    {/* navigation.openNewTab — shown for page/new_window */}
+                    {['page', 'new_window'].includes(navigationMode) && (
+                        <ConfigRow label={t('console.objectView.openNewTab')}>
+                            <Switch
+                                data-testid="toggle-navigation-openNewTab"
+                                checked={draft.navigation?.openNewTab === true}
+                                onCheckedChange={(checked: boolean) =>
+                                    updateDraft('navigation', { ...(draft.navigation || {}), mode: navigationMode, openNewTab: checked })
+                                }
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                    )}
+                    {/* Selection mode (P0-2) */}
+                    <ConfigRow label={t('console.objectView.selectionMode')}>
+                        <select
+                            data-testid="select-selection-type"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                            value={draft.selection?.type || 'multiple'}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                updateDraft('selection', { type: e.target.value })
+                            }
+                        >
+                            <option value="none">{t('console.objectView.selectionNone')}</option>
+                            <option value="single">{t('console.objectView.selectionSingle')}</option>
+                            <option value="multiple">{t('console.objectView.selectionMultiple')}</option>
+                        </select>
+                    </ConfigRow>
+                    {/* Add Record config (P1-12) — upgraded from simple toggle */}
+                    <ConfigRow label={t('console.objectView.addRecordEnabled')}>
                         <Switch
-                            data-testid="toggle-addRecordViaForm"
+                            data-testid="toggle-addRecord-enabled"
                             checked={hasAddForm}
-                            onCheckedChange={(checked: boolean) => updateDraft('addRecordViaForm', checked)}
+                            onCheckedChange={(checked: boolean) => {
+                                updateDraft('addRecordViaForm', checked);
+                                updateDraft('addRecord', { ...(draft.addRecord || {}), enabled: checked });
+                            }}
                             className="scale-75"
                         />
                     </ConfigRow>
+                    {hasAddForm && (
+                        <>
+                            <ConfigRow label={t('console.objectView.addRecordPosition')}>
+                                <select
+                                    data-testid="select-addRecord-position"
+                                    className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[100px]"
+                                    value={draft.addRecord?.position || 'top'}
+                                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                        updateDraft('addRecord', { ...(draft.addRecord || {}), enabled: true, position: e.target.value })
+                                    }
+                                >
+                                    <option value="top">Top</option>
+                                    <option value="bottom">Bottom</option>
+                                </select>
+                            </ConfigRow>
+                            <ConfigRow label={t('console.objectView.addRecordMode')}>
+                                <select
+                                    data-testid="select-addRecord-mode"
+                                    className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[100px]"
+                                    value={draft.addRecord?.mode || 'form'}
+                                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                        updateDraft('addRecord', { ...(draft.addRecord || {}), enabled: true, mode: e.target.value })
+                                    }
+                                >
+                                    <option value="inline">Inline</option>
+                                    <option value="form">Form</option>
+                                    <option value="modal">Modal</option>
+                                </select>
+                            </ConfigRow>
+                            <ConfigRow label={t('console.objectView.addRecordFormView')}>
+                                <Input
+                                    data-testid="input-addRecord-formView"
+                                    className="h-7 text-xs w-24 text-right"
+                                    value={draft.addRecord?.formView ?? ''}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                        updateDraft('addRecord', { ...(draft.addRecord || {}), enabled: true, formView: e.target.value })
+                                    }
+                                />
+                            </ConfigRow>
+                        </>
+                    )}
                     <ConfigRow label={t('console.objectView.allowExport')}>
                         <Switch
                             data-testid="toggle-allowExport"
                             checked={hasExport}
                             onCheckedChange={(checked: boolean) => updateDraft('allowExport', checked)}
+                            className="scale-75"
+                        />
+                    </ConfigRow>
+                    {/* Export options sub-config (P1-4) */}
+                    {hasExport && (
+                        <>
+                            <ConfigRow label={t('console.objectView.exportFormats')}>
+                                <div data-testid="export-formats" className="flex flex-wrap gap-1">
+                                    {(['csv', 'xlsx', 'json', 'pdf'] as const).map(fmt => (
+                                        <label key={fmt} className="flex items-center gap-1 text-xs cursor-pointer">
+                                            <Checkbox
+                                                data-testid={`export-format-${fmt}`}
+                                                checked={(draft.exportOptions?.formats || []).includes(fmt)}
+                                                onCheckedChange={(checked: boolean) => {
+                                                    const current: string[] = draft.exportOptions?.formats || [];
+                                                    const formats = checked
+                                                        ? [...current, fmt]
+                                                        : current.filter((f: string) => f !== fmt);
+                                                    updateDraft('exportOptions', { ...(draft.exportOptions || {}), formats });
+                                                }}
+                                                className="h-3.5 w-3.5"
+                                            />
+                                            {fmt}
+                                        </label>
+                                    ))}
+                                </div>
+                            </ConfigRow>
+                            <ConfigRow label={t('console.objectView.exportMaxRecords')}>
+                                <Input
+                                    data-testid="input-export-maxRecords"
+                                    className="h-7 text-xs w-20 text-right"
+                                    type="number"
+                                    value={draft.exportOptions?.maxRecords ?? ''}
+                                    placeholder="0"
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                        updateDraft('exportOptions', { ...(draft.exportOptions || {}), maxRecords: Number(e.target.value) || undefined })
+                                    }
+                                />
+                            </ConfigRow>
+                            <ConfigRow label={t('console.objectView.exportIncludeHeaders')}>
+                                <Switch
+                                    data-testid="toggle-export-includeHeaders"
+                                    checked={draft.exportOptions?.includeHeaders !== false}
+                                    onCheckedChange={(checked: boolean) =>
+                                        updateDraft('exportOptions', { ...(draft.exportOptions || {}), includeHeaders: checked })
+                                    }
+                                    className="scale-75"
+                                />
+                            </ConfigRow>
+                            <ConfigRow label={t('console.objectView.exportFileNamePrefix')}>
+                                <Input
+                                    data-testid="input-export-fileNamePrefix"
+                                    className="h-7 text-xs w-24 text-right"
+                                    value={draft.exportOptions?.fileNamePrefix ?? ''}
+                                    placeholder="export"
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                        updateDraft('exportOptions', { ...(draft.exportOptions || {}), fileNamePrefix: e.target.value })
+                                    }
+                                />
+                            </ConfigRow>
+                        </>
+                    )}
+                    {/* Show record count (P2-15) */}
+                    <ConfigRow label={t('console.objectView.showRecordCount')}>
+                        <Switch
+                            data-testid="toggle-showRecordCount"
+                            checked={draft.showRecordCount === true}
+                            onCheckedChange={(checked: boolean) => updateDraft('showRecordCount', checked)}
+                            className="scale-75"
+                        />
+                    </ConfigRow>
+                    {/* Allow printing (P2-16) */}
+                    <ConfigRow label={t('console.objectView.allowPrinting')}>
+                        <Switch
+                            data-testid="toggle-allowPrinting"
+                            checked={draft.allowPrinting === true}
+                            onCheckedChange={(checked: boolean) => updateDraft('allowPrinting', checked)}
                             className="scale-75"
                         />
                     </ConfigRow>
@@ -716,6 +894,184 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                                 />
                             </div>
                         )}
+
+                        {/* Pagination (P0-3) */}
+                        <ConfigRow label={t('console.objectView.pageSize')}>
+                            <Input
+                                data-testid="input-pagination-pageSize"
+                                className="h-7 text-xs w-20 text-right"
+                                type="number"
+                                value={draft.pagination?.pageSize ?? ''}
+                                placeholder="25"
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                    const val = Number(e.target.value) || undefined;
+                                    updateDraft('pagination', { ...(draft.pagination || {}), pageSize: val });
+                                }}
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.pageSizeOptions')}>
+                            <Input
+                                data-testid="input-pagination-pageSizeOptions"
+                                className="h-7 text-xs w-28 text-right"
+                                value={(draft.pagination?.pageSizeOptions || []).join(', ')}
+                                placeholder="10, 25, 50, 100"
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                    const opts = e.target.value.split(',').map((s: string) => Number(s.trim())).filter((n: number) => !isNaN(n) && n > 0);
+                                    updateDraft('pagination', { ...(draft.pagination || {}), pageSizeOptions: opts.length ? opts : undefined });
+                                }}
+                            />
+                        </ConfigRow>
+
+                        {/* Searchable fields (P1-5) */}
+                        <ConfigRow
+                            label={t('console.objectView.searchableFields')}
+                            value={`${(draft.searchableFields || []).length} selected`}
+                            onClick={() => toggleDataSub('searchableFields')}
+                        />
+                        {expandedDataSubs.searchableFields && (
+                            <div data-testid="searchable-fields-selector" className="pb-2 space-y-0.5 max-h-36 overflow-auto">
+                                {fieldOptions.map(f => (
+                                    <label key={f.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
+                                        <Checkbox
+                                            data-testid={`searchable-field-${f.value}`}
+                                            checked={(draft.searchableFields || []).includes(f.value)}
+                                            onCheckedChange={(checked: boolean) => {
+                                                const current: string[] = draft.searchableFields || [];
+                                                const updated = checked
+                                                    ? [...current, f.value]
+                                                    : current.filter((v: string) => v !== f.value);
+                                                updateDraft('searchableFields', updated);
+                                            }}
+                                            className="h-3.5 w-3.5"
+                                        />
+                                        <span className="truncate">{f.label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Filterable fields (P1-6) */}
+                        <ConfigRow
+                            label={t('console.objectView.filterableFields')}
+                            value={`${(draft.filterableFields || []).length} selected`}
+                            onClick={() => toggleDataSub('filterableFields')}
+                        />
+                        {expandedDataSubs.filterableFields && (
+                            <div data-testid="filterable-fields-selector" className="pb-2 space-y-0.5 max-h-36 overflow-auto">
+                                {fieldOptions.map(f => (
+                                    <label key={f.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
+                                        <Checkbox
+                                            data-testid={`filterable-field-${f.value}`}
+                                            checked={(draft.filterableFields || []).includes(f.value)}
+                                            onCheckedChange={(checked: boolean) => {
+                                                const current: string[] = draft.filterableFields || [];
+                                                const updated = checked
+                                                    ? [...current, f.value]
+                                                    : current.filter((v: string) => v !== f.value);
+                                                updateDraft('filterableFields', updated);
+                                            }}
+                                            className="h-3.5 w-3.5"
+                                        />
+                                        <span className="truncate">{f.label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Hidden fields (P1-9) */}
+                        <ConfigRow
+                            label={t('console.objectView.hiddenFields')}
+                            value={`${(draft.hiddenFields || []).length} hidden`}
+                            onClick={() => toggleDataSub('hiddenFields')}
+                        />
+                        {expandedDataSubs.hiddenFields && (
+                            <div data-testid="hidden-fields-selector" className="pb-2 space-y-0.5 max-h-36 overflow-auto">
+                                {fieldOptions.map(f => (
+                                    <label key={f.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
+                                        <Checkbox
+                                            data-testid={`hidden-field-${f.value}`}
+                                            checked={(draft.hiddenFields || []).includes(f.value)}
+                                            onCheckedChange={(checked: boolean) => {
+                                                const current: string[] = draft.hiddenFields || [];
+                                                const updated = checked
+                                                    ? [...current, f.value]
+                                                    : current.filter((v: string) => v !== f.value);
+                                                updateDraft('hiddenFields', updated);
+                                            }}
+                                            className="h-3.5 w-3.5"
+                                        />
+                                        <span className="truncate">{f.label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Quick filters (P1-14) */}
+                        <ConfigRow
+                            label={t('console.objectView.quickFilters')}
+                            value={`${(draft.quickFilters || []).length} filters`}
+                            onClick={() => toggleDataSub('quickFilters')}
+                        />
+                        {expandedDataSubs.quickFilters && (
+                            <div data-testid="quick-filters-editor" className="pb-2 space-y-1">
+                                {(draft.quickFilters || []).map((qf: any, idx: number) => (
+                                    <div key={qf.id || idx} className="flex items-center gap-1 text-xs">
+                                        <Input
+                                            data-testid={`quick-filter-label-${idx}`}
+                                            className="h-6 text-xs flex-1"
+                                            value={qf.label || ''}
+                                            placeholder="Label"
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                const updated = [...(draft.quickFilters || [])];
+                                                updated[idx] = { ...updated[idx], label: e.target.value };
+                                                updateDraft('quickFilters', updated);
+                                            }}
+                                        />
+                                        <Checkbox
+                                            data-testid={`quick-filter-default-${idx}`}
+                                            checked={qf.defaultActive === true}
+                                            onCheckedChange={(checked: boolean) => {
+                                                const updated = [...(draft.quickFilters || [])];
+                                                updated[idx] = { ...updated[idx], defaultActive: checked };
+                                                updateDraft('quickFilters', updated);
+                                            }}
+                                            className="h-3.5 w-3.5"
+                                        />
+                                        <button
+                                            type="button"
+                                            className="text-destructive hover:text-destructive/80 text-xs"
+                                            onClick={() => {
+                                                const updated = (draft.quickFilters || []).filter((_: any, i: number) => i !== idx);
+                                                updateDraft('quickFilters', updated);
+                                            }}
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                ))}
+                                <button
+                                    type="button"
+                                    data-testid="add-quick-filter"
+                                    className="text-xs text-primary hover:underline"
+                                    onClick={() => {
+                                        const newFilter = { id: `qf_${Date.now()}`, label: '', filters: [], defaultActive: false };
+                                        updateDraft('quickFilters', [...(draft.quickFilters || []), newFilter]);
+                                    }}
+                                >
+                                    + {t('console.objectView.addQuickFilter')}
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Virtual scroll (P2-17) */}
+                        <ConfigRow label={t('console.objectView.virtualScroll')}>
+                            <Switch
+                                data-testid="toggle-virtualScroll"
+                                checked={draft.virtualScroll === true}
+                                onCheckedChange={(checked: boolean) => updateDraft('virtualScroll', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
 
                         {/* Type-Specific Data Fields */}
                         {viewType !== 'grid' && (
@@ -913,11 +1269,11 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                                         key={opt.value}
                                         type="button"
                                         role="radio"
-                                        aria-checked={(draft.rowHeight || 'short') === opt.value}
+                                        aria-checked={(draft.rowHeight || 'compact') === opt.value}
                                         aria-label={opt.value}
                                         data-testid={`row-height-${opt.value}`}
                                         className={`h-7 w-7 rounded border flex items-center justify-center ${
-                                            (draft.rowHeight || 'short') === opt.value
+                                            (draft.rowHeight || 'compact') === opt.value
                                                 ? 'border-primary bg-primary/10 text-primary'
                                                 : 'border-input text-muted-foreground hover:bg-accent/50'
                                         }`}
@@ -973,6 +1329,135 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                                 className="scale-75"
                             />
                         </ConfigRow>
+                        {/* Resizable columns (P1-7) */}
+                        <ConfigRow label={t('console.objectView.resizableColumns')}>
+                            <Switch
+                                data-testid="toggle-resizable"
+                                checked={draft.resizable === true}
+                                onCheckedChange={(checked: boolean) => updateDraft('resizable', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                        {/* Density mode (P1-8) */}
+                        <ConfigRow label={t('console.objectView.densityMode')}>
+                            <select
+                                data-testid="select-densityMode"
+                                className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                                value={draft.densityMode || 'comfortable'}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateDraft('densityMode', e.target.value)}
+                            >
+                                <option value="compact">{t('console.objectView.densityCompact')}</option>
+                                <option value="comfortable">{t('console.objectView.densityComfortable')}</option>
+                                <option value="spacious">{t('console.objectView.densitySpacious')}</option>
+                            </select>
+                        </ConfigRow>
+                        {/* Conditional formatting (P1-13) */}
+                        <ConfigRow
+                            label={t('console.objectView.conditionalFormatting')}
+                            value={`${(draft.conditionalFormatting || []).length} rules`}
+                            onClick={() => toggleDataSub('conditionalFormatting')}
+                        />
+                        {expandedDataSubs.conditionalFormatting && (
+                            <div data-testid="conditional-formatting-editor" className="pb-2 space-y-1">
+                                {(draft.conditionalFormatting || []).map((rule: any, idx: number) => (
+                                    <div key={idx} className="flex items-center gap-1 text-xs border rounded p-1">
+                                        <select
+                                            data-testid={`cf-field-${idx}`}
+                                            className="text-xs h-6 rounded border border-input bg-background px-1 flex-1"
+                                            value={rule.field || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                                const updated = [...(draft.conditionalFormatting || [])];
+                                                updated[idx] = { ...updated[idx], field: e.target.value };
+                                                updateDraft('conditionalFormatting', updated);
+                                            }}
+                                        >
+                                            <option value="">Field</option>
+                                            {fieldOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                                        </select>
+                                        <select
+                                            data-testid={`cf-operator-${idx}`}
+                                            className="text-xs h-6 rounded border border-input bg-background px-1"
+                                            value={rule.operator || 'equals'}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                                const updated = [...(draft.conditionalFormatting || [])];
+                                                updated[idx] = { ...updated[idx], operator: e.target.value };
+                                                updateDraft('conditionalFormatting', updated);
+                                            }}
+                                        >
+                                            <option value="equals">=</option>
+                                            <option value="not_equals">≠</option>
+                                            <option value="contains">contains</option>
+                                            <option value="greater_than">&gt;</option>
+                                            <option value="less_than">&lt;</option>
+                                            <option value="in">in</option>
+                                        </select>
+                                        <Input
+                                            data-testid={`cf-value-${idx}`}
+                                            className="h-6 text-xs w-16"
+                                            value={String(rule.value ?? '')}
+                                            placeholder="Value"
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                const updated = [...(draft.conditionalFormatting || [])];
+                                                updated[idx] = { ...updated[idx], value: e.target.value };
+                                                updateDraft('conditionalFormatting', updated);
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="text-destructive hover:text-destructive/80 text-xs"
+                                            onClick={() => {
+                                                const updated = (draft.conditionalFormatting || []).filter((_: any, i: number) => i !== idx);
+                                                updateDraft('conditionalFormatting', updated);
+                                            }}
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                ))}
+                                <button
+                                    type="button"
+                                    data-testid="add-conditional-rule"
+                                    className="text-xs text-primary hover:underline"
+                                    onClick={() => {
+                                        const newRule = { field: '', operator: 'equals', value: '' };
+                                        updateDraft('conditionalFormatting', [...(draft.conditionalFormatting || []), newRule]);
+                                    }}
+                                >
+                                    + {t('console.objectView.addRule')}
+                                </button>
+                            </div>
+                        )}
+                        {/* Empty state (P2-18) */}
+                        <ConfigRow label={t('console.objectView.emptyStateTitle')}>
+                            <Input
+                                data-testid="input-emptyState-title"
+                                className="h-7 text-xs w-28 text-right"
+                                value={draft.emptyState?.title ?? ''}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                    updateDraft('emptyState', { ...(draft.emptyState || {}), title: e.target.value })
+                                }
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.emptyStateMessage')}>
+                            <Input
+                                data-testid="input-emptyState-message"
+                                className="h-7 text-xs w-28 text-right"
+                                value={draft.emptyState?.message ?? ''}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                    updateDraft('emptyState', { ...(draft.emptyState || {}), message: e.target.value })
+                                }
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.emptyStateIcon')}>
+                            <Input
+                                data-testid="input-emptyState-icon"
+                                className="h-7 text-xs w-28 text-right"
+                                value={draft.emptyState?.icon ?? ''}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                    updateDraft('emptyState', { ...(draft.emptyState || {}), icon: e.target.value })
+                                }
+                            />
+                        </ConfigRow>
                     </div>
                 )}
 
@@ -986,11 +1471,12 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                 />
                 {!collapsedSections.userActions && (
                     <div className="space-y-0.5">
+                        {/* Semantic fix A: editRecordsInline → inlineEdit */}
                         <ConfigRow label={t('console.objectView.editRecordsInline')}>
                             <Switch
                                 data-testid="toggle-editRecordsInline"
-                                checked={draft.editRecordsInline !== false}
-                                onCheckedChange={(checked: boolean) => updateDraft('editRecordsInline', checked)}
+                                checked={draft.inlineEdit !== false}
+                                onCheckedChange={(checked: boolean) => updateDraft('inlineEdit', checked)}
                                 className="scale-75"
                             />
                         </ConfigRow>
@@ -1001,6 +1487,133 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                                 onCheckedChange={(checked: boolean) => updateDraft('addDeleteRecordsInline', checked)}
                                 className="scale-75"
                             />
+                        </ConfigRow>
+                        {/* Row actions (P1-10) */}
+                        <ConfigRow
+                            label={t('console.objectView.rowActions')}
+                            value={`${(draft.rowActions || []).length} actions`}
+                            onClick={() => toggleDataSub('rowActions')}
+                        />
+                        {expandedDataSubs.rowActions && (
+                            <div data-testid="row-actions-selector" className="pb-2 space-y-0.5 max-h-36 overflow-auto">
+                                <Input
+                                    data-testid="input-rowActions"
+                                    className="h-7 text-xs w-full"
+                                    value={(draft.rowActions || []).join(', ')}
+                                    placeholder="edit, delete, duplicate"
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                        const actions = e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean);
+                                        updateDraft('rowActions', actions);
+                                    }}
+                                />
+                            </div>
+                        )}
+                        {/* Bulk actions (P1-10) */}
+                        <ConfigRow
+                            label={t('console.objectView.bulkActions')}
+                            value={`${(draft.bulkActions || []).length} actions`}
+                            onClick={() => toggleDataSub('bulkActions')}
+                        />
+                        {expandedDataSubs.bulkActions && (
+                            <div data-testid="bulk-actions-selector" className="pb-2 space-y-0.5 max-h-36 overflow-auto">
+                                <Input
+                                    data-testid="input-bulkActions"
+                                    className="h-7 text-xs w-full"
+                                    value={(draft.bulkActions || []).join(', ')}
+                                    placeholder="delete, export, assign"
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                        const actions = e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean);
+                                        updateDraft('bulkActions', actions);
+                                    }}
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Sharing Section (P1-11) — collapsible */}
+                <SectionHeader
+                    title={t('console.objectView.sharing')}
+                    collapsible
+                    collapsed={collapsedSections.sharing}
+                    onToggle={() => toggleSection('sharing')}
+                    testId="section-sharing"
+                />
+                {!collapsedSections.sharing && (
+                    <div className="space-y-0.5">
+                        <ConfigRow label={t('console.objectView.sharingEnabled')}>
+                            <Switch
+                                data-testid="toggle-sharing-enabled"
+                                checked={draft.sharing?.enabled === true}
+                                onCheckedChange={(checked: boolean) =>
+                                    updateDraft('sharing', { ...(draft.sharing || {}), enabled: checked })
+                                }
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                        {draft.sharing?.enabled && (
+                            <ConfigRow label={t('console.objectView.sharingVisibility')}>
+                                <select
+                                    data-testid="select-sharing-visibility"
+                                    className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                                    value={draft.sharing?.visibility || 'private'}
+                                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                        updateDraft('sharing', { ...(draft.sharing || {}), enabled: true, visibility: e.target.value })
+                                    }
+                                >
+                                    <option value="private">Private</option>
+                                    <option value="team">Team</option>
+                                    <option value="organization">Organization</option>
+                                    <option value="public">Public</option>
+                                </select>
+                            </ConfigRow>
+                        )}
+                    </div>
+                )}
+
+                {/* Accessibility Section (P2-19) — collapsible */}
+                <SectionHeader
+                    title={t('console.objectView.accessibility')}
+                    collapsible
+                    collapsed={collapsedSections.accessibility}
+                    onToggle={() => toggleSection('accessibility')}
+                    testId="section-accessibility"
+                />
+                {!collapsedSections.accessibility && (
+                    <div className="space-y-0.5">
+                        <ConfigRow label={t('console.objectView.ariaLabel')}>
+                            <Input
+                                data-testid="input-aria-label"
+                                className="h-7 text-xs w-28 text-right"
+                                value={draft.aria?.label ?? ''}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                    updateDraft('aria', { ...(draft.aria || {}), label: e.target.value })
+                                }
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.ariaDescribedBy')}>
+                            <Input
+                                data-testid="input-aria-describedBy"
+                                className="h-7 text-xs w-28 text-right"
+                                value={draft.aria?.describedBy ?? ''}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                    updateDraft('aria', { ...(draft.aria || {}), describedBy: e.target.value })
+                                }
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.ariaLive')}>
+                            <select
+                                data-testid="select-aria-live"
+                                className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[100px]"
+                                value={draft.aria?.live || 'off'}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                    updateDraft('aria', { ...(draft.aria || {}), live: e.target.value })
+                                }
+                            >
+                                <option value="off">Off</option>
+                                <option value="polite">Polite</option>
+                                <option value="assertive">Assertive</option>
+                            </select>
                         </ConfigRow>
                     </div>
                 )}
