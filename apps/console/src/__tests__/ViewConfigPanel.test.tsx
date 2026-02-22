@@ -1198,7 +1198,7 @@ describe('ViewConfigPanel', () => {
 
     // ── User actions fields tests ──
 
-    it('renders new user action fields: editRecordsInline, addDeleteRecordsInline, and navigation mode select', () => {
+    it('renders new user action fields: inlineEdit, addDeleteRecordsInline, and navigation mode select', () => {
         render(
             <ViewConfigPanel
                 open={true}
@@ -1208,12 +1208,12 @@ describe('ViewConfigPanel', () => {
             />
         );
 
-        expect(screen.getByTestId('toggle-editRecordsInline')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-inlineEdit')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-addDeleteRecordsInline')).toBeInTheDocument();
         expect(screen.getByTestId('select-navigation-mode')).toBeInTheDocument();
     });
 
-    it('toggles editRecordsInline via Switch (maps to inlineEdit)', () => {
+    it('toggles inlineEdit via Switch', () => {
         const onViewUpdate = vi.fn();
         render(
             <ViewConfigPanel
@@ -1225,7 +1225,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
-        fireEvent.click(screen.getByTestId('toggle-editRecordsInline'));
+        fireEvent.click(screen.getByTestId('toggle-inlineEdit'));
         expect(onViewUpdate).toHaveBeenCalledWith('inlineEdit', false);
     });
 
@@ -1520,7 +1520,7 @@ describe('ViewConfigPanel', () => {
         expect(screen.getByText('console.objectView.listConfigHint')).toBeInTheDocument();
     });
 
-    it('renders list-level inline action items in the User Actions section (editRecordsInline, addDeleteRecordsInline)', () => {
+    it('renders list-level inline action items in the User Actions section (inlineEdit, addDeleteRecordsInline)', () => {
         render(
             <ViewConfigPanel
                 open={true}
@@ -1531,7 +1531,7 @@ describe('ViewConfigPanel', () => {
         );
 
         // List-level inline actions should be in the User Actions collapsible section
-        expect(screen.getByTestId('toggle-editRecordsInline')).toBeInTheDocument();
+        expect(screen.getByTestId('toggle-inlineEdit')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-addDeleteRecordsInline')).toBeInTheDocument();
     });
 

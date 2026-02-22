@@ -243,7 +243,7 @@ const ru = {
       collapseAllByDefault: 'Свернуть всё по умолчанию',
       striped: 'Полосатые строки',
       bordered: 'Ячейки с границами',
-      editRecordsInline: 'Редактировать записи встроенно',
+      inlineEdit: 'Редактировать записи встроенно',
       addDeleteRecordsInline: 'Добавлять/удалять записи встроенно',
       clickIntoRecordDetails: 'Нажмите для просмотра деталей записи',
     },

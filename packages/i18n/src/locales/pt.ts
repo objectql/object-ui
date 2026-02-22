@@ -243,7 +243,7 @@ const pt = {
       collapseAllByDefault: 'Recolher tudo por padrão',
       striped: 'Linhas listradas',
       bordered: 'Células com borda',
-      editRecordsInline: 'Editar registros em linha',
+      inlineEdit: 'Editar registros em linha',
       addDeleteRecordsInline: 'Adicionar/excluir registros em linha',
       clickIntoRecordDetails: 'Clique para detalhes do registro',
     },

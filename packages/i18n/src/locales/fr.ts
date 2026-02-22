@@ -248,7 +248,7 @@ const fr = {
       collapseAllByDefault: 'Tout réduire par défaut',
       striped: 'Lignes rayées',
       bordered: 'Cellules bordées',
-      editRecordsInline: 'Modifier les enregistrements en ligne',
+      inlineEdit: 'Modifier les enregistrements en ligne',
       addDeleteRecordsInline: 'Ajouter/supprimer des enregistrements en ligne',
       clickIntoRecordDetails: "Cliquer pour les détails de l'enregistrement",
     },

@@ -248,7 +248,7 @@ const en = {
       collapseAllByDefault: 'Collapse all by default',
       striped: 'Striped rows',
       bordered: 'Bordered cells',
-      editRecordsInline: 'Edit records inline',
+      inlineEdit: 'Edit records inline',
       addDeleteRecordsInline: 'Add/delete records inline',
       clickIntoRecordDetails: 'Click into record details',
       navigationMode: 'Navigation mode',
