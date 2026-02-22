@@ -439,7 +439,7 @@ describe('ViewConfigPanel', () => {
 
         const exportSwitch = screen.getByTestId('toggle-allowExport');
         fireEvent.click(exportSwitch);
-        expect(onViewUpdate).toHaveBeenCalledWith('allowExport', false);
+        expect(onViewUpdate).toHaveBeenCalledWith('allowExport', true);
     });
 
     it('toggles addRecordViaForm via Switch', () => {
@@ -1566,8 +1566,81 @@ describe('ViewConfigPanel', () => {
         fireEvent.click(screen.getByTestId('toggle-addRecordViaForm'));
         expect(onViewUpdate).toHaveBeenCalledWith('addRecordViaForm', true);
 
-        // Toggle allowExport off
+        // Toggle allowExport on (starts unchecked by default)
         fireEvent.click(screen.getByTestId('toggle-allowExport'));
-        expect(onViewUpdate).toHaveBeenCalledWith('allowExport', false);
+        expect(onViewUpdate).toHaveBeenCalledWith('allowExport', true);
+    });
+
+    it('new toolbar toggles (showHideFields, showGroup, showColor, showDensity) call onViewUpdate correctly', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        // Toggle showHideFields off
+        fireEvent.click(screen.getByTestId('toggle-showHideFields'));
+        expect(onViewUpdate).toHaveBeenCalledWith('showHideFields', false);
+
+        // Toggle showGroup off
+        fireEvent.click(screen.getByTestId('toggle-showGroup'));
+        expect(onViewUpdate).toHaveBeenCalledWith('showGroup', false);
+
+        // Toggle showColor off
+        fireEvent.click(screen.getByTestId('toggle-showColor'));
+        expect(onViewUpdate).toHaveBeenCalledWith('showColor', false);
+
+        // Toggle showDensity off
+        fireEvent.click(screen.getByTestId('toggle-showDensity'));
+        expect(onViewUpdate).toHaveBeenCalledWith('showDensity', false);
+    });
+
+    it('hasExport should be false when allowExport is undefined and no exportOptions', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, allowExport: undefined, exportOptions: undefined }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        // allowExport toggle should be unchecked (false) when allowExport is undefined
+        const exportSwitch = screen.getByTestId('toggle-allowExport');
+        expect(exportSwitch).toHaveAttribute('aria-checked', 'false');
+    });
+
+    it('striped and bordered toggles call onViewUpdate correctly', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        // Expand appearance section if collapsed
+        const appearanceSection = screen.getByTestId('section-appearance');
+        if (appearanceSection.getAttribute('aria-expanded') === 'false') {
+            fireEvent.click(appearanceSection);
+        }
+
+        // Toggle striped on
+        fireEvent.click(screen.getByTestId('toggle-striped'));
+        expect(onViewUpdate).toHaveBeenCalledWith('striped', true);
+
+        // Toggle bordered on
+        fireEvent.click(screen.getByTestId('toggle-bordered'));
+        expect(onViewUpdate).toHaveBeenCalledWith('bordered', true);
     });
 });

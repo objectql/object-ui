@@ -1010,6 +1010,21 @@ export interface NamedListView {
   /** Show filter controls in toolbar @default true */
   showFilters?: boolean;
 
+  /** Show hide-fields button in toolbar @default true */
+  showHideFields?: boolean;
+
+  /** Show group button in toolbar @default true */
+  showGroup?: boolean;
+
+  /** Show color button in toolbar @default true */
+  showColor?: boolean;
+
+  /** Show density/row-height button in toolbar @default true */
+  showDensity?: boolean;
+
+  /** Allow data export @default undefined */
+  allowExport?: boolean;
+
   /** Show alternating row colors @default false */
   striped?: boolean;
 
@@ -1018,6 +1033,33 @@ export interface NamedListView {
 
   /** Color field for row/card coloring */
   color?: string;
+
+  /** Enable inline editing @default false */
+  inlineEdit?: boolean;
+
+  /** Wrap column headers in grid view @default false */
+  wrapHeaders?: boolean;
+
+  /** Navigate to record detail view when row is clicked @default true */
+  clickIntoRecordDetails?: boolean;
+
+  /** Add records via a form dialog @default false */
+  addRecordViaForm?: boolean;
+
+  /** Enable inline add/delete of records @default false */
+  addDeleteRecordsInline?: boolean;
+
+  /** Collapse all grouped sections by default @default false */
+  collapseAllByDefault?: boolean;
+
+  /** Field name for custom text color */
+  fieldTextColor?: string;
+
+  /** Prefix field displayed before the main title */
+  prefixField?: string;
+
+  /** Show field descriptions below headers @default false */
+  showDescription?: boolean;
 }
 
 /**
@@ -1124,6 +1166,21 @@ export interface ListViewSchema extends BaseSchema {
 
   /** Show filter controls in toolbar @default true */
   showFilters?: boolean;
+
+  /** Show hide-fields button in toolbar @default true */
+  showHideFields?: boolean;
+
+  /** Show group button in toolbar @default true */
+  showGroup?: boolean;
+
+  /** Show color button in toolbar @default true */
+  showColor?: boolean;
+
+  /** Show density/row-height button in toolbar @default true */
+  showDensity?: boolean;
+
+  /** Allow data export @default undefined */
+  allowExport?: boolean;
 
   /** Color field for row/card coloring */
   color?: string;
@@ -1262,6 +1319,30 @@ export interface ListViewSchema extends BaseSchema {
    * When true, cells become editable on click/double-click.
    */
   inlineEdit?: boolean;
+
+  /** Wrap column headers in grid view @default false */
+  wrapHeaders?: boolean;
+
+  /** Navigate to record detail view when row is clicked @default true */
+  clickIntoRecordDetails?: boolean;
+
+  /** Add records via a form dialog @default false */
+  addRecordViaForm?: boolean;
+
+  /** Enable inline add/delete of records @default false */
+  addDeleteRecordsInline?: boolean;
+
+  /** Collapse all grouped sections by default @default false */
+  collapseAllByDefault?: boolean;
+
+  /** Field name for custom text color */
+  fieldTextColor?: string;
+
+  /** Prefix field displayed before the main title */
+  prefixField?: string;
+
+  /** Show field descriptions below headers @default false */
+  showDescription?: boolean;
 
   /**
    * ARIA attributes for accessibility.

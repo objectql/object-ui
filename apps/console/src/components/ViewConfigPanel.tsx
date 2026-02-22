@@ -320,7 +320,11 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
     const hasSearch = draft.showSearch !== false;
     const hasFilter = draft.showFilters !== false;
     const hasSort = draft.showSort !== false;
-    const hasExport = draft.exportOptions !== undefined || draft.allowExport !== false;
+    const hasHideFields = draft.showHideFields !== false;
+    const hasGroup = draft.showGroup !== false;
+    const hasColor = draft.showColor !== false;
+    const hasDensity = draft.showDensity !== false;
+    const hasExport = draft.exportOptions != null || draft.allowExport === true;
     const hasAddForm = draft.addRecordViaForm === true;
     const hasShowDescription = draft.showDescription !== false;
 
@@ -504,6 +508,38 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                             data-testid="toggle-showSort"
                             checked={hasSort}
                             onCheckedChange={(checked: boolean) => updateDraft('showSort', checked)}
+                            className="scale-75"
+                        />
+                    </ConfigRow>
+                    <ConfigRow label={t('console.objectView.enableHideFields')}>
+                        <Switch
+                            data-testid="toggle-showHideFields"
+                            checked={hasHideFields}
+                            onCheckedChange={(checked: boolean) => updateDraft('showHideFields', checked)}
+                            className="scale-75"
+                        />
+                    </ConfigRow>
+                    <ConfigRow label={t('console.objectView.enableGroup')}>
+                        <Switch
+                            data-testid="toggle-showGroup"
+                            checked={hasGroup}
+                            onCheckedChange={(checked: boolean) => updateDraft('showGroup', checked)}
+                            className="scale-75"
+                        />
+                    </ConfigRow>
+                    <ConfigRow label={t('console.objectView.enableColor')}>
+                        <Switch
+                            data-testid="toggle-showColor"
+                            checked={hasColor}
+                            onCheckedChange={(checked: boolean) => updateDraft('showColor', checked)}
+                            className="scale-75"
+                        />
+                    </ConfigRow>
+                    <ConfigRow label={t('console.objectView.enableDensity')}>
+                        <Switch
+                            data-testid="toggle-showDensity"
+                            checked={hasDensity}
+                            onCheckedChange={(checked: boolean) => updateDraft('showDensity', checked)}
                             className="scale-75"
                         />
                     </ConfigRow>
@@ -918,6 +954,22 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                                 data-testid="toggle-collapseAllByDefault"
                                 checked={draft.collapseAllByDefault === true}
                                 onCheckedChange={(checked: boolean) => updateDraft('collapseAllByDefault', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.striped')}>
+                            <Switch
+                                data-testid="toggle-striped"
+                                checked={draft.striped === true}
+                                onCheckedChange={(checked: boolean) => updateDraft('striped', checked)}
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.bordered')}>
+                            <Switch
+                                data-testid="toggle-bordered"
+                                checked={draft.bordered === true}
+                                onCheckedChange={(checked: boolean) => updateDraft('bordered', checked)}
                                 className="scale-75"
                             />
                         </ConfigRow>

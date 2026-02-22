@@ -692,5 +692,181 @@ describe('ListView', () => {
       renderWithProvider(<ListView schema={schema} />);
       expect(screen.getByRole('button', { name: /^sort$/i })).toBeInTheDocument();
     });
+
+    // Hide Fields visibility
+    it('should hide Hide Fields button when showHideFields is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email', 'phone'],
+        showHideFields: false,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByRole('button', { name: /hide fields/i })).not.toBeInTheDocument();
+    });
+
+    it('should show Hide Fields button by default (showHideFields undefined)', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email', 'phone'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByRole('button', { name: /hide fields/i })).toBeInTheDocument();
+    });
+
+    // Group visibility
+    it('should hide Group button when showGroup is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        showGroup: false,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByRole('button', { name: /group/i })).not.toBeInTheDocument();
+    });
+
+    it('should show Group button by default (showGroup undefined)', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByRole('button', { name: /group/i })).toBeInTheDocument();
+    });
+
+    // Color visibility
+    it('should hide Color button when showColor is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        showColor: false,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByRole('button', { name: /color/i })).not.toBeInTheDocument();
+    });
+
+    it('should show Color button by default (showColor undefined)', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByRole('button', { name: /color/i })).toBeInTheDocument();
+    });
+
+    // Density visibility
+    it('should hide Density button when showDensity is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        showDensity: false,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByTitle(/density/i)).not.toBeInTheDocument();
+    });
+
+    it('should show Density button by default (showDensity undefined)', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByTitle(/density/i)).toBeInTheDocument();
+    });
+
+    // Export + allowExport
+    it('should hide Export button when allowExport is false even with exportOptions', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        exportOptions: { formats: ['csv', 'json'] },
+        allowExport: false,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByRole('button', { name: /export/i })).not.toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // Schema prop forwarding to child views
+  // ============================
+  describe('Schema prop forwarding', () => {
+    it('should pass striped to child view schema', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        striped: true,
+      };
+
+      const { container } = renderWithProvider(<ListView schema={schema} />);
+      expect(container).toBeTruthy();
+    });
+
+    it('should pass bordered to child view schema', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        bordered: true,
+      };
+
+      const { container } = renderWithProvider(<ListView schema={schema} />);
+      expect(container).toBeTruthy();
+    });
+
+    it('should pass wrapHeaders to grid view schema', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        wrapHeaders: true,
+      };
+
+      const { container } = renderWithProvider(<ListView schema={schema} />);
+      expect(container).toBeTruthy();
+    });
+
+    it('should pass inlineEdit as editable to grid view schema', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        inlineEdit: true,
+      };
+
+      const { container } = renderWithProvider(<ListView schema={schema} />);
+      expect(container).toBeTruthy();
+    });
   });
 });

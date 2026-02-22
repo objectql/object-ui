@@ -252,9 +252,23 @@ export const ListViewSchema = BaseSchema.extend({
   showSearch: z.boolean().optional().describe('Show search in toolbar'),
   showSort: z.boolean().optional().describe('Show sort controls in toolbar'),
   showFilters: z.boolean().optional().describe('Show filter controls in toolbar'),
+  showHideFields: z.boolean().optional().describe('Show hide-fields button in toolbar'),
+  showGroup: z.boolean().optional().describe('Show group button in toolbar'),
+  showColor: z.boolean().optional().describe('Show color button in toolbar'),
+  showDensity: z.boolean().optional().describe('Show density/row-height button in toolbar'),
+  allowExport: z.boolean().optional().describe('Allow data export'),
   striped: z.boolean().optional().describe('Alternating row colors'),
   bordered: z.boolean().optional().describe('Show cell borders'),
   color: z.string().optional().describe('Color field for row/card coloring'),
+  inlineEdit: z.boolean().optional().describe('Enable inline editing'),
+  wrapHeaders: z.boolean().optional().describe('Wrap column headers'),
+  clickIntoRecordDetails: z.boolean().optional().describe('Navigate to detail on row click'),
+  addRecordViaForm: z.boolean().optional().describe('Add records via form dialog'),
+  addDeleteRecordsInline: z.boolean().optional().describe('Enable inline add/delete'),
+  collapseAllByDefault: z.boolean().optional().describe('Collapse all groups by default'),
+  fieldTextColor: z.string().optional().describe('Field for custom text color'),
+  prefixField: z.string().optional().describe('Prefix field before title'),
+  showDescription: z.boolean().optional().describe('Show field descriptions'),
 });
 
 /**
