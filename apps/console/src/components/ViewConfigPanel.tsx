@@ -182,11 +182,21 @@ const VIEW_TYPE_LABELS: Record<string, string> = {
 const VIEW_TYPE_OPTIONS = Object.keys(VIEW_TYPE_LABELS);
 
 /** Row height options with Tailwind gap classes for visual icons — aligned with spec: compact/medium/tall */
-const ROW_HEIGHT_OPTIONS = [
+const ROW_HEIGHT_OPTIONS: Array<{ value: string; gapClass: string }> = [
     { value: 'compact', gapClass: 'gap-0' },
     { value: 'medium', gapClass: 'gap-0.5' },
     { value: 'tall', gapClass: 'gap-1' },
 ];
+
+/** Parse comma-separated string to trimmed non-empty string array */
+function parseCommaSeparated(input: string): string[] {
+    return input.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+/** Parse comma-separated string to positive number array */
+function parseNumberList(input: string): number[] {
+    return input.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n) && n > 0);
+}
 
 /** Editor panel types that can be opened from clickable rows */
 export type EditorPanelType = 'columns' | 'filter' | 'sort';
@@ -916,7 +926,7 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                                 value={(draft.pagination?.pageSizeOptions || []).join(', ')}
                                 placeholder="10, 25, 50, 100"
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                    const opts = e.target.value.split(',').map((s: string) => Number(s.trim())).filter((n: number) => !isNaN(n) && n > 0);
+                                    const opts = parseNumberList(e.target.value);
                                     updateDraft('pagination', { ...(draft.pagination || {}), pageSizeOptions: opts.length ? opts : undefined });
                                 }}
                             />
@@ -1054,7 +1064,7 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                                     data-testid="add-quick-filter"
                                     className="text-xs text-primary hover:underline"
                                     onClick={() => {
-                                        const newFilter = { id: `qf_${Date.now()}`, label: '', filters: [], defaultActive: false };
+                                        const newFilter = { id: crypto.randomUUID(), label: '', filters: [], defaultActive: false };
                                         updateDraft('quickFilters', [...(draft.quickFilters || []), newFilter]);
                                     }}
                                 >
@@ -1502,8 +1512,7 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                                     value={(draft.rowActions || []).join(', ')}
                                     placeholder="edit, delete, duplicate"
                                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                        const actions = e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean);
-                                        updateDraft('rowActions', actions);
+                                        updateDraft('rowActions', parseCommaSeparated(e.target.value));
                                     }}
                                 />
                             </div>
@@ -1522,8 +1531,7 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                                     value={(draft.bulkActions || []).join(', ')}
                                     placeholder="delete, export, assign"
                                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                        const actions = e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean);
-                                        updateDraft('bulkActions', actions);
+                                        updateDraft('bulkActions', parseCommaSeparated(e.target.value));
                                     }}
                                 />
                             </div>

@@ -2124,12 +2124,14 @@ describe('ViewConfigPanel', () => {
     });
 
     it('renders row height buttons with spec-aligned values (compact/medium/tall)', () => {
+        const onViewUpdate = vi.fn();
         render(
             <ViewConfigPanel
                 open={true}
                 onClose={vi.fn()}
                 activeView={mockActiveView}
                 objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
             />
         );
 
@@ -2139,5 +2141,13 @@ describe('ViewConfigPanel', () => {
         // Old values should not exist
         expect(screen.queryByTestId('row-height-short')).not.toBeInTheDocument();
         expect(screen.queryByTestId('row-height-extraTall')).not.toBeInTheDocument();
+
+        // Click compact and verify update
+        fireEvent.click(screen.getByTestId('row-height-compact'));
+        expect(onViewUpdate).toHaveBeenCalledWith('rowHeight', 'compact');
+
+        // Click tall and verify update
+        fireEvent.click(screen.getByTestId('row-height-tall'));
+        expect(onViewUpdate).toHaveBeenCalledWith('rowHeight', 'tall');
     });
 });
