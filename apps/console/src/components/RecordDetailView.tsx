@@ -72,7 +72,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
         }
       })
       .catch(() => {});
-  }, [dataSource, objectName, recordId]);
+  }, [dataSource, objectName, recordId, currentUser]);
 
   const handleAddComment = useCallback(
     async (text: string) => {
