@@ -237,16 +237,38 @@ describe('ConfigFieldRenderer', () => {
   });
 
   describe('filter/sort types', () => {
-    it('should render filter placeholder', () => {
-      const field: ConfigField = { key: 'filter', label: 'Filters', type: 'filter' };
-      render(<ConfigFieldRenderer field={field} value={null} onChange={vi.fn()} draft={defaultDraft} />);
+    it('should render filter with FilterBuilder', () => {
+      const field: ConfigField = {
+        key: 'filter',
+        label: 'Filters',
+        type: 'filter',
+        fields: [
+          { value: 'name', label: 'Name' },
+          { value: 'status', label: 'Status' },
+        ],
+      };
+      render(<ConfigFieldRenderer field={field} value={undefined} onChange={vi.fn()} draft={defaultDraft} />);
       expect(screen.getByText('Filters')).toBeDefined();
+      expect(screen.getByTestId('config-field-filter')).toBeDefined();
+      // FilterBuilder renders 'Where' label and 'Add filter' button
+      expect(screen.getByText('Add filter')).toBeDefined();
     });
 
-    it('should render sort placeholder', () => {
-      const field: ConfigField = { key: 'sort', label: 'Sorting', type: 'sort' };
-      render(<ConfigFieldRenderer field={field} value={null} onChange={vi.fn()} draft={defaultDraft} />);
+    it('should render sort with SortBuilder', () => {
+      const field: ConfigField = {
+        key: 'sort',
+        label: 'Sorting',
+        type: 'sort',
+        fields: [
+          { value: 'name', label: 'Name' },
+          { value: 'date', label: 'Date' },
+        ],
+      };
+      render(<ConfigFieldRenderer field={field} value={undefined} onChange={vi.fn()} draft={defaultDraft} />);
       expect(screen.getByText('Sorting')).toBeDefined();
+      expect(screen.getByTestId('config-field-sort')).toBeDefined();
+      // SortBuilder renders 'Add sort' button
+      expect(screen.getByText('Add sort')).toBeDefined();
     });
   });
 });

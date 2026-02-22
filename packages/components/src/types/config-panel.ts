@@ -59,6 +59,8 @@ export interface ConfigField {
   step?: number;
   /** Whether the field is disabled */
   disabled?: boolean;
+  /** Field definitions for filter/sort sub-editors */
+  fields?: Array<{ value: string; label: string; type?: string; options?: Array<{ value: string; label: string }> }>;
 }
 
 /** A group of related config fields */

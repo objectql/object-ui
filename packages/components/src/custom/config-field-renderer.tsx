@@ -21,6 +21,8 @@ import {
 import { Button } from '../ui/button';
 import { cn } from '../lib/utils';
 import { ConfigRow } from './config-row';
+import { FilterBuilder } from './filter-builder';
+import { SortBuilder } from './sort-builder';
 import type { ConfigField } from '../types/config-panel';
 
 export interface ConfigFieldRendererProps {
@@ -191,14 +193,29 @@ export function ConfigFieldRenderer({
       );
 
     case 'filter':
-    case 'sort':
-      // Complex sub-editors — consumers should use type='custom' to embed
-      // FilterBuilder / SortBuilder with full field binding.
       return (
-        <ConfigRow
-          label={field.label}
-          value={field.placeholder ?? `Configure ${field.type}…`}
-        />
+        <div data-testid={`config-field-${field.key}`}>
+          <ConfigRow label={field.label} />
+          <FilterBuilder
+            fields={field.fields}
+            value={effectiveValue}
+            onChange={onChange}
+            className="px-1 pb-2"
+          />
+        </div>
+      );
+
+    case 'sort':
+      return (
+        <div data-testid={`config-field-${field.key}`}>
+          <ConfigRow label={field.label} />
+          <SortBuilder
+            fields={field.fields}
+            value={effectiveValue}
+            onChange={onChange}
+            className="px-1 pb-2"
+          />
+        </div>
       );
 
     case 'custom':

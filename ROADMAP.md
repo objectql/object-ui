@@ -323,14 +323,21 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Add Vitest tests (65 tests: useConfigDraft 10, ConfigFieldRenderer 22, ConfigPanelRenderer 21, DashboardConfigPanel 12)
 
 **Phase 2 — Widget-Level Configuration:**
-- [ ] Support click-to-select widget → sidebar switches to widget property editor (title, type, data binding, layout)
+- [x] Support click-to-select widget → sidebar switches to widget property editor (title, type, data binding, layout)
+- [x] Implement `WidgetConfigPanel` with schema-driven fields: general (title, description, type), data binding (object, categoryField, valueField, aggregate), layout (width, height), appearance (colorVariant, actionUrl)
+- [x] Add Vitest tests (14 tests for WidgetConfigPanel)
 
 **Phase 3 — Sub-Editor Integration:**
-- [ ] Integrate `FilterBuilder` for dashboard global filters
+- [x] Integrate `FilterBuilder` for dashboard global filters (ConfigFieldRenderer `filter` type now renders inline FilterBuilder)
+- [x] Integrate `SortBuilder` for sort configuration (ConfigFieldRenderer `sort` type now renders inline SortBuilder)
+- [x] Add `fields` prop to `ConfigField` type for filter/sort field definitions
 - [ ] Dropdown filter selector and action button sub-panel visual editing
 
 **Phase 4 — Composition & Storybook:**
-- [ ] Build `DashboardWithConfig` composite component (dashboard + config sidebar)
+- [x] Build `DashboardWithConfig` composite component (dashboard + config sidebar)
+- [x] Support widget selection → WidgetConfigPanel switch with back navigation
+- [x] Add Storybook stories for `WidgetConfigPanel`, `DashboardWithConfig`, and `DashboardWithConfigClosed`
+- [x] Add Vitest tests (9 tests for DashboardWithConfig)
 
 **Phase 5 — Type Definitions & Validation:**
 - [x] Add `DashboardConfig` types to `@object-ui/types`
