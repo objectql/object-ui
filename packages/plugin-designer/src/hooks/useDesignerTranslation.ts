@@ -89,6 +89,15 @@ const DESIGNER_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'appDesigner.navTypeGroup': 'Group',
   'appDesigner.navTypeSeparator': 'Separator',
   'appDesigner.navTypeAction': 'Action',
+  'appDesigner.navEditIcon': 'Edit icon',
+  'appDesigner.navToggleVisible': 'Toggle visibility',
+  'appDesigner.navHidden': 'Hidden',
+  'appDesigner.navExportSchema': 'Export JSON',
+  'appDesigner.navImportSchema': 'Import JSON',
+  'appDesigner.navExportSuccess': 'Navigation schema exported',
+  'appDesigner.navImportSuccess': 'Navigation schema imported',
+  'appDesigner.navImportError': 'Invalid navigation JSON',
+  'appDesigner.navIconPlaceholder': 'Icon name (e.g. Users)',
 };
 
 function createFallbackTranslator(defaults: Record<string, string>) {

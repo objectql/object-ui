@@ -426,6 +426,10 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Deep tree operations (remove/reorder works at any depth)
 - [x] Live preview sidebar showing navigation as rendered
 - [x] Type badges with color coding
+- [x] Icon editing (inline icon name input with pencil button, Enter/Escape commit/discard)
+- [x] Visibility toggle (eye/eye-off icon per node, hidden badge display)
+- [x] Export/Import navigation JSON Schema (toolbar buttons with file I/O, custom callbacks)
+- [x] Mobile responsive layout (flex-col on mobile, sm:flex-row on desktop)
 
 **Page Canvas Editor:**
 - [x] Component palette (Grid, Kanban, Calendar, Gallery, Dashboard, Form, Layout Grid)
@@ -455,10 +459,10 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Disabled state support
 
 **i18n:**
-- [x] `appDesigner` section with 94 keys added to all 10 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko)
+- [x] `appDesigner` section with 103 keys added to all 10 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko)
 - [x] `useDesignerTranslation` safe wrapper hook with English fallback (no I18nProvider required)
 - [x] AppCreationWizard fully i18n-integrated (all labels, buttons, step names, validation messages)
-- [x] NavigationDesigner fully i18n-integrated (type badges, quick-add labels, aria-labels, preview)
+- [x] NavigationDesigner fully i18n-integrated (type badges, quick-add labels, aria-labels, preview, icon editing, visibility, export/import)
 
 **UX Enhancements:**
 - [x] Cancel confirmation dialog with unsaved-changes detection
@@ -468,12 +472,12 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 **Testing:**
 - [x] 9 type tests (isValidAppName, wizardDraftToAppSchema, type shapes)
 - [x] 41 AppCreationWizard tests (rendering, steps 1-4, navigation, callbacks, cancel confirm, save draft, i18n, read-only)
-- [x] 18 NavigationDesigner tests (rendering, add, remove, groups, badges, i18n, read-only)
+- [x] 33 NavigationDesigner tests (rendering, add, remove, groups, badges, i18n, read-only, icon editing, visibility toggle, export/import, responsive)
 - [x] 7 EditorModeToggle tests (render, active mode, onChange, accessibility, disabled)
 - [x] 10 DashboardEditor tests (rendering, add/remove widgets, property panel, read-only)
 - [x] 9 PageCanvasEditor tests (rendering, add/remove components, property panel, read-only)
 - [x] 12 ObjectViewConfigurator tests (rendering, view type switch, column visibility, toggles, read-only)
-- [x] **Total: 165 tests across 9 files, all passing**
+- [x] **Total: 180 tests across 9 files, all passing**
 
 **ComponentRegistry:**
 - [x] Registered: `app-creation-wizard`, `navigation-designer`, `dashboard-editor`, `page-canvas-editor`, `object-view-configurator`
