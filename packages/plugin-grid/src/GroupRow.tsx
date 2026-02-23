@@ -52,7 +52,6 @@ export const GroupRow: React.FC<GroupRowProps> = ({
           ? <ChevronRight className="h-4 w-4 shrink-0" />
           : <ChevronDown className="h-4 w-4 shrink-0" />}
         <span className="group-label">{label}</span>
-        <span className="ml-1 text-xs text-muted-foreground group-count">({count})</span>
         {aggregations && aggregations.length > 0 && (
           <span className="ml-2 text-xs text-muted-foreground group-aggregations">
             {aggregations.map((agg) => (
@@ -62,7 +61,7 @@ export const GroupRow: React.FC<GroupRowProps> = ({
             ))}
           </span>
         )}
-        <span className="ml-auto text-xs text-muted-foreground">{count}</span>
+        <span className="ml-auto text-xs text-muted-foreground group-count">({count})</span>
       </button>
       {!collapsed && children}
     </div>
