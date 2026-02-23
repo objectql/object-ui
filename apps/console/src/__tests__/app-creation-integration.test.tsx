@@ -135,7 +135,7 @@ vi.mock('@object-ui/plugin-designer', () => ({
     <div data-testid="app-creation-wizard">
       <span data-testid="wizard-objects-count">{availableObjects?.length ?? 0}</span>
       {initialDraft?.name && <span data-testid="wizard-initial-name">{initialDraft.name}</span>}
-      <button data-testid="wizard-complete" onClick={() => onComplete?.({ name: 'my_app', title: 'My App', branding: { logo: '', primaryColor: '#000', favicon: '' }, objects: [], navigation: [], layout: 'sidebar' })}>
+      <button data-testid="wizard-complete" onClick={() => onComplete?.({ name: 'my_app', title: 'My App', icon: 'LayoutDashboard', branding: { logo: '', primaryColor: '#000', favicon: '' }, objects: [], navigation: [], layout: 'sidebar' })}>
         Complete
       </button>
       <button data-testid="wizard-cancel" onClick={() => onCancel?.()}>
@@ -422,6 +422,27 @@ describe('Console App Creation Integration', () => {
           'my_app',
           expect.objectContaining({ name: 'my_app' }),
         );
+      });
+    });
+
+    it('preserves original app fields not managed by wizard after merge', async () => {
+      renderApp('/apps/sales/edit-app/sales');
+
+      await waitFor(() => {
+        expect(screen.getByTestId('wizard-complete')).toBeInTheDocument();
+      }, { timeout: 10000 });
+
+      fireEvent.click(screen.getByTestId('wizard-complete'));
+
+      await waitFor(() => {
+        const client = MockAdapterInstance.getClient();
+        const savedSchema = client.meta.saveItem.mock.calls[0]?.[2];
+        // Wizard-generated fields are present
+        expect(savedSchema.label).toBe('My App');
+        expect(savedSchema.icon).toBe('LayoutDashboard');
+        expect(savedSchema.branding).toEqual({ logo: '', primaryColor: '#000', favicon: '' });
+        // Original app field not in wizard is preserved via merge
+        expect(savedSchema.active).toBe(true);
       });
     });
   });

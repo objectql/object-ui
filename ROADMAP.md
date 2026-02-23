@@ -502,7 +502,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] 23 PageCanvasEditor tests (rendering, add/remove components, property panel, read-only, mode tabs, undo/redo, export/import, preview mode)
 - [x] 12 ObjectViewConfigurator tests (rendering, view type switch, column visibility, toggles, read-only)
 - [x] 29 BrandingEditor tests (rendering, editing, light/dark preview, read-only, undo/redo, export/import, keyboard shortcuts, preview content)
-- [x] **Total: 237 tests across 10 files, all passing**
+- [x] **Total: 238 tests across 10 files, all passing**
 
 **ComponentRegistry:**
 - [x] Registered: `app-creation-wizard`, `navigation-designer`, `dashboard-editor`, `page-canvas-editor`, `object-view-configurator`, `branding-editor`
@@ -531,12 +531,13 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] AppSidebar "Edit App" button → navigates to `/edit-app/:appName`
 - [x] CommandPalette "Create New App" command (⌘+K → Actions group)
 - [x] Empty state CTA "Create Your First App" when no apps configured
-- [x] `wizardDraftToAppSchema()` conversion on completion
+- [x] `wizardDraftToAppSchema()` conversion on completion — includes `icon`, `label`, `branding` fields
+- [x] `EditAppPage` merges wizard output with original app config to preserve fields not in wizard (e.g. `active`)
 - [x] `client.meta.saveItem('app', name, schema)` — persists app metadata to backend on create/edit
 - [x] MSW PUT handler for `/meta/:type/:name` — dev/mock mode metadata persistence
 - [x] Draft persistence to localStorage with auto-clear on success
 - [x] `createApp` i18n key added to all 10 locales
-- [x] 13 console integration tests (routes, wizard callbacks, draft persistence, saveItem, CommandPalette)
+- [x] 14 console integration tests (routes, wizard callbacks, draft persistence, saveItem, merge preservation, CommandPalette)
 
 ### P1.12 System Settings & App Management Center
 
