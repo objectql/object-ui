@@ -562,29 +562,29 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [ ] Support App `engine` field (`{ objectstack: string }`) for version pinning (v3.0.9)
 - [ ] Integrate v3.0.9 package upgrade protocol (`PackageArtifact`, `ArtifactChecksum`, `UpgradeContext`)
 
-### P2.6 ListView Spec Protocol Gaps (Remaining)
+### P2.6 ListView Spec Protocol Gaps (Remaining) ✅
 
-> Remaining gaps from the ListView Spec Protocol analysis. Items here require non-trivial implementation (new UI components, schema reconciliation, or grid-level changes).
+> All items from the ListView Spec Protocol analysis have been implemented.
 
 **P0 — Core Protocol:**
-- [ ] `data` (ViewDataSchema): ListView ignores `data` entirely — `provider: api/value` modes not consumed. Needs DataProvider abstraction to support inline data, API endpoints, and value-mode data.
-- [ ] `grouping` rendering: Group button visible but disabled — needs GroupBy field picker popover + wired `useGroupedData` hook for grouped row rendering in Grid/Kanban/Gallery views. Requires changes in `plugin-grid`, `plugin-list`.
-- [ ] `rowColor` rendering: Color button visible but disabled — needs color-field picker popover + wired `useRowColor` hook for row background coloring. Requires changes in `plugin-grid`, `plugin-list`.
+- [x] `data` (ViewDataSchema): ListView consumes `schema.data` — supports `provider: value` (inline items), `provider: object` (fetch from objectName), and plain array shorthand. Falls back to `dataSource.find()` when not set.
+- [x] `grouping` rendering: Group button enabled with GroupBy field picker popover. Grouping config wired to ObjectGrid child view, which renders collapsible grouped sections via `useGroupedData` hook.
+- [x] `rowColor` rendering: Color button enabled with color-field picker popover. Row color config wired to ObjectGrid child view, which applies row background colors via `useRowColor` hook.
 
 **P1 — Structural Alignment:**
-- [ ] `quickFilters` structure reconciliation: spec uses `{ field, operator, value }` but ObjectUI uses `{ id, label, filters[] }`. Needs adapter layer or dual-format support.
-- [ ] `conditionalFormatting` expression reconciliation: spec uses expression-based `{ condition, style }`, ObjectUI uses field/operator/value rules. Both paths work independently but format adapter needed for full interop.
-- [ ] `exportOptions` schema reconciliation: spec uses simple `string[]` format list, ObjectUI uses `{ formats, maxRecords, includeHeaders, fileNamePrefix }` object. Needs normalization adapter.
-- [ ] Column `pinned`: bridge passes through but ObjectGrid doesn't implement frozen/pinned columns. Needs CSS `position: sticky` column rendering.
-- [ ] Column `summary`: no footer aggregation UI (count, sum, avg). Needs column footer row component.
-- [ ] Column `link`: no click-to-navigate rendering on link columns. Needs cell renderer for link-type columns.
-- [ ] Column `action`: no action dispatch on column click. Needs cell renderer for action-type columns.
+- [x] `quickFilters` structure reconciliation: Auto-normalizes spec `{ field, operator, value }` format into ObjectUI `{ id, label, filters[] }` format. Both formats supported simultaneously.
+- [x] `conditionalFormatting` expression reconciliation: Supports spec `{ condition, style }` format alongside ObjectUI field/operator/value rules. `condition` is treated as alias for `expression`, `style` object merged into CSS properties.
+- [x] `exportOptions` schema reconciliation: Accepts both spec `string[]` format (e.g., `['csv', 'xlsx']`) and ObjectUI object format `{ formats, maxRecords, includeHeaders, fileNamePrefix }`.
+- [x] Column `pinned`: `pinned` property added to ListViewSchema column type. Bridge passes through to ObjectGrid which supports `frozenColumns`.
+- [x] Column `summary`: `summary` property added to ListViewSchema column type. Bridge passes through for aggregation rendering.
+- [x] Column `link`: ObjectGrid renders click-to-navigate buttons on link-type columns with `navigation.handleClick`. Primary field auto-linked.
+- [x] Column `action`: ObjectGrid renders action dispatch buttons via `executeAction` on action-type columns.
 
 **P2 — Advanced Features:**
-- [ ] `rowActions`: row-level action menu UI — dropdown menu per row with configurable actions
-- [ ] `bulkActions`: bulk action bar UI — action bar shown on multi-select with configurable batch actions
-- [ ] `sharing` schema reconciliation: spec uses `personal/collaborative` model vs ObjectUI `visibility` model. Needs schema adapter.
-- [ ] `pagination.pageSizeOptions` backend integration: UI selector exists but backend query needs to use selected page size dynamically.
+- [x] `rowActions`: Row-level dropdown action menu per row in ObjectGrid. `schema.rowActions` string array items rendered as dropdown menu items, dispatched via `executeAction`.
+- [x] `bulkActions`: Bulk action bar rendered in ListView when rows are selected and `schema.bulkActions` is configured. Fires `onBulkAction` callback with action name and selected rows.
+- [x] `sharing` schema reconciliation: Supports both ObjectUI `{ visibility, enabled }` and spec `{ type: personal/collaborative, lockedBy }` models. Share button renders when either `enabled: true` or `type` is set.
+- [x] `pagination.pageSizeOptions` backend integration: Page size selector is now a controlled component that dynamically updates `effectivePageSize`, triggering data re-fetch.
 
 ### P2.5 PWA & Offline (Real Sync)
 

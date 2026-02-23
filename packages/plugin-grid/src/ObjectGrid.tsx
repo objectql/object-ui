@@ -728,8 +728,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
 
   const operations = 'operations' in schema ? schema.operations : undefined;
   const hasActions = operations && (operations.update || operations.delete);
+  const hasRowActions = schema.rowActions && schema.rowActions.length > 0;
 
-  const columnsWithActions = hasActions ? [
+  const columnsWithActions = (hasActions || hasRowActions) ? [
     ...persistedColumns,
     {
       header: 'Actions',
@@ -737,7 +738,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       cell: (_value: any, row: any) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0">
+            <Button variant="ghost" size="icon" className="h-8 w-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0" data-testid="row-action-trigger">
               <MoreVertical className="h-4 w-4" />
               <span className="sr-only">Open menu</span>
             </Button>
@@ -755,6 +756,15 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 Delete
               </DropdownMenuItem>
             )}
+            {schema.rowActions?.map(action => (
+              <DropdownMenuItem
+                key={action}
+                onClick={() => executeAction({ type: action, params: { record: row } })}
+                data-testid={`row-action-${action}`}
+              >
+                {action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
       ),
