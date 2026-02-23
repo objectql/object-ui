@@ -480,12 +480,13 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Disabled state support
 
 **i18n:**
-- [x] `appDesigner` section with 119 keys added to all 10 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko)
+- [x] `appDesigner` section with 133 keys added to all 10 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko)
 - [x] `useDesignerTranslation` safe wrapper hook with English fallback (no I18nProvider required)
 - [x] AppCreationWizard fully i18n-integrated (all labels, buttons, step names, validation messages)
 - [x] NavigationDesigner fully i18n-integrated (type badges, quick-add labels, aria-labels, preview, icon editing, visibility, export/import)
 - [x] DashboardEditor fully i18n-integrated (toolbar labels, preview text)
 - [x] PageCanvasEditor fully i18n-integrated (toolbar labels, mode tabs, preview text)
+- [x] BrandingEditor fully i18n-integrated (14 new keys: editor title, export/import, preview, palette, font, light/dark, mobile preview, sample text)
 
 **UX Enhancements:**
 - [x] Cancel confirmation dialog with unsaved-changes detection
@@ -500,10 +501,27 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] 22 DashboardEditor tests (rendering, add/remove widgets, property panel, read-only, undo/redo, export/import, preview mode, widget layout)
 - [x] 23 PageCanvasEditor tests (rendering, add/remove components, property panel, read-only, mode tabs, undo/redo, export/import, preview mode)
 - [x] 12 ObjectViewConfigurator tests (rendering, view type switch, column visibility, toggles, read-only)
-- [x] **Total: 206 tests across 9 files, all passing**
+- [x] 29 BrandingEditor tests (rendering, editing, light/dark preview, read-only, undo/redo, export/import, keyboard shortcuts, preview content)
+- [x] **Total: 235 tests across 10 files, all passing**
 
 **ComponentRegistry:**
-- [x] Registered: `app-creation-wizard`, `navigation-designer`, `dashboard-editor`, `page-canvas-editor`, `object-view-configurator`
+- [x] Registered: `app-creation-wizard`, `navigation-designer`, `dashboard-editor`, `page-canvas-editor`, `object-view-configurator`, `branding-editor`
+
+**Branding Editor:**
+- [x] Logo URL input with live preview (light/dark logo placeholders)
+- [x] Visual color picker with native `<input type="color">` and text hex input
+- [x] 16-color preset palette swatches (Blue, Indigo, Violet, Purple, Pink, Red, Orange, Amber, Yellow, Green, Teal, Cyan, Sky, Slate, Dark, Navy)
+- [x] Favicon URL input with preview
+- [x] Font family selector (9 common web fonts + system default)
+- [x] Light/Dark mode preview toggle
+- [x] Real-time preview panel (desktop + mobile)
+- [x] Undo/Redo via `useUndoRedo` hook (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y keyboard shortcuts)
+- [x] JSON Schema export/import (Download/Upload toolbar buttons with `onExport`/`onImport` callbacks)
+- [x] Read-only mode support (disables all inputs, palette clicks, undo/redo, import)
+- [x] Mobile responsive layout (flex-col on mobile, sm:flex-row on desktop)
+- [x] i18n integration via `useDesignerTranslation` (14 new translation keys in all 10 locales)
+- [x] Outputs to `BrandingConfig` type (AppSchema.branding protocol)
+- [x] 29 unit tests (rendering, editing, light/dark preview, read-only, undo/redo, export/import, keyboard shortcuts, preview content)
 
 **Console Integration:**
 - [x] `CreateAppPage` — renders `AppCreationWizard` with `useMetadata()` objects, `onComplete`/`onCancel`/`onSaveDraft` callbacks
