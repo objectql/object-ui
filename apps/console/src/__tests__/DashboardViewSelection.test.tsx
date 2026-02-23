@@ -279,11 +279,20 @@ describe('DashboardView — Selection Sync Integration', () => {
     });
     expect(screen.getByTestId('renderer-selected')).toHaveTextContent('w1');
 
-    // Close the drawer by toggling the sheet (simulate close by calling onOpenChange(false))
-    // The Sheet overlay can be found; we'll re-open and check design mode resets
-    // For this test, opening drawer again should have no lingering selection
-    // Since closing the sheet is handled by the Sheet component, we verify via design mode
+    // Close the drawer via the Sheet's close button (sr-only "Close" text)
+    const closeButtons = screen.getAllByRole('button', { name: /close/i });
+    const sheetCloseBtn = closeButtons.find((btn) =>
+      btn.closest('[data-testid="design-drawer"]'),
+    );
+    if (sheetCloseBtn) {
+      await act(async () => {
+        fireEvent.click(sheetCloseBtn);
+      });
+    }
+
     // After close, design mode should be off and selection cleared
+    expect(screen.getByTestId('renderer-design-mode')).toHaveTextContent('false');
+    expect(screen.getByTestId('renderer-selected')).toHaveTextContent('none');
   });
 
   it('should auto-save property changes to backend', async () => {
