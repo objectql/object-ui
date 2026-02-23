@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ListView } from '../ListView';
+import { ListView, evaluateConditionalFormatting } from '../ListView';
 import type { ListViewSchema } from '@object-ui/types';
 import { SchemaRendererProvider } from '@object-ui/react';
 
@@ -1423,6 +1423,320 @@ describe('ListView', () => {
         expect(lastCall[1]).toHaveProperty('$search', 'alice');
         expect(lastCall[1]).toHaveProperty('$searchFields', ['name', 'email']);
       });
+    });
+  });
+
+  // ============================
+  // data (ViewDataSchema) support
+  // ============================
+  describe('data (ViewDataSchema) support', () => {
+    it('should use inline data when schema.data has provider value', async () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        data: {
+          provider: 'value',
+          items: [
+            { _id: '1', name: 'Alice', email: 'alice@test.com' },
+            { _id: '2', name: 'Bob', email: 'bob@test.com' },
+          ],
+        } as any,
+      };
+
+      mockDataSource.find.mockClear();
+      renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('record-count-bar')).toBeInTheDocument();
+      });
+      expect(screen.getByText('2 records')).toBeInTheDocument();
+      expect(mockDataSource.find).not.toHaveBeenCalled();
+    });
+
+    it('should use inline data when schema.data is a plain array', async () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        data: [
+          { _id: '1', name: 'Alice', email: 'alice@test.com' },
+          { _id: '2', name: 'Bob', email: 'bob@test.com' },
+        ] as any,
+      };
+
+      mockDataSource.find.mockClear();
+      renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('record-count-bar')).toBeInTheDocument();
+      });
+      expect(screen.getByText('2 records')).toBeInTheDocument();
+      expect(mockDataSource.find).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to dataSource.find when schema.data is not set', async () => {
+      const mockItems = [
+        { _id: '1', name: 'Alice', email: 'alice@test.com' },
+      ];
+      mockDataSource.find.mockResolvedValue(mockItems);
+
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+      await vi.waitFor(() => {
+        expect(mockDataSource.find).toHaveBeenCalled();
+      });
+    });
+  });
+
+  // ============================
+  // grouping popover
+  // ============================
+  describe('grouping popover', () => {
+    it('should render enabled Group button (not disabled)', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      const groupButton = screen.getByRole('button', { name: /group/i });
+      expect(groupButton).toBeInTheDocument();
+      expect(groupButton).not.toBeDisabled();
+    });
+
+    it('should open grouping popover on click', async () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      const groupButton = screen.getByRole('button', { name: /group/i });
+      fireEvent.click(groupButton);
+
+      await vi.waitFor(() => {
+        expect(screen.getByText('Group By')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('group-field-list')).toBeInTheDocument();
+    });
+
+    it('should render active grouping badge when groupingConfig is set via schema', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email', 'status'],
+        grouping: { fields: [{ field: 'status', order: 'asc' }] },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      const groupButton = screen.getByRole('button', { name: /group/i });
+      // Badge showing count "1" should be inside the button
+      expect(groupButton.textContent).toContain('1');
+    });
+  });
+
+  // ============================
+  // rowColor popover
+  // ============================
+  describe('rowColor popover', () => {
+    it('should render enabled Color button (not disabled)', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      const colorButton = screen.getByRole('button', { name: /color/i });
+      expect(colorButton).toBeInTheDocument();
+      expect(colorButton).not.toBeDisabled();
+    });
+
+    it('should open color popover on click', async () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      const colorButton = screen.getByRole('button', { name: /color/i });
+      fireEvent.click(colorButton);
+
+      await vi.waitFor(() => {
+        expect(screen.getByText('Row Color')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('color-field-select')).toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // quickFilters spec format reconciliation
+  // ============================
+  describe('quickFilters spec format reconciliation', () => {
+    it('should normalize spec format { field, operator, value } into ObjectUI format', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email', 'status'],
+        quickFilters: [
+          { field: 'status', operator: 'equals', value: 'active', label: 'Active' } as any,
+        ],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByTestId('quick-filters')).toBeInTheDocument();
+      expect(screen.getByText('Active')).toBeInTheDocument();
+    });
+
+    it('should still support ObjectUI format { id, label, filters[] }', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email', 'status'],
+        quickFilters: [
+          { id: 'active', label: 'Active', filters: [['status', '=', 'active']] },
+          { id: 'vip', label: 'VIP', filters: [['vip', '=', true]] },
+        ],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByTestId('quick-filters')).toBeInTheDocument();
+      expect(screen.getByText('Active')).toBeInTheDocument();
+      expect(screen.getByText('VIP')).toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // exportOptions format reconciliation
+  // ============================
+  describe('exportOptions format reconciliation', () => {
+    it('should render export button when exportOptions is a string array', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        exportOptions: ['csv', 'json'] as any,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      const exportButton = screen.getByRole('button', { name: /export/i });
+      expect(exportButton).toBeInTheDocument();
+    });
+
+    it('should render export button when exportOptions is an object', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        exportOptions: { formats: ['csv', 'json'] },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      const exportButton = screen.getByRole('button', { name: /export/i });
+      expect(exportButton).toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // conditionalFormatting spec format
+  // ============================
+  describe('conditionalFormatting spec format', () => {
+    it('should evaluate spec format with condition and style', () => {
+      const result = evaluateConditionalFormatting(
+        { status: 'active', amount: 200 },
+        [{ condition: '${data.status === "active"}', style: { backgroundColor: '#e0ffe0', color: '#0a0' } }] as any,
+      );
+      expect(result).toEqual({ backgroundColor: '#e0ffe0', color: '#0a0' });
+    });
+  });
+
+  // ============================
+  // sharing spec format
+  // ============================
+  describe('sharing spec format', () => {
+    it('should render share button when sharing.type is set (spec format)', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        sharing: { type: 'collaborative' } as any,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      const shareButton = screen.getByTestId('share-button');
+      expect(shareButton).toBeInTheDocument();
+      expect(shareButton).toHaveAttribute('title', 'Sharing: collaborative');
+    });
+  });
+
+  // ============================
+  // bulkActions bar
+  // ============================
+  describe('bulkActions bar', () => {
+    it('should not render bulk actions bar when no rows are selected', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        bulkActions: ['delete', 'archive'] as any,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByTestId('bulk-actions-bar')).not.toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // pageSizeOptions dynamic integration
+  // ============================
+  describe('pageSizeOptions dynamic integration', () => {
+    it('should render page size selector as controlled component', async () => {
+      const mockItems = [
+        { _id: '1', name: 'Alice', email: 'alice@test.com' },
+        { _id: '2', name: 'Bob', email: 'bob@test.com' },
+      ];
+      mockDataSource.find.mockResolvedValue(mockItems);
+
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        pagination: { pageSize: 25, pageSizeOptions: [10, 25, 50] },
+      };
+
+      renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('page-size-selector')).toBeInTheDocument();
+      });
+
+      const selector = screen.getByTestId('page-size-selector');
+      expect(selector).toHaveValue('25');
     });
   });
 });
