@@ -494,7 +494,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] `useConfirmDialog` hook integration for cancel workflow
 
 **Testing:**
-- [x] 9 type tests (isValidAppName, wizardDraftToAppSchema, type shapes)
+- [x] 11 type tests (isValidAppName, wizardDraftToAppSchema, type shapes)
 - [x] 41 AppCreationWizard tests (rendering, steps 1-4, navigation, callbacks, cancel confirm, save draft, i18n, read-only)
 - [x] 33 NavigationDesigner tests (rendering, add, remove, groups, badges, i18n, read-only, icon editing, visibility toggle, export/import, responsive)
 - [x] 7 EditorModeToggle tests (render, active mode, onChange, accessibility, disabled)
@@ -502,7 +502,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] 23 PageCanvasEditor tests (rendering, add/remove components, property panel, read-only, mode tabs, undo/redo, export/import, preview mode)
 - [x] 12 ObjectViewConfigurator tests (rendering, view type switch, column visibility, toggles, read-only)
 - [x] 29 BrandingEditor tests (rendering, editing, light/dark preview, read-only, undo/redo, export/import, keyboard shortcuts, preview content)
-- [x] **Total: 235 tests across 10 files, all passing**
+- [x] **Total: 237 tests across 10 files, all passing**
 
 **ComponentRegistry:**
 - [x] Registered: `app-creation-wizard`, `navigation-designer`, `dashboard-editor`, `page-canvas-editor`, `object-view-configurator`, `branding-editor`
