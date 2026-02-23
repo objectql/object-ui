@@ -1210,7 +1210,29 @@ export interface ListViewSchema extends BaseSchema {
   
   /** View Type (grid, kanban, etc.) @default 'grid' */
   viewType?: 'grid' | 'kanban' | 'gallery' | 'calendar' | 'timeline' | 'gantt' | 'map';
-  
+
+  /**
+   * Data Source Configuration.
+   * Aligned with @objectstack/spec ViewDataSchema.
+   * Supports provider: 'object' (fetch from objectName), 'value' (inline items), 'api' (custom endpoint).
+   * If not provided, defaults to fetching from objectName via dataSource.find().
+   */
+  data?: ViewData;
+
+  /**
+   * Grouping Configuration (Airtable-style).
+   * Groups rows by specified fields with collapsible sections.
+   * Aligned with @objectstack/spec GroupingConfigSchema.
+   */
+  grouping?: GroupingConfig;
+
+  /**
+   * Row Color Configuration (Airtable-style).
+   * Colors rows based on field values.
+   * Aligned with @objectstack/spec RowColorConfigSchema.
+   */
+  rowColor?: RowColorConfig;
+
   /** Columns definition (string field names or full column config) */
   columns?: string[] | Array<{
     field: string;
@@ -1224,6 +1246,10 @@ export interface ListViewSchema extends BaseSchema {
     type?: string;
     link?: boolean;
     action?: string;
+    /** Pin column to left or right edge */
+    pinned?: 'left' | 'right';
+    /** Column footer summary/aggregation (e.g., 'count', 'sum', 'avg') */
+    summary?: string | { type: 'count' | 'sum' | 'avg' | 'min' | 'max'; field?: string };
   }>;
   
   /** Fields to fetch/display (alias for simple string[] columns) */
