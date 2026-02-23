@@ -267,6 +267,7 @@ const ko = {
       systemTheme: '시스템 테마',
       actions: '작업',
       openFullSearch: '전체 검색 페이지 열기',
+      createApp: '새 앱 만들기',
     },
     errors: {
       somethingWentWrong: '문제가 발생했습니다',

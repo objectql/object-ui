@@ -267,6 +267,7 @@ const ja = {
       systemTheme: 'システムテーマ',
       actions: 'アクション',
       openFullSearch: '完全な検索ページを開く',
+      createApp: '新しいアプリを作成',
     },
     errors: {
       somethingWentWrong: '問題が発生しました',

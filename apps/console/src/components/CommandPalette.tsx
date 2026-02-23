@@ -28,6 +28,7 @@ import {
   Sun,
   Monitor,
   Search,
+  Plus,
 } from 'lucide-react';
 import { useTheme } from './theme-provider';
 import { useExpressionContext, evaluateVisibility } from '../context/ExpressionProvider';
@@ -212,6 +213,13 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
         {/* Full Search Page */}
         <CommandSeparator />
         <CommandGroup heading={t('console.commandPalette.actions')}>
+          <CommandItem
+            value="create new app application"
+            onSelect={() => runCommand(() => navigate(`${baseUrl}/create-app`))}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            <span>{t('console.commandPalette.createApp')}</span>
+          </CommandItem>
           <CommandItem
             value="search all results full page"
             onSelect={() => runCommand(() => navigate(`${baseUrl}/search`))}

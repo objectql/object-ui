@@ -272,6 +272,7 @@ const zh = {
       systemTheme: '系统主题',
       actions: '操作',
       openFullSearch: '打开完整搜索页面',
+      createApp: '创建新应用',
     },
     errors: {
       somethingWentWrong: '出错了',

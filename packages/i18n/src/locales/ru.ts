@@ -267,6 +267,7 @@ const ru = {
       systemTheme: 'Системная тема',
       actions: 'Действия',
       openFullSearch: 'Открыть полную страницу поиска',
+      createApp: 'Создать новое приложение',
     },
     errors: {
       somethingWentWrong: 'Что-то пошло не так',

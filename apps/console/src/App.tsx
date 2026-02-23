@@ -30,6 +30,10 @@ const ReportView = lazy(() => import('./components/ReportView').then(m => ({ def
 const ViewDesignerPage = lazy(() => import('./components/ViewDesignerPage').then(m => ({ default: m.ViewDesignerPage })));
 const SearchResultsPage = lazy(() => import('./components/SearchResultsPage').then(m => ({ default: m.SearchResultsPage })));
 
+// App Creation / Edit Pages (lazy — only needed during app management)
+const CreateAppPage = lazy(() => import('./pages/CreateAppPage').then(m => ({ default: m.CreateAppPage })));
+const EditAppPage = lazy(() => import('./pages/EditAppPage').then(m => ({ default: m.EditAppPage })));
+
 // Auth Pages (lazy — only needed before login)
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
@@ -250,6 +254,14 @@ export function AppContent() {
     <div className="h-screen flex items-center justify-center">
       <Empty>
         <EmptyTitle>No Apps Configured</EmptyTitle>
+        <EmptyDescription>No applications have been registered.</EmptyDescription>
+        <button
+          className="mt-4 inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          onClick={() => navigate('/apps/_/create-app')}
+          data-testid="create-first-app-btn"
+        >
+          Create Your First App
+        </button>
       </Empty>
     </div>
   );
@@ -331,6 +343,10 @@ export function AppContent() {
             <SearchResultsPage />
         } />
 
+        {/* App Creation & Editing */}
+        <Route path="create-app" element={<CreateAppPage />} />
+        <Route path="edit-app/:editAppName" element={<EditAppPage />} />
+
         {/* System Administration Routes */}
         <Route path="system/users" element={<UserManagementPage />} />
         <Route path="system/organizations" element={<OrgManagementPage />} />
@@ -402,6 +418,7 @@ function findFirstRoute(items: any[]): string {
 // Redirect root to default app
 function RootRedirect() {
     const { apps, loading, error } = useMetadata();
+    const navigate = useNavigate();
     const activeApps = apps.filter((a: any) => a.active !== false);
     const defaultApp = activeApps.find((a: any) => a.isDefault === true) || activeApps[0];
     
@@ -416,6 +433,15 @@ function RootRedirect() {
           <EmptyDescription>
             {error ? error.message : 'No applications have been registered. Check your ObjectStack configuration.'}
           </EmptyDescription>
+          {!error && (
+            <button
+              className="mt-4 inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              onClick={() => navigate('/apps/_/create-app')}
+              data-testid="create-first-app-btn"
+            >
+              Create Your First App
+            </button>
+          )}
         </Empty>
       </div>
     );

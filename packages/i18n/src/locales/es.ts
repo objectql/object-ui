@@ -267,6 +267,7 @@ const es = {
       systemTheme: 'Tema del sistema',
       actions: 'Acciones',
       openFullSearch: 'Abrir página de búsqueda completa',
+      createApp: 'Crear nueva aplicación',
     },
     errors: {
       somethingWentWrong: 'Algo salió mal',

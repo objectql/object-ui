@@ -272,6 +272,7 @@ const en = {
       systemTheme: 'System Theme',
       actions: 'Actions',
       openFullSearch: 'Open Full Search Page',
+      createApp: 'Create New App',
     },
     errors: {
       somethingWentWrong: 'Something went wrong',

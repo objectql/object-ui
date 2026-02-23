@@ -47,6 +47,7 @@ import {
   Star,
   StarOff,
   Search,
+  Pencil,
 } from 'lucide-react';
 import { NavigationRenderer } from '@object-ui/layout';
 import type { NavigationItem } from '@object-ui/types';
@@ -299,11 +300,17 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="gap-2 p-2">
+                <DropdownMenuItem className="gap-2 p-2" onClick={() => navigate(`/apps/${activeAppName}/create-app`)} data-testid="add-app-btn">
                   <div className="flex size-6 items-center justify-center rounded-md border bg-background">
                     <Plus className="size-4" />
                   </div>
                   <div className="font-medium text-muted-foreground">Add App</div>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2 p-2" onClick={() => navigate(`/apps/${activeAppName}/edit-app/${activeAppName}`)} data-testid="edit-app-btn">
+                  <div className="flex size-6 items-center justify-center rounded-md border bg-background">
+                    <Pencil className="size-4" />
+                  </div>
+                  <div className="font-medium text-muted-foreground">Edit App</div>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
