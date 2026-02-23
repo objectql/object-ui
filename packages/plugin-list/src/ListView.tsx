@@ -731,6 +731,7 @@ export const ListView: React.FC<ListViewProps> = ({
           ...(groupingConfig ? { grouping: groupingConfig } : {}),
           ...(rowColorConfig ? { rowColor: rowColorConfig } : {}),
           ...(schema.rowActions ? { rowActions: schema.rowActions } : {}),
+          ...(schema.bulkActions ? { batchActions: schema.bulkActions } : {}),
           ...(schema.options?.grid || {}),
         };
       case 'kanban':
@@ -1447,12 +1448,13 @@ export const ListView: React.FC<ListViewProps> = ({
             {...props} 
             data={data}
             loading={loading}
+            onRowSelect={setSelectedRows}
           />
         )}
       </div>
 
-      {/* Bulk Actions Bar */}
-      {schema.bulkActions && schema.bulkActions.length > 0 && selectedRows.length > 0 && (
+      {/* Bulk Actions Bar — skip for grid view since ObjectGrid renders its own BulkActionBar */}
+      {schema.bulkActions && schema.bulkActions.length > 0 && selectedRows.length > 0 && currentView !== 'grid' && (
         <div
           className="border-t px-4 py-1.5 flex items-center gap-2 text-xs bg-primary/5 shrink-0"
           data-testid="bulk-actions-bar"
