@@ -35,8 +35,7 @@ vi.mock('../context/MetadataProvider', () => ({
 }));
 
 // Mock AdapterProvider
-const { mockUpdate } = vi.hoisted(() => ({ mockUpdate: vi.fn() }));
-mockUpdate.mockResolvedValue({});
+const { mockUpdate } = vi.hoisted(() => ({ mockUpdate: vi.fn().mockResolvedValue({}) }));
 vi.mock('../context/AdapterProvider', () => ({
   useAdapter: () => ({
     update: mockUpdate,
