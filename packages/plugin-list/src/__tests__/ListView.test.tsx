@@ -1105,6 +1105,52 @@ describe('ListView', () => {
       renderWithProvider(<ListView schema={schema} />);
       expect(screen.queryByTestId('add-record-button')).not.toBeInTheDocument();
     });
+
+    it('should hide add record button when userActions.addRecordForm is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        addRecord: { enabled: true },
+        userActions: { addRecordForm: false },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByTestId('add-record-button')).not.toBeInTheDocument();
+    });
+
+    it('should render add record button at bottom when position is bottom', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        addRecord: { enabled: true, position: 'bottom' },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      const btn = screen.getByTestId('add-record-button');
+      expect(btn).toBeInTheDocument();
+      // The bottom button is wrapped in a border-t div outside the toolbar
+      expect(btn.closest('div.border-t')).toBeTruthy();
+    });
+
+    it('should render add record button in toolbar when position is top', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        addRecord: { enabled: true, position: 'top' },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      const btn = screen.getByTestId('add-record-button');
+      expect(btn).toBeInTheDocument();
+      // The top button is inside the toolbar border-b div
+      expect(btn.closest('div.border-b')).toBeTruthy();
+    });
   });
 
   // ============================

@@ -100,6 +100,7 @@ const ru = {
   list: {
     recordCount: '{{count}} записей',
     recordCountOne: '{{count}} запись',
+    addRecord: 'Добавить запись',
   },
   kanban: {
     addCard: 'Добавить карточку',

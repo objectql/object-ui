@@ -100,6 +100,7 @@ const ja = {
   list: {
     recordCount: '{{count}} 件のレコード',
     recordCountOne: '{{count}} 件のレコード',
+    addRecord: 'レコードを追加',
   },
   kanban: {
     addCard: 'カードを追加',

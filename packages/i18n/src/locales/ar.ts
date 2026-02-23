@@ -101,6 +101,7 @@ const ar = {
   list: {
     recordCount: '{{count}} سجلات',
     recordCountOne: '{{count}} سجل',
+    addRecord: 'إضافة سجل',
   },
   kanban: {
     addCard: 'إضافة بطاقة',

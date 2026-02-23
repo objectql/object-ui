@@ -100,6 +100,7 @@ const en = {
   list: {
     recordCount: '{{count}} records',
     recordCountOne: '{{count}} record',
+    addRecord: 'Add record',
   },
   kanban: {
     addCard: 'Add card',

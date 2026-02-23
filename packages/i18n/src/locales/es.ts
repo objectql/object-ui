@@ -100,6 +100,7 @@ const es = {
   list: {
     recordCount: '{{count}} registros',
     recordCountOne: '{{count}} registro',
+    addRecord: 'Agregar registro',
   },
   kanban: {
     addCard: 'Añadir tarjeta',

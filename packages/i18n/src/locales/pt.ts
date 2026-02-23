@@ -100,6 +100,7 @@ const pt = {
   list: {
     recordCount: '{{count}} registros',
     recordCountOne: '{{count}} registro',
+    addRecord: 'Adicionar registro',
   },
   kanban: {
     addCard: 'Adicionar cartão',

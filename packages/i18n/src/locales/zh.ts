@@ -100,6 +100,7 @@ const zh = {
   list: {
     recordCount: '{{count}} 条记录',
     recordCountOne: '{{count}} 条记录',
+    addRecord: '添加记录',
   },
   kanban: {
     addCard: '添加卡片',

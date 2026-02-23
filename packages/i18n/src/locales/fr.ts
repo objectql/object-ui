@@ -100,6 +100,7 @@ const fr = {
   list: {
     recordCount: '{{count}} enregistrements',
     recordCountOne: '{{count}} enregistrement',
+    addRecord: 'Ajouter un enregistrement',
   },
   kanban: {
     addCard: 'Ajouter une carte',

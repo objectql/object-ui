@@ -100,6 +100,7 @@ const de = {
   list: {
     recordCount: '{{count}} Datensätze',
     recordCountOne: '{{count}} Datensatz',
+    addRecord: 'Datensatz hinzufügen',
   },
   kanban: {
     addCard: 'Karte hinzufügen',

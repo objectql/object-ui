@@ -100,6 +100,7 @@ const ko = {
   list: {
     recordCount: '{{count}}개 레코드',
     recordCountOne: '{{count}}개 레코드',
+    addRecord: '레코드 추가',
   },
   kanban: {
     addCard: '카드 추가',
