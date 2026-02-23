@@ -56,9 +56,15 @@ export type {
   NavigationItem,
   NavigationItemType,
   NavigationArea,
-  MenuItem as AppMenuItem
+  MenuItem as AppMenuItem,
+  AppWizardStepId,
+  AppWizardStep,
+  BrandingConfig,
+  ObjectSelection,
+  AppWizardDraft,
+  EditorMode,
 } from './app';
-export { menuItemToNavigationItem } from './app';
+export { menuItemToNavigationItem, isValidAppName, wizardDraftToAppSchema } from './app';
 
 // ============================================================================
 // Base Types - The Foundation

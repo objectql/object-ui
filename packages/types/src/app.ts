@@ -344,6 +344,130 @@ export function menuItemToNavigationItem(
 }
 
 // ============================================================================
+// App Creation Wizard Types
+// ============================================================================
+
+/**
+ * Wizard step identifier for app creation flow.
+ */
+export type AppWizardStepId = 'basic' | 'objects' | 'navigation' | 'branding';
+
+/**
+ * App wizard step definition.
+ */
+export interface AppWizardStep {
+  /** Step identifier */
+  id: AppWizardStepId;
+
+  /** Display label */
+  label: string;
+
+  /** Step description */
+  description?: string;
+
+  /** Icon name (Lucide) */
+  icon?: string;
+
+  /** Whether the step is optional */
+  optional?: boolean;
+}
+
+/**
+ * Branding configuration for an application.
+ */
+export interface BrandingConfig {
+  /** Logo URL or base64 data URI */
+  logo?: string;
+
+  /** Primary brand color (hex) */
+  primaryColor?: string;
+
+  /** Favicon URL */
+  favicon?: string;
+
+  /** Font family override */
+  fontFamily?: string;
+}
+
+/**
+ * Object selection entry for the wizard.
+ */
+export interface ObjectSelection {
+  /** Object name (snake_case) */
+  name: string;
+
+  /** Display label */
+  label: string;
+
+  /** Icon name (Lucide) */
+  icon?: string;
+
+  /** Whether this object is selected */
+  selected: boolean;
+}
+
+/**
+ * App creation wizard draft state — represents the in-progress
+ * application configuration before it is finalized into an AppSchema.
+ */
+export interface AppWizardDraft {
+  /** App name (snake_case, validated) */
+  name: string;
+
+  /** Display title */
+  title: string;
+
+  /** Description */
+  description?: string;
+
+  /** App icon name (Lucide) */
+  icon?: string;
+
+  /** Template to start from */
+  template?: string;
+
+  /** Layout strategy */
+  layout: 'sidebar' | 'header' | 'empty';
+
+  /** Selected business objects */
+  objects: ObjectSelection[];
+
+  /** Navigation tree being built */
+  navigation: NavigationItem[];
+
+  /** Branding configuration */
+  branding: BrandingConfig;
+}
+
+/**
+ * Editor mode for the app designer.
+ */
+export type EditorMode = 'edit' | 'preview' | 'code';
+
+/**
+ * Validate an app name is snake_case.
+ */
+export function isValidAppName(name: string): boolean {
+  return /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/.test(name);
+}
+
+/**
+ * Convert an AppWizardDraft to an AppSchema.
+ */
+export function wizardDraftToAppSchema(draft: AppWizardDraft): AppSchema {
+  return {
+    type: 'app',
+    name: draft.name,
+    title: draft.title,
+    description: draft.description,
+    logo: draft.branding.logo,
+    favicon: draft.branding.favicon,
+    layout: draft.layout,
+    navigation: draft.navigation,
+  };
+}
+
+// ============================================================================
 // Application Actions
 // ============================================================================
 

@@ -13,6 +13,7 @@ import { ProcessDesigner } from './ProcessDesigner';
 import { ReportDesigner } from './ReportDesigner';
 import { CollaborationProvider, ConnectionStatusIndicator } from './CollaborationProvider';
 import { ViewDesigner } from './ViewDesigner';
+import { AppCreationWizard } from './AppCreationWizard';
 
 export {
   PageDesigner,
@@ -22,9 +23,11 @@ export {
   CollaborationProvider,
   ConnectionStatusIndicator,
   ViewDesigner,
+  AppCreationWizard,
 };
 
 export type { ViewDesignerProps, ViewDesignerConfig } from './ViewDesigner';
+export type { AppCreationWizardProps } from './AppCreationWizard';
 
 // Shared hooks
 export { useUndoRedo } from './hooks/useUndoRedo';
@@ -121,6 +124,21 @@ ComponentRegistry.register(
       { name: 'viewId', type: 'string', label: 'View ID' },
       { name: 'viewLabel', type: 'string', label: 'View Label' },
       { name: 'viewType', type: 'string', label: 'View Type', defaultValue: 'grid' },
+      { name: 'readOnly', type: 'boolean', label: 'Read Only', defaultValue: false },
+    ],
+  }
+);
+
+// Register app creation wizard component
+ComponentRegistry.register(
+  'app-creation-wizard',
+  AppCreationWizard,
+  {
+    label: 'App Creation Wizard',
+    category: 'Designer',
+    inputs: [
+      { name: 'availableObjects', type: 'code', label: 'Available Objects' },
+      { name: 'templates', type: 'code', label: 'Templates' },
       { name: 'readOnly', type: 'boolean', label: 'Read Only', defaultValue: false },
     ],
   }
