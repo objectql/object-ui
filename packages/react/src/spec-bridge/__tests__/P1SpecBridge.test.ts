@@ -670,4 +670,100 @@ describe('P1 SpecBridge Protocol Alignment', () => {
       expect(regions[1].width).toBe('large');
     });
   });
+
+  // ========================================================================
+  // QuickFilters Bridge Normalization
+  // ========================================================================
+  describe('quickFilters bridge normalization', () => {
+    it('should normalize spec format { field, operator, value } in bridge', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'contacts',
+        quickFilters: [
+          { field: 'status', operator: 'eq', value: 'active', label: 'Active' },
+        ],
+      });
+
+      expect(node.quickFilters).toHaveLength(1);
+      const qf = (node.quickFilters as any[])[0];
+      expect(qf.id).toBe('status-eq-active');
+      expect(qf.label).toBe('Active');
+      expect(qf.filters).toEqual([['status', '=', 'active']]);
+    });
+
+    it('should pass through ObjectUI format { id, label, filters[] } unchanged', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'contacts',
+        quickFilters: [
+          { id: 'active', label: 'Active', filters: [['status', '=', 'active']] },
+        ],
+      });
+
+      expect(node.quickFilters).toHaveLength(1);
+      const qf = (node.quickFilters as any[])[0];
+      expect(qf.id).toBe('active');
+      expect(qf.label).toBe('Active');
+      expect(qf.filters).toEqual([['status', '=', 'active']]);
+    });
+
+    it('should normalize mixed format arrays in bridge', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'contacts',
+        quickFilters: [
+          { id: 'vip', label: 'VIP', filters: [['vip', '=', true]] },
+          { field: 'priority', operator: 'gt', value: 5, label: 'High Priority' },
+        ],
+      });
+
+      expect(node.quickFilters).toHaveLength(2);
+      const [qf1, qf2] = node.quickFilters as any[];
+      expect(qf1.id).toBe('vip');
+      expect(qf2.id).toBe('priority-gt-5');
+      expect(qf2.filters).toEqual([['priority', '>', 5]]);
+    });
+
+    it('should auto-generate label when omitted in spec format', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'contacts',
+        quickFilters: [
+          { field: 'status', operator: 'eq', value: 'active' },
+        ],
+      });
+
+      const qf = (node.quickFilters as any[])[0];
+      expect(qf.label).toBe('status eq active');
+    });
+
+    it('should handle null value in spec format', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'contacts',
+        quickFilters: [
+          { field: 'archived', operator: 'eq', value: null, label: 'Not Archived' },
+        ],
+      });
+
+      const qf = (node.quickFilters as any[])[0];
+      expect(qf.id).toBe('archived-eq-');
+      expect(qf.label).toBe('Not Archived');
+      expect(qf.filters).toEqual([['archived', '=', null]]);
+    });
+
+    it('should preserve defaultActive and icon from spec format', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'contacts',
+        quickFilters: [
+          { field: 'status', operator: 'eq', value: 'active', label: 'Active', icon: 'check', defaultActive: true },
+        ],
+      });
+
+      const qf = (node.quickFilters as any[])[0];
+      expect(qf.icon).toBe('check');
+      expect(qf.defaultActive).toBe(true);
+    });
+  });
 });

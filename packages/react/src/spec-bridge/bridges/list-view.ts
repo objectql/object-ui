@@ -7,6 +7,7 @@
  */
 
 import type { SchemaNode } from '@object-ui/core';
+import { normalizeQuickFilters } from '@object-ui/core';
 import type { BridgeContext, BridgeFn } from '../types';
 
 interface ListColumn {
@@ -136,7 +137,9 @@ export const bridgeListView: BridgeFn<ListViewSpec> = (
   if (spec.rowColor) node.rowColor = spec.rowColor;
   if (spec.searchableFields) node.searchableFields = spec.searchableFields;
   if (spec.filterableFields) node.filterableFields = spec.filterableFields;
-  if (spec.quickFilters) node.quickFilters = spec.quickFilters;
+  // Normalize quickFilters: spec format { field, operator, value } → ObjectUI format
+  const normalizedQF = normalizeQuickFilters(spec.quickFilters);
+  if (normalizedQF) node.quickFilters = normalizedQF;
   if (spec.resizable != null) node.resizable = spec.resizable;
   if (spec.striped != null) node.striped = spec.striped;
   if (spec.bordered != null) node.bordered = spec.bordered;

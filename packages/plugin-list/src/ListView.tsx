@@ -17,7 +17,7 @@ import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { ExpressionEvaluator } from '@object-ui/core';
+import { ExpressionEvaluator, normalizeQuickFilters } from '@object-ui/core';
 import { useObjectTranslation } from '@object-ui/i18n';
 
 export interface ListViewProps {
@@ -393,25 +393,10 @@ export const ListView: React.FC<ListViewProps> = ({
 
   // Normalize quickFilters: support both ObjectUI format { id, label, filters[] }
   // and spec format { field, operator, value }. Spec items are auto-converted.
-  const normalizedQuickFilters = React.useMemo(() => {
-    if (!schema.quickFilters || schema.quickFilters.length === 0) return undefined;
-    return schema.quickFilters.map((qf: any) => {
-      // Already in ObjectUI format (has id + label + filters)
-      if (qf.id && qf.label && Array.isArray(qf.filters)) return qf;
-      // Spec format: { field, operator, value } → convert to ObjectUI format
-      if (qf.field && qf.operator) {
-        const op = mapOperator(qf.operator);
-        return {
-          id: `${qf.field}-${qf.operator}-${String(qf.value ?? '')}`,
-          label: qf.label || `${qf.field} ${qf.operator} ${String(qf.value ?? '')}`,
-          filters: [[qf.field, op, qf.value]],
-          icon: qf.icon,
-          defaultActive: qf.defaultActive,
-        };
-      }
-      return qf;
-    });
-  }, [schema.quickFilters]);
+  const normalizedQuickFilters = React.useMemo(
+    () => normalizeQuickFilters(schema.quickFilters as any[]),
+    [schema.quickFilters],
+  );
 
   // Normalize exportOptions: support both ObjectUI object format and spec string[] format
   const resolvedExportOptions = React.useMemo(() => {
