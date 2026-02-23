@@ -491,9 +491,11 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] CommandPalette "Create New App" command (⌘+K → Actions group)
 - [x] Empty state CTA "Create Your First App" when no apps configured
 - [x] `wizardDraftToAppSchema()` conversion on completion
+- [x] `client.meta.saveItem('app', name, schema)` — persists app metadata to backend on create/edit
+- [x] MSW PUT handler for `/meta/:type/:name` — dev/mock mode metadata persistence
 - [x] Draft persistence to localStorage with auto-clear on success
 - [x] `createApp` i18n key added to all 10 locales
-- [x] 11 console integration tests (routes, wizard callbacks, draft persistence, CommandPalette)
+- [x] 13 console integration tests (routes, wizard callbacks, draft persistence, saveItem, CommandPalette)
 
 ---
 
