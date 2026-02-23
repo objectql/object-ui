@@ -222,6 +222,8 @@ describe('BrandingEditor', () => {
     it('should not update on palette swatch click when readOnly', () => {
       const onChange = vi.fn();
       render(<BrandingEditor branding={EMPTY_BRANDING} onChange={onChange} readOnly />);
+      // Clear initial useEffect call
+      onChange.mockClear();
       fireEvent.click(screen.getByTestId('branding-swatch-ef4444'));
       expect(onChange).not.toHaveBeenCalled();
     });
@@ -302,8 +304,8 @@ describe('BrandingEditor', () => {
         key: 'z',
         ctrlKey: true,
       });
-      // Should have called onChange twice (once for edit, once for undo)
-      expect(onChange).toHaveBeenCalledTimes(1);
+      // Should have called onChange twice (once for edit, once for undo via useEffect)
+      expect(onChange).toHaveBeenCalledTimes(2);
     });
   });
 

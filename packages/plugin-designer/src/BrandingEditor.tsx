@@ -17,7 +17,7 @@
  * Outputs to BrandingConfig (AppSchema.branding) and ThemeSchema protocol.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import type { BrandingConfig } from '@object-ui/types';
 import {
   Download,
@@ -115,23 +115,30 @@ export function BrandingEditor({
   const [previewMode, setPreviewMode] = useState<'light' | 'dark'>('light');
   const { current: branding, push, canUndo, canRedo, undo, redo } = useUndoRedo(initialBranding);
 
+  // Flag to skip onChange when updateBranding already called it
+  const skipOnChangeRef = useRef(true); // Start true to skip initial render
+
+  // Sync undo/redo state changes back to parent
+  useEffect(() => {
+    if (skipOnChangeRef.current) {
+      skipOnChangeRef.current = false;
+      return;
+    }
+    // On undo/redo the current state changes without going through updateBranding
+    onChange(branding);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branding]);
+
   // Sync changes to parent
   const updateBranding = useCallback(
     (partial: Partial<BrandingConfig>) => {
       const next = { ...branding, ...partial };
+      skipOnChangeRef.current = true;
       push(next);
       onChange(next);
     },
     [branding, push, onChange],
   );
-
-  const handleUndo = useCallback(() => {
-    undo();
-  }, [undo]);
-
-  const handleRedo = useCallback(() => {
-    redo();
-  }, [redo]);
 
   // Export JSON
   const handleExport = useCallback(() => {
@@ -186,17 +193,17 @@ export function BrandingEditor({
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
-          handleRedo();
+          redo();
         } else {
-          handleUndo();
+          undo();
         }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
         e.preventDefault();
-        handleRedo();
+        redo();
       }
     },
-    [readOnly, handleUndo, handleRedo],
+    [readOnly, undo, redo],
   );
 
   const primaryColor = branding.primaryColor || '#3b82f6';
@@ -222,7 +229,7 @@ export function BrandingEditor({
         <button
           data-testid="branding-undo"
           type="button"
-          onClick={handleUndo}
+          onClick={undo}
           disabled={!canUndo || readOnly}
           className={cn(
             'inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium shadow-sm transition-colors',
@@ -239,7 +246,7 @@ export function BrandingEditor({
         <button
           data-testid="branding-redo"
           type="button"
-          onClick={handleRedo}
+          onClick={redo}
           disabled={!canRedo || readOnly}
           className={cn(
             'inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium shadow-sm transition-colors',
