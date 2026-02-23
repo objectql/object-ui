@@ -135,9 +135,9 @@ describe('Row height label display', () => {
         expect(screen.getByText('Name')).toBeInTheDocument();
       });
 
-      // The label text (capitalized) should be visible in the toggle
+      // The label text is rendered as-is in the DOM (CSS `capitalize` handles visual casing)
       const toggle = screen.getByTitle(`Row height: ${height}`);
-      expect(toggle).toHaveTextContent(new RegExp(height, 'i'));
+      expect(toggle).toHaveTextContent(height);
     });
   });
 });

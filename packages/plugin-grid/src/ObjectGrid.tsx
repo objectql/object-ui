@@ -1060,10 +1060,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     });
   };
 
-  const RowHeightIcon = rowHeightMode === 'compact' ? Rows4
-    : rowHeightMode === 'short' ? Rows3
-    : rowHeightMode === 'medium' ? Rows2
-    : AlignJustify;
+  const rowHeightIcons = { compact: Rows4, short: Rows3, medium: Rows2, tall: AlignJustify, extra_tall: AlignJustify };
+  const RowHeightIcon = rowHeightIcons[rowHeightMode];
 
   // Grid toolbar (row height toggle + export)
   const showRowHeightToggle = schema.rowHeight !== undefined;
