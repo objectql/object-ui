@@ -13,8 +13,10 @@ import { MetricWidget } from './MetricWidget';
 import { MetricCard } from './MetricCard';
 import { PivotTable } from './PivotTable';
 import { DashboardConfigPanel } from './DashboardConfigPanel';
+import { WidgetConfigPanel } from './WidgetConfigPanel';
+import { DashboardWithConfig } from './DashboardWithConfig';
 
-export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, PivotTable, DashboardConfigPanel };
+export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, PivotTable, DashboardConfigPanel, WidgetConfigPanel, DashboardWithConfig };
 
 // Register dashboard component
 ComponentRegistry.register(
@@ -144,4 +146,6 @@ export const dashboardComponents = {
   MetricCard,
   PivotTable,
   DashboardConfigPanel,
+  WidgetConfigPanel,
+  DashboardWithConfig,
 };
