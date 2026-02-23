@@ -172,6 +172,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Console integration: Drag reorder upgrade — replace HTML5 DnD with `@dnd-kit` via `NavigationRenderer`
 - [x] Console integration: Navigation pin — `useNavPins` hook + `NavigationRenderer` `enablePinning`/`onPinToggle`
 - [x] Console integration: `AppSchemaRenderer` slot system — `sidebarHeader`, `sidebarExtra`, `sidebarFooter` slots for Console customization
+- [x] Navigation Sync Service — `useNavigationSync` hook auto-syncs App navigation tree on Page/Dashboard CRUD (create, delete, rename) with toast + undo
 
 ### P1.8 Console — View Config Panel (Phase 20)
 
