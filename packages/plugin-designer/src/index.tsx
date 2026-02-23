@@ -19,6 +19,7 @@ import { EditorModeToggle } from './EditorModeToggle';
 import { DashboardEditor } from './DashboardEditor';
 import { PageCanvasEditor } from './PageCanvasEditor';
 import { ObjectViewConfigurator } from './ObjectViewConfigurator';
+import { BrandingEditor } from './BrandingEditor';
 
 export {
   PageDesigner,
@@ -34,6 +35,7 @@ export {
   DashboardEditor,
   PageCanvasEditor,
   ObjectViewConfigurator,
+  BrandingEditor,
 };
 
 export type { ViewDesignerProps, ViewDesignerConfig } from './ViewDesigner';
@@ -43,6 +45,7 @@ export type { EditorModeToggleProps } from './EditorModeToggle';
 export type { DashboardEditorProps } from './DashboardEditor';
 export type { PageCanvasEditorProps, CanvasComponent } from './PageCanvasEditor';
 export type { ObjectViewConfiguratorProps, ViewConfig, ViewColumn, ViewType } from './ObjectViewConfigurator';
+export type { BrandingEditorProps } from './BrandingEditor';
 
 // Shared hooks
 export { useUndoRedo } from './hooks/useUndoRedo';
@@ -211,6 +214,21 @@ ComponentRegistry.register(
     category: 'Designer',
     inputs: [
       { name: 'config', type: 'code', label: 'View Config' },
+      { name: 'readOnly', type: 'boolean', label: 'Read Only', defaultValue: false },
+    ],
+  }
+);
+
+// Register branding editor component
+ComponentRegistry.register(
+  'branding-editor',
+  BrandingEditor,
+  {
+    label: 'Branding Editor',
+    category: 'Designer',
+    inputs: [
+      { name: 'branding', type: 'code', label: 'Branding Config' },
+      { name: 'appTitle', type: 'string', label: 'App Title' },
       { name: 'readOnly', type: 'boolean', label: 'Read Only', defaultValue: false },
     ],
   }

@@ -116,6 +116,19 @@ const DESIGNER_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // Shared editor actions
   'appDesigner.undo': 'Undo',
   'appDesigner.redo': 'Redo',
+  // Branding Editor
+  'appDesigner.brandingEditor': 'Branding Editor',
+  'appDesigner.brandingExport': 'Export JSON',
+  'appDesigner.brandingImport': 'Import JSON',
+  'appDesigner.brandingPreview': 'Preview',
+  'appDesigner.brandingSampleButton': 'Sample Button',
+  'appDesigner.brandingSampleText': 'This is how your brand theme will look.',
+  'appDesigner.colorPalette': 'Color Palette',
+  'appDesigner.fontFamily': 'Font Family',
+  'appDesigner.fontDefault': 'Default (System)',
+  'appDesigner.modeLight': 'Light',
+  'appDesigner.modeDark': 'Dark',
+  'appDesigner.mobilePreview': 'Mobile Preview',
 };
 
 function createFallbackTranslator(defaults: Record<string, string>) {
