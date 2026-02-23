@@ -207,6 +207,49 @@ export interface SpecQuickFilterItem {
  */
 export type QuickFilterItem = ObjectUIQuickFilterItem | SpecQuickFilterItem;
 
+// ============================================================================
+// ConditionalFormatting Types — Dual-format support
+// ============================================================================
+
+/**
+ * ObjectUI-native ConditionalFormatting rule.
+ * Uses field/operator/value for declarative comparisons.
+ */
+export interface ObjectUIConditionalFormattingRule {
+  /** Field name to evaluate */
+  field: string;
+  /** Comparison operator */
+  operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'in';
+  /** Value to compare against */
+  value: unknown;
+  /** CSS-compatible background color */
+  backgroundColor?: string;
+  /** CSS-compatible text color */
+  textColor?: string;
+  /** CSS-compatible border color */
+  borderColor?: string;
+  /** Template expression override (e.g., '${data.amount > 1000}') */
+  expression?: string;
+}
+
+/**
+ * Spec-format ConditionalFormatting rule (from @objectstack/spec).
+ * Uses a plain expression string with a style map.
+ * Automatically evaluated at runtime via ExpressionEvaluator.
+ */
+export interface SpecConditionalFormattingRule {
+  /** Plain condition expression (e.g., "status == 'overdue'") or template expression (e.g., "${data.amount > 1000}") */
+  condition: string;
+  /** Style map to apply when condition matches (e.g., { backgroundColor: '#fee2e2', color: '#991b1b' }) */
+  style: Record<string, string>;
+}
+
+/**
+ * Union type for ConditionalFormatting rules — accepts both ObjectUI and Spec formats.
+ * Rules are evaluated in order; first matching rule wins.
+ */
+export type ConditionalFormattingRule = ObjectUIConditionalFormattingRule | SpecConditionalFormattingRule;
+
 /**
  * ObjectGrid Schema
  * A specialized grid component that automatically fetches and displays data from ObjectQL objects.
@@ -525,14 +568,9 @@ export interface ObjectGridSchema extends BaseSchema {
   /**
    * Conditional formatting rules for row/cell styling.
    * Aligned with @objectstack/spec ListViewSchema.conditionalFormatting.
-   * Uses expression-based conditions with style maps.
+   * Supports both ObjectUI field/operator/value rules and Spec expression-based { condition, style } rules.
    */
-  conditionalFormatting?: Array<{
-    /** Expression-based condition (e.g., '${data.amount > 1000}') */
-    condition: string;
-    /** Style map (e.g., { backgroundColor: '#fee2e2', textColor: '#991b1b' }) */
-    style: Record<string, string>;
-  }>;
+  conditionalFormatting?: ConditionalFormattingRule[];
 
   /**
    * Enable virtual scrolling for large datasets.
@@ -1193,16 +1231,9 @@ export interface NamedListView {
     formView?: string;
   };
 
-  /** Conditional formatting rules */
-  conditionalFormatting?: Array<{
-    field: string;
-    operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'in';
-    value: unknown;
-    backgroundColor?: string;
-    textColor?: string;
-    borderColor?: string;
-    expression?: string;
-  }>;
+  /** Conditional formatting rules.
+   * Supports both ObjectUI field/operator/value rules and Spec expression-based { condition, style } rules. */
+  conditionalFormatting?: ConditionalFormattingRule[];
 
   /** Quick filter buttons for predefined filter presets.
    * Supports both ObjectUI format and Spec format (auto-converted at runtime). */
@@ -1491,26 +1522,7 @@ export interface ListViewSchema extends BaseSchema {
    * Rules are evaluated in order; first matching rule wins.
    * Supports both ObjectUI field/operator/value rules and spec expression-based { condition, style } rules.
    */
-  conditionalFormatting?: Array<{
-    /** Field to evaluate (ObjectUI format) */
-    field?: string;
-    /** Comparison operator (ObjectUI format) */
-    operator?: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'in';
-    /** Value to compare against (ObjectUI format) */
-    value?: unknown;
-    /** CSS-compatible background color (e.g., '#fee2e2', 'rgb(254,226,226)') */
-    backgroundColor?: string;
-    /** CSS-compatible text color */
-    textColor?: string;
-    /** CSS-compatible border color */
-    borderColor?: string;
-    /** Expression-based condition (e.g., '${data.amount > 1000 && data.status === "urgent"}'). Overrides field/operator/value when provided. */
-    expression?: string;
-    /** Spec expression-based condition string (alias for expression) */
-    condition?: string;
-    /** Spec style object (e.g., { backgroundColor: '#fee2e2', color: '#991b1b' }) */
-    style?: Record<string, string>;
-  }>;
+  conditionalFormatting?: ConditionalFormattingRule[];
 
   /**
    * Enable inline editing for list view fields.

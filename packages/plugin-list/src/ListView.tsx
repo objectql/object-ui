@@ -19,7 +19,7 @@ import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { ExpressionEvaluator, normalizeQuickFilters } from '@object-ui/core';
+import { evaluatePlainCondition, normalizeQuickFilters } from '@object-ui/core';
 import { useObjectTranslation } from '@object-ui/i18n';
 
 export interface ListViewProps {
@@ -139,29 +139,17 @@ export function evaluateConditionalFormatting(
   for (const rule of rules) {
     let match = false;
 
-    // Normalize: spec uses 'condition' as alias for 'expression'
-    const expression = rule.expression || rule.condition;
+    // Determine expression: spec uses 'condition', ObjectUI uses 'expression'
+    const expression = ('condition' in rule && rule.condition)
+      || ('expression' in rule && rule.expression);
 
-    // Expression-based evaluation (L2 feature) using safe ExpressionEvaluator
+    // Expression-based evaluation using safe ExpressionEvaluator
     // Supports both template expressions (${data.field > value}) and
     // plain Spec expressions (field == 'value').
     if (expression) {
-      try {
-        // Spread record fields directly into context so both plain field
-        // references (status) and namespaced references (data.status) work.
-        // `data` is set after the spread to prevent collision if record
-        // contains a 'data' property.
-        const evaluator = new ExpressionEvaluator({ ...record, data: record });
-        const isTemplate = /\$\{/.test(expression);
-        const result = isTemplate
-          ? evaluator.evaluate(expression, { throwOnError: true })
-          : evaluator.evaluateExpression(expression);
-        match = result === true;
-      } catch {
-        match = false;
-      }
-    } else if (rule.field && rule.operator) {
-      // Standard field/operator/value evaluation
+      match = evaluatePlainCondition(expression, record as Record<string, any>);
+    } else if ('field' in rule && 'operator' in rule && rule.field && rule.operator) {
+      // Standard field/operator/value evaluation (ObjectUI format)
       const fieldValue = record[rule.field];
       switch (rule.operator) {
         case 'equals':
@@ -188,10 +176,10 @@ export function evaluateConditionalFormatting(
     if (match) {
       // Build style: spec 'style' object is base, individual properties override
       const style: React.CSSProperties = {};
-      if (rule.style) Object.assign(style, rule.style);
-      if (rule.backgroundColor) style.backgroundColor = rule.backgroundColor;
-      if (rule.textColor) style.color = rule.textColor;
-      if (rule.borderColor) style.borderColor = rule.borderColor;
+      if ('style' in rule && rule.style) Object.assign(style, rule.style);
+      if ('backgroundColor' in rule && rule.backgroundColor) style.backgroundColor = rule.backgroundColor;
+      if ('textColor' in rule && rule.textColor) style.color = rule.textColor;
+      if ('borderColor' in rule && rule.borderColor) style.borderColor = rule.borderColor;
       return style;
     }
   }

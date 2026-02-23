@@ -291,3 +291,25 @@ export function evaluateCondition(
   const evaluator = new ExpressionEvaluator(context, globalCache, globalFormulas);
   return evaluator.evaluateCondition(condition);
 }
+
+/**
+ * Convenience function to evaluate a plain condition string against a data record.
+ * Supports both template expressions (e.g., '${data.amount > 1000}') and
+ * plain expressions (e.g., "status == 'overdue'").
+ * Record fields are available both directly (status) and namespaced (data.status).
+ */
+export function evaluatePlainCondition(
+  condition: string,
+  record: Record<string, any>
+): boolean {
+  const evaluator = new ExpressionEvaluator({ ...record, data: record }, globalCache, globalFormulas);
+  try {
+    const isTemplate = /\$\{/.test(condition);
+    const result = isTemplate
+      ? evaluator.evaluate(condition, { throwOnError: true })
+      : evaluator.evaluateExpression(condition);
+    return result === true;
+  } catch {
+    return false;
+  }
+}

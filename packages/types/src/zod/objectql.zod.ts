@@ -320,15 +320,21 @@ export const ListViewSchema = BaseSchema.extend({
     mode: z.string().optional(),
     formView: z.string().optional(),
   }).optional().describe('Add record configuration'),
-  conditionalFormatting: z.array(z.object({
-    field: z.string(),
-    operator: z.enum(['equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'in']),
-    value: z.any(),
-    backgroundColor: z.string().optional(),
-    textColor: z.string().optional(),
-    borderColor: z.string().optional(),
-    expression: z.string().optional(),
-  })).optional().describe('Conditional formatting rules'),
+  conditionalFormatting: z.array(z.union([
+    z.object({
+      field: z.string(),
+      operator: z.enum(['equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'in']),
+      value: z.any(),
+      backgroundColor: z.string().optional(),
+      textColor: z.string().optional(),
+      borderColor: z.string().optional(),
+      expression: z.string().optional(),
+    }),
+    z.object({
+      condition: z.string(),
+      style: z.record(z.string(), z.string()),
+    }),
+  ])).optional().describe('Conditional formatting rules'),
   quickFilters: z.array(z.object({
     id: z.string(),
     label: z.string(),

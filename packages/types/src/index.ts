@@ -304,6 +304,10 @@ export type {
   ObjectUIQuickFilterItem,
   SpecQuickFilterItem,
   QuickFilterItem,
+  // ConditionalFormatting dual-format types
+  ObjectUIConditionalFormattingRule,
+  SpecConditionalFormattingRule,
+  ConditionalFormattingRule,
   // Component schemas
   ObjectMapSchema,
   ObjectGanttSchema,

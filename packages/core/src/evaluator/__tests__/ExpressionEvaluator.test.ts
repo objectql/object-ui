@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { ExpressionEvaluator, evaluateExpression, evaluateCondition } from '../ExpressionEvaluator';
+import { ExpressionEvaluator, evaluateExpression, evaluateCondition, evaluatePlainCondition } from '../ExpressionEvaluator';
 import { ExpressionContext } from '../ExpressionContext';
 
 describe('ExpressionContext', () => {
@@ -97,5 +97,35 @@ describe('ExpressionEvaluator', () => {
       expect(evaluator.evaluateCondition(true)).toBe(true);
       expect(evaluator.evaluateCondition(false)).toBe(false);
     });
+  });
+});
+
+describe('evaluatePlainCondition', () => {
+  it('should evaluate a plain condition with direct field references', () => {
+    expect(evaluatePlainCondition("status == 'overdue'", { status: 'overdue' })).toBe(true);
+    expect(evaluatePlainCondition("status == 'overdue'", { status: 'active' })).toBe(false);
+  });
+
+  it('should evaluate numeric comparisons', () => {
+    expect(evaluatePlainCondition('amount > 1000', { amount: 2500 })).toBe(true);
+    expect(evaluatePlainCondition('amount > 1000', { amount: 500 })).toBe(false);
+  });
+
+  it('should evaluate compound conditions', () => {
+    expect(evaluatePlainCondition("amount > 1000 && status === 'urgent'", { amount: 2000, status: 'urgent' })).toBe(true);
+    expect(evaluatePlainCondition("amount > 1000 && status === 'urgent'", { amount: 2000, status: 'normal' })).toBe(false);
+  });
+
+  it('should support data.field references in template expressions', () => {
+    expect(evaluatePlainCondition('${data.amount > 1000}', { amount: 2000 })).toBe(true);
+    expect(evaluatePlainCondition('${data.amount > 1000}', { amount: 500 })).toBe(false);
+  });
+
+  it('should return false for invalid expressions', () => {
+    expect(evaluatePlainCondition('!!!invalidSyntax', { status: 'ok' })).toBe(false);
+  });
+
+  it('should return false for non-boolean results', () => {
+    expect(evaluatePlainCondition('status', { status: 'active' })).toBe(false);
   });
 });
