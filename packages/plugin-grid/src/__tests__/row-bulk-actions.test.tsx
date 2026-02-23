@@ -342,7 +342,7 @@ describe('BulkActionBar in ObjectGrid', () => {
       expect(screen.getByText('Name')).toBeInTheDocument();
     });
 
-    // Without selection, bar won't appear, but schema acceptance is verified
+    // Without selection, bar will not appear, but schema acceptance is verified
     expect(screen.queryByTestId('bulk-actions-bar')).not.toBeInTheDocument();
   });
 });
@@ -351,7 +351,7 @@ describe('BulkActionBar in ObjectGrid', () => {
 // onRowSelect callback propagation
 // =========================================================================
 describe('ObjectGrid onRowSelect callback', () => {
-  it('calls onRowSelect callback when provided', async () => {
+  it('accepts onRowSelect prop and renders with selection enabled', async () => {
     const onRowSelect = vi.fn();
     const schema: any = {
       type: 'object-grid' as const,
@@ -374,7 +374,40 @@ describe('ObjectGrid onRowSelect callback', () => {
       expect(screen.getByText('Name')).toBeInTheDocument();
     });
 
-    // The onRowSelect prop is available and wired to onSelectionChange
-    expect(onRowSelect).toBeDefined();
+    // Grid renders checkboxes when selection is enabled
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes.length).toBeGreaterThan(0);
+  });
+
+  it('wires onRowSelect to internal onSelectionChange', async () => {
+    const onRowSelect = vi.fn();
+    const schema: any = {
+      type: 'object-grid' as const,
+      objectName: 'test_object',
+      columns: [
+        { field: 'name', label: 'Name' },
+      ],
+      data: { provider: 'value', items: testData },
+      selection: { type: 'multiple' },
+    };
+
+    render(
+      <ActionProvider>
+        <ObjectGrid schema={schema} onRowSelect={onRowSelect} />
+      </ActionProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Name')).toBeInTheDocument();
+    });
+
+    // Click the "select all" header checkbox to trigger selection
+    const checkboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(checkboxes[0]); // First checkbox is typically "select all"
+
+    // onRowSelect should have been invoked via onSelectionChange
+    await waitFor(() => {
+      expect(onRowSelect).toHaveBeenCalled();
+    });
   });
 });
