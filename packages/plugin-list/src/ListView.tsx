@@ -140,8 +140,10 @@ export function evaluateConditionalFormatting(
     let match = false;
 
     // Determine expression: spec uses 'condition', ObjectUI uses 'expression'
-    const expression = ('condition' in rule && rule.condition)
-      || ('expression' in rule && rule.expression);
+    const expression =
+      ('condition' in rule ? rule.condition : undefined)
+      || ('expression' in rule ? rule.expression : undefined)
+      || undefined;
 
     // Expression-based evaluation using safe ExpressionEvaluator
     // Supports both template expressions (${data.field > value}) and
