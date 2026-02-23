@@ -13,12 +13,14 @@ import { AppCreationWizard } from '@object-ui/plugin-designer';
 import { wizardDraftToAppSchema } from '@object-ui/types';
 import type { AppWizardDraft, ObjectSelection } from '@object-ui/types';
 import { useMetadata } from '../context/MetadataProvider';
+import { useAdapter } from '../context/AdapterProvider';
 import { toast } from 'sonner';
 
 export function EditAppPage() {
   const navigate = useNavigate();
   const { appName, editAppName } = useParams();
   const { apps, objects, refresh } = useMetadata();
+  const adapter = useAdapter();
 
   const targetAppName = editAppName || appName;
 
@@ -56,7 +58,12 @@ export function EditAppPage() {
   const handleComplete = useCallback(
     async (draft: AppWizardDraft) => {
       try {
-        const _appSchema = wizardDraftToAppSchema(draft);
+        const appSchema = wizardDraftToAppSchema(draft);
+        // Persist app metadata to backend
+        const client = adapter?.getClient();
+        if (client) {
+          await client.meta.saveItem('app', draft.name, appSchema);
+        }
         toast.success(`Application "${draft.title}" updated successfully`);
         await refresh?.();
         navigate(`/apps/${draft.name}`);
@@ -64,7 +71,7 @@ export function EditAppPage() {
         toast.error(err?.message || 'Failed to update application');
       }
     },
-    [navigate, refresh],
+    [navigate, refresh, adapter],
   );
 
   const handleCancel = useCallback(() => {

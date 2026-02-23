@@ -13,6 +13,7 @@ import { AppCreationWizard } from '@object-ui/plugin-designer';
 import { wizardDraftToAppSchema } from '@object-ui/types';
 import type { AppWizardDraft, ObjectSelection } from '@object-ui/types';
 import { useMetadata } from '../context/MetadataProvider';
+import { useAdapter } from '../context/AdapterProvider';
 import { toast } from 'sonner';
 
 const DRAFT_STORAGE_KEY = 'objectui-app-wizard-draft';
@@ -21,6 +22,7 @@ export function CreateAppPage() {
   const navigate = useNavigate();
   const { appName } = useParams();
   const { objects, refresh } = useMetadata();
+  const adapter = useAdapter();
 
   // Map metadata objects to ObjectSelection format
   const availableObjects: ObjectSelection[] = (objects || []).map((obj: any) => ({
@@ -46,7 +48,12 @@ export function CreateAppPage() {
   const handleComplete = useCallback(
     async (draft: AppWizardDraft) => {
       try {
-        const _appSchema = wizardDraftToAppSchema(draft);
+        const appSchema = wizardDraftToAppSchema(draft);
+        // Persist app metadata to backend
+        const client = adapter?.getClient();
+        if (client) {
+          await client.meta.saveItem('app', draft.name, appSchema);
+        }
         // Clear draft from localStorage on successful creation
         localStorage.removeItem(DRAFT_STORAGE_KEY);
         toast.success(`Application "${draft.title}" created successfully`);
@@ -58,7 +65,7 @@ export function CreateAppPage() {
         toast.error(err?.message || 'Failed to create application');
       }
     },
-    [navigate, refresh],
+    [navigate, refresh, adapter],
   );
 
   const handleCancel = useCallback(() => {
