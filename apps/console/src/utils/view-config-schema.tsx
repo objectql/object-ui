@@ -1,0 +1,1491 @@
+/**
+ * ViewConfigPanel — Schema Factory
+ *
+ * Builds a ConfigPanelSchema that describes the entire ViewConfigPanel
+ * structure declaratively. Complex widgets use type='custom' render functions.
+ */
+
+import React from 'react';
+import { Input, Switch, Checkbox, FilterBuilder, SortBuilder, ConfigRow, SectionHeader } from '@object-ui/components';
+import type { ConfigPanelSchema, ConfigField } from '@object-ui/components';
+import type { FilterGroup, SortItem } from '@object-ui/components';
+import { ArrowUp, ArrowDown } from 'lucide-react';
+import {
+    VIEW_TYPE_LABELS,
+    VIEW_TYPE_OPTIONS,
+    ROW_HEIGHT_OPTIONS,
+    toSpecFilter,
+    parseCommaSeparated,
+    parseNumberList,
+} from './view-config-utils';
+import type { FieldOption } from './view-config-utils';
+
+// ---------------------------------------------------------------------------
+// Expandable widget — proper React component to avoid hooks-in-render issues
+// ---------------------------------------------------------------------------
+
+function ExpandableWidget({ renderSummary, children }: {
+    renderSummary: (toggle: () => void) => React.ReactNode;
+    children: React.ReactNode;
+}) {
+    const [expanded, setExpanded] = React.useState(false);
+    return (
+        <>
+            {renderSummary(() => setExpanded(prev => !prev))}
+            {expanded && children}
+        </>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface ViewSchemaFactoryOptions {
+    t: (key: string, params?: Record<string, any>) => string;
+    fieldOptions: FieldOption[];
+    objectDef: { name: string; label?: string; description?: string; fields?: Record<string, any>; [key: string]: any };
+    /** Full updateField from useConfigDraft — used by custom renders that touch multiple keys */
+    updateField: (key: string, value: any) => void;
+    /** Precomputed FilterGroup for the current draft.filter */
+    filterGroupValue: FilterGroup;
+    /** Precomputed SortItem[] for the current draft.sort */
+    sortItemsValue: SortItem[];
+}
+
+// ---------------------------------------------------------------------------
+// Schema factory
+// ---------------------------------------------------------------------------
+
+export function buildViewConfigSchema(opts: ViewSchemaFactoryOptions): ConfigPanelSchema {
+    const { t, fieldOptions, objectDef, updateField, filterGroupValue, sortItemsValue } = opts;
+
+    // -- helpers for select options --
+    const fieldSelectOptions = fieldOptions.map(f => ({ value: f.value, label: f.label }));
+    const fieldSelectWithNone = [
+        { value: '', label: t('console.objectView.none') },
+        ...fieldSelectOptions,
+    ];
+
+    return {
+        breadcrumb: [t('console.objectView.page')], // second segment set dynamically in ViewConfigPanel
+        sections: [
+            // ── Page Config Section ──────────────────────────────
+            buildPageConfigSection(t, fieldOptions, objectDef, updateField),
+            // ── Data Section ─────────────────────────────────────
+            buildDataSection(t, fieldOptions, fieldSelectWithNone, objectDef, updateField, filterGroupValue, sortItemsValue),
+            // ── Appearance Section ───────────────────────────────
+            buildAppearanceSection(t, fieldOptions, fieldSelectWithNone, updateField),
+            // ── User Actions Section ─────────────────────────────
+            buildUserActionsSection(t, updateField),
+            // ── Sharing Section ──────────────────────────────────
+            buildSharingSection(t, updateField),
+            // ── Accessibility Section ────────────────────────────
+            buildAccessibilitySection(t, updateField),
+        ],
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Page Config Section
+// ---------------------------------------------------------------------------
+
+function buildPageConfigSection(
+    t: ViewSchemaFactoryOptions['t'],
+    fieldOptions: FieldOption[],
+    objectDef: ViewSchemaFactoryOptions['objectDef'],
+    updateField: ViewSchemaFactoryOptions['updateField'],
+): ConfigPanelSchema['sections'][number] {
+    return {
+        key: 'pageConfig',
+        title: t('console.objectView.page'),
+        hint: t('console.objectView.pageConfigHint'),
+        fields: [
+            // Title
+            {
+                key: 'label',
+                label: t('console.objectView.title'),
+                type: 'custom',
+                render: (value, onChange) => (
+                    <ConfigRow label={t('console.objectView.title')}>
+                        <Input
+                            data-testid="view-title-input"
+                            className="h-7 text-xs w-32 text-right"
+                            value={value || ''}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
+                        />
+                    </ConfigRow>
+                ),
+            },
+            // Description
+            {
+                key: 'description',
+                label: t('console.objectView.description'),
+                type: 'custom',
+                render: (value, onChange) => (
+                    <ConfigRow label={t('console.objectView.description')}>
+                        <Input
+                            data-testid="view-description-input"
+                            className="h-7 text-xs w-32 text-right"
+                            value={value ?? ''}
+                            placeholder={objectDef.description || t('console.objectView.noDescription')}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
+                        />
+                    </ConfigRow>
+                ),
+            },
+            // View type
+            {
+                key: 'type',
+                label: t('console.objectView.viewType'),
+                type: 'custom',
+                render: (value, onChange) => (
+                    <ConfigRow label={t('console.objectView.viewType')}>
+                        <select
+                            data-testid="view-type-select"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground"
+                            value={value || 'grid'}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChange(e.target.value)}
+                        >
+                            {VIEW_TYPE_OPTIONS.map(vt => (
+                                <option key={vt} value={vt}>{VIEW_TYPE_LABELS[vt]}</option>
+                            ))}
+                        </select>
+                    </ConfigRow>
+                ),
+            },
+            // Toolbar toggles
+            buildSwitchField('showSearch', t('console.objectView.enableSearch'), 'toggle-showSearch', true),
+            buildSwitchField('showFilters', t('console.objectView.enableFilter'), 'toggle-showFilters', true),
+            buildSwitchField('showSort', t('console.objectView.enableSort'), 'toggle-showSort', true),
+            buildSwitchField('showHideFields', t('console.objectView.enableHideFields'), 'toggle-showHideFields', true),
+            buildSwitchField('showGroup', t('console.objectView.enableGroup'), 'toggle-showGroup', true),
+            buildSwitchField('showColor', t('console.objectView.enableColor'), 'toggle-showColor', true),
+            buildSwitchField('showDensity', t('console.objectView.enableDensity'), 'toggle-showDensity', true),
+            // Navigation mode
+            {
+                key: '_navigationMode',
+                label: t('console.objectView.navigationMode'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    const navMode = draft.navigation?.mode || 'page';
+                    return (
+                        <ConfigRow label={t('console.objectView.navigationMode')}>
+                            <select
+                                data-testid="select-navigation-mode"
+                                className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                                value={navMode}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                    const mode = e.target.value;
+                                    updateField('navigation', { ...(draft.navigation || {}), mode });
+                                    updateField('clickIntoRecordDetails', mode !== 'none');
+                                }}
+                            >
+                                <option value="page">Page</option>
+                                <option value="drawer">Drawer</option>
+                                <option value="modal">Modal</option>
+                                <option value="split">Split</option>
+                                <option value="popover">Popover</option>
+                                <option value="new_window">New Window</option>
+                                <option value="none">None</option>
+                            </select>
+                        </ConfigRow>
+                    );
+                },
+            },
+            // Navigation width (visible for drawer/modal/split)
+            {
+                key: '_navigationWidth',
+                label: t('console.objectView.navigationWidth'),
+                type: 'custom',
+                visibleWhen: (draft) => ['drawer', 'modal', 'split'].includes(draft.navigation?.mode || 'page'),
+                render: (_value, _onChange, draft) => {
+                    const navMode = draft.navigation?.mode || 'page';
+                    return (
+                        <ConfigRow label={t('console.objectView.navigationWidth')}>
+                            <Input
+                                data-testid="input-navigation-width"
+                                className="h-7 text-xs w-24 text-right"
+                                value={draft.navigation?.width ?? ''}
+                                placeholder="600px"
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                    updateField('navigation', { ...(draft.navigation || {}), mode: navMode, width: e.target.value })
+                                }
+                            />
+                        </ConfigRow>
+                    );
+                },
+            },
+            // Navigation openNewTab (visible for page/new_window)
+            {
+                key: '_navigationOpenNewTab',
+                label: t('console.objectView.openNewTab'),
+                type: 'custom',
+                visibleWhen: (draft) => ['page', 'new_window'].includes(draft.navigation?.mode || 'page'),
+                render: (_value, _onChange, draft) => {
+                    const navMode = draft.navigation?.mode || 'page';
+                    return (
+                        <ConfigRow label={t('console.objectView.openNewTab')}>
+                            <Switch
+                                data-testid="toggle-navigation-openNewTab"
+                                checked={draft.navigation?.openNewTab === true}
+                                onCheckedChange={(checked: boolean) =>
+                                    updateField('navigation', { ...(draft.navigation || {}), mode: navMode, openNewTab: checked })
+                                }
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                    );
+                },
+            },
+            // Selection mode
+            {
+                key: '_selectionType',
+                label: t('console.objectView.selectionMode'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => (
+                    <ConfigRow label={t('console.objectView.selectionMode')}>
+                        <select
+                            data-testid="select-selection-type"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                            value={draft.selection?.type || 'multiple'}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                updateField('selection', { type: e.target.value })
+                            }
+                        >
+                            <option value="none">{t('console.objectView.selectionNone')}</option>
+                            <option value="single">{t('console.objectView.selectionSingle')}</option>
+                            <option value="multiple">{t('console.objectView.selectionMultiple')}</option>
+                        </select>
+                    </ConfigRow>
+                ),
+            },
+            // Add Record config
+            {
+                key: '_addRecord',
+                label: t('console.objectView.addRecordEnabled'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    const hasAddForm = draft.addRecordViaForm === true || draft.addRecord?.enabled === true;
+                    return (
+                        <>
+                            <ConfigRow label={t('console.objectView.addRecordEnabled')}>
+                                <Switch
+                                    data-testid="toggle-addRecord-enabled"
+                                    checked={hasAddForm}
+                                    onCheckedChange={(checked: boolean) => {
+                                        updateField('addRecordViaForm', checked);
+                                        updateField('addRecord', { ...(draft.addRecord || {}), enabled: checked });
+                                    }}
+                                    className="scale-75"
+                                />
+                            </ConfigRow>
+                            {hasAddForm && (
+                                <>
+                                    <ConfigRow label={t('console.objectView.addRecordPosition')}>
+                                        <select
+                                            data-testid="select-addRecord-position"
+                                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[100px]"
+                                            value={draft.addRecord?.position || 'top'}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                                updateField('addRecord', { ...(draft.addRecord || {}), enabled: true, position: e.target.value })
+                                            }
+                                        >
+                                            <option value="top">Top</option>
+                                            <option value="bottom">Bottom</option>
+                                        </select>
+                                    </ConfigRow>
+                                    <ConfigRow label={t('console.objectView.addRecordMode')}>
+                                        <select
+                                            data-testid="select-addRecord-mode"
+                                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[100px]"
+                                            value={draft.addRecord?.mode || 'form'}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                                updateField('addRecord', { ...(draft.addRecord || {}), enabled: true, mode: e.target.value })
+                                            }
+                                        >
+                                            <option value="inline">Inline</option>
+                                            <option value="form">Form</option>
+                                            <option value="modal">Modal</option>
+                                        </select>
+                                    </ConfigRow>
+                                    <ConfigRow label={t('console.objectView.addRecordFormView')}>
+                                        <Input
+                                            data-testid="input-addRecord-formView"
+                                            className="h-7 text-xs w-24 text-right"
+                                            value={draft.addRecord?.formView ?? ''}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                                updateField('addRecord', { ...(draft.addRecord || {}), enabled: true, formView: e.target.value })
+                                            }
+                                        />
+                                    </ConfigRow>
+                                </>
+                            )}
+                        </>
+                    );
+                },
+            },
+            // Allow Export + sub-config
+            {
+                key: '_export',
+                label: t('console.objectView.allowExport'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    const hasExport = draft.exportOptions != null || draft.allowExport === true;
+                    return (
+                        <>
+                            <ConfigRow label={t('console.objectView.allowExport')}>
+                                <Switch
+                                    data-testid="toggle-allowExport"
+                                    checked={hasExport}
+                                    onCheckedChange={(checked: boolean) => updateField('allowExport', checked)}
+                                    className="scale-75"
+                                />
+                            </ConfigRow>
+                            {hasExport && (
+                                <>
+                                    <ConfigRow label={t('console.objectView.exportFormats')}>
+                                        <div data-testid="export-formats" className="flex flex-wrap gap-1">
+                                            {(['csv', 'xlsx', 'json', 'pdf'] as const).map(fmt => (
+                                                <label key={fmt} className="flex items-center gap-1 text-xs cursor-pointer">
+                                                    <Checkbox
+                                                        data-testid={`export-format-${fmt}`}
+                                                        checked={(draft.exportOptions?.formats || []).includes(fmt)}
+                                                        onCheckedChange={(checked: boolean) => {
+                                                            const current: string[] = draft.exportOptions?.formats || [];
+                                                            const formats = checked
+                                                                ? [...current, fmt]
+                                                                : current.filter((f: string) => f !== fmt);
+                                                            updateField('exportOptions', { ...(draft.exportOptions || {}), formats });
+                                                        }}
+                                                        className="h-3.5 w-3.5"
+                                                    />
+                                                    {fmt}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </ConfigRow>
+                                    <ConfigRow label={t('console.objectView.exportMaxRecords')}>
+                                        <Input
+                                            data-testid="input-export-maxRecords"
+                                            className="h-7 text-xs w-20 text-right"
+                                            type="number"
+                                            value={draft.exportOptions?.maxRecords ?? ''}
+                                            placeholder="0"
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                                updateField('exportOptions', { ...(draft.exportOptions || {}), maxRecords: Number(e.target.value) || undefined })
+                                            }
+                                        />
+                                    </ConfigRow>
+                                    <ConfigRow label={t('console.objectView.exportIncludeHeaders')}>
+                                        <Switch
+                                            data-testid="toggle-export-includeHeaders"
+                                            checked={draft.exportOptions?.includeHeaders !== false}
+                                            onCheckedChange={(checked: boolean) =>
+                                                updateField('exportOptions', { ...(draft.exportOptions || {}), includeHeaders: checked })
+                                            }
+                                            className="scale-75"
+                                        />
+                                    </ConfigRow>
+                                    <ConfigRow label={t('console.objectView.exportFileNamePrefix')}>
+                                        <Input
+                                            data-testid="input-export-fileNamePrefix"
+                                            className="h-7 text-xs w-24 text-right"
+                                            value={draft.exportOptions?.fileNamePrefix ?? ''}
+                                            placeholder="export"
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                                updateField('exportOptions', { ...(draft.exportOptions || {}), fileNamePrefix: e.target.value })
+                                            }
+                                        />
+                                    </ConfigRow>
+                                </>
+                            )}
+                        </>
+                    );
+                },
+            },
+            // Show record count
+            buildSwitchField('showRecordCount', t('console.objectView.showRecordCount'), 'toggle-showRecordCount', false, true),
+            // Allow printing
+            buildSwitchField('allowPrinting', t('console.objectView.allowPrinting'), 'toggle-allowPrinting', false, true),
+        ],
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Data Section
+// ---------------------------------------------------------------------------
+
+function buildDataSection(
+    t: ViewSchemaFactoryOptions['t'],
+    fieldOptions: FieldOption[],
+    fieldSelectWithNone: Array<{ value: string; label: string }>,
+    objectDef: ViewSchemaFactoryOptions['objectDef'],
+    updateField: ViewSchemaFactoryOptions['updateField'],
+    filterGroupValue: FilterGroup,
+    sortItemsValue: SortItem[],
+): ConfigPanelSchema['sections'][number] {
+    return {
+        key: 'data',
+        title: t('console.objectView.data'),
+        hint: t('console.objectView.listConfigHint'),
+        collapsible: true,
+        fields: [
+            // Source (read-only)
+            {
+                key: '_source',
+                label: t('console.objectView.source'),
+                type: 'custom',
+                render: () => (
+                    <ConfigRow label={t('console.objectView.source')} value={objectDef.label || objectDef.name} />
+                ),
+            },
+            // Sort by — expandable
+            {
+                key: '_sortBy',
+                label: t('console.objectView.sortBy'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    const sortCount = Array.isArray(draft.sort) ? draft.sort.filter((s: any) => s.field).length : 0;
+                    const sortSummary = sortCount > 0
+                        ? t('console.objectView.sortsCount', { count: sortCount })
+                        : t('console.objectView.none');
+                    return (
+                        <ExpandableWidget
+                            renderSummary={(toggle) => (
+                                <ConfigRow
+                                    label={t('console.objectView.sortBy')}
+                                    value={sortSummary}
+                                    onClick={toggle}
+                                />
+                            )}
+                        >
+                            <div data-testid="inline-sort-builder" className="pb-2">
+                                <SortBuilder
+                                    fields={fieldOptions.map(f => ({ value: f.value, label: f.label }))}
+                                    value={sortItemsValue}
+                                    onChange={(items: SortItem[]) => {
+                                        const sortArr = items.map(s => ({ id: s.id, field: s.field, order: s.order }));
+                                        updateField('sort', sortArr);
+                                    }}
+                                    className="[&_button]:h-7 [&_button]:text-xs"
+                                />
+                            </div>
+                        </ExpandableWidget>
+                    );
+                },
+            },
+            // Group by
+            {
+                key: '_groupBy',
+                label: t('console.objectView.groupBy'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    const viewType = draft.type || 'grid';
+                    const groupByValue = draft.kanban?.groupByField || draft.kanban?.groupField || draft.groupBy || '';
+                    return (
+                        <ConfigRow label={t('console.objectView.groupBy')}>
+                            <select
+                                data-testid="data-groupBy"
+                                className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                                value={groupByValue}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                    updateField('groupBy', e.target.value);
+                                    if (viewType === 'kanban') {
+                                        const current = draft.kanban || {};
+                                        updateField('kanban', { ...current, groupByField: e.target.value });
+                                    }
+                                }}
+                            >
+                                <option value="">{t('console.objectView.none')}</option>
+                                {fieldOptions.map(f => (
+                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                ))}
+                            </select>
+                        </ConfigRow>
+                    );
+                },
+            },
+            // Prefix field
+            {
+                key: 'prefixField',
+                label: t('console.objectView.prefixField'),
+                type: 'custom',
+                render: (value, onChange) => (
+                    <ConfigRow label={t('console.objectView.prefixField')}>
+                        <select
+                            data-testid="data-prefixField"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                            value={value || ''}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChange(e.target.value)}
+                        >
+                            <option value="">{t('console.objectView.none')}</option>
+                            {fieldOptions.map(f => (
+                                <option key={f.value} value={f.value}>{f.label}</option>
+                            ))}
+                        </select>
+                    </ConfigRow>
+                ),
+            },
+            // Fields / Columns selector
+            {
+                key: '_columns',
+                label: t('console.objectView.fields'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    const visibleColumnsCount = Array.isArray(draft.columns) ? draft.columns.length : 0;
+                    const fieldsSummary = visibleColumnsCount > 0
+                        ? t('console.objectView.fieldsVisible', { count: visibleColumnsCount })
+                        : t('console.objectView.none');
+                    const handleColumnToggle = (fieldName: string, checked: boolean) => {
+                        const currentCols: string[] = Array.isArray(draft.columns) ? [...draft.columns] : [];
+                        if (checked && !currentCols.includes(fieldName)) {
+                            currentCols.push(fieldName);
+                        } else if (!checked) {
+                            const idx = currentCols.indexOf(fieldName);
+                            if (idx >= 0) currentCols.splice(idx, 1);
+                        }
+                        updateField('columns', currentCols);
+                    };
+
+                    const handleColumnMove = (fieldName: string, direction: 'up' | 'down') => {
+                        const currentCols: string[] = Array.isArray(draft.columns) ? [...draft.columns] : [];
+                        const idx = currentCols.indexOf(fieldName);
+                        if (idx < 0) return;
+                        const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+                        if (targetIdx < 0 || targetIdx >= currentCols.length) return;
+                        [currentCols[idx], currentCols[targetIdx]] = [currentCols[targetIdx], currentCols[idx]];
+                        updateField('columns', currentCols);
+                    };
+
+                    return (
+                        <ExpandableWidget
+                            renderSummary={(toggle) => (
+                                <ConfigRow
+                                    label={t('console.objectView.fields')}
+                                    value={fieldsSummary}
+                                    onClick={toggle}
+                                />
+                            )}
+                        >
+                            <div data-testid="column-selector" className="pb-2 space-y-0.5 max-h-48 overflow-auto">
+                                {Array.isArray(draft.columns) && draft.columns.length > 0 && (
+                                    <div data-testid="selected-columns" className="space-y-0.5 pb-1 mb-1 border-b border-border/50">
+                                        {draft.columns.map((colName: string, idx: number) => {
+                                            const field = fieldOptions.find(f => f.value === colName);
+                                            return (
+                                                <div key={colName} className="flex items-center gap-1 text-xs hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
+                                                    <Checkbox
+                                                        data-testid={`col-checkbox-${colName}`}
+                                                        checked={true}
+                                                        onCheckedChange={() => handleColumnToggle(colName, false)}
+                                                        className="h-3.5 w-3.5 shrink-0"
+                                                    />
+                                                    <span className="truncate flex-1">{field?.label || colName}</span>
+                                                    <button
+                                                        type="button"
+                                                        data-testid={`col-move-up-${colName}`}
+                                                        className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent disabled:opacity-30 shrink-0"
+                                                        disabled={idx === 0}
+                                                        onClick={() => handleColumnMove(colName, 'up')}
+                                                        aria-label={`Move ${field?.label || colName} up`}
+                                                    >
+                                                        <ArrowUp className="h-3 w-3" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        data-testid={`col-move-down-${colName}`}
+                                                        className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent disabled:opacity-30 shrink-0"
+                                                        disabled={idx === draft.columns.length - 1}
+                                                        onClick={() => handleColumnMove(colName, 'down')}
+                                                        aria-label={`Move ${field?.label || colName} down`}
+                                                    >
+                                                        <ArrowDown className="h-3 w-3" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                {fieldOptions
+                                    .filter(f => !Array.isArray(draft.columns) || !draft.columns.includes(f.value))
+                                    .map((f) => (
+                                        <label key={f.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
+                                            <Checkbox
+                                                data-testid={`col-checkbox-${f.value}`}
+                                                checked={false}
+                                                onCheckedChange={() => handleColumnToggle(f.value, true)}
+                                                className="h-3.5 w-3.5"
+                                            />
+                                            <span className="truncate">{f.label}</span>
+                                        </label>
+                                    ))
+                                }
+                            </div>
+                        </ExpandableWidget>
+                    );
+                },
+            },
+            // Filter by — expandable
+            {
+                key: '_filterBy',
+                label: t('console.objectView.filterBy'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    const filterCount = filterGroupValue.conditions.length;
+                    const filterSummary = filterCount > 0
+                        ? t('console.objectView.filtersCount', { count: filterCount })
+                        : t('console.objectView.none');
+                    return (
+                        <ExpandableWidget
+                            renderSummary={(toggle) => (
+                                <ConfigRow
+                                    label={t('console.objectView.filterBy')}
+                                    value={filterSummary}
+                                    onClick={toggle}
+                                />
+                            )}
+                        >
+                            <div data-testid="inline-filter-builder" className="pb-2">
+                                <FilterBuilder
+                                    fields={fieldOptions}
+                                    value={filterGroupValue}
+                                    onChange={(group: FilterGroup) => {
+                                        const specFilter = toSpecFilter(
+                                            group.logic,
+                                            group.conditions.map(c => ({ field: c.field, operator: c.operator, value: c.value }))
+                                        );
+                                        updateField('filter', specFilter);
+                                    }}
+                                    className="[&_button]:h-7 [&_button]:text-xs [&_input]:h-7 [&_input]:text-xs"
+                                    showClearAll
+                                />
+                            </div>
+                        </ExpandableWidget>
+                    );
+                },
+            },
+            // Pagination — pageSize
+            {
+                key: '_pageSize',
+                label: t('console.objectView.pageSize'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => (
+                    <ConfigRow label={t('console.objectView.pageSize')}>
+                        <Input
+                            data-testid="input-pagination-pageSize"
+                            className="h-7 text-xs w-20 text-right"
+                            type="number"
+                            value={draft.pagination?.pageSize ?? ''}
+                            placeholder="25"
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                const val = Number(e.target.value) || undefined;
+                                updateField('pagination', { ...(draft.pagination || {}), pageSize: val });
+                            }}
+                        />
+                    </ConfigRow>
+                ),
+            },
+            // Pagination — pageSizeOptions
+            {
+                key: '_pageSizeOptions',
+                label: t('console.objectView.pageSizeOptions'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => (
+                    <ConfigRow label={t('console.objectView.pageSizeOptions')}>
+                        <Input
+                            data-testid="input-pagination-pageSizeOptions"
+                            className="h-7 text-xs w-28 text-right"
+                            value={(draft.pagination?.pageSizeOptions || []).join(', ')}
+                            placeholder="10, 25, 50, 100"
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                const opts = parseNumberList(e.target.value);
+                                updateField('pagination', { ...(draft.pagination || {}), pageSizeOptions: opts.length ? opts : undefined });
+                            }}
+                        />
+                    </ConfigRow>
+                ),
+            },
+            // Searchable fields
+            buildFieldMultiSelect('searchableFields', t('console.objectView.searchableFields'), 'searchable-fields-selector', 'searchable-field', fieldOptions, updateField, 'selected'),
+            // Filterable fields
+            buildFieldMultiSelect('filterableFields', t('console.objectView.filterableFields'), 'filterable-fields-selector', 'filterable-field', fieldOptions, updateField, 'selected'),
+            // Hidden fields
+            buildFieldMultiSelect('hiddenFields', t('console.objectView.hiddenFields'), 'hidden-fields-selector', 'hidden-field', fieldOptions, updateField, 'hidden'),
+            // Quick filters
+            {
+                key: '_quickFilters',
+                label: t('console.objectView.quickFilters'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    return (
+                        <ExpandableWidget
+                            renderSummary={(toggle) => (
+                                <ConfigRow
+                                    label={t('console.objectView.quickFilters')}
+                                    value={`${(draft.quickFilters || []).length} filters`}
+                                    onClick={toggle}
+                                />
+                            )}
+                        >
+                            <div data-testid="quick-filters-editor" className="pb-2 space-y-1">
+                                {(draft.quickFilters || []).map((qf: any, idx: number) => (
+                                    <div key={qf.id || idx} className="flex items-center gap-1 text-xs">
+                                        <Input
+                                            data-testid={`quick-filter-label-${idx}`}
+                                            className="h-6 text-xs flex-1"
+                                            value={qf.label || ''}
+                                            placeholder="Label"
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                const updated = [...(draft.quickFilters || [])];
+                                                updated[idx] = { ...updated[idx], label: e.target.value };
+                                                updateField('quickFilters', updated);
+                                            }}
+                                        />
+                                        <Checkbox
+                                            data-testid={`quick-filter-default-${idx}`}
+                                            checked={qf.defaultActive === true}
+                                            onCheckedChange={(checked: boolean) => {
+                                                const updated = [...(draft.quickFilters || [])];
+                                                updated[idx] = { ...updated[idx], defaultActive: checked };
+                                                updateField('quickFilters', updated);
+                                            }}
+                                            className="h-3.5 w-3.5"
+                                        />
+                                        <button
+                                            type="button"
+                                            className="text-destructive hover:text-destructive/80 text-xs"
+                                            onClick={() => {
+                                                const updated = (draft.quickFilters || []).filter((_: any, i: number) => i !== idx);
+                                                updateField('quickFilters', updated);
+                                            }}
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                ))}
+                                <button
+                                    type="button"
+                                    data-testid="add-quick-filter"
+                                    className="text-xs text-primary hover:underline"
+                                    onClick={() => {
+                                        const newFilter = { id: crypto.randomUUID(), label: '', filters: [], defaultActive: false };
+                                        updateField('quickFilters', [...(draft.quickFilters || []), newFilter]);
+                                    }}
+                                >
+                                    + {t('console.objectView.addQuickFilter')}
+                                </button>
+                            </div>
+                        </ExpandableWidget>
+                    );
+                },
+            },
+            // Virtual scroll
+            buildSwitchField('virtualScroll', t('console.objectView.virtualScroll'), 'toggle-virtualScroll', false, true),
+            // Type-Specific Data Fields
+            {
+                key: '_typeOptions',
+                label: 'Type-specific options',
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    const viewType = draft.type || 'grid';
+                    const handleTypeOptionChange = (typeKey: string, optionKey: string, value: any) => {
+                        const current = draft[typeKey] || {};
+                        updateField(typeKey, { ...current, [optionKey]: value });
+                    };
+
+                    if (viewType === 'grid') {
+                        return <div data-testid="type-options-section" className="hidden" />;
+                    }
+
+                    return (
+                        <div data-testid="type-options-section" className="pt-1 space-y-2">
+                            {viewType === 'kanban' && (
+                                <div>
+                                    <span className="text-xs text-muted-foreground">{t('console.objectView.groupByField')}</span>
+                                    <select
+                                        data-testid="type-opt-kanban-groupByField"
+                                        className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                        value={draft.kanban?.groupByField || draft.kanban?.groupField || ''}
+                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('kanban', 'groupByField', e.target.value)}
+                                    >
+                                        <option value="">{t('console.objectView.selectField')}</option>
+                                        {fieldOptions.map(f => (
+                                            <option key={f.value} value={f.value}>{f.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                            {viewType === 'calendar' && (
+                                <>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.startDateField')}</span>
+                                        <select
+                                            data-testid="type-opt-calendar-startDateField"
+                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                            value={draft.calendar?.startDateField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('calendar', 'startDateField', e.target.value)}
+                                        >
+                                            <option value="">{t('console.objectView.selectField')}</option>
+                                            {fieldOptions.map(f => (
+                                                <option key={f.value} value={f.value}>{f.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.endDateField')}</span>
+                                        <select
+                                            data-testid="type-opt-calendar-endDateField"
+                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                            value={draft.calendar?.endDateField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('calendar', 'endDateField', e.target.value)}
+                                        >
+                                            <option value="">{t('console.objectView.selectField')}</option>
+                                            {fieldOptions.map(f => (
+                                                <option key={f.value} value={f.value}>{f.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.titleField')}</span>
+                                        <select
+                                            data-testid="type-opt-calendar-titleField"
+                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                            value={draft.calendar?.titleField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('calendar', 'titleField', e.target.value)}
+                                        >
+                                            <option value="">{t('console.objectView.selectField')}</option>
+                                            {fieldOptions.map(f => (
+                                                <option key={f.value} value={f.value}>{f.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </>
+                            )}
+                            {viewType === 'map' && (
+                                <>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.latitudeField')}</span>
+                                        <select
+                                            data-testid="type-opt-map-latitudeField"
+                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                            value={draft.map?.latitudeField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('map', 'latitudeField', e.target.value)}
+                                        >
+                                            <option value="">{t('console.objectView.selectField')}</option>
+                                            {fieldOptions.map(f => (
+                                                <option key={f.value} value={f.value}>{f.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.longitudeField')}</span>
+                                        <select
+                                            data-testid="type-opt-map-longitudeField"
+                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                            value={draft.map?.longitudeField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('map', 'longitudeField', e.target.value)}
+                                        >
+                                            <option value="">{t('console.objectView.selectField')}</option>
+                                            {fieldOptions.map(f => (
+                                                <option key={f.value} value={f.value}>{f.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </>
+                            )}
+                            {viewType === 'gallery' && (
+                                <div>
+                                    <span className="text-xs text-muted-foreground">{t('console.objectView.imageField')}</span>
+                                    <select
+                                        data-testid="type-opt-gallery-imageField"
+                                        className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                        value={draft.gallery?.imageField || ''}
+                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange('gallery', 'imageField', e.target.value)}
+                                    >
+                                        <option value="">{t('console.objectView.selectField')}</option>
+                                        {fieldOptions.map(f => (
+                                            <option key={f.value} value={f.value}>{f.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                            {(viewType === 'timeline' || viewType === 'gantt') && (
+                                <>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.dateField')}</span>
+                                        <select
+                                            data-testid={`type-opt-${viewType}-dateField`}
+                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                            value={draft[viewType]?.dateField || draft[viewType]?.startDateField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange(viewType, 'dateField', e.target.value)}
+                                        >
+                                            <option value="">{t('console.objectView.selectField')}</option>
+                                            {fieldOptions.map(f => (
+                                                <option key={f.value} value={f.value}>{f.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span className="text-xs text-muted-foreground">{t('console.objectView.titleField')}</span>
+                                        <select
+                                            data-testid={`type-opt-${viewType}-titleField`}
+                                            className="w-full text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground mt-1"
+                                            value={draft[viewType]?.titleField || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleTypeOptionChange(viewType, 'titleField', e.target.value)}
+                                        >
+                                            <option value="">{t('console.objectView.selectField')}</option>
+                                            {fieldOptions.map(f => (
+                                                <option key={f.value} value={f.value}>{f.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    );
+                },
+            },
+        ],
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Appearance Section
+// ---------------------------------------------------------------------------
+
+function buildAppearanceSection(
+    t: ViewSchemaFactoryOptions['t'],
+    fieldOptions: FieldOption[],
+    fieldSelectWithNone: Array<{ value: string; label: string }>,
+    updateField: ViewSchemaFactoryOptions['updateField'],
+): ConfigPanelSchema['sections'][number] {
+    return {
+        key: 'appearance',
+        title: t('console.objectView.appearance'),
+        collapsible: true,
+        fields: [
+            // Color field select
+            {
+                key: 'color',
+                label: t('console.objectView.color'),
+                type: 'custom',
+                render: (value, onChange) => (
+                    <ConfigRow label={t('console.objectView.color')}>
+                        <select
+                            data-testid="appearance-color"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                            value={value || ''}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChange(e.target.value)}
+                        >
+                            <option value="">{t('console.objectView.none')}</option>
+                            {fieldOptions.map(f => (
+                                <option key={f.value} value={f.value}>{f.label}</option>
+                            ))}
+                        </select>
+                    </ConfigRow>
+                ),
+            },
+            // Field text color
+            {
+                key: 'fieldTextColor',
+                label: t('console.objectView.fieldTextColor'),
+                type: 'custom',
+                render: (value, onChange) => (
+                    <ConfigRow label={t('console.objectView.fieldTextColor')}>
+                        <select
+                            data-testid="appearance-fieldTextColor"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                            value={value || ''}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChange(e.target.value)}
+                        >
+                            <option value="">{t('console.objectView.none')}</option>
+                            {fieldOptions.map(f => (
+                                <option key={f.value} value={f.value}>{f.label}</option>
+                            ))}
+                        </select>
+                    </ConfigRow>
+                ),
+            },
+            // Row height (icon-group)
+            {
+                key: 'rowHeight',
+                label: t('console.objectView.rowHeight'),
+                type: 'custom',
+                render: (value, onChange) => (
+                    <ConfigRow label={t('console.objectView.rowHeight')}>
+                        <div className="flex gap-0.5" data-testid="appearance-rowHeight" role="radiogroup" aria-label={t('console.objectView.rowHeight')}>
+                            {ROW_HEIGHT_OPTIONS.map(opt => (
+                                <button
+                                    key={opt.value}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={(value || 'compact') === opt.value}
+                                    aria-label={opt.value}
+                                    data-testid={`row-height-${opt.value}`}
+                                    className={`h-7 w-7 rounded border flex items-center justify-center ${
+                                        (value || 'compact') === opt.value
+                                            ? 'border-primary bg-primary/10 text-primary'
+                                            : 'border-input text-muted-foreground hover:bg-accent/50'
+                                    }`}
+                                    onClick={() => onChange(opt.value)}
+                                    title={opt.value}
+                                >
+                                    <div className={`flex flex-col items-center justify-center w-4 h-4 ${opt.gapClass}`}>
+                                        <div className="w-3.5 h-px bg-current rounded-full" />
+                                        <div className="w-3.5 h-px bg-current rounded-full" />
+                                        <div className="w-3.5 h-px bg-current rounded-full" />
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </ConfigRow>
+                ),
+            },
+            // Toggles
+            buildSwitchField('wrapHeaders', t('console.objectView.wrapHeaders'), 'toggle-wrapHeaders', false, true),
+            buildSwitchField('showDescription', t('console.objectView.showFieldDescriptions'), 'toggle-showDescription', true),
+            buildSwitchField('collapseAllByDefault', t('console.objectView.collapseAllByDefault'), 'toggle-collapseAllByDefault', false, true),
+            buildSwitchField('striped', t('console.objectView.striped'), 'toggle-striped', false, true),
+            buildSwitchField('bordered', t('console.objectView.bordered'), 'toggle-bordered', false, true),
+            buildSwitchField('resizable', t('console.objectView.resizableColumns'), 'toggle-resizable', false, true),
+            // Density mode
+            {
+                key: 'densityMode',
+                label: t('console.objectView.densityMode'),
+                type: 'custom',
+                render: (value, onChange) => (
+                    <ConfigRow label={t('console.objectView.densityMode')}>
+                        <select
+                            data-testid="select-densityMode"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                            value={value || 'comfortable'}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChange(e.target.value)}
+                        >
+                            <option value="compact">{t('console.objectView.densityCompact')}</option>
+                            <option value="comfortable">{t('console.objectView.densityComfortable')}</option>
+                            <option value="spacious">{t('console.objectView.densitySpacious')}</option>
+                        </select>
+                    </ConfigRow>
+                ),
+            },
+            // Conditional formatting
+            {
+                key: '_conditionalFormatting',
+                label: t('console.objectView.conditionalFormatting'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    return (
+                        <ExpandableWidget
+                            renderSummary={(toggle) => (
+                                <ConfigRow
+                                    label={t('console.objectView.conditionalFormatting')}
+                                    value={`${(draft.conditionalFormatting || []).length} rules`}
+                                    onClick={toggle}
+                                />
+                            )}
+                        >
+                            <div data-testid="conditional-formatting-editor" className="pb-2 space-y-1">
+                                {(draft.conditionalFormatting || []).map((rule: any, idx: number) => (
+                                    <div key={idx} className="flex items-center gap-1 text-xs border rounded p-1">
+                                        <select
+                                            data-testid={`cf-field-${idx}`}
+                                            className="text-xs h-6 rounded border border-input bg-background px-1 flex-1"
+                                            value={rule.field || ''}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                                const updated = [...(draft.conditionalFormatting || [])];
+                                                updated[idx] = { ...updated[idx], field: e.target.value };
+                                                updateField('conditionalFormatting', updated);
+                                            }}
+                                        >
+                                            <option value="">Field</option>
+                                            {fieldOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                                        </select>
+                                        <select
+                                            data-testid={`cf-operator-${idx}`}
+                                            className="text-xs h-6 rounded border border-input bg-background px-1"
+                                            value={rule.operator || 'equals'}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                                const updated = [...(draft.conditionalFormatting || [])];
+                                                updated[idx] = { ...updated[idx], operator: e.target.value };
+                                                updateField('conditionalFormatting', updated);
+                                            }}
+                                        >
+                                            <option value="equals">=</option>
+                                            <option value="not_equals">≠</option>
+                                            <option value="contains">contains</option>
+                                            <option value="greater_than">&gt;</option>
+                                            <option value="less_than">&lt;</option>
+                                            <option value="in">in</option>
+                                        </select>
+                                        <Input
+                                            data-testid={`cf-value-${idx}`}
+                                            className="h-6 text-xs w-16"
+                                            value={String(rule.value ?? '')}
+                                            placeholder="Value"
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                const updated = [...(draft.conditionalFormatting || [])];
+                                                updated[idx] = { ...updated[idx], value: e.target.value };
+                                                updateField('conditionalFormatting', updated);
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="text-destructive hover:text-destructive/80 text-xs"
+                                            onClick={() => {
+                                                const updated = (draft.conditionalFormatting || []).filter((_: any, i: number) => i !== idx);
+                                                updateField('conditionalFormatting', updated);
+                                            }}
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                ))}
+                                <button
+                                    type="button"
+                                    data-testid="add-conditional-rule"
+                                    className="text-xs text-primary hover:underline"
+                                    onClick={() => {
+                                        const newRule = { field: '', operator: 'equals', value: '' };
+                                        updateField('conditionalFormatting', [...(draft.conditionalFormatting || []), newRule]);
+                                    }}
+                                >
+                                    + {t('console.objectView.addRule')}
+                                </button>
+                            </div>
+                        </ExpandableWidget>
+                    );
+                },
+            },
+            // Empty state
+            {
+                key: '_emptyState',
+                label: 'Empty state',
+                type: 'custom',
+                render: (_value, _onChange, draft) => (
+                    <>
+                        <ConfigRow label={t('console.objectView.emptyStateTitle')}>
+                            <Input
+                                data-testid="input-emptyState-title"
+                                className="h-7 text-xs w-28 text-right"
+                                value={draft.emptyState?.title ?? ''}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                    updateField('emptyState', { ...(draft.emptyState || {}), title: e.target.value })
+                                }
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.emptyStateMessage')}>
+                            <Input
+                                data-testid="input-emptyState-message"
+                                className="h-7 text-xs w-28 text-right"
+                                value={draft.emptyState?.message ?? ''}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                    updateField('emptyState', { ...(draft.emptyState || {}), message: e.target.value })
+                                }
+                            />
+                        </ConfigRow>
+                        <ConfigRow label={t('console.objectView.emptyStateIcon')}>
+                            <Input
+                                data-testid="input-emptyState-icon"
+                                className="h-7 text-xs w-28 text-right"
+                                value={draft.emptyState?.icon ?? ''}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                    updateField('emptyState', { ...(draft.emptyState || {}), icon: e.target.value })
+                                }
+                            />
+                        </ConfigRow>
+                    </>
+                ),
+            },
+        ],
+    };
+}
+
+// ---------------------------------------------------------------------------
+// User Actions Section
+// ---------------------------------------------------------------------------
+
+function buildUserActionsSection(
+    t: ViewSchemaFactoryOptions['t'],
+    updateField: ViewSchemaFactoryOptions['updateField'],
+): ConfigPanelSchema['sections'][number] {
+    return {
+        key: 'userActions',
+        title: t('console.objectView.userActions'),
+        collapsible: true,
+        fields: [
+            buildSwitchField('inlineEdit', t('console.objectView.inlineEdit'), 'toggle-inlineEdit', true),
+            buildSwitchField('addDeleteRecordsInline', t('console.objectView.addDeleteRecordsInline'), 'toggle-addDeleteRecordsInline', true),
+            // Row actions
+            {
+                key: '_rowActions',
+                label: t('console.objectView.rowActions'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    return (
+                        <ExpandableWidget
+                            renderSummary={(toggle) => (
+                                <ConfigRow
+                                    label={t('console.objectView.rowActions')}
+                                    value={`${(draft.rowActions || []).length} actions`}
+                                    onClick={toggle}
+                                />
+                            )}
+                        >
+                            <div data-testid="row-actions-selector" className="pb-2 space-y-0.5 max-h-36 overflow-auto">
+                                <Input
+                                    data-testid="input-rowActions"
+                                    className="h-7 text-xs w-full"
+                                    value={(draft.rowActions || []).join(', ')}
+                                    placeholder="edit, delete, duplicate"
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                        updateField('rowActions', parseCommaSeparated(e.target.value));
+                                    }}
+                                />
+                            </div>
+                        </ExpandableWidget>
+                    );
+                },
+            },
+            // Bulk actions
+            {
+                key: '_bulkActions',
+                label: t('console.objectView.bulkActions'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    return (
+                        <ExpandableWidget
+                            renderSummary={(toggle) => (
+                                <ConfigRow
+                                    label={t('console.objectView.bulkActions')}
+                                    value={`${(draft.bulkActions || []).length} actions`}
+                                    onClick={toggle}
+                                />
+                            )}
+                        >
+                            <div data-testid="bulk-actions-selector" className="pb-2 space-y-0.5 max-h-36 overflow-auto">
+                                <Input
+                                    data-testid="input-bulkActions"
+                                    className="h-7 text-xs w-full"
+                                    value={(draft.bulkActions || []).join(', ')}
+                                    placeholder="delete, export, assign"
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                        updateField('bulkActions', parseCommaSeparated(e.target.value));
+                                    }}
+                                />
+                            </div>
+                        </ExpandableWidget>
+                    );
+                },
+            },
+        ],
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Sharing Section
+// ---------------------------------------------------------------------------
+
+function buildSharingSection(
+    t: ViewSchemaFactoryOptions['t'],
+    updateField: ViewSchemaFactoryOptions['updateField'],
+): ConfigPanelSchema['sections'][number] {
+    return {
+        key: 'sharing',
+        title: t('console.objectView.sharing'),
+        collapsible: true,
+        fields: [
+            {
+                key: '_sharingEnabled',
+                label: t('console.objectView.sharingEnabled'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => (
+                    <ConfigRow label={t('console.objectView.sharingEnabled')}>
+                        <Switch
+                            data-testid="toggle-sharing-enabled"
+                            checked={draft.sharing?.enabled === true}
+                            onCheckedChange={(checked: boolean) =>
+                                updateField('sharing', { ...(draft.sharing || {}), enabled: checked })
+                            }
+                            className="scale-75"
+                        />
+                    </ConfigRow>
+                ),
+            },
+            {
+                key: '_sharingVisibility',
+                label: t('console.objectView.sharingVisibility'),
+                type: 'custom',
+                visibleWhen: (draft) => draft.sharing?.enabled === true,
+                render: (_value, _onChange, draft) => (
+                    <ConfigRow label={t('console.objectView.sharingVisibility')}>
+                        <select
+                            data-testid="select-sharing-visibility"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                            value={draft.sharing?.visibility || 'private'}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                updateField('sharing', { ...(draft.sharing || {}), enabled: true, visibility: e.target.value })
+                            }
+                        >
+                            <option value="private">Private</option>
+                            <option value="team">Team</option>
+                            <option value="organization">Organization</option>
+                            <option value="public">Public</option>
+                        </select>
+                    </ConfigRow>
+                ),
+            },
+        ],
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Accessibility Section
+// ---------------------------------------------------------------------------
+
+function buildAccessibilitySection(
+    t: ViewSchemaFactoryOptions['t'],
+    updateField: ViewSchemaFactoryOptions['updateField'],
+): ConfigPanelSchema['sections'][number] {
+    return {
+        key: 'accessibility',
+        title: t('console.objectView.accessibility'),
+        collapsible: true,
+        fields: [
+            {
+                key: '_ariaLabel',
+                label: t('console.objectView.ariaLabel'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => (
+                    <ConfigRow label={t('console.objectView.ariaLabel')}>
+                        <Input
+                            data-testid="input-aria-label"
+                            className="h-7 text-xs w-28 text-right"
+                            value={draft.aria?.label ?? ''}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                updateField('aria', { ...(draft.aria || {}), label: e.target.value })
+                            }
+                        />
+                    </ConfigRow>
+                ),
+            },
+            {
+                key: '_ariaDescribedBy',
+                label: t('console.objectView.ariaDescribedBy'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => (
+                    <ConfigRow label={t('console.objectView.ariaDescribedBy')}>
+                        <Input
+                            data-testid="input-aria-describedBy"
+                            className="h-7 text-xs w-28 text-right"
+                            value={draft.aria?.describedBy ?? ''}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                updateField('aria', { ...(draft.aria || {}), describedBy: e.target.value })
+                            }
+                        />
+                    </ConfigRow>
+                ),
+            },
+            {
+                key: '_ariaLive',
+                label: t('console.objectView.ariaLive'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => (
+                    <ConfigRow label={t('console.objectView.ariaLive')}>
+                        <select
+                            data-testid="select-aria-live"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[100px]"
+                            value={draft.aria?.live || 'off'}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                updateField('aria', { ...(draft.aria || {}), live: e.target.value })
+                            }
+                        >
+                            <option value="off">Off</option>
+                            <option value="polite">Polite</option>
+                            <option value="assertive">Assertive</option>
+                        </select>
+                    </ConfigRow>
+                ),
+            },
+        ],
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Field Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a standard Switch toggle field with custom testId.
+ * @param defaultOn - if true, treat undefined/absent as enabled (checked = value !== false)
+ * @param explicitTrue - if true, only check when value === true
+ */
+function buildSwitchField(key: string, label: string, testId: string, defaultOn = false, explicitTrue = false): ConfigField {
+    return {
+        key,
+        label,
+        type: 'custom',
+        render: (value, onChange) => (
+            <ConfigRow label={label}>
+                <Switch
+                    data-testid={testId}
+                    checked={explicitTrue ? value === true : (defaultOn ? value !== false : !!value)}
+                    onCheckedChange={(checked: boolean) => onChange(checked)}
+                    className="scale-75"
+                />
+            </ConfigRow>
+        ),
+    };
+}
+
+/**
+ * Build a multi-select field picker (searchable, filterable, hidden fields)
+ */
+function buildFieldMultiSelect(
+    key: string,
+    label: string,
+    selectorTestId: string,
+    itemTestIdPrefix: string,
+    fieldOptions: FieldOption[],
+    updateField: ViewSchemaFactoryOptions['updateField'],
+    countLabel: string,
+): ConfigField {
+    return {
+        key: `_${key}`,
+        label,
+        type: 'custom',
+        render: (_value, _onChange, draft) => {
+            return (
+                <ExpandableWidget
+                    renderSummary={(toggle) => (
+                        <ConfigRow
+                            label={label}
+                            value={`${(draft[key] || []).length} ${countLabel}`}
+                            onClick={toggle}
+                        />
+                    )}
+                >
+                    <div data-testid={selectorTestId} className="pb-2 space-y-0.5 max-h-36 overflow-auto">
+                        {fieldOptions.map(f => (
+                            <label key={f.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
+                                <Checkbox
+                                    data-testid={`${itemTestIdPrefix}-${f.value}`}
+                                    checked={(draft[key] || []).includes(f.value)}
+                                    onCheckedChange={(checked: boolean) => {
+                                        const current: string[] = draft[key] || [];
+                                        const updated = checked
+                                            ? [...current, f.value]
+                                            : current.filter((v: string) => v !== f.value);
+                                        updateField(key, updated);
+                                    }}
+                                    className="h-3.5 w-3.5"
+                                />
+                                <span className="truncate">{f.label}</span>
+                            </label>
+                        ))}
+                    </div>
+                </ExpandableWidget>
+            );
+        },
+    };
+}
