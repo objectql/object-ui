@@ -312,6 +312,12 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                   </div>
                   <div className="font-medium text-muted-foreground">Edit App</div>
                 </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2 p-2" onClick={() => navigate(`/apps/${activeAppName}/system/apps`)} data-testid="manage-all-apps-btn">
+                  <div className="flex size-6 items-center justify-center rounded-md border bg-background">
+                    <Settings className="size-4" />
+                  </div>
+                  <div className="font-medium text-muted-foreground">Manage All Apps</div>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
@@ -480,7 +486,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                   <DropdownMenuItem
-                    onClick={() => navigate(`/apps/${activeAppName}/system/profile`)}
+                    onClick={() => navigate(`/apps/${activeAppName}/system`)}
                   >
                     <Settings className="mr-2 h-4 w-4" />
                     Settings

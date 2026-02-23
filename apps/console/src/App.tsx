@@ -40,9 +40,12 @@ const RegisterPage = lazy(() => import('./pages/RegisterPage').then(m => ({ defa
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
 
 // System Admin Pages (lazy — rarely accessed)
+const SystemHubPage = lazy(() => import('./pages/system/SystemHubPage').then(m => ({ default: m.SystemHubPage })));
+const AppManagementPage = lazy(() => import('./pages/system/AppManagementPage').then(m => ({ default: m.AppManagementPage })));
 const UserManagementPage = lazy(() => import('./pages/system/UserManagementPage').then(m => ({ default: m.UserManagementPage })));
 const OrgManagementPage = lazy(() => import('./pages/system/OrgManagementPage').then(m => ({ default: m.OrgManagementPage })));
 const RoleManagementPage = lazy(() => import('./pages/system/RoleManagementPage').then(m => ({ default: m.RoleManagementPage })));
+const PermissionManagementPage = lazy(() => import('./pages/system/PermissionManagementPage').then(m => ({ default: m.PermissionManagementPage })));
 const AuditLogPage = lazy(() => import('./pages/system/AuditLogPage').then(m => ({ default: m.AuditLogPage })));
 const ProfilePage = lazy(() => import('./pages/system/ProfilePage').then(m => ({ default: m.ProfilePage })));
 
@@ -363,9 +366,12 @@ export function AppContent() {
         <Route path="edit-app/:editAppName" element={<EditAppPage />} />
 
         {/* System Administration Routes */}
+        <Route path="system" element={<SystemHubPage />} />
+        <Route path="system/apps" element={<AppManagementPage />} />
         <Route path="system/users" element={<UserManagementPage />} />
         <Route path="system/organizations" element={<OrgManagementPage />} />
         <Route path="system/roles" element={<RoleManagementPage />} />
+        <Route path="system/permissions" element={<PermissionManagementPage />} />
         <Route path="system/audit-log" element={<AuditLogPage />} />
         <Route path="system/profile" element={<ProfilePage />} />
       </Routes>
