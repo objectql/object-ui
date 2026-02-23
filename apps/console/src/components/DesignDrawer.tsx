@@ -93,9 +93,10 @@ export function DesignDrawer({
   }, [open, saveSchema, title]);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
       <SheetContent
         side="right"
+        hideOverlay
         className="w-full sm:w-[540px] sm:max-w-[540px] lg:w-[640px] lg:max-w-[640px] p-0 flex flex-col"
         data-testid="design-drawer"
       >

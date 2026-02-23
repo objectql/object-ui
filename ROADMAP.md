@@ -366,6 +366,14 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Auto-save property changes to backend via DesignDrawer
 - [x] Add Vitest tests (15 DashboardRenderer design mode + 9 DashboardEditor external selection + 8 DashboardView integration = 32 new tests)
 
+**Phase 7 — Non-Modal Drawer & Property Panel UX Fix:**
+- [x] `SheetContent` — added `hideOverlay` prop to conditionally skip the full-screen backdrop overlay
+- [x] `DesignDrawer` — `modal={false}` + `hideOverlay` so preview widgets are clickable while drawer is open
+- [x] `DashboardEditor` — property panel renders above widget grid (stacked `flex-col` layout) for immediate visibility in narrow drawer
+- [x] `DashboardEditor` — property panel uses full width (removed fixed `w-72`) for better readability in drawer context
+- [x] Preview click → editor property panel linkage now works end-to-end (select, switch, deselect)
+- [x] Add 11 new tests (7 DashboardDesignInteraction integration + 4 DashboardEditor.propertyPanelLayout)
+
 ### P1.11 Console — Schema-Driven View Config Panel Migration
 
 > Migrated the Console ViewConfigPanel from imperative implementation (~1655 lines) to Schema-Driven architecture using `ConfigPanelRenderer` + `useConfigDraft` + `ConfigPanelSchema`, reducing to ~170 lines declarative wrapper + schema factory.

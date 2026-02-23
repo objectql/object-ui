@@ -212,7 +212,7 @@ function WidgetPropertyPanel({
   return (
     <div
       data-testid="widget-property-panel"
-      className="w-72 shrink-0 space-y-4 rounded-lg border border-gray-200 bg-white p-4"
+      className="shrink-0 space-y-4 rounded-lg border border-gray-200 bg-white p-4"
     >
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold text-gray-800">{t('appDesigner.widgetProperties')}</h4>
@@ -572,7 +572,7 @@ export function DashboardEditor({
       ref={containerRef}
       tabIndex={0}
       data-testid="dashboard-editor"
-      className={cn('flex flex-col gap-4 outline-none sm:flex-row', className)}
+      className={cn('flex flex-col gap-4 outline-none', className)}
     >
       {/* Hidden file input for import */}
       <input
@@ -583,6 +583,16 @@ export function DashboardEditor({
         data-testid="dashboard-import-input"
         onChange={handleImportFile}
       />
+
+      {/* Property panel — shown above widget list when a widget is selected */}
+      {selectedWidget && !previewMode && (
+        <WidgetPropertyPanel
+          widget={selectedWidget}
+          readOnly={readOnly}
+          onChange={updateWidget}
+          onClose={() => setSelectedWidgetId(null)}
+        />
+      )}
 
       {/* Main area */}
       <div className="flex-1 space-y-4">
@@ -695,16 +705,6 @@ export function DashboardEditor({
           </div>
         )}
       </div>
-
-      {/* Property panel */}
-      {selectedWidget && !previewMode && (
-        <WidgetPropertyPanel
-          widget={selectedWidget}
-          readOnly={readOnly}
-          onChange={updateWidget}
-          onClose={() => setSelectedWidgetId(null)}
-        />
-      )}
     </div>
   );
 }
