@@ -446,17 +446,25 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Disabled state support
 
 **i18n:**
-- [x] `appDesigner` section with 54 keys added to all 10 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko)
+- [x] `appDesigner` section with 94 keys added to all 10 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko)
+- [x] `useDesignerTranslation` safe wrapper hook with English fallback (no I18nProvider required)
+- [x] AppCreationWizard fully i18n-integrated (all labels, buttons, step names, validation messages)
+- [x] NavigationDesigner fully i18n-integrated (type badges, quick-add labels, aria-labels, preview)
+
+**UX Enhancements:**
+- [x] Cancel confirmation dialog with unsaved-changes detection
+- [x] `onSaveDraft` callback for partial progress save
+- [x] `useConfirmDialog` hook integration for cancel workflow
 
 **Testing:**
 - [x] 9 type tests (isValidAppName, wizardDraftToAppSchema, type shapes)
-- [x] 31 AppCreationWizard tests (rendering, steps 1-4, navigation, callbacks, read-only)
-- [x] 18 NavigationDesigner tests (rendering, add, remove, groups, badges, read-only)
+- [x] 41 AppCreationWizard tests (rendering, steps 1-4, navigation, callbacks, cancel confirm, save draft, i18n, read-only)
+- [x] 18 NavigationDesigner tests (rendering, add, remove, groups, badges, i18n, read-only)
 - [x] 7 EditorModeToggle tests (render, active mode, onChange, accessibility, disabled)
-- [x] 14 DashboardEditor tests (rendering, add/remove widgets, property panel, read-only)
-- [x] 10 PageCanvasEditor tests (rendering, add/remove components, property panel, read-only)
-- [x] 14 ObjectViewConfigurator tests (rendering, view type switch, column visibility, toggles, read-only)
-- [x] **Total: 103 new tests, all passing**
+- [x] 10 DashboardEditor tests (rendering, add/remove widgets, property panel, read-only)
+- [x] 9 PageCanvasEditor tests (rendering, add/remove components, property panel, read-only)
+- [x] 12 ObjectViewConfigurator tests (rendering, view type switch, column visibility, toggles, read-only)
+- [x] **Total: 165 tests across 9 files, all passing**
 
 **ComponentRegistry:**
 - [x] Registered: `app-creation-wizard`, `navigation-designer`, `dashboard-editor`, `page-canvas-editor`, `object-view-configurator`

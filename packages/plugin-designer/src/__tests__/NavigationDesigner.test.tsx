@@ -171,4 +171,29 @@ describe('NavigationDesigner', () => {
       expect(removeBtn.hasAttribute('disabled')).toBe(true);
     });
   });
+
+  // ============================
+  // i18n Integration
+  // ============================
+  describe('i18n Integration', () => {
+    it('should display translated type badges via fallback', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} />);
+      // Type badges should use fallback English
+      expect(screen.getAllByText('Object').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getAllByText('Group').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should display translated empty state', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={[]} onChange={onChange} />);
+      expect(screen.getByText(/No navigation items/)).toBeDefined();
+    });
+
+    it('should display translated preview header', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} showPreview />);
+      expect(screen.getByText('Live Preview')).toBeDefined();
+    });
+  });
 });
