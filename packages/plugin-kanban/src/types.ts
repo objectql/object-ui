@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { BaseSchema } from '@object-ui/types';
+import type { BaseSchema, GroupingConfig } from '@object-ui/types';
 
 /**
  * Kanban card interface.
@@ -130,6 +130,12 @@ export interface KanbanSchema extends BaseSchema {
    * Supports per-column overrides with min/max constraints.
    */
   columnWidths?: ColumnWidthConfig;
+
+  /**
+   * Grouping configuration from ListView.
+   * When set, the first grouping field is used as swimlaneField fallback.
+   */
+  grouping?: GroupingConfig;
 }
 
 /**

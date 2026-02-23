@@ -756,6 +756,7 @@ export const ListView: React.FC<ListViewProps> = ({
           groupField: schema.kanban?.groupField || schema.options?.kanban?.groupField || 'status',
           titleField: schema.kanban?.titleField || schema.options?.kanban?.titleField || 'name',
           cardFields: schema.kanban?.cardFields || effectiveFields || [],
+          ...(groupingConfig ? { grouping: groupingConfig } : {}),
           ...(schema.options?.kanban || {}),
           ...(schema.kanban || {}),
         };
@@ -780,6 +781,7 @@ export const ListView: React.FC<ListViewProps> = ({
           ...(schema.gallery?.coverFit ? { coverFit: schema.gallery.coverFit } : {}),
           ...(schema.gallery?.cardSize ? { cardSize: schema.gallery.cardSize } : {}),
           ...(schema.gallery?.visibleFields ? { visibleFields: schema.gallery.visibleFields } : {}),
+          ...(groupingConfig ? { grouping: groupingConfig } : {}),
           ...(schema.options?.gallery || {}),
           ...(schema.gallery || {}),
         };

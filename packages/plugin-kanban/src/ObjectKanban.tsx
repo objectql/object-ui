@@ -188,11 +188,16 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
   }, [schema.columns, schema.groupBy, effectiveData, objectDef]);
 
   // Clone schema to inject data and className
+  // Use grouping.fields[0].field as swimlaneField fallback when no explicit swimlaneField
+  const effectiveSwimlaneField = schema.swimlaneField
+    || (schema.grouping?.fields?.[0]?.field);
+
   const effectiveSchema = {
       ...schema,
       data: effectiveData,
       columns: effectiveColumns,
-      className: className || schema.className
+      className: className || schema.className,
+      ...(effectiveSwimlaneField ? { swimlaneField: effectiveSwimlaneField } : {}),
   };
 
   const navigation = useNavigationOverlay({
