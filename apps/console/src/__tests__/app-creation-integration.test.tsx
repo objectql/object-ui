@@ -83,6 +83,13 @@ const MockAdapterInstance = {
   connect: vi.fn().mockResolvedValue(true),
   onConnectionStateChange: vi.fn().mockReturnValue(() => {}),
   getConnectionState: vi.fn().mockReturnValue('connected'),
+  getClient: vi.fn().mockReturnValue({
+    meta: {
+      saveItem: vi.fn().mockResolvedValue({ ok: true }),
+      getItems: vi.fn().mockResolvedValue({ items: [] }),
+      getItem: vi.fn().mockResolvedValue(null),
+    },
+  }),
   discovery: {},
 };
 
@@ -349,6 +356,25 @@ describe('Console App Creation Integration', () => {
         expect(localStorage.getItem('objectui-app-wizard-draft')).toBeNull();
       });
     });
+
+    it('calls client.meta.saveItem on wizard completion', async () => {
+      renderApp('/apps/sales/create-app');
+
+      await waitFor(() => {
+        expect(screen.getByTestId('wizard-complete')).toBeInTheDocument();
+      }, { timeout: 10000 });
+
+      fireEvent.click(screen.getByTestId('wizard-complete'));
+
+      await waitFor(() => {
+        const client = MockAdapterInstance.getClient();
+        expect(client.meta.saveItem).toHaveBeenCalledWith(
+          'app',
+          'my_app',
+          expect.objectContaining({ name: 'my_app' }),
+        );
+      });
+    });
   });
 
   // --- Route: Edit App ---
@@ -378,6 +404,25 @@ describe('Console App Creation Integration', () => {
       await waitFor(() => {
         expect(screen.getByTestId('edit-app-not-found')).toBeInTheDocument();
       }, { timeout: 10000 });
+    });
+
+    it('calls client.meta.saveItem on wizard completion (edit)', async () => {
+      renderApp('/apps/sales/edit-app/sales');
+
+      await waitFor(() => {
+        expect(screen.getByTestId('wizard-complete')).toBeInTheDocument();
+      }, { timeout: 10000 });
+
+      fireEvent.click(screen.getByTestId('wizard-complete'));
+
+      await waitFor(() => {
+        const client = MockAdapterInstance.getClient();
+        expect(client.meta.saveItem).toHaveBeenCalledWith(
+          'app',
+          'my_app',
+          expect.objectContaining({ name: 'my_app' }),
+        );
+      });
     });
   });
 

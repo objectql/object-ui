@@ -127,6 +127,40 @@ export function createHandlers(baseUrl: string, kernel: ObjectKernel, driver: In
       }
     }),
 
+    // ── Metadata: save item by type + name ───────────────────────────────
+    http.put(`${prefix}${baseUrl}/meta/:type/:name`, async ({ params, request }) => {
+      try {
+        const body = await request.json();
+        if (typeof protocol.saveMetaItem === 'function') {
+          const result = await protocol.saveMetaItem({
+            type: params.type as string,
+            name: params.name as string,
+            item: body,
+          });
+          return HttpResponse.json(result, { status: 200 });
+        }
+        return HttpResponse.json({ error: 'Save not supported' }, { status: 501 });
+      } catch (e) {
+        return HttpResponse.json({ error: String(e) }, { status: 500 });
+      }
+    }),
+    http.put(`${prefix}${baseUrl}/metadata/:type/:name`, async ({ params, request }) => {
+      try {
+        const body = await request.json();
+        if (typeof protocol.saveMetaItem === 'function') {
+          const result = await protocol.saveMetaItem({
+            type: params.type as string,
+            name: params.name as string,
+            item: body,
+          });
+          return HttpResponse.json(result, { status: 200 });
+        }
+        return HttpResponse.json({ error: 'Save not supported' }, { status: 501 });
+      } catch (e) {
+        return HttpResponse.json({ error: String(e) }, { status: 500 });
+      }
+    }),
+
     // ── Data: find all ──────────────────────────────────────────────────
     http.get(`${prefix}${baseUrl}/data/:objectName`, async ({ params, request }) => {
       const url = new URL(request.url);
