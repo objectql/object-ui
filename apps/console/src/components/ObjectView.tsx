@@ -344,6 +344,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
             virtualScroll: viewDef.virtualScroll ?? listSchema.virtualScroll,
             emptyState: viewDef.emptyState ?? listSchema.emptyState,
             aria: viewDef.aria ?? listSchema.aria,
+            tabs: listSchema.tabs,
             // Propagate filter/sort as default filters/sort for data flow
             ...(viewDef.filter?.length ? { filters: viewDef.filter } : {}),
             ...(viewDef.sort?.length ? { sort: viewDef.sort } : {}),

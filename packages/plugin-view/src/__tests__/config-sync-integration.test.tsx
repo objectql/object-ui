@@ -550,4 +550,39 @@ describe('Config Sync Integration — Per View Type', () => {
     expect(s?.emptyState).toEqual({ title: 'No data', message: 'Add records', icon: 'inbox' });
     expect(s?.aria).toEqual({ label: 'Contacts', describedBy: 'desc', live: 'polite' });
   });
+
+  it('propagates schema-level tabs through renderListView', () => {
+    const tabsConfig = [
+      { name: 'all', label: 'All Records', isDefault: true },
+      { name: 'active', label: 'Active', icon: 'circle-check', filter: { logic: 'and', conditions: [{ field: 'status', operator: 'eq', value: 'active' }] } },
+      { name: 'vip', label: 'VIP', pinned: true },
+    ];
+
+    const schema: ObjectViewSchema = {
+      type: 'object-view',
+      objectName: 'contacts',
+      tabs: tabsConfig,
+    } as any;
+
+    const renderListViewSpy = vi.fn(({ schema: listSchema }: any) => (
+      <div data-testid="custom-list">Grid</div>
+    ));
+
+    render(
+      <ObjectView
+        schema={schema}
+        dataSource={mockDataSource}
+        views={[{ id: 'v1', label: 'Grid View', type: 'grid' as const }]}
+        activeViewId="v1"
+        renderListView={renderListViewSpy}
+      />,
+    );
+
+    expect(renderListViewSpy).toHaveBeenCalled();
+    const callSchema = renderListViewSpy.mock.calls[0]?.[0]?.schema;
+    expect(callSchema?.tabs).toEqual(tabsConfig);
+    expect(callSchema?.tabs).toHaveLength(3);
+    expect(callSchema?.tabs[0]?.isDefault).toBe(true);
+    expect(callSchema?.tabs[2]?.pinned).toBe(true);
+  });
 });
