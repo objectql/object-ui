@@ -28,14 +28,15 @@ import { getCellRenderer, formatCurrency, formatCompactCurrency, formatDate, for
 import {
   Badge, Button, NavigationOverlay,
   Popover, PopoverContent, PopoverTrigger,
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { Edit, Trash2, MoreVertical, ChevronRight, ChevronDown, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock } from 'lucide-react';
+import { ChevronRight, ChevronDown, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock } from 'lucide-react';
 import { useRowColor } from './useRowColor';
 import { useGroupedData } from './useGroupedData';
 import { GroupRow } from './GroupRow';
 import { useColumnSummary } from './useColumnSummary';
+import { RowActionMenu, formatActionLabel } from './components/RowActionMenu';
+import { BulkActionBar } from './components/BulkActionBar';
 
 export interface ObjectGridProps {
   schema: ObjectGridSchema;
@@ -50,14 +51,6 @@ export interface ObjectGridProps {
   onBatchSave?: (changes: Array<{ rowIndex: number; changes: Record<string, any>; row: any }>) => void | Promise<void>;
   onRowSelect?: (selectedRows: any[]) => void;
   onAddRecord?: () => void;
-}
-
-/**
- * Format an action identifier string into a human-readable label.
- * e.g., 'send_email' → 'Send Email'
- */
-function formatActionLabel(action: string): string {
-  return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 /**
@@ -137,6 +130,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [refreshKey, setRefreshKey] = useState(0);
   const [showExport, setShowExport] = useState(false);
   const [rowHeightMode, setRowHeightMode] = useState<'compact' | 'short' | 'medium' | 'tall' | 'extra_tall'>(schema.rowHeight ?? 'medium');
+  const [selectedRows, setSelectedRows] = useState<any[]>([]);
 
   // Column state persistence (order and widths)
   const columnStorageKey = React.useMemo(() => {
@@ -756,37 +750,15 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       header: 'Actions',
       accessorKey: '_actions',
       cell: (_value: any, row: any) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0" data-testid="row-action-trigger">
-              <MoreVertical className="h-4 w-4" />
-              <span className="sr-only">Open menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {operations?.update && onEdit && (
-              <DropdownMenuItem onClick={() => onEdit(row)}>
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-            )}
-            {operations?.delete && onDelete && (
-              <DropdownMenuItem onClick={() => onDelete(row)}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </DropdownMenuItem>
-            )}
-            {schema.rowActions?.map(action => (
-              <DropdownMenuItem
-                key={action}
-                onClick={() => executeAction({ type: action, params: { record: row } })}
-                data-testid={`row-action-${action}`}
-              >
-                {formatActionLabel(action)}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <RowActionMenu
+          row={row}
+          rowActions={schema.rowActions}
+          canEdit={!!(operations?.update && onEdit)}
+          canDelete={!!(operations?.delete && onDelete)}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onAction={(action, r) => executeAction({ type: action, params: { record: r } })}
+        />
       ),
       sortable: false,
     },
@@ -869,7 +841,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     onAddRecord: onAddRecord,
     rowClassName: schema.rowColor ? (row: any, _idx: number) => getRowClassName(row) : undefined,
     frozenColumns: effectiveFrozenColumns,
-    onSelectionChange: onRowSelect,
+    onSelectionChange: (rows: any[]) => {
+      setSelectedRows(rows);
+      onRowSelect?.(rows);
+    },
     onRowClick: navigation.handleClick,
     onCellChange: onCellChange,
     onRowSave: onRowSave,
@@ -1250,6 +1225,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     </div>
   ) : null;
 
+  // Bulk actions — support both batchActions (ObjectUI) and bulkActions (spec) names
+  const effectiveBulkActions = schema.batchActions ?? (schema as any).bulkActions;
+
   // Render grid content: grouped (multiple tables with headers) or flat (single table)
   const gridContent = isGrouped ? (
     <div className="space-y-2">
@@ -1280,7 +1258,18 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       <NavigationOverlay
         {...navigation}
         title={detailTitle}
-        mainContent={<>{gridToolbar}{gridContent}</>}
+        mainContent={
+          <>
+            {gridToolbar}
+            {gridContent}
+            <BulkActionBar
+              selectedRows={selectedRows}
+              actions={effectiveBulkActions ?? []}
+              onAction={(action, rows) => executeAction({ type: action, params: { records: rows } })}
+              onClearSelection={() => setSelectedRows([])}
+            />
+          </>
+        }
       >
         {(record) => renderRecordDetail(record)}
       </NavigationOverlay>
@@ -1299,6 +1288,12 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       )}
       {gridToolbar}
       {gridContent}
+      <BulkActionBar
+        selectedRows={selectedRows}
+        actions={effectiveBulkActions ?? []}
+        onAction={(action, rows) => executeAction({ type: action, params: { records: rows } })}
+        onClearSelection={() => setSelectedRows([])}
+      />
       {navigation.isOverlay && (
         <NavigationOverlay
           {...navigation}

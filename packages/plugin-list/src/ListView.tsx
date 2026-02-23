@@ -731,6 +731,7 @@ export const ListView: React.FC<ListViewProps> = ({
           ...(groupingConfig ? { grouping: groupingConfig } : {}),
           ...(rowColorConfig ? { rowColor: rowColorConfig } : {}),
           ...(schema.rowActions ? { rowActions: schema.rowActions } : {}),
+          ...(schema.bulkActions ? { batchActions: schema.bulkActions } : {}),
           ...(schema.options?.grid || {}),
         };
       case 'kanban':
