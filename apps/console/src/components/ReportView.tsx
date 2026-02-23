@@ -1,61 +1,42 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { ReportViewer, ReportBuilder } from '@object-ui/plugin-report';
-import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
-import { PenLine, ChevronLeft, BarChart3, Loader2 } from 'lucide-react';
+import { ReportViewer, ReportConfigPanel } from '@object-ui/plugin-report';
+import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
+import { Pencil, BarChart3, Loader2 } from 'lucide-react';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
+import { DesignDrawer } from './DesignDrawer';
 import { useMetadata } from '../context/MetadataProvider';
 import type { DataSource } from '@object-ui/types';
-
-// Fallback fields when no schema is available
-const FALLBACK_FIELDS = [
-  { name: 'month', label: 'Month', type: 'string' },
-  { name: 'revenue', label: 'Revenue', type: 'number' },
-  { name: 'count', label: 'Count', type: 'number' },
-  { name: 'region', label: 'Region', type: 'string' },
-  { name: 'product', label: 'Product', type: 'string' },
-  { name: 'source', label: 'Lead Source', type: 'string' },
-  { name: 'stage', label: 'Stage', type: 'string' },
-  { name: 'amount', label: 'Amount', type: 'currency' },
-];
 
 export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   const { reportName } = useParams<{ reportName: string }>();
   const { showDebug, toggleDebug } = useMetadataInspector();
-  const [isEditing, setIsEditing] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   
   // Find report definition from API-driven metadata
-  const { reports, objects, loading } = useMetadata();
+  const { reports, loading } = useMetadata();
   const initialReport = reports?.find((r: any) => r.name === reportName);
   const [reportData, setReportData] = useState(initialReport);
+
+  // Local schema state for live preview — initialized from metadata
+  const [editSchema, setEditSchema] = useState<any>(null);
 
   // State for report runtime data
   const [reportRuntimeData, setReportRuntimeData] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
 
-  // Derive available fields from object schema when report has objectName/dataSource
-  const availableFields = useMemo(() => {
-    const objName = reportData?.objectName || reportData?.dataSource?.object || reportData?.dataSource?.resource;
-    if (objName && objects?.length) {
-      const objDef = objects.find((o: any) => o.name === objName);
-      if (objDef?.fields) {
-        const fields = objDef.fields;
-        if (Array.isArray(fields)) {
-          return fields.map((f: any) =>
-            typeof f === 'string'
-              ? { name: f, label: f, type: 'text' }
-              : { name: f.name, label: f.label || f.name, type: f.type || 'text' },
-          );
-        }
-        return Object.entries(fields).map(([name, def]: [string, any]) => ({
-          name,
-          label: def.label || name,
-          type: def.type || 'text',
-        }));
-      }
+  const handleOpenDrawer = useCallback(() => {
+    setEditSchema(reportData);
+    setDrawerOpen(true);
+  }, [reportData]);
+
+  const handleCloseDrawer = useCallback((open: boolean) => {
+    setDrawerOpen(open);
+    if (!open && editSchema) {
+      // Apply edits to the reportData when drawer closes
+      setReportData(editSchema);
     }
-    return FALLBACK_FIELDS;
-  }, [reportData, objects]);
+  }, [editSchema]);
 
   // Sync reportData when metadata finishes loading or reportName changes
   useEffect(() => {
@@ -167,46 +148,14 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
     );
   }
 
-  const handleSave = (newReport: any) => {
-    console.log('Saving report:', newReport);
-    setReportData(newReport);
-    setIsEditing(false);
-  };
-
-  if (isEditing) {
-    return (
-      <div className="flex flex-col h-full overflow-hidden bg-background">
-         <div className="flex items-center p-3 sm:p-4 border-b bg-muted/10 gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)} className="shrink-0">
-               <ChevronLeft className="h-4 w-4 mr-1" />
-               <span className="hidden sm:inline">Back to View</span>
-               <span className="sm:hidden">Back</span>
-            </Button>
-            <div className="font-medium truncate">Edit Report: {reportData.title || reportData.label}</div>
-         </div>
-         <div className="flex-1 overflow-auto">
-            <ReportBuilder 
-               schema={{ 
-                  title: 'Report Builder', 
-                  report: reportData,
-                  availableFields: availableFields,
-                  onSave: handleSave,
-                  onCancel: () => setIsEditing(false)
-               }} 
-            />
-         </div>
-      </div>
-    );
-  }
-
   // Wrap the report definition in the ReportViewer schema
   // The ReportViewer expects a schema property which is of type ReportViewerSchema
   // That schema has a 'report' property which is the actual report definition (ReportSchema)
   // Map @objectstack/spec report format to @object-ui/types ReportSchema:
   //   - 'label' → 'title'
   //   - 'columns' (with 'field') → 'fields' (with 'name') + auto-generate 'sections'
-  const reportForViewer = (() => {
-    const mapped: any = { ...reportData };
+  const mapReportForViewer = (src: any) => {
+    const mapped: any = { ...src };
     if (!mapped.title && mapped.label) {
       mapped.title = mapped.label;
     }
@@ -242,7 +191,11 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
       ];
     }
     return mapped;
-  })();
+  };
+
+  // Use live-edited schema for preview when the drawer is open
+  const previewReport = drawerOpen && editSchema ? editSchema : reportData;
+  const reportForViewer = mapReportForViewer(previewReport);
   const viewerSchema = {
       type: 'report-viewer',
       report: reportForViewer, // The report definition
@@ -254,21 +207,28 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4 p-4 sm:p-6 border-b shrink-0 bg-muted/10">
-        <div className="min-w-0">
-           {/* Header is handled by ReportViewer usually, but we can have a page header too */}
-           <h1 className="text-base sm:text-lg font-medium text-muted-foreground truncate">{reportData.title || reportData.label || 'Report Viewer'}</h1>
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4 p-4 sm:p-6 border-b shrink-0">
+        <div className="min-w-0 flex-1">
+           <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight truncate">{reportData.title || reportData.label || 'Report Viewer'}</h1>
+           {reportData.description && (
+             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{reportData.description}</p>
+           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-           <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="h-8">
-              <PenLine className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Edit Report</span>
-           </Button>
+        <div className="shrink-0 flex items-center gap-1.5">
+           <button
+             type="button"
+             onClick={handleOpenDrawer}
+             className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm hover:bg-accent hover:text-accent-foreground"
+             data-testid="report-edit-button"
+           >
+             <Pencil className="h-3.5 w-3.5" />
+             Edit
+           </button>
            <MetadataToggle open={showDebug} onToggle={toggleDebug} />
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden flex flex-row relative">
+      <div className="flex-1 overflow-hidden flex flex-col sm:flex-row relative">
          <div className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 bg-muted/5">
             <div className="max-w-5xl mx-auto shadow-sm border rounded-lg sm:rounded-xl bg-background overflow-hidden min-h-150">
                 <ReportViewer schema={viewerSchema} />
@@ -277,9 +237,29 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
 
          <MetadataPanel
             open={showDebug}
-            sections={[{ title: 'Report Configuration', data: reportData }]}
+            sections={[{ title: 'Report Configuration', data: previewReport }]}
          />
       </div>
+
+      <DesignDrawer
+        open={drawerOpen}
+        onOpenChange={handleCloseDrawer}
+        title={`Edit Report: ${reportData.title || reportData.label || reportName}`}
+        schema={editSchema || reportData}
+        onSchemaChange={setEditSchema}
+        collection="sys_report"
+        recordName={reportName!}
+      >
+        {(schema, onChange) => (
+          <ReportConfigPanel
+            open={true}
+            onClose={() => setDrawerOpen(false)}
+            config={schema}
+            onSave={(updated) => onChange(updated)}
+            onFieldChange={(field, value) => onChange({ ...schema, [field]: value })}
+          />
+        )}
+      </DesignDrawer>
     </div>
   );
 }

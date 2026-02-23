@@ -10,8 +10,9 @@ import { ComponentRegistry } from '@object-ui/core';
 import { ReportRenderer } from './ReportRenderer';
 import { ReportViewer } from './ReportViewer';
 import { ReportBuilder } from './ReportBuilder';
+import { ReportConfigPanel } from './ReportConfigPanel';
 
-export { ReportRenderer, ReportViewer, ReportBuilder };
+export { ReportRenderer, ReportViewer, ReportBuilder, ReportConfigPanel };
 export { formatValue } from './formatValue';
 export { exportReport, exportAsCSV, exportAsJSON, exportAsHTML, exportAsPDF, exportAsExcel } from './ReportExportEngine';
 export { ScheduleConfig } from './ScheduleConfig';
