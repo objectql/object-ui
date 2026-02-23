@@ -425,7 +425,7 @@ export function DashboardEditor({
   const setSelectedWidgetId = useCallback((id: string | null) => {
     if (onWidgetSelect) onWidgetSelect(id);
     if (!isControlled) setInternalSelectedWidgetId(id);
-  }, [isControlled, onWidgetSelect]);
+  }, [isControlled, onWidgetSelect, setInternalSelectedWidgetId]);
 
   const {
     current: currentSchema,
