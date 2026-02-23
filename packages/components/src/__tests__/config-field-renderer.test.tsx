@@ -271,4 +271,37 @@ describe('ConfigFieldRenderer', () => {
       expect(screen.getByText('Add sort')).toBeDefined();
     });
   });
+
+  describe('helpText rendering', () => {
+    it('should render helpText below field when provided', () => {
+      const field: ConfigField = {
+        key: 'width',
+        label: 'Width',
+        type: 'input',
+        helpText: 'Available for drawer, modal, and split modes',
+      };
+      render(<ConfigFieldRenderer field={field} value="" onChange={vi.fn()} draft={defaultDraft} />);
+      expect(screen.getByText('Available for drawer, modal, and split modes')).toBeDefined();
+    });
+
+    it('should not render helpText paragraph when not provided', () => {
+      const field: ConfigField = { key: 'name', label: 'Name', type: 'input' };
+      const { container } = render(<ConfigFieldRenderer field={field} value="" onChange={vi.fn()} draft={defaultDraft} />);
+      expect(container.querySelectorAll('p').length).toBe(0);
+    });
+
+    it('should render helpText for custom field type', () => {
+      const React = require('react');
+      const field: ConfigField = {
+        key: 'custom',
+        label: 'Custom',
+        type: 'custom',
+        helpText: 'Custom help text',
+        render: (value, onChange) => React.createElement('div', { 'data-testid': 'custom-content' }, 'Custom'),
+      };
+      render(<ConfigFieldRenderer field={field} value="" onChange={vi.fn()} draft={defaultDraft} />);
+      expect(screen.getByText('Custom help text')).toBeDefined();
+      expect(screen.getByTestId('custom-content')).toBeDefined();
+    });
+  });
 });
