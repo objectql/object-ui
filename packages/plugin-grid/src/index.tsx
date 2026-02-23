@@ -21,6 +21,7 @@ export { GroupRow } from './GroupRow';
 export { useCellClipboard } from './useCellClipboard';
 export { useGradientColor } from './useGradientColor';
 export { useGroupReorder } from './useGroupReorder';
+export { useColumnSummary } from './useColumnSummary';
 export { FormulaBar } from './FormulaBar';
 export { SplitPaneGrid } from './SplitPaneGrid';
 export type { ObjectGridProps } from './ObjectGrid';
@@ -32,6 +33,7 @@ export type { GroupRowProps } from './GroupRow';
 export type { CellRange, UseCellClipboardOptions, UseCellClipboardResult } from './useCellClipboard';
 export type { GradientStop, UseGradientColorOptions } from './useGradientColor';
 export type { UseGroupReorderOptions, UseGroupReorderResult } from './useGroupReorder';
+export type { ColumnSummaryConfig, ColumnSummaryResult } from './useColumnSummary';
 export type { FormulaBarProps } from './FormulaBar';
 export type { SplitPaneGridProps } from './SplitPaneGrid';
 

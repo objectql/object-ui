@@ -35,6 +35,7 @@ import { Edit, Trash2, MoreVertical, ChevronRight, ChevronDown, Download, Rows2,
 import { useRowColor } from './useRowColor';
 import { useGroupedData } from './useGroupedData';
 import { GroupRow } from './GroupRow';
+import { useColumnSummary } from './useColumnSummary';
 
 export interface ObjectGridProps {
   schema: ObjectGridSchema;
@@ -352,6 +353,16 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // --- Grouping support ---
   const { groups, isGrouped, toggleGroup } = useGroupedData(schema.grouping, data);
 
+  // --- Column summary support ---
+  const summaryColumns = React.useMemo(() => {
+    const cols = normalizeColumns(schema.columns);
+    if (cols && cols.length > 0 && typeof cols[0] === 'object') {
+      return cols as ListColumn[];
+    }
+    return undefined;
+  }, [schema.columns]);
+  const { summaries, hasSummary } = useColumnSummary(summaryColumns, data);
+
   const generateColumns = useCallback(() => {
     // Map field type to column header icon (Airtable-style)
     const getTypeIcon = (fieldType: string | null): React.ReactNode => {
@@ -580,6 +591,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 ...(col.resizable !== undefined && { resizable: col.resizable }),
                 ...(col.wrap !== undefined && { wrap: col.wrap }),
                 ...(cellRenderer && { cell: cellRenderer }),
+                ...(col.pinned && { pinned: col.pinned }),
               };
             });
         }
@@ -781,6 +793,29 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     },
   ] : persistedColumns;
 
+  // --- Pinned column reordering ---
+  // Reorder: pinned:'left' first, unpinned middle, pinned:'right' last
+  const pinnedLeftCols = columnsWithActions.filter((c: any) => c.pinned === 'left');
+  const pinnedRightCols = columnsWithActions.filter((c: any) => c.pinned === 'right');
+  const unpinnedCols = columnsWithActions.filter((c: any) => !c.pinned);
+  const hasPinnedColumns = pinnedLeftCols.length > 0 || pinnedRightCols.length > 0;
+  const orderedColumns = hasPinnedColumns
+    ? [
+        ...pinnedLeftCols,
+        ...unpinnedCols,
+        ...pinnedRightCols.map((col: any) => ({
+          ...col,
+          className: [col.className, 'sticky right-0 z-10 bg-background border-l border-border'].filter(Boolean).join(' '),
+          cellClassName: [col.cellClassName, 'sticky right-0 z-10 bg-background border-l border-border'].filter(Boolean).join(' '),
+        })),
+      ]
+    : columnsWithActions;
+
+  // Calculate frozenColumns: if pinned columns exist, use left-pinned count; otherwise use schema default
+  const effectiveFrozenColumns = hasPinnedColumns
+    ? pinnedLeftCols.length
+    : (schema.frozenColumns ?? 1);
+
   // Determine selection mode (support both new and legacy formats)
   let selectionMode: 'none' | 'single' | 'multiple' | boolean = false;
   if (schema.selection?.type) {
@@ -807,7 +842,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const dataTableSchema: any = {
     type: 'data-table',
     caption: schema.label || schema.title,
-    columns: columnsWithActions,
+    columns: orderedColumns,
     data,
     pagination: paginationEnabled,
     pageSize: pageSize,
@@ -833,7 +868,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     showAddRow: !!operations?.create,
     onAddRecord: onAddRecord,
     rowClassName: schema.rowColor ? (row: any, _idx: number) => getRowClassName(row) : undefined,
-    frozenColumns: schema.frozenColumns ?? 1,
+    frozenColumns: effectiveFrozenColumns,
     onSelectionChange: onRowSelect,
     onRowClick: navigation.handleClick,
     onCellChange: onCellChange,
@@ -1197,6 +1232,24 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     );
   };
 
+  // Summary footer row
+  const summaryFooter = hasSummary ? (
+    <div className="border-t bg-muted/30 px-2 py-1.5" data-testid="column-summary-footer">
+      <div className="flex gap-4 text-xs text-muted-foreground font-medium">
+        {orderedColumns
+          .filter((col: any) => summaries.has(col.accessorKey))
+          .map((col: any) => {
+            const summary = summaries.get(col.accessorKey)!;
+            return (
+              <span key={col.accessorKey} data-testid={`summary-${col.accessorKey}`}>
+                {col.header}: {summary.label}
+              </span>
+            );
+          })}
+      </div>
+    </div>
+  ) : null;
+
   // Render grid content: grouped (multiple tables with headers) or flat (single table)
   const gridContent = isGrouped ? (
     <div className="space-y-2">
@@ -1215,7 +1268,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       ))}
     </div>
   ) : (
-    <SchemaRenderer schema={dataTableSchema} />
+    <>
+      <SchemaRenderer schema={dataTableSchema} />
+      {summaryFooter}
+    </>
   );
 
   // For split mode, wrap the grid in the ResizablePanelGroup

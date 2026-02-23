@@ -73,6 +73,14 @@ export const ListColumnSchema = z.object({
   type: z.string().optional().describe('Renderer type override'),
   link: z.boolean().optional().describe('Functions as the primary navigation link (triggers View navigation)'),
   action: z.string().optional().describe('Registered Action ID to execute when clicked'),
+  pinned: z.enum(['left', 'right']).optional().describe('Pin column to left or right edge'),
+  summary: z.union([
+    z.string(),
+    z.object({
+      type: z.enum(['count', 'sum', 'avg', 'min', 'max']).describe('Aggregation type'),
+      field: z.string().optional().describe('Field to aggregate (defaults to column field)'),
+    }),
+  ]).optional().describe('Column footer summary/aggregation'),
   prefix: z.object({
     field: z.string().describe('Field name to render as prefix'),
     type: z.enum(['badge', 'text']).optional().describe('Renderer type for the prefix'),
