@@ -8,6 +8,7 @@
 
 import type { SchemaNode } from '@object-ui/core';
 import type { BridgeContext, BridgeFn } from '../types';
+import type { ListViewGalleryConfig, ListViewTimelineConfig } from '@object-ui/types';
 
 interface ListColumn {
   field: string;
@@ -48,8 +49,8 @@ interface ListViewSpec {
   kanban?: any;
   calendar?: any;
   gantt?: any;
-  gallery?: any;
-  timeline?: any;
+  gallery?: ListViewGalleryConfig;
+  timeline?: ListViewTimelineConfig;
   // P1.1 additions
   rowActions?: string[];
   bulkActions?: string[];

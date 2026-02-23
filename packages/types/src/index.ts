@@ -297,6 +297,8 @@ export type {
   KanbanConfig,
   CalendarConfig,
   GanttConfig,
+  ListViewGalleryConfig,
+  ListViewTimelineConfig,
   SortConfig,
   // Component schemas
   ObjectMapSchema,

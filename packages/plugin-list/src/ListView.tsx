@@ -771,33 +771,44 @@ export const ListView: React.FC<ListViewProps> = ({
           ...(schema.options?.calendar || {}),
           ...(schema.calendar || {}),
         };
-      case 'gallery':
-        return {
-          type: 'object-gallery',
-          ...baseProps,
-          imageField: schema.gallery?.coverField || schema.gallery?.imageField || schema.options?.gallery?.imageField,
-          titleField: schema.gallery?.titleField || schema.options?.gallery?.titleField || 'name',
-          subtitleField: schema.gallery?.subtitleField || schema.options?.gallery?.subtitleField,
-          ...(schema.gallery?.coverFit ? { coverFit: schema.gallery.coverFit } : {}),
-          ...(schema.gallery?.cardSize ? { cardSize: schema.gallery.cardSize } : {}),
-          ...(schema.gallery?.visibleFields ? { visibleFields: schema.gallery.visibleFields } : {}),
-          ...(groupingConfig ? { grouping: groupingConfig } : {}),
+      case 'gallery': {
+        // Merge spec config over legacy options into nested gallery prop
+        const mergedGallery = {
           ...(schema.options?.gallery || {}),
           ...(schema.gallery || {}),
         };
-      case 'timeline':
+        return {
+          type: 'object-gallery',
+          ...baseProps,
+          // Nested gallery config (spec-compliant, used by ObjectGallery)
+          gallery: Object.keys(mergedGallery).length > 0 ? mergedGallery : undefined,
+          // Deprecated top-level props for backward compat
+          imageField: schema.gallery?.coverField || schema.gallery?.imageField || schema.options?.gallery?.imageField,
+          titleField: schema.gallery?.titleField || schema.options?.gallery?.titleField || 'name',
+          subtitleField: schema.gallery?.subtitleField || schema.options?.gallery?.subtitleField,
+          ...(groupingConfig ? { grouping: groupingConfig } : {}),
+        };
+      }
+      case 'timeline': {
+        // Merge spec config over legacy options into nested timeline prop
+        const mergedTimeline = {
+          ...(schema.options?.timeline || {}),
+          ...(schema.timeline || {}),
+        };
         return {
           type: 'object-timeline',
           ...baseProps,
+          // Nested timeline config (spec-compliant, used by ObjectTimeline)
+          timeline: Object.keys(mergedTimeline).length > 0 ? mergedTimeline : undefined,
+          // Deprecated top-level props for backward compat
           startDateField: schema.timeline?.startDateField || schema.options?.timeline?.startDateField || schema.options?.timeline?.dateField || 'created_at',
           titleField: schema.timeline?.titleField || schema.options?.timeline?.titleField || 'name',
           ...(schema.timeline?.endDateField ? { endDateField: schema.timeline.endDateField } : {}),
           ...(schema.timeline?.groupByField ? { groupByField: schema.timeline.groupByField } : {}),
           ...(schema.timeline?.colorField ? { colorField: schema.timeline.colorField } : {}),
           ...(schema.timeline?.scale ? { scale: schema.timeline.scale } : {}),
-          ...(schema.options?.timeline || {}),
-          ...(schema.timeline || {}),
         };
+      }
       case 'gantt':
         return {
           type: 'object-gantt',

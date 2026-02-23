@@ -78,7 +78,31 @@ import type {
   PaginationConfig,
   GroupingConfig,
   RowColorConfig,
+  GalleryConfig,
+  TimelineConfig,
 } from '@objectstack/spec/ui';
+
+/**
+ * Gallery configuration extended with legacy fields for backward compatibility.
+ * Spec fields from GalleryConfigSchema take priority; legacy fields serve as fallbacks.
+ */
+export type ListViewGalleryConfig = GalleryConfig & {
+  /** Legacy: image field (deprecated, use coverField) */
+  imageField?: string;
+  /** Legacy: subtitle field */
+  subtitleField?: string;
+  [key: string]: any;
+};
+
+/**
+ * Timeline configuration extended with legacy fields for backward compatibility.
+ * Spec fields from TimelineConfigSchema take priority; legacy fields serve as fallbacks.
+ */
+export type ListViewTimelineConfig = TimelineConfig & {
+  /** Legacy: date field (deprecated, use startDateField) */
+  dateField?: string;
+  [key: string]: any;
+};
 
 /**
  * Kanban Configuration
@@ -1350,42 +1374,10 @@ export interface ListViewSchema extends BaseSchema {
   };
 
   /** Gallery-specific configuration. Aligned with @objectstack/spec GalleryConfigSchema. */
-  gallery?: {
-    /** Field containing cover image URL */
-    coverField?: string;
-    /** Cover image fit mode */
-    coverFit?: 'cover' | 'contain' | 'fill';
-    /** Card size preset */
-    cardSize?: 'small' | 'medium' | 'large';
-    /** Field used as card title */
-    titleField?: string;
-    /** Fields to display on card */
-    visibleFields?: string[];
-    /** Legacy: image field (deprecated, use coverField) */
-    imageField?: string;
-    /** Legacy: subtitle field */
-    subtitleField?: string;
-    [key: string]: any;
-  };
+  gallery?: ListViewGalleryConfig;
 
   /** Timeline-specific configuration. Aligned with @objectstack/spec TimelineConfigSchema. */
-  timeline?: {
-    /** Field for start date */
-    startDateField?: string;
-    /** Field for end date */
-    endDateField?: string;
-    /** Field used as event title */
-    titleField?: string;
-    /** Field to group events by */
-    groupByField?: string;
-    /** Field for event color */
-    colorField?: string;
-    /** Timeline scale */
-    scale?: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
-    /** Legacy: date field (deprecated, use startDateField) */
-    dateField?: string;
-    [key: string]: any;
-  };
+  timeline?: ListViewTimelineConfig;
   
   /** Visual Component overrides (legacy, prefer typed configs above) */
   options?: Record<string, any>;
