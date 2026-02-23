@@ -43,6 +43,16 @@ export interface ConfigPanelRendererProps {
   saveLabel?: string;
   /** Label for discard button (default: "Discard") */
   discardLabel?: string;
+  /** Ref for the panel root element */
+  panelRef?: React.Ref<HTMLDivElement>;
+  /** ARIA role for the panel (e.g. "complementary") */
+  role?: string;
+  /** ARIA label for the panel */
+  ariaLabel?: string;
+  /** tabIndex for the panel root element */
+  tabIndex?: number;
+  /** Override data-testid for the panel root (default: "config-panel") */
+  testId?: string;
 }
 
 /**
@@ -70,6 +80,11 @@ export function ConfigPanelRenderer({
   className,
   saveLabel = 'Save',
   discardLabel = 'Discard',
+  panelRef,
+  role,
+  ariaLabel,
+  tabIndex,
+  testId,
 }: ConfigPanelRendererProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -84,7 +99,11 @@ export function ConfigPanelRenderer({
 
   return (
     <div
-      data-testid="config-panel"
+      ref={panelRef}
+      data-testid={testId ?? 'config-panel'}
+      role={role}
+      aria-label={ariaLabel}
+      tabIndex={tabIndex}
       className={cn(
         'absolute inset-y-0 right-0 w-full sm:w-72 lg:w-80 sm:relative border-l bg-background flex flex-col shrink-0 z-20',
         className,

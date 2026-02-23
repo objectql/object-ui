@@ -22,83 +22,187 @@ vi.mock('@object-ui/i18n', () => ({
 }));
 
 // Mock components to simple HTML elements
-vi.mock('@object-ui/components', () => ({
-    Button: ({ children, onClick, title, ...props }: any) => (
-        <button onClick={onClick} title={title} {...props}>{children}</button>
-    ),
-    Switch: ({ checked, onCheckedChange, ...props }: any) => (
-        <button
-            role="switch"
-            aria-checked={checked}
-            onClick={() => onCheckedChange?.(!checked)}
-            {...props}
-        />
-    ),
-    Input: ({ value, onChange, readOnly, placeholder, ...props }: any) => (
-        <input
-            value={value}
-            onChange={onChange}
-            readOnly={readOnly}
-            placeholder={placeholder}
-            {...props}
-        />
-    ),
-    Checkbox: ({ checked, onCheckedChange, ...props }: any) => (
-        <input
-            type="checkbox"
-            checked={!!checked}
-            onChange={() => onCheckedChange?.(!checked)}
-            {...props}
-        />
-    ),
-    ConfigRow: ({ label, value, onClick, children, className }: any) => {
-        const Wrapper = onClick ? 'button' : 'div';
-        return (
-            <Wrapper className={className} onClick={onClick} type={onClick ? 'button' : undefined}>
-                <span>{label}</span>
-                {children || <span>{value}</span>}
-            </Wrapper>
+vi.mock('@object-ui/components', () => {
+    const React = require('react');
+
+    // useConfigDraft mock — mirrors real implementation
+    function useConfigDraft(source: any, options?: any) {
+        const [draft, setDraft] = React.useState({ ...source });
+        const [isDirty, setIsDirty] = React.useState(options?.mode === 'create');
+
+        React.useEffect(() => {
+            setDraft({ ...source });
+            setIsDirty(options?.mode === 'create');
+        }, [source]); // eslint-disable-line react-hooks/exhaustive-deps
+
+        const updateField = React.useCallback((field: string, value: any) => {
+            setDraft((prev: any) => ({ ...prev, [field]: value }));
+            setIsDirty(true);
+            options?.onUpdate?.(field, value);
+        }, [options?.onUpdate]);
+
+        const discard = React.useCallback(() => {
+            setDraft({ ...source });
+            setIsDirty(false);
+        }, [source]);
+
+        return { draft, isDirty, updateField, discard, setDraft };
+    }
+
+    // ConfigPanelRenderer mock — renders schema sections with proper collapse/visibility
+    function ConfigPanelRenderer({ open, onClose, schema, draft, isDirty, onFieldChange, onSave, onDiscard, panelRef, role, ariaLabel, tabIndex, testId, saveLabel, discardLabel, className }: any) {
+        const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({});
+        if (!open) return null;
+
+        return React.createElement('div', {
+            ref: panelRef,
+            'data-testid': testId || 'config-panel',
+            role,
+            'aria-label': ariaLabel,
+            tabIndex,
+            className: `absolute inset-y-0 right-0 w-full sm:w-72 lg:w-80 sm:relative sm:inset-auto border-l bg-background flex flex-col shrink-0 z-20 ${className || ''}`,
+        },
+            // Header with breadcrumb
+            React.createElement('div', { className: 'px-4 py-3 border-b flex items-center justify-between shrink-0' },
+                React.createElement('div', { 'data-testid': 'panel-breadcrumb', className: 'flex items-center gap-1 text-sm truncate' },
+                    ...schema.breadcrumb.map((seg: string, i: number) => [
+                        i > 0 && React.createElement('span', { key: `sep-${i}`, className: 'text-muted-foreground' }, '›'),
+                        React.createElement('span', {
+                            key: `seg-${i}`,
+                            className: i === schema.breadcrumb.length - 1 ? 'text-foreground font-semibold' : 'text-muted-foreground',
+                        }, seg),
+                    ]).flat().filter(Boolean),
+                ),
+                React.createElement('button', {
+                    onClick: onClose,
+                    title: 'console.objectView.closePanel',
+                    className: 'h-7 w-7 p-0',
+                }, '×'),
+            ),
+            // Scrollable sections
+            React.createElement('div', { className: 'flex-1 overflow-auto px-4 pb-4' },
+                ...schema.sections.map((section: any) => {
+                    if (section.visibleWhen && !section.visibleWhen(draft)) return null;
+                    const isCollapsed = collapsed[section.key] ?? section.defaultCollapsed ?? false;
+
+                    return React.createElement('div', { key: section.key },
+                        // Section header
+                        section.collapsible
+                            ? React.createElement('button', {
+                                'data-testid': `section-${section.key}`,
+                                onClick: () => setCollapsed((prev: any) => ({ ...prev, [section.key]: !isCollapsed })),
+                                type: 'button',
+                                'aria-expanded': !isCollapsed,
+                            }, React.createElement('h3', null, section.title))
+                            : React.createElement('div', null, React.createElement('h3', null, section.title)),
+                        // Section hint
+                        section.hint && React.createElement('p', { className: 'text-[10px] text-muted-foreground mb-1' }, section.hint),
+                        // Section fields
+                        !isCollapsed && React.createElement('div', { className: 'space-y-0.5' },
+                            ...section.fields.map((field: any) => {
+                                if (field.visibleWhen && !field.visibleWhen(draft)) return null;
+                                if (field.type === 'custom' && field.render) {
+                                    return React.createElement(React.Fragment, { key: field.key },
+                                        field.render(draft[field.key], (v: any) => onFieldChange(field.key, v), draft),
+                                    );
+                                }
+                                return null;
+                            }),
+                        ),
+                    );
+                }),
+            ),
+            // Footer
+            isDirty && React.createElement('div', {
+                'data-testid': 'view-config-footer',
+                className: 'px-4 py-3 border-t flex items-center justify-end gap-2 shrink-0 bg-background',
+            },
+                React.createElement('button', { 'data-testid': 'view-config-discard', onClick: onDiscard }, discardLabel),
+                React.createElement('button', { 'data-testid': 'view-config-save', onClick: onSave }, saveLabel),
+            ),
         );
-    },
-    SectionHeader: ({ title, collapsible, collapsed, onToggle, testId }: any) => {
-        if (collapsible) {
+    }
+
+    return {
+        useConfigDraft,
+        ConfigPanelRenderer,
+        Button: ({ children, onClick, title, ...props }: any) => (
+            <button onClick={onClick} title={title} {...props}>{children}</button>
+        ),
+        Switch: ({ checked, onCheckedChange, ...props }: any) => (
+            <button
+                role="switch"
+                aria-checked={checked}
+                onClick={() => onCheckedChange?.(!checked)}
+                {...props}
+            />
+        ),
+        Input: ({ value, onChange, readOnly, placeholder, ...props }: any) => (
+            <input
+                value={value}
+                onChange={onChange}
+                readOnly={readOnly}
+                placeholder={placeholder}
+                {...props}
+            />
+        ),
+        Checkbox: ({ checked, onCheckedChange, ...props }: any) => (
+            <input
+                type="checkbox"
+                checked={!!checked}
+                onChange={() => onCheckedChange?.(!checked)}
+                {...props}
+            />
+        ),
+        ConfigRow: ({ label, value, onClick, children, className }: any) => {
+            const Wrapper = onClick ? 'button' : 'div';
             return (
-                <button data-testid={testId} onClick={onToggle} type="button" aria-expanded={!collapsed}>
-                    <h3>{title}</h3>
-                </button>
+                <Wrapper className={className} onClick={onClick} type={onClick ? 'button' : undefined}>
+                    <span>{label}</span>
+                    {children || <span>{value}</span>}
+                </Wrapper>
             );
-        }
-        return <div data-testid={testId}><h3>{title}</h3></div>;
-    },
-    FilterBuilder: ({ fields, value, onChange }: any) => {
-        let counter = 0;
-        return (
-        <div data-testid="mock-filter-builder" data-field-count={fields?.length || 0} data-condition-count={value?.conditions?.length || 0}>
-            <button data-testid="filter-builder-add" onClick={() => {
-                const newConditions = [...(value?.conditions || []), { id: `mock-filter-${Date.now()}-${++counter}`, field: fields?.[0]?.value || '', operator: 'equals', value: '' }];
-                onChange?.({ ...value, conditions: newConditions });
-            }}>Add filter</button>
-            {value?.conditions?.map((c: any, i: number) => (
-                <span key={c.id || i} data-testid={`filter-condition-${i}`}>{c.field} {c.operator} {String(c.value)}</span>
-            ))}
-        </div>
-        );
-    },
-    SortBuilder: ({ fields, value, onChange }: any) => {
-        let counter = 0;
-        return (
-        <div data-testid="mock-sort-builder" data-field-count={fields?.length || 0} data-sort-count={value?.length || 0}>
-            <button data-testid="sort-builder-add" onClick={() => {
-                const newItems = [...(value || []), { id: `mock-sort-${Date.now()}-${++counter}`, field: fields?.[0]?.value || '', order: 'asc' }];
-                onChange?.(newItems);
-            }}>Add sort</button>
-            {value?.map((s: any, i: number) => (
-                <span key={s.id || i} data-testid={`sort-item-${i}`}>{s.field} {s.order}</span>
-            ))}
-        </div>
-        );
-    },
-}));
+        },
+        SectionHeader: ({ title, collapsible, collapsed, onToggle, testId }: any) => {
+            if (collapsible) {
+                return (
+                    <button data-testid={testId} onClick={onToggle} type="button" aria-expanded={!collapsed}>
+                        <h3>{title}</h3>
+                    </button>
+                );
+            }
+            return <div data-testid={testId}><h3>{title}</h3></div>;
+        },
+        FilterBuilder: ({ fields, value, onChange }: any) => {
+            let counter = 0;
+            return (
+            <div data-testid="mock-filter-builder" data-field-count={fields?.length || 0} data-condition-count={value?.conditions?.length || 0}>
+                <button data-testid="filter-builder-add" onClick={() => {
+                    const newConditions = [...(value?.conditions || []), { id: `mock-filter-${Date.now()}-${++counter}`, field: fields?.[0]?.value || '', operator: 'equals', value: '' }];
+                    onChange?.({ ...value, conditions: newConditions });
+                }}>Add filter</button>
+                {value?.conditions?.map((c: any, i: number) => (
+                    <span key={c.id || i} data-testid={`filter-condition-${i}`}>{c.field} {c.operator} {String(c.value)}</span>
+                ))}
+            </div>
+            );
+        },
+        SortBuilder: ({ fields, value, onChange }: any) => {
+            let counter = 0;
+            return (
+            <div data-testid="mock-sort-builder" data-field-count={fields?.length || 0} data-sort-count={value?.length || 0}>
+                <button data-testid="sort-builder-add" onClick={() => {
+                    const newItems = [...(value || []), { id: `mock-sort-${Date.now()}-${++counter}`, field: fields?.[0]?.value || '', order: 'asc' }];
+                    onChange?.(newItems);
+                }}>Add sort</button>
+                {value?.map((s: any, i: number) => (
+                    <span key={s.id || i} data-testid={`sort-item-${i}`}>{s.field} {s.order}</span>
+                ))}
+            </div>
+            );
+        },
+    };
+});
 
 const mockActiveView = {
     id: 'all',
