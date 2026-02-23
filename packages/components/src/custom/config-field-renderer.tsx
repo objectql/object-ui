@@ -57,6 +57,7 @@ export function ConfigFieldRenderer({
     return null;
   }
 
+  const effectiveDisabled = field.disabled || (field.disabledWhen ? field.disabledWhen(draft) : false);
   const effectiveValue = value ?? field.defaultValue;
 
   switch (field.type) {
@@ -68,7 +69,7 @@ export function ConfigFieldRenderer({
             className="h-7 w-32 text-xs"
             value={effectiveValue ?? ''}
             placeholder={field.placeholder}
-            disabled={field.disabled}
+            disabled={effectiveDisabled}
             onChange={(e) => onChange(e.target.value)}
           />
         </ConfigRow>
@@ -80,7 +81,7 @@ export function ConfigFieldRenderer({
           <Switch
             data-testid={`config-field-${field.key}`}
             checked={!!effectiveValue}
-            disabled={field.disabled}
+            disabled={effectiveDisabled}
             onCheckedChange={(checked) => onChange(checked)}
             className="scale-75"
           />
@@ -93,7 +94,7 @@ export function ConfigFieldRenderer({
           <Checkbox
             data-testid={`config-field-${field.key}`}
             checked={!!effectiveValue}
-            disabled={field.disabled}
+            disabled={effectiveDisabled}
             onCheckedChange={(checked) => onChange(checked)}
           />
         </ConfigRow>
@@ -105,7 +106,7 @@ export function ConfigFieldRenderer({
           <Select
             value={String(effectiveValue ?? '')}
             onValueChange={(val) => onChange(val)}
-            disabled={field.disabled}
+            disabled={effectiveDisabled}
           >
             <SelectTrigger
               data-testid={`config-field-${field.key}`}
@@ -134,7 +135,7 @@ export function ConfigFieldRenderer({
               min={field.min ?? 0}
               max={field.max ?? 100}
               step={field.step ?? 1}
-              disabled={field.disabled}
+              disabled={effectiveDisabled}
               onValueChange={(vals) => onChange(vals[0])}
               aria-label={field.label}
             />
@@ -153,7 +154,7 @@ export function ConfigFieldRenderer({
             type="color"
             className="h-7 w-10 rounded border cursor-pointer"
             value={effectiveValue ?? '#000000'}
-            disabled={field.disabled}
+            disabled={effectiveDisabled}
             onChange={(e) => onChange(e.target.value)}
           />
         </ConfigRow>
@@ -170,7 +171,7 @@ export function ConfigFieldRenderer({
                 size="sm"
                 variant={effectiveValue === opt.value ? 'default' : 'ghost'}
                 className={cn('h-7 w-7 p-0', effectiveValue === opt.value && 'ring-1 ring-primary')}
-                disabled={field.disabled}
+                disabled={effectiveDisabled}
                 onClick={() => onChange(opt.value)}
                 title={opt.label}
               >
@@ -186,7 +187,7 @@ export function ConfigFieldRenderer({
         <ConfigRow
           label={field.label}
           value={effectiveValue ?? field.placeholder ?? 'Select field…'}
-          onClick={field.disabled ? undefined : () => {
+          onClick={effectiveDisabled ? undefined : () => {
             /* open field picker - consumers should use type='custom' for full integration */
           }}
         />

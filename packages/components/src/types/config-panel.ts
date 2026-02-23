@@ -41,6 +41,8 @@ export interface ConfigField {
   options?: Array<{ value: string; label: string; icon?: React.ReactNode }>;
   /** Visibility predicate evaluated against the current draft */
   visibleWhen?: (draft: Record<string, any>) => boolean;
+  /** Disabled predicate evaluated against the current draft */
+  disabledWhen?: (draft: Record<string, any>) => boolean;
   /** Custom render function for type='custom' */
   render?: (
     value: any,

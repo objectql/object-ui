@@ -317,4 +317,110 @@ describe('ConfigPanelRenderer', () => {
       expect(onFieldChange).toHaveBeenCalledWith('name', 'NewName');
     });
   });
+
+  describe('expandedSections prop', () => {
+    it('should override defaultCollapsed when section is in expandedSections', () => {
+      render(
+        <ConfigPanelRenderer
+          {...defaultProps}
+          schema={collapsibleSchema}
+          draft={{ columns: '3', theme: 'dark', source: 'api' }}
+          expandedSections={['appearance']}
+        />,
+      );
+      // Appearance is defaultCollapsed=true but expandedSections overrides it
+      expect(screen.getByText('Theme')).toBeDefined();
+    });
+
+    it('should not affect sections not in expandedSections', () => {
+      render(
+        <ConfigPanelRenderer
+          {...defaultProps}
+          schema={collapsibleSchema}
+          draft={{ columns: '3', theme: 'dark', source: 'api' }}
+          expandedSections={['appearance']}
+        />,
+      );
+      // Data section is not in expandedSections, should remain expanded (its default)
+      expect(screen.getByText('Source')).toBeDefined();
+    });
+
+    it('should allow local toggle to still work alongside expandedSections', () => {
+      render(
+        <ConfigPanelRenderer
+          {...defaultProps}
+          schema={collapsibleSchema}
+          draft={{ columns: '3', theme: 'dark', source: 'api' }}
+          expandedSections={['appearance']}
+        />,
+      );
+      // Appearance is forced expanded by expandedSections
+      expect(screen.getByText('Theme')).toBeDefined();
+
+      // Data section can still be toggled locally
+      expect(screen.getByText('Source')).toBeDefined();
+      fireEvent.click(screen.getByTestId('section-header-data'));
+      expect(screen.queryByText('Source')).toBeNull();
+    });
+  });
+
+  describe('disabledWhen on fields', () => {
+    it('should disable input field when disabledWhen returns true', () => {
+      const schemaWithDisabledWhen: ConfigPanelSchema = {
+        breadcrumb: ['Test'],
+        sections: [
+          {
+            key: 'sec',
+            title: 'Section',
+            fields: [
+              {
+                key: 'name',
+                label: 'Name',
+                type: 'input',
+                disabledWhen: (draft) => draft.locked === true,
+              },
+            ],
+          },
+        ],
+      };
+      render(
+        <ConfigPanelRenderer
+          {...defaultProps}
+          schema={schemaWithDisabledWhen}
+          draft={{ name: 'Test', locked: true }}
+        />,
+      );
+      const input = screen.getByTestId('config-field-name');
+      expect((input as HTMLInputElement).disabled).toBe(true);
+    });
+
+    it('should enable input field when disabledWhen returns false', () => {
+      const schemaWithDisabledWhen: ConfigPanelSchema = {
+        breadcrumb: ['Test'],
+        sections: [
+          {
+            key: 'sec',
+            title: 'Section',
+            fields: [
+              {
+                key: 'name',
+                label: 'Name',
+                type: 'input',
+                disabledWhen: (draft) => draft.locked === true,
+              },
+            ],
+          },
+        ],
+      };
+      render(
+        <ConfigPanelRenderer
+          {...defaultProps}
+          schema={schemaWithDisabledWhen}
+          draft={{ name: 'Test', locked: false }}
+        />,
+      );
+      const input = screen.getByTestId('config-field-name');
+      expect((input as HTMLInputElement).disabled).toBe(false);
+    });
+  });
 });

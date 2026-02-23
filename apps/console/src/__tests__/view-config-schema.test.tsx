@@ -701,10 +701,15 @@ describe('spec alignment', () => {
         it('documents UI extension fields not in NamedListView spec', () => {
             const keys = allFieldKeys();
             // These fields are UI extensions — documented as protocol suggestions
-            const uiExtensions = ['description', '_source', '_groupBy', '_typeOptions'];
+            const uiExtensions = ['_source', '_groupBy', '_typeOptions'];
             for (const ext of uiExtensions) {
                 expect(keys).toContain(ext);
             }
+        });
+
+        it('description is now a spec-aligned field in NamedListView', () => {
+            const keys = allFieldKeys();
+            expect(keys).toContain('description');
         });
     });
 
@@ -798,6 +803,82 @@ describe('spec alignment', () => {
             expect(field.visibleWhen!({ navigation: { mode: 'modal' } })).toBe(false);
             // defaults to page mode when navigation is undefined → visible
             expect(field.visibleWhen!({})).toBe(true);
+        });
+    });
+
+    // ── disabledWhen predicates for grid-only fields ─────────────────────
+    describe('disabledWhen predicates for grid-only fields', () => {
+        function buildSchema() {
+            return buildViewConfigSchema({
+                t: mockT,
+                fieldOptions: mockFieldOptions,
+                objectDef: mockObjectDef,
+                updateField: mockUpdateField,
+                filterGroupValue: mockFilterGroup,
+                sortItemsValue: mockSortItems,
+            });
+        }
+
+        const gridOnlyFields = ['striped', 'bordered', 'wrapHeaders', 'resizable'];
+
+        for (const fieldKey of gridOnlyFields) {
+            it(`${fieldKey} should have disabledWhen predicate`, () => {
+                const schema = buildSchema();
+                const section = schema.sections.find(s => s.key === 'appearance')!;
+                const field = section.fields.find(f => f.key === fieldKey)!;
+                expect(field.disabledWhen).toBeDefined();
+            });
+
+            it(`${fieldKey} should be disabled when view type is kanban`, () => {
+                const schema = buildSchema();
+                const section = schema.sections.find(s => s.key === 'appearance')!;
+                const field = section.fields.find(f => f.key === fieldKey)!;
+                expect(field.disabledWhen!({ type: 'kanban' })).toBe(true);
+            });
+
+            it(`${fieldKey} should not be disabled when view type is grid`, () => {
+                const schema = buildSchema();
+                const section = schema.sections.find(s => s.key === 'appearance')!;
+                const field = section.fields.find(f => f.key === fieldKey)!;
+                expect(field.disabledWhen!({ type: 'grid' })).toBe(false);
+            });
+
+            it(`${fieldKey} should not be disabled when view type is undefined (default grid)`, () => {
+                const schema = buildSchema();
+                const section = schema.sections.find(s => s.key === 'appearance')!;
+                const field = section.fields.find(f => f.key === fieldKey)!;
+                expect(field.disabledWhen!({})).toBe(false);
+            });
+        }
+    });
+
+    // ── helpText on navigation-dependent fields ──────────────────────────
+    describe('helpText on navigation-dependent fields', () => {
+        function buildSchema() {
+            return buildViewConfigSchema({
+                t: mockT,
+                fieldOptions: mockFieldOptions,
+                objectDef: mockObjectDef,
+                updateField: mockUpdateField,
+                filterGroupValue: mockFilterGroup,
+                sortItemsValue: mockSortItems,
+            });
+        }
+
+        it('navigation width field has helpText', () => {
+            const schema = buildSchema();
+            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const field = section.fields.find(f => f.key === '_navigationWidth')!;
+            expect(field.helpText).toBeDefined();
+            expect(typeof field.helpText).toBe('string');
+        });
+
+        it('navigation openNewTab field has helpText', () => {
+            const schema = buildSchema();
+            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const field = section.fields.find(f => f.key === '_navigationOpenNewTab')!;
+            expect(field.helpText).toBeDefined();
+            expect(typeof field.helpText).toBe('string');
         });
     });
 });

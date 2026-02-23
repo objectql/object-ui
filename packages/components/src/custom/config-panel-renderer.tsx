@@ -61,6 +61,8 @@ export interface ConfigPanelRendererProps {
   saveTestId?: string;
   /** Override data-testid for the discard button (default: "config-panel-discard") */
   discardTestId?: string;
+  /** Externally-controlled set of section keys that should be expanded (overrides local collapse state) */
+  expandedSections?: string[];
 }
 
 /**
@@ -97,6 +99,7 @@ export function ConfigPanelRenderer({
   footerTestId,
   saveTestId,
   discardTestId,
+  expandedSections,
 }: ConfigPanelRendererProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -107,6 +110,14 @@ export function ConfigPanelRenderer({
       ...prev,
       [key]: !(prev[key] ?? defaultCollapsed ?? false),
     }));
+  };
+
+  // Resolve effective collapsed state: expandedSections prop overrides local state
+  const isCollapsed = (sectionKey: string, defaultCollapsed?: boolean): boolean => {
+    if (expandedSections && expandedSections.includes(sectionKey)) {
+      return false;
+    }
+    return collapsed[sectionKey] ?? defaultCollapsed ?? false;
   };
 
   return (
@@ -159,15 +170,14 @@ export function ConfigPanelRenderer({
         {schema.sections.map((section) => {
           if (section.visibleWhen && !section.visibleWhen(draft)) return null;
 
-          const isCollapsed =
-            collapsed[section.key] ?? section.defaultCollapsed ?? false;
+          const sectionCollapsed = isCollapsed(section.key, section.defaultCollapsed);
 
           return (
             <div key={section.key} data-testid={`config-section-${section.key}`}>
               <SectionHeader
                 title={section.title}
                 collapsible={section.collapsible}
-                collapsed={isCollapsed}
+                collapsed={sectionCollapsed}
                 onToggle={() => toggleCollapse(section.key, section.defaultCollapsed)}
                 testId={`section-header-${section.key}`}
               />
@@ -176,7 +186,7 @@ export function ConfigPanelRenderer({
                   {section.hint}
                 </p>
               )}
-              {!isCollapsed && (
+              {!sectionCollapsed && (
                 <div className="space-y-0.5">
                   {section.fields.map((field) => (
                     <ConfigFieldRenderer

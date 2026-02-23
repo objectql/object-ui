@@ -123,8 +123,7 @@ function buildPageConfigSection(
                     </ConfigRow>
                 ),
             },
-            // UI extension: description — not in NamedListView spec.
-            // Protocol suggestion: add optional 'description' to NamedListView.
+            // spec: NamedListView.description — optional view description
             {
                 key: 'description',
                 label: t('console.objectView.description'),
@@ -284,6 +283,7 @@ function buildPageConfigSection(
                 key: '_navigationWidth',
                 label: t('console.objectView.navigationWidth'),
                 type: 'custom',
+                helpText: t('console.objectView.navigationWidthHint'),
                 visibleWhen: (draft) => ['drawer', 'modal', 'split'].includes(draft.navigation?.mode || 'page'),
                 render: (_value, _onChange, draft) => {
                     const navMode = draft.navigation?.mode || 'page';
@@ -307,6 +307,7 @@ function buildPageConfigSection(
                 key: '_navigationOpenNewTab',
                 label: t('console.objectView.openNewTab'),
                 type: 'custom',
+                helpText: t('console.objectView.openNewTabHint'),
                 visibleWhen: (draft) => ['page', 'new_window'].includes(draft.navigation?.mode || 'page'),
                 render: (_value, _onChange, draft) => {
                     const navMode = draft.navigation?.mode || 'page';
@@ -972,10 +973,12 @@ function buildAppearanceSection(
         title: t('console.objectView.appearance'),
         collapsible: true,
         fields: [
-            // spec: NamedListView.striped
-            buildSwitchField('striped', t('console.objectView.striped'), 'toggle-striped', false, true),
-            // spec: NamedListView.bordered
-            buildSwitchField('bordered', t('console.objectView.bordered'), 'toggle-bordered', false, true),
+            // spec: NamedListView.striped (grid-only)
+            buildSwitchField('striped', t('console.objectView.striped'), 'toggle-striped', false, true,
+                (draft) => draft.type != null && draft.type !== 'grid'),
+            // spec: NamedListView.bordered (grid-only)
+            buildSwitchField('bordered', t('console.objectView.bordered'), 'toggle-bordered', false, true,
+                (draft) => draft.type != null && draft.type !== 'grid'),
             // spec: NamedListView.color — field for row/card coloring
             {
                 key: 'color',
@@ -997,8 +1000,9 @@ function buildAppearanceSection(
                     </ConfigRow>
                 ),
             },
-            // spec: NamedListView.wrapHeaders
-            buildSwitchField('wrapHeaders', t('console.objectView.wrapHeaders'), 'toggle-wrapHeaders', false, true),
+            // spec: NamedListView.wrapHeaders (grid-only)
+            buildSwitchField('wrapHeaders', t('console.objectView.wrapHeaders'), 'toggle-wrapHeaders', false, true,
+                (draft) => draft.type != null && draft.type !== 'grid'),
             // spec: NamedListView.collapseAllByDefault
             buildSwitchField('collapseAllByDefault', t('console.objectView.collapseAllByDefault'), 'toggle-collapseAllByDefault', false, true),
             // spec: NamedListView.fieldTextColor
@@ -1024,8 +1028,9 @@ function buildAppearanceSection(
             },
             // spec: NamedListView.showDescription
             buildSwitchField('showDescription', t('console.objectView.showFieldDescriptions'), 'toggle-showDescription', true),
-            // spec: NamedListView.resizable
-            buildSwitchField('resizable', t('console.objectView.resizableColumns'), 'toggle-resizable', false, true),
+            // spec: NamedListView.resizable (grid-only)
+            buildSwitchField('resizable', t('console.objectView.resizableColumns'), 'toggle-resizable', false, true,
+                (draft) => draft.type != null && draft.type !== 'grid'),
             // spec: NamedListView.densityMode — compact/comfortable/spacious
             {
                 key: 'densityMode',
@@ -1440,17 +1445,27 @@ function buildAccessibilitySection(
  * Build a standard Switch toggle field with custom testId.
  * @param defaultOn - if true, treat undefined/absent as enabled (checked = value !== false)
  * @param explicitTrue - if true, only check when value === true
+ * @param disabledWhen - optional predicate to disable the switch based on draft state
  */
-function buildSwitchField(key: string, label: string, testId: string, defaultOn = false, explicitTrue = false): ConfigField {
+function buildSwitchField(
+    key: string,
+    label: string,
+    testId: string,
+    defaultOn = false,
+    explicitTrue = false,
+    disabledWhen?: (draft: Record<string, any>) => boolean,
+): ConfigField {
     return {
         key,
         label,
         type: 'custom',
-        render: (value, onChange) => (
+        disabledWhen,
+        render: (value, onChange, draft) => (
             <ConfigRow label={label}>
                 <Switch
                     data-testid={testId}
                     checked={explicitTrue ? value === true : (defaultOn ? value !== false : !!value)}
+                    disabled={disabledWhen ? disabledWhen(draft) : false}
                     onCheckedChange={(checked: boolean) => onChange(checked)}
                     className="scale-75"
                 />

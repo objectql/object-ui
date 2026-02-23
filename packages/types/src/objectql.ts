@@ -1129,6 +1129,9 @@ export interface NamedListView {
   /** Prefix field displayed before the main title */
   prefixField?: string;
 
+  /** View description */
+  description?: string;
+
   /** Show field descriptions below headers @default false */
   showDescription?: boolean;
 
