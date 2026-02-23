@@ -82,6 +82,9 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Resolve nested TimelineConfig (spec-compliant)
+  const timelineConfig = schema.timeline;
+
   useEffect(() => {
     const result = TimelineExtensionSchema.safeParse(schema);
     if (!result.success) {
@@ -129,15 +132,14 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   
   if (!effectiveItems && rawData && Array.isArray(rawData)) {
       // Resolve TimelineConfig with backwards-compatible fallbacks
-      const tl = (schema as any).timeline as TimelineConfig | undefined;
-      const titleField = tl?.titleField ?? schema.mapping?.title ?? schema.titleField ?? 'name';
+      const titleField = timelineConfig?.titleField ?? schema.mapping?.title ?? schema.titleField ?? 'name';
       // Spec-compliant: prefer timeline.startDateField, fallback to flat props
-      const startDateField = tl?.startDateField ?? schema.mapping?.date ?? schema.startDateField ?? schema.dateField ?? 'date';
-      const endDateField = tl?.endDateField ?? schema.endDateField ?? startDateField;
+      const startDateField = timelineConfig?.startDateField ?? schema.mapping?.date ?? schema.startDateField ?? schema.dateField ?? 'date';
+      const endDateField = timelineConfig?.endDateField ?? schema.endDateField ?? startDateField;
       const descField = schema.mapping?.description ?? schema.descriptionField ?? 'description';
       const variantField = schema.mapping?.variant ?? 'variant';
-      const groupByField = tl?.groupByField ?? schema.groupByField;
-      const colorField = tl?.colorField ?? schema.colorField;
+      const groupByField = timelineConfig?.groupByField ?? schema.groupByField;
+      const colorField = timelineConfig?.colorField ?? schema.colorField;
 
       effectiveItems = rawData.map(item => ({
           title: item[titleField],
@@ -171,8 +173,7 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   });
 
   // Resolve scale: spec timeline.scale takes priority over flat schema.scale
-  const tl = (schema as any).timeline as TimelineConfig | undefined;
-  const resolvedScale = tl?.scale ?? schema.scale;
+  const resolvedScale = timelineConfig?.scale ?? schema.scale;
 
   const effectiveSchema = {
       ...schema,
