@@ -5,7 +5,7 @@
 > **Spec Version:** @objectstack/spec v3.0.9
 > **Client Version:** @objectstack/client v3.0.9
 > **Target UX Benchmark:** 🎯 Airtable parity
-> **Current Priority:** AppShell Navigation · Designer Interaction · View Config Live Preview Sync · Dashboard Config Panel · Airtable UX Polish · **Flow Designer ✅** · **App Creation & Editing Flow ✅**
+> **Current Priority:** AppShell Navigation · Designer Interaction · View Config Live Preview Sync · Dashboard Config Panel · Airtable UX Polish · **Flow Designer ✅** · **App Creation & Editing Flow ✅** · **System Settings & App Management ✅**
 
 ---
 
@@ -13,7 +13,7 @@
 
 ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn. It renders JSON metadata from the @objectstack/spec protocol into pixel-perfect, accessible, and interactive enterprise interfaces.
 
-**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 5,700+ tests, 78 Storybook stories, 42/42 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Designer Phase 1 (ViewDesigner drag-to-reorder ✅), Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), **Feed/Chatter UI** (P1.5), and **App Creation & Editing Flow** (P1.11) — all ✅ complete.
+**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 5,700+ tests, 78 Storybook stories, 42/42 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Designer Phase 1 (ViewDesigner drag-to-reorder ✅), Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), **Feed/Chatter UI** (P1.5), **App Creation & Editing Flow** (P1.11), and **System Settings & App Management** (P1.12) — all ✅ complete.
 
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
@@ -503,6 +503,42 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Draft persistence to localStorage with auto-clear on success
 - [x] `createApp` i18n key added to all 10 locales
 - [x] 13 console integration tests (routes, wizard callbacks, draft persistence, saveItem, CommandPalette)
+
+### P1.12 System Settings & App Management Center
+
+> Unified system settings hub, app management page, and permission management page.
+
+**System Hub Page (`/system/`):**
+- [x] Card-based overview linking to all system administration sections
+- [x] Live statistics for each section (users, orgs, roles, permissions, audit logs, apps)
+- [x] Navigation to Apps, Users, Organizations, Roles, Permissions, Audit Log, Profile
+
+**App Management Page (`/system/apps`):**
+- [x] Full app list with search/filter
+- [x] Enable/disable toggle per app
+- [x] Set default app
+- [x] Delete app with confirmation
+- [x] Bulk select with enable/disable operations
+- [x] Navigate to Create App / Edit App pages
+- [x] Navigate to app home
+
+**Permission Management Page (`/system/permissions`):**
+- [x] CRUD grid for `sys_permission` object
+- [x] Search/filter permissions
+- [x] Admin-only create/delete controls
+
+**Sidebar & Navigation Updates:**
+- [x] Settings button → `/system/` hub (was `/system/profile`)
+- [x] App switcher "Manage All Apps" link → `/system/apps`
+
+**Routes:**
+- [x] `/system/` → SystemHubPage
+- [x] `/system/apps` → AppManagementPage
+- [x] `/system/permissions` → PermissionManagementPage
+
+**Tests:**
+- [x] 11 new tests (SystemHubPage, AppManagementPage, PermissionManagementPage)
+- [x] Total: 20 system page tests passing
 
 ---
 
