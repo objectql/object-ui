@@ -384,7 +384,10 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Widget config flattening/unflattening (layout.w ↔ layoutW, layout.h ↔ layoutH)
 - [x] Auto-save on config save via `useAdapter().update()`
 - [x] Live preview updates via `onFieldChange` callback
-- [x] Update 16 integration tests (7 DashboardDesignInteraction + 9 DashboardViewSelection) to verify inline config panel pattern
+- [x] Config draft stabilization via `configVersion` counter (matching ViewConfigPanel's `stableActiveView` pattern) — prevents `useConfigDraft` draft reset on live field changes
+- [x] Widget delete via `headerExtra` delete button in WidgetConfigPanel header
+- [x] `WidgetConfigPanel` — added `headerExtra` prop for custom header actions
+- [x] Update 21 integration tests (10 DashboardDesignInteraction + 11 DashboardViewSelection) to verify inline config panel pattern, widget deletion, live preview sync
 
 ### P1.11 Console — Schema-Driven View Config Panel Migration
 

@@ -194,13 +194,14 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   );
 
   // ---- Dashboard config panel handlers ------------------------------------
-  // Stabilize config reference: only recompute when panel opens or after save.
-  // This prevents useConfigDraft from resetting the draft on every parent re-render
-  // (same pattern as ViewConfigPanel's stableActiveView).
+  // Stabilize config reference: only recompute after explicit actions (panel
+  // open, save, widget add). configVersion is incremented on those actions.
+  // This prevents useConfigDraft from resetting the draft on every live field
+  // change (same pattern as ViewConfigPanel's stableActiveView).
   const dashboardConfig = useMemo(
     () => extractDashboardConfig(editSchema || (dashboard as DashboardSchema)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dashboardName, configVersion],
+    [configVersion],
   );
 
   const handleDashboardConfigSave = useCallback(
@@ -210,8 +211,11 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
         ...editSchema,
         columns: config.columns,
         gap: config.gap,
+        rowHeight: config.rowHeight,
         refreshInterval: Number(config.refreshInterval) || 0,
         title: config.title,
+        showDescription: config.showDescription,
+        theme: config.theme,
       } as DashboardSchema;
       setEditSchema(newSchema);
       saveSchema(newSchema);
@@ -238,8 +242,10 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   // ---- Widget config panel handlers ---------------------------------------
   const selectedWidget = editSchema?.widgets?.find((w) => w.id === selectedWidgetId);
 
-  // Stabilize widget config: only recompute when selecting a different widget
-  // or after save — prevents useConfigDraft from resetting the draft on live preview updates.
+  // Stabilize widget config: only recompute after explicit actions (widget
+  // switch, save, add). configVersion is incremented on save/add, and
+  // selectedWidgetId changes on widget switch — this prevents useConfigDraft
+  // from resetting the draft on every live field change.
   const widgetConfig = useMemo(
     () => (selectedWidget ? flattenWidgetConfig(selectedWidget) : {}),
     // eslint-disable-next-line react-hooks/exhaustive-deps
