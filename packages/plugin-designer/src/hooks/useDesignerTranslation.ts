@@ -98,6 +98,24 @@ const DESIGNER_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'appDesigner.navImportSuccess': 'Navigation schema imported',
   'appDesigner.navImportError': 'Invalid navigation JSON',
   'appDesigner.navIconPlaceholder': 'Icon name (e.g. Users)',
+  // Dashboard Editor
+  'appDesigner.dashboardEditor': 'Dashboard Editor',
+  'appDesigner.noWidgets': 'No widgets. Click a button above to add one.',
+  'appDesigner.widgetLayoutSize': 'Layout Size',
+  'appDesigner.widgetWidth': 'Width',
+  'appDesigner.widgetHeight': 'Height',
+  'appDesigner.dashboardPreview': 'Dashboard Preview',
+  'appDesigner.noWidgetsPreview': 'No widgets to preview',
+  // Page Canvas Editor
+  'appDesigner.pageCanvasEditor': 'Page Canvas Editor',
+  'appDesigner.emptyPage': 'Empty page. Click a button above to add a component.',
+  'appDesigner.pagePreview': 'Page Preview',
+  'appDesigner.noComponentsPreview': 'No components to preview',
+  'appDesigner.modePage': 'Page',
+  'appDesigner.modeDashboard': 'Dashboard',
+  // Shared editor actions
+  'appDesigner.undo': 'Undo',
+  'appDesigner.redo': 'Redo',
 };
 
 function createFallbackTranslator(defaults: Record<string, string>) {

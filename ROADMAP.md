@@ -444,6 +444,13 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Property panel for selected component (label, type, ID)
 - [x] Add/remove/reorder components
 - [x] Syncs PageSchema children on every change
+- [x] Undo/Redo integration via `useUndoRedo` hook (Ctrl+Z / Ctrl+Y keyboard shortcuts)
+- [x] JSON Schema export/import (Download/Upload toolbar buttons with `onExport`/`onImport` callbacks)
+- [x] Preview mode toggle (Eye icon, renders PagePreview panel)
+- [x] Page/Dashboard mode tab switching (role="tablist" with aria-selected)
+- [x] i18n integration via `useDesignerTranslation` (all labels use translation keys)
+- [x] Keyboard shortcuts (Delete/Backspace to remove selected component)
+- [x] Mobile responsive layout (flex-col on mobile, sm:flex-row on desktop)
 
 **Dashboard Editor:**
 - [x] 6 widget types (KPI Metric, Bar Chart, Line Chart, Pie Chart, Table, Grid)
@@ -451,6 +458,13 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Widget property panel (title, type, data source, value field, aggregate, color variant)
 - [x] Add/remove/reorder widgets
 - [x] Grid layout based on DashboardSchema columns
+- [x] Undo/Redo integration via `useUndoRedo` hook (Ctrl+Z / Ctrl+Y keyboard shortcuts)
+- [x] JSON Schema export/import (Download/Upload toolbar buttons with `onExport`/`onImport` callbacks)
+- [x] Preview mode toggle (Eye icon, renders DashboardPreview panel)
+- [x] Widget layout size editing (width/height inputs in property panel)
+- [x] i18n integration via `useDesignerTranslation` (all labels use translation keys)
+- [x] Keyboard shortcuts (Delete/Backspace to remove selected widget)
+- [x] Mobile responsive layout (flex-col on mobile, sm:flex-row on desktop)
 
 **Object View Configurator:**
 - [x] 7 view type switcher (Grid, Kanban, Calendar, Gallery, Timeline, Map, Gantt)
@@ -466,10 +480,12 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Disabled state support
 
 **i18n:**
-- [x] `appDesigner` section with 103 keys added to all 10 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko)
+- [x] `appDesigner` section with 119 keys added to all 10 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko)
 - [x] `useDesignerTranslation` safe wrapper hook with English fallback (no I18nProvider required)
 - [x] AppCreationWizard fully i18n-integrated (all labels, buttons, step names, validation messages)
 - [x] NavigationDesigner fully i18n-integrated (type badges, quick-add labels, aria-labels, preview, icon editing, visibility, export/import)
+- [x] DashboardEditor fully i18n-integrated (toolbar labels, preview text)
+- [x] PageCanvasEditor fully i18n-integrated (toolbar labels, mode tabs, preview text)
 
 **UX Enhancements:**
 - [x] Cancel confirmation dialog with unsaved-changes detection
@@ -481,10 +497,10 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] 41 AppCreationWizard tests (rendering, steps 1-4, navigation, callbacks, cancel confirm, save draft, i18n, read-only)
 - [x] 33 NavigationDesigner tests (rendering, add, remove, groups, badges, i18n, read-only, icon editing, visibility toggle, export/import, responsive)
 - [x] 7 EditorModeToggle tests (render, active mode, onChange, accessibility, disabled)
-- [x] 10 DashboardEditor tests (rendering, add/remove widgets, property panel, read-only)
-- [x] 9 PageCanvasEditor tests (rendering, add/remove components, property panel, read-only)
+- [x] 22 DashboardEditor tests (rendering, add/remove widgets, property panel, read-only, undo/redo, export/import, preview mode, widget layout)
+- [x] 23 PageCanvasEditor tests (rendering, add/remove components, property panel, read-only, mode tabs, undo/redo, export/import, preview mode)
 - [x] 12 ObjectViewConfigurator tests (rendering, view type switch, column visibility, toggles, read-only)
-- [x] **Total: 180 tests across 9 files, all passing**
+- [x] **Total: 206 tests across 9 files, all passing**
 
 **ComponentRegistry:**
 - [x] Registered: `app-creation-wizard`, `navigation-designer`, `dashboard-editor`, `page-canvas-editor`, `object-view-configurator`

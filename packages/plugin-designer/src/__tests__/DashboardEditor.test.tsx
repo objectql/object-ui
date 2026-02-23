@@ -130,6 +130,14 @@ describe('DashboardEditor', () => {
       fireEvent.change(screen.getByTestId('widget-prop-object'), { target: { value: 'products' } });
       expect(onChange).toHaveBeenCalled();
     });
+
+    it('should show widget layout size inputs', () => {
+      const onChange = vi.fn();
+      render(<DashboardEditor schema={DASHBOARD_WITH_WIDGETS} onChange={onChange} />);
+      fireEvent.click(screen.getByTestId('dashboard-widget-w1'));
+      expect(screen.getByTestId('widget-prop-width')).toBeDefined();
+      expect(screen.getByTestId('widget-prop-height')).toBeDefined();
+    });
   });
 
   // ============================
@@ -139,6 +147,99 @@ describe('DashboardEditor', () => {
     it('should disable add buttons in read-only mode', () => {
       const onChange = vi.fn();
       render(<DashboardEditor schema={EMPTY_DASHBOARD} onChange={onChange} readOnly />);
+      expect(screen.getByTestId('dashboard-add-metric').hasAttribute('disabled')).toBe(true);
+    });
+  });
+
+  // ============================
+  // Undo/Redo
+  // ============================
+  describe('Undo/Redo', () => {
+    it('should render undo/redo buttons', () => {
+      const onChange = vi.fn();
+      render(<DashboardEditor schema={EMPTY_DASHBOARD} onChange={onChange} />);
+      expect(screen.getByTestId('dashboard-undo')).toBeDefined();
+      expect(screen.getByTestId('dashboard-redo')).toBeDefined();
+    });
+
+    it('should have undo disabled initially', () => {
+      const onChange = vi.fn();
+      render(<DashboardEditor schema={EMPTY_DASHBOARD} onChange={onChange} />);
+      expect(screen.getByTestId('dashboard-undo').hasAttribute('disabled')).toBe(true);
+      expect(screen.getByTestId('dashboard-redo').hasAttribute('disabled')).toBe(true);
+    });
+
+    it('should not render undo/redo buttons in read-only mode', () => {
+      const onChange = vi.fn();
+      render(<DashboardEditor schema={EMPTY_DASHBOARD} onChange={onChange} readOnly />);
+      expect(screen.queryByTestId('dashboard-undo')).toBeNull();
+      expect(screen.queryByTestId('dashboard-redo')).toBeNull();
+    });
+  });
+
+  // ============================
+  // Export/Import
+  // ============================
+  describe('Export/Import', () => {
+    it('should render export button', () => {
+      const onChange = vi.fn();
+      render(<DashboardEditor schema={EMPTY_DASHBOARD} onChange={onChange} />);
+      expect(screen.getByTestId('dashboard-export')).toBeDefined();
+    });
+
+    it('should call onExport when export is clicked', () => {
+      const onChange = vi.fn();
+      const onExport = vi.fn();
+      render(<DashboardEditor schema={EMPTY_DASHBOARD} onChange={onChange} onExport={onExport} />);
+      fireEvent.click(screen.getByTestId('dashboard-export'));
+      expect(onExport).toHaveBeenCalledWith(EMPTY_DASHBOARD);
+    });
+
+    it('should render import button', () => {
+      const onChange = vi.fn();
+      render(<DashboardEditor schema={EMPTY_DASHBOARD} onChange={onChange} />);
+      expect(screen.getByTestId('dashboard-import')).toBeDefined();
+    });
+
+    it('should not render import button in read-only mode', () => {
+      const onChange = vi.fn();
+      render(<DashboardEditor schema={EMPTY_DASHBOARD} onChange={onChange} readOnly />);
+      expect(screen.queryByTestId('dashboard-import')).toBeNull();
+    });
+  });
+
+  // ============================
+  // Preview Mode
+  // ============================
+  describe('Preview Mode', () => {
+    it('should render preview toggle button', () => {
+      const onChange = vi.fn();
+      render(<DashboardEditor schema={EMPTY_DASHBOARD} onChange={onChange} />);
+      expect(screen.getByTestId('dashboard-preview-toggle')).toBeDefined();
+    });
+
+    it('should show preview when toggle is clicked', () => {
+      const onChange = vi.fn();
+      render(<DashboardEditor schema={DASHBOARD_WITH_WIDGETS} onChange={onChange} />);
+      fireEvent.click(screen.getByTestId('dashboard-preview-toggle'));
+      expect(screen.getByTestId('dashboard-preview')).toBeDefined();
+    });
+
+    it('should hide property panel in preview mode', () => {
+      const onChange = vi.fn();
+      render(<DashboardEditor schema={DASHBOARD_WITH_WIDGETS} onChange={onChange} />);
+      // Select a widget first
+      fireEvent.click(screen.getByTestId('dashboard-widget-w1'));
+      expect(screen.getByTestId('widget-property-panel')).toBeDefined();
+      // Toggle preview
+      fireEvent.click(screen.getByTestId('dashboard-preview-toggle'));
+      expect(screen.queryByTestId('widget-property-panel')).toBeNull();
+    });
+
+    it('should disable add buttons in preview mode', () => {
+      const onChange = vi.fn();
+      render(<DashboardEditor schema={EMPTY_DASHBOARD} onChange={onChange} />);
+      fireEvent.click(screen.getByTestId('dashboard-preview-toggle'));
       expect(screen.getByTestId('dashboard-add-metric').hasAttribute('disabled')).toBe(true);
     });
   });

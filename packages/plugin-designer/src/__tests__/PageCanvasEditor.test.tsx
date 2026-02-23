@@ -122,4 +122,122 @@ describe('PageCanvasEditor', () => {
       expect(screen.getByTestId('canvas-add-grid').hasAttribute('disabled')).toBe(true);
     });
   });
+
+  // ============================
+  // Mode Tabs (Page/Dashboard)
+  // ============================
+  describe('Mode Tabs', () => {
+    it('should render page and dashboard mode tabs', () => {
+      const onChange = vi.fn();
+      render(<PageCanvasEditor schema={EMPTY_PAGE} onChange={onChange} />);
+      expect(screen.getByTestId('canvas-mode-page')).toBeDefined();
+      expect(screen.getByTestId('canvas-mode-dashboard')).toBeDefined();
+    });
+
+    it('should have page mode selected by default', () => {
+      const onChange = vi.fn();
+      render(<PageCanvasEditor schema={EMPTY_PAGE} onChange={onChange} />);
+      expect(screen.getByTestId('canvas-mode-page').getAttribute('aria-selected')).toBe('true');
+      expect(screen.getByTestId('canvas-mode-dashboard').getAttribute('aria-selected')).toBe('false');
+    });
+
+    it('should switch to dashboard mode', () => {
+      const onChange = vi.fn();
+      render(<PageCanvasEditor schema={EMPTY_PAGE} onChange={onChange} />);
+      fireEvent.click(screen.getByTestId('canvas-mode-dashboard'));
+      expect(screen.getByTestId('canvas-mode-dashboard').getAttribute('aria-selected')).toBe('true');
+      expect(screen.getByTestId('canvas-mode-page').getAttribute('aria-selected')).toBe('false');
+    });
+  });
+
+  // ============================
+  // Undo/Redo
+  // ============================
+  describe('Undo/Redo', () => {
+    it('should render undo/redo buttons', () => {
+      const onChange = vi.fn();
+      render(<PageCanvasEditor schema={EMPTY_PAGE} onChange={onChange} />);
+      expect(screen.getByTestId('canvas-undo')).toBeDefined();
+      expect(screen.getByTestId('canvas-redo')).toBeDefined();
+    });
+
+    it('should have undo disabled initially', () => {
+      const onChange = vi.fn();
+      render(<PageCanvasEditor schema={EMPTY_PAGE} onChange={onChange} />);
+      expect(screen.getByTestId('canvas-undo').hasAttribute('disabled')).toBe(true);
+      expect(screen.getByTestId('canvas-redo').hasAttribute('disabled')).toBe(true);
+    });
+
+    it('should not render undo/redo buttons in read-only mode', () => {
+      const onChange = vi.fn();
+      render(<PageCanvasEditor schema={EMPTY_PAGE} onChange={onChange} readOnly />);
+      expect(screen.queryByTestId('canvas-undo')).toBeNull();
+      expect(screen.queryByTestId('canvas-redo')).toBeNull();
+    });
+  });
+
+  // ============================
+  // Export/Import
+  // ============================
+  describe('Export/Import', () => {
+    it('should render export button', () => {
+      const onChange = vi.fn();
+      render(<PageCanvasEditor schema={EMPTY_PAGE} onChange={onChange} />);
+      expect(screen.getByTestId('canvas-export')).toBeDefined();
+    });
+
+    it('should call onExport when export is clicked', () => {
+      const onChange = vi.fn();
+      const onExport = vi.fn();
+      render(<PageCanvasEditor schema={EMPTY_PAGE} onChange={onChange} onExport={onExport} />);
+      fireEvent.click(screen.getByTestId('canvas-export'));
+      expect(onExport).toHaveBeenCalledWith(EMPTY_PAGE);
+    });
+
+    it('should render import button', () => {
+      const onChange = vi.fn();
+      render(<PageCanvasEditor schema={EMPTY_PAGE} onChange={onChange} />);
+      expect(screen.getByTestId('canvas-import')).toBeDefined();
+    });
+
+    it('should not render import button in read-only mode', () => {
+      const onChange = vi.fn();
+      render(<PageCanvasEditor schema={EMPTY_PAGE} onChange={onChange} readOnly />);
+      expect(screen.queryByTestId('canvas-import')).toBeNull();
+    });
+  });
+
+  // ============================
+  // Preview Mode
+  // ============================
+  describe('Preview Mode', () => {
+    it('should render preview toggle button', () => {
+      const onChange = vi.fn();
+      render(<PageCanvasEditor schema={EMPTY_PAGE} onChange={onChange} />);
+      expect(screen.getByTestId('canvas-preview-toggle')).toBeDefined();
+    });
+
+    it('should show preview when toggle is clicked', () => {
+      const onChange = vi.fn();
+      render(<PageCanvasEditor schema={PAGE_WITH_COMPONENTS} onChange={onChange} />);
+      fireEvent.click(screen.getByTestId('canvas-preview-toggle'));
+      expect(screen.getByTestId('page-preview')).toBeDefined();
+    });
+
+    it('should hide property panel in preview mode', () => {
+      const onChange = vi.fn();
+      render(<PageCanvasEditor schema={PAGE_WITH_COMPONENTS} onChange={onChange} />);
+      fireEvent.click(screen.getByTestId('canvas-component-grid_1'));
+      expect(screen.getByTestId('component-property-panel')).toBeDefined();
+      fireEvent.click(screen.getByTestId('canvas-preview-toggle'));
+      expect(screen.queryByTestId('component-property-panel')).toBeNull();
+    });
+
+    it('should disable add buttons in preview mode', () => {
+      const onChange = vi.fn();
+      render(<PageCanvasEditor schema={EMPTY_PAGE} onChange={onChange} />);
+      fireEvent.click(screen.getByTestId('canvas-preview-toggle'));
+      expect(screen.getByTestId('canvas-add-grid').hasAttribute('disabled')).toBe(true);
+    });
+  });
 });
