@@ -149,8 +149,10 @@ export function evaluateConditionalFormatting(
       try {
         // Spread record fields directly into context so both plain field
         // references (status) and namespaced references (data.status) work.
-        const evaluator = new ExpressionEvaluator({ data: record, ...record });
-        const isTemplate = expression.includes('${');
+        // `data` is set after the spread to prevent collision if record
+        // contains a 'data' property.
+        const evaluator = new ExpressionEvaluator({ ...record, data: record });
+        const isTemplate = /\$\{/.test(expression);
         const result = isTemplate
           ? evaluator.evaluate(expression, { throwOnError: true })
           : evaluator.evaluateExpression(expression);
