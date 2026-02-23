@@ -1978,7 +1978,7 @@ describe('ListView', () => {
   // filterableFields whitelist
   // ============================
   describe('filterableFields', () => {
-    it('should restrict filter fields to the whitelist', () => {
+    it('should render with filterableFields whitelist restricting available fields', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
@@ -1991,11 +1991,13 @@ describe('ListView', () => {
         filterableFields: ['name', 'email'],
       };
 
-      const { container } = renderWithProvider(<ListView schema={schema} />);
-      expect(container).toBeTruthy();
+      renderWithProvider(<ListView schema={schema} />);
+      // Filter button should still be visible
+      const filterButton = screen.getByRole('button', { name: /filter/i });
+      expect(filterButton).toBeInTheDocument();
     });
 
-    it('should allow all fields when filterableFields is not set', () => {
+    it('should render filter button when filterableFields is not set', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
@@ -2006,11 +2008,12 @@ describe('ListView', () => {
         ] as any,
       };
 
-      const { container } = renderWithProvider(<ListView schema={schema} />);
-      expect(container).toBeTruthy();
+      renderWithProvider(<ListView schema={schema} />);
+      const filterButton = screen.getByRole('button', { name: /filter/i });
+      expect(filterButton).toBeInTheDocument();
     });
 
-    it('should allow all fields when filterableFields is empty array', () => {
+    it('should render filter button when filterableFields is empty array', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
@@ -2022,8 +2025,9 @@ describe('ListView', () => {
         filterableFields: [],
       };
 
-      const { container } = renderWithProvider(<ListView schema={schema} />);
-      expect(container).toBeTruthy();
+      renderWithProvider(<ListView schema={schema} />);
+      const filterButton = screen.getByRole('button', { name: /filter/i });
+      expect(filterButton).toBeInTheDocument();
     });
   });
 });
