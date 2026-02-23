@@ -1,10 +1,11 @@
 /**
  * Dashboard View Component
- * Renders a dashboard based on the dashboardName parameter
+ * Renders a dashboard based on the dashboardName parameter.
+ * Edit opens a right-side drawer with DashboardEditor for real-time preview.
  */
 
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useParams } from 'react-router-dom';
 import { DashboardRenderer } from '@object-ui/plugin-dashboard';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { LayoutDashboard, Pencil } from 'lucide-react';
@@ -12,12 +13,18 @@ import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataI
 import { SkeletonDashboard } from './skeletons';
 import { useMetadata } from '../context/MetadataProvider';
 import { resolveI18nLabel } from '../utils';
+import { DesignDrawer } from './DesignDrawer';
+import type { DashboardSchema } from '@object-ui/types';
+
+const DashboardEditor = lazy(() =>
+  import('@object-ui/plugin-designer').then((m) => ({ default: m.DashboardEditor })),
+);
 
 export function DashboardView({ dataSource }: { dataSource?: any }) {
   const { dashboardName } = useParams<{ dashboardName: string }>();
-  const navigate = useNavigate();
   const { showDebug, toggleDebug } = useMetadataInspector();
   const [isLoading, setIsLoading] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     // Reset loading on navigation; the actual DashboardRenderer handles data fetching
@@ -29,6 +36,18 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   // Find dashboard definition from API-driven metadata
   const { dashboards } = useMetadata();
   const dashboard = dashboards?.find((d: any) => d.name === dashboardName);
+
+  // Local schema state for live preview — initialized from metadata
+  const [editSchema, setEditSchema] = useState<DashboardSchema | null>(null);
+
+  const handleOpenDrawer = useCallback(() => {
+    setEditSchema(dashboard as DashboardSchema);
+    setDrawerOpen(true);
+  }, [dashboard]);
+
+  const handleCloseDrawer = useCallback((open: boolean) => {
+    setDrawerOpen(open);
+  }, []);
 
   if (isLoading) {
     return <SkeletonDashboard />;
@@ -51,6 +70,9 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
     );
   }
 
+  // Use live-edited schema for preview when the drawer is open
+  const previewSchema = drawerOpen && editSchema ? editSchema : dashboard;
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4 p-4 sm:p-6 border-b shrink-0">
@@ -63,7 +85,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
         <div className="shrink-0 flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => navigate(`../design/dashboard/${dashboardName}`)}
+            onClick={handleOpenDrawer}
             className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm hover:bg-accent hover:text-accent-foreground"
             data-testid="dashboard-edit-button"
           >
@@ -76,14 +98,30 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
 
       <div className="flex-1 overflow-hidden flex flex-col sm:flex-row relative">
          <div className="flex-1 overflow-auto p-0 sm:p-6">
-            <DashboardRenderer schema={dashboard} dataSource={dataSource} />
+            <DashboardRenderer schema={previewSchema} dataSource={dataSource} />
          </div>
 
          <MetadataPanel
             open={showDebug}
-            sections={[{ title: 'Dashboard Configuration', data: dashboard }]}
+            sections={[{ title: 'Dashboard Configuration', data: previewSchema }]}
          />
       </div>
+
+      <DesignDrawer
+        open={drawerOpen}
+        onOpenChange={handleCloseDrawer}
+        title={`Edit Dashboard: ${resolveI18nLabel(dashboard.label) || dashboard.name}`}
+        schema={editSchema || dashboard}
+        onSchemaChange={setEditSchema}
+        collection="sys_dashboard"
+        recordName={dashboardName!}
+      >
+        {(schema, onChange) => (
+          <Suspense fallback={<div className="p-4 text-muted-foreground">Loading editor…</div>}>
+            <DashboardEditor schema={schema} onChange={onChange} />
+          </Suspense>
+        )}
+      </DesignDrawer>
     </div>
   );
 }
