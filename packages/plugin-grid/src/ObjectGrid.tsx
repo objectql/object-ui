@@ -51,6 +51,14 @@ export interface ObjectGridProps {
 }
 
 /**
+ * Format an action identifier string into a human-readable label.
+ * e.g., 'send_email' → 'Send Email'
+ */
+function formatActionLabel(action: string): string {
+  return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/**
  * Helper to get data configuration from schema
  * Handles both new ViewData format and legacy inline data
  */
@@ -762,7 +770,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 onClick={() => executeAction({ type: action, params: { record: row } })}
                 data-testid={`row-action-${action}`}
               >
-                {action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                {formatActionLabel(action)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

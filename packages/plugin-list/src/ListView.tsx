@@ -86,6 +86,14 @@ export function normalizeFilterCondition(condition: any[]): any[] {
 }
 
 /**
+ * Format an action identifier string into a human-readable label.
+ * e.g., 'send_email' → 'Send Email'
+ */
+function formatActionLabel(action: string): string {
+  return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/**
  * Normalize an array of filter conditions, expanding `in`/`not in` operators
  * and ensuring consistent AST structure.
  */
@@ -167,15 +175,9 @@ export function evaluateConditionalFormatting(
     }
 
     if (match) {
-      // Merge: spec 'style' object takes precedence, then individual style properties
+      // Build style: spec 'style' object is base, individual properties override
       const style: React.CSSProperties = {};
-      if (rule.style) {
-        if (rule.style.backgroundColor) style.backgroundColor = rule.style.backgroundColor;
-        if (rule.style.color) style.color = rule.style.color;
-        if (rule.style.borderColor) style.borderColor = rule.style.borderColor;
-        // Spread any additional style properties from spec format
-        Object.assign(style, rule.style);
-      }
+      if (rule.style) Object.assign(style, rule.style);
       if (rule.backgroundColor) style.backgroundColor = rule.backgroundColor;
       if (rule.textColor) style.color = rule.textColor;
       if (rule.borderColor) style.borderColor = rule.borderColor;
@@ -583,7 +585,7 @@ export const ListView: React.FC<ListViewProps> = ({
     fetchData();
     
     return () => { isMounted = false; };
-  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, activeQuickFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields]); // Re-fetch on filter/sort/search change
+  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, activeQuickFilters, normalizedQuickFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields]); // Re-fetch on filter/sort/search change
 
   // Available view types based on schema configuration
   const availableViews = React.useMemo(() => {
@@ -1468,7 +1470,7 @@ export const ListView: React.FC<ListViewProps> = ({
                 onClick={() => props.onBulkAction?.(action, selectedRows)}
                 data-testid={`bulk-action-${action}`}
               >
-                {action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                {formatActionLabel(action)}
               </Button>
             ))}
           </div>
