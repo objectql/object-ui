@@ -51,11 +51,15 @@ vi.mock('@object-ui/mobile', () => ({
   usePullToRefresh: () => ({ pullRef: { current: null } }),
 }));
 
-vi.mock('@object-ui/core', () => ({
-  ExpressionEvaluator: {
-    evaluate: vi.fn((expr: string) => expr),
-  },
-}));
+vi.mock('@object-ui/core', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    ExpressionEvaluator: {
+      evaluate: vi.fn((expr: string) => expr),
+    },
+  };
+});
 
 vi.mock('@object-ui/i18n', () => ({
   useObjectTranslation: () => ({

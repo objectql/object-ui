@@ -6,7 +6,7 @@
  * main workspace remains visible while the user edits.
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
   Sheet,
   SheetContent,

@@ -8,7 +8,7 @@
 
 import React, { useMemo, useRef, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import type { ColDef, GridOptions, GridReadyEvent, CellClickedEvent, RowClickedEvent, SelectionChangedEvent, CellValueChangedEvent, StatusPanelDef, GetContextMenuItemsParams, MenuItemDef } from 'ag-grid-community';
+import type { ColDef, GridOptions, GridReadyEvent, CellClickedEvent, RowClickedEvent, SelectionChangedEvent, CellValueChangedEvent, StatusPanelDef, GetContextMenuItemsParams, MenuItemDef, DefaultMenuItem } from 'ag-grid-community';
 import type { AgGridCallbacks, ExportConfig, StatusBarConfig, ColumnConfig, ContextMenuConfig, TreeDataConfig, RowGroupingConfig, ExcelExportConfig } from './types';
 
 export interface AgGridImplProps {
@@ -145,10 +145,10 @@ export default function AgGridImpl({
   }, [excelExport, exportConfig, callbacks, rowData]);
 
   // Context Menu handler
-  const getContextMenuItems = useCallback((params: GetContextMenuItemsParams): (string | MenuItemDef)[] => {
+  const getContextMenuItems = useCallback((params: GetContextMenuItemsParams): (DefaultMenuItem | MenuItemDef)[] => {
     if (!contextMenu?.enabled) return [];
     
-    const items: (string | MenuItemDef)[] = [];
+    const items: (DefaultMenuItem | MenuItemDef)[] = [];
     const defaultItems = contextMenu.items || ['copy', 'copyWithHeaders', 'separator', 'export'];
     
     defaultItems.forEach(item => {
@@ -183,7 +183,7 @@ export default function AgGridImpl({
           },
         });
       } else {
-        items.push(item);
+        items.push(item as DefaultMenuItem);
       }
     });
     

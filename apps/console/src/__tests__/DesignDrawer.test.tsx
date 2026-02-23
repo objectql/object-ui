@@ -82,9 +82,9 @@ vi.mock('sonner', () => ({
 
 // Mock Radix Dialog portal to render inline for testing
 vi.mock('@radix-ui/react-dialog', async () => {
-  const actual = await vi.importActual<typeof import('@radix-ui/react-dialog')>('@radix-ui/react-dialog');
+  const actual = await vi.importActual('@radix-ui/react-dialog');
   return {
-    ...actual,
+    ...(actual as Record<string, unknown>),
     Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   };
 });
@@ -189,7 +189,7 @@ describe('DesignDrawer — Right-Side Editor Panel', () => {
   });
 
   it('should not navigate away when edit button is clicked', () => {
-    const { container } = renderPageView();
+    renderPageView();
 
     fireEvent.click(screen.getByTestId('page-edit-button'));
 
