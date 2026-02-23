@@ -569,6 +569,17 @@ describe('buildViewConfigSchema', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('spec alignment', () => {
+    function buildSpecSchema() {
+        return buildViewConfigSchema({
+            t: mockT,
+            fieldOptions: mockFieldOptions,
+            objectDef: mockObjectDef,
+            updateField: mockUpdateField,
+            filterGroupValue: mockFilterGroup,
+            sortItemsValue: mockSortItems,
+        });
+    }
+
     // ── ROW_HEIGHT_OPTIONS matches spec RowHeight enum ───────────────────
     describe('ROW_HEIGHT_OPTIONS', () => {
         it('contains all 5 spec RowHeight values', () => {
@@ -694,6 +705,93 @@ describe('spec alignment', () => {
             for (const ext of uiExtensions) {
                 expect(keys).toContain(ext);
             }
+        });
+    });
+
+    // ── Accessibility section field ordering ─────────────────────────────
+    describe('accessibility section ordering', () => {
+        it('has ariaLabel before ariaDescribedBy before ariaLive', () => {
+            const schema = buildSpecSchema();
+            const section = schema.sections.find(s => s.key === 'accessibility')!;
+            const keys = section.fields.map(f => f.key);
+            expect(keys.indexOf('_ariaLabel')).toBeLessThan(keys.indexOf('_ariaDescribedBy'));
+            expect(keys.indexOf('_ariaDescribedBy')).toBeLessThan(keys.indexOf('_ariaLive'));
+        });
+    });
+
+    // ── EmptyState compound field sub-keys ───────────────────────────────
+    describe('emptyState compound field', () => {
+        it('renders title, message, and icon sub-fields', () => {
+            const schema = buildSpecSchema();
+            const section = schema.sections.find(s => s.key === 'appearance')!;
+            const emptyStateField = section.fields.find(f => f.key === '_emptyState')!;
+            expect(emptyStateField).toBeDefined();
+            expect(emptyStateField.render).toBeDefined();
+        });
+    });
+
+    // ── Switch fields default values ─────────────────────────────────────
+    describe('switch field default conventions', () => {
+        function findField(sectionKey: string, fieldKey: string) {
+            const schema = buildSpecSchema();
+            const section = schema.sections.find(s => s.key === sectionKey)!;
+            return section.fields.find(f => f.key === fieldKey)!;
+        }
+
+        it('collapseAllByDefault defaults to false (explicitTrue)', () => {
+            // explicitTrue fields only show checked when value === true
+            const field = findField('appearance', 'collapseAllByDefault');
+            expect(field.render).toBeDefined();
+        });
+
+        it('showDescription defaults to true (defaultOn)', () => {
+            const field = findField('appearance', 'showDescription');
+            expect(field.render).toBeDefined();
+        });
+
+        it('inlineEdit defaults to true (defaultOn)', () => {
+            const field = findField('userActions', 'inlineEdit');
+            expect(field.render).toBeDefined();
+        });
+    });
+
+    // ── All conditional visibleWhen predicates ───────────────────────────
+    describe('visibleWhen predicates comprehensive', () => {
+        it('sharing visibility requires sharing.enabled', () => {
+            const schema = buildSpecSchema();
+            const section = schema.sections.find(s => s.key === 'sharing')!;
+            const field = section.fields.find(f => f.key === '_sharingVisibility')!;
+            expect(field.visibleWhen).toBeDefined();
+            expect(field.visibleWhen!({ sharing: { enabled: true } })).toBe(true);
+            expect(field.visibleWhen!({ sharing: { enabled: false } })).toBe(false);
+            expect(field.visibleWhen!({})).toBe(false);
+            expect(field.visibleWhen!({ sharing: {} })).toBe(false);
+        });
+
+        it('navigation width visible only for drawer/modal/split modes', () => {
+            const schema = buildSpecSchema();
+            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const field = section.fields.find(f => f.key === '_navigationWidth')!;
+            expect(field.visibleWhen).toBeDefined();
+            expect(field.visibleWhen!({ navigation: { mode: 'drawer' } })).toBe(true);
+            expect(field.visibleWhen!({ navigation: { mode: 'modal' } })).toBe(true);
+            expect(field.visibleWhen!({ navigation: { mode: 'split' } })).toBe(true);
+            expect(field.visibleWhen!({ navigation: { mode: 'page' } })).toBe(false);
+            expect(field.visibleWhen!({ navigation: { mode: 'new_window' } })).toBe(false);
+            expect(field.visibleWhen!({})).toBe(false);
+        });
+
+        it('navigation openNewTab visible only for page/new_window modes', () => {
+            const schema = buildSpecSchema();
+            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const field = section.fields.find(f => f.key === '_navigationOpenNewTab')!;
+            expect(field.visibleWhen).toBeDefined();
+            expect(field.visibleWhen!({ navigation: { mode: 'page' } })).toBe(true);
+            expect(field.visibleWhen!({ navigation: { mode: 'new_window' } })).toBe(true);
+            expect(field.visibleWhen!({ navigation: { mode: 'drawer' } })).toBe(false);
+            expect(field.visibleWhen!({ navigation: { mode: 'modal' } })).toBe(false);
+            // defaults to page mode when navigation is undefined → visible
+            expect(field.visibleWhen!({})).toBe(true);
         });
     });
 });

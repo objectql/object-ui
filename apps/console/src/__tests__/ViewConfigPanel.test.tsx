@@ -2433,4 +2433,322 @@ describe('ViewConfigPanel', () => {
         fireEvent.click(screen.getByTestId('toggle-virtualScroll'));
         expect(onViewUpdate).toHaveBeenCalledWith('virtualScroll', true);
     });
+
+    // ── Spec alignment: toggle interaction tests for all switch fields ──
+
+    it('toggles collapseAllByDefault and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('toggle-collapseAllByDefault'));
+        expect(onViewUpdate).toHaveBeenCalledWith('collapseAllByDefault', true);
+    });
+
+    it('toggles showDescription and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('toggle-showDescription'));
+        expect(onViewUpdate).toHaveBeenCalledWith('showDescription', false);
+    });
+
+    it('toggles clickIntoRecordDetails and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('toggle-clickIntoRecordDetails'));
+        expect(onViewUpdate).toHaveBeenCalledWith('clickIntoRecordDetails', false);
+    });
+
+    it('toggles addDeleteRecordsInline and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('toggle-addDeleteRecordsInline'));
+        expect(onViewUpdate).toHaveBeenCalledWith('addDeleteRecordsInline', false);
+    });
+
+    // ── Conditional rendering: sharing visibility hidden when disabled ──
+
+    it('hides sharing visibility select when sharing is not enabled', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, sharing: { enabled: false } }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.getByTestId('toggle-sharing-enabled')).toBeInTheDocument();
+        expect(screen.queryByTestId('select-sharing-visibility')).not.toBeInTheDocument();
+    });
+
+    it('hides sharing visibility select when sharing is undefined', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.queryByTestId('select-sharing-visibility')).not.toBeInTheDocument();
+    });
+
+    // ── Conditional rendering: navigation width hidden when mode is page ──
+
+    it('hides navigation width when mode is page', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, navigation: { mode: 'page' } }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.queryByTestId('input-navigation-width')).not.toBeInTheDocument();
+    });
+
+    it('hides navigation openNewTab when mode is drawer', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, navigation: { mode: 'drawer' } }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.queryByTestId('toggle-navigation-openNewTab')).not.toBeInTheDocument();
+    });
+
+    // ── All 5 rowHeight buttons: click each value ──
+
+    it('clicks all 5 rowHeight buttons and verifies onViewUpdate for each', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        const heights = ['compact', 'short', 'medium', 'tall', 'extra_tall'];
+        heights.forEach((h) => {
+            fireEvent.click(screen.getByTestId(`row-height-${h}`));
+            expect(onViewUpdate).toHaveBeenCalledWith('rowHeight', h);
+        });
+        expect(onViewUpdate).toHaveBeenCalledTimes(heights.length);
+    });
+
+    // ── Boundary: empty actions input ──
+
+    it('handles empty bulkActions input gracefully', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, bulkActions: ['delete'] }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.bulkActions'));
+        fireEvent.change(screen.getByTestId('input-bulkActions'), { target: { value: '' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('bulkActions', []);
+    });
+
+    it('handles empty rowActions input gracefully', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, rowActions: ['edit'] }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.rowActions'));
+        fireEvent.change(screen.getByTestId('input-rowActions'), { target: { value: '' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('rowActions', []);
+    });
+
+    // ── Boundary: long label in title input ──
+
+    it('handles long label value in view title input', () => {
+        const longLabel = 'A'.repeat(200);
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, label: longLabel }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        expect(screen.getByTestId('view-title-input')).toHaveValue(longLabel);
+    });
+
+    // ── Boundary: special characters in emptyState fields ──
+
+    it('handles special characters in emptyState fields', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.change(screen.getByTestId('input-emptyState-title'), { target: { value: '<script>alert("xss")</script>' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('emptyState', expect.objectContaining({
+            title: '<script>alert("xss")</script>',
+        }));
+    });
+
+    // ── pageSizeOptions input interaction ──
+
+    it('updates pageSizeOptions via input', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        const input = screen.getByTestId('input-pagination-pageSizeOptions');
+        fireEvent.change(input, { target: { value: '10, 25, 50, 100' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('pagination', expect.objectContaining({
+            pageSizeOptions: [10, 25, 50, 100],
+        }));
+    });
+
+    // ── Boundary: densityMode enum selection ──
+
+    it('changes densityMode to all enum values', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        const select = screen.getByTestId('select-densityMode');
+        ['compact', 'comfortable', 'spacious'].forEach((mode) => {
+            fireEvent.change(select, { target: { value: mode } });
+            expect(onViewUpdate).toHaveBeenCalledWith('densityMode', mode);
+        });
+    });
+
+    // ── Conditional rendering: addRecord sub-editor hidden when not enabled ──
+
+    it('hides addRecord sub-editor when addRecordViaForm is false', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, addRecordViaForm: false }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        expect(screen.queryByTestId('select-addRecord-position')).not.toBeInTheDocument();
+    });
+
+    // ── Sharing visibility select changes value ──
+
+    it('changes sharing visibility and calls onViewUpdate', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{ ...mockActiveView, sharing: { enabled: true, visibility: 'private' } }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.change(screen.getByTestId('select-sharing-visibility'), { target: { value: 'organization' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('sharing', expect.objectContaining({
+            enabled: true,
+            visibility: 'organization',
+        }));
+    });
+
+    // ── ARIA live select enum ──
+
+    it('changes ARIA live to all enum values', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        const select = screen.getByTestId('select-aria-live');
+        ['polite', 'assertive', 'off'].forEach((mode) => {
+            fireEvent.change(select, { target: { value: mode } });
+            expect(onViewUpdate).toHaveBeenCalledWith('aria', expect.objectContaining({ live: mode }));
+        });
+    });
 });

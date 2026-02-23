@@ -385,6 +385,12 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] 14 new ObjectGrid rowHeight tests (all 5 enum values: initialization, cycle, label, toggle visibility)
 - [x] Full affected test suite: 2457+ tests across 81+ files, all pass
 
+**Phase 5 — Spec Alignment Completion (Issue #745):**
+- [x] ObjectGrid rowHeight: full 5-enum rendering (cellClassName, cycleRowHeight, icon map) — was hardcoded to 3
+- [x] 18 new ViewConfigPanel interaction tests: collapseAllByDefault, showDescription, clickIntoRecordDetails, addDeleteRecordsInline toggles; sharing visibility conditional hide; navigation width/openNewTab conditional rendering; all 5 rowHeight button clicks; boundary tests (empty actions, long labels, special chars); pageSizeOptions input; densityMode/ARIA live enums; addRecord conditional sub-editor; sharing visibility select
+- [x] 8 new schema-driven spec tests: accessibility field ordering, emptyState compound field, switch field defaults, comprehensive visibleWhen predicates (sharing, navigation width, navigation openNewTab)
+- [x] All spec fields verified: Appearance/UserActions/Sharing/Accessibility sections 100% covered with UI controls, defaults, ordering, and conditional visibility
+
 **Code Reduction:** ~1655 lines imperative → ~170 lines declarative wrapper + ~1100 lines schema factory + ~180 lines shared utils = **>50% net reduction in component code** with significantly improved maintainability
 
 ### P1.9 Console — Content Area Layout & Responsiveness
