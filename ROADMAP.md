@@ -374,6 +374,18 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Preview click → editor property panel linkage now works end-to-end (select, switch, deselect)
 - [x] Add 11 new tests (7 DashboardDesignInteraction integration + 4 DashboardEditor.propertyPanelLayout)
 
+**Phase 8 — Inline Config Panel Refactor (ListView Parity):**
+- [x] Replace `DesignDrawer` + `DashboardEditor` in `DashboardView` with inline `DashboardConfigPanel` / `WidgetConfigPanel`
+- [x] Right-side panel shows `DashboardConfigPanel` when no widget selected (dashboard-level properties: columns, gap, refresh, theme)
+- [x] Right-side panel switches to `WidgetConfigPanel` when a widget is selected (title, type, data binding, layout, appearance)
+- [x] Config panels use standard `ConfigPanelRenderer` with save/discard/footer (matches ListView/PageDesigner pattern)
+- [x] Add-widget toolbar moved to main area header (visible only in edit mode)
+- [x] Main area remains WYSIWYG preview via `DashboardRenderer` with `designMode` click-to-select
+- [x] Widget config flattening/unflattening (layout.w ↔ layoutW, layout.h ↔ layoutH)
+- [x] Auto-save on config save via `useAdapter().update()`
+- [x] Live preview updates via `onFieldChange` callback
+- [x] Update 16 integration tests (7 DashboardDesignInteraction + 9 DashboardViewSelection) to verify inline config panel pattern
+
 ### P1.11 Console — Schema-Driven View Config Panel Migration
 
 > Migrated the Console ViewConfigPanel from imperative implementation (~1655 lines) to Schema-Driven architecture using `ConfigPanelRenderer` + `useConfigDraft` + `ConfigPanelSchema`, reducing to ~170 lines declarative wrapper + schema factory.

@@ -82,7 +82,7 @@ function unflattenWidgetConfig(
     categoryField: config.categoryField,
     valueField: config.valueField,
     aggregate: config.aggregate,
-    layout: { ...base.layout, w: config.layoutW, h: config.layoutH } as DashboardWidgetSchema['layout'],
+    layout: { ...(base.layout || {}), w: config.layoutW, h: config.layoutH } as DashboardWidgetSchema['layout'],
     colorVariant: config.colorVariant,
     actionUrl: config.actionUrl,
   };
