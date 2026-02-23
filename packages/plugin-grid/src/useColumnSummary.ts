@@ -109,11 +109,13 @@ export function useColumnSummary(
       }
 
       // For 'count', count all non-null values (not just numeric)
-      const effectiveValues = config.type === 'count'
-        ? data.filter(row => row[targetField] != null && row[targetField] !== '').map((_, i) => i)
-        : values;
-
-      const result = computeAggregation(config.type, effectiveValues);
+      let result: number | null;
+      if (config.type === 'count') {
+        const count = data.filter(row => row[targetField] != null && row[targetField] !== '').length;
+        result = count > 0 ? count : null;
+      } else {
+        result = computeAggregation(config.type, values);
+      }
       summaries.set(col.field, {
         field: col.field,
         value: result,

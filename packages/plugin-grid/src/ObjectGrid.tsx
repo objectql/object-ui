@@ -799,14 +799,15 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const pinnedRightCols = columnsWithActions.filter((c: any) => c.pinned === 'right');
   const unpinnedCols = columnsWithActions.filter((c: any) => !c.pinned);
   const hasPinnedColumns = pinnedLeftCols.length > 0 || pinnedRightCols.length > 0;
+  const rightPinnedClasses = 'sticky right-0 z-10 bg-background border-l border-border';
   const orderedColumns = hasPinnedColumns
     ? [
         ...pinnedLeftCols,
         ...unpinnedCols,
         ...pinnedRightCols.map((col: any) => ({
           ...col,
-          className: [col.className, 'sticky right-0 z-10 bg-background border-l border-border'].filter(Boolean).join(' '),
-          cellClassName: [col.cellClassName, 'sticky right-0 z-10 bg-background border-l border-border'].filter(Boolean).join(' '),
+          className: [col.className, rightPinnedClasses].filter(Boolean).join(' '),
+          cellClassName: [col.cellClassName, rightPinnedClasses].filter(Boolean).join(' '),
         })),
       ]
     : columnsWithActions;
