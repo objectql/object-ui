@@ -1,7 +1,7 @@
 /**
  * useNavigationSync
  *
- * Synchronises the App navigation tree when Pages or Dashboards are
+ * Synchronizes the App navigation tree when Pages or Dashboards are
  * created, deleted, or renamed.  Pure utility helpers are exported for
  * unit-testing; the React hook wires them to the adapter / metadata
  * context and shows sonner toasts with an undo action.
@@ -90,6 +90,18 @@ export function renameNavigationItems(
     }
     return updated;
   });
+}
+
+/**
+ * Shallow-structural equality check for two NavigationItem arrays.
+ * Works reliably because NavigationItem objects are plain serializable JSON
+ * whose key ordering is deterministic (we control object creation).
+ */
+export function navigationEqual(a: NavigationItem[], b: NavigationItem[]): boolean {
+  if (a.length !== b.length) return false;
+  // Fast-path: same reference
+  if (a === b) return true;
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 // ============================================================================
@@ -241,7 +253,7 @@ export function useNavigationSync(): UseNavigationSyncReturn {
 
       const prev = app.navigation ?? [];
       const updated = removeNavigationItems(prev, 'page', pageName);
-      if (JSON.stringify(updated) === JSON.stringify(prev)) return; // nothing changed
+      if (navigationEqual(updated, prev)) return; // nothing changed
 
       const updatedApp: AppSchema = { ...app, navigation: updated };
 
@@ -274,7 +286,7 @@ export function useNavigationSync(): UseNavigationSyncReturn {
 
       const prev = app.navigation ?? [];
       const updated = removeNavigationItems(prev, 'dashboard', dashboardName);
-      if (JSON.stringify(updated) === JSON.stringify(prev)) return;
+      if (navigationEqual(updated, prev)) return;
 
       const updatedApp: AppSchema = { ...app, navigation: updated };
 
@@ -311,7 +323,7 @@ export function useNavigationSync(): UseNavigationSyncReturn {
 
       const prev = app.navigation ?? [];
       const updated = renameNavigationItems(prev, 'page', oldName, newName);
-      if (JSON.stringify(updated) === JSON.stringify(prev)) return;
+      if (navigationEqual(updated, prev)) return;
 
       const updatedApp: AppSchema = { ...app, navigation: updated };
 
@@ -344,7 +356,7 @@ export function useNavigationSync(): UseNavigationSyncReturn {
 
       const prev = app.navigation ?? [];
       const updated = renameNavigationItems(prev, 'dashboard', oldName, newName);
-      if (JSON.stringify(updated) === JSON.stringify(prev)) return;
+      if (navigationEqual(updated, prev)) return;
 
       const updatedApp: AppSchema = { ...app, navigation: updated };
 

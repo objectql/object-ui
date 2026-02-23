@@ -13,6 +13,7 @@ import {
   addNavigationItem,
   removeNavigationItems,
   renameNavigationItems,
+  navigationEqual,
 } from '../hooks/useNavigationSync';
 
 // ---------------------------------------------------------------------------
@@ -234,6 +235,32 @@ describe('renameNavigationItems', () => {
     const result = renameNavigationItems(nav, 'page', 'sales', 'new_sales');
     expect(result[0].pageName).toBe('new_sales');
     expect(result[1].dashboardName).toBe('sales'); // untouched
+  });
+});
+
+describe('navigationEqual', () => {
+  it('returns true for identical arrays', () => {
+    const nav: NavigationItem[] = [
+      { id: '1', type: 'page', label: 'Home', pageName: 'home' },
+    ];
+    expect(navigationEqual(nav, nav)).toBe(true);
+  });
+
+  it('returns true for structurally equal arrays', () => {
+    const a: NavigationItem[] = [{ id: '1', type: 'page', label: 'Home', pageName: 'home' }];
+    const b: NavigationItem[] = [{ id: '1', type: 'page', label: 'Home', pageName: 'home' }];
+    expect(navigationEqual(a, b)).toBe(true);
+  });
+
+  it('returns false for different lengths', () => {
+    const a: NavigationItem[] = [{ id: '1', type: 'page', label: 'Home', pageName: 'home' }];
+    expect(navigationEqual(a, [])).toBe(false);
+  });
+
+  it('returns false for different content', () => {
+    const a: NavigationItem[] = [{ id: '1', type: 'page', label: 'Home', pageName: 'home' }];
+    const b: NavigationItem[] = [{ id: '1', type: 'page', label: 'Home', pageName: 'about' }];
+    expect(navigationEqual(a, b)).toBe(false);
   });
 });
 
