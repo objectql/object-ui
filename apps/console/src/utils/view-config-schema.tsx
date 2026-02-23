@@ -3,6 +3,12 @@
  *
  * Builds a ConfigPanelSchema that describes the entire ViewConfigPanel
  * structure declaratively. Complex widgets use type='custom' render functions.
+ *
+ * Field ordering within each section strictly follows the NamedListView
+ * interface property declaration order in packages/types/src/objectql.ts.
+ * Each field is annotated with its spec source (e.g. "spec: NamedListView.label").
+ * Fields not present in the spec are annotated as "UI extension" with a
+ * protocol suggestion.
  */
 
 import React from 'react';
@@ -101,7 +107,7 @@ function buildPageConfigSection(
         title: t('console.objectView.page'),
         hint: t('console.objectView.pageConfigHint'),
         fields: [
-            // Title
+            // spec: NamedListView.label — required view display label
             {
                 key: 'label',
                 label: t('console.objectView.title'),
@@ -117,7 +123,8 @@ function buildPageConfigSection(
                     </ConfigRow>
                 ),
             },
-            // Description
+            // UI extension: description — not in NamedListView spec.
+            // Protocol suggestion: add optional 'description' to NamedListView.
             {
                 key: 'description',
                 label: t('console.objectView.description'),
@@ -134,7 +141,7 @@ function buildPageConfigSection(
                     </ConfigRow>
                 ),
             },
-            // View type
+            // spec: NamedListView.type — view type enum
             {
                 key: 'type',
                 label: t('console.objectView.viewType'),
@@ -154,178 +161,15 @@ function buildPageConfigSection(
                     </ConfigRow>
                 ),
             },
-            // Toolbar toggles
-            buildSwitchField('showSearch', t('console.objectView.enableSearch'), 'toggle-showSearch', true),
-            buildSwitchField('showFilters', t('console.objectView.enableFilter'), 'toggle-showFilters', true),
-            buildSwitchField('showSort', t('console.objectView.enableSort'), 'toggle-showSort', true),
-            buildSwitchField('showHideFields', t('console.objectView.enableHideFields'), 'toggle-showHideFields', true),
-            buildSwitchField('showGroup', t('console.objectView.enableGroup'), 'toggle-showGroup', true),
-            buildSwitchField('showColor', t('console.objectView.enableColor'), 'toggle-showColor', true),
-            buildSwitchField('showDensity', t('console.objectView.enableDensity'), 'toggle-showDensity', true),
-            // Navigation mode
-            {
-                key: '_navigationMode',
-                label: t('console.objectView.navigationMode'),
-                type: 'custom',
-                render: (_value, _onChange, draft) => {
-                    const navMode = draft.navigation?.mode || 'page';
-                    return (
-                        <ConfigRow label={t('console.objectView.navigationMode')}>
-                            <select
-                                data-testid="select-navigation-mode"
-                                className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
-                                value={navMode}
-                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                                    const mode = e.target.value;
-                                    updateField('navigation', { ...(draft.navigation || {}), mode });
-                                    updateField('clickIntoRecordDetails', mode !== 'none');
-                                }}
-                            >
-                                <option value="page">Page</option>
-                                <option value="drawer">Drawer</option>
-                                <option value="modal">Modal</option>
-                                <option value="split">Split</option>
-                                <option value="popover">Popover</option>
-                                <option value="new_window">New Window</option>
-                                <option value="none">None</option>
-                            </select>
-                        </ConfigRow>
-                    );
-                },
-            },
-            // Navigation width (visible for drawer/modal/split)
-            {
-                key: '_navigationWidth',
-                label: t('console.objectView.navigationWidth'),
-                type: 'custom',
-                visibleWhen: (draft) => ['drawer', 'modal', 'split'].includes(draft.navigation?.mode || 'page'),
-                render: (_value, _onChange, draft) => {
-                    const navMode = draft.navigation?.mode || 'page';
-                    return (
-                        <ConfigRow label={t('console.objectView.navigationWidth')}>
-                            <Input
-                                data-testid="input-navigation-width"
-                                className="h-7 text-xs w-24 text-right"
-                                value={draft.navigation?.width ?? ''}
-                                placeholder="600px"
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                    updateField('navigation', { ...(draft.navigation || {}), mode: navMode, width: e.target.value })
-                                }
-                            />
-                        </ConfigRow>
-                    );
-                },
-            },
-            // Navigation openNewTab (visible for page/new_window)
-            {
-                key: '_navigationOpenNewTab',
-                label: t('console.objectView.openNewTab'),
-                type: 'custom',
-                visibleWhen: (draft) => ['page', 'new_window'].includes(draft.navigation?.mode || 'page'),
-                render: (_value, _onChange, draft) => {
-                    const navMode = draft.navigation?.mode || 'page';
-                    return (
-                        <ConfigRow label={t('console.objectView.openNewTab')}>
-                            <Switch
-                                data-testid="toggle-navigation-openNewTab"
-                                checked={draft.navigation?.openNewTab === true}
-                                onCheckedChange={(checked: boolean) =>
-                                    updateField('navigation', { ...(draft.navigation || {}), mode: navMode, openNewTab: checked })
-                                }
-                                className="scale-75"
-                            />
-                        </ConfigRow>
-                    );
-                },
-            },
-            // Selection mode
-            {
-                key: '_selectionType',
-                label: t('console.objectView.selectionMode'),
-                type: 'custom',
-                render: (_value, _onChange, draft) => (
-                    <ConfigRow label={t('console.objectView.selectionMode')}>
-                        <select
-                            data-testid="select-selection-type"
-                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
-                            value={draft.selection?.type || 'multiple'}
-                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                                updateField('selection', { type: e.target.value })
-                            }
-                        >
-                            <option value="none">{t('console.objectView.selectionNone')}</option>
-                            <option value="single">{t('console.objectView.selectionSingle')}</option>
-                            <option value="multiple">{t('console.objectView.selectionMultiple')}</option>
-                        </select>
-                    </ConfigRow>
-                ),
-            },
-            // Add Record config
-            {
-                key: '_addRecord',
-                label: t('console.objectView.addRecordEnabled'),
-                type: 'custom',
-                render: (_value, _onChange, draft) => {
-                    const hasAddForm = draft.addRecordViaForm === true || draft.addRecord?.enabled === true;
-                    return (
-                        <>
-                            <ConfigRow label={t('console.objectView.addRecordEnabled')}>
-                                <Switch
-                                    data-testid="toggle-addRecord-enabled"
-                                    checked={hasAddForm}
-                                    onCheckedChange={(checked: boolean) => {
-                                        updateField('addRecordViaForm', checked);
-                                        updateField('addRecord', { ...(draft.addRecord || {}), enabled: checked });
-                                    }}
-                                    className="scale-75"
-                                />
-                            </ConfigRow>
-                            {hasAddForm && (
-                                <>
-                                    <ConfigRow label={t('console.objectView.addRecordPosition')}>
-                                        <select
-                                            data-testid="select-addRecord-position"
-                                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[100px]"
-                                            value={draft.addRecord?.position || 'top'}
-                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                                                updateField('addRecord', { ...(draft.addRecord || {}), enabled: true, position: e.target.value })
-                                            }
-                                        >
-                                            <option value="top">Top</option>
-                                            <option value="bottom">Bottom</option>
-                                        </select>
-                                    </ConfigRow>
-                                    <ConfigRow label={t('console.objectView.addRecordMode')}>
-                                        <select
-                                            data-testid="select-addRecord-mode"
-                                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[100px]"
-                                            value={draft.addRecord?.mode || 'form'}
-                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                                                updateField('addRecord', { ...(draft.addRecord || {}), enabled: true, mode: e.target.value })
-                                            }
-                                        >
-                                            <option value="inline">Inline</option>
-                                            <option value="form">Form</option>
-                                            <option value="modal">Modal</option>
-                                        </select>
-                                    </ConfigRow>
-                                    <ConfigRow label={t('console.objectView.addRecordFormView')}>
-                                        <Input
-                                            data-testid="input-addRecord-formView"
-                                            className="h-7 text-xs w-24 text-right"
-                                            value={draft.addRecord?.formView ?? ''}
-                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                                updateField('addRecord', { ...(draft.addRecord || {}), enabled: true, formView: e.target.value })
-                                            }
-                                        />
-                                    </ConfigRow>
-                                </>
-                            )}
-                        </>
-                    );
-                },
-            },
-            // Allow Export + sub-config
+            // Toolbar toggles — ordered per spec: showSearch, showSort, showFilters, showHideFields, showGroup, showColor, showDensity
+            buildSwitchField('showSearch', t('console.objectView.enableSearch'), 'toggle-showSearch', true),       // spec: NamedListView.showSearch
+            buildSwitchField('showSort', t('console.objectView.enableSort'), 'toggle-showSort', true),             // spec: NamedListView.showSort
+            buildSwitchField('showFilters', t('console.objectView.enableFilter'), 'toggle-showFilters', true),     // spec: NamedListView.showFilters
+            buildSwitchField('showHideFields', t('console.objectView.enableHideFields'), 'toggle-showHideFields', true), // spec: NamedListView.showHideFields
+            buildSwitchField('showGroup', t('console.objectView.enableGroup'), 'toggle-showGroup', true),          // spec: NamedListView.showGroup
+            buildSwitchField('showColor', t('console.objectView.enableColor'), 'toggle-showColor', true),          // spec: NamedListView.showColor
+            buildSwitchField('showDensity', t('console.objectView.enableDensity'), 'toggle-showDensity', true),    // spec: NamedListView.showDensity
+            // spec: NamedListView.allowExport + NamedListView.exportOptions — export toggle + sub-config
             {
                 key: '_export',
                 label: t('console.objectView.allowExport'),
@@ -404,9 +248,172 @@ function buildPageConfigSection(
                     );
                 },
             },
-            // Show record count
+            // spec: NamedListView.navigation — navigation mode/width/openNewTab
+            {
+                key: '_navigationMode',
+                label: t('console.objectView.navigationMode'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    const navMode = draft.navigation?.mode || 'page';
+                    return (
+                        <ConfigRow label={t('console.objectView.navigationMode')}>
+                            <select
+                                data-testid="select-navigation-mode"
+                                className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                                value={navMode}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                    const mode = e.target.value;
+                                    updateField('navigation', { ...(draft.navigation || {}), mode });
+                                    updateField('clickIntoRecordDetails', mode !== 'none');
+                                }}
+                            >
+                                <option value="page">Page</option>
+                                <option value="drawer">Drawer</option>
+                                <option value="modal">Modal</option>
+                                <option value="split">Split</option>
+                                <option value="popover">Popover</option>
+                                <option value="new_window">New Window</option>
+                                <option value="none">None</option>
+                            </select>
+                        </ConfigRow>
+                    );
+                },
+            },
+            // spec: NamedListView.navigation.width (visible for drawer/modal/split)
+            {
+                key: '_navigationWidth',
+                label: t('console.objectView.navigationWidth'),
+                type: 'custom',
+                visibleWhen: (draft) => ['drawer', 'modal', 'split'].includes(draft.navigation?.mode || 'page'),
+                render: (_value, _onChange, draft) => {
+                    const navMode = draft.navigation?.mode || 'page';
+                    return (
+                        <ConfigRow label={t('console.objectView.navigationWidth')}>
+                            <Input
+                                data-testid="input-navigation-width"
+                                className="h-7 text-xs w-24 text-right"
+                                value={draft.navigation?.width ?? ''}
+                                placeholder="600px"
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                    updateField('navigation', { ...(draft.navigation || {}), mode: navMode, width: e.target.value })
+                                }
+                            />
+                        </ConfigRow>
+                    );
+                },
+            },
+            // spec: NamedListView.navigation.openNewTab (visible for page/new_window)
+            {
+                key: '_navigationOpenNewTab',
+                label: t('console.objectView.openNewTab'),
+                type: 'custom',
+                visibleWhen: (draft) => ['page', 'new_window'].includes(draft.navigation?.mode || 'page'),
+                render: (_value, _onChange, draft) => {
+                    const navMode = draft.navigation?.mode || 'page';
+                    return (
+                        <ConfigRow label={t('console.objectView.openNewTab')}>
+                            <Switch
+                                data-testid="toggle-navigation-openNewTab"
+                                checked={draft.navigation?.openNewTab === true}
+                                onCheckedChange={(checked: boolean) =>
+                                    updateField('navigation', { ...(draft.navigation || {}), mode: navMode, openNewTab: checked })
+                                }
+                                className="scale-75"
+                            />
+                        </ConfigRow>
+                    );
+                },
+            },
+            // spec: NamedListView.selection — row selection mode
+            {
+                key: '_selectionType',
+                label: t('console.objectView.selectionMode'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => (
+                    <ConfigRow label={t('console.objectView.selectionMode')}>
+                        <select
+                            data-testid="select-selection-type"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                            value={draft.selection?.type || 'multiple'}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                updateField('selection', { type: e.target.value })
+                            }
+                        >
+                            <option value="none">{t('console.objectView.selectionNone')}</option>
+                            <option value="single">{t('console.objectView.selectionSingle')}</option>
+                            <option value="multiple">{t('console.objectView.selectionMultiple')}</option>
+                        </select>
+                    </ConfigRow>
+                ),
+            },
+            // spec: NamedListView.addRecordViaForm + NamedListView.addRecord — add record config
+            {
+                key: '_addRecord',
+                label: t('console.objectView.addRecordEnabled'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    const hasAddForm = draft.addRecordViaForm === true || draft.addRecord?.enabled === true;
+                    return (
+                        <>
+                            <ConfigRow label={t('console.objectView.addRecordEnabled')}>
+                                <Switch
+                                    data-testid="toggle-addRecord-enabled"
+                                    checked={hasAddForm}
+                                    onCheckedChange={(checked: boolean) => {
+                                        updateField('addRecordViaForm', checked);
+                                        updateField('addRecord', { ...(draft.addRecord || {}), enabled: checked });
+                                    }}
+                                    className="scale-75"
+                                />
+                            </ConfigRow>
+                            {hasAddForm && (
+                                <>
+                                    <ConfigRow label={t('console.objectView.addRecordPosition')}>
+                                        <select
+                                            data-testid="select-addRecord-position"
+                                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[100px]"
+                                            value={draft.addRecord?.position || 'top'}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                                updateField('addRecord', { ...(draft.addRecord || {}), enabled: true, position: e.target.value })
+                                            }
+                                        >
+                                            <option value="top">Top</option>
+                                            <option value="bottom">Bottom</option>
+                                        </select>
+                                    </ConfigRow>
+                                    <ConfigRow label={t('console.objectView.addRecordMode')}>
+                                        <select
+                                            data-testid="select-addRecord-mode"
+                                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[100px]"
+                                            value={draft.addRecord?.mode || 'form'}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                                                updateField('addRecord', { ...(draft.addRecord || {}), enabled: true, mode: e.target.value })
+                                            }
+                                        >
+                                            <option value="inline">Inline</option>
+                                            <option value="form">Form</option>
+                                            <option value="modal">Modal</option>
+                                        </select>
+                                    </ConfigRow>
+                                    <ConfigRow label={t('console.objectView.addRecordFormView')}>
+                                        <Input
+                                            data-testid="input-addRecord-formView"
+                                            className="h-7 text-xs w-24 text-right"
+                                            value={draft.addRecord?.formView ?? ''}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                                updateField('addRecord', { ...(draft.addRecord || {}), enabled: true, formView: e.target.value })
+                                            }
+                                        />
+                                    </ConfigRow>
+                                </>
+                            )}
+                        </>
+                    );
+                },
+            },
+            // spec: NamedListView.showRecordCount
             buildSwitchField('showRecordCount', t('console.objectView.showRecordCount'), 'toggle-showRecordCount', false, true),
-            // Allow printing
+            // spec: NamedListView.allowPrinting
             buildSwitchField('allowPrinting', t('console.objectView.allowPrinting'), 'toggle-allowPrinting', false, true),
         ],
     };
@@ -431,7 +438,7 @@ function buildDataSection(
         hint: t('console.objectView.listConfigHint'),
         collapsible: true,
         fields: [
-            // Source (read-only)
+            // UI extension: read-only source display — not a NamedListView property.
             {
                 key: '_source',
                 label: t('console.objectView.source'),
@@ -440,94 +447,7 @@ function buildDataSection(
                     <ConfigRow label={t('console.objectView.source')} value={objectDef.label || objectDef.name} />
                 ),
             },
-            // Sort by — expandable
-            {
-                key: '_sortBy',
-                label: t('console.objectView.sortBy'),
-                type: 'custom',
-                render: (_value, _onChange, draft) => {
-                    const sortCount = Array.isArray(draft.sort) ? draft.sort.filter((s: any) => s.field).length : 0;
-                    const sortSummary = sortCount > 0
-                        ? t('console.objectView.sortsCount', { count: sortCount })
-                        : t('console.objectView.none');
-                    return (
-                        <ExpandableWidget
-                            renderSummary={(toggle) => (
-                                <ConfigRow
-                                    label={t('console.objectView.sortBy')}
-                                    value={sortSummary}
-                                    onClick={toggle}
-                                />
-                            )}
-                        >
-                            <div data-testid="inline-sort-builder" className="pb-2">
-                                <SortBuilder
-                                    fields={fieldOptions.map(f => ({ value: f.value, label: f.label }))}
-                                    value={sortItemsValue}
-                                    onChange={(items: SortItem[]) => {
-                                        const sortArr = items.map(s => ({ id: s.id, field: s.field, order: s.order }));
-                                        updateField('sort', sortArr);
-                                    }}
-                                    className="[&_button]:h-7 [&_button]:text-xs"
-                                />
-                            </div>
-                        </ExpandableWidget>
-                    );
-                },
-            },
-            // Group by
-            {
-                key: '_groupBy',
-                label: t('console.objectView.groupBy'),
-                type: 'custom',
-                render: (_value, _onChange, draft) => {
-                    const viewType = draft.type || 'grid';
-                    const groupByValue = draft.kanban?.groupByField || draft.kanban?.groupField || draft.groupBy || '';
-                    return (
-                        <ConfigRow label={t('console.objectView.groupBy')}>
-                            <select
-                                data-testid="data-groupBy"
-                                className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
-                                value={groupByValue}
-                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                                    updateField('groupBy', e.target.value);
-                                    if (viewType === 'kanban') {
-                                        const current = draft.kanban || {};
-                                        updateField('kanban', { ...current, groupByField: e.target.value });
-                                    }
-                                }}
-                            >
-                                <option value="">{t('console.objectView.none')}</option>
-                                {fieldOptions.map(f => (
-                                    <option key={f.value} value={f.value}>{f.label}</option>
-                                ))}
-                            </select>
-                        </ConfigRow>
-                    );
-                },
-            },
-            // Prefix field
-            {
-                key: 'prefixField',
-                label: t('console.objectView.prefixField'),
-                type: 'custom',
-                render: (value, onChange) => (
-                    <ConfigRow label={t('console.objectView.prefixField')}>
-                        <select
-                            data-testid="data-prefixField"
-                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
-                            value={value || ''}
-                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChange(e.target.value)}
-                        >
-                            <option value="">{t('console.objectView.none')}</option>
-                            {fieldOptions.map(f => (
-                                <option key={f.value} value={f.value}>{f.label}</option>
-                            ))}
-                        </select>
-                    </ConfigRow>
-                ),
-            },
-            // Fields / Columns selector
+            // spec: NamedListView.columns — fields/columns selector (expandable)
             {
                 key: '_columns',
                 label: t('console.objectView.fields'),
@@ -626,7 +546,7 @@ function buildDataSection(
                     );
                 },
             },
-            // Filter by — expandable
+            // spec: NamedListView.filter — filter conditions (expandable)
             {
                 key: '_filterBy',
                 label: t('console.objectView.filterBy'),
@@ -665,7 +585,94 @@ function buildDataSection(
                     );
                 },
             },
-            // Pagination — pageSize
+            // spec: NamedListView.sort — sort configuration (expandable)
+            {
+                key: '_sortBy',
+                label: t('console.objectView.sortBy'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    const sortCount = Array.isArray(draft.sort) ? draft.sort.filter((s: any) => s.field).length : 0;
+                    const sortSummary = sortCount > 0
+                        ? t('console.objectView.sortsCount', { count: sortCount })
+                        : t('console.objectView.none');
+                    return (
+                        <ExpandableWidget
+                            renderSummary={(toggle) => (
+                                <ConfigRow
+                                    label={t('console.objectView.sortBy')}
+                                    value={sortSummary}
+                                    onClick={toggle}
+                                />
+                            )}
+                        >
+                            <div data-testid="inline-sort-builder" className="pb-2">
+                                <SortBuilder
+                                    fields={fieldOptions.map(f => ({ value: f.value, label: f.label }))}
+                                    value={sortItemsValue}
+                                    onChange={(items: SortItem[]) => {
+                                        const sortArr = items.map(s => ({ id: s.id, field: s.field, order: s.order }));
+                                        updateField('sort', sortArr);
+                                    }}
+                                    className="[&_button]:h-7 [&_button]:text-xs"
+                                />
+                            </div>
+                        </ExpandableWidget>
+                    );
+                },
+            },
+            // spec: NamedListView.prefixField
+            {
+                key: 'prefixField',
+                label: t('console.objectView.prefixField'),
+                type: 'custom',
+                render: (value, onChange) => (
+                    <ConfigRow label={t('console.objectView.prefixField')}>
+                        <select
+                            data-testid="data-prefixField"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                            value={value || ''}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChange(e.target.value)}
+                        >
+                            <option value="">{t('console.objectView.none')}</option>
+                            {fieldOptions.map(f => (
+                                <option key={f.value} value={f.value}>{f.label}</option>
+                            ))}
+                        </select>
+                    </ConfigRow>
+                ),
+            },
+            // UI extension: groupBy — not in NamedListView spec. Protocol suggestion: add 'groupBy' to NamedListView.
+            {
+                key: '_groupBy',
+                label: t('console.objectView.groupBy'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    const viewType = draft.type || 'grid';
+                    const groupByValue = draft.kanban?.groupByField || draft.kanban?.groupField || draft.groupBy || '';
+                    return (
+                        <ConfigRow label={t('console.objectView.groupBy')}>
+                            <select
+                                data-testid="data-groupBy"
+                                className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                                value={groupByValue}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                    updateField('groupBy', e.target.value);
+                                    if (viewType === 'kanban') {
+                                        const current = draft.kanban || {};
+                                        updateField('kanban', { ...current, groupByField: e.target.value });
+                                    }
+                                }}
+                            >
+                                <option value="">{t('console.objectView.none')}</option>
+                                {fieldOptions.map(f => (
+                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                ))}
+                            </select>
+                        </ConfigRow>
+                    );
+                },
+            },
+            // spec: NamedListView.pagination.pageSize
             {
                 key: '_pageSize',
                 label: t('console.objectView.pageSize'),
@@ -686,7 +693,7 @@ function buildDataSection(
                     </ConfigRow>
                 ),
             },
-            // Pagination — pageSizeOptions
+            // spec: NamedListView.pagination.pageSizeOptions
             {
                 key: '_pageSizeOptions',
                 label: t('console.objectView.pageSizeOptions'),
@@ -706,13 +713,13 @@ function buildDataSection(
                     </ConfigRow>
                 ),
             },
-            // Searchable fields
+            // spec: NamedListView.searchableFields
             buildFieldMultiSelect('searchableFields', t('console.objectView.searchableFields'), 'searchable-fields-selector', 'searchable-field', fieldOptions, updateField, 'selected'),
-            // Filterable fields
+            // spec: NamedListView.filterableFields
             buildFieldMultiSelect('filterableFields', t('console.objectView.filterableFields'), 'filterable-fields-selector', 'filterable-field', fieldOptions, updateField, 'selected'),
-            // Hidden fields
+            // spec: NamedListView.hiddenFields
             buildFieldMultiSelect('hiddenFields', t('console.objectView.hiddenFields'), 'hidden-fields-selector', 'hidden-field', fieldOptions, updateField, 'hidden'),
-            // Quick filters
+            // spec: NamedListView.quickFilters
             {
                 key: '_quickFilters',
                 label: t('console.objectView.quickFilters'),
@@ -780,9 +787,9 @@ function buildDataSection(
                     );
                 },
             },
-            // Virtual scroll
+            // spec: NamedListView.virtualScroll
             buildSwitchField('virtualScroll', t('console.objectView.virtualScroll'), 'toggle-virtualScroll', false, true),
-            // Type-Specific Data Fields
+            // UI extension: type-specific options — maps to NamedListView kanban/calendar/gantt/gallery/timeline/map sub-configs
             {
                 key: '_typeOptions',
                 label: 'Type-specific options',
