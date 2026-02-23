@@ -34,6 +34,7 @@ import { usePullToRefresh } from '@object-ui/mobile';
 import { Edit, Trash2, MoreVertical, ChevronRight, ChevronDown, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock } from 'lucide-react';
 import { useRowColor } from './useRowColor';
 import { useGroupedData } from './useGroupedData';
+import { GroupRow } from './GroupRow';
 
 export interface ObjectGridProps {
   schema: ObjectGridSchema;
@@ -1200,22 +1201,17 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const gridContent = isGrouped ? (
     <div className="space-y-2">
       {groups.map((group) => (
-        <div key={group.key} className="border rounded-md">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-2 text-sm font-medium text-left bg-muted/50 hover:bg-muted transition-colors"
-            onClick={() => toggleGroup(group.key)}
-          >
-            {group.collapsed
-              ? <ChevronRight className="h-4 w-4 shrink-0" />
-              : <ChevronDown className="h-4 w-4 shrink-0" />}
-            <span>{group.label}</span>
-            <span className="ml-auto text-xs text-muted-foreground">{group.rows.length}</span>
-          </button>
-          {!group.collapsed && (
-            <SchemaRenderer schema={buildGroupTableSchema(group.rows)} />
-          )}
-        </div>
+        <GroupRow
+          key={group.key}
+          groupKey={group.key}
+          label={group.label}
+          count={group.rows.length}
+          collapsed={group.collapsed}
+          aggregations={group.aggregations}
+          onToggle={toggleGroup}
+        >
+          <SchemaRenderer schema={buildGroupTableSchema(group.rows)} />
+        </GroupRow>
       ))}
     </div>
   ) : (
