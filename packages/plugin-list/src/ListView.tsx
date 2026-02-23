@@ -9,7 +9,7 @@
 import * as React from 'react';
 import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay } from '@object-ui/components';
 import type { SortItem } from '@object-ui/components';
-import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Share2, icons, type LucideIcon } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Share2, Printer, Plus, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
 import { ViewSwitcher, ViewType } from './ViewSwitcher';
 import { UserFilters } from './UserFilters';
@@ -249,6 +249,20 @@ export const ListView: React.FC<ListViewProps> = ({
     viewType: propSchema.viewType || 'grid'
   }), [propSchema]);
 
+  // Resolve toolbar visibility flags: userActions overrides showX flags
+  const toolbarFlags = React.useMemo(() => {
+    const ua = schema.userActions;
+    return {
+      showSearch: ua?.search !== undefined ? ua.search : schema.showSearch !== false,
+      showSort: ua?.sort !== undefined ? ua.sort : schema.showSort !== false,
+      showFilters: ua?.filter !== undefined ? ua.filter : schema.showFilters !== false,
+      showDensity: ua?.rowHeight !== undefined ? ua.rowHeight : schema.showDensity !== false,
+      showHideFields: schema.showHideFields !== false,
+      showGroup: schema.showGroup !== false,
+      showColor: schema.showColor !== false,
+    };
+  }, [schema.userActions, schema.showSearch, schema.showSort, schema.showFilters, schema.showDensity, schema.showHideFields, schema.showGroup, schema.showColor]);
+
   const [currentView, setCurrentView] = React.useState<ViewType>(
     (schema.viewType as ViewType)
   );
@@ -258,11 +272,22 @@ export const ListView: React.FC<ListViewProps> = ({
   const [showSort, setShowSort] = React.useState(false);
   const [currentSort, setCurrentSort] = React.useState<SortItem[]>(() => {
     if (schema.sort && schema.sort.length > 0) {
-      return schema.sort.map(s => ({
-        id: crypto.randomUUID(),
-        field: s.field,
-        order: (s.order as 'asc' | 'desc') || 'asc'
-      }));
+      return schema.sort.map(s => {
+        // Support legacy string format "field desc"
+        if (typeof s === 'string') {
+          const parts = s.trim().split(/\s+/);
+          return {
+            id: crypto.randomUUID(),
+            field: parts[0],
+            order: (parts[1]?.toLowerCase() === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc',
+          };
+        }
+        return {
+          id: crypto.randomUUID(),
+          field: s.field,
+          order: (s.order as 'asc' | 'desc') || 'asc',
+        };
+      });
     }
     return [];
   });
@@ -344,8 +369,10 @@ export const ListView: React.FC<ListViewProps> = ({
     if (schema.rowHeight) {
       const map: Record<string, 'compact' | 'comfortable' | 'spacious'> = {
         compact: 'compact',
+        short: 'compact',
         medium: 'comfortable',
         tall: 'spacious',
+        extra_tall: 'spacious',
       };
       return map[schema.rowHeight] || 'comfortable';
     }
@@ -443,6 +470,12 @@ export const ListView: React.FC<ListViewProps> = ({
            $filter: finalFilter,
            $orderby: sort,
            $top: pageSize,
+           ...(searchTerm ? {
+             $search: searchTerm,
+             ...(schema.searchableFields && schema.searchableFields.length > 0
+               ? { $searchFields: schema.searchableFields }
+               : {}),
+           } : {}),
         });
 
         // Stale request guard: only apply the latest request's results
@@ -476,34 +509,41 @@ export const ListView: React.FC<ListViewProps> = ({
     fetchData();
     
     return () => { isMounted = false; };
-  }, [schema.objectName, dataSource, schema.filters, schema.pagination?.pageSize, currentSort, currentFilters, activeQuickFilters, userFilterConditions, refreshKey]); // Re-fetch on filter/sort change
+  }, [schema.objectName, dataSource, schema.filters, schema.pagination?.pageSize, currentSort, currentFilters, activeQuickFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields]); // Re-fetch on filter/sort/search change
 
   // Available view types based on schema configuration
   const availableViews = React.useMemo(() => {
+    // If appearance.allowedVisualizations is set, use it as whitelist
+    if (schema.appearance?.allowedVisualizations && schema.appearance.allowedVisualizations.length > 0) {
+      return schema.appearance.allowedVisualizations.filter(v =>
+        ['grid', 'kanban', 'gallery', 'calendar', 'timeline', 'gantt', 'map'].includes(v)
+      ) as ViewType[];
+    }
+
     const views: ViewType[] = ['grid'];
     
-    // Check for Kanban capabilities
-    if (schema.options?.kanban?.groupField) {
+    // Check for Kanban capabilities (spec config takes precedence)
+    if (schema.kanban?.groupField || schema.options?.kanban?.groupField) {
       views.push('kanban');
     }
 
-    // Check for Gallery capabilities
-    if (schema.options?.gallery?.imageField) {
+    // Check for Gallery capabilities (spec config takes precedence)
+    if (schema.gallery?.coverField || schema.gallery?.imageField || schema.options?.gallery?.imageField) {
       views.push('gallery');
     }
     
-    // Check for Calendar capabilities
-    if (schema.options?.calendar?.startDateField) {
+    // Check for Calendar capabilities (spec config takes precedence)
+    if (schema.calendar?.startDateField || schema.options?.calendar?.startDateField) {
       views.push('calendar');
     }
     
-    // Check for Timeline capabilities
-    if (schema.options?.timeline?.startDateField || schema.options?.timeline?.dateField || schema.options?.calendar?.startDateField) {
+    // Check for Timeline capabilities (spec config takes precedence)
+    if (schema.timeline?.startDateField || schema.options?.timeline?.startDateField || schema.options?.timeline?.dateField || schema.options?.calendar?.startDateField) {
       views.push('timeline');
     }
     
-    // Check for Gantt capabilities
-    if (schema.options?.gantt?.startDateField) {
+    // Check for Gantt capabilities (spec config takes precedence)
+    if (schema.gantt?.startDateField || schema.options?.gantt?.startDateField) {
       views.push('gantt');
     }
     
@@ -513,14 +553,13 @@ export const ListView: React.FC<ListViewProps> = ({
     }
     
     // Always allow switching back to the viewType defined in schema if it's one of the supported types
-    // This ensures that if a view is configured as "map", the map button is shown even if we missed the options check above
     if (schema.viewType && !views.includes(schema.viewType as ViewType) && 
        ['grid', 'kanban', 'calendar', 'timeline', 'gantt', 'map', 'gallery'].includes(schema.viewType)) {
       views.push(schema.viewType as ViewType);
     }
     
     return views;
-  }, [schema.options, schema.viewType]);
+  }, [schema.options, schema.viewType, schema.kanban, schema.calendar, schema.gantt, schema.gallery, schema.timeline, schema.appearance?.allowedVisualizations]);
 
   // Sync view from props
   React.useEffect(() => {
@@ -624,53 +663,71 @@ export const ListView: React.FC<ListViewProps> = ({
           ...(schema.conditionalFormatting ? { conditionalFormatting: schema.conditionalFormatting } : {}),
           ...(schema.inlineEdit != null ? { editable: schema.inlineEdit } : {}),
           ...(schema.wrapHeaders != null ? { wrapHeaders: schema.wrapHeaders } : {}),
+          ...(schema.virtualScroll != null ? { virtualScroll: schema.virtualScroll } : {}),
+          ...(schema.resizable != null ? { resizable: schema.resizable } : {}),
+          ...(schema.selection ? { selection: schema.selection } : {}),
+          ...(schema.pagination ? { pagination: schema.pagination } : {}),
           ...(schema.options?.grid || {}),
         };
       case 'kanban':
         return {
           type: 'object-kanban',
           ...baseProps,
-          groupBy: schema.options?.kanban?.groupField || 'status',
-          groupField: schema.options?.kanban?.groupField || 'status',
-          titleField: schema.options?.kanban?.titleField || 'name',
-          cardFields: effectiveFields || [],
+          groupBy: schema.kanban?.groupField || schema.options?.kanban?.groupField || 'status',
+          groupField: schema.kanban?.groupField || schema.options?.kanban?.groupField || 'status',
+          titleField: schema.kanban?.titleField || schema.options?.kanban?.titleField || 'name',
+          cardFields: schema.kanban?.cardFields || effectiveFields || [],
           ...(schema.options?.kanban || {}),
+          ...(schema.kanban || {}),
         };
       case 'calendar':
         return {
           type: 'object-calendar',
           ...baseProps,
-          startDateField: schema.options?.calendar?.startDateField || 'start_date',
-          endDateField: schema.options?.calendar?.endDateField || 'end_date',
-          titleField: schema.options?.calendar?.titleField || 'name',
+          startDateField: schema.calendar?.startDateField || schema.options?.calendar?.startDateField || 'start_date',
+          endDateField: schema.calendar?.endDateField || schema.options?.calendar?.endDateField || 'end_date',
+          titleField: schema.calendar?.titleField || schema.options?.calendar?.titleField || 'name',
+          ...(schema.calendar?.defaultView ? { defaultView: schema.calendar.defaultView } : {}),
           ...(schema.options?.calendar || {}),
+          ...(schema.calendar || {}),
         };
       case 'gallery':
         return {
           type: 'object-gallery',
           ...baseProps,
-          imageField: schema.options?.gallery?.imageField,
-          titleField: schema.options?.gallery?.titleField || 'name',
-          subtitleField: schema.options?.gallery?.subtitleField,
+          imageField: schema.gallery?.coverField || schema.gallery?.imageField || schema.options?.gallery?.imageField,
+          titleField: schema.gallery?.titleField || schema.options?.gallery?.titleField || 'name',
+          subtitleField: schema.gallery?.subtitleField || schema.options?.gallery?.subtitleField,
+          ...(schema.gallery?.coverFit ? { coverFit: schema.gallery.coverFit } : {}),
+          ...(schema.gallery?.cardSize ? { cardSize: schema.gallery.cardSize } : {}),
+          ...(schema.gallery?.visibleFields ? { visibleFields: schema.gallery.visibleFields } : {}),
           ...(schema.options?.gallery || {}),
+          ...(schema.gallery || {}),
         };
       case 'timeline':
         return {
           type: 'object-timeline',
           ...baseProps,
-          startDateField: schema.options?.timeline?.startDateField || schema.options?.timeline?.dateField || 'created_at',
-          titleField: schema.options?.timeline?.titleField || 'name',
+          startDateField: schema.timeline?.startDateField || schema.options?.timeline?.startDateField || schema.options?.timeline?.dateField || 'created_at',
+          titleField: schema.timeline?.titleField || schema.options?.timeline?.titleField || 'name',
+          ...(schema.timeline?.endDateField ? { endDateField: schema.timeline.endDateField } : {}),
+          ...(schema.timeline?.groupByField ? { groupByField: schema.timeline.groupByField } : {}),
+          ...(schema.timeline?.colorField ? { colorField: schema.timeline.colorField } : {}),
+          ...(schema.timeline?.scale ? { scale: schema.timeline.scale } : {}),
           ...(schema.options?.timeline || {}),
+          ...(schema.timeline || {}),
         };
       case 'gantt':
         return {
           type: 'object-gantt',
           ...baseProps,
-          startDateField: schema.options?.gantt?.startDateField || 'start_date',
-          endDateField: schema.options?.gantt?.endDateField || 'end_date',
-          progressField: schema.options?.gantt?.progressField || 'progress',
-          dependenciesField: schema.options?.gantt?.dependenciesField || 'dependencies',
+          startDateField: schema.gantt?.startDateField || schema.options?.gantt?.startDateField || 'start_date',
+          endDateField: schema.gantt?.endDateField || schema.options?.gantt?.endDateField || 'end_date',
+          progressField: schema.gantt?.progressField || schema.options?.gantt?.progressField || 'progress',
+          dependenciesField: schema.gantt?.dependenciesField || schema.options?.gantt?.dependenciesField || 'dependencies',
+          ...(schema.gantt?.titleField ? { titleField: schema.gantt.titleField } : {}),
           ...(schema.options?.gantt || {}),
+          ...(schema.gantt || {}),
         };
       case 'map':
         return {
@@ -687,9 +744,11 @@ export const ListView: React.FC<ListViewProps> = ({
   const hasFilters = currentFilters.conditions && currentFilters.conditions.length > 0;
 
   const filterFields = React.useMemo(() => {
+    let fields: Array<{ value: string; label: string; type: string; options?: any }>;
+
     if (!objectDef?.fields) {
         // Fallback to schema fields if objectDef not loaded yet
-        return (schema.fields || []).map((f: any) => {
+        fields = (schema.fields || []).map((f: any) => {
            if (typeof f === 'string') return { value: f, label: f, type: 'text' };
            return {
               value: f.name || f.fieldName,
@@ -698,15 +757,23 @@ export const ListView: React.FC<ListViewProps> = ({
               options: f.options
            };
         });
+    } else {
+        fields = Object.entries(objectDef.fields).map(([key, field]: [string, any]) => ({
+            value: key,
+            label: field.label || key,
+            type: field.type || 'text',
+            options: field.options
+        }));
     }
-    
-    return Object.entries(objectDef.fields).map(([key, field]: [string, any]) => ({
-        value: key,
-        label: field.label || key,
-        type: field.type || 'text',
-        options: field.options
-    }));
-  }, [objectDef, schema.fields]);
+
+    // Apply filterableFields whitelist restriction
+    if (schema.filterableFields && schema.filterableFields.length > 0) {
+      const allowed = new Set(schema.filterableFields);
+      fields = fields.filter(f => allowed.has(f.value));
+    }
+
+    return fields;
+  }, [objectDef, schema.fields, schema.filterableFields]);
 
   const [searchExpanded, setSearchExpanded] = React.useState(false);
 
@@ -814,11 +881,47 @@ export const ListView: React.FC<ListViewProps> = ({
         </div>
       )}
 
+      {/* View Tabs */}
+      {schema.tabs && schema.tabs.length > 0 && (
+        <div className="border-b px-2 sm:px-4 py-1 flex items-center gap-1 bg-background" data-testid="view-tabs">
+          {schema.tabs
+            // Spec defines visible as string (expression), but also handle boolean false for convenience
+            .filter(tab => tab.visible !== 'false' && tab.visible !== (false as any))
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+            .map(tab => {
+              const TabIcon: LucideIcon | null = tab.icon
+                ? ((icons as Record<string, LucideIcon>)[
+                    tab.icon.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('')
+                  ] ?? null)
+                : null;
+              return (
+                <Button
+                  key={tab.name}
+                  variant={tab.isDefault ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-7 px-3 text-xs"
+                  data-testid={`view-tab-${tab.name}`}
+                >
+                  {TabIcon && <TabIcon className="h-3 w-3 mr-1.5" />}
+                  {tab.label}
+                </Button>
+              );
+            })}
+        </div>
+      )}
+
+      {/* View Description */}
+      {schema.description && (schema.appearance?.showDescription !== false) && (
+        <div className="border-b px-4 py-1.5 text-xs text-muted-foreground bg-background" data-testid="view-description">
+          {typeof schema.description === 'string' ? schema.description : ''}
+        </div>
+      )}
+
       {/* Airtable-style Toolbar — Row 2: Tool buttons */}
       <div className="border-b px-2 sm:px-4 py-1 flex items-center justify-between gap-1 sm:gap-2 bg-background">
         <div className="flex items-center gap-0.5 overflow-hidden flex-1 min-w-0">
           {/* Hide Fields */}
-          {schema.showHideFields !== false && (
+          {toolbarFlags.showHideFields && (
           <Popover open={showHideFields} onOpenChange={setShowHideFields}>
             <PopoverTrigger asChild>
               <Button
@@ -877,7 +980,7 @@ export const ListView: React.FC<ListViewProps> = ({
           )}
 
           {/* Filter */}
-          {schema.showFilters !== false && (
+          {toolbarFlags.showFilters && (
           <Popover open={showFilters} onOpenChange={setShowFilters}>
             <PopoverTrigger asChild>
               <Button
@@ -916,7 +1019,7 @@ export const ListView: React.FC<ListViewProps> = ({
           )}
 
           {/* Group */}
-          {schema.showGroup !== false && (
+          {toolbarFlags.showGroup && (
           <Button
             variant="ghost"
             size="sm"
@@ -929,7 +1032,7 @@ export const ListView: React.FC<ListViewProps> = ({
           )}
 
           {/* Sort */}
-          {schema.showSort !== false && (
+          {toolbarFlags.showSort && (
           <Popover open={showSort} onOpenChange={setShowSort}>
             <PopoverTrigger asChild>
               <Button
@@ -968,7 +1071,7 @@ export const ListView: React.FC<ListViewProps> = ({
           )}
 
           {/* Color */}
-          {schema.showColor !== false && (
+          {toolbarFlags.showColor && (
           <Button
             variant="ghost"
             size="sm"
@@ -981,7 +1084,7 @@ export const ListView: React.FC<ListViewProps> = ({
           )}
 
           {/* Row Height / Density Mode */}
-          {schema.showDensity !== false && (
+          {toolbarFlags.showDensity && (
           <Button
             variant="ghost"
             size="sm"
@@ -1039,12 +1142,41 @@ export const ListView: React.FC<ListViewProps> = ({
               <span className="hidden sm:inline">Share</span>
             </Button>
           )}
+
+          {/* Print */}
+          {schema.allowPrinting && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+              onClick={() => window.print()}
+              data-testid="print-button"
+            >
+              <Printer className="h-3.5 w-3.5 mr-1.5" />
+              <span className="hidden sm:inline">Print</span>
+            </Button>
+          )}
         </div>
 
-        {/* Right: Search */}
-        {schema.showSearch !== false && (
+        {/* Right: Add Record + Search */}
         <div className="flex items-center gap-1">
-          {searchExpanded ? (
+          {/* Add Record */}
+          {schema.addRecord?.enabled && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+              data-testid="add-record-button"
+              onClick={() => props.onAddRecord?.()}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              <span className="hidden sm:inline">Add record</span>
+            </Button>
+          )}
+
+          {/* Search */}
+          {toolbarFlags.showSearch && (
+            searchExpanded ? (
             <div className="relative w-36 sm:w-48 lg:w-64">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -1079,9 +1211,8 @@ export const ListView: React.FC<ListViewProps> = ({
               <Search className="h-3.5 w-3.5 mr-1.5" />
               <span className="hidden sm:inline">Search</span>
             </Button>
-          )}
+          ))}
         </div>
-        )}
       </div>
 
 
@@ -1158,7 +1289,7 @@ export const ListView: React.FC<ListViewProps> = ({
       </div>
 
       {/* Record count status bar (Airtable-style) */}
-      {!loading && data.length > 0 && (
+      {!loading && data.length > 0 && schema.showRecordCount !== false && (
         <div
           className="border-t px-4 py-1.5 flex items-center gap-2 text-xs text-muted-foreground bg-background shrink-0"
           data-testid="record-count-bar"
@@ -1168,6 +1299,21 @@ export const ListView: React.FC<ListViewProps> = ({
             <span className="text-amber-600" data-testid="data-limit-warning">
               {t('list.dataLimitReached', { limit: schema.pagination?.pageSize || 100 })}
             </span>
+          )}
+          {schema.pagination?.pageSizeOptions && schema.pagination.pageSizeOptions.length > 0 && (
+            <select
+              className="ml-auto h-6 rounded border border-input bg-background px-1 text-xs"
+              defaultValue={schema.pagination.pageSize}
+              onChange={(e) => {
+                const newSize = Number(e.target.value);
+                if (props.onPageSizeChange) props.onPageSizeChange(newSize);
+              }}
+              data-testid="page-size-selector"
+            >
+              {schema.pagination.pageSizeOptions.map(size => (
+                <option key={size} value={size}>{size} / page</option>
+              ))}
+            </select>
           )}
         </div>
       )}

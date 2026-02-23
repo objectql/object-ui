@@ -1232,8 +1232,8 @@ export interface ListViewSchema extends BaseSchema {
   /** Filter conditions */
   filters?: Array<any[] | string>;
   
-  /** Sort order */
-  sort?: Array<{ field: string; order: 'asc' | 'desc' }>;
+  /** Sort order. Supports array of objects or legacy string format "field desc" */
+  sort?: Array<{ field: string; order: 'asc' | 'desc' } | string>;
   
   /** Fields that support text search */
   searchableFields?: string[];
@@ -1318,6 +1318,44 @@ export interface ListViewSchema extends BaseSchema {
     dependenciesField?: string;
     [key: string]: any;
   };
+
+  /** Gallery-specific configuration. Aligned with @objectstack/spec GalleryConfigSchema. */
+  gallery?: {
+    /** Field containing cover image URL */
+    coverField?: string;
+    /** Cover image fit mode */
+    coverFit?: 'cover' | 'contain' | 'fill';
+    /** Card size preset */
+    cardSize?: 'small' | 'medium' | 'large';
+    /** Field used as card title */
+    titleField?: string;
+    /** Fields to display on card */
+    visibleFields?: string[];
+    /** Legacy: image field (deprecated, use coverField) */
+    imageField?: string;
+    /** Legacy: subtitle field */
+    subtitleField?: string;
+    [key: string]: any;
+  };
+
+  /** Timeline-specific configuration. Aligned with @objectstack/spec TimelineConfigSchema. */
+  timeline?: {
+    /** Field for start date */
+    startDateField?: string;
+    /** Field for end date */
+    endDateField?: string;
+    /** Field used as event title */
+    titleField?: string;
+    /** Field to group events by */
+    groupByField?: string;
+    /** Field for event color */
+    colorField?: string;
+    /** Timeline scale */
+    scale?: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+    /** Legacy: date field (deprecated, use startDateField) */
+    dateField?: string;
+    [key: string]: any;
+  };
   
   /** Visual Component overrides (legacy, prefer typed configs above) */
   options?: Record<string, any>;
@@ -1387,9 +1425,9 @@ export interface ListViewSchema extends BaseSchema {
 
   /**
    * Row height for list/grid view rows.
-   * Aligned with @objectstack/spec ListViewSchema.rowHeight.
+   * Aligned with @objectstack/spec RowHeight enum.
    */
-  rowHeight?: 'compact' | 'medium' | 'tall';
+  rowHeight?: 'compact' | 'short' | 'medium' | 'tall' | 'extra_tall';
 
   /**
    * Conditional formatting rules for row/cell styling.

@@ -869,4 +869,560 @@ describe('ListView', () => {
       expect(container).toBeTruthy();
     });
   });
+
+  // ============================
+  // showRecordCount flag
+  // ============================
+  describe('showRecordCount flag', () => {
+    it('should hide record count bar when showRecordCount is false', async () => {
+      const mockItems = [
+        { _id: '1', name: 'Alice', email: 'alice@test.com' },
+        { _id: '2', name: 'Bob', email: 'bob@test.com' },
+      ];
+      mockDataSource.find.mockResolvedValue(mockItems);
+
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        showRecordCount: false,
+      };
+
+      renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+      // Wait for data fetch
+      await vi.waitFor(() => {
+        expect(mockDataSource.find).toHaveBeenCalled();
+      });
+      // Give time for state update
+      await vi.waitFor(() => {
+        expect(screen.queryByTestId('record-count-bar')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should show record count bar by default (showRecordCount undefined)', async () => {
+      const mockItems = [
+        { _id: '1', name: 'Alice', email: 'alice@test.com' },
+      ];
+      mockDataSource.find.mockResolvedValue(mockItems);
+
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('record-count-bar')).toBeInTheDocument();
+      });
+    });
+  });
+
+  // ============================
+  // rowHeight short/extra_tall mapping
+  // ============================
+  describe('rowHeight enum gaps', () => {
+    it('should map rowHeight short to compact density', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        rowHeight: 'short',
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      const densityButton = screen.getByTitle('Density: compact');
+      expect(densityButton).toBeInTheDocument();
+    });
+
+    it('should map rowHeight extra_tall to spacious density', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        rowHeight: 'extra_tall',
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      const densityButton = screen.getByTitle('Density: spacious');
+      expect(densityButton).toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // sort legacy string format
+  // ============================
+  describe('sort legacy string format', () => {
+    it('should accept sort items as string format "field desc"', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        sort: ['name desc' as any],
+      };
+
+      const { container } = renderWithProvider(<ListView schema={schema} />);
+      expect(container).toBeTruthy();
+      // Should show sort button with badge indicating 1 active sort
+      const sortButton = screen.getByRole('button', { name: /sort/i });
+      expect(sortButton).toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // description rendering
+  // ============================
+  describe('description rendering', () => {
+    it('should render view description when provided', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        description: 'A list of all company contacts',
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByTestId('view-description')).toBeInTheDocument();
+      expect(screen.getByText('A list of all company contacts')).toBeInTheDocument();
+    });
+
+    it('should hide description when appearance.showDescription is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        description: 'A list of all company contacts',
+        appearance: { showDescription: false },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByTestId('view-description')).not.toBeInTheDocument();
+    });
+
+    it('should not render description when not provided', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByTestId('view-description')).not.toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // allowPrinting button
+  // ============================
+  describe('allowPrinting', () => {
+    it('should render print button when allowPrinting is true', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        allowPrinting: true,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByTestId('print-button')).toBeInTheDocument();
+    });
+
+    it('should not render print button when allowPrinting is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        allowPrinting: false,
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByTestId('print-button')).not.toBeInTheDocument();
+    });
+
+    it('should not render print button by default', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByTestId('print-button')).not.toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // addRecord button
+  // ============================
+  describe('addRecord button', () => {
+    it('should render add record button when addRecord.enabled is true', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        addRecord: { enabled: true },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByTestId('add-record-button')).toBeInTheDocument();
+    });
+
+    it('should not render add record button when addRecord.enabled is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        addRecord: { enabled: false },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByTestId('add-record-button')).not.toBeInTheDocument();
+    });
+
+    it('should not render add record button by default', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByTestId('add-record-button')).not.toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // tabs rendering
+  // ============================
+  describe('tabs rendering', () => {
+    it('should render view tabs when configured', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        tabs: [
+          { name: 'all', label: 'All Records', isDefault: true },
+          { name: 'active', label: 'Active' },
+        ],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByTestId('view-tabs')).toBeInTheDocument();
+      expect(screen.getByTestId('view-tab-all')).toBeInTheDocument();
+      expect(screen.getByTestId('view-tab-active')).toBeInTheDocument();
+      expect(screen.getByText('All Records')).toBeInTheDocument();
+      expect(screen.getByText('Active')).toBeInTheDocument();
+    });
+
+    it('should not render tabs when not configured', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByTestId('view-tabs')).not.toBeInTheDocument();
+    });
+
+    it('should filter out hidden tabs', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        tabs: [
+          { name: 'all', label: 'All Records' },
+          { name: 'hidden', label: 'Hidden Tab', visible: 'false' },
+        ],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByTestId('view-tabs')).toBeInTheDocument();
+      expect(screen.getByText('All Records')).toBeInTheDocument();
+      expect(screen.queryByText('Hidden Tab')).not.toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // userActions toolbar control
+  // ============================
+  describe('userActions toolbar control', () => {
+    it('should hide Search when userActions.search is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        userActions: { search: false },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByRole('button', { name: /search/i })).not.toBeInTheDocument();
+    });
+
+    it('should hide Sort when userActions.sort is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        userActions: { sort: false },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByRole('button', { name: /^sort$/i })).not.toBeInTheDocument();
+    });
+
+    it('should hide Filter when userActions.filter is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        userActions: { filter: false },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByRole('button', { name: /filter/i })).not.toBeInTheDocument();
+    });
+
+    it('should hide Density when userActions.rowHeight is false', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        userActions: { rowHeight: false },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByTitle(/density/i)).not.toBeInTheDocument();
+    });
+
+    it('should show toolbar buttons when userActions are true', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        userActions: { search: true, sort: true, filter: true, rowHeight: true },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.getByRole('button', { name: /search/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^sort$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /filter/i })).toBeInTheDocument();
+      expect(screen.getByTitle(/density/i)).toBeInTheDocument();
+    });
+
+    it('userActions.search should override showSearch', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        showSearch: true,
+        userActions: { search: false },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      expect(screen.queryByRole('button', { name: /search/i })).not.toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // appearance.allowedVisualizations
+  // ============================
+  describe('appearance.allowedVisualizations', () => {
+    it('should restrict ViewSwitcher to allowedVisualizations', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        appearance: { allowedVisualizations: ['grid', 'kanban'] },
+        options: {
+          kanban: { groupField: 'status' },
+          calendar: { startDateField: 'date' },
+        },
+      };
+
+      renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
+      // Should only show grid and kanban, not calendar
+      expect(screen.getByLabelText('Grid')).toBeInTheDocument();
+      expect(screen.getByLabelText('Kanban')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Calendar')).not.toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // Spec config usage (kanban/gallery/timeline)
+  // ============================
+  describe('spec config usage', () => {
+    it('should use spec kanban config over legacy options', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        kanban: { groupField: 'priority' },
+      };
+
+      renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
+      // Should enable kanban view since kanban.groupField is set
+      expect(screen.getByLabelText('Kanban')).toBeInTheDocument();
+    });
+
+    it('should use spec gallery config over legacy options', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        gallery: { coverField: 'photo', titleField: 'name' },
+      };
+
+      renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
+      expect(screen.getByLabelText('Gallery')).toBeInTheDocument();
+    });
+
+    it('should use spec timeline config over legacy options', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        timeline: { startDateField: 'created_at', titleField: 'name' },
+      };
+
+      renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
+      expect(screen.getByLabelText('Timeline')).toBeInTheDocument();
+    });
+
+    it('should use spec calendar config over legacy options', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        calendar: { startDateField: 'date', titleField: 'name' },
+      };
+
+      renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
+      expect(screen.getByLabelText('Calendar')).toBeInTheDocument();
+    });
+
+    it('should use spec gantt config over legacy options', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        gantt: { startDateField: 'start', endDateField: 'end' },
+      };
+
+      renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
+      expect(screen.getByLabelText('Gantt')).toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // pageSizeOptions UI
+  // ============================
+  describe('pageSizeOptions', () => {
+    it('should render page size selector when pageSizeOptions is provided', async () => {
+      const mockItems = [
+        { _id: '1', name: 'Alice', email: 'alice@test.com' },
+      ];
+      mockDataSource.find.mockResolvedValue(mockItems);
+
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        pagination: { pageSize: 25, pageSizeOptions: [10, 25, 50, 100] },
+      };
+
+      renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('page-size-selector')).toBeInTheDocument();
+      });
+    });
+
+    it('should not render page size selector when pageSizeOptions is not provided', async () => {
+      const mockItems = [
+        { _id: '1', name: 'Alice', email: 'alice@test.com' },
+      ];
+      mockDataSource.find.mockResolvedValue(mockItems);
+
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        pagination: { pageSize: 25 },
+      };
+
+      renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('record-count-bar')).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId('page-size-selector')).not.toBeInTheDocument();
+    });
+  });
+
+  // ============================
+  // searchableFields scoping
+  // ============================
+  describe('searchableFields scoping', () => {
+    it('should pass $search and $searchFields to data query', async () => {
+      mockDataSource.find.mockResolvedValue([]);
+
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        searchableFields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+      // Click search button to expand
+      const searchButton = screen.getByRole('button', { name: /search/i });
+      fireEvent.click(searchButton);
+
+      const searchInput = screen.getByPlaceholderText(/find/i);
+      fireEvent.change(searchInput, { target: { value: 'alice' } });
+
+      // Wait for debounced fetch
+      await vi.waitFor(() => {
+        const lastCall = mockDataSource.find.mock.calls[mockDataSource.find.mock.calls.length - 1];
+        expect(lastCall[1]).toHaveProperty('$search', 'alice');
+        expect(lastCall[1]).toHaveProperty('$searchFields', ['name', 'email']);
+      });
+    });
+  });
 });

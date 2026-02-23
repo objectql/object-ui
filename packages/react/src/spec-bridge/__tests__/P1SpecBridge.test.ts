@@ -135,6 +135,88 @@ describe('P1 SpecBridge Protocol Alignment', () => {
       expect(node.hiddenFields).toEqual(['internal_id', 'sys_created_at']);
       expect(node.fieldOrder).toEqual(['name', 'email', 'status']);
     });
+
+    it('should map short rowHeight to compact density', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'density_test',
+        rowHeight: 'short',
+      });
+
+      expect(node.density).toBe('compact');
+    });
+
+    it('should map extra_tall rowHeight to spacious density', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'density_test',
+        rowHeight: 'extra_tall',
+      });
+
+      expect(node.density).toBe('spacious');
+    });
+
+    it('should map tall rowHeight to spacious density', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'density_test',
+        rowHeight: 'tall',
+      });
+
+      expect(node.density).toBe('spacious');
+    });
+
+    it('should pass through filterableFields', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'filterable',
+        filterableFields: ['status', 'priority', 'assignee'],
+      });
+
+      expect(node.filterableFields).toEqual(['status', 'priority', 'assignee']);
+    });
+
+    it('should pass through resizable, striped, bordered', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'styled',
+        resizable: true,
+        striped: true,
+        bordered: true,
+      });
+
+      expect(node.resizable).toBe(true);
+      expect(node.striped).toBe(true);
+      expect(node.bordered).toBe(true);
+    });
+
+    it('should pass through view-type configs (kanban, calendar, gantt, gallery, timeline)', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'multi_view',
+        kanban: { groupField: 'status' },
+        calendar: { startDateField: 'date' },
+        gantt: { startDateField: 'start', endDateField: 'end' },
+        gallery: { coverField: 'photo', cardSize: 'medium' },
+        timeline: { startDateField: 'created', titleField: 'name' },
+      });
+
+      expect(node.kanban).toEqual({ groupField: 'status' });
+      expect(node.calendar).toEqual({ startDateField: 'date' });
+      expect(node.gantt).toEqual({ startDateField: 'start', endDateField: 'end' });
+      expect(node.gallery).toEqual({ coverField: 'photo', cardSize: 'medium' });
+      expect(node.timeline).toEqual({ startDateField: 'created', titleField: 'name' });
+    });
+
+    it('should pass through navigation config', () => {
+      const bridge = new SpecBridge();
+      const node = bridge.transformListView({
+        name: 'navigable',
+        navigation: { mode: 'drawer', width: '400px' },
+      });
+
+      expect(node.navigation).toEqual({ mode: 'drawer', width: '400px' });
+    });
   });
 
   // ========================================================================

@@ -13,7 +13,7 @@
 
 ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn. It renders JSON metadata from the @objectstack/spec protocol into pixel-perfect, accessible, and interactive enterprise interfaces.
 
-**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 5,618+ tests, 78 Storybook stories, 42/42 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Designer Phase 1 (ViewDesigner drag-to-reorder ✅), Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), and **Feed/Chatter UI** (P1.5) — all ✅ complete.
+**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 5,618+ tests, 78 Storybook stories, 42/42 builds passing, ~88% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Designer Phase 1 (ViewDesigner drag-to-reorder ✅), Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), **Feed/Chatter UI** (P1.5), and **ListView Spec Protocol Gap Fixes** (P2.6 partial) — all ✅ complete.
 
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
@@ -455,6 +455,30 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [ ] Navigation `view` property: specify target form/view on record click across all plugins
 - [ ] Support App `engine` field (`{ objectstack: string }`) for version pinning (v3.0.9)
 - [ ] Integrate v3.0.9 package upgrade protocol (`PackageArtifact`, `ArtifactChecksum`, `UpgradeContext`)
+
+### P2.6 ListView Spec Protocol Gaps (Remaining)
+
+> Remaining gaps from the ListView Spec Protocol analysis. Items here require non-trivial implementation (new UI components, schema reconciliation, or grid-level changes).
+
+**P0 — Core Protocol:**
+- [ ] `data` (ViewDataSchema): ListView ignores `data` entirely — `provider: api/value` modes not consumed. Needs DataProvider abstraction to support inline data, API endpoints, and value-mode data.
+- [ ] `grouping` rendering: Group button visible but disabled — needs GroupBy field picker popover + wired `useGroupedData` hook for grouped row rendering in Grid/Kanban/Gallery views. Requires changes in `plugin-grid`, `plugin-list`.
+- [ ] `rowColor` rendering: Color button visible but disabled — needs color-field picker popover + wired `useRowColor` hook for row background coloring. Requires changes in `plugin-grid`, `plugin-list`.
+
+**P1 — Structural Alignment:**
+- [ ] `quickFilters` structure reconciliation: spec uses `{ field, operator, value }` but ObjectUI uses `{ id, label, filters[] }`. Needs adapter layer or dual-format support.
+- [ ] `conditionalFormatting` expression reconciliation: spec uses expression-based `{ condition, style }`, ObjectUI uses field/operator/value rules. Both paths work independently but format adapter needed for full interop.
+- [ ] `exportOptions` schema reconciliation: spec uses simple `string[]` format list, ObjectUI uses `{ formats, maxRecords, includeHeaders, fileNamePrefix }` object. Needs normalization adapter.
+- [ ] Column `pinned`: bridge passes through but ObjectGrid doesn't implement frozen/pinned columns. Needs CSS `position: sticky` column rendering.
+- [ ] Column `summary`: no footer aggregation UI (count, sum, avg). Needs column footer row component.
+- [ ] Column `link`: no click-to-navigate rendering on link columns. Needs cell renderer for link-type columns.
+- [ ] Column `action`: no action dispatch on column click. Needs cell renderer for action-type columns.
+
+**P2 — Advanced Features:**
+- [ ] `rowActions`: row-level action menu UI — dropdown menu per row with configurable actions
+- [ ] `bulkActions`: bulk action bar UI — action bar shown on multi-select with configurable batch actions
+- [ ] `sharing` schema reconciliation: spec uses `personal/collaborative` model vs ObjectUI `visibility` model. Needs schema adapter.
+- [ ] `pagination.pageSizeOptions` backend integration: UI selector exists but backend query needs to use selected page size dynamically.
 
 ### P2.5 PWA & Offline (Real Sync)
 

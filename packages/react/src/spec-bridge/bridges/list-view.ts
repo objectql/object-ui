@@ -34,12 +34,22 @@ interface ListViewSpec {
   filter?: any;
   sort?: any;
   searchableFields?: string[];
+  filterableFields?: string[];
   quickFilters?: any[];
   selection?: any;
   pagination?: any;
   rowHeight?: string;
+  resizable?: boolean;
+  striped?: boolean;
+  bordered?: boolean;
   grouping?: any;
   rowColor?: any;
+  navigation?: any;
+  kanban?: any;
+  calendar?: any;
+  gantt?: any;
+  gallery?: any;
+  timeline?: any;
   // P1.1 additions
   rowActions?: string[];
   bulkActions?: string[];
@@ -89,11 +99,14 @@ function mapDensity(
   if (!rowHeight) return undefined;
   const map: Record<string, 'compact' | 'comfortable' | 'spacious'> = {
     compact: 'compact',
+    short: 'compact',
     comfortable: 'comfortable',
     spacious: 'spacious',
     small: 'compact',
     medium: 'comfortable',
     large: 'spacious',
+    tall: 'spacious',
+    extra_tall: 'spacious',
   };
   return map[rowHeight];
 }
@@ -122,7 +135,17 @@ export const bridgeListView: BridgeFn<ListViewSpec> = (
   if (spec.grouping) node.grouping = spec.grouping;
   if (spec.rowColor) node.rowColor = spec.rowColor;
   if (spec.searchableFields) node.searchableFields = spec.searchableFields;
+  if (spec.filterableFields) node.filterableFields = spec.filterableFields;
   if (spec.quickFilters) node.quickFilters = spec.quickFilters;
+  if (spec.resizable != null) node.resizable = spec.resizable;
+  if (spec.striped != null) node.striped = spec.striped;
+  if (spec.bordered != null) node.bordered = spec.bordered;
+  if (spec.navigation) node.navigation = spec.navigation;
+  if (spec.kanban) node.kanban = spec.kanban;
+  if (spec.calendar) node.calendar = spec.calendar;
+  if (spec.gantt) node.gantt = spec.gantt;
+  if (spec.gallery) node.gallery = spec.gallery;
+  if (spec.timeline) node.timeline = spec.timeline;
 
   // P1.1 — Spec Protocol Alignment additions
   if (spec.rowActions) node.rowActions = spec.rowActions;
