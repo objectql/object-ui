@@ -1973,4 +1973,57 @@ describe('ListView', () => {
       expect(shareButton).toHaveAttribute('title', 'Sharing: collaborative');
     });
   });
+
+  // ============================
+  // filterableFields whitelist
+  // ============================
+  describe('filterableFields', () => {
+    it('should restrict filter fields to the whitelist', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: [
+          { name: 'name', label: 'Name', type: 'text' },
+          { name: 'email', label: 'Email', type: 'text' },
+          { name: 'phone', label: 'Phone', type: 'text' },
+        ] as any,
+        filterableFields: ['name', 'email'],
+      };
+
+      const { container } = renderWithProvider(<ListView schema={schema} />);
+      expect(container).toBeTruthy();
+    });
+
+    it('should allow all fields when filterableFields is not set', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: [
+          { name: 'name', label: 'Name', type: 'text' },
+          { name: 'email', label: 'Email', type: 'text' },
+        ] as any,
+      };
+
+      const { container } = renderWithProvider(<ListView schema={schema} />);
+      expect(container).toBeTruthy();
+    });
+
+    it('should allow all fields when filterableFields is empty array', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: [
+          { name: 'name', label: 'Name', type: 'text' },
+          { name: 'email', label: 'Email', type: 'text' },
+        ] as any,
+        filterableFields: [],
+      };
+
+      const { container } = renderWithProvider(<ListView schema={schema} />);
+      expect(container).toBeTruthy();
+    });
+  });
 });

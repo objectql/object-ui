@@ -172,6 +172,12 @@ describe('SpecBridge', () => {
 
       const small = bridgeListView({ rowHeight: 'small' }, {});
       expect(small.density).toBe('compact');
+
+      const short = bridgeListView({ rowHeight: 'short' }, {});
+      expect(short.density).toBe('compact');
+
+      const extraTall = bridgeListView({ rowHeight: 'extra_tall' }, {});
+      expect(extraTall.density).toBe('spacious');
     });
 
     it('includes optional list properties', () => {
