@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useDesignerTranslation } from './hooks/useDesignerTranslation';
 
 function cn(...inputs: (string | undefined | false)[]) {
   return twMerge(clsx(inputs));
@@ -68,25 +69,25 @@ function createId(prefix: string): string {
   return `${prefix}_${Date.now()}_${ndCounter}`;
 }
 
-const NAV_TYPE_META: Record<NavigationItemType, { label: string; color: string; Icon: React.FC<{ className?: string }> }> = {
-  object: { label: 'Object', color: 'bg-green-100 text-green-700', Icon: Database },
-  dashboard: { label: 'Dashboard', color: 'bg-amber-100 text-amber-700', Icon: LayoutDashboard },
-  page: { label: 'Page', color: 'bg-teal-100 text-teal-700', Icon: FileText },
-  report: { label: 'Report', color: 'bg-rose-100 text-rose-700', Icon: BarChart3 },
-  url: { label: 'URL', color: 'bg-sky-100 text-sky-700', Icon: Link },
-  group: { label: 'Group', color: 'bg-purple-100 text-purple-700', Icon: FolderOpen },
-  separator: { label: 'Separator', color: 'bg-gray-100 text-gray-600', Icon: Minus },
-  action: { label: 'Action', color: 'bg-orange-100 text-orange-700', Icon: MousePointerClick },
+const NAV_TYPE_META: Record<NavigationItemType, { labelKey: string; color: string; Icon: React.FC<{ className?: string }> }> = {
+  object: { labelKey: 'appDesigner.navTypeObject', color: 'bg-green-100 text-green-700', Icon: Database },
+  dashboard: { labelKey: 'appDesigner.navTypeDashboard', color: 'bg-amber-100 text-amber-700', Icon: LayoutDashboard },
+  page: { labelKey: 'appDesigner.navTypePage', color: 'bg-teal-100 text-teal-700', Icon: FileText },
+  report: { labelKey: 'appDesigner.navTypeReport', color: 'bg-rose-100 text-rose-700', Icon: BarChart3 },
+  url: { labelKey: 'appDesigner.navTypeUrl', color: 'bg-sky-100 text-sky-700', Icon: Link },
+  group: { labelKey: 'appDesigner.navTypeGroup', color: 'bg-purple-100 text-purple-700', Icon: FolderOpen },
+  separator: { labelKey: 'appDesigner.navTypeSeparator', color: 'bg-gray-100 text-gray-600', Icon: Minus },
+  action: { labelKey: 'appDesigner.navTypeAction', color: 'bg-orange-100 text-orange-700', Icon: MousePointerClick },
 };
 
-const QUICK_ADD_TYPES: Array<{ type: NavigationItemType; label: string }> = [
-  { type: 'object', label: 'Object Page' },
-  { type: 'dashboard', label: 'Dashboard' },
-  { type: 'page', label: 'Page' },
-  { type: 'report', label: 'Report' },
-  { type: 'group', label: 'Group' },
-  { type: 'url', label: 'URL' },
-  { type: 'separator', label: 'Separator' },
+const QUICK_ADD_TYPES: Array<{ type: NavigationItemType; labelKey: string }> = [
+  { type: 'object', labelKey: 'appDesigner.navObjectPage' },
+  { type: 'dashboard', labelKey: 'appDesigner.navDashboard' },
+  { type: 'page', labelKey: 'appDesigner.navPage' },
+  { type: 'report', labelKey: 'appDesigner.navReport' },
+  { type: 'group', labelKey: 'appDesigner.navGroup' },
+  { type: 'url', labelKey: 'appDesigner.navUrl' },
+  { type: 'separator', labelKey: 'appDesigner.navSeparator' },
 ];
 
 // ============================================================================
@@ -106,6 +107,7 @@ interface NavItemRowProps {
   onUpdateLabel: (id: string, label: string) => void;
   onAddChild: (parentId: string, type: NavigationItemType) => void;
   expandedIds: Set<string>;
+  t: (key: string) => string;
 }
 
 function NavItemRow({
@@ -121,6 +123,7 @@ function NavItemRow({
   onUpdateLabel,
   onAddChild,
   expandedIds,
+  t,
 }: NavItemRowProps) {
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelDraft, setLabelDraft] = useState(item.label);
@@ -155,7 +158,7 @@ function NavItemRow({
             type="button"
             onClick={() => onToggleExpand(item.id)}
             className="rounded p-0.5 text-gray-400 hover:text-gray-600"
-            aria-label={isExpanded ? 'Collapse group' : 'Expand group'}
+            aria-label={isExpanded ? t('appDesigner.navCollapseGroup') : t('appDesigner.navExpandGroup')}
           >
             {isExpanded ? (
               <ChevronDown className="h-3.5 w-3.5" />
@@ -172,7 +175,7 @@ function NavItemRow({
 
         {/* Label */}
         {item.type === 'separator' ? (
-          <span className="flex-1 text-xs italic text-gray-400">— Separator —</span>
+          <span className="flex-1 text-xs italic text-gray-400">{t('appDesigner.separatorLabel')}</span>
         ) : editingLabel && !readOnly ? (
           <input
             type="text"
@@ -213,7 +216,7 @@ function NavItemRow({
             meta.color
           )}
         >
-          {meta.label}
+          {t(meta.labelKey)}
         </span>
 
         {/* Add child (groups only) */}
@@ -222,7 +225,7 @@ function NavItemRow({
             type="button"
             onClick={() => onAddChild(item.id, 'page')}
             className="rounded p-0.5 text-gray-400 hover:text-blue-500"
-            aria-label="Add child"
+            aria-label={t('appDesigner.navAddChild')}
             data-testid={`nav-designer-add-child-${item.id}`}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -235,7 +238,7 @@ function NavItemRow({
           onClick={() => onMoveUp(item.id)}
           disabled={readOnly || index === 0}
           className="rounded p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30"
-          aria-label="Move up"
+          aria-label={t('appDesigner.navMoveUp')}
         >
           <ChevronUp className="h-3.5 w-3.5" />
         </button>
@@ -244,7 +247,7 @@ function NavItemRow({
           onClick={() => onMoveDown(item.id)}
           disabled={readOnly || index === total - 1}
           className="rounded p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30"
-          aria-label="Move down"
+          aria-label={t('appDesigner.navMoveDown')}
         >
           <ChevronDown className="h-3.5 w-3.5" />
         </button>
@@ -255,7 +258,7 @@ function NavItemRow({
           onClick={() => onRemove(item.id)}
           disabled={readOnly}
           className="rounded p-0.5 text-gray-400 hover:text-red-500 disabled:opacity-30"
-          aria-label="Remove"
+          aria-label={t('appDesigner.navRemove')}
           data-testid={`nav-designer-remove-${item.id}`}
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -280,6 +283,7 @@ function NavItemRow({
               onUpdateLabel={onUpdateLabel}
               onAddChild={onAddChild}
               expandedIds={expandedIds}
+              t={t}
             />
           ))}
         </>
@@ -292,15 +296,15 @@ function NavItemRow({
 // Navigation Preview
 // ============================================================================
 
-function NavigationPreview({ items }: { items: NavigationItem[] }) {
+function NavigationPreview({ items, t }: { items: NavigationItem[]; t: (key: string) => string }) {
   return (
     <div
       data-testid="nav-designer-preview"
       className="w-56 shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-3"
     >
-      <h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">Live Preview</h4>
+      <h4 className="mb-2 text-xs font-semibold uppercase text-gray-500">{t('appDesigner.navLivePreview')}</h4>
       {items.length === 0 ? (
-        <p className="text-xs text-gray-400">No items</p>
+        <p className="text-xs text-gray-400">{t('appDesigner.navNoPreviewItems')}</p>
       ) : (
         <ul className="space-y-0.5">
           {items.map((item) => (
@@ -346,6 +350,7 @@ export function NavigationDesigner({
   showPreview = true,
   className,
 }: NavigationDesignerProps) {
+  const { t } = useDesignerTranslation();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
     () => new Set(items.filter((i) => i.type === 'group').map((i) => i.id))
   );
@@ -410,7 +415,7 @@ export function NavigationDesigner({
       const newItem: NavigationItem = {
         id: createId(type),
         type,
-        label: type === 'separator' ? '' : `New ${NAV_TYPE_META[type].label}`,
+        label: type === 'separator' ? '' : `New ${t(NAV_TYPE_META[type].labelKey)}`,
         ...(type === 'group' ? { children: [] } : {}),
         ...(type === 'url' ? { url: '' } : {}),
       };
@@ -437,13 +442,13 @@ export function NavigationDesigner({
       const newItem: NavigationItem = {
         id: createId(type),
         type,
-        label: type === 'separator' ? '' : `New ${NAV_TYPE_META[type].label}`,
+        label: type === 'separator' ? '' : `New ${t(NAV_TYPE_META[type].labelKey)}`,
         ...(type === 'group' ? { children: [] } : {}),
         ...(type === 'url' ? { url: '' } : {}),
       };
       onChange([...items, newItem]);
     },
-    [items, onChange]
+    [items, onChange, t]
   );
 
   const toggleExpand = useCallback((id: string) => {
@@ -464,7 +469,7 @@ export function NavigationDesigner({
       <div className="flex-1 space-y-3">
         {/* Quick add bar */}
         <div className="flex flex-wrap gap-1.5">
-          {QUICK_ADD_TYPES.map(({ type, label }) => {
+          {QUICK_ADD_TYPES.map(({ type, labelKey }) => {
             const { Icon, color } = NAV_TYPE_META[type];
             return (
               <button
@@ -478,7 +483,7 @@ export function NavigationDesigner({
                 )}
               >
                 <Plus className="h-3 w-3" />
-                {label}
+                {t(labelKey)}
               </button>
             );
           })}
@@ -487,7 +492,7 @@ export function NavigationDesigner({
         {/* Item tree */}
         {items.length === 0 ? (
           <div className="py-8 text-center text-sm text-gray-400">
-            No navigation items. Click buttons above to add items.
+            {t('appDesigner.navNoItems')}
           </div>
         ) : (
           <ul className="space-y-1" data-testid="nav-designer-tree">
@@ -506,6 +511,7 @@ export function NavigationDesigner({
                 onUpdateLabel={updateLabel}
                 onAddChild={addChild}
                 expandedIds={expandedIds}
+                t={t}
               />
             ))}
           </ul>
@@ -513,7 +519,7 @@ export function NavigationDesigner({
       </div>
 
       {/* Preview */}
-      {showPreview && <NavigationPreview items={items} />}
+      {showPreview && <NavigationPreview items={items} t={t} />}
     </div>
   );
 }

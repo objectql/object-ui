@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AppCreationWizard } from '../AppCreationWizard';
 import type { ObjectSelection } from '@object-ui/types';
 
@@ -280,11 +280,47 @@ describe('AppCreationWizard', () => {
   // Callbacks
   // ============================
   describe('Callbacks', () => {
-    it('should call onCancel when cancel is clicked', () => {
+    it('should call onCancel directly when no changes made', () => {
       const onCancel = vi.fn();
       render(<AppCreationWizard onCancel={onCancel} />);
       fireEvent.click(screen.getByTestId('wizard-cancel'));
       expect(onCancel).toHaveBeenCalledOnce();
+    });
+
+    it('should show confirm dialog when cancelling with unsaved changes', async () => {
+      const onCancel = vi.fn();
+      render(<AppCreationWizard onCancel={onCancel} />);
+      // Make changes so the wizard has unsaved state
+      fireEvent.change(screen.getByTestId('app-name-input'), { target: { value: 'my_app' } });
+      // Click cancel
+      fireEvent.click(screen.getByTestId('wizard-cancel'));
+      // Should show confirm dialog, not call onCancel yet
+      expect(onCancel).not.toHaveBeenCalled();
+      expect(screen.getByTestId('cancel-confirm-dialog')).toBeDefined();
+    });
+
+    it('should call onCancel after confirming discard', async () => {
+      const onCancel = vi.fn();
+      render(<AppCreationWizard onCancel={onCancel} />);
+      fireEvent.change(screen.getByTestId('app-name-input'), { target: { value: 'my_app' } });
+      fireEvent.click(screen.getByTestId('wizard-cancel'));
+      // Click discard in confirm dialog
+      fireEvent.click(screen.getByTestId('cancel-confirm-discard'));
+      await waitFor(() => {
+        expect(onCancel).toHaveBeenCalledOnce();
+      });
+    });
+
+    it('should not call onCancel after keeping editing', async () => {
+      const onCancel = vi.fn();
+      render(<AppCreationWizard onCancel={onCancel} />);
+      fireEvent.change(screen.getByTestId('app-name-input'), { target: { value: 'my_app' } });
+      fireEvent.click(screen.getByTestId('wizard-cancel'));
+      // Click keep editing
+      fireEvent.click(screen.getByTestId('cancel-confirm-keep'));
+      expect(onCancel).not.toHaveBeenCalled();
+      // Dialog should be gone
+      expect(screen.queryByTestId('cancel-confirm-dialog')).toBeNull();
     });
 
     it('should call onComplete with draft on complete', () => {
@@ -304,6 +340,62 @@ describe('AppCreationWizard', () => {
         name: 'test_app',
         title: 'Test App',
       });
+    });
+  });
+
+  // ============================
+  // Save Draft
+  // ============================
+  describe('Save Draft', () => {
+    it('should render save draft button when onSaveDraft is provided', () => {
+      const onSaveDraft = vi.fn();
+      render(<AppCreationWizard onSaveDraft={onSaveDraft} />);
+      expect(screen.getByTestId('wizard-save-draft')).toBeDefined();
+    });
+
+    it('should not render save draft button when onSaveDraft is not provided', () => {
+      render(<AppCreationWizard />);
+      expect(screen.queryByTestId('wizard-save-draft')).toBeNull();
+    });
+
+    it('should call onSaveDraft with current draft', () => {
+      const onSaveDraft = vi.fn();
+      render(<AppCreationWizard onSaveDraft={onSaveDraft} />);
+      fireEvent.change(screen.getByTestId('app-name-input'), { target: { value: 'my_app' } });
+      fireEvent.change(screen.getByTestId('app-title-input'), { target: { value: 'Draft App' } });
+      fireEvent.click(screen.getByTestId('wizard-save-draft'));
+      expect(onSaveDraft).toHaveBeenCalledOnce();
+      expect(onSaveDraft.mock.calls[0][0]).toMatchObject({
+        name: 'my_app',
+        title: 'Draft App',
+      });
+    });
+  });
+
+  // ============================
+  // i18n Integration
+  // ============================
+  describe('i18n Integration', () => {
+    it('should display translated labels via fallback (no provider)', () => {
+      render(<AppCreationWizard />);
+      // Step labels should render with fallback English
+      expect(screen.getByText('Basic Info')).toBeDefined();
+      // Form labels
+      expect(screen.getByText(/App Name/)).toBeDefined();
+      expect(screen.getByText(/Title/)).toBeDefined();
+    });
+
+    it('should display translated button text via fallback', () => {
+      render(<AppCreationWizard />);
+      expect(screen.getByText('Cancel')).toBeDefined();
+      expect(screen.getByText('Next')).toBeDefined();
+    });
+
+    it('should display translated layout options', () => {
+      render(<AppCreationWizard />);
+      expect(screen.getByText('Sidebar')).toBeDefined();
+      expect(screen.getByText('Header')).toBeDefined();
+      expect(screen.getByText('Empty')).toBeDefined();
     });
   });
 

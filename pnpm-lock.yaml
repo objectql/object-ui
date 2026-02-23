@@ -1523,6 +1523,9 @@ importers:
       '@object-ui/core':
         specifier: workspace:*
         version: link:../core
+      '@object-ui/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react

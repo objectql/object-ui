@@ -23,3 +23,5 @@ export type { MultiSelectState } from './useMultiSelect';
 
 export { useCanvasPanZoom } from './useCanvasPanZoom';
 export type { PanZoomState, PanZoomOptions } from './useCanvasPanZoom';
+
+export { useDesignerTranslation } from './useDesignerTranslation';

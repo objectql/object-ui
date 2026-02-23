@@ -44,9 +44,12 @@ import {
   Image,
   Palette,
   Globe,
+  X,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useDesignerTranslation } from './hooks/useDesignerTranslation';
+import { useConfirmDialog } from './hooks/useConfirmDialog';
 
 function cn(...inputs: (string | undefined | false)[]) {
   return twMerge(clsx(inputs));
@@ -67,6 +70,8 @@ export interface AppCreationWizardProps {
   onComplete?: (draft: AppWizardDraft) => void;
   /** Callback when wizard is cancelled */
   onCancel?: () => void;
+  /** Callback to save draft (partial progress) */
+  onSaveDraft?: (draft: AppWizardDraft) => void;
   /** Read-only mode */
   readOnly?: boolean;
   /** CSS class */
@@ -76,13 +81,6 @@ export interface AppCreationWizardProps {
 // ============================================================================
 // Constants
 // ============================================================================
-
-const WIZARD_STEPS: AppWizardStep[] = [
-  { id: 'basic', label: 'Basic Info', description: 'Name, title, and layout', icon: 'Settings' },
-  { id: 'objects', label: 'Objects', description: 'Select business objects', icon: 'Database' },
-  { id: 'navigation', label: 'Navigation', description: 'Build navigation tree', icon: 'Menu' },
-  { id: 'branding', label: 'Branding', description: 'Logo, colors, and favicon', icon: 'Palette' },
-];
 
 const DEFAULT_DRAFT: AppWizardDraft = {
   name: '',
@@ -194,9 +192,10 @@ interface BasicInfoStepProps {
   templates: Array<{ id: string; label: string; description?: string }>;
   readOnly: boolean;
   onChange: (partial: Partial<AppWizardDraft>) => void;
+  t: (key: string) => string;
 }
 
-function BasicInfoStep({ draft, templates, readOnly, onChange }: BasicInfoStepProps) {
+function BasicInfoStep({ draft, templates, readOnly, onChange, t }: BasicInfoStepProps) {
   const nameError = draft.name.length > 0 && !isValidAppName(draft.name);
 
   return (
@@ -204,7 +203,7 @@ function BasicInfoStep({ draft, templates, readOnly, onChange }: BasicInfoStepPr
       {/* Name */}
       <div className="space-y-1.5">
         <label htmlFor="app-name" className="block text-sm font-medium text-gray-700">
-          App Name <span className="text-red-500">*</span>
+          {t('appDesigner.appName')} <span className="text-red-500">*</span>
         </label>
         <input
           id="app-name"
@@ -222,14 +221,14 @@ function BasicInfoStep({ draft, templates, readOnly, onChange }: BasicInfoStepPr
           )}
         />
         {nameError && (
-          <p className="text-xs text-red-500">Must be snake_case (e.g. my_app)</p>
+          <p className="text-xs text-red-500">{t('appDesigner.snakeCaseHint')}</p>
         )}
       </div>
 
       {/* Title */}
       <div className="space-y-1.5">
         <label htmlFor="app-title" className="block text-sm font-medium text-gray-700">
-          Title <span className="text-red-500">*</span>
+          {t('appDesigner.appTitle')} <span className="text-red-500">*</span>
         </label>
         <input
           id="app-title"
@@ -246,14 +245,13 @@ function BasicInfoStep({ draft, templates, readOnly, onChange }: BasicInfoStepPr
       {/* Description */}
       <div className="space-y-1.5">
         <label htmlFor="app-description" className="block text-sm font-medium text-gray-700">
-          Description
+          {t('appDesigner.appDescription')}
         </label>
         <textarea
           id="app-description"
           data-testid="app-description-input"
           value={draft.description ?? ''}
           onChange={(e) => onChange({ description: e.target.value })}
-          placeholder="A brief description of your application…"
           rows={3}
           disabled={readOnly}
           className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-50 resize-none"
@@ -263,7 +261,7 @@ function BasicInfoStep({ draft, templates, readOnly, onChange }: BasicInfoStepPr
       {/* Icon */}
       <div className="space-y-1.5">
         <label htmlFor="app-icon" className="block text-sm font-medium text-gray-700">
-          Icon
+          {t('appDesigner.appIcon')}
         </label>
         <input
           id="app-icon"
@@ -280,7 +278,7 @@ function BasicInfoStep({ draft, templates, readOnly, onChange }: BasicInfoStepPr
       {templates.length > 0 && (
         <div className="space-y-1.5">
           <label htmlFor="app-template" className="block text-sm font-medium text-gray-700">
-            Template
+            {t('appDesigner.template')}
           </label>
           <select
             id="app-template"
@@ -290,9 +288,9 @@ function BasicInfoStep({ draft, templates, readOnly, onChange }: BasicInfoStepPr
             className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-50"
           >
             <option value="">None</option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
+            {templates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.label}
               </option>
             ))}
           </select>
@@ -301,13 +299,13 @@ function BasicInfoStep({ draft, templates, readOnly, onChange }: BasicInfoStepPr
 
       {/* Layout */}
       <fieldset className="space-y-2">
-        <legend className="text-sm font-medium text-gray-700">Layout</legend>
+        <legend className="text-sm font-medium text-gray-700">{t('appDesigner.layout')}</legend>
         <div className="flex gap-3">
           {([
-            { value: 'sidebar', label: 'Sidebar', Icon: PanelLeft },
-            { value: 'header', label: 'Header', Icon: Layout },
-            { value: 'empty', label: 'Empty', Icon: LayoutTemplate },
-          ] as const).map(({ value, label, Icon }) => (
+            { value: 'sidebar', labelKey: 'appDesigner.layoutSidebar', Icon: PanelLeft },
+            { value: 'header', labelKey: 'appDesigner.layoutHeader', Icon: Layout },
+            { value: 'empty', labelKey: 'appDesigner.layoutEmpty', Icon: LayoutTemplate },
+          ] as const).map(({ value, labelKey, Icon }) => (
             <label
               key={value}
               data-testid={`app-layout-${value}`}
@@ -320,7 +318,7 @@ function BasicInfoStep({ draft, templates, readOnly, onChange }: BasicInfoStepPr
               )}
             >
               <Icon className="h-5 w-5 text-gray-600" />
-              <span className="text-xs font-medium text-gray-700">{label}</span>
+              <span className="text-xs font-medium text-gray-700">{t(labelKey)}</span>
               <input
                 type="radio"
                 name="layout"
@@ -349,6 +347,7 @@ interface ObjectSelectionStepProps {
   onToggleAll: (selected: boolean) => void;
   search: string;
   onSearchChange: (value: string) => void;
+  t: (key: string) => string;
 }
 
 function ObjectSelectionStep({
@@ -358,6 +357,7 @@ function ObjectSelectionStep({
   onToggleAll,
   search,
   onSearchChange,
+  t,
 }: ObjectSelectionStepProps) {
   const filtered = useMemo(() => {
     if (!search) return objects;
@@ -382,7 +382,7 @@ function ObjectSelectionStep({
             type="text"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search objects…"
+            placeholder={t('appDesigner.searchObjects')}
             className="block w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           />
         </div>
@@ -392,13 +392,13 @@ function ObjectSelectionStep({
           disabled={readOnly}
           className="rounded-md border border-gray-300 px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {allSelected ? 'Deselect All' : 'Select All'}
+          {allSelected ? t('appDesigner.deselectAll') : t('appDesigner.selectAll')}
         </button>
       </div>
 
       {/* Grid */}
       {filtered.length === 0 ? (
-        <p className="py-8 text-center text-sm text-gray-400">No objects found.</p>
+        <p className="py-8 text-center text-sm text-gray-400">{t('appDesigner.noObjectsFound')}</p>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {filtered.map((obj) => (
@@ -449,6 +449,7 @@ interface NavigationBuilderStepProps {
   onAdd: (type: 'group' | 'url' | 'separator') => void;
   onRemove: (id: string) => void;
   onReorder: (id: string, direction: 'up' | 'down') => void;
+  t: (key: string) => string;
 }
 
 const TYPE_BADGE_COLORS: Record<string, string> = {
@@ -468,6 +469,7 @@ function NavigationBuilderStep({
   onAdd,
   onRemove,
   onReorder,
+  t,
 }: NavigationBuilderStepProps) {
   return (
     <div data-testid="wizard-step-navigation-content" className="mx-auto max-w-lg space-y-4">
@@ -481,7 +483,7 @@ function NavigationBuilderStep({
           className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <FolderOpen className="h-3.5 w-3.5" />
-          Add Group
+          {t('appDesigner.addGroup')}
         </button>
         <button
           type="button"
@@ -491,7 +493,7 @@ function NavigationBuilderStep({
           className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Link className="h-3.5 w-3.5" />
-          Add URL
+          {t('appDesigner.addUrl')}
         </button>
         <button
           type="button"
@@ -501,14 +503,14 @@ function NavigationBuilderStep({
           className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Minus className="h-3.5 w-3.5" />
-          Add Separator
+          {t('appDesigner.addSeparator')}
         </button>
       </div>
 
       {/* Item list */}
       {items.length === 0 ? (
         <p className="py-8 text-center text-sm text-gray-400">
-          No navigation items yet. Select objects in the previous step or add items manually.
+          {t('appDesigner.noNavItemsHint')}
         </p>
       ) : (
         <ul className="space-y-1.5">
@@ -522,7 +524,7 @@ function NavigationBuilderStep({
                 <span className="text-xs text-gray-400">{item.icon}</span>
               )}
               <span className="flex-1 truncate text-sm text-gray-800">
-                {item.type === 'separator' ? '— Separator —' : item.label}
+                {item.type === 'separator' ? t('appDesigner.separatorLabel') : item.label}
               </span>
               <span
                 className={cn(
@@ -580,15 +582,16 @@ interface BrandingStepProps {
   title: string;
   readOnly: boolean;
   onChange: (partial: Partial<BrandingConfig>) => void;
+  t: (key: string) => string;
 }
 
-function BrandingStep({ branding, title, readOnly, onChange }: BrandingStepProps) {
+function BrandingStep({ branding, title, readOnly, onChange, t }: BrandingStepProps) {
   return (
     <div data-testid="wizard-step-branding-content" className="mx-auto max-w-lg space-y-5">
       {/* Logo URL */}
       <div className="space-y-1.5">
         <label htmlFor="branding-logo" className="block text-sm font-medium text-gray-700">
-          Logo URL
+          {t('appDesigner.logoUrl')}
         </label>
         <div className="relative">
           <Image className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
@@ -608,7 +611,7 @@ function BrandingStep({ branding, title, readOnly, onChange }: BrandingStepProps
       {/* Primary Color */}
       <div className="space-y-1.5">
         <label htmlFor="branding-color" className="block text-sm font-medium text-gray-700">
-          Primary Color
+          {t('appDesigner.primaryColor')}
         </label>
         <div className="relative">
           <Palette className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
@@ -628,7 +631,7 @@ function BrandingStep({ branding, title, readOnly, onChange }: BrandingStepProps
       {/* Favicon URL */}
       <div className="space-y-1.5">
         <label htmlFor="branding-favicon" className="block text-sm font-medium text-gray-700">
-          Favicon URL
+          {t('appDesigner.faviconUrl')}
         </label>
         <div className="relative">
           <Globe className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
@@ -647,7 +650,7 @@ function BrandingStep({ branding, title, readOnly, onChange }: BrandingStepProps
 
       {/* Branding Preview */}
       <div className="space-y-1.5">
-        <span className="block text-sm font-medium text-gray-700">Preview</span>
+        <span className="block text-sm font-medium text-gray-700">{t('appDesigner.preview')}</span>
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex items-center gap-3">
             {branding.logo ? (
@@ -661,7 +664,7 @@ function BrandingStep({ branding, title, readOnly, onChange }: BrandingStepProps
                 Logo
               </div>
             )}
-            <span className="text-sm font-semibold text-gray-800">{title || 'App Title'}</span>
+            <span className="text-sm font-semibold text-gray-800">{title || t('appDesigner.appTitle')}</span>
           </div>
           <div className="mt-3 flex items-center gap-2">
             <div
@@ -698,9 +701,16 @@ export function AppCreationWizard({
   initialDraft,
   onComplete,
   onCancel,
+  onSaveDraft,
   readOnly = false,
   className,
 }: AppCreationWizardProps) {
+  // ---- i18n ----
+  const { t } = useDesignerTranslation();
+
+  // ---- Confirm dialog for cancel ----
+  const confirmDialog = useConfirmDialog();
+
   // ---- State ----
   const [currentStep, setCurrentStep] = useState(0);
   const [objectSearch, setObjectSearch] = useState('');
@@ -711,9 +721,17 @@ export function AppCreationWizard({
     ...initialDraft,
   }));
 
+  // ---- i18n-aware step definitions ----
+  const wizardSteps = useMemo<AppWizardStep[]>(() => [
+    { id: 'basic', label: t('appDesigner.basicInfo'), description: t('appDesigner.stepBasicDesc'), icon: 'Settings' },
+    { id: 'objects', label: t('appDesigner.objects'), description: t('appDesigner.stepObjectsDesc'), icon: 'Database' },
+    { id: 'navigation', label: t('appDesigner.navigation'), description: t('appDesigner.stepNavigationDesc'), icon: 'Menu' },
+    { id: 'branding', label: t('appDesigner.branding'), description: t('appDesigner.stepBrandingDesc'), icon: 'Palette' },
+  ], [t]);
+
   // ---- Derived ----
   const isFirstStep = currentStep === 0;
-  const isLastStep = currentStep === WIZARD_STEPS.length - 1;
+  const isLastStep = currentStep === wizardSteps.length - 1;
 
   const step1Valid = useMemo(
     () => draft.name.length > 0 && isValidAppName(draft.name) && draft.title.trim().length > 0,
@@ -807,6 +825,24 @@ export function AppCreationWizard({
     onComplete?.(draft);
   }, [draft, onComplete]);
 
+  const handleCancel = useCallback(async () => {
+    // If there are any changes (name or title filled), show confirmation
+    const hasChanges = draft.name.length > 0 || draft.title.length > 0;
+    if (hasChanges && onCancel) {
+      const confirmed = await confirmDialog.confirm(
+        t('appDesigner.cancelConfirmTitle'),
+        t('appDesigner.cancelConfirmMessage'),
+      );
+      if (confirmed) onCancel();
+    } else {
+      onCancel?.();
+    }
+  }, [draft.name, draft.title, onCancel, confirmDialog, t]);
+
+  const handleSaveDraft = useCallback(() => {
+    onSaveDraft?.(draft);
+  }, [draft, onSaveDraft]);
+
   const handleStepClick = useCallback(
     (index: number) => {
       // Only allow navigating to completed steps or the next valid step
@@ -829,10 +865,53 @@ export function AppCreationWizard({
   // ---- Render ----
   return (
     <div className={cn('flex h-full flex-col rounded-xl border border-gray-200 bg-white shadow-sm', className)}>
+      {/* Cancel Confirmation Dialog */}
+      {confirmDialog.isOpen && (
+        <div
+          data-testid="cancel-confirm-dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="mx-4 w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between">
+              <h3 className="text-base font-semibold text-gray-900">{confirmDialog.title}</h3>
+              <button
+                type="button"
+                onClick={confirmDialog.onCancel}
+                className="rounded p-1 text-gray-400 hover:text-gray-600"
+                aria-label={t('common.close')}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-2 text-sm text-gray-600">{confirmDialog.message}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                data-testid="cancel-confirm-keep"
+                onClick={confirmDialog.onCancel}
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                {t('appDesigner.keepEditing')}
+              </button>
+              <button
+                type="button"
+                data-testid="cancel-confirm-discard"
+                onClick={confirmDialog.onConfirm}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
+              >
+                {t('appDesigner.confirmDiscard')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Step Indicator */}
       <div className="border-b border-gray-100">
         <StepIndicator
-          steps={WIZARD_STEPS}
+          steps={wizardSteps}
           currentIndex={currentStep}
           onStepClick={handleStepClick}
         />
@@ -846,6 +925,7 @@ export function AppCreationWizard({
             templates={templates}
             readOnly={readOnly}
             onChange={updateDraft}
+            t={t}
           />
         )}
         {currentStep === 1 && (
@@ -856,6 +936,7 @@ export function AppCreationWizard({
             onToggleAll={toggleAllObjects}
             search={objectSearch}
             onSearchChange={setObjectSearch}
+            t={t}
           />
         )}
         {currentStep === 2 && (
@@ -865,6 +946,7 @@ export function AppCreationWizard({
             onAdd={addNavItem}
             onRemove={removeNavItem}
             onReorder={reorderNavItem}
+            t={t}
           />
         )}
         {currentStep === 3 && (
@@ -873,21 +955,35 @@ export function AppCreationWizard({
             title={draft.title}
             readOnly={readOnly}
             onChange={updateBranding}
+            t={t}
           />
         )}
       </div>
 
       {/* Navigation Buttons */}
       <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4">
-        <button
-          type="button"
-          data-testid="wizard-cancel"
-          onClick={onCancel}
-          disabled={readOnly}
-          className="rounded-md px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Cancel
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="wizard-cancel"
+            onClick={handleCancel}
+            disabled={readOnly}
+            className="rounded-md px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {t('common.cancel')}
+          </button>
+          {onSaveDraft && (
+            <button
+              type="button"
+              data-testid="wizard-save-draft"
+              onClick={handleSaveDraft}
+              disabled={readOnly}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t('appDesigner.saveDraft')}
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {!isFirstStep && (
             <button
@@ -898,7 +994,7 @@ export function AppCreationWizard({
               className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <ChevronLeft className="h-4 w-4" />
-              Back
+              {t('common.back')}
             </button>
           )}
           {isLastStep ? (
@@ -910,7 +1006,7 @@ export function AppCreationWizard({
               className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Check className="h-4 w-4" />
-              Complete
+              {t('appDesigner.complete')}
             </button>
           ) : (
             <button
@@ -920,7 +1016,7 @@ export function AppCreationWizard({
               disabled={readOnly || !canProceed}
               className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Next
+              {t('common.next')}
               <ChevronRight className="h-4 w-4" />
             </button>
           )}
