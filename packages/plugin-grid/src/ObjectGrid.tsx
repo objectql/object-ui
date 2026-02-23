@@ -31,7 +31,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { Edit, Trash2, MoreVertical, ChevronRight, ChevronDown, Download, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock } from 'lucide-react';
+import { Edit, Trash2, MoreVertical, ChevronRight, ChevronDown, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock } from 'lucide-react';
 import { useRowColor } from './useRowColor';
 import { useGroupedData } from './useGroupedData';
 
@@ -134,7 +134,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [useCardView, setUseCardView] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showExport, setShowExport] = useState(false);
-  const [rowHeightMode, setRowHeightMode] = useState<'compact' | 'medium' | 'tall'>(schema.rowHeight ?? 'medium');
+  const [rowHeightMode, setRowHeightMode] = useState<'compact' | 'short' | 'medium' | 'tall' | 'extra_tall'>(schema.rowHeight ?? 'medium');
 
   // Column state persistence (order and widths)
   const columnStorageKey = React.useMemo(() => {
@@ -821,9 +821,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     className: schema.className,
     cellClassName: rowHeightMode === 'compact'
       ? 'px-3 py-1 text-[13px] leading-tight'
-      : rowHeightMode === 'tall'
-        ? 'px-3 py-2.5 text-sm'
-        : 'px-3 py-1.5 text-[13px] leading-normal',
+      : rowHeightMode === 'short'
+        ? 'px-3 py-1 text-[13px] leading-normal'
+        : rowHeightMode === 'tall'
+          ? 'px-3 py-2.5 text-sm'
+          : rowHeightMode === 'extra_tall'
+            ? 'px-3 py-3.5 text-sm leading-relaxed'
+            : 'px-3 py-1.5 text-[13px] leading-normal',
     showRowNumbers: true,
     showAddRow: !!operations?.create,
     onAddRecord: onAddRecord,
@@ -1048,13 +1052,16 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // Row height cycle handler (plain function, not hook — after early returns)
   const cycleRowHeight = () => {
     setRowHeightMode(prev => {
-      if (prev === 'compact') return 'medium';
+      if (prev === 'compact') return 'short';
+      if (prev === 'short') return 'medium';
       if (prev === 'medium') return 'tall';
+      if (prev === 'tall') return 'extra_tall';
       return 'compact';
     });
   };
 
-  const RowHeightIcon = rowHeightMode === 'compact' ? Rows4 : rowHeightMode === 'tall' ? AlignJustify : Rows3;
+  const rowHeightIcons = { compact: Rows4, short: Rows3, medium: Rows2, tall: AlignJustify, extra_tall: AlignJustify };
+  const RowHeightIcon = rowHeightIcons[rowHeightMode];
 
   // Grid toolbar (row height toggle + export)
   const showRowHeightToggle = schema.rowHeight !== undefined;

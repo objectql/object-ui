@@ -205,7 +205,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
   - ✅ `ListViewSchema` Zod schema extended with all new properties
   - ✅ ViewConfigPanel aligned to full `ListViewSchema` spec: navigation mode, selection, pagination, export sub-config, searchable/filterable/hidden fields, resizable, density mode, row/bulk actions, sharing, addRecord sub-editor, conditional formatting, quick filters, showRecordCount, allowPrinting, virtualScroll, empty state, ARIA accessibility
   - ✅ Semantic fix: `editRecordsInline` → `inlineEdit` field name alignment (i18n keys, data-testid, component label all unified to `inlineEdit`)
-  - ✅ Semantic fix: `rowHeight` values aligned to full spec — all 5 RowHeight enum values (`compact`/`short`/`medium`/`tall`/`extra_tall`) now supported in NamedListView, ObjectGridSchema, ListViewSchema, Zod schema, and UI
+  - ✅ Semantic fix: `rowHeight` values aligned to full spec — all 5 RowHeight enum values (`compact`/`short`/`medium`/`tall`/`extra_tall`) now supported in NamedListView, ObjectGridSchema, ListViewSchema, Zod schema, UI, and ObjectGrid rendering (cell classes, cycle toggle, icon mapping)
   - ✅ `clickIntoRecordDetails` toggle added to UserActions section (NamedListView spec field — previously only implicit via navigation mode)
   - ✅ **Strict spec-order alignment**: All fields within each section reordered to match NamedListView property declaration order:
     - PageConfig: showSort before showFilters; allowExport before navigation (per spec)
@@ -382,7 +382,14 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] All 122 existing ViewConfigPanel tests pass (test mock updated for ConfigPanelRenderer + useConfigDraft)
 - [x] All 23 ObjectView integration tests pass (test ID and title props forwarded)
 - [x] 53 new schema-driven tests (utils + schema factory coverage)
-- [x] Full affected test suite: 2457 tests across 81 files, all pass
+- [x] 14 new ObjectGrid rowHeight tests (all 5 enum values: initialization, cycle, label, toggle visibility)
+- [x] Full affected test suite: 2457+ tests across 81+ files, all pass
+
+**Phase 5 — Spec Alignment Completion (Issue #745):**
+- [x] ObjectGrid rowHeight: full 5-enum rendering (cellClassName, cycleRowHeight, icon map) — was hardcoded to 3
+- [x] 18 new ViewConfigPanel interaction tests: collapseAllByDefault, showDescription, clickIntoRecordDetails, addDeleteRecordsInline toggles; sharing visibility conditional hide; navigation width/openNewTab conditional rendering; all 5 rowHeight button clicks; boundary tests (empty actions, long labels, special chars); pageSizeOptions input; densityMode/ARIA live enums; addRecord conditional sub-editor; sharing visibility select
+- [x] 8 new schema-driven spec tests: accessibility field ordering, emptyState compound field, switch field defaults, comprehensive visibleWhen predicates (sharing, navigation width, navigation openNewTab)
+- [x] All spec fields verified: Appearance/UserActions/Sharing/Accessibility sections 100% covered with UI controls, defaults, ordering, and conditional visibility
 
 **Code Reduction:** ~1655 lines imperative → ~170 lines declarative wrapper + ~1100 lines schema factory + ~180 lines shared utils = **>50% net reduction in component code** with significantly improved maintainability
 
