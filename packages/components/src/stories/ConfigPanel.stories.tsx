@@ -8,10 +8,10 @@
 
 import React, { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
-import { ConfigPanelRenderer } from './custom/config-panel-renderer';
-import { ConfigFieldRenderer } from './custom/config-field-renderer';
-import { useConfigDraft } from './hooks/use-config-draft';
-import type { ConfigPanelSchema, ConfigField } from './types/config-panel';
+import { ConfigPanelRenderer } from '../custom/config-panel-renderer';
+import { ConfigFieldRenderer } from '../custom/config-field-renderer';
+import { useConfigDraft } from '../hooks/use-config-draft';
+import type { ConfigPanelSchema, ConfigField } from '../types/config-panel';
 
 // ─── ConfigPanelRenderer Stories ─────────────────────────────────────────────
 
