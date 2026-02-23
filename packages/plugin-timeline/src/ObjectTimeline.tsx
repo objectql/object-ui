@@ -7,7 +7,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import type { DataSource, TimelineSchema } from '@object-ui/types';
+import type { DataSource, TimelineSchema, TimelineConfig } from '@object-ui/types';
 import { useDataScope, useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
@@ -38,19 +38,22 @@ const TimelineExtensionSchema = z.object({
 export interface ObjectTimelineProps {
   schema: TimelineSchema & {
     objectName?: string;
+    /** Spec-compliant nested timeline config */
+    timeline?: TimelineConfig;
+    /** @deprecated Use timeline.titleField instead */
     titleField?: string;
-    /** @deprecated Use startDateField instead */
+    /** @deprecated Use timeline.startDateField instead */
     dateField?: string;
-    /** Spec-compliant: field name for the start date */
+    /** @deprecated Use timeline.startDateField instead */
     startDateField?: string;
-    /** Spec-compliant: field name for the end date */
+    /** @deprecated Use timeline.endDateField instead */
     endDateField?: string;
     descriptionField?: string;
-    /** Spec-compliant: field name for grouping timeline items */
+    /** @deprecated Use timeline.groupByField instead */
     groupByField?: string;
-    /** Spec-compliant: field name for timeline item color */
+    /** @deprecated Use timeline.colorField instead */
     colorField?: string;
-    /** Spec-compliant: time scale for the timeline display */
+    /** @deprecated Use timeline.scale instead */
     scale?: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
     // Map data fields to timeline item properties
     mapping?: {
@@ -125,14 +128,16 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   let effectiveItems = schema.items;
   
   if (!effectiveItems && rawData && Array.isArray(rawData)) {
-      const titleField = schema.mapping?.title || schema.titleField || 'name';
-      // Spec-compliant: prefer startDateField, fallback to dateField for backward compat
-      const startDateField = schema.mapping?.date || schema.startDateField || schema.dateField || 'date';
-      const endDateField = schema.endDateField || startDateField;
-      const descField = schema.mapping?.description || schema.descriptionField || 'description';
-      const variantField = schema.mapping?.variant || 'variant';
-      const groupByField = schema.groupByField;
-      const colorField = schema.colorField;
+      // Resolve TimelineConfig with backwards-compatible fallbacks
+      const tl = (schema as any).timeline as TimelineConfig | undefined;
+      const titleField = tl?.titleField ?? schema.mapping?.title ?? schema.titleField ?? 'name';
+      // Spec-compliant: prefer timeline.startDateField, fallback to flat props
+      const startDateField = tl?.startDateField ?? schema.mapping?.date ?? schema.startDateField ?? schema.dateField ?? 'date';
+      const endDateField = tl?.endDateField ?? schema.endDateField ?? startDateField;
+      const descField = schema.mapping?.description ?? schema.descriptionField ?? 'description';
+      const variantField = schema.mapping?.variant ?? 'variant';
+      const groupByField = tl?.groupByField ?? schema.groupByField;
+      const colorField = tl?.colorField ?? schema.colorField;
 
       effectiveItems = rawData.map(item => ({
           title: item[titleField],
@@ -165,10 +170,16 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
     onRowClick: onRowClick ?? onItemClick,
   });
 
+  // Resolve scale: spec timeline.scale takes priority over flat schema.scale
+  const tl = (schema as any).timeline as TimelineConfig | undefined;
+  const resolvedScale = tl?.scale ?? schema.scale;
+
   const effectiveSchema = {
       ...schema,
       items: effectiveItems || [],
       className: className || schema.className,
+      // Map spec 'scale' to renderer 'timeScale' (used by gantt variant)
+      ...(resolvedScale ? { timeScale: resolvedScale } : {}),
       onItemClick: (item: any) => {
         const record = item._data || item;
         navigation.handleClick(record);

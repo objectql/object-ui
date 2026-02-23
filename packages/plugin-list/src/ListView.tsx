@@ -789,19 +789,26 @@ export const ListView: React.FC<ListViewProps> = ({
           ...(groupingConfig ? { grouping: groupingConfig } : {}),
         };
       }
-      case 'timeline':
+      case 'timeline': {
+        // Merge spec config over legacy options into nested timeline prop
+        const mergedTimeline = {
+          ...(schema.options?.timeline || {}),
+          ...(schema.timeline || {}),
+        };
         return {
           type: 'object-timeline',
           ...baseProps,
+          // Nested timeline config (spec-compliant, used by ObjectTimeline)
+          timeline: Object.keys(mergedTimeline).length > 0 ? mergedTimeline : undefined,
+          // Deprecated top-level props for backward compat
           startDateField: schema.timeline?.startDateField || schema.options?.timeline?.startDateField || schema.options?.timeline?.dateField || 'created_at',
           titleField: schema.timeline?.titleField || schema.options?.timeline?.titleField || 'name',
           ...(schema.timeline?.endDateField ? { endDateField: schema.timeline.endDateField } : {}),
           ...(schema.timeline?.groupByField ? { groupByField: schema.timeline.groupByField } : {}),
           ...(schema.timeline?.colorField ? { colorField: schema.timeline.colorField } : {}),
           ...(schema.timeline?.scale ? { scale: schema.timeline.scale } : {}),
-          ...(schema.options?.timeline || {}),
-          ...(schema.timeline || {}),
         };
+      }
       case 'gantt':
         return {
           type: 'object-gantt',

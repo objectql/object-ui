@@ -39,6 +39,34 @@ describe('Gallery/Timeline Spec Config Types', () => {
       expect(schema.gallery?.visibleFields).toEqual(['status', 'price']);
     });
 
+    it('accepts all cardSize values', () => {
+      const sizes = ['small', 'medium', 'large'] as const;
+      sizes.forEach((cardSize) => {
+        const schema: ListViewSchema = {
+          type: 'list-view',
+          objectName: 'products',
+          viewType: 'gallery',
+          fields: ['name'],
+          gallery: { cardSize },
+        };
+        expect(schema.gallery?.cardSize).toBe(cardSize);
+      });
+    });
+
+    it('accepts all coverFit values', () => {
+      const fits = ['cover', 'contain', 'fill'] as const;
+      fits.forEach((coverFit) => {
+        const schema: ListViewSchema = {
+          type: 'list-view',
+          objectName: 'products',
+          viewType: 'gallery',
+          fields: ['name'],
+          gallery: { coverFit },
+        };
+        expect(schema.gallery?.coverFit).toBe(coverFit);
+      });
+    });
+
     it('accepts legacy imageField and subtitleField alongside spec fields', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
@@ -141,6 +169,35 @@ describe('Gallery/Timeline Spec Config Types', () => {
       };
 
       expect(schema.options?.timeline?.dateField).toBe('created_at');
+    });
+  });
+
+  describe('spec config co-existence', () => {
+    it('gallery and timeline configs can coexist on the same ListViewSchema', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'projects',
+        viewType: 'grid',
+        fields: ['name', 'date', 'photo'],
+        gallery: {
+          coverField: 'photo',
+          cardSize: 'medium',
+          titleField: 'name',
+          visibleFields: ['status'],
+        },
+        timeline: {
+          startDateField: 'start_date',
+          titleField: 'name',
+          scale: 'quarter',
+          groupByField: 'team',
+        },
+      };
+
+      expect(schema.gallery?.coverField).toBe('photo');
+      expect(schema.gallery?.cardSize).toBe('medium');
+      expect(schema.timeline?.startDateField).toBe('start_date');
+      expect(schema.timeline?.scale).toBe('quarter');
+      expect(schema.timeline?.groupByField).toBe('team');
     });
   });
 });
