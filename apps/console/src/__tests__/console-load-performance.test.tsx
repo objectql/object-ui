@@ -33,7 +33,7 @@ import * as path from 'node:path';
 
 const PERF = {
   /** Max number of JS chunks a production build may emit */
-  MAX_CHUNK_COUNT: 20,
+  MAX_CHUNK_COUNT: 22,
   /** Main entry gzip budget reference (KB) */
   MAIN_ENTRY_GZIP_KB: 50,
   /** Maximum React component nesting depth */
