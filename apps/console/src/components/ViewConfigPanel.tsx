@@ -169,6 +169,10 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
             ariaLabel={panelTitle}
             tabIndex={-1}
             testId="view-config-panel"
+            closeTitle={t('console.objectView.closePanel')}
+            footerTestId="view-config-footer"
+            saveTestId="view-config-save"
+            discardTestId="view-config-discard"
             className="transition-all overflow-hidden"
         />
     );

@@ -53,6 +53,14 @@ export interface ConfigPanelRendererProps {
   tabIndex?: number;
   /** Override data-testid for the panel root (default: "config-panel") */
   testId?: string;
+  /** Title for the close button */
+  closeTitle?: string;
+  /** Override data-testid for the footer (default: "config-panel-footer") */
+  footerTestId?: string;
+  /** Override data-testid for the save button (default: "config-panel-save") */
+  saveTestId?: string;
+  /** Override data-testid for the discard button (default: "config-panel-discard") */
+  discardTestId?: string;
 }
 
 /**
@@ -85,6 +93,10 @@ export function ConfigPanelRenderer({
   ariaLabel,
   tabIndex,
   testId,
+  closeTitle,
+  footerTestId,
+  saveTestId,
+  discardTestId,
 }: ConfigPanelRendererProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -135,6 +147,7 @@ export function ConfigPanelRenderer({
             onClick={onClose}
             className="h-7 w-7 p-0"
             data-testid="config-panel-close"
+            title={closeTitle}
           >
             <X className="h-3.5 w-3.5" />
           </Button>
@@ -184,8 +197,8 @@ export function ConfigPanelRenderer({
 
       {/* ── Footer ─────────────────────────────────────────── */}
       {isDirty && (
-        <div className="px-4 py-2 border-t flex gap-2 shrink-0" data-testid="config-panel-footer">
-          <Button size="sm" onClick={onSave} data-testid="config-panel-save">
+        <div className="px-4 py-2 border-t flex gap-2 shrink-0" data-testid={footerTestId ?? 'config-panel-footer'}>
+          <Button size="sm" onClick={onSave} data-testid={saveTestId ?? 'config-panel-save'}>
             <Save className="h-3.5 w-3.5 mr-1" />
             {saveLabel}
           </Button>
@@ -193,7 +206,7 @@ export function ConfigPanelRenderer({
             size="sm"
             variant="ghost"
             onClick={onDiscard}
-            data-testid="config-panel-discard"
+            data-testid={discardTestId ?? 'config-panel-discard'}
           >
             <RotateCcw className="h-3.5 w-3.5 mr-1" />
             {discardLabel}
