@@ -14,12 +14,15 @@
  * Aligned with @objectstack/spec NavigationItem schema.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import type { NavigationItem, NavigationItemType } from '@object-ui/types';
 import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  Download,
+  Eye,
+  EyeOff,
   FolderOpen,
   Globe,
   GripVertical,
@@ -29,8 +32,10 @@ import {
   FileText,
   BarChart3,
   MousePointerClick,
+  Pencil,
   Plus,
   Trash2,
+  Upload,
   Database,
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -56,6 +61,10 @@ export interface NavigationDesignerProps {
   showPreview?: boolean;
   /** CSS class */
   className?: string;
+  /** Callback to export navigation schema */
+  onExport?: (items: NavigationItem[]) => void;
+  /** Callback to import navigation schema */
+  onImport?: (items: NavigationItem[]) => void;
 }
 
 // ============================================================================
@@ -105,6 +114,8 @@ interface NavItemRowProps {
   onMoveDown: (id: string) => void;
   onToggleExpand: (id: string) => void;
   onUpdateLabel: (id: string, label: string) => void;
+  onUpdateIcon: (id: string, icon: string) => void;
+  onToggleVisible: (id: string) => void;
   onAddChild: (parentId: string, type: NavigationItemType) => void;
   expandedIds: Set<string>;
   t: (key: string) => string;
@@ -121,15 +132,20 @@ function NavItemRow({
   onMoveDown,
   onToggleExpand,
   onUpdateLabel,
+  onUpdateIcon,
+  onToggleVisible,
   onAddChild,
   expandedIds,
   t,
 }: NavItemRowProps) {
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelDraft, setLabelDraft] = useState(item.label);
+  const [editingIcon, setEditingIcon] = useState(false);
+  const [iconDraft, setIconDraft] = useState(item.icon || '');
   const meta = NAV_TYPE_META[item.type];
   const hasChildren = item.type === 'group' && item.children && item.children.length > 0;
   const isExpanded = expandedIds.has(item.id);
+  const isHidden = item.visible === false;
 
   const handleLabelCommit = () => {
     if (labelDraft.trim()) {
@@ -140,12 +156,18 @@ function NavItemRow({
     setEditingLabel(false);
   };
 
+  const handleIconCommit = () => {
+    onUpdateIcon(item.id, iconDraft.trim());
+    setEditingIcon(false);
+  };
+
   return (
     <>
       <li
         data-testid={`nav-designer-item-${item.id}`}
         className={cn(
           'flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1.5 transition-colors hover:bg-gray-50',
+          isHidden && 'opacity-50',
         )}
         style={{ marginLeft: depth * 20 }}
       >
@@ -170,8 +192,44 @@ function NavItemRow({
           <span className="w-5" />
         )}
 
-        {/* Icon */}
-        <meta.Icon className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+        {/* Icon + edit */}
+        {editingIcon && !readOnly ? (
+          <input
+            type="text"
+            value={iconDraft}
+            onChange={(e) => setIconDraft(e.target.value)}
+            onBlur={handleIconCommit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleIconCommit();
+              if (e.key === 'Escape') {
+                setIconDraft(item.icon || '');
+                setEditingIcon(false);
+              }
+            }}
+            autoFocus
+            placeholder={t('appDesigner.navIconPlaceholder')}
+            data-testid={`nav-designer-icon-input-${item.id}`}
+            className="w-24 rounded border border-blue-300 px-1 py-0.5 text-xs outline-none focus:ring-1 focus:ring-blue-400"
+          />
+        ) : (
+          <span className="flex items-center gap-0.5">
+            <meta.Icon className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+            {!readOnly && item.type !== 'separator' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIconDraft(item.icon || '');
+                  setEditingIcon(true);
+                }}
+                className="rounded p-0.5 text-gray-300 hover:text-blue-500"
+                aria-label={t('appDesigner.navEditIcon')}
+                data-testid={`nav-designer-edit-icon-${item.id}`}
+              >
+                <Pencil className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </span>
+        )}
 
         {/* Label */}
         {item.type === 'separator' ? (
@@ -218,6 +276,26 @@ function NavItemRow({
         >
           {t(meta.labelKey)}
         </span>
+
+        {/* Hidden badge */}
+        {isHidden && (
+          <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-500" data-testid={`nav-designer-hidden-badge-${item.id}`}>
+            {t('appDesigner.navHidden')}
+          </span>
+        )}
+
+        {/* Visibility toggle */}
+        {!readOnly && item.type !== 'separator' && (
+          <button
+            type="button"
+            onClick={() => onToggleVisible(item.id)}
+            className="rounded p-0.5 text-gray-400 hover:text-gray-700"
+            aria-label={t('appDesigner.navToggleVisible')}
+            data-testid={`nav-designer-toggle-visible-${item.id}`}
+          >
+            {isHidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          </button>
+        )}
 
         {/* Add child (groups only) */}
         {item.type === 'group' && !readOnly && (
@@ -281,6 +359,8 @@ function NavItemRow({
               onMoveDown={onMoveDown}
               onToggleExpand={onToggleExpand}
               onUpdateLabel={onUpdateLabel}
+              onUpdateIcon={onUpdateIcon}
+              onToggleVisible={onToggleVisible}
               onAddChild={onAddChild}
               expandedIds={expandedIds}
               t={t}
@@ -349,8 +429,11 @@ export function NavigationDesigner({
   readOnly = false,
   showPreview = true,
   className,
+  onExport,
+  onImport,
 }: NavigationDesignerProps) {
   const { t } = useDesignerTranslation();
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
     () => new Set(items.filter((i) => i.type === 'group').map((i) => i.id))
   );
@@ -410,6 +493,36 @@ export function NavigationDesigner({
     [items, onChange]
   );
 
+  const updateIcon = useCallback(
+    (id: string, icon: string) => {
+      function update(list: NavigationItem[]): NavigationItem[] {
+        return list.map((item) => {
+          if (item.id === id) return { ...item, icon: icon || undefined };
+          if (item.children) return { ...item, children: update(item.children) };
+          return item;
+        });
+      }
+      onChange(update(items));
+    },
+    [items, onChange]
+  );
+
+  const toggleVisible = useCallback(
+    (id: string) => {
+      function update(list: NavigationItem[]): NavigationItem[] {
+        return list.map((item) => {
+          if (item.id === id) {
+            return { ...item, visible: item.visible === false ? true : false };
+          }
+          if (item.children) return { ...item, children: update(item.children) };
+          return item;
+        });
+      }
+      onChange(update(items));
+    },
+    [items, onChange]
+  );
+
   const addChild = useCallback(
     (parentId: string, type: NavigationItemType) => {
       const newItem: NavigationItem = {
@@ -460,15 +573,56 @@ export function NavigationDesigner({
     });
   }, []);
 
+  const handleExport = useCallback(() => {
+    if (onExport) {
+      onExport(items);
+    } else {
+      const json = JSON.stringify(items, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'navigation-schema.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  }, [items, onExport]);
+
+  const handleImport = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const parsed = JSON.parse(ev.target?.result as string);
+          if (Array.isArray(parsed)) {
+            if (onImport) {
+              onImport(parsed);
+            } else {
+              onChange(parsed);
+            }
+          }
+        } catch {
+          // invalid JSON — silently ignore
+        }
+      };
+      reader.readAsText(file);
+      // Reset so the same file can be re-imported
+      if (importInputRef.current) importInputRef.current.value = '';
+    },
+    [onChange, onImport]
+  );
+
   return (
     <div
       data-testid="navigation-designer"
-      className={cn('flex gap-4', className)}
+      className={cn('flex flex-col gap-4 sm:flex-row', className)}
     >
       {/* Editor */}
       <div className="flex-1 space-y-3">
-        {/* Quick add bar */}
-        <div className="flex flex-wrap gap-1.5">
+        {/* Toolbar: quick add + export/import */}
+        <div className="flex flex-wrap items-center gap-1.5">
           {QUICK_ADD_TYPES.map(({ type, labelKey }) => {
             const { Icon, color } = NAV_TYPE_META[type];
             return (
@@ -487,6 +641,40 @@ export function NavigationDesigner({
               </button>
             );
           })}
+
+          <span className="mx-1 hidden h-4 w-px bg-gray-200 sm:block" />
+
+          {/* Export */}
+          <button
+            type="button"
+            data-testid="nav-designer-export"
+            onClick={handleExport}
+            className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium transition-colors hover:bg-gray-50"
+          >
+            <Download className="h-3 w-3" />
+            {t('appDesigner.navExportSchema')}
+          </button>
+
+          {/* Import */}
+          <label
+            data-testid="nav-designer-import"
+            className={cn(
+              'inline-flex cursor-pointer items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium transition-colors hover:bg-gray-50',
+              readOnly && 'cursor-not-allowed opacity-50'
+            )}
+          >
+            <Upload className="h-3 w-3" />
+            {t('appDesigner.navImportSchema')}
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={handleImport}
+              disabled={readOnly}
+              data-testid="nav-designer-import-input"
+            />
+          </label>
         </div>
 
         {/* Item tree */}
@@ -509,6 +697,8 @@ export function NavigationDesigner({
                 onMoveDown={(id) => moveItem(id, 'down')}
                 onToggleExpand={toggleExpand}
                 onUpdateLabel={updateLabel}
+                onUpdateIcon={updateIcon}
+                onToggleVisible={toggleVisible}
                 onAddChild={addChild}
                 expandedIds={expandedIds}
                 t={t}

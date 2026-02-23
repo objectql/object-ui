@@ -196,4 +196,148 @@ describe('NavigationDesigner', () => {
       expect(screen.getByText('Live Preview')).toBeDefined();
     });
   });
+
+  // ============================
+  // Icon Editing
+  // ============================
+  describe('Icon Editing', () => {
+    it('should show edit icon button for non-separator items', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} />);
+      expect(screen.getByTestId('nav-designer-edit-icon-nav_1')).toBeDefined();
+      expect(screen.getByTestId('nav-designer-edit-icon-nav_2')).toBeDefined();
+    });
+
+    it('should show icon input when edit icon is clicked', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} />);
+      fireEvent.click(screen.getByTestId('nav-designer-edit-icon-nav_1'));
+      expect(screen.getByTestId('nav-designer-icon-input-nav_1')).toBeDefined();
+    });
+
+    it('should update icon on Enter', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} />);
+      fireEvent.click(screen.getByTestId('nav-designer-edit-icon-nav_1'));
+      const input = screen.getByTestId('nav-designer-icon-input-nav_1');
+      fireEvent.change(input, { target: { value: 'Star' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+      expect(onChange).toHaveBeenCalledOnce();
+      const updated = onChange.mock.calls[0][0] as NavigationItem[];
+      expect(updated.find((i) => i.id === 'nav_1')?.icon).toBe('Star');
+    });
+
+    it('should not show edit icon button in read-only mode', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} readOnly />);
+      expect(screen.queryByTestId('nav-designer-edit-icon-nav_1')).toBeNull();
+    });
+  });
+
+  // ============================
+  // Visibility Toggle
+  // ============================
+  describe('Visibility Toggle', () => {
+    it('should show visibility toggle button for non-separator items', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} />);
+      expect(screen.getByTestId('nav-designer-toggle-visible-nav_1')).toBeDefined();
+    });
+
+    it('should toggle visible to false when clicked', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} />);
+      fireEvent.click(screen.getByTestId('nav-designer-toggle-visible-nav_1'));
+      expect(onChange).toHaveBeenCalledOnce();
+      const updated = onChange.mock.calls[0][0] as NavigationItem[];
+      expect(updated.find((i) => i.id === 'nav_1')?.visible).toBe(false);
+    });
+
+    it('should show hidden badge when item is hidden', () => {
+      const hiddenItems: NavigationItem[] = [
+        { id: 'nav_h', type: 'object', label: 'Hidden Item', visible: false },
+      ];
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={hiddenItems} onChange={onChange} />);
+      expect(screen.getByTestId('nav-designer-hidden-badge-nav_h')).toBeDefined();
+      expect(screen.getByText('Hidden')).toBeDefined();
+    });
+
+    it('should toggle visible back to true for hidden items', () => {
+      const hiddenItems: NavigationItem[] = [
+        { id: 'nav_h', type: 'object', label: 'Hidden Item', visible: false },
+      ];
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={hiddenItems} onChange={onChange} />);
+      fireEvent.click(screen.getByTestId('nav-designer-toggle-visible-nav_h'));
+      expect(onChange).toHaveBeenCalledOnce();
+      const updated = onChange.mock.calls[0][0] as NavigationItem[];
+      expect(updated.find((i) => i.id === 'nav_h')?.visible).toBe(true);
+    });
+
+    it('should not show visibility toggle in read-only mode', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} readOnly />);
+      expect(screen.queryByTestId('nav-designer-toggle-visible-nav_1')).toBeNull();
+    });
+  });
+
+  // ============================
+  // Export / Import
+  // ============================
+  describe('Export / Import', () => {
+    it('should render export button', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} />);
+      expect(screen.getByTestId('nav-designer-export')).toBeDefined();
+    });
+
+    it('should render import button', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} />);
+      expect(screen.getByTestId('nav-designer-import')).toBeDefined();
+    });
+
+    it('should call onExport when export is clicked', () => {
+      const onChange = vi.fn();
+      const onExport = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} onExport={onExport} />);
+      fireEvent.click(screen.getByTestId('nav-designer-export'));
+      expect(onExport).toHaveBeenCalledOnce();
+      expect(onExport).toHaveBeenCalledWith(MOCK_ITEMS);
+    });
+
+    it('should call onImport when valid JSON file is imported', async () => {
+      const onChange = vi.fn();
+      const onImport = vi.fn();
+      render(<NavigationDesigner items={[]} onChange={onChange} onImport={onImport} />);
+      const fileInput = screen.getByTestId('nav-designer-import-input');
+      const importData: NavigationItem[] = [{ id: 'imp_1', type: 'page', label: 'Imported' }];
+      const file = new File([JSON.stringify(importData)], 'nav.json', { type: 'application/json' });
+      fireEvent.change(fileInput, { target: { files: [file] } });
+      // FileReader is async; wait briefly
+      await vi.waitFor(() => expect(onImport).toHaveBeenCalledOnce());
+      expect(onImport).toHaveBeenCalledWith(importData);
+    });
+
+    it('should disable import input in read-only mode', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} readOnly />);
+      const fileInput = screen.getByTestId('nav-designer-import-input');
+      expect(fileInput.hasAttribute('disabled')).toBe(true);
+    });
+  });
+
+  // ============================
+  // Mobile Responsive
+  // ============================
+  describe('Mobile Responsive', () => {
+    it('should use responsive flex direction classes', () => {
+      const onChange = vi.fn();
+      render(<NavigationDesigner items={MOCK_ITEMS} onChange={onChange} />);
+      const root = screen.getByTestId('navigation-designer');
+      expect(root.className).toContain('flex-col');
+      expect(root.className).toContain('sm:flex-row');
+    });
+  });
 });
