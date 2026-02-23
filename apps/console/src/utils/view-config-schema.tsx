@@ -972,7 +972,11 @@ function buildAppearanceSection(
         title: t('console.objectView.appearance'),
         collapsible: true,
         fields: [
-            // Color field select
+            // spec: NamedListView.striped
+            buildSwitchField('striped', t('console.objectView.striped'), 'toggle-striped', false, true),
+            // spec: NamedListView.bordered
+            buildSwitchField('bordered', t('console.objectView.bordered'), 'toggle-bordered', false, true),
+            // spec: NamedListView.color — field for row/card coloring
             {
                 key: 'color',
                 label: t('console.objectView.color'),
@@ -993,7 +997,11 @@ function buildAppearanceSection(
                     </ConfigRow>
                 ),
             },
-            // Field text color
+            // spec: NamedListView.wrapHeaders
+            buildSwitchField('wrapHeaders', t('console.objectView.wrapHeaders'), 'toggle-wrapHeaders', false, true),
+            // spec: NamedListView.collapseAllByDefault
+            buildSwitchField('collapseAllByDefault', t('console.objectView.collapseAllByDefault'), 'toggle-collapseAllByDefault', false, true),
+            // spec: NamedListView.fieldTextColor
             {
                 key: 'fieldTextColor',
                 label: t('console.objectView.fieldTextColor'),
@@ -1014,7 +1022,31 @@ function buildAppearanceSection(
                     </ConfigRow>
                 ),
             },
-            // Row height (icon-group)
+            // spec: NamedListView.showDescription
+            buildSwitchField('showDescription', t('console.objectView.showFieldDescriptions'), 'toggle-showDescription', true),
+            // spec: NamedListView.resizable
+            buildSwitchField('resizable', t('console.objectView.resizableColumns'), 'toggle-resizable', false, true),
+            // spec: NamedListView.densityMode — compact/comfortable/spacious
+            {
+                key: 'densityMode',
+                label: t('console.objectView.densityMode'),
+                type: 'custom',
+                render: (value, onChange) => (
+                    <ConfigRow label={t('console.objectView.densityMode')}>
+                        <select
+                            data-testid="select-densityMode"
+                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
+                            value={value || 'comfortable'}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChange(e.target.value)}
+                        >
+                            <option value="compact">{t('console.objectView.densityCompact')}</option>
+                            <option value="comfortable">{t('console.objectView.densityComfortable')}</option>
+                            <option value="spacious">{t('console.objectView.densitySpacious')}</option>
+                        </select>
+                    </ConfigRow>
+                ),
+            },
+            // spec: NamedListView.rowHeight — 5-value enum: compact/short/medium/tall/extra_tall
             {
                 key: 'rowHeight',
                 label: t('console.objectView.rowHeight'),
@@ -1049,34 +1081,7 @@ function buildAppearanceSection(
                     </ConfigRow>
                 ),
             },
-            // Toggles
-            buildSwitchField('wrapHeaders', t('console.objectView.wrapHeaders'), 'toggle-wrapHeaders', false, true),
-            buildSwitchField('showDescription', t('console.objectView.showFieldDescriptions'), 'toggle-showDescription', true),
-            buildSwitchField('collapseAllByDefault', t('console.objectView.collapseAllByDefault'), 'toggle-collapseAllByDefault', false, true),
-            buildSwitchField('striped', t('console.objectView.striped'), 'toggle-striped', false, true),
-            buildSwitchField('bordered', t('console.objectView.bordered'), 'toggle-bordered', false, true),
-            buildSwitchField('resizable', t('console.objectView.resizableColumns'), 'toggle-resizable', false, true),
-            // Density mode
-            {
-                key: 'densityMode',
-                label: t('console.objectView.densityMode'),
-                type: 'custom',
-                render: (value, onChange) => (
-                    <ConfigRow label={t('console.objectView.densityMode')}>
-                        <select
-                            data-testid="select-densityMode"
-                            className="text-xs h-7 rounded-md border border-input bg-background px-2 text-foreground max-w-[120px]"
-                            value={value || 'comfortable'}
-                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChange(e.target.value)}
-                        >
-                            <option value="compact">{t('console.objectView.densityCompact')}</option>
-                            <option value="comfortable">{t('console.objectView.densityComfortable')}</option>
-                            <option value="spacious">{t('console.objectView.densitySpacious')}</option>
-                        </select>
-                    </ConfigRow>
-                ),
-            },
-            // Conditional formatting
+            // spec: NamedListView.conditionalFormatting
             {
                 key: '_conditionalFormatting',
                 label: t('console.objectView.conditionalFormatting'),
@@ -1164,7 +1169,7 @@ function buildAppearanceSection(
                     );
                 },
             },
-            // Empty state
+            // spec: NamedListView.emptyState
             {
                 key: '_emptyState',
                 label: 'Empty state',
@@ -1221,10 +1226,13 @@ function buildUserActionsSection(
         title: t('console.objectView.userActions'),
         collapsible: true,
         fields: [
-            buildSwitchField('clickIntoRecordDetails', t('console.objectView.clickIntoRecordDetails'), 'toggle-clickIntoRecordDetails', true),
+            // spec: NamedListView.inlineEdit
             buildSwitchField('inlineEdit', t('console.objectView.inlineEdit'), 'toggle-inlineEdit', true),
+            // spec: NamedListView.clickIntoRecordDetails
+            buildSwitchField('clickIntoRecordDetails', t('console.objectView.clickIntoRecordDetails'), 'toggle-clickIntoRecordDetails', true),
+            // spec: NamedListView.addDeleteRecordsInline
             buildSwitchField('addDeleteRecordsInline', t('console.objectView.addDeleteRecordsInline'), 'toggle-addDeleteRecordsInline', true),
-            // Row actions
+            // spec: NamedListView.rowActions
             {
                 key: '_rowActions',
                 label: t('console.objectView.rowActions'),
@@ -1255,7 +1263,7 @@ function buildUserActionsSection(
                     );
                 },
             },
-            // Bulk actions
+            // spec: NamedListView.bulkActions
             {
                 key: '_bulkActions',
                 label: t('console.objectView.bulkActions'),
