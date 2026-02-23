@@ -1311,6 +1311,7 @@ function buildSharingSection(
         title: t('console.objectView.sharing'),
         collapsible: true,
         fields: [
+            // spec: NamedListView.sharing.enabled
             {
                 key: '_sharingEnabled',
                 label: t('console.objectView.sharingEnabled'),
@@ -1328,6 +1329,7 @@ function buildSharingSection(
                     </ConfigRow>
                 ),
             },
+            // spec: NamedListView.sharing.visibility
             {
                 key: '_sharingVisibility',
                 label: t('console.objectView.sharingVisibility'),
@@ -1368,6 +1370,7 @@ function buildAccessibilitySection(
         title: t('console.objectView.accessibility'),
         collapsible: true,
         fields: [
+            // spec: NamedListView.aria.label
             {
                 key: '_ariaLabel',
                 label: t('console.objectView.ariaLabel'),
@@ -1385,6 +1388,7 @@ function buildAccessibilitySection(
                     </ConfigRow>
                 ),
             },
+            // spec: NamedListView.aria.describedBy
             {
                 key: '_ariaDescribedBy',
                 label: t('console.objectView.ariaDescribedBy'),
@@ -1402,6 +1406,7 @@ function buildAccessibilitySection(
                     </ConfigRow>
                 ),
             },
+            // spec: NamedListView.aria.live — polite/assertive/off
             {
                 key: '_ariaLive',
                 label: t('console.objectView.ariaLive'),

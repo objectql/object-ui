@@ -207,6 +207,14 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
   - ✅ Semantic fix: `editRecordsInline` → `inlineEdit` field name alignment (i18n keys, data-testid, component label all unified to `inlineEdit`)
   - ✅ Semantic fix: `rowHeight` values aligned to full spec — all 5 RowHeight enum values (`compact`/`short`/`medium`/`tall`/`extra_tall`) now supported in NamedListView, ObjectGridSchema, ListViewSchema, Zod schema, and UI
   - ✅ `clickIntoRecordDetails` toggle added to UserActions section (NamedListView spec field — previously only implicit via navigation mode)
+  - ✅ **Strict spec-order alignment**: All fields within each section reordered to match NamedListView property declaration order:
+    - PageConfig: showSort before showFilters; allowExport before navigation (per spec)
+    - Data: columns → filter → sort (per spec); prefixField after sort
+    - Appearance: striped/bordered first, then color, wrapHeaders, etc. (per spec)
+    - UserActions: inlineEdit before clickIntoRecordDetails (per spec)
+  - ✅ **Spec source annotations**: Every field annotated with `// spec: NamedListView.*` or `// UI extension` comment
+  - ✅ **Protocol suggestions documented**: description, _source, _groupBy, _typeOptions identified as UI extensions pending spec addition
+  - ✅ **Comprehensive spec field coverage test**: All 44 NamedListView properties verified mapped to UI fields; field ordering validated per spec
   - ✅ i18n keys verified complete for en/zh and all 10 locale files
   - ✅ Console ObjectView fullSchema propagates all 18 new spec properties
   - ✅ PluginObjectView renderListView schema propagates all 18 new spec properties
