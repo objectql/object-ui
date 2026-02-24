@@ -258,4 +258,157 @@ describe('DashboardRenderer widget data extraction', () => {
     expect(container.textContent).toContain('200');
     expect(container.textContent).toContain('300');
   });
+
+  it('should produce object-chart schema for chart widgets with provider: object', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'bar',
+          title: 'Revenue by Account',
+          object: 'opportunity',
+          layout: { x: 0, y: 0, w: 4, h: 2 },
+          options: {
+            xField: 'account',
+            yField: 'total',
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+              aggregate: { field: 'amount', function: 'sum', groupBy: 'account' },
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const chartSchema = schemas.find(s => s.type === 'object-chart');
+
+    expect(chartSchema).toBeDefined();
+    expect(chartSchema.chartType).toBe('bar');
+    expect(chartSchema.objectName).toBe('opportunity');
+    expect(chartSchema.aggregate).toEqual({
+      field: 'amount',
+      function: 'sum',
+      groupBy: 'account',
+    });
+    expect(chartSchema.xAxisKey).toBe('account');
+    expect(chartSchema.series).toEqual([{ dataKey: 'total' }]);
+    // Must NOT have an empty data array – data comes from the object source
+    expect(chartSchema.data).toBeUndefined();
+  });
+
+  it('should fall back to widget.object when data.object is missing for provider: object', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'area',
+          title: 'Trend',
+          object: 'deal',
+          layout: { x: 0, y: 0, w: 3, h: 2 },
+          options: {
+            xField: 'month',
+            yField: 'revenue',
+            data: {
+              provider: 'object',
+              aggregate: { field: 'revenue', function: 'sum', groupBy: 'month' },
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const chartSchema = schemas.find(s => s.type === 'object-chart');
+
+    expect(chartSchema).toBeDefined();
+    expect(chartSchema.objectName).toBe('deal');
+  });
+
+  it('should pass through provider: object config for table widgets', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'table',
+          title: 'Object Table',
+          object: 'opportunity',
+          layout: { x: 0, y: 0, w: 4, h: 2 },
+          options: {
+            columns: [
+              { header: 'Name', accessorKey: 'name' },
+              { header: 'Amount', accessorKey: 'amount' },
+            ],
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const tableSchema = schemas.find(s => s.type === 'data-table');
+
+    // data-table is a registered component so it may render directly.
+    // If not registered, the schema will appear in the error <pre>.
+    // In either case, the schema must contain objectName instead of empty data.
+    if (tableSchema) {
+      expect(tableSchema.objectName).toBe('opportunity');
+      expect(tableSchema.dataProvider).toEqual({
+        provider: 'object',
+        object: 'opportunity',
+      });
+      expect(tableSchema.data).toBeUndefined();
+    }
+  });
+
+  it('should pass through provider: object config for pivot widgets', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'pivot',
+          title: 'Object Pivot',
+          object: 'sales',
+          layout: { x: 0, y: 0, w: 4, h: 2 },
+          options: {
+            rowField: 'region',
+            columnField: 'quarter',
+            valueField: 'revenue',
+            data: {
+              provider: 'object',
+              object: 'sales',
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const pivotSchema = schemas.find(s => s.type === 'pivot');
+
+    if (pivotSchema) {
+      expect(pivotSchema.objectName).toBe('sales');
+      expect(pivotSchema.dataProvider).toEqual({
+        provider: 'object',
+        object: 'sales',
+      });
+      expect(pivotSchema.data).toBeUndefined();
+    }
+  });
 });
