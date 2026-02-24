@@ -66,7 +66,7 @@ describe('ListView', () => {
     expect(container).toBeTruthy();
   });
 
-  it('should render search button', () => {
+  it('should render search input', () => {
     const schema: ListViewSchema = {
       type: 'list-view',
       objectName: 'contacts',
@@ -75,8 +75,8 @@ describe('ListView', () => {
     };
 
     renderWithProvider(<ListView schema={schema} />);
-    const searchButton = screen.getByRole('button', { name: /search/i });
-    expect(searchButton).toBeInTheDocument();
+    const searchInput = screen.getByPlaceholderText(/search/i);
+    expect(searchInput).toBeInTheDocument();
   });
 
   it('should expand search and call onSearchChange when search input changes', () => {
@@ -90,11 +90,7 @@ describe('ListView', () => {
 
     renderWithProvider(<ListView schema={schema} onSearchChange={onSearchChange} />);
     
-    // Click search button to expand
-    const searchButton = screen.getByRole('button', { name: /search/i });
-    fireEvent.click(searchButton);
-    
-    const searchInput = screen.getByPlaceholderText(/find/i);
+    const searchInput = screen.getByPlaceholderText(/search/i);
     fireEvent.change(searchInput, { target: { value: 'test' } });
     expect(onSearchChange).toHaveBeenCalledWith('test');
   });
@@ -201,17 +197,13 @@ describe('ListView', () => {
 
     renderWithProvider(<ListView schema={schema} />);
     
-    // Click search button to expand search input
-    const searchButton = screen.getByRole('button', { name: /search/i });
-    fireEvent.click(searchButton);
-    
-    const searchInput = screen.getByPlaceholderText(/find/i) as HTMLInputElement;
+    const searchInput = screen.getByPlaceholderText(/search/i) as HTMLInputElement;
     
     // Type in search
     fireEvent.change(searchInput, { target: { value: 'test' } });
     expect(searchInput.value).toBe('test');
     
-    // Find and click clear button (the X button inside the expanded search)
+    // Find and click clear button (the X button inside the search area)
     const buttons = screen.getAllByRole('button');
     const clearButton = buttons.find(btn => 
       btn.querySelector('svg') !== null && searchInput.value !== ''
@@ -603,7 +595,7 @@ describe('ListView', () => {
   // Toolbar Toggle Visibility
   // ============================
   describe('Toolbar Toggle Visibility', () => {
-    it('should hide Search button when showSearch is false', () => {
+    it('should hide Search input when showSearch is false', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
@@ -613,10 +605,10 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} />);
-      expect(screen.queryByRole('button', { name: /search/i })).not.toBeInTheDocument();
+      expect(screen.queryByPlaceholderText(/search/i)).not.toBeInTheDocument();
     });
 
-    it('should show Search button when showSearch is true', () => {
+    it('should show Search input when showSearch is true', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
@@ -626,10 +618,10 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} />);
-      expect(screen.getByRole('button', { name: /search/i })).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument();
     });
 
-    it('should show Search button when showSearch is undefined (default)', () => {
+    it('should show Search input when showSearch is undefined (default)', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
@@ -638,7 +630,7 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} />);
-      expect(screen.getByRole('button', { name: /search/i })).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument();
     });
 
     it('should hide Filter button when showFilters is false', () => {
@@ -1222,7 +1214,7 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} />);
-      expect(screen.queryByRole('button', { name: /search/i })).not.toBeInTheDocument();
+      expect(screen.queryByPlaceholderText(/search/i)).not.toBeInTheDocument();
     });
 
     it('should hide Sort when userActions.sort is false', () => {
@@ -1274,7 +1266,7 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} />);
-      expect(screen.getByRole('button', { name: /search/i })).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /^sort$/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /filter/i })).toBeInTheDocument();
       expect(screen.getByTitle(/density/i)).toBeInTheDocument();
@@ -1291,7 +1283,7 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} />);
-      expect(screen.queryByRole('button', { name: /search/i })).not.toBeInTheDocument();
+      expect(screen.queryByPlaceholderText(/search/i)).not.toBeInTheDocument();
     });
   });
 
@@ -1456,11 +1448,8 @@ describe('ListView', () => {
 
       renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
 
-      // Click search button to expand
-      const searchButton = screen.getByRole('button', { name: /search/i });
-      fireEvent.click(searchButton);
-
-      const searchInput = screen.getByPlaceholderText(/find/i);
+      // Search input is always visible inline
+      const searchInput = screen.getByPlaceholderText(/search/i);
       fireEvent.change(searchInput, { target: { value: 'alice' } });
 
       // Wait for debounced fetch

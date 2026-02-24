@@ -888,8 +888,6 @@ export const ListView: React.FC<ListViewProps> = ({
     return fields;
   }, [objectDef, schema.fields, schema.filterableFields]);
 
-  const [searchExpanded, setSearchExpanded] = React.useState(false);
-
   // Quick filter toggle handler
   const toggleQuickFilter = React.useCallback((id: string) => {
     setActiveQuickFilters(prev => {
