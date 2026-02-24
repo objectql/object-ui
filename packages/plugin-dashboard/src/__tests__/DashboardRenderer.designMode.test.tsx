@@ -3,10 +3,15 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { DashboardRenderer } from '../DashboardRenderer';
 import type { DashboardSchema } from '@object-ui/types';
 
-// Mock SchemaRenderer to avoid pulling in the full renderer tree
+// Mock SchemaRenderer to avoid pulling in the full renderer tree.
+// Forwards className and includes an interactive child to simulate real chart content.
 vi.mock('@object-ui/react', () => ({
-  SchemaRenderer: ({ schema }: { schema: any }) => (
-    <div data-testid="schema-renderer">{schema?.type ?? 'unknown'}</div>
+  SchemaRenderer: ({ schema, className }: { schema: any; className?: string }) => (
+    <div data-testid="schema-renderer" className={className}>
+      <button data-testid={`interactive-child-${schema?.type ?? 'unknown'}`}>
+        {schema?.type ?? 'unknown'}
+      </button>
+    </div>
   ),
 }));
 
@@ -246,6 +251,22 @@ describe('DashboardRenderer design mode', () => {
       expect(contentWrapper).toBeInTheDocument();
     });
 
+    it('should apply pointer-events-none to self-contained (metric) widget content', () => {
+      render(
+        <DashboardRenderer
+          schema={DASHBOARD_WITH_WIDGETS}
+          designMode
+          selectedWidgetId={null}
+          onWidgetClick={vi.fn()}
+        />,
+      );
+
+      // Metric widget — SchemaRenderer receives pointer-events-none className
+      const metricWidget = screen.getByTestId('dashboard-preview-widget-w1');
+      const contentWrapper = metricWidget.querySelector('.pointer-events-none');
+      expect(contentWrapper).toBeInTheDocument();
+    });
+
     it('should NOT apply pointer-events-none when not in design mode', () => {
       const { container } = render(<DashboardRenderer schema={DASHBOARD_WITH_WIDGETS} />);
 
@@ -283,6 +304,71 @@ describe('DashboardRenderer design mode', () => {
       // Click on the table widget (Card-based)
       fireEvent.click(screen.getByTestId('dashboard-preview-widget-w3'));
       expect(onWidgetClick).toHaveBeenCalledWith('w3');
+    });
+  });
+
+  describe('Click-capture overlay in design mode', () => {
+    it('should render a click-capture overlay on Card-based widgets in design mode', () => {
+      render(
+        <DashboardRenderer
+          schema={DASHBOARD_WITH_WIDGETS}
+          designMode
+          selectedWidgetId={null}
+          onWidgetClick={vi.fn()}
+        />,
+      );
+
+      // Card widget (bar chart) — should have an absolute overlay div
+      const barWidget = screen.getByTestId('dashboard-preview-widget-w2');
+      const overlay = barWidget.querySelector('[data-testid="widget-click-overlay"]');
+      expect(overlay).toBeInTheDocument();
+      expect(overlay?.className).toContain('absolute');
+      expect(overlay?.className).toContain('inset-0');
+      expect(overlay?.className).toContain('z-10');
+    });
+
+    it('should render a click-capture overlay on self-contained widgets in design mode', () => {
+      render(
+        <DashboardRenderer
+          schema={DASHBOARD_WITH_WIDGETS}
+          designMode
+          selectedWidgetId={null}
+          onWidgetClick={vi.fn()}
+        />,
+      );
+
+      // Metric widget — should have an absolute overlay div
+      const metricWidget = screen.getByTestId('dashboard-preview-widget-w1');
+      const overlay = metricWidget.querySelector('[data-testid="widget-click-overlay"]');
+      expect(overlay).toBeInTheDocument();
+      expect(overlay?.className).toContain('absolute');
+      expect(overlay?.className).toContain('inset-0');
+      expect(overlay?.className).toContain('z-10');
+    });
+
+    it('should NOT render overlays when not in design mode', () => {
+      const { container } = render(<DashboardRenderer schema={DASHBOARD_WITH_WIDGETS} />);
+
+      expect(container.querySelector('[data-testid="widget-click-overlay"]')).not.toBeInTheDocument();
+    });
+
+    it('should apply relative positioning to widget container in design mode', () => {
+      render(
+        <DashboardRenderer
+          schema={DASHBOARD_WITH_WIDGETS}
+          designMode
+          selectedWidgetId={null}
+          onWidgetClick={vi.fn()}
+        />,
+      );
+
+      // Card widget should have relative for overlay positioning
+      const barWidget = screen.getByTestId('dashboard-preview-widget-w2');
+      expect(barWidget.className).toContain('relative');
+
+      // Metric widget should have relative for overlay positioning
+      const metricWidget = screen.getByTestId('dashboard-preview-widget-w1');
+      expect(metricWidget.className).toContain('relative');
     });
   });
 

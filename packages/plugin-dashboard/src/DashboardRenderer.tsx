@@ -187,7 +187,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
             return (
                 <div 
                     key={widgetKey}
-                    className={cn("h-full w-full", selectionClasses)}
+                    className={cn("h-full w-full", designMode && "relative", selectionClasses)}
                     style={!isMobile && widget.layout ? {
                         gridColumn: `span ${widget.layout.w}`,
                         gridRow: `span ${widget.layout.h}`
@@ -195,6 +195,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                     {...designModeProps}
                 >
                      <SchemaRenderer schema={componentSchema} className={cn("h-full w-full", designMode && "pointer-events-none")} />
+                     {designMode && <div className="absolute inset-0 z-10" aria-hidden="true" data-testid="widget-click-overlay" />}
                 </div>
             );
         }
@@ -206,6 +207,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                     "overflow-hidden border-border/50 shadow-sm transition-all hover:shadow-md",
                     "bg-card/50 backdrop-blur-sm",
                     forceMobileFullWidth && "w-full",
+                    designMode && "relative",
                     selectionClasses
                 )}
                 style={!isMobile && widget.layout ? {
@@ -226,6 +228,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                         <SchemaRenderer schema={componentSchema} />
                     </div>
                 </CardContent>
+                {designMode && <div className="absolute inset-0 z-10" aria-hidden="true" data-testid="widget-click-overlay" />}
             </Card>
         );
     };

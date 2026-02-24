@@ -391,11 +391,13 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 **Phase 9 — Design Mode Widget Selection Click-Through Fix:**
 - [x] Fix: Widget content (charts, tables via `SchemaRenderer`) intercepted click events, preventing selection in edit mode
-- [x] Add `pointer-events-none` to `SchemaRenderer` content wrappers in `DashboardRenderer` design mode so clicks pass through to the widget Card/div selection handler
-- [x] Self-contained (metric) widgets: `pointer-events-none` applied to `SchemaRenderer` className in design mode
-- [x] Card-based (chart/table) widgets: `pointer-events-none` applied to `CardContent` inner wrapper in design mode
+- [x] Defense layer 1: `pointer-events-none` on `SchemaRenderer` content wrappers disables chart/table hover and tooltip interactivity in design mode
+- [x] Defense layer 2: Transparent click-capture overlay (`absolute inset-0 z-10`) renders on top of widget content in design mode — guarantees click reaches widget handler even if SVG children override `pointer-events`
+- [x] Self-contained (metric) widgets: both `pointer-events-none` on SchemaRenderer + overlay inside `relative` wrapper
+- [x] Card-based (chart/table) widgets: `pointer-events-none` on `CardContent` inner wrapper + overlay inside `relative` Card
 - [x] No impact on non-design mode — widgets remain fully interactive when not editing
-- [x] Add 4 new Vitest tests: pointer-events-none presence in design mode, absence in normal mode, click-to-select on Card-based widgets
+- [x] Updated SchemaRenderer mock to forward `className` and include interactive child button for more realistic testing
+- [x] Add 9 new Vitest tests: pointer-events-none presence/absence, overlay presence/absence, relative positioning, click-to-select on Card-based widgets
 
 ### P1.11 Console — Schema-Driven View Config Panel Migration
 
