@@ -19,7 +19,7 @@ import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { evaluatePlainCondition, normalizeQuickFilters } from '@object-ui/core';
+import { evaluatePlainCondition, normalizeQuickFilter, normalizeQuickFilters } from '@object-ui/core';
 import { useObjectTranslation } from '@object-ui/i18n';
 
 export interface ListViewProps {
@@ -378,7 +378,8 @@ export const ListView: React.FC<ListViewProps> = ({
   const [activeQuickFilters, setActiveQuickFilters] = React.useState<Set<string>>(() => {
     const defaults = new Set<string>();
     schema.quickFilters?.forEach(qf => {
-      if (qf.defaultActive) defaults.add(qf.id);
+      const normalized = normalizeQuickFilter(qf);
+      if (normalized.defaultActive) defaults.add(normalized.id);
     });
     return defaults;
   });
@@ -1154,7 +1155,7 @@ export const ListView: React.FC<ListViewProps> = ({
                               setGroupingConfig(newFields.length > 0 ? { fields: newFields } : undefined);
                             } else {
                               const existing = groupingConfig?.fields || [];
-                              setGroupingConfig({ fields: [...existing, { field: field.name, order: 'asc' }] });
+                              setGroupingConfig({ fields: [...existing, { field: field.name, order: 'asc', collapsed: false }] });
                             }
                           }}
                           className="rounded border-input"
@@ -1386,7 +1387,7 @@ export const ListView: React.FC<ListViewProps> = ({
             const isActive = activeQuickFilters.has(qf.id);
             const QfIcon: LucideIcon | null = qf.icon
               ? ((icons as Record<string, LucideIcon>)[
-                  qf.icon.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('')
+                  qf.icon.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
                 ] ?? null)
               : null;
             return (

@@ -13,7 +13,7 @@ const meta = {
 } satisfies Meta<typeof DashboardEditor>;
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof DashboardEditor>;
 
 function DashboardEditorWrapper(props: { schema: DashboardSchema; readOnly?: boolean }) {
   const [schema, setSchema] = useState<DashboardSchema>(props.schema);

@@ -107,13 +107,11 @@ export default defineStack({
   ],
   dashboards: [
     {
-      type: 'dashboard' as const,
       name: 'task_dashboard',
       label: 'Task Overview',
       description: 'Task metrics, status distribution, and category breakdown',
       widgets: [
         {
-          id: 'todo_total_tasks',
           title: 'Total Tasks',
           type: 'metric',
           object: 'todo_task',
@@ -125,7 +123,6 @@ export default defineStack({
           },
         },
         {
-          id: 'todo_in_progress',
           title: 'In Progress',
           type: 'metric',
           object: 'todo_task',
@@ -138,7 +135,6 @@ export default defineStack({
           },
         },
         {
-          id: 'todo_completed',
           title: 'Completed',
           type: 'metric',
           object: 'todo_task',
@@ -151,7 +147,6 @@ export default defineStack({
           },
         },
         {
-          id: 'todo_overdue',
           title: 'Overdue',
           type: 'metric',
           object: 'todo_task',
@@ -164,7 +159,6 @@ export default defineStack({
           },
         },
         {
-          id: 'todo_tasks_by_status',
           title: 'Tasks by Status',
           type: 'donut',
           object: 'todo_task',
@@ -188,7 +182,6 @@ export default defineStack({
           },
         },
         {
-          id: 'todo_tasks_by_category',
           title: 'Tasks by Category',
           type: 'bar',
           object: 'todo_task',

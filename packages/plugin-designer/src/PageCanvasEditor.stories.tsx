@@ -13,7 +13,7 @@ const meta = {
 } satisfies Meta<typeof PageCanvasEditor>;
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof PageCanvasEditor>;
 
 function PageCanvasEditorWrapper(props: { schema: PageSchema; readOnly?: boolean }) {
   const [schema, setSchema] = useState<PageSchema>(props.schema);

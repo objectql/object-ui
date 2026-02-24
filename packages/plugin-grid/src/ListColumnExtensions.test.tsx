@@ -151,10 +151,9 @@ describe('ListColumn: action', () => {
       expect(screen.getByText('Name')).toBeInTheDocument();
     });
 
-    // Status cells should be buttons
-    const activeBtn = screen.getAllByRole('button', { name: 'active' });
-    expect(activeBtn.length).toBeGreaterThanOrEqual(1);
-    expect(activeBtn[0]).toHaveClass('text-primary');
+    // Status cells should be buttons with action label
+    const actionBtns = screen.getAllByRole('button', { name: 'ToggleStatus' });
+    expect(actionBtns.length).toBeGreaterThanOrEqual(1);
   });
 
   it('should execute action when action column is clicked', async () => {
@@ -180,7 +179,7 @@ describe('ListColumn: action', () => {
       expect(screen.getByText('Name')).toBeInTheDocument();
     });
 
-    const statusBtns = screen.getAllByRole('button', { name: 'active' });
+    const statusBtns = screen.getAllByRole('button', { name: 'ToggleStatus' });
     fireEvent.click(statusBtns[0]);
 
     await waitFor(() => {

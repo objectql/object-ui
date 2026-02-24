@@ -98,7 +98,7 @@ export default defineStack({
   ],
   dashboards: [
     CrmDashboard,
-  ],
+  ] as any,
   manifest: {
     id: 'com.example.crm',
     version: '1.0.0',

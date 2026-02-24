@@ -1,12 +1,10 @@
 export const CrmDashboard = {
-  type: 'dashboard' as const,
   name: 'crm_dashboard',
   label: 'CRM Overview',
   description: 'Revenue metrics, pipeline analytics, and deal insights',
   widgets: [
     // --- KPI Row ---
     {
-      id: 'crm_total_revenue',
       title: 'Total Revenue',
       type: 'metric' as const,
       object: 'opportunity',
@@ -19,7 +17,6 @@ export const CrmDashboard = {
       }
     },
     {
-      id: 'crm_active_deals',
       title: 'Active Deals',
       type: 'metric' as const,
       object: 'opportunity',
@@ -32,7 +29,6 @@ export const CrmDashboard = {
       }
     },
     {
-      id: 'crm_win_rate',
       title: 'Win Rate',
       type: 'metric' as const,
       object: 'opportunity',
@@ -45,7 +41,6 @@ export const CrmDashboard = {
       }
     },
     {
-      id: 'crm_avg_deal_size',
       title: 'Avg Deal Size',
       type: 'metric' as const,
       object: 'opportunity',
@@ -60,7 +55,6 @@ export const CrmDashboard = {
 
     // --- Row 2: Charts ---
     {
-        id: 'crm_revenue_trends',
         title: 'Revenue Trends',
         type: 'area' as const,
         object: 'opportunity',
@@ -86,7 +80,6 @@ export const CrmDashboard = {
         },
     },
     {
-        id: 'crm_lead_source',
         title: 'Lead Source',
         type: 'donut' as const,
         object: 'opportunity',
@@ -111,7 +104,6 @@ export const CrmDashboard = {
 
     // --- Row 3: More Charts ---
     {
-        id: 'crm_pipeline_by_stage',
         title: 'Pipeline by Stage',
         type: 'bar' as const,
         object: 'opportunity',
@@ -135,7 +127,6 @@ export const CrmDashboard = {
         },
     },
     {
-        id: 'crm_top_products',
         title: 'Top Products',
         type: 'bar' as const,
         object: 'product',
@@ -160,7 +151,6 @@ export const CrmDashboard = {
 
     // --- Row 4: Table ---
     {
-        id: 'crm_recent_opportunities',
         title: 'Recent Opportunities',
         type: 'table' as const,
         object: 'opportunity',
@@ -187,7 +177,6 @@ export const CrmDashboard = {
 
     // --- Row 5: Dynamic KPI from Object Data ---
     {
-        id: 'crm_revenue_by_account',
         title: 'Revenue by Account',
         type: 'bar' as const,
         object: 'opportunity',

@@ -151,10 +151,6 @@ describe('CRM Metadata Spec Compliance', () => {
   });
 
   describe('Dashboard', () => {
-    it('has type: "dashboard"', () => {
-      expect(CrmDashboard.type).toBe('dashboard');
-    });
-
     it('has name and label', () => {
       expect(CrmDashboard.name).toBe('crm_dashboard');
       expect(CrmDashboard.label).toBeDefined();
@@ -176,13 +172,13 @@ describe('CRM Metadata Spec Compliance', () => {
       }
     });
 
-    it('all widgets have unique id', () => {
-      const ids = CrmDashboard.widgets.map((w) => w.id);
-      for (const id of ids) {
-        expect(typeof id).toBe('string');
-        expect(id!.length).toBeGreaterThan(0);
+    it('all widgets have unique title', () => {
+      const titles = CrmDashboard.widgets.map((w) => w.title);
+      for (const title of titles) {
+        expect(typeof title).toBe('string');
+        expect(title!.length).toBeGreaterThan(0);
       }
-      expect(new Set(ids).size).toBe(ids.length);
+      expect(new Set(titles).size).toBe(titles.length);
     });
 
     it('all widgets have title', () => {

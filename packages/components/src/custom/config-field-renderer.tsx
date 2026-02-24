@@ -50,7 +50,7 @@ export function ConfigFieldRenderer({
   value,
   onChange,
   draft,
-  objectDef,
+  objectDef: _objectDef,
 }: ConfigFieldRendererProps) {
   // Visibility gate
   if (field.visibleWhen && !field.visibleWhen(draft)) {
