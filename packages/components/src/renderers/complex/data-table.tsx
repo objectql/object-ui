@@ -624,10 +624,10 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       <div className="rounded-md border flex-1 min-h-0 overflow-auto relative bg-background [-webkit-overflow-scrolling:touch] shadow-[inset_-8px_0_8px_-8px_rgba(0,0,0,0.08)]">
         <Table>
           {caption && <TableCaption>{caption}</TableCaption>}
-          <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
+          <TableHeader className="sticky top-0 bg-muted/30 z-10">
             <TableRow>
               {selectable && (
-                <TableHead className={cn("w-12 bg-background", frozenColumns > 0 && "sticky left-0 z-20")}>
+                <TableHead className={cn("w-12 bg-muted/30", frozenColumns > 0 && "sticky left-0 z-20")}>
                   <Checkbox
                     checked={allPageRowsSelected ? true : somePageRowsSelected ? 'indeterminate' : false}
                     onCheckedChange={handleSelectAll}
@@ -635,7 +635,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                 </TableHead>
               )}
               {showRowNumbers && (
-                <TableHead className={cn("w-12 bg-background text-center", frozenColumns > 0 && "sticky z-20")} style={frozenColumns > 0 ? { left: selectable ? 48 : 0 } : undefined}>
+                <TableHead className={cn("w-12 bg-muted/30 text-center", frozenColumns > 0 && "sticky z-20")} style={frozenColumns > 0 ? { left: selectable ? 48 : 0 } : undefined}>
                   <span className="text-xs text-muted-foreground">#</span>
                 </TableHead>
               )}
@@ -664,7 +664,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       isDragOver && 'border-l-2 border-primary',
                       col.align === 'right' && 'text-right',
                       col.align === 'center' && 'text-center',
-                      'relative group bg-background',
+                      'relative group bg-muted/30',
                       isFrozen && 'sticky z-20',
                       isFrozen && index === frozenColumns - 1 && 'border-r-2 border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]',
                     )}
@@ -692,7 +692,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         {col.headerIcon && (
                           <span className="text-muted-foreground flex-shrink-0">{col.headerIcon}</span>
                         )}
-                        <span>{col.header}</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{col.header}</span>
                         {sortable && col.sortable !== false && getSortIcon(col.accessorKey)}
                       </div>
                       {resizableColumns && col.resizable !== false && (
@@ -707,7 +707,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                 );
               })}
               {rowActions && (
-                <TableHead className="w-24 text-right bg-background">Actions</TableHead>
+                <TableHead className="w-24 text-right bg-muted/30">Actions</TableHead>
               )}
             </TableRow>
           </TableHeader>
