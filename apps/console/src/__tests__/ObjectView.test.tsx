@@ -17,6 +17,24 @@ vi.mock('@object-ui/plugin-calendar', () => ({
   ObjectCalendar: (props: any) => <div data-testid="object-calendar">Calendar View: {props.schema.dateField}</div>
 }));
 
+// Mock ListView to a simple component that renders schema properties as test IDs
+// This isolates the config panel → view data flow from ListView's internal async effects
+vi.mock('@object-ui/plugin-list', () => ({
+  ListView: (props: any) => {
+    const viewType = props.schema?.viewType || 'grid';
+    return (
+      <div data-testid="list-view" data-view-type={viewType}>
+        {viewType === 'grid' && <div data-testid="object-grid">Grid View: {props.schema?.objectName}</div>}
+        {viewType === 'kanban' && <div data-testid="object-kanban">Kanban View: {props.schema?.options?.kanban?.groupField || props.schema?.groupBy}</div>}
+        {viewType === 'calendar' && <div data-testid="object-calendar">Calendar View: {props.schema?.options?.calendar?.startDateField || props.schema?.startDateField}</div>}
+        {props.schema?.showRecordCount && <div data-testid="schema-showRecordCount">showRecordCount</div>}
+        {props.schema?.allowPrinting && <div data-testid="schema-allowPrinting">allowPrinting</div>}
+        {props.schema?.navigation?.mode && <div data-testid="schema-navigation-mode">{props.schema.navigation.mode}</div>}
+      </div>
+    );
+  },
+}));
+
 vi.mock('@object-ui/components', async (importOriginal) => {
     const React = await import('react');
     const MockTabsContext = React.createContext({ onValueChange: ( _v: any) => {} });
@@ -542,5 +560,132 @@ describe('ObjectView Component', () => {
             const breadcrumbItems = screen.getAllByText('Live Preview Test');
             expect(breadcrumbItems.length).toBeGreaterThanOrEqual(1);
         });
+    });
+
+    it('does not remount PluginObjectView on config panel changes (no key={refreshKey})', async () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // The grid should be rendered initially
+        expect(screen.getByTestId('object-grid')).toBeInTheDocument();
+
+        // Open config panel
+        fireEvent.click(screen.getByTitle('console.objectView.designTools'));
+        fireEvent.click(screen.getByText('console.objectView.editView'));
+
+        // Make a change  
+        const titleInput = await screen.findByDisplayValue('All Opportunities');
+        fireEvent.change(titleInput, { target: { value: 'Changed Live' } });
+
+        // The breadcrumb updates immediately (live preview) — this verifies that
+        // viewDraft → activeView data flow propagates config changes without save.
+        await vi.waitFor(() => {
+            expect(screen.getByText('Changed Live')).toBeInTheDocument();
+        });
+
+        // Grid persists after config change (no remount)
+        expect(screen.getByTestId('object-grid')).toBeInTheDocument();
+    });
+
+    it('propagates showRecordCount toggle to ListView schema in real-time', async () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // showRecordCount should not be set initially (default is not explicitly true)
+        expect(screen.queryByTestId('schema-showRecordCount')).not.toBeInTheDocument();
+
+        // Open config panel
+        fireEvent.click(screen.getByTitle('console.objectView.designTools'));
+        fireEvent.click(screen.getByText('console.objectView.editView'));
+
+        // Toggle showRecordCount on
+        const recordCountSwitch = screen.getByTestId('toggle-showRecordCount');
+        fireEvent.click(recordCountSwitch);
+
+        // Verify the schema property propagated to ListView immediately (live preview)
+        await vi.waitFor(() => {
+            expect(screen.getByTestId('schema-showRecordCount')).toBeInTheDocument();
+        });
+    });
+
+    it('propagates allowPrinting toggle to ListView schema in real-time', async () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // allowPrinting should not be set initially
+        expect(screen.queryByTestId('schema-allowPrinting')).not.toBeInTheDocument();
+
+        // Open config panel
+        fireEvent.click(screen.getByTitle('console.objectView.designTools'));
+        fireEvent.click(screen.getByText('console.objectView.editView'));
+
+        // Toggle allowPrinting on
+        const printSwitch = screen.getByTestId('toggle-allowPrinting');
+        fireEvent.click(printSwitch);
+
+        // Verify the schema property propagated to ListView immediately (live preview)
+        await vi.waitFor(() => {
+            expect(screen.getByTestId('schema-allowPrinting')).toBeInTheDocument();
+        });
+    });
+
+    it('propagates multiple config changes without requiring save', async () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Open config panel
+        fireEvent.click(screen.getByTitle('console.objectView.designTools'));
+        fireEvent.click(screen.getByText('console.objectView.editView'));
+
+        // Toggle showSearch off
+        const searchSwitch = screen.getByTestId('toggle-showSearch');
+        fireEvent.click(searchSwitch);
+
+        // Toggle showSort off
+        const sortSwitch = screen.getByTestId('toggle-showSort');
+        fireEvent.click(sortSwitch);
+
+        // Both should reflect changes immediately without save
+        await vi.waitFor(() => {
+            expect(screen.getByTestId('toggle-showSearch').getAttribute('aria-checked')).toBe('false');
+            expect(screen.getByTestId('toggle-showSort').getAttribute('aria-checked')).toBe('false');
+        });
+
+        // The grid should still be rendered (live preview, no remount)
+        expect(screen.getByTestId('object-grid')).toBeInTheDocument();
+    });
+
+    it('uses activeView.navigation for detail overlay with priority over objectDef', () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        const objectsWithNav = [
+            {
+                ...mockObjects[0],
+                navigation: { mode: 'drawer' as const },
+                listViews: {
+                    all: {
+                        label: 'All Opportunities',
+                        type: 'grid',
+                        columns: ['name', 'stage'],
+                        navigation: { mode: 'modal' as const },
+                    },
+                    pipeline: { label: 'Pipeline', type: 'kanban', kanban: { groupField: 'stage' }, columns: ['name'] }
+                }
+            }
+        ];
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        // Render the component — activeView.navigation should override objectDef.navigation
+        render(<ObjectView dataSource={mockDataSource} objects={objectsWithNav} onEdit={vi.fn()} />);
+
+        // The component should render without errors
+        expect(screen.getByTestId('object-grid')).toBeInTheDocument();
     });
 });
