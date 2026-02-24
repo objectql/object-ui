@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useMemo } from 'react';
+import type { DebugFlags } from '@object-ui/core';
 
 interface SchemaRendererContextType {
   dataSource: any;
   debug?: boolean;
+  debugFlags?: DebugFlags;
 }
 
 const SchemaRendererContext = createContext<SchemaRendererContextType | null>(null);
@@ -12,13 +14,15 @@ export { SchemaRendererContext };
 export const SchemaRendererProvider = ({ 
   children, 
   dataSource, 
-  debug 
+  debug,
+  debugFlags,
 }: { 
   children: React.ReactNode; 
   dataSource: any; 
-  debug?: boolean 
+  debug?: boolean;
+  debugFlags?: DebugFlags;
 }) => {
-  const value = useMemo(() => ({ dataSource, debug }), [dataSource, debug]);
+  const value = useMemo(() => ({ dataSource, debug, debugFlags }), [dataSource, debug, debugFlags]);
   return (
     <SchemaRendererContext.Provider value={value}>
       {children}

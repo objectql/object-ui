@@ -42,3 +42,6 @@ export function initializeComponents() {
   // Simply importing this module should register all components
   return true;
 }
+
+// Debug panel (tree-shakeable — only included when imported)
+export * from './debug';

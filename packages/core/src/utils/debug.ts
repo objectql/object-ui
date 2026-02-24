@@ -6,15 +6,96 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-type DebugCategory = 'schema' | 'registry' | 'expression' | 'action' | 'plugin' | 'render';
+export type DebugCategory = 'schema' | 'registry' | 'expression' | 'action' | 'plugin' | 'render' | 'dashboard';
 
-function isDebugEnabled(): boolean {
+/**
+ * Fine-grained debug flags parsed from URL parameters.
+ *
+ * @example
+ * ```
+ * ?__debug              → { enabled: true }
+ * ?__debug_schema       → { enabled: true, schema: true }
+ * ?__debug_perf&__debug_data → { enabled: true, perf: true, data: true }
+ * ```
+ */
+export interface DebugFlags {
+  /** Master switch — true when any debug parameter is present */
+  enabled: boolean;
+  schema?: boolean;
+  perf?: boolean;
+  data?: boolean;
+  expr?: boolean;
+  events?: boolean;
+  registry?: boolean;
+}
+
+const DEBUG_PARAM_PREFIX = '__debug';
+
+/**
+ * Parse debug flags from a URL search string (e.g. `?__debug&__debug_schema`).
+ * SSR-safe — returns `{ enabled: false }` when `window` is unavailable.
+ *
+ * @param search — Optional search string. Defaults to `window.location.search` when available.
+ */
+export function parseDebugFlags(search?: string): DebugFlags {
+  let qs: string | undefined = search;
+  if (qs === undefined) {
+    try {
+      qs = typeof window !== 'undefined' ? window.location.search : '';
+    } catch {
+      qs = '';
+    }
+  }
+
+  const params = new URLSearchParams(qs);
+  const hasMain = params.has(DEBUG_PARAM_PREFIX);
+  const schema = params.has(`${DEBUG_PARAM_PREFIX}_schema`);
+  const perf = params.has(`${DEBUG_PARAM_PREFIX}_perf`);
+  const data = params.has(`${DEBUG_PARAM_PREFIX}_data`);
+  const expr = params.has(`${DEBUG_PARAM_PREFIX}_expr`);
+  const events = params.has(`${DEBUG_PARAM_PREFIX}_events`);
+  const registry = params.has(`${DEBUG_PARAM_PREFIX}_registry`);
+
+  const anySub = schema || perf || data || expr || events || registry;
+  const enabled = hasMain || anySub;
+
+  return {
+    enabled,
+    ...(schema && { schema }),
+    ...(perf && { perf }),
+    ...(data && { data }),
+    ...(expr && { expr }),
+    ...(events && { events }),
+    ...(registry && { registry }),
+  };
+}
+
+/**
+ * Check whether debug mode is enabled.
+ *
+ * Resolution order (first truthy wins):
+ * 1. URL parameter `?__debug` (browser only)
+ * 2. `globalThis.OBJECTUI_DEBUG`
+ * 3. `process.env.OBJECTUI_DEBUG`
+ */
+export function isDebugEnabled(): boolean {
   try {
+    // 1. URL parameter (browser only, SSR-safe)
+    if (typeof window !== 'undefined') {
+      try {
+        const flags = parseDebugFlags(window.location.search);
+        if (flags.enabled) return true;
+      } catch { /* ignore */ }
+    }
+
+    // 2. globalThis flag
     const g = typeof globalThis !== 'undefined' && (globalThis as any).OBJECTUI_DEBUG;
-    return (
-      (g === true || g === 'true') ||
-      (typeof process !== 'undefined' && process.env?.OBJECTUI_DEBUG === 'true')
-    );
+    if (g === true || g === 'true') return true;
+
+    // 3. process.env
+    if (typeof process !== 'undefined' && process.env?.OBJECTUI_DEBUG === 'true') return true;
+
+    return false;
   } catch {
     return false;
   }

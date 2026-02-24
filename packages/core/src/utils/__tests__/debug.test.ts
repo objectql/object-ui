@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { debugLog, debugTime, debugTimeEnd } from '../debug';
+import { debugLog, debugTime, debugTimeEnd, parseDebugFlags, isDebugEnabled } from '../debug';
 
 describe('Debug Utilities', () => {
   let consoleSpy: ReturnType<typeof vi.spyOn>;
@@ -78,6 +78,57 @@ describe('Debug Utilities', () => {
       (globalThis as any).OBJECTUI_DEBUG = true;
       debugTimeEnd('nonexistent');
       expect(consoleSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('parseDebugFlags', () => {
+    it('should return enabled:false for empty search string', () => {
+      expect(parseDebugFlags('')).toEqual({ enabled: false });
+    });
+
+    it('should detect __debug master switch', () => {
+      expect(parseDebugFlags('?__debug')).toEqual({ enabled: true });
+    });
+
+    it('should detect individual sub-flags', () => {
+      expect(parseDebugFlags('?__debug_schema')).toEqual({ enabled: true, schema: true });
+      expect(parseDebugFlags('?__debug_perf')).toEqual({ enabled: true, perf: true });
+      expect(parseDebugFlags('?__debug_data')).toEqual({ enabled: true, data: true });
+      expect(parseDebugFlags('?__debug_expr')).toEqual({ enabled: true, expr: true });
+      expect(parseDebugFlags('?__debug_events')).toEqual({ enabled: true, events: true });
+      expect(parseDebugFlags('?__debug_registry')).toEqual({ enabled: true, registry: true });
+    });
+
+    it('should combine multiple sub-flags', () => {
+      const flags = parseDebugFlags('?__debug_schema&__debug_perf&__debug_data');
+      expect(flags).toEqual({ enabled: true, schema: true, perf: true, data: true });
+    });
+
+    it('should handle unrelated params gracefully', () => {
+      const flags = parseDebugFlags('?foo=bar&baz=1');
+      expect(flags).toEqual({ enabled: false });
+    });
+
+    it('should handle __debug mixed with sub-flags', () => {
+      const flags = parseDebugFlags('?__debug&__debug_schema');
+      expect(flags).toEqual({ enabled: true, schema: true });
+    });
+  });
+
+  describe('isDebugEnabled', () => {
+    it('should return true when globalThis.OBJECTUI_DEBUG is true', () => {
+      (globalThis as any).OBJECTUI_DEBUG = true;
+      expect(isDebugEnabled()).toBe(true);
+    });
+
+    it('should return true when globalThis.OBJECTUI_DEBUG is "true"', () => {
+      (globalThis as any).OBJECTUI_DEBUG = 'true';
+      expect(isDebugEnabled()).toBe(true);
+    });
+
+    it('should return false when no debug flag is set', () => {
+      (globalThis as any).OBJECTUI_DEBUG = undefined;
+      expect(isDebugEnabled()).toBe(false);
     });
   });
 });
