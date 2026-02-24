@@ -177,6 +177,8 @@ export interface WidgetConfigPanelProps {
   onSave: (config: Record<string, any>) => void;
   /** Optional live-update callback */
   onFieldChange?: (field: string, value: any) => void;
+  /** Extra content rendered in the header row (e.g. delete button) */
+  headerExtra?: React.ReactNode;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +199,7 @@ export function WidgetConfigPanel({
   config,
   onSave,
   onFieldChange,
+  headerExtra,
 }: WidgetConfigPanelProps) {
   const { draft, isDirty, updateField, discard } = useConfigDraft(config, {
     onUpdate: onFieldChange,
@@ -212,6 +215,7 @@ export function WidgetConfigPanel({
       onFieldChange={updateField}
       onSave={() => onSave(draft)}
       onDiscard={discard}
+      headerExtra={headerExtra}
     />
   );
 }

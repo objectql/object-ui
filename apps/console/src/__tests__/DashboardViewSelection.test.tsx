@@ -1,8 +1,8 @@
 /**
  * DashboardView Selection Sync Tests
  *
- * Integration tests verifying the full click-to-select flow:
- * Preview widget click → editor panel shows properties → edit property → preview updates
+ * Integration tests verifying the full click-to-select flow with inline config panels:
+ * Preview widget click → config panel switches → edit property → preview updates
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -10,10 +10,27 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { DashboardView } from '../components/DashboardView';
 
-// Track the latest onWidgetSelect and selectedWidgetId passed to DashboardEditor
-const { editorCalls, rendererCalls } = vi.hoisted(() => ({
-  editorCalls: { selectedWidgetId: null as string | null, onWidgetSelect: null as ((id: string | null) => void) | null, lastOnChange: null as ((s: any) => void) | null },
-  rendererCalls: { designMode: false, selectedWidgetId: null as string | null, onWidgetClick: null as ((id: string | null) => void) | null },
+// Track the latest props passed to mocked components
+const { rendererCalls, dashboardConfigCalls, widgetConfigCalls } = vi.hoisted(() => ({
+  rendererCalls: {
+    designMode: false,
+    selectedWidgetId: null as string | null,
+    onWidgetClick: null as ((id: string | null) => void) | null,
+    lastSchema: null as any,
+  },
+  dashboardConfigCalls: {
+    open: false,
+    config: null as Record<string, any> | null,
+    onSave: null as ((config: Record<string, any>) => void) | null,
+    onFieldChange: null as ((field: string, value: any) => void) | null,
+  },
+  widgetConfigCalls: {
+    open: false,
+    config: null as Record<string, any> | null,
+    onSave: null as ((config: Record<string, any>) => void) | null,
+    onFieldChange: null as ((field: string, value: any) => void) | null,
+    onClose: null as (() => void) | null,
+  },
 }));
 
 // Mock MetadataProvider with a dashboard
@@ -51,12 +68,13 @@ vi.mock('../context/AdapterProvider', () => ({
   }),
 }));
 
-// Mock DashboardRenderer to capture designMode, selectedWidgetId, and onWidgetClick
+// Mock plugin-dashboard components to capture config panel interactions
 vi.mock('@object-ui/plugin-dashboard', () => ({
   DashboardRenderer: (props: any) => {
     rendererCalls.designMode = props.designMode;
     rendererCalls.selectedWidgetId = props.selectedWidgetId;
     rendererCalls.onWidgetClick = props.onWidgetClick;
+    rendererCalls.lastSchema = props.schema;
     return (
       <div data-testid="dashboard-renderer">
         <span data-testid="renderer-design-mode">{String(!!props.designMode)}</span>
@@ -74,49 +92,35 @@ vi.mock('@object-ui/plugin-dashboard', () => ({
       </div>
     );
   },
-}));
-
-// Mock DashboardEditor to capture selectedWidgetId and onWidgetSelect
-vi.mock('@object-ui/plugin-designer', () => ({
-  DashboardEditor: (props: any) => {
-    editorCalls.selectedWidgetId = props.selectedWidgetId;
-    editorCalls.onWidgetSelect = props.onWidgetSelect;
-    editorCalls.lastOnChange = props.onChange;
-    const widget = props.schema?.widgets?.find((w: any) => w.id === props.selectedWidgetId);
+  DashboardConfigPanel: (props: any) => {
+    dashboardConfigCalls.open = props.open;
+    dashboardConfigCalls.config = props.config;
+    dashboardConfigCalls.onSave = props.onSave;
+    dashboardConfigCalls.onFieldChange = props.onFieldChange;
+    if (!props.open) return null;
     return (
-      <div data-testid="dashboard-editor">
-        <span data-testid="editor-selected">{props.selectedWidgetId ?? 'none'}</span>
-        {widget && (
-          <div data-testid="editor-property-panel">
-            <span data-testid="editor-widget-title">{widget.title}</span>
-            <button
-              data-testid="editor-change-title"
-              onClick={() => {
-                const updated = {
-                  ...props.schema,
-                  widgets: props.schema.widgets.map((w: any) =>
-                    w.id === props.selectedWidgetId
-                      ? { ...w, title: 'Updated Revenue' }
-                      : w,
-                  ),
-                };
-                props.onChange(updated);
-              }}
-            >
-              Change Title
-            </button>
-          </div>
-        )}
-        {/* Clicking a widget in the editor list */}
-        {props.schema?.widgets?.map((w: any) => (
-          <button
-            key={w.id}
-            data-testid={`editor-widget-${w.id}`}
-            onClick={() => props.onWidgetSelect?.(w.id)}
-          >
-            {w.title}
-          </button>
-        ))}
+      <div data-testid="dashboard-config-panel">
+        <span data-testid="dashboard-config-title">{props.config?.title ?? 'none'}</span>
+      </div>
+    );
+  },
+  WidgetConfigPanel: (props: any) => {
+    widgetConfigCalls.open = props.open;
+    widgetConfigCalls.config = props.config;
+    widgetConfigCalls.onSave = props.onSave;
+    widgetConfigCalls.onFieldChange = props.onFieldChange;
+    widgetConfigCalls.onClose = props.onClose;
+    if (!props.open) return null;
+    return (
+      <div data-testid="widget-config-panel">
+        <span data-testid="widget-config-title">{props.config?.title ?? 'none'}</span>
+        {props.headerExtra && <div data-testid="widget-config-header-extra">{props.headerExtra}</div>}
+        <button
+          data-testid="widget-config-save"
+          onClick={() => props.onSave?.({ ...props.config, title: 'Updated Revenue' })}
+        >
+          Save
+        </button>
       </div>
     );
   },
@@ -130,23 +134,21 @@ vi.mock('sonner', () => ({
   },
 }));
 
-// Mock Radix Dialog portal to render inline for testing
-vi.mock('@radix-ui/react-dialog', async () => {
-  const actual = await vi.importActual('@radix-ui/react-dialog');
-  return {
-    ...(actual as Record<string, unknown>),
-    Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  };
-});
-
 beforeEach(() => {
   mockUpdate.mockClear();
-  editorCalls.selectedWidgetId = null;
-  editorCalls.onWidgetSelect = null;
-  editorCalls.lastOnChange = null;
   rendererCalls.designMode = false;
   rendererCalls.selectedWidgetId = null;
   rendererCalls.onWidgetClick = null;
+  rendererCalls.lastSchema = null;
+  dashboardConfigCalls.open = false;
+  dashboardConfigCalls.config = null;
+  dashboardConfigCalls.onSave = null;
+  dashboardConfigCalls.onFieldChange = null;
+  widgetConfigCalls.open = false;
+  widgetConfigCalls.config = null;
+  widgetConfigCalls.onSave = null;
+  widgetConfigCalls.onFieldChange = null;
+  widgetConfigCalls.onClose = null;
 });
 
 const renderDashboardView = async () => {
@@ -157,7 +159,6 @@ const renderDashboardView = async () => {
       </Routes>
     </MemoryRouter>,
   );
-  // Wait for the queueMicrotask loading state to resolve
   await act(async () => {
     await new Promise((r) => setTimeout(r, 10));
   });
@@ -165,14 +166,14 @@ const renderDashboardView = async () => {
 };
 
 describe('DashboardView — Selection Sync Integration', () => {
-  it('should not enable design mode when drawer is closed', async () => {
+  it('should not enable design mode when config panel is closed', async () => {
     await renderDashboardView();
 
     expect(screen.getByTestId('renderer-design-mode')).toHaveTextContent('false');
     expect(screen.getByTestId('renderer-selected')).toHaveTextContent('none');
   });
 
-  it('should enable design mode when drawer is opened', async () => {
+  it('should enable design mode when edit button is clicked', async () => {
     await renderDashboardView();
 
     await act(async () => {
@@ -182,95 +183,89 @@ describe('DashboardView — Selection Sync Integration', () => {
     expect(screen.getByTestId('renderer-design-mode')).toHaveTextContent('true');
   });
 
-  it('should sync widget selection from preview to editor when clicking a widget', async () => {
+  it('should show dashboard config panel by default (no widget selected)', async () => {
     await renderDashboardView();
 
-    // Open drawer
     await act(async () => {
       fireEvent.click(screen.getByTestId('dashboard-edit-button'));
     });
 
-    // Click widget w1 in the preview area
+    expect(screen.getByTestId('dashboard-config-panel')).toBeInTheDocument();
+    expect(screen.queryByTestId('widget-config-panel')).not.toBeInTheDocument();
+  });
+
+  it('should switch to widget config panel when a widget is selected', async () => {
+    await renderDashboardView();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('dashboard-edit-button'));
+    });
     await act(async () => {
       fireEvent.click(screen.getByTestId('renderer-widget-w1'));
     });
 
-    // Both renderer and editor should show w1 as selected
     expect(screen.getByTestId('renderer-selected')).toHaveTextContent('w1');
-    expect(screen.getByTestId('editor-selected')).toHaveTextContent('w1');
-    // Editor should show property panel for w1
-    expect(screen.getByTestId('editor-property-panel')).toBeInTheDocument();
-    expect(screen.getByTestId('editor-widget-title')).toHaveTextContent('Revenue');
+    expect(screen.getByTestId('widget-config-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('widget-config-title')).toHaveTextContent('Revenue');
   });
 
-  it('should sync widget selection from editor to preview', async () => {
+  it('should sync widget selection from preview click', async () => {
     await renderDashboardView();
 
-    // Open drawer
     await act(async () => {
       fireEvent.click(screen.getByTestId('dashboard-edit-button'));
     });
-
-    // Click widget w2 in the editor
     await act(async () => {
-      fireEvent.click(screen.getByTestId('editor-widget-w2'));
+      fireEvent.click(screen.getByTestId('renderer-widget-w2'));
     });
 
-    // Both should show w2 selected
     expect(screen.getByTestId('renderer-selected')).toHaveTextContent('w2');
-    expect(screen.getByTestId('editor-selected')).toHaveTextContent('w2');
+    expect(screen.getByTestId('widget-config-title')).toHaveTextContent('Sales Chart');
   });
 
-  it('should update preview when property is edited in the editor panel', async () => {
+  it('should update preview when widget config is saved', async () => {
     await renderDashboardView();
 
-    // Open drawer
     await act(async () => {
       fireEvent.click(screen.getByTestId('dashboard-edit-button'));
     });
-
-    // Select widget w1 in preview
     await act(async () => {
       fireEvent.click(screen.getByTestId('renderer-widget-w1'));
     });
 
-    // Edit the title in the property panel
+    // Save updated widget config
     await act(async () => {
-      fireEvent.click(screen.getByTestId('editor-change-title'));
+      fireEvent.click(screen.getByTestId('widget-config-save'));
     });
 
-    // Preview should now show the updated title
+    // Preview should reflect the updated title
     expect(screen.getByTestId('renderer-widget-w1')).toHaveTextContent('Updated Revenue');
   });
 
   it('should deselect when clicking background (null selection)', async () => {
     await renderDashboardView();
 
-    // Open drawer
     await act(async () => {
       fireEvent.click(screen.getByTestId('dashboard-edit-button'));
     });
-
-    // Select w1
     await act(async () => {
       fireEvent.click(screen.getByTestId('renderer-widget-w1'));
     });
-    expect(screen.getByTestId('editor-property-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('widget-config-panel')).toBeInTheDocument();
 
-    // Simulate background click by calling onWidgetClick(null)
+    // Simulate background click
     await act(async () => {
       rendererCalls.onWidgetClick?.(null);
     });
 
     expect(screen.getByTestId('renderer-selected')).toHaveTextContent('none');
-    expect(screen.getByTestId('editor-selected')).toHaveTextContent('none');
-    expect(screen.queryByTestId('editor-property-panel')).not.toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-config-panel')).toBeInTheDocument();
+    expect(screen.queryByTestId('widget-config-panel')).not.toBeInTheDocument();
   });
 
-  it('should clear selection when drawer is closed', async () => {
+  it('should clear selection when config panel is closed', async () => {
     await renderDashboardView();
 
-    // Open drawer and select a widget
     await act(async () => {
       fireEvent.click(screen.getByTestId('dashboard-edit-button'));
     });
@@ -279,39 +274,30 @@ describe('DashboardView — Selection Sync Integration', () => {
     });
     expect(screen.getByTestId('renderer-selected')).toHaveTextContent('w1');
 
-    // Close the drawer via the Sheet's close button (sr-only "Close" text)
-    const closeButtons = screen.getAllByRole('button', { name: /close/i });
-    const sheetCloseBtn = closeButtons.find((btn) =>
-      btn.closest('[data-testid="design-drawer"]'),
-    );
-    if (sheetCloseBtn) {
-      await act(async () => {
-        fireEvent.click(sheetCloseBtn);
-      });
-    }
+    // Close the config panel
+    await act(async () => {
+      widgetConfigCalls.onClose?.();
+    });
 
-    // After close, design mode should be off and selection cleared
     expect(screen.getByTestId('renderer-design-mode')).toHaveTextContent('false');
     expect(screen.getByTestId('renderer-selected')).toHaveTextContent('none');
   });
 
-  it('should auto-save property changes to backend', async () => {
+  it('should auto-save widget config changes to backend', async () => {
     await renderDashboardView();
 
-    // Open drawer
     await act(async () => {
       fireEvent.click(screen.getByTestId('dashboard-edit-button'));
     });
-
-    // Select and edit
     await act(async () => {
       fireEvent.click(screen.getByTestId('renderer-widget-w1'));
     });
+
+    // Save updated config
     await act(async () => {
-      fireEvent.click(screen.getByTestId('editor-change-title'));
+      fireEvent.click(screen.getByTestId('widget-config-save'));
     });
 
-    // Backend should be called with updated schema
     expect(mockUpdate).toHaveBeenCalledWith(
       'sys_dashboard',
       'sales',
@@ -321,5 +307,57 @@ describe('DashboardView — Selection Sync Integration', () => {
         ]),
       }),
     );
+  });
+
+  it('should delete widget and persist to backend', async () => {
+    await renderDashboardView();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('dashboard-edit-button'));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('renderer-widget-w1'));
+    });
+
+    // Click delete
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('widget-delete-button'));
+    });
+
+    // Widget removed from preview
+    expect(screen.queryByTestId('renderer-widget-w1')).not.toBeInTheDocument();
+    // Remaining widget still present
+    expect(screen.getByTestId('renderer-widget-w2')).toBeInTheDocument();
+    // Backend should be called without the deleted widget
+    expect(mockUpdate).toHaveBeenCalledWith(
+      'sys_dashboard',
+      'sales',
+      expect.objectContaining({
+        widgets: expect.not.arrayContaining([
+          expect.objectContaining({ id: 'w1' }),
+        ]),
+      }),
+    );
+  });
+
+  it('should update preview live when onFieldChange fires without resetting config panel', async () => {
+    await renderDashboardView();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('dashboard-edit-button'));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('renderer-widget-w1'));
+    });
+
+    // Simulate live field change
+    await act(async () => {
+      widgetConfigCalls.onFieldChange?.('title', 'Live Preview Title');
+    });
+
+    // Preview should update
+    expect(screen.getByTestId('renderer-widget-w1')).toHaveTextContent('Live Preview Title');
+    // Widget config panel should still be visible
+    expect(screen.getByTestId('widget-config-panel')).toBeInTheDocument();
   });
 });

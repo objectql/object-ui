@@ -1,10 +1,11 @@
 /**
  * DashboardView Design Interaction Tests
  *
- * Verifies the fixes for:
- * - Non-modal DesignDrawer allowing preview widget clicks
- * - Property panel appearing above widget grid when a widget is selected
- * - Click-to-select in preview area with highlight and property linkage
+ * Verifies the refactored design mode:
+ * - Inline config panel (DashboardConfigPanel / WidgetConfigPanel) on the right
+ * - Click-to-select in preview area syncs with config panel
+ * - Dashboard config panel shows when no widget selected
+ * - Widget config panel shows when a widget is selected
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -12,17 +13,24 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { DashboardView } from '../components/DashboardView';
 
-// Track calls passed to mocked components
-const { editorCalls, rendererCalls } = vi.hoisted(() => ({
-  editorCalls: {
-    selectedWidgetId: null as string | null,
-    onWidgetSelect: null as ((id: string | null) => void) | null,
-    lastSchema: null as unknown,
-  },
+// Track props passed to mocked components
+const { rendererCalls, dashboardConfigCalls, widgetConfigCalls } = vi.hoisted(() => ({
   rendererCalls: {
     designMode: false,
     selectedWidgetId: null as string | null,
     onWidgetClick: null as ((id: string | null) => void) | null,
+  },
+  dashboardConfigCalls: {
+    open: false,
+    onClose: null as (() => void) | null,
+    config: null as Record<string, any> | null,
+  },
+  widgetConfigCalls: {
+    open: false,
+    onClose: null as (() => void) | null,
+    config: null as Record<string, any> | null,
+    onSave: null as ((config: Record<string, any>) => void) | null,
+    onFieldChange: null as ((field: string, value: any) => void) | null,
   },
 }));
 
@@ -85,32 +93,30 @@ vi.mock('@object-ui/plugin-dashboard', () => ({
       </div>
     );
   },
-}));
-
-// Mock DashboardEditor to capture selection and show property panel
-vi.mock('@object-ui/plugin-designer', () => ({
-  DashboardEditor: (props: any) => {
-    editorCalls.selectedWidgetId = props.selectedWidgetId;
-    editorCalls.onWidgetSelect = props.onWidgetSelect;
-    editorCalls.lastSchema = props.schema;
-    const widget = props.schema?.widgets?.find((w: any) => w.id === props.selectedWidgetId);
+  DashboardConfigPanel: (props: any) => {
+    dashboardConfigCalls.open = props.open;
+    dashboardConfigCalls.onClose = props.onClose;
+    dashboardConfigCalls.config = props.config;
+    if (!props.open) return null;
     return (
-      <div data-testid="dashboard-editor">
-        <span data-testid="editor-selected">{props.selectedWidgetId ?? 'none'}</span>
-        {widget && (
-          <div data-testid="editor-property-panel">
-            <span data-testid="editor-widget-title">{widget.title}</span>
-          </div>
-        )}
-        {props.schema?.widgets?.map((w: any) => (
-          <button
-            key={w.id}
-            data-testid={`editor-widget-${w.id}`}
-            onClick={() => props.onWidgetSelect?.(w.id)}
-          >
-            {w.title}
-          </button>
-        ))}
+      <div data-testid="dashboard-config-panel">
+        <span data-testid="dashboard-config-columns">{props.config?.columns ?? 'none'}</span>
+        <button data-testid="dashboard-config-close" onClick={props.onClose}>Close</button>
+      </div>
+    );
+  },
+  WidgetConfigPanel: (props: any) => {
+    widgetConfigCalls.open = props.open;
+    widgetConfigCalls.onClose = props.onClose;
+    widgetConfigCalls.config = props.config;
+    widgetConfigCalls.onSave = props.onSave;
+    widgetConfigCalls.onFieldChange = props.onFieldChange;
+    if (!props.open) return null;
+    return (
+      <div data-testid="widget-config-panel">
+        <span data-testid="widget-config-title">{props.config?.title ?? 'none'}</span>
+        {props.headerExtra && <div data-testid="widget-config-header-extra">{props.headerExtra}</div>}
+        <button data-testid="widget-config-close" onClick={props.onClose}>Close</button>
       </div>
     );
   },
@@ -124,23 +130,19 @@ vi.mock('sonner', () => ({
   },
 }));
 
-// Mock Radix Dialog portal to render inline for testing
-vi.mock('@radix-ui/react-dialog', async () => {
-  const actual = await vi.importActual('@radix-ui/react-dialog');
-  return {
-    ...(actual as Record<string, unknown>),
-    Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  };
-});
-
 beforeEach(() => {
   mockUpdate.mockClear();
-  editorCalls.selectedWidgetId = null;
-  editorCalls.onWidgetSelect = null;
-  editorCalls.lastSchema = null;
   rendererCalls.designMode = false;
   rendererCalls.selectedWidgetId = null;
   rendererCalls.onWidgetClick = null;
+  dashboardConfigCalls.open = false;
+  dashboardConfigCalls.onClose = null;
+  dashboardConfigCalls.config = null;
+  widgetConfigCalls.open = false;
+  widgetConfigCalls.onClose = null;
+  widgetConfigCalls.config = null;
+  widgetConfigCalls.onSave = null;
+  widgetConfigCalls.onFieldChange = null;
 });
 
 const renderDashboardView = async () => {
@@ -151,143 +153,159 @@ const renderDashboardView = async () => {
       </Routes>
     </MemoryRouter>,
   );
-  // Wait for the queueMicrotask loading state to resolve
   await act(async () => {
     await new Promise((r) => setTimeout(r, 10));
   });
   return result;
 };
 
-const openDrawer = async () => {
+const openConfigPanel = async () => {
   await act(async () => {
     fireEvent.click(screen.getByTestId('dashboard-edit-button'));
   });
-  // Wait for lazy-loaded DashboardEditor to resolve
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 50));
-  });
 };
 
-describe('Dashboard Design Mode — Non-modal Drawer Interaction', () => {
-  it('should open drawer with non-modal behavior (no blocking overlay)', async () => {
+describe('Dashboard Design Mode — Inline Config Panel', () => {
+  it('should show dashboard config panel when edit button is clicked (no widget selected)', async () => {
     await renderDashboardView();
+    await openConfigPanel();
 
-    await openDrawer();
-
-    // Drawer should be open
-    expect(screen.getByTestId('design-drawer')).toBeInTheDocument();
-    // Design mode should be enabled
     expect(screen.getByTestId('renderer-design-mode')).toHaveTextContent('true');
-    // Both renderer and editor should be visible simultaneously
-    expect(screen.getByTestId('dashboard-renderer')).toBeInTheDocument();
-    expect(screen.getByTestId('dashboard-editor')).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-config-panel')).toBeInTheDocument();
+    expect(screen.queryByTestId('widget-config-panel')).not.toBeInTheDocument();
   });
 
-  it('should allow clicking preview widgets while drawer is open', async () => {
+  it('should show widget config panel when a widget is clicked in preview', async () => {
     await renderDashboardView();
-    await openDrawer();
+    await openConfigPanel();
 
-    // Click widget in preview area — this verifies the drawer doesn't block clicks
     await act(async () => {
       fireEvent.click(screen.getByTestId('renderer-widget-w1'));
     });
 
-    // Widget should be selected in both renderer and editor
-    expect(screen.getByTestId('renderer-selected')).toHaveTextContent('w1');
-    expect(screen.getByTestId('editor-selected')).toHaveTextContent('w1');
+    expect(screen.getByTestId('widget-config-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('widget-config-title')).toHaveTextContent('Total Revenue');
+    expect(screen.queryByTestId('dashboard-config-panel')).not.toBeInTheDocument();
   });
 
-  it('should show property panel in editor when preview widget is clicked', async () => {
+  it('should switch back to dashboard config when widget is deselected', async () => {
     await renderDashboardView();
-    await openDrawer();
-
-    // Click widget in preview
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('renderer-widget-w1'));
-    });
-
-    // Property panel should show the selected widget's properties
-    expect(screen.getByTestId('editor-property-panel')).toBeInTheDocument();
-    expect(screen.getByTestId('editor-widget-title')).toHaveTextContent('Total Revenue');
-  });
-
-  it('should show property panel when clicking editor widget list item', async () => {
-    await renderDashboardView();
-    await openDrawer();
-
-    // Click widget in editor list
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('editor-widget-w2'));
-    });
-
-    // Property panel should show for the clicked widget
-    expect(screen.getByTestId('editor-property-panel')).toBeInTheDocument();
-    expect(screen.getByTestId('editor-widget-title')).toHaveTextContent('Revenue Trends');
-    // Preview should also reflect the selection
-    expect(screen.getByTestId('renderer-selected')).toHaveTextContent('w2');
-  });
-
-  it('should switch selection between different widgets', async () => {
-    await renderDashboardView();
-    await openDrawer();
-
-    // Select w1
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('renderer-widget-w1'));
-    });
-    expect(screen.getByTestId('editor-widget-title')).toHaveTextContent('Total Revenue');
-
-    // Switch to w3
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('renderer-widget-w3'));
-    });
-    expect(screen.getByTestId('editor-widget-title')).toHaveTextContent('Pipeline by Stage');
-    expect(screen.getByTestId('renderer-selected')).toHaveTextContent('w3');
-  });
-
-  it('should deselect when clicking empty space in preview', async () => {
-    await renderDashboardView();
-    await openDrawer();
+    await openConfigPanel();
 
     // Select a widget
     await act(async () => {
       fireEvent.click(screen.getByTestId('renderer-widget-w1'));
     });
-    expect(screen.getByTestId('editor-property-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('widget-config-panel')).toBeInTheDocument();
 
-    // Deselect by calling onWidgetClick(null) (simulates background click)
+    // Deselect by clicking null
     await act(async () => {
       rendererCalls.onWidgetClick?.(null);
     });
 
-    // Property panel should be hidden
-    expect(screen.queryByTestId('editor-property-panel')).not.toBeInTheDocument();
-    expect(screen.getByTestId('renderer-selected')).toHaveTextContent('none');
+    expect(screen.getByTestId('dashboard-config-panel')).toBeInTheDocument();
+    expect(screen.queryByTestId('widget-config-panel')).not.toBeInTheDocument();
   });
 
-  it('should clear selection when drawer is closed', async () => {
+  it('should switch between different widgets', async () => {
     await renderDashboardView();
+    await openConfigPanel();
 
-    // Open drawer and select
-    await openDrawer();
     await act(async () => {
       fireEvent.click(screen.getByTestId('renderer-widget-w1'));
     });
-    expect(screen.getByTestId('renderer-selected')).toHaveTextContent('w1');
+    expect(screen.getByTestId('widget-config-title')).toHaveTextContent('Total Revenue');
 
-    // Close the drawer
-    const closeButtons = screen.getAllByRole('button', { name: /close/i });
-    const sheetCloseBtn = closeButtons.find((btn) =>
-      btn.closest('[data-testid="design-drawer"]'),
-    );
-    if (sheetCloseBtn) {
-      await act(async () => {
-        fireEvent.click(sheetCloseBtn);
-      });
-    }
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('renderer-widget-w3'));
+    });
+    expect(screen.getByTestId('widget-config-title')).toHaveTextContent('Pipeline by Stage');
+  });
 
-    // Selection should be cleared
+  it('should show add-widget toolbar in edit mode', async () => {
+    await renderDashboardView();
+    expect(screen.queryByTestId('dashboard-widget-toolbar')).not.toBeInTheDocument();
+
+    await openConfigPanel();
+    expect(screen.getByTestId('dashboard-widget-toolbar')).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-add-metric')).toBeInTheDocument();
+  });
+
+  it('should not show DesignDrawer (no Sheet overlay)', async () => {
+    await renderDashboardView();
+    await openConfigPanel();
+    expect(screen.queryByTestId('design-drawer')).not.toBeInTheDocument();
+  });
+
+  it('should close config panel and clear selection on close', async () => {
+    await renderDashboardView();
+    await openConfigPanel();
+
+    // Select a widget
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('renderer-widget-w1'));
+    });
+
+    // Close via widget config panel close button
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('widget-config-close'));
+    });
+
     expect(screen.getByTestId('renderer-design-mode')).toHaveTextContent('false');
     expect(screen.getByTestId('renderer-selected')).toHaveTextContent('none');
+  });
+
+  it('should show delete button in widget config panel header', async () => {
+    await renderDashboardView();
+    await openConfigPanel();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('renderer-widget-w1'));
+    });
+
+    expect(screen.getByTestId('widget-config-header-extra')).toBeInTheDocument();
+    expect(screen.getByTestId('widget-delete-button')).toBeInTheDocument();
+  });
+
+  it('should remove widget and switch to dashboard config when delete is clicked', async () => {
+    await renderDashboardView();
+    await openConfigPanel();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('renderer-widget-w1'));
+    });
+    expect(screen.getByTestId('widget-config-panel')).toBeInTheDocument();
+
+    // Click the delete button
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('widget-delete-button'));
+    });
+
+    // Should switch back to dashboard config (widget deselected)
+    expect(screen.getByTestId('dashboard-config-panel')).toBeInTheDocument();
+    expect(screen.queryByTestId('widget-config-panel')).not.toBeInTheDocument();
+    // Deleted widget should be removed from the preview
+    expect(screen.queryByTestId('renderer-widget-w1')).not.toBeInTheDocument();
+    // Backend should be called to persist the deletion
+    expect(mockUpdate).toHaveBeenCalled();
+  });
+
+  it('should preserve live preview when field changes via onFieldChange', async () => {
+    await renderDashboardView();
+    await openConfigPanel();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('renderer-widget-w1'));
+    });
+
+    // Simulate a live field change via onFieldChange
+    await act(async () => {
+      widgetConfigCalls.onFieldChange?.('title', 'Live Title');
+    });
+
+    // Preview should update live
+    expect(screen.getByTestId('renderer-widget-w1')).toHaveTextContent('Live Title');
+    // Config panel should still show the widget (not reset or disappear)
+    expect(screen.getByTestId('widget-config-panel')).toBeInTheDocument();
   });
 });
