@@ -21,6 +21,16 @@ const CHART_COLORS = [
   'hsl(var(--chart-5))',
 ];
 
+/** Returns true when the widget data config uses provider: 'object' (async data source). */
+function isObjectProvider(widgetData: unknown): widgetData is { provider: 'object'; object?: string; aggregate?: any } {
+  return (
+    widgetData != null &&
+    typeof widgetData === 'object' &&
+    !Array.isArray(widgetData) &&
+    (widgetData as any).provider === 'object'
+  );
+}
+
 export interface DashboardRendererProps {
   schema: DashboardSchema;
   className?: string;
@@ -114,9 +124,24 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
             if (widgetType === 'bar' || widgetType === 'line' || widgetType === 'area' || widgetType === 'pie' || widgetType === 'donut') {
                 // Support data at widget level or nested inside options
                 const widgetData = (widget as any).data || options.data;
-                const dataItems = Array.isArray(widgetData) ? widgetData : widgetData?.items || [];
                 const xAxisKey = options.xField || 'name';
                 const yField = options.yField || 'value';
+
+                // provider: 'object' — delegate to ObjectChart for async data loading
+                if (isObjectProvider(widgetData)) {
+                    return {
+                        type: 'object-chart',
+                        chartType: widgetType,
+                        objectName: widgetData.object || widget.object,
+                        aggregate: widgetData.aggregate,
+                        xAxisKey: xAxisKey,
+                        series: [{ dataKey: yField }],
+                        colors: CHART_COLORS,
+                        className: "h-[200px] sm:h-[250px] md:h-[300px]"
+                    };
+                }
+
+                const dataItems = Array.isArray(widgetData) ? widgetData : widgetData?.items || [];
                 
                 return {
                     type: 'chart',
@@ -132,6 +157,20 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
             if (widgetType === 'table') {
                 // Support data at widget level or nested inside options
                 const widgetData = (widget as any).data || options.data;
+
+                // provider: 'object' — pass through object config for async data loading
+                if (isObjectProvider(widgetData)) {
+                    return {
+                        type: 'data-table',
+                        ...options,
+                        objectName: widgetData.object || widget.object,
+                        dataProvider: widgetData,
+                        searchable: false,
+                        pagination: false,
+                        className: "border-0"
+                    };
+                }
+
                 return {
                     type: 'data-table',
                     ...options,
@@ -144,6 +183,17 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
 
             if (widgetType === 'pivot') {
                 const widgetData = (widget as any).data || options.data;
+
+                // provider: 'object' — pass through object config for async data loading
+                if (isObjectProvider(widgetData)) {
+                    return {
+                        type: 'pivot',
+                        ...options,
+                        objectName: widgetData.object || widget.object,
+                        dataProvider: widgetData,
+                    };
+                }
+
                 return {
                     type: 'pivot',
                     ...options,
