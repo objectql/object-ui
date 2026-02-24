@@ -230,7 +230,8 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     }, [dataSource, objectDef.name, refreshKey]);
 
     // Navigation overlay for record detail (supports drawer/modal/split/popover via config)
-    const detailNavigation: ViewNavigationConfig = objectDef.navigation ?? { mode: 'drawer' };
+    // Priority: activeView.navigation > objectDef.navigation > default drawer
+    const detailNavigation: ViewNavigationConfig = activeView?.navigation ?? objectDef.navigation ?? { mode: 'drawer' };
     const drawerRecordId = searchParams.get('recordId');
     const navOverlay = useNavigationOverlay({
         navigation: detailNavigation,
@@ -573,7 +574,6 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                 <div className="flex-1 min-w-0 relative h-full flex flex-col">
                     <div className="flex-1 relative overflow-auto p-3 sm:p-4">
                         <PluginObjectView
-                            key={refreshKey}
                             schema={objectViewSchema}
                             dataSource={dataSource}
                             views={mergedViews}
