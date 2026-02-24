@@ -123,10 +123,10 @@ export function formatRelativeDate(value: string | Date): string {
   if (diffDays === -1) return 'Yesterday';
   if (diffDays < -1) {
     const absDays = Math.abs(diffDays);
-    if (absDays <= 30) return `${absDays} days ago`;
+    if (absDays <= 7) return `${absDays} days ago`;
     return formatDate(date);
   }
-  if (diffDays > 1 && diffDays <= 30) return `In ${diffDays} days`;
+  if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
   return formatDate(date);
 }
 
@@ -247,6 +247,9 @@ export function PercentCellRenderer({ value, field }: CellRendererProps): React.
  * Boolean field cell renderer (Airtable-style checkbox)
  */
 export function BooleanCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  if (value == null) {
+    return <span className="text-muted-foreground/50 text-xs italic flex items-center justify-center">—</span>;
+  }
   return (
     <div className="flex items-center justify-center">
       <Checkbox checked={!!value} disabled className="pointer-events-none" />
@@ -258,10 +261,24 @@ export function BooleanCellRenderer({ value }: CellRendererProps): React.ReactEl
  * Date field cell renderer
  */
 export function DateCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
+  if (!value) return <span className="text-muted-foreground">-</span>;
   const dateField = field as any;
-  const formatted = formatDate(value, dateField.format);
+  const style = dateField.format || 'relative';
+  const formatted = formatDate(value, style);
   
-  return <span className="tabular-nums">{formatted}</span>;
+  // Determine if date is overdue (in the past)
+  const date = typeof value === 'string' ? new Date(value) : value;
+  const isOverdue = date instanceof Date && !isNaN(date.getTime()) && date < new Date(new Date().setHours(0, 0, 0, 0));
+  const isoString = date instanceof Date && !isNaN(date.getTime()) ? date.toISOString() : String(value);
+  
+  return (
+    <span
+      className={`tabular-nums${isOverdue ? ' text-red-600' : ''}`}
+      title={isoString}
+    >
+      {formatted}
+    </span>
+  );
 }
 
 /**
@@ -300,8 +317,19 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
   
   if (!value) return <span>-</span>;
   
+  // Priority semantic color mapping (auto-detect from value text)
+  const priorityColorMap: Record<string, string> = {
+    critical: 'red',
+    urgent: 'red',
+    high: 'orange',
+    medium: 'yellow',
+    normal: 'blue',
+    low: 'gray',
+    none: 'gray',
+  };
+
   // Color to Tailwind class mapping for custom Badge styling
-  const getColorClasses = (color?: string) => {
+  const getColorClasses = (color?: string, val?: string) => {
     const colorMap: Record<string, string> = {
       gray: 'bg-gray-100 text-gray-800 border-gray-300',
       red: 'bg-red-100 text-red-800 border-red-300',
@@ -313,7 +341,10 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
       purple: 'bg-purple-100 text-purple-800 border-purple-300',
       pink: 'bg-pink-100 text-pink-800 border-pink-300',
     };
-    return colorMap[color || 'blue'] || colorMap.blue;
+    // Use explicit color, then try priority semantic color, then default muted
+    const resolvedColor = color
+      || (val ? priorityColorMap[String(val).toLowerCase()] : undefined);
+    return colorMap[resolvedColor || ''] || 'bg-muted text-muted-foreground border-border';
   };
   
   // Handle multiple values
@@ -323,7 +354,7 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
         {value.map((val, idx) => {
           const option = options.find(opt => opt.value === val);
           const label = option?.label || val;
-          const colorClasses = getColorClasses(option?.color);
+          const colorClasses = getColorClasses(option?.color, val);
           
           return (
             <Badge
@@ -342,7 +373,7 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
   // Handle single value
   const option = options.find(opt => opt.value === value);
   const label = option?.label || value;
-  const colorClasses = getColorClasses(option?.color);
+  const colorClasses = getColorClasses(option?.color, value);
   
   return (
     <Badge

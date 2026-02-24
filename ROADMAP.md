@@ -810,6 +810,9 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [x] `formatRelativeDate()` function added for relative time display ("Today", "2 days ago", "Yesterday")
 - [x] DataTable/VirtualGrid header styling unified: `text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 bg-muted/30`
 - [x] Remaining hardcoded gray colors in ObjectGrid loading spinner and status badge fallback replaced with theme tokens
+- [x] Select/status type Badge rendering — `getCellRenderer()` returns `<Badge>` with color mapping from `field.options`; auto-generated options from unique data values when type is inferred; priority semantic colors (Critical→red, High→orange, Medium→yellow, Low→gray); muted default style for unconfigured colors
+- [x] Date type human-readable formatting — `DateCellRenderer` defaults to relative format ("Today", "Yesterday", "3 days ago"); overdue dates styled with red text; ISO timestamp shown as hover tooltip; `formatRelativeDate()` threshold tightened to 7 days
+- [x] Boolean type visual rendering — `BooleanCellRenderer` renders `<Checkbox disabled>` for true/false; null/undefined values display as `—`
 
 **ConfigPanelRenderer:**
 - [x] `<Separator>` added between sections for visual clarity
