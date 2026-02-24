@@ -36,17 +36,18 @@ Create an `objectstack.config.ts` to define your data models and application str
 ```typescript
 // objectstack.config.ts
 import { defineStack } from '@objectstack/spec';
+import { ObjectSchema, Field } from '@objectstack/spec/data';
 import { App } from '@objectstack/spec/ui';
 
-export const TaskObject = {
+export const TaskObject = ObjectSchema.create({
   name: 'task',
   label: 'Task',
   fields: {
-    subject: { type: 'text', required: true },
-    priority: { type: 'number', defaultValue: 1 },
-    isCompleted: { type: 'boolean', defaultValue: false }
-  }
-};
+    subject: Field.text({ label: 'Subject', required: true }),
+    priority: Field.number({ label: 'Priority', defaultValue: 5 }),
+    is_completed: Field.boolean({ label: 'Completed', defaultValue: false }),
+  },
+});
 
 export default defineStack({
   objects: [TaskObject],

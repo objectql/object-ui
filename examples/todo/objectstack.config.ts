@@ -107,8 +107,10 @@ export default defineStack({
   ],
   dashboards: [
     {
+      type: 'dashboard' as const,
       name: 'task_dashboard',
       label: 'Task Overview',
+      description: 'Task metrics, status distribution, and category breakdown',
       widgets: [
         {
           id: 'todo_total_tasks',

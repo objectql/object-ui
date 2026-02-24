@@ -17,6 +17,43 @@ export default defineStack({
     AccountObject,
     ShowcaseObject
   ],
+  views: [
+    {
+      listViews: {
+        all_fields: {
+          name: 'all_fields',
+          label: 'All Field Types',
+          type: 'grid' as const,
+          data: { provider: 'object' as const, object: 'kitchen_sink' },
+          columns: ['name', 'category', 'amount', 'price', 'percent', 'rating', 'due_date', 'is_active', 'email'],
+          sort: [{ field: 'name', order: 'asc' as const }],
+        },
+      },
+    },
+    {
+      listViews: {
+        all_showcase: {
+          name: 'all_showcase',
+          label: 'All Showcase Items',
+          type: 'grid' as const,
+          data: { provider: 'object' as const, object: 'showcase' },
+          columns: ['title', 'category', 'status', 'priority', 'price', 'start_date', 'owner_email', 'is_featured'],
+          sort: [{ field: 'title', order: 'asc' as const }],
+        },
+        showcase_board: {
+          name: 'showcase_board',
+          label: 'Status Board',
+          type: 'kanban' as const,
+          data: { provider: 'object' as const, object: 'showcase' },
+          columns: ['title', 'priority', 'owner_email', 'start_date'],
+          kanban: {
+            groupByField: 'status',
+            columns: ['title', 'priority', 'owner_email'],
+          },
+        },
+      },
+    },
+  ],
   apps: [
     App.create({
       name: 'analytics_app',
@@ -67,6 +104,7 @@ export default defineStack({
   ],
   dashboards: [
     {
+      type: 'dashboard' as const,
       name: 'showcase_dashboard',
       label: 'Platform Showcase',
       description: 'Demonstrating all dashboard widget types',

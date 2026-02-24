@@ -1,10 +1,11 @@
 import { defineStack } from '@objectstack/spec';
+import { ObjectSchema, Field } from '@objectstack/spec/data';
 import { App } from '@objectstack/spec/ui';
 
 /**
- * Task Object Definition
+ * Task Object Definition — uses ObjectSchema.create + Field.* for spec compliance
  */
-export const TaskObject = {
+export const TaskObject = ObjectSchema.create({
   name: 'task',
   label: 'Task',
   description: 'Task management object',
@@ -18,13 +19,12 @@ export const TaskObject = {
     mru: true,
   },
   fields: {
-    id: { name: 'id', label: 'ID', type: 'text', required: true },
-    subject: { name: 'subject', label: 'Subject', type: 'text', required: true },
-    priority: { name: 'priority', label: 'Priority', type: 'number', defaultValue: 5 },
-    isCompleted: { name: 'isCompleted', label: 'Completed', type: 'boolean', defaultValue: false },
-    createdAt: { name: 'createdAt', label: 'Created At', type: 'datetime' }
-  }
-};
+    subject: Field.text({ label: 'Subject', required: true }),
+    priority: Field.number({ label: 'Priority', defaultValue: 5 }),
+    is_completed: Field.boolean({ label: 'Completed', defaultValue: false }),
+    created_at: Field.datetime({ label: 'Created At', readonly: true }),
+  },
+});
 
 /**
  * App Configuration — Standard ObjectStackDefinition format
@@ -32,6 +32,20 @@ export const TaskObject = {
 export default defineStack({
   objects: [
     TaskObject
+  ],
+  views: [
+    {
+      listViews: {
+        all_tasks: {
+          name: 'all_tasks',
+          label: 'All Tasks',
+          type: 'grid' as const,
+          data: { provider: 'object' as const, object: 'task' },
+          columns: ['subject', 'priority', 'is_completed', 'created_at'],
+          sort: [{ field: 'created_at', order: 'desc' as const }],
+        },
+      },
+    },
   ],
   apps: [
     App.create({

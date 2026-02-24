@@ -2,6 +2,7 @@ export const CrmDashboard = {
   type: 'dashboard' as const,
   name: 'crm_dashboard',
   label: 'CRM Overview',
+  description: 'Revenue metrics, pipeline analytics, and deal insights',
   widgets: [
     // --- KPI Row ---
     {
