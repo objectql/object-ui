@@ -30,6 +30,9 @@ vi.mock('@object-ui/plugin-list', () => ({
         {props.schema?.showRecordCount && <div data-testid="schema-showRecordCount">showRecordCount</div>}
         {props.schema?.allowPrinting && <div data-testid="schema-allowPrinting">allowPrinting</div>}
         {props.schema?.navigation?.mode && <div data-testid="schema-navigation-mode">{props.schema.navigation.mode}</div>}
+        {props.schema?.selection?.type && <div data-testid="schema-selection-type">{props.schema.selection.type}</div>}
+        {props.schema?.addRecord?.enabled && <div data-testid="schema-addRecord-enabled">addRecord</div>}
+        {props.schema?.addRecordViaForm && <div data-testid="schema-addRecordViaForm">addRecordViaForm</div>}
       </div>
     );
   },
@@ -685,7 +688,76 @@ describe('ObjectView Component', () => {
         // Render the component — activeView.navigation should override objectDef.navigation
         render(<ObjectView dataSource={mockDataSource} objects={objectsWithNav} onEdit={vi.fn()} />);
 
-        // The component should render without errors
+        // The component should render without errors and ListView should receive
+        // the view-level navigation config (modal) instead of object-level (drawer)
         expect(screen.getByTestId('object-grid')).toBeInTheDocument();
+        expect(screen.getByTestId('schema-navigation-mode')).toHaveTextContent('modal');
+    });
+
+    it('propagates selection mode change to ListView schema in real-time', async () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Open config panel
+        fireEvent.click(screen.getByTitle('console.objectView.designTools'));
+        fireEvent.click(screen.getByText('console.objectView.editView'));
+
+        // Change selection mode to 'single'
+        const selectionSelect = screen.getByTestId('select-selection-type');
+        fireEvent.change(selectionSelect, { target: { value: 'single' } });
+
+        // Verify the selection type propagated to ListView immediately (live preview)
+        await vi.waitFor(() => {
+            expect(screen.getByTestId('schema-selection-type')).toHaveTextContent('single');
+        });
+    });
+
+    it('propagates addRecord toggle to ListView schema in real-time', async () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // addRecord should not be enabled initially
+        expect(screen.queryByTestId('schema-addRecord-enabled')).not.toBeInTheDocument();
+
+        // Open config panel
+        fireEvent.click(screen.getByTitle('console.objectView.designTools'));
+        fireEvent.click(screen.getByText('console.objectView.editView'));
+
+        // Toggle addRecord on
+        const addRecordSwitch = screen.getByTestId('toggle-addRecord-enabled');
+        fireEvent.click(addRecordSwitch);
+
+        // Verify addRecord and addRecordViaForm propagated to ListView immediately
+        await vi.waitFor(() => {
+            expect(screen.getByTestId('schema-addRecord-enabled')).toBeInTheDocument();
+            expect(screen.getByTestId('schema-addRecordViaForm')).toBeInTheDocument();
+        });
+    });
+
+    it('propagates navigation mode change from config panel to ListView schema in real-time', async () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // navigation mode should not be set initially (no explicit mode on default view)
+        expect(screen.queryByTestId('schema-navigation-mode')).not.toBeInTheDocument();
+
+        // Open config panel
+        fireEvent.click(screen.getByTitle('console.objectView.designTools'));
+        fireEvent.click(screen.getByText('console.objectView.editView'));
+
+        // Change navigation mode to 'modal'
+        const navSelect = screen.getByTestId('select-navigation-mode');
+        fireEvent.change(navSelect, { target: { value: 'modal' } });
+
+        // Verify navigation mode propagated to ListView schema immediately (live preview)
+        await vi.waitFor(() => {
+            expect(screen.getByTestId('schema-navigation-mode')).toHaveTextContent('modal');
+        });
     });
 });
