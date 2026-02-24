@@ -31,10 +31,12 @@ ComponentRegistry.register('list-view', ListView, {
     { name: 'objectName', type: 'string', label: 'Object Name', required: true },
     { name: 'viewType', type: 'enum', label: 'Default View', enum: [
       { label: 'Grid', value: 'grid' },
-      { label: 'List', value: 'list' },
       { label: 'Kanban', value: 'kanban' },
+      { label: 'Gallery', value: 'gallery' },
       { label: 'Calendar', value: 'calendar' },
-      { label: 'Chart', value: 'chart' }
+      { label: 'Timeline', value: 'timeline' },
+      { label: 'Gantt', value: 'gantt' },
+      { label: 'Map', value: 'map' },
     ], defaultValue: 'grid' },
     { name: 'fields', type: 'array', label: 'Fields' },
     { name: 'filters', type: 'array', label: 'Filters' },
@@ -61,10 +63,12 @@ ComponentRegistry.register('list', ListView, {
     { name: 'objectName', type: 'string', label: 'Object Name', required: true },
     { name: 'viewType', type: 'enum', label: 'Default View', enum: [
       { label: 'Grid', value: 'grid' },
-      { label: 'List', value: 'list' },
       { label: 'Kanban', value: 'kanban' },
+      { label: 'Gallery', value: 'gallery' },
       { label: 'Calendar', value: 'calendar' },
-      { label: 'Chart', value: 'chart' }
+      { label: 'Timeline', value: 'timeline' },
+      { label: 'Gantt', value: 'gantt' },
+      { label: 'Map', value: 'map' },
     ], defaultValue: 'grid' },
     { name: 'fields', type: 'array', label: 'Fields' },
     { name: 'filters', type: 'array', label: 'Filters' },

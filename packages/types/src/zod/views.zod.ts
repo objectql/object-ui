@@ -22,7 +22,7 @@ import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 /**
  * View Type Schema
  */
-export const ViewTypeSchema = z.enum(['list', 'detail', 'grid', 'kanban', 'calendar', 'timeline', 'map']).describe('View type');
+export const ViewTypeSchema = z.enum(['list', 'detail', 'grid', 'kanban', 'calendar', 'timeline', 'map', 'gallery', 'gantt']).describe('View type');
 
 /**
  * Detail View Field Schema
@@ -30,13 +30,25 @@ export const ViewTypeSchema = z.enum(['list', 'detail', 'grid', 'kanban', 'calen
 export const DetailViewFieldSchema = z.object({
   name: z.string().describe('Field name/path'),
   label: z.string().optional().describe('Display label'),
-  type: z.enum(['text', 'image', 'link', 'badge', 'date', 'datetime', 'json', 'html', 'markdown', 'custom']).optional().describe('Field type for rendering'),
+  type: z.enum([
+    'text', 'number', 'currency', 'percent', 'boolean', 'select', 'lookup', 'master_detail',
+    'email', 'url', 'phone', 'user',
+    'image', 'link', 'badge', 'date', 'datetime', 'json', 'html', 'markdown', 'custom',
+  ]).optional().describe('Field type for rendering'),
   format: z.string().optional().describe('Format string (e.g., date format)'),
   render: SchemaNodeSchema.optional().describe('Custom renderer'),
   value: z.any().optional().describe('Field value'),
   readonly: z.boolean().optional().describe('Whether field is read-only'),
   visible: z.union([z.boolean(), z.string()]).optional().describe('Field visibility condition'),
   span: z.number().optional().describe('Span across columns (for grid layout)'),
+  options: z.array(z.object({
+    label: z.string(),
+    value: z.union([z.string(), z.number(), z.boolean()]),
+    color: z.string().optional(),
+  })).optional().describe('Options for select/lookup fields'),
+  reference_to: z.string().optional().describe('Referenced object name for lookup/master_detail fields'),
+  reference_field: z.string().optional().describe('Display field on the referenced object'),
+  currency: z.string().optional().describe('Currency code for currency fields (e.g. USD, EUR)'),
 });
 
 /**
@@ -51,6 +63,8 @@ export const DetailViewSectionSchema = z.object({
   defaultCollapsed: z.boolean().optional().describe('Default collapsed state'),
   columns: z.number().optional().describe('Grid columns for field layout'),
   visible: z.union([z.boolean(), z.string()]).optional().describe('Section visibility condition'),
+  showBorder: z.boolean().optional().describe('Show border around section'),
+  headerColor: z.string().optional().describe('Header background color (Tailwind class)'),
 });
 
 /**

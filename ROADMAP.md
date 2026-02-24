@@ -755,6 +755,13 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [ ] Navigation `view` property: specify target form/view on record click across all plugins
 - [ ] Support App `engine` field (`{ objectstack: string }`) for version pinning (v3.0.9)
 - [ ] Integrate v3.0.9 package upgrade protocol (`PackageArtifact`, `ArtifactChecksum`, `UpgradeContext`)
+- [x] `@object-ui/types`: Align `ViewType` with spec ListView type enum — add `'gallery'` and `'gantt'` (was missing from `views.ts` and `views.zod.ts`)
+- [x] `@object-ui/types`: Sync `DetailViewFieldSchema` Zod validator with TS interface — add data-oriented field types (`number`, `currency`, `percent`, `boolean`, `select`, `lookup`, `master_detail`, `email`, `url`, `phone`, `user`) and missing properties (`options`, `reference_to`, `reference_field`, `currency`)
+- [x] `@object-ui/types`: Add `showBorder` and `headerColor` to `DetailViewSectionSchema` Zod validator (already in TS interface)
+- [x] `@object-ui/plugin-view`: Add `gallery` and `gantt` to ViewSwitcher default labels and icons
+- [x] `@object-ui/plugin-list`: Fix `list-view` and `list` registration `viewType` enum — remove invalid `'list'`/`'chart'`, add `'gallery'`/`'timeline'`/`'gantt'`/`'map'` to match spec
+- [x] `@object-ui/plugin-detail`: Add missing `detail-view` registration inputs (`layout`, `columns`, `loading`, `backUrl`, `editUrl`, `deleteConfirmation`, `header`, `footer`)
+- [x] `@object-ui/plugin-detail`: Add `showBorder` and `headerColor` inputs to `detail-section` registration
 
 ### P2.6 ListView Spec Protocol Gaps (Remaining) ✅
 

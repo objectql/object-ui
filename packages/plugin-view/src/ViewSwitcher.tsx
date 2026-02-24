@@ -26,7 +26,9 @@ import {
   Activity,
   Calendar,
   FileText,
+  GanttChartSquare,
   Grid,
+  Images,
   LayoutGrid,
   List,
   Map,
@@ -51,6 +53,8 @@ const DEFAULT_VIEW_LABELS: Record<ViewType, string> = {
   calendar: 'Calendar',
   timeline: 'Timeline',
   map: 'Map',
+  gallery: 'Gallery',
+  gantt: 'Gantt',
 };
 
 const DEFAULT_VIEW_ICONS: Record<ViewType, LucideIcon> = {
@@ -61,6 +65,8 @@ const DEFAULT_VIEW_ICONS: Record<ViewType, LucideIcon> = {
   calendar: Calendar,
   timeline: Activity,
   map: Map,
+  gallery: Images,
+  gantt: GanttChartSquare,
 };
 
 const viewSwitcherLayout = cva('flex gap-4', {
