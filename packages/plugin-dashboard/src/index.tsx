@@ -17,6 +17,8 @@ import { WidgetConfigPanel } from './WidgetConfigPanel';
 import { DashboardWithConfig } from './DashboardWithConfig';
 
 export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, PivotTable, DashboardConfigPanel, WidgetConfigPanel, DashboardWithConfig };
+export { DashboardDebugOverlay } from './DashboardDebugOverlay';
+export type { WidgetDebugInfo } from './DashboardDebugOverlay';
 
 // Register dashboard component
 ComponentRegistry.register(

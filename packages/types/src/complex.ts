@@ -568,6 +568,11 @@ export interface DashboardSchema extends BaseSchema {
   /** Auto-refresh interval in seconds. When set, the dashboard will periodically trigger onRefresh. */
   refreshInterval?: number;
   /**
+   * Enable debug mode. When true, a diagnostic overlay is rendered and
+   * detailed data-chain information is logged to the console.
+   */
+  debug?: boolean;
+  /**
    * Dashboard header configuration.
    * Aligned with @objectstack/spec DashboardHeaderSchema.
    */

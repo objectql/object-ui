@@ -3,9 +3,11 @@ import { ResponsiveGridLayout, useContainerWidth, type LayoutItem as RGLLayout, 
 import 'react-grid-layout/css/styles.css';
 import { cn, Card, CardHeader, CardTitle, CardContent, Button } from '@object-ui/components';
 import { Edit, GripVertical, Save, X, RefreshCw } from 'lucide-react';
-import { SchemaRenderer, useHasDndProvider, useDnd } from '@object-ui/react';
+import { SchemaRenderer, useHasDndProvider, useDnd, useSchemaContext } from '@object-ui/react';
+import { debugLog } from '@object-ui/core';
 import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { isObjectProvider } from './utils';
+import { DashboardDebugOverlay, type WidgetDebugInfo } from './DashboardDebugOverlay';
 
 /** Bridges editMode transitions to the ObjectUI DnD system when a DndProvider is present. */
 function DndEditModeBridge({ editMode }: { editMode: boolean }) {
@@ -52,6 +54,18 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
   const [refreshing, setRefreshing] = React.useState(false);
   const hasDndProvider = useHasDndProvider();
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // --- Debug mode ---
+  let contextDebug = false;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const ctx = useSchemaContext();
+    contextDebug = ctx?.debug === true;
+  } catch {
+    // SchemaRendererProvider may not be present
+  }
+  const debugMode = schema.debug === true || contextDebug;
+  const widgetDebugInfos = React.useRef<WidgetDebugInfo[]>([]);
 
   const handleRefresh = React.useCallback(() => {
     if (!onRefresh) return;
@@ -218,8 +232,25 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
     };
   }, []);
 
+  // --- Debug: reset per-render list & log dashboard-level context ---
+  widgetDebugInfos.current = [];
+  if (debugMode) {
+    debugLog('dashboard', 'DashboardGridLayout render', {
+      title: schema.title,
+      widgetCount: schema.widgets?.length ?? 0,
+    });
+  }
+
   return (
     <div ref={containerRef} className={cn("w-full", className)} data-testid="grid-layout">
+      {debugMode && (
+        <DashboardDebugOverlay
+          dashboardTitle={schema.title}
+          widgetCount={schema.widgets?.length ?? 0}
+          hasDataSource={false}
+          widgets={widgetDebugInfos.current}
+        />
+      )}
       {hasDndProvider && <DndEditModeBridge editMode={editMode} />}
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-2xl font-bold">{schema.title || 'Dashboard'}</h2>
@@ -277,6 +308,24 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
             const widgetId = widget.id || `widget-${index}`;
             const componentSchema = getComponentSchema(widget);
             const isSelfContained = widget.type === 'metric';
+
+            // --- Debug: collect per-widget diagnostics ---
+            if (debugMode) {
+              const widgetData = (widget as any).data || (widget.options as any)?.data;
+              const info: WidgetDebugInfo = {
+                id: widgetId,
+                title: widget.title,
+                type: widget.type,
+                resolvedType: (componentSchema as any)?.type,
+                hasData: widgetData != null,
+                isObjectProvider: isObjectProvider(widgetData),
+                objectName: widgetData?.object || widget.object,
+                hasAggregate: !!(widgetData?.aggregate),
+                dataSnapshot: widgetData,
+              };
+              widgetDebugInfos.current.push(info);
+              debugLog('dashboard', `GridLayout Widget [${widgetId}]`, info);
+            }
 
             return (
               <div key={widgetId} className="h-full">

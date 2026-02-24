@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-type DebugCategory = 'schema' | 'registry' | 'expression' | 'action' | 'plugin' | 'render';
+type DebugCategory = 'schema' | 'registry' | 'expression' | 'action' | 'plugin' | 'render' | 'dashboard';
 
 function isDebugEnabled(): boolean {
   try {
