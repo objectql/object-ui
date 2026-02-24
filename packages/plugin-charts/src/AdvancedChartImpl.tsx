@@ -84,12 +84,13 @@ export interface AdvancedChartImplProps {
  */
 export default function AdvancedChartImpl({
   chartType = 'bar',
-  data = [],
+  data: rawData = [],
   config = {},
   xAxisKey = 'name',
   series = [],
   className = '',
 }: AdvancedChartImplProps) {
+  const data = Array.isArray(rawData) ? rawData : [];
   const [isMobile, setIsMobile] = React.useState(false);
 
   React.useEffect(() => {

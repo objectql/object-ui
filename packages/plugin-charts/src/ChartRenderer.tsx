@@ -89,7 +89,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema }) => {
 
     return {
       chartType: schema.chartType,
-      data: schema.data,
+      data: Array.isArray(schema.data) ? schema.data : [],
       config,
       xAxisKey,
       series,

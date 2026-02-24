@@ -98,7 +98,8 @@ export const ObjectChart = (props: any) => {
     return () => { isMounted = false; };
   }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, schema.aggregate]);
 
-  const finalData = boundData || schema.data || fetchedData || [];
+  const rawData = boundData || schema.data || fetchedData;
+  const finalData = Array.isArray(rawData) ? rawData : [];
 
   // Merge data if not provided in schema
   const finalSchema = {
