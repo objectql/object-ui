@@ -150,7 +150,7 @@ export const LayoutRenderer = ({ app, children, currentPath, onNavigate }: Layou
   const LogoIcon = app.logo && !app.logo.includes('/') && !app.logo.includes('.') ? getIcon(app.logo) : null;
 
   return (
-    <div className={`flex min-h-screen w-full bg-slate-50/50 dark:bg-zinc-950 ${app.className || ''}`}>
+    <div className={`flex min-h-screen w-full bg-background ${app.className || ''}`}>
       {/* Sidebar - Only if configured */}
       {layout === 'sidebar' && (
         <aside 

@@ -100,7 +100,7 @@ export const TabBar: React.FC<TabBarProps> = ({
             variant="ghost"
             size="sm"
             className={cn(
-              "h-7 px-3 py-1.5 text-xs rounded-none",
+              "h-7 px-3 py-1.5 text-xs rounded-none transition-colors duration-150",
               isActive
                 ? "border-b-2 border-primary font-medium text-foreground"
                 : "text-muted-foreground hover:text-foreground"

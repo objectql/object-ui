@@ -708,8 +708,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     }
     return (
       <div className="p-4 sm:p-8 text-center">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        <p className="mt-2 text-sm text-gray-600">Loading grid...</p>
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"></div>
+        <p className="mt-2 text-sm text-muted-foreground">Loading grid...</p>
       </div>
     );
   }
@@ -909,7 +909,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         return 'bg-indigo-100 text-indigo-800 border-indigo-300';
       if (v.includes('prospecting') || v.includes('new') || v.includes('open'))
         return 'bg-purple-100 text-purple-800 border-purple-300';
-      return 'bg-gray-100 text-gray-800 border-gray-300';
+      return 'bg-muted text-muted-foreground border-border';
     };
 
     // Left border color for card accent based on stage

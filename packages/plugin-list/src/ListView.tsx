@@ -1019,7 +1019,7 @@ export const ListView: React.FC<ListViewProps> = ({
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "h-7 px-2 text-muted-foreground hover:text-primary text-xs",
+                  "h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150",
                   hiddenFields.size > 0 && "text-primary"
                 )}
               >
@@ -1078,7 +1078,7 @@ export const ListView: React.FC<ListViewProps> = ({
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "h-7 px-2 text-muted-foreground hover:text-primary text-xs",
+                  "h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150",
                   hasFilters && "bg-primary/10 border border-primary/20 text-primary"
                 )}
               >
@@ -1117,7 +1117,7 @@ export const ListView: React.FC<ListViewProps> = ({
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "h-7 px-2 text-muted-foreground hover:text-primary text-xs",
+                  "h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150",
                   groupingConfig && "bg-primary/10 border border-primary/20 text-primary"
                 )}
               >
@@ -1177,7 +1177,7 @@ export const ListView: React.FC<ListViewProps> = ({
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "h-7 px-2 text-muted-foreground hover:text-primary text-xs",
+                  "h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150",
                   currentSort.length > 0 && "bg-primary/10 border border-primary/20 text-primary"
                 )}
               >
@@ -1216,7 +1216,7 @@ export const ListView: React.FC<ListViewProps> = ({
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "h-7 px-2 text-muted-foreground hover:text-primary text-xs",
+                  "h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150",
                   rowColorConfig && "bg-primary/10 border border-primary/20 text-primary"
                 )}
               >
@@ -1281,7 +1281,7 @@ export const ListView: React.FC<ListViewProps> = ({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+                  className="h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150"
                 >
                   <Download className="h-3.5 w-3.5 mr-1.5" />
                   <span className="hidden sm:inline">Export</span>
@@ -1311,7 +1311,7 @@ export const ListView: React.FC<ListViewProps> = ({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+              className="h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150"
               title={`Sharing: ${schema.sharing?.visibility || schema.sharing?.type || 'private'}`}
               data-testid="share-button"
             >
@@ -1325,7 +1325,7 @@ export const ListView: React.FC<ListViewProps> = ({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+              className="h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150"
               onClick={() => window.print()}
               data-testid="print-button"
             >
@@ -1342,7 +1342,7 @@ export const ListView: React.FC<ListViewProps> = ({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+              className="h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150"
               data-testid="add-record-button"
               onClick={() => props.onAddRecord?.()}
             >
@@ -1456,7 +1456,7 @@ export const ListView: React.FC<ListViewProps> = ({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-muted-foreground hover:text-primary text-xs"
+            className="h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150"
             data-testid="add-record-button"
             onClick={() => props.onAddRecord?.()}
           >
