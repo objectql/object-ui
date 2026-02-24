@@ -259,6 +259,8 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 7. ~~**Export toggle broken:** ViewConfigPanel writes `allowExport: boolean` but ListView checks `exportOptions` object~~ → Export now checks both `exportOptions && allowExport !== false`; Console clears `exportOptions` when `allowExport === false` (Issue #719)
 8. ~~**`hasExport` logic bug:** `draft.allowExport !== false` was always true when undefined~~ → Fixed to `draft.allowExport === true || draft.exportOptions != null` (Issue #719)
 9. **No per-view-type integration tests:** Pending — tests verify config reaches `fullSchema`, but per-renderer integration tests still needed
+10. ~~**`key={refreshKey}` on PluginObjectView:** Console wrapped PluginObjectView with `key={refreshKey}`, which only changed on save/create, preventing live preview of config changes~~ → Removed `key={refreshKey}`; props changes now flow naturally without remounting (Issue #784)
+11. ~~**Navigation overlay not consuming `activeView.navigation`:** Detail overlay only read `objectDef.navigation`, ignoring view-level navigation config~~ → Navigation now uses priority: `activeView.navigation > objectDef.navigation > default drawer` (Issue #784)
 
 **Phase 1 — Grid/Table View (baseline, already complete):**
 - [x] `gridSchema` includes `striped`/`bordered` from `activeView`
