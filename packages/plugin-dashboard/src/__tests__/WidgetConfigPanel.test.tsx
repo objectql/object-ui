@@ -231,4 +231,106 @@ describe('WidgetConfigPanel', () => {
     const descInput = screen.getByTestId('config-field-description') as HTMLInputElement;
     expect(descInput.value).toBe('Monthly revenue breakdown');
   });
+
+  // ---- Searchable combobox tests (availableObjects / availableFields) ------
+
+  describe('with availableObjects', () => {
+    const objects = [
+      { value: 'accounts', label: 'Accounts' },
+      { value: 'contacts', label: 'Contacts' },
+      { value: 'orders', label: 'Orders' },
+    ];
+
+    it('should render data source as a combobox when availableObjects provided', () => {
+      render(
+        <WidgetConfigPanel
+          open={true}
+          onClose={vi.fn()}
+          config={defaultWidgetConfig}
+          onSave={vi.fn()}
+          availableObjects={objects}
+        />,
+      );
+      // The data source field should be a combobox (not a text input)
+      const wrapper = screen.getByTestId('config-field-object');
+      const comboboxBtn = wrapper.querySelector('[role="combobox"]');
+      expect(comboboxBtn).toBeTruthy();
+    });
+
+    it('should render data source as an input when no availableObjects', () => {
+      render(
+        <WidgetConfigPanel
+          open={true}
+          onClose={vi.fn()}
+          config={defaultWidgetConfig}
+          onSave={vi.fn()}
+        />,
+      );
+      const objectField = screen.getByTestId('config-field-object');
+      expect(objectField.tagName).toBe('INPUT');
+    });
+
+    it('should render category/value fields as comboboxes when availableObjects provided', () => {
+      const fields = [
+        { value: 'name', label: 'Name' },
+        { value: 'status', label: 'Status' },
+      ];
+      render(
+        <WidgetConfigPanel
+          open={true}
+          onClose={vi.fn()}
+          config={defaultWidgetConfig}
+          onSave={vi.fn()}
+          availableObjects={objects}
+          availableFields={fields}
+        />,
+      );
+      const catWrapper = screen.getByTestId('config-field-categoryField');
+      expect(catWrapper.querySelector('[role="combobox"]')).toBeTruthy();
+      const valWrapper = screen.getByTestId('config-field-valueField');
+      expect(valWrapper.querySelector('[role="combobox"]')).toBeTruthy();
+    });
+
+    it('should disable field comboboxes when object is not selected', () => {
+      const configWithNoObject = { ...defaultWidgetConfig, object: '' };
+      render(
+        <WidgetConfigPanel
+          open={true}
+          onClose={vi.fn()}
+          config={configWithNoObject}
+          onSave={vi.fn()}
+          availableObjects={objects}
+        />,
+      );
+      const catWrapper = screen.getByTestId('config-field-categoryField');
+      const catBtn = catWrapper.querySelector('[role="combobox"]');
+      expect(catBtn).toHaveAttribute('disabled');
+      const valWrapper = screen.getByTestId('config-field-valueField');
+      const valBtn = valWrapper.querySelector('[role="combobox"]');
+      expect(valBtn).toHaveAttribute('disabled');
+    });
+
+    it('should not disable field comboboxes when object is selected', () => {
+      const fields = [
+        { value: 'name', label: 'Name' },
+        { value: 'amount', label: 'Amount' },
+      ];
+      render(
+        <WidgetConfigPanel
+          open={true}
+          onClose={vi.fn()}
+          config={defaultWidgetConfig}
+          onSave={vi.fn()}
+          availableObjects={objects}
+          availableFields={fields}
+        />,
+      );
+      const catWrapper = screen.getByTestId('config-field-categoryField');
+      const catBtn = catWrapper.querySelector('[role="combobox"]');
+      expect(catBtn).not.toHaveAttribute('disabled');
+      const valWrapper = screen.getByTestId('config-field-valueField');
+      const valBtn = valWrapper.querySelector('[role="combobox"]');
+      expect(valBtn).not.toHaveAttribute('disabled');
+    });
+  });
 });

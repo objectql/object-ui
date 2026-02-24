@@ -10,7 +10,9 @@ import * as React from 'react';
 import {
   ConfigPanelRenderer,
   useConfigDraft,
+  Combobox,
 } from '@object-ui/components';
+import { ConfigRow } from '@object-ui/components';
 import type { ConfigPanelSchema, ConfigField } from '@object-ui/components';
 
 // ---------------------------------------------------------------------------
@@ -50,117 +52,199 @@ const AGGREGATE_OPTIONS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Schema — describes the WidgetConfigPanel structure
+// Schema builder — creates a ConfigPanelSchema with dynamic options for
+// object/field selectors when metadata is available.
 // ---------------------------------------------------------------------------
 
-const widgetSchema: ConfigPanelSchema = {
-  breadcrumb: ['Dashboard', 'Widget'],
-  sections: [
-    {
-      key: 'general',
-      title: 'General',
-      fields: [
-        {
-          key: 'title',
-          label: 'Title',
-          type: 'input',
-          placeholder: 'Widget title',
-        },
-        {
-          key: 'description',
-          label: 'Description',
-          type: 'input',
-          placeholder: 'Widget description',
-        },
-        {
-          key: 'type',
-          label: 'Widget type',
-          type: 'select',
-          options: WIDGET_TYPE_OPTIONS,
-          defaultValue: 'metric',
-        },
-      ],
-    },
-    {
-      key: 'data',
-      title: 'Data Binding',
-      collapsible: true,
-      fields: [
-        {
-          key: 'object',
-          label: 'Data source',
-          type: 'input',
-          placeholder: 'Object name',
-        },
-        {
-          key: 'categoryField',
-          label: 'Category field',
-          type: 'input',
-          placeholder: 'e.g. status',
-        },
-        {
-          key: 'valueField',
-          label: 'Value field',
-          type: 'input',
-          placeholder: 'e.g. amount',
-        },
-        {
-          key: 'aggregate',
-          label: 'Aggregation',
-          type: 'select',
-          options: AGGREGATE_OPTIONS,
-          defaultValue: 'count',
-        },
-      ],
-    },
-    {
-      key: 'layout',
-      title: 'Layout',
-      collapsible: true,
-      fields: [
-        {
-          key: 'layoutW',
-          label: 'Width (columns)',
-          type: 'slider',
-          min: 1,
-          max: 12,
-          step: 1,
-          defaultValue: 1,
-        },
-        {
-          key: 'layoutH',
-          label: 'Height (rows)',
-          type: 'slider',
-          min: 1,
-          max: 6,
-          step: 1,
-          defaultValue: 1,
-        },
-      ],
-    },
-    {
-      key: 'appearance',
-      title: 'Appearance',
-      collapsible: true,
-      defaultCollapsed: true,
-      fields: [
-        {
-          key: 'colorVariant',
-          label: 'Color variant',
-          type: 'select',
-          options: COLOR_VARIANT_OPTIONS,
-          defaultValue: 'default',
-        },
-        {
-          key: 'actionUrl',
-          label: 'Action URL',
-          type: 'input',
-          placeholder: 'https://...',
-        },
-      ],
-    },
-  ],
-};
+export type SelectOption = { value: string; label: string };
+
+function buildWidgetSchema(
+  availableObjects?: SelectOption[],
+  availableFields?: SelectOption[],
+): ConfigPanelSchema {
+  const hasObjects = availableObjects && availableObjects.length > 0;
+  const hasFields = availableFields && availableFields.length > 0;
+
+  const objectField: ConfigField = hasObjects
+    ? {
+        key: 'object',
+        label: 'Data source',
+        type: 'custom',
+        render: (value: any, onChange: (v: any) => void) => (
+          <ConfigRow label="Data source">
+            <div data-testid="config-field-object">
+              <Combobox
+                options={availableObjects}
+                value={value ?? ''}
+                onValueChange={onChange}
+                placeholder="Select object…"
+                searchPlaceholder="Search objects…"
+                emptyText="No objects found."
+                className="h-7 w-32 text-xs"
+              />
+            </div>
+          </ConfigRow>
+        ),
+      }
+    : {
+        key: 'object',
+        label: 'Data source',
+        type: 'input',
+        placeholder: 'Object name',
+      };
+
+  const categoryFieldDef: ConfigField = hasObjects
+    ? {
+        key: 'categoryField',
+        label: 'Category field',
+        type: 'custom',
+        render: (value: any, onChange: (v: any) => void, draft: Record<string, any>) => (
+          <ConfigRow label="Category field">
+            <div data-testid="config-field-categoryField">
+              <Combobox
+                options={hasFields ? availableFields : []}
+                value={value ?? ''}
+                onValueChange={onChange}
+                placeholder="Select field…"
+                searchPlaceholder="Search fields…"
+                emptyText="No fields found."
+                className="h-7 w-32 text-xs"
+                disabled={!draft.object}
+              />
+            </div>
+          </ConfigRow>
+        ),
+      }
+    : {
+        key: 'categoryField',
+        label: 'Category field',
+        type: 'input',
+        placeholder: 'e.g. status',
+      };
+
+  const valueFieldDef: ConfigField = hasObjects
+    ? {
+        key: 'valueField',
+        label: 'Value field',
+        type: 'custom',
+        render: (value: any, onChange: (v: any) => void, draft: Record<string, any>) => (
+          <ConfigRow label="Value field">
+            <div data-testid="config-field-valueField">
+              <Combobox
+                options={hasFields ? availableFields : []}
+                value={value ?? ''}
+                onValueChange={onChange}
+                placeholder="Select field…"
+                searchPlaceholder="Search fields…"
+                emptyText="No fields found."
+                className="h-7 w-32 text-xs"
+                disabled={!draft.object}
+              />
+            </div>
+          </ConfigRow>
+        ),
+      }
+    : {
+        key: 'valueField',
+        label: 'Value field',
+        type: 'input',
+        placeholder: 'e.g. amount',
+      };
+
+  return {
+    breadcrumb: ['Dashboard', 'Widget'],
+    sections: [
+      {
+        key: 'general',
+        title: 'General',
+        fields: [
+          {
+            key: 'title',
+            label: 'Title',
+            type: 'input',
+            placeholder: 'Widget title',
+          },
+          {
+            key: 'description',
+            label: 'Description',
+            type: 'input',
+            placeholder: 'Widget description',
+          },
+          {
+            key: 'type',
+            label: 'Widget type',
+            type: 'select',
+            options: WIDGET_TYPE_OPTIONS,
+            defaultValue: 'metric',
+          },
+        ],
+      },
+      {
+        key: 'data',
+        title: 'Data Binding',
+        collapsible: true,
+        fields: [
+          objectField,
+          categoryFieldDef,
+          valueFieldDef,
+          {
+            key: 'aggregate',
+            label: 'Aggregation',
+            type: 'select',
+            options: AGGREGATE_OPTIONS,
+            defaultValue: 'count',
+          },
+        ],
+      },
+      {
+        key: 'layout',
+        title: 'Layout',
+        collapsible: true,
+        fields: [
+          {
+            key: 'layoutW',
+            label: 'Width (columns)',
+            type: 'slider',
+            min: 1,
+            max: 12,
+            step: 1,
+            defaultValue: 1,
+          },
+          {
+            key: 'layoutH',
+            label: 'Height (rows)',
+            type: 'slider',
+            min: 1,
+            max: 6,
+            step: 1,
+            defaultValue: 1,
+          },
+        ],
+      },
+      {
+        key: 'appearance',
+        title: 'Appearance',
+        collapsible: true,
+        defaultCollapsed: true,
+        fields: [
+          {
+            key: 'colorVariant',
+            label: 'Color variant',
+            type: 'select',
+            options: COLOR_VARIANT_OPTIONS,
+            defaultValue: 'default',
+          },
+          {
+            key: 'actionUrl',
+            label: 'Action URL',
+            type: 'input',
+            placeholder: 'https://...',
+          },
+        ],
+      },
+    ],
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Props
@@ -179,6 +263,10 @@ export interface WidgetConfigPanelProps {
   onFieldChange?: (field: string, value: any) => void;
   /** Extra content rendered in the header row (e.g. delete button) */
   headerExtra?: React.ReactNode;
+  /** Available data-source objects for dropdown selection */
+  availableObjects?: SelectOption[];
+  /** Available fields of the currently selected object for dropdown selection */
+  availableFields?: SelectOption[];
 }
 
 // ---------------------------------------------------------------------------
@@ -200,16 +288,23 @@ export function WidgetConfigPanel({
   onSave,
   onFieldChange,
   headerExtra,
+  availableObjects,
+  availableFields,
 }: WidgetConfigPanelProps) {
   const { draft, isDirty, updateField, discard } = useConfigDraft(config, {
     onUpdate: onFieldChange,
   });
 
+  const schema = React.useMemo(
+    () => buildWidgetSchema(availableObjects, availableFields),
+    [availableObjects, availableFields],
+  );
+
   return (
     <ConfigPanelRenderer
       open={open}
       onClose={onClose}
-      schema={widgetSchema}
+      schema={schema}
       draft={draft}
       isDirty={isDirty}
       onFieldChange={updateField}

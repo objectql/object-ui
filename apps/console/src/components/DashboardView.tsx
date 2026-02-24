@@ -52,6 +52,27 @@ function createWidgetId(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Ensure every widget in the schema has a unique id. */
+function ensureWidgetIds(schema: DashboardSchema): DashboardSchema {
+  if (!schema.widgets?.length) return schema;
+  const needsFix = schema.widgets.some((w) => !w.id);
+  if (!needsFix) return schema;
+  return {
+    ...schema,
+    widgets: schema.widgets.map((w) => (w.id ? w : { ...w, id: createWidgetId() })),
+  };
+}
+
+/** Resolve a human-friendly default title for a new widget type. */
+function defaultWidgetTitle(type: string): string {
+  const entry = WIDGET_TYPES.find((t) => t.type === type);
+  return entry ? `New ${entry.label}` : 'New Widget';
+}
+
+// ---------------------------------------------------------------------------
 // Helpers: flatten / unflatten widget config for WidgetConfigPanel
 // ---------------------------------------------------------------------------
 
@@ -120,7 +141,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
     queueMicrotask(() => setIsLoading(false));
   }, [dashboardName]);
 
-  const { dashboards } = useMetadata();
+  const { dashboards, objects: metadataObjects } = useMetadata();
   const dashboard = dashboards?.find((d: any) => d.name === dashboardName);
 
   // Local schema state for live preview — initialized from metadata
@@ -142,7 +163,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
 
   // ---- Open / close config panel ------------------------------------------
   const handleOpenConfigPanel = useCallback(() => {
-    setEditSchema(dashboard as DashboardSchema);
+    setEditSchema(ensureWidgetIds(dashboard as DashboardSchema));
     setConfigPanelOpen(true);
     setConfigVersion((v) => v + 1);
   }, [dashboard]);
@@ -159,7 +180,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
       const id = createWidgetId();
       const newWidget: DashboardWidgetSchema = {
         id,
-        title: '',
+        title: defaultWidgetTitle(type),
         type,
         layout: {
           x: 0,
@@ -290,6 +311,33 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
     [selectedWidgetId],
   );
 
+  // ---- Metadata-driven dropdown options -----------------------------------
+  const availableObjects = useMemo(() => {
+    if (!metadataObjects?.length) return undefined;
+    return metadataObjects.map((obj: any) => ({
+      value: obj.name,
+      label: obj.label || obj.name,
+    }));
+  }, [metadataObjects]);
+
+  const availableFields = useMemo(() => {
+    const objectName = selectedWidget?.object;
+    if (!objectName || !metadataObjects?.length) return undefined;
+    const obj = metadataObjects.find((o: any) => o.name === objectName);
+    if (!obj?.fields) return undefined;
+    const fields = obj.fields;
+    if (Array.isArray(fields)) {
+      return fields
+        .filter((f: any) => f.name)
+        .map((f: any) => ({ value: f.name, label: f.label || f.name }));
+    }
+    // fields can be Record<string, FieldMetadata>
+    return Object.entries(fields).map(([key, f]: [string, any]) => ({
+      value: key,
+      label: f.label || key,
+    }));
+  }, [selectedWidget?.object, metadataObjects]);
+
   // ---- Loading / not-found guards -----------------------------------------
   if (isLoading) {
     return <SkeletonDashboard />;
@@ -377,6 +425,8 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
              config={widgetConfig}
              onSave={handleWidgetConfigSave}
              onFieldChange={handleWidgetFieldChange}
+             availableObjects={availableObjects}
+             availableFields={availableFields}
              headerExtra={
                <Button
                  size="sm"
