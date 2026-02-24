@@ -49,6 +49,28 @@ export function aggregateRecords(
   });
 }
 
+/**
+ * Extract an array of records from various API response formats.
+ * Supports: raw array, { records: [] }, { data: [] }, { value: [] }.
+ */
+export function extractRecords(results: unknown): any[] {
+  if (Array.isArray(results)) {
+    return results;
+  }
+  if (results && typeof results === 'object') {
+    if (Array.isArray((results as any).records)) {
+      return (results as any).records;
+    }
+    if (Array.isArray((results as any).data)) {
+      return (results as any).data;
+    }
+    if (Array.isArray((results as any).value)) {
+      return (results as any).value;
+    }
+  }
+  return [];
+}
+
 export const ObjectChart = (props: any) => {
   const { schema } = props;
   const context = useSchemaContext();
@@ -68,14 +90,7 @@ export const ObjectChart = (props: any) => {
                $filter: schema.filter
             });
             
-            let data: any[] = [];
-            if (Array.isArray(results)) {
-                data = results;
-            } else if (results && typeof results === 'object') {
-                if (Array.isArray((results as any).records)) {
-                    data = (results as any).records;
-                }
-            }
+            let data: any[] = extractRecords(results);
 
             // Apply client-side aggregation when aggregate config is provided
             if (schema.aggregate && data.length > 0) {

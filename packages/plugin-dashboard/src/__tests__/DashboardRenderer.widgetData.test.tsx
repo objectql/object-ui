@@ -296,7 +296,7 @@ describe('DashboardRenderer widget data extraction', () => {
       groupBy: 'account',
     });
     expect(chartSchema.xAxisKey).toBe('account');
-    expect(chartSchema.series).toEqual([{ dataKey: 'total' }]);
+    expect(chartSchema.series).toEqual([{ dataKey: 'amount' }]);
     // Must NOT have an empty data array – data comes from the object source
     expect(chartSchema.data).toBeUndefined();
   });
@@ -410,5 +410,69 @@ describe('DashboardRenderer widget data extraction', () => {
       });
       expect(pivotSchema.data).toBeUndefined();
     }
+  });
+
+  it('should use yField as series dataKey when provider: object has no aggregate', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'line',
+          title: 'No Aggregate',
+          object: 'opportunity',
+          layout: { x: 0, y: 0, w: 4, h: 2 },
+          options: {
+            xField: 'date',
+            yField: 'revenue',
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const chartSchema = schemas.find(s => s.type === 'object-chart');
+
+    expect(chartSchema).toBeDefined();
+    expect(chartSchema.series).toEqual([{ dataKey: 'revenue' }]);
+  });
+
+  it('should auto-adapt series dataKey from aggregate.field even when yField differs', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'bar',
+          title: 'Mismatched yField',
+          object: 'opportunity',
+          layout: { x: 0, y: 0, w: 4, h: 2 },
+          options: {
+            xField: 'account',
+            yField: 'total',
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+              aggregate: { field: 'amount', function: 'sum', groupBy: 'account' },
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const chartSchema = schemas.find(s => s.type === 'object-chart');
+
+    expect(chartSchema).toBeDefined();
+    // Even though yField is 'total', the series should use aggregate.field ('amount')
+    expect(chartSchema.series).toEqual([{ dataKey: 'amount' }]);
   });
 });

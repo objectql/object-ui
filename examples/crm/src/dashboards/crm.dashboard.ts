@@ -181,12 +181,12 @@ export const CrmDashboard = {
         type: 'bar' as const,
         object: 'opportunity',
         categoryField: 'account',
-        valueField: 'total',
+        valueField: 'amount',
         aggregate: 'sum',
         layout: { x: 0, y: 7, w: 4, h: 2 },
         options: {
             xField: 'account',
-            yField: 'total',
+            yField: 'amount',
             data: {
                 provider: 'object' as const,
                 object: 'opportunity',

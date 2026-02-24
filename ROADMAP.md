@@ -854,6 +854,7 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [x] **P1: Opportunity ↔ Contact Junction** — `opportunity_contacts` object with role-based relationships + 7 seed records
 - [x] **P1: Contact ↔ Event Attendees** — `participants` field populated on all event seed data
 - [x] **P2: Dashboard Dynamic Data** — "Revenue by Account" widget using `provider: 'object'` aggregation. DashboardRenderer now delegates `provider: 'object'` widgets to ObjectChart (`type: 'object-chart'`) for async data loading + client-side aggregation (sum/count/avg/min/max)
+- [x] **P2: Fix Revenue by Account Chart** — Fixed 3 bugs preventing "Revenue by Account" chart from displaying data: (1) ObjectChart `extractRecords()` now handles `results.data` and `results.value` response formats in addition to `results.records`, (2) DashboardRenderer auto-adapts series `dataKey` from `aggregate.field` when aggregate config is present, (3) CRM dashboard `yField` aligned to aggregate field `amount` (was `total`). Added 10 new tests.
 - [x] **P2: App Branding** — `logo`, `favicon`, `backgroundColor` fields on CRM app
 - [x] **P3: Pages** — Settings page (utility) and Getting Started page (onboarding)
 - [x] **P2: Spec Compliance Audit** — Fixed `variant: 'danger'` → `'destructive'` (4 actions), `columns: string` → `number` (33 form sections), added `type: 'dashboard'` to dashboard

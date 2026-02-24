@@ -129,13 +129,17 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
 
                 // provider: 'object' — delegate to ObjectChart for async data loading
                 if (isObjectProvider(widgetData)) {
+                    // When aggregate is configured, use the aggregate field as the
+                    // series dataKey so it matches the output of aggregateRecords()
+                    // which produces { [groupBy]: key, [field]: result }.
+                    const effectiveYField = widgetData.aggregate?.field || yField;
                     return {
                         type: 'object-chart',
                         chartType: widgetType,
                         objectName: widgetData.object || widget.object,
                         aggregate: widgetData.aggregate,
                         xAxisKey: xAxisKey,
-                        series: [{ dataKey: yField }],
+                        series: [{ dataKey: effectiveYField }],
                         colors: CHART_COLORS,
                         className: "h-[200px] sm:h-[250px] md:h-[300px]"
                     };
