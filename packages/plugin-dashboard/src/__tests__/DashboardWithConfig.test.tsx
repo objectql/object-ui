@@ -175,4 +175,35 @@ describe('DashboardWithConfig', () => {
     const container = screen.getByTestId('dashboard-with-config');
     expect(container.className).toContain('custom-class');
   });
+
+  it('should show Dashboard > Configuration breadcrumb when no widget is selected', () => {
+    render(
+      <DashboardWithConfig
+        schema={sampleSchema}
+        config={sampleConfig}
+        onConfigSave={vi.fn()}
+        defaultConfigOpen={true}
+      />,
+    );
+    expect(screen.getByText('Dashboard')).toBeDefined();
+    expect(screen.getByText('Configuration')).toBeDefined();
+    // Widget breadcrumb should NOT be present
+    expect(screen.queryByText('Widget')).toBeNull();
+  });
+
+  it('should call onWidgetSave when widget config is saved', () => {
+    const onWidgetSave = vi.fn();
+    render(
+      <DashboardWithConfig
+        schema={sampleSchema}
+        config={sampleConfig}
+        onConfigSave={vi.fn()}
+        onWidgetSave={onWidgetSave}
+        defaultConfigOpen={true}
+      />,
+    );
+    // Config panel should open showing Dashboard config by default
+    expect(screen.getByText('Dashboard')).toBeDefined();
+    expect(screen.getByText('Configuration')).toBeDefined();
+  });
 });

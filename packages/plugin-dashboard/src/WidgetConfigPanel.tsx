@@ -10,7 +10,9 @@ import * as React from 'react';
 import {
   ConfigPanelRenderer,
   useConfigDraft,
+  Combobox,
 } from '@object-ui/components';
+import { ConfigRow } from '@object-ui/components';
 import type { ConfigPanelSchema, ConfigField } from '@object-ui/components';
 
 // ---------------------------------------------------------------------------
@@ -67,9 +69,22 @@ function buildWidgetSchema(
     ? {
         key: 'object',
         label: 'Data source',
-        type: 'select',
-        options: availableObjects,
-        placeholder: 'Select object…',
+        type: 'custom',
+        render: (value: any, onChange: (v: any) => void) => (
+          <ConfigRow label="Data source">
+            <div data-testid="config-field-object">
+              <Combobox
+                options={availableObjects}
+                value={value ?? ''}
+                onValueChange={onChange}
+                placeholder="Select object…"
+                searchPlaceholder="Search objects…"
+                emptyText="No objects found."
+                className="h-7 w-32 text-xs"
+              />
+            </div>
+          </ConfigRow>
+        ),
       }
     : {
         key: 'object',
@@ -82,10 +97,23 @@ function buildWidgetSchema(
     ? {
         key: 'categoryField',
         label: 'Category field',
-        type: 'select',
-        options: hasFields ? availableFields : [],
-        placeholder: 'Select field…',
-        disabledWhen: (draft: Record<string, any>) => !draft.object,
+        type: 'custom',
+        render: (value: any, onChange: (v: any) => void, draft: Record<string, any>) => (
+          <ConfigRow label="Category field">
+            <div data-testid="config-field-categoryField">
+              <Combobox
+                options={hasFields ? availableFields : []}
+                value={value ?? ''}
+                onValueChange={onChange}
+                placeholder="Select field…"
+                searchPlaceholder="Search fields…"
+                emptyText="No fields found."
+                className="h-7 w-32 text-xs"
+                disabled={!draft.object}
+              />
+            </div>
+          </ConfigRow>
+        ),
       }
     : {
         key: 'categoryField',
@@ -98,10 +126,23 @@ function buildWidgetSchema(
     ? {
         key: 'valueField',
         label: 'Value field',
-        type: 'select',
-        options: hasFields ? availableFields : [],
-        placeholder: 'Select field…',
-        disabledWhen: (draft: Record<string, any>) => !draft.object,
+        type: 'custom',
+        render: (value: any, onChange: (v: any) => void, draft: Record<string, any>) => (
+          <ConfigRow label="Value field">
+            <div data-testid="config-field-valueField">
+              <Combobox
+                options={hasFields ? availableFields : []}
+                value={value ?? ''}
+                onValueChange={onChange}
+                placeholder="Select field…"
+                searchPlaceholder="Search fields…"
+                emptyText="No fields found."
+                className="h-7 w-32 text-xs"
+                disabled={!draft.object}
+              />
+            </div>
+          </ConfigRow>
+        ),
       }
     : {
         key: 'valueField',

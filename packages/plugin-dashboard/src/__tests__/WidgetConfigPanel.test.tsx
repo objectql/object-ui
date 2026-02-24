@@ -232,7 +232,7 @@ describe('WidgetConfigPanel', () => {
     expect(descInput.value).toBe('Monthly revenue breakdown');
   });
 
-  // ---- Dynamic dropdown tests (availableObjects / availableFields) --------
+  // ---- Searchable combobox tests (availableObjects / availableFields) ------
 
   describe('with availableObjects', () => {
     const objects = [
@@ -241,7 +241,7 @@ describe('WidgetConfigPanel', () => {
       { value: 'orders', label: 'Orders' },
     ];
 
-    it('should render data source as a select when availableObjects provided', () => {
+    it('should render data source as a combobox when availableObjects provided', () => {
       render(
         <WidgetConfigPanel
           open={true}
@@ -251,9 +251,10 @@ describe('WidgetConfigPanel', () => {
           availableObjects={objects}
         />,
       );
-      // The data source field should be a select trigger (not a text input)
-      const objectField = screen.getByTestId('config-field-object');
-      expect(objectField.tagName).not.toBe('INPUT');
+      // The data source field should be a combobox (not a text input)
+      const wrapper = screen.getByTestId('config-field-object');
+      const comboboxBtn = wrapper.querySelector('[role="combobox"]');
+      expect(comboboxBtn).toBeTruthy();
     });
 
     it('should render data source as an input when no availableObjects', () => {
@@ -269,7 +270,7 @@ describe('WidgetConfigPanel', () => {
       expect(objectField.tagName).toBe('INPUT');
     });
 
-    it('should render category/value fields as selects when availableObjects provided', () => {
+    it('should render category/value fields as comboboxes when availableObjects provided', () => {
       const fields = [
         { value: 'name', label: 'Name' },
         { value: 'status', label: 'Status' },
@@ -284,13 +285,13 @@ describe('WidgetConfigPanel', () => {
           availableFields={fields}
         />,
       );
-      const catField = screen.getByTestId('config-field-categoryField');
-      expect(catField.tagName).not.toBe('INPUT');
-      const valField = screen.getByTestId('config-field-valueField');
-      expect(valField.tagName).not.toBe('INPUT');
+      const catWrapper = screen.getByTestId('config-field-categoryField');
+      expect(catWrapper.querySelector('[role="combobox"]')).toBeTruthy();
+      const valWrapper = screen.getByTestId('config-field-valueField');
+      expect(valWrapper.querySelector('[role="combobox"]')).toBeTruthy();
     });
 
-    it('should disable field selectors when object is not selected', () => {
+    it('should disable field comboboxes when object is not selected', () => {
       const configWithNoObject = { ...defaultWidgetConfig, object: '' };
       render(
         <WidgetConfigPanel
@@ -301,13 +302,15 @@ describe('WidgetConfigPanel', () => {
           availableObjects={objects}
         />,
       );
-      const catField = screen.getByTestId('config-field-categoryField');
-      expect(catField).toHaveAttribute('disabled');
-      const valField = screen.getByTestId('config-field-valueField');
-      expect(valField).toHaveAttribute('disabled');
+      const catWrapper = screen.getByTestId('config-field-categoryField');
+      const catBtn = catWrapper.querySelector('[role="combobox"]');
+      expect(catBtn).toHaveAttribute('disabled');
+      const valWrapper = screen.getByTestId('config-field-valueField');
+      const valBtn = valWrapper.querySelector('[role="combobox"]');
+      expect(valBtn).toHaveAttribute('disabled');
     });
 
-    it('should not disable field selectors when object is selected', () => {
+    it('should not disable field comboboxes when object is selected', () => {
       const fields = [
         { value: 'name', label: 'Name' },
         { value: 'amount', label: 'Amount' },
@@ -322,10 +325,12 @@ describe('WidgetConfigPanel', () => {
           availableFields={fields}
         />,
       );
-      const catField = screen.getByTestId('config-field-categoryField');
-      expect(catField).not.toHaveAttribute('disabled');
-      const valField = screen.getByTestId('config-field-valueField');
-      expect(valField).not.toHaveAttribute('disabled');
+      const catWrapper = screen.getByTestId('config-field-categoryField');
+      const catBtn = catWrapper.querySelector('[role="combobox"]');
+      expect(catBtn).not.toHaveAttribute('disabled');
+      const valWrapper = screen.getByTestId('config-field-valueField');
+      const valBtn = valWrapper.querySelector('[role="combobox"]');
+      expect(valBtn).not.toHaveAttribute('disabled');
     });
   });
 });
