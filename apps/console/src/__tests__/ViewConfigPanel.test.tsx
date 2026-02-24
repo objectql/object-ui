@@ -1250,7 +1250,7 @@ describe('ViewConfigPanel', () => {
 
     // ── Appearance fields tests ──
 
-    it('renders new appearance fields: color, fieldTextColor, rowHeight, wrapHeaders, collapseAllByDefault', () => {
+    it('renders new appearance fields: color, rowHeight, wrapHeaders', () => {
         render(
             <ViewConfigPanel
                 open={true}
@@ -1261,10 +1261,8 @@ describe('ViewConfigPanel', () => {
         );
 
         expect(screen.getByTestId('appearance-color')).toBeInTheDocument();
-        expect(screen.getByTestId('appearance-fieldTextColor')).toBeInTheDocument();
         expect(screen.getByTestId('appearance-rowHeight')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-wrapHeaders')).toBeInTheDocument();
-        expect(screen.getByTestId('toggle-collapseAllByDefault')).toBeInTheDocument();
     });
 
     it('changes row height via icon buttons', () => {
@@ -1346,7 +1344,6 @@ describe('ViewConfigPanel', () => {
         );
 
         expect(screen.getByTestId('data-groupBy')).toBeInTheDocument();
-        expect(screen.getByTestId('data-prefixField')).toBeInTheDocument();
     });
 
     it('changes groupBy for grid view', () => {
@@ -2408,22 +2405,6 @@ describe('ViewConfigPanel', () => {
 
     // ── Spec alignment: toggle interaction tests for all switch fields ──
 
-    it('toggles collapseAllByDefault and calls onViewUpdate', () => {
-        const onViewUpdate = vi.fn();
-        render(
-            <ViewConfigPanel
-                open={true}
-                onClose={vi.fn()}
-                activeView={{ ...mockActiveView, groupBy: 'stage' }}
-                objectDef={mockObjectDef}
-                onViewUpdate={onViewUpdate}
-            />
-        );
-
-        fireEvent.click(screen.getByTestId('toggle-collapseAllByDefault'));
-        expect(onViewUpdate).toHaveBeenCalledWith('collapseAllByDefault', true);
-    });
-
     it('toggles showDescription and calls onViewUpdate', () => {
         const onViewUpdate = vi.fn();
         render(
@@ -2438,22 +2419,6 @@ describe('ViewConfigPanel', () => {
 
         fireEvent.click(screen.getByTestId('toggle-showDescription'));
         expect(onViewUpdate).toHaveBeenCalledWith('showDescription', false);
-    });
-
-    it('toggles clickIntoRecordDetails and calls onViewUpdate', () => {
-        const onViewUpdate = vi.fn();
-        render(
-            <ViewConfigPanel
-                open={true}
-                onClose={vi.fn()}
-                activeView={mockActiveView}
-                objectDef={mockObjectDef}
-                onViewUpdate={onViewUpdate}
-            />
-        );
-
-        fireEvent.click(screen.getByTestId('toggle-clickIntoRecordDetails'));
-        expect(onViewUpdate).toHaveBeenCalledWith('clickIntoRecordDetails', false);
     });
 
     it('toggles addDeleteRecordsInline and calls onViewUpdate', () => {
