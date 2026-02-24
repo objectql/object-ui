@@ -401,6 +401,17 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Updated SchemaRenderer mock to forward `className` and include interactive child button for more realistic testing
 - [x] Add 9 new Vitest tests: pointer-events-none presence/absence, overlay presence/absence, relative positioning, click-to-select on Card-based widgets
 
+**Phase 10 — Debug / Diagnostic Mode:**
+- [x] Add `debug?: boolean` field to `DashboardSchema` type definition
+- [x] Add `'dashboard'` to core `DebugCategory` type for `debugLog()` integration
+- [x] Implement `DashboardDebugOverlay` — collapsible diagnostic panel rendered at dashboard top when `schema.debug: true` or `SchemaRendererProvider debug` context is enabled
+- [x] Per-widget diagnostics: type, resolved component type, data presence, `provider:object` status, `objectName`, aggregate config
+- [x] Color-coded status: green border for widgets with data/provider, red border for missing data
+- [x] Console logging via `debugLog('dashboard', ...)` when `OBJECTUI_DEBUG` is globally enabled
+- [x] Integrate debug mode into both `DashboardRenderer` and `DashboardGridLayout`
+- [x] Export `DashboardDebugOverlay` and `WidgetDebugInfo` from `@object-ui/plugin-dashboard`
+- [x] Add 7 Vitest tests (overlay render, toggle expand, per-widget diagnostics, provider:object identification, debugLog emission)
+
 ### P1.11 Console — Schema-Driven View Config Panel Migration
 
 > Migrated the Console ViewConfigPanel from imperative implementation (~1655 lines) to Schema-Driven architecture using `ConfigPanelRenderer` + `useConfigDraft` + `ConfigPanelSchema`, reducing to ~170 lines declarative wrapper + schema factory.
