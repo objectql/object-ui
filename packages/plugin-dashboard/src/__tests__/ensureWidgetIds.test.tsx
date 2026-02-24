@@ -27,6 +27,9 @@ function ensureWidgetIds(schema: DashboardSchema): DashboardSchema {
 }
 
 describe('ensureWidgetIds', () => {
+  beforeEach(() => {
+    counter = 0;
+  });
   it('should return same schema when all widgets have IDs', () => {
     const schema: DashboardSchema = {
       type: 'dashboard',

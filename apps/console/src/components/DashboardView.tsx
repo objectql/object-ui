@@ -327,7 +327,9 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
     if (!obj?.fields) return undefined;
     const fields = obj.fields;
     if (Array.isArray(fields)) {
-      return fields.map((f: any) => ({ value: f.name, label: f.label || f.name }));
+      return fields
+        .filter((f: any) => f.name)
+        .map((f: any) => ({ value: f.name, label: f.label || f.name }));
     }
     // fields can be Record<string, FieldMetadata>
     return Object.entries(fields).map(([key, f]: [string, any]) => ({
