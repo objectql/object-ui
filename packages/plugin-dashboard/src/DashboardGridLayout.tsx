@@ -3,7 +3,7 @@ import { ResponsiveGridLayout, useContainerWidth, type LayoutItem as RGLLayout, 
 import 'react-grid-layout/css/styles.css';
 import { cn, Card, CardHeader, CardTitle, CardContent, Button } from '@object-ui/components';
 import { Edit, GripVertical, Save, X, RefreshCw } from 'lucide-react';
-import { SchemaRenderer, useHasDndProvider, useDnd, useSchemaContext } from '@object-ui/react';
+import { SchemaRenderer, useHasDndProvider, useDnd, SchemaRendererContext } from '@object-ui/react';
 import { debugLog } from '@object-ui/core';
 import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { isObjectProvider } from './utils';
@@ -56,16 +56,8 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
   // --- Debug mode ---
-  let contextDebug = false;
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const ctx = useSchemaContext();
-    contextDebug = ctx?.debug === true;
-  } catch {
-    // SchemaRendererProvider may not be present
-  }
-  const debugMode = schema.debug === true || contextDebug;
-  const widgetDebugInfos = React.useRef<WidgetDebugInfo[]>([]);
+  const schemaCtx = React.useContext(SchemaRendererContext);
+  const debugMode = schema.debug === true || schemaCtx?.debug === true;
 
   const handleRefresh = React.useCallback(() => {
     if (!onRefresh) return;
@@ -233,12 +225,29 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
   }, []);
 
   // --- Debug: reset per-render list & log dashboard-level context ---
-  widgetDebugInfos.current = [];
+  // --- Debug: pre-compute per-widget diagnostics ---
+  const widgetDebugInfoList: WidgetDebugInfo[] = [];
   if (debugMode) {
     debugLog('dashboard', 'DashboardGridLayout render', {
       title: schema.title,
       widgetCount: schema.widgets?.length ?? 0,
     });
+    for (const widget of schema.widgets ?? []) {
+      const widgetData = (widget as any).data || (widget.options as any)?.data;
+      const info: WidgetDebugInfo = {
+        id: widget.id || widget.title || '–',
+        title: widget.title,
+        type: widget.type,
+        resolvedType: undefined,
+        hasData: widgetData != null,
+        isObjectProvider: isObjectProvider(widgetData),
+        objectName: widgetData?.object || widget.object,
+        hasAggregate: !!(widgetData?.aggregate),
+        dataSnapshot: widgetData,
+      };
+      widgetDebugInfoList.push(info);
+      debugLog('dashboard', `GridLayout Widget [${info.id}]`, info);
+    }
   }
 
   return (
@@ -248,7 +257,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
           dashboardTitle={schema.title}
           widgetCount={schema.widgets?.length ?? 0}
           hasDataSource={false}
-          widgets={widgetDebugInfos.current}
+          widgets={widgetDebugInfoList}
         />
       )}
       {hasDndProvider && <DndEditModeBridge editMode={editMode} />}
@@ -308,24 +317,6 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
             const widgetId = widget.id || `widget-${index}`;
             const componentSchema = getComponentSchema(widget);
             const isSelfContained = widget.type === 'metric';
-
-            // --- Debug: collect per-widget diagnostics ---
-            if (debugMode) {
-              const widgetData = (widget as any).data || (widget.options as any)?.data;
-              const info: WidgetDebugInfo = {
-                id: widgetId,
-                title: widget.title,
-                type: widget.type,
-                resolvedType: (componentSchema as any)?.type,
-                hasData: widgetData != null,
-                isObjectProvider: isObjectProvider(widgetData),
-                objectName: widgetData?.object || widget.object,
-                hasAggregate: !!(widgetData?.aggregate),
-                dataSnapshot: widgetData,
-              };
-              widgetDebugInfos.current.push(info);
-              debugLog('dashboard', `GridLayout Widget [${widgetId}]`, info);
-            }
 
             return (
               <div key={widgetId} className="h-full">

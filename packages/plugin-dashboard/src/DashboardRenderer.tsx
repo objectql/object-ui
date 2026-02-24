@@ -7,10 +7,10 @@
  */
 
 import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
-import { SchemaRenderer, useSchemaContext } from '@object-ui/react';
+import { SchemaRenderer, SchemaRendererContext } from '@object-ui/react';
 import { debugLog } from '@object-ui/core';
 import { cn, Card, CardHeader, CardTitle, CardContent, Button } from '@object-ui/components';
-import { forwardRef, useState, useEffect, useCallback, useRef } from 'react';
+import { forwardRef, useState, useEffect, useCallback, useRef, useContext } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { isObjectProvider } from './utils';
 import { DashboardDebugOverlay, type WidgetDebugInfo } from './DashboardDebugOverlay';
@@ -51,16 +51,8 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // --- Debug mode ---
-    let contextDebug = false;
-    try {
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      const ctx = useSchemaContext();
-      contextDebug = ctx?.debug === true;
-    } catch {
-      // SchemaRendererProvider may not be present — that's fine
-    }
-    const debugMode = schema.debug === true || contextDebug;
-    const widgetDebugInfos = useRef<WidgetDebugInfo[]>([]);
+    const schemaCtx = useContext(SchemaRendererContext);
+    const debugMode = schema.debug === true || schemaCtx?.debug === true;
 
     useEffect(() => {
       const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -225,24 +217,6 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
         const widgetKey = widget.id || widget.title || `widget-${index}`;
         const isSelected = designMode && selectedWidgetId === widget.id;
 
-        // --- Debug: collect per-widget diagnostics ---
-        if (debugMode) {
-            const widgetData = (widget as any).data || (widget.options as any)?.data;
-            const info: WidgetDebugInfo = {
-                id: widgetKey,
-                title: widget.title,
-                type: widget.type,
-                resolvedType: (componentSchema as any)?.type,
-                hasData: widgetData != null,
-                isObjectProvider: isObjectProvider(widgetData),
-                objectName: widgetData?.object || widget.object,
-                hasAggregate: !!(widgetData?.aggregate),
-                dataSnapshot: widgetData,
-            };
-            widgetDebugInfos.current.push(info);
-            debugLog('dashboard', `Widget [${widgetKey}]`, info);
-        }
-
         const designModeProps = designMode ? {
             'data-testid': `dashboard-preview-widget-${widget.id}`,
             'data-widget-id': widget.id,
@@ -343,7 +317,8 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
     const userActionsAttr = userActions ? JSON.stringify(userActions) : undefined;
 
     // --- Debug: reset per-render list & log dashboard-level context ---
-    widgetDebugInfos.current = [];
+    // --- Debug: pre-compute per-widget diagnostics ---
+    const widgetDebugInfoList: WidgetDebugInfo[] = [];
     if (debugMode) {
       debugLog('dashboard', 'Dashboard render', {
         title: schema.title,
@@ -352,6 +327,22 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
         dataSourceType: typeof dataSource,
         dataSourceKeys: dataSource && typeof dataSource === 'object' ? Object.keys(dataSource) : undefined,
       });
+      for (const widget of schema.widgets ?? []) {
+        const widgetData = (widget as any).data || (widget.options as any)?.data;
+        const info: WidgetDebugInfo = {
+          id: widget.id || widget.title || '–',
+          title: widget.title,
+          type: widget.type,
+          resolvedType: undefined, // filled after getComponentSchema inside renderWidget
+          hasData: widgetData != null,
+          isObjectProvider: isObjectProvider(widgetData),
+          objectName: widgetData?.object || widget.object,
+          hasAggregate: !!(widgetData?.aggregate),
+          dataSnapshot: widgetData,
+        };
+        widgetDebugInfoList.push(info);
+        debugLog('dashboard', `Widget [${info.id}]`, info);
+      }
     }
 
     const refreshButton = onRefresh && (
@@ -376,7 +367,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
         widgetCount={schema.widgets?.length ?? 0}
         hasDataSource={dataSource != null}
         dataSourceKeys={dataSource && typeof dataSource === 'object' ? Object.keys(dataSource) : undefined}
-        widgets={widgetDebugInfos.current}
+        widgets={widgetDebugInfoList}
       />
     );
 
