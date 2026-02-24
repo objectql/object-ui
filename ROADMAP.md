@@ -846,6 +846,7 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [x] **P2: App Branding** — `logo`, `favicon`, `backgroundColor` fields on CRM app
 - [x] **P3: Pages** — Settings page (utility) and Getting Started page (onboarding)
 - [x] **P2: Spec Compliance Audit** — Fixed `variant: 'danger'` → `'destructive'` (4 actions), `columns: string` → `number` (33 form sections), added `type: 'dashboard'` to dashboard
+- [x] **P2: Dashboard Widget Spec Alignment** — Added `id`, `title`, `object`, `categoryField`, `valueField`, `aggregate` to all dashboard widgets across CRM, Todo, and Kitchen Sink examples (5 new spec-compliance tests)
 - [x] **P2: i18n (10 locales)** — Full CRM metadata translations for en, zh, ja, ko, de, fr, es, pt, ru, ar — objects, fields, fieldOptions, navigation, actions, views, formSections, dashboard, reports, pages (24 tests)
 
 ### Ecosystem & Marketplace
