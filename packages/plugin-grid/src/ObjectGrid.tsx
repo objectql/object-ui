@@ -465,6 +465,17 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
               const inferredType = inferColumnType(col);
               const CellRenderer = inferredType ? getCellRenderer(inferredType) : null;
 
+              // Build field metadata for cell renderers (includes options for select fields)
+              const fieldMeta: Record<string, any> = { name: col.field, type: inferredType || 'text' };
+              if (inferredType === 'select' && !(col as any).options) {
+                // Auto-generate options from unique data values for inferred select fields
+                const uniqueValues = Array.from(new Set(data.map(row => row[col.field]).filter(Boolean)));
+                fieldMeta.options = uniqueValues.map(v => ({ value: v, label: String(v) }));
+              }
+              if ((col as any).options) {
+                fieldMeta.options = (col as any).options;
+              }
+
               // Auto-link primary field (first column) to record detail (Airtable-style)
               const isPrimaryField = colIndex === 0 && !col.link && !col.action;
               const isLinked = col.link || isPrimaryField;
@@ -473,7 +484,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 // Both link and action: link takes priority for navigation, action executes on secondary interaction
                 cellRenderer = (value: any, row: any) => {
                   const displayContent = CellRenderer
-                    ? <CellRenderer value={value} field={{ name: col.field, type: inferredType || 'text' } as any} />
+                    ? <CellRenderer value={value} field={fieldMeta as any} />
                     : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>);
                   return (
                     <button
@@ -493,7 +504,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 // Link column: clicking navigates to the record detail
                 cellRenderer = (value: any, row: any) => {
                   const displayContent = CellRenderer
-                    ? <CellRenderer value={value} field={{ name: col.field, type: inferredType || 'text' } as any} />
+                    ? <CellRenderer value={value} field={fieldMeta as any} />
                     : (value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>);
                   return (
                     <button
@@ -533,7 +544,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
               } else if (CellRenderer) {
                 // Type-only cell renderer (no link/action)
                 cellRenderer = (value: any) => (
-                  <CellRenderer value={value} field={{ name: col.field, type: inferredType || 'text' } as any} />
+                  <CellRenderer value={value} field={fieldMeta as any} />
                 );
               } else {
                 // Default renderer with empty value handling

@@ -123,10 +123,10 @@ export function formatRelativeDate(value: string | Date): string {
   if (diffDays === -1) return 'Yesterday';
   if (diffDays < -1) {
     const absDays = Math.abs(diffDays);
-    if (absDays <= 30) return `${absDays} days ago`;
+    if (absDays <= 7) return `Overdue ${absDays}d`;
     return formatDate(date);
   }
-  if (diffDays > 1 && diffDays <= 30) return `In ${diffDays} days`;
+  if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
   return formatDate(date);
 }
 
@@ -245,8 +245,33 @@ export function PercentCellRenderer({ value, field }: CellRendererProps): React.
 
 /**
  * Boolean field cell renderer (Airtable-style checkbox)
+ * Supports semantic rendering for completion fields (green indicator).
  */
-export function BooleanCellRenderer({ value }: CellRendererProps): React.ReactElement {
+export function BooleanCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
+  if (value == null) {
+    return <span className="text-muted-foreground/50 text-xs italic flex items-center justify-center">—</span>;
+  }
+
+  // Semantic rendering for completion fields (green circle indicator)
+  // Only match exact field names to avoid false positives
+  const fieldName = field?.name?.toLowerCase() || '';
+  const isCompletionField = fieldName === 'completed' || fieldName === 'is_completed'
+    || fieldName === 'done' || fieldName === 'is_done';
+
+  if (isCompletionField) {
+    return (
+      <div className="flex items-center justify-center">
+        {value ? (
+          <div className="size-5 rounded-full bg-green-500 flex items-center justify-center" role="img" aria-label="Completed" data-testid="completion-indicator">
+            <Check className="size-3 text-white" />
+          </div>
+        ) : (
+          <div className="size-5 rounded-full border-2 border-muted-foreground/30" role="img" aria-label="Not completed" data-testid="completion-indicator" />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center justify-center">
       <Checkbox checked={!!value} disabled className="pointer-events-none" />
@@ -258,10 +283,27 @@ export function BooleanCellRenderer({ value }: CellRendererProps): React.ReactEl
  * Date field cell renderer
  */
 export function DateCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
+  if (!value) return <span className="text-muted-foreground">-</span>;
   const dateField = field as any;
-  const formatted = formatDate(value, dateField.format);
+  const style = dateField.format || 'relative';
+  const formatted = formatDate(value, style);
   
-  return <span className="tabular-nums">{formatted}</span>;
+  // Determine if date is overdue (in the past)
+  const date = typeof value === 'string' ? new Date(value) : value;
+  const isValidDate = date instanceof Date && !isNaN(date.getTime());
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const isOverdue = isValidDate && date < startOfToday;
+  const isoString = isValidDate ? date.toISOString() : String(value);
+  
+  return (
+    <span
+      className={`tabular-nums${isOverdue ? ' text-red-600' : ''}`}
+      title={isoString}
+    >
+      {formatted}
+    </span>
+  );
 }
 
 /**
@@ -291,6 +333,36 @@ export function DateTimeCellRenderer({ value }: CellRendererProps): React.ReactE
   );
 }
 
+// Priority semantic color mapping (auto-detect from value text)
+const PRIORITY_COLOR_MAP: Record<string, string> = {
+  critical: 'red',
+  urgent: 'red',
+  high: 'orange',
+  medium: 'yellow',
+  normal: 'blue',
+  low: 'gray',
+  none: 'gray',
+};
+
+// Color to Tailwind class mapping for custom Badge styling
+const BADGE_COLOR_MAP: Record<string, string> = {
+  gray: 'bg-gray-100 text-gray-800 border-gray-300',
+  red: 'bg-red-100 text-red-800 border-red-300',
+  orange: 'bg-orange-100 text-orange-800 border-orange-300',
+  yellow: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+  green: 'bg-green-100 text-green-800 border-green-300',
+  blue: 'bg-blue-100 text-blue-800 border-blue-300',
+  indigo: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+  purple: 'bg-purple-100 text-purple-800 border-purple-300',
+  pink: 'bg-pink-100 text-pink-800 border-pink-300',
+};
+
+function getBadgeColorClasses(color?: string, val?: string): string {
+  const resolvedColor = color
+    || (val ? PRIORITY_COLOR_MAP[String(val).toLowerCase()] : undefined);
+  return BADGE_COLOR_MAP[resolvedColor || ''] || 'bg-muted text-muted-foreground border-border';
+}
+
 /**
  * Select field cell renderer (with badges)
  */
@@ -300,22 +372,6 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
   
   if (!value) return <span>-</span>;
   
-  // Color to Tailwind class mapping for custom Badge styling
-  const getColorClasses = (color?: string) => {
-    const colorMap: Record<string, string> = {
-      gray: 'bg-gray-100 text-gray-800 border-gray-300',
-      red: 'bg-red-100 text-red-800 border-red-300',
-      orange: 'bg-orange-100 text-orange-800 border-orange-300',
-      yellow: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-      green: 'bg-green-100 text-green-800 border-green-300',
-      blue: 'bg-blue-100 text-blue-800 border-blue-300',
-      indigo: 'bg-indigo-100 text-indigo-800 border-indigo-300',
-      purple: 'bg-purple-100 text-purple-800 border-purple-300',
-      pink: 'bg-pink-100 text-pink-800 border-pink-300',
-    };
-    return colorMap[color || 'blue'] || colorMap.blue;
-  };
-  
   // Handle multiple values
   if (Array.isArray(value)) {
     return (
@@ -323,7 +379,7 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
         {value.map((val, idx) => {
           const option = options.find(opt => opt.value === val);
           const label = option?.label || val;
-          const colorClasses = getColorClasses(option?.color);
+          const colorClasses = getBadgeColorClasses(option?.color, val);
           
           return (
             <Badge
@@ -342,7 +398,7 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
   // Handle single value
   const option = options.find(opt => opt.value === value);
   const label = option?.label || value;
-  const colorClasses = getColorClasses(option?.color);
+  const colorClasses = getBadgeColorClasses(option?.color, value);
   
   return (
     <Badge
@@ -606,6 +662,7 @@ export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> 
     datetime: DateTimeCellRenderer,
     time: TextCellRenderer,
     select: SelectCellRenderer,
+    status: SelectCellRenderer,
     lookup: SelectCellRenderer, // Default fallback
     master_detail: SelectCellRenderer, // Default fallback
     email: EmailCellRenderer,

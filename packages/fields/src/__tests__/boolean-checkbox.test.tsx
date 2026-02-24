@@ -36,7 +36,7 @@ describe('BooleanCellRenderer', () => {
     expect(checkbox).toHaveAttribute('data-state', 'unchecked');
   });
 
-  it('should render an unchecked checkbox for null/undefined values', () => {
+  it('should render dash for null/undefined values', () => {
     render(
       <BooleanCellRenderer
         value={null}
@@ -44,9 +44,7 @@ describe('BooleanCellRenderer', () => {
       />
     );
 
-    const checkbox = screen.getByRole('checkbox');
-    expect(checkbox).toBeInTheDocument();
-    expect(checkbox).toHaveAttribute('data-state', 'unchecked');
+    expect(screen.getByText('—')).toBeInTheDocument();
   });
 
   it('should render checkbox as disabled (non-interactive)', () => {
