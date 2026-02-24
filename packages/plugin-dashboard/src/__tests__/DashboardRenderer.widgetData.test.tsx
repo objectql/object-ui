@@ -659,4 +659,70 @@ describe('DashboardRenderer widget data extraction', () => {
     expect(chartSchema).toBeDefined();
     expect(chartSchema.data).toEqual([]);
   });
+
+  it('should not crash data-table when provider:object leaks data config via options spread', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'table',
+          title: 'Provider Object Table',
+          object: 'opportunity',
+          layout: { x: 0, y: 0, w: 4, h: 2 },
+          options: {
+            columns: [
+              { header: 'Name', accessorKey: 'name' },
+              { header: 'Amount', accessorKey: 'amount' },
+            ],
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+            },
+          },
+        },
+      ],
+    } as any;
+
+    // Must render without throwing. Previously this crashed with
+    // "paginatedData.some is not a function" because the provider
+    // config object leaked through as data.
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    expect(container).toBeDefined();
+    // The component should not show a crash error
+    expect(container.textContent).not.toContain('is not a function');
+  });
+
+  it('should not crash pivot table when provider:object leaks data config via options spread', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'pivot',
+          title: 'Provider Object Pivot',
+          object: 'sales',
+          layout: { x: 0, y: 0, w: 4, h: 2 },
+          options: {
+            rowField: 'region',
+            columnField: 'quarter',
+            valueField: 'revenue',
+            data: {
+              provider: 'object',
+              object: 'sales',
+            },
+          },
+        },
+      ],
+    } as any;
+
+    // Must render without throwing. Previously this crashed with
+    // "data is not iterable" because the provider config object
+    // leaked through as data.
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    expect(container).toBeDefined();
+    expect(container.textContent).not.toContain('is not iterable');
+  });
 });

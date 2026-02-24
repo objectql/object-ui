@@ -95,12 +95,15 @@ export const PivotTable: React.FC<PivotTableProps> = ({ schema, className }) => 
     columnField,
     valueField,
     aggregation = 'sum',
-    data = [],
+    data: rawData = [],
     showRowTotals = false,
     showColumnTotals = false,
     format,
     columnColors,
   } = schema;
+
+  // Ensure data is always an array – provider config objects must not reach iteration
+  const data = Array.isArray(rawData) ? rawData : [];
 
   const { rowKeys, colKeys, matrix, rowTotals, colTotals, grandTotal } = useMemo(() => {
     // Collect unique row/column values preserving insertion order

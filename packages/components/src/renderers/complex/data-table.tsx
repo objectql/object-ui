@@ -91,7 +91,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   const {
     caption,
     columns: rawColumns = [],
-    data = [],
+    data: rawData = [],
     pagination = true,
     pageSize: initialPageSize = 10,
     searchable = true,
@@ -108,6 +108,10 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     showRowNumbers = false,
     showAddRow = false,
   } = schema;
+
+  // Ensure data is always an array – provider config objects or null/undefined
+  // must not reach array operations like .filter() / .some()
+  const data = Array.isArray(rawData) ? rawData : [];
 
   // Normalize columns to support legacy keys (label/name) from existing JSONs
   const initialColumns = useMemo(() => {

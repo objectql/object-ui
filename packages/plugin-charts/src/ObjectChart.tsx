@@ -104,9 +104,11 @@ export const ObjectChart = (props: any) => {
   };
   
   if (loading && finalData.length === 0) {
-      // Return skeleton or loading state?
-      // ChartRenderer has suspense/skeleton handling but needs to be triggered.
-      // We pass empty data but it might render empty chart.
+      return <div className={"flex items-center justify-center text-muted-foreground text-sm p-4 " + (schema.className || '')}>Loading chart data…</div>;
+  }
+
+  if (!dataSource && schema.objectName && finalData.length === 0) {
+      return <div className={"flex items-center justify-center text-muted-foreground text-sm p-4 " + (schema.className || '')}>No data source available for "{schema.objectName}"</div>;
   }
 
   return <ChartRenderer {...props} schema={finalSchema} />;

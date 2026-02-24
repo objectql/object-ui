@@ -164,11 +164,13 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
 
                 // provider: 'object' — pass through object config for async data loading
                 if (isObjectProvider(widgetData)) {
+                    const { data: _dropped, ...restOptions } = options;
                     return {
                         type: 'data-table',
-                        ...options,
+                        ...restOptions,
                         objectName: widgetData.object || widget.object,
                         dataProvider: widgetData,
+                        data: [],
                         searchable: false,
                         pagination: false,
                         className: "border-0"
@@ -190,11 +192,13 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
 
                 // provider: 'object' — pass through object config for async data loading
                 if (isObjectProvider(widgetData)) {
+                    const { data: _dropped, ...restOptions } = options;
                     return {
                         type: 'pivot',
-                        ...options,
+                        ...restOptions,
                         objectName: widgetData.object || widget.object,
                         dataProvider: widgetData,
+                        data: [],
                     };
                 }
 

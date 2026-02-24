@@ -30,6 +30,16 @@ const CHART_COLORS = [
   'hsl(var(--chart-5))',
 ];
 
+/** Returns true when the widget data config uses provider: 'object' (async data source). */
+function isObjectProvider(widgetData: unknown): widgetData is { provider: 'object'; object?: string; aggregate?: any } {
+  return (
+    widgetData != null &&
+    typeof widgetData === 'object' &&
+    !Array.isArray(widgetData) &&
+    (widgetData as any).provider === 'object'
+  );
+}
+
 export interface DashboardGridLayoutProps {
   schema: DashboardSchema;
   className?: string;
@@ -130,9 +140,25 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
     const options = (widget.options || {}) as Record<string, any>;
     if (widgetType === 'bar' || widgetType === 'line' || widgetType === 'area' || widgetType === 'pie' || widgetType === 'donut') {
       const widgetData = (widget as any).data || options.data;
-      const dataItems = Array.isArray(widgetData) ? widgetData : widgetData?.items || [];
       const xAxisKey = options.xField || 'name';
       const yField = options.yField || 'value';
+
+      // provider: 'object' — delegate to ObjectChart for async data loading
+      if (isObjectProvider(widgetData)) {
+        const effectiveYField = widgetData.aggregate?.field || yField;
+        return {
+          type: 'object-chart',
+          chartType: widgetType,
+          objectName: widgetData.object || widget.object,
+          aggregate: widgetData.aggregate,
+          xAxisKey: xAxisKey,
+          series: [{ dataKey: effectiveYField }],
+          colors: CHART_COLORS,
+          className: "h-full"
+        };
+      }
+
+      const dataItems = Array.isArray(widgetData) ? widgetData : widgetData?.items || [];
       
       return {
         type: 'chart',
@@ -147,6 +173,22 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
 
     if (widgetType === 'table') {
       const widgetData = (widget as any).data || options.data;
+
+      // provider: 'object' — pass through object config for async data loading
+      if (isObjectProvider(widgetData)) {
+        const { data: _dropped, ...restOptions } = options;
+        return {
+          type: 'data-table',
+          ...restOptions,
+          objectName: widgetData.object || widget.object,
+          dataProvider: widgetData,
+          data: [],
+          searchable: false,
+          pagination: false,
+          className: "border-0"
+        };
+      }
+
       return {
         type: 'data-table',
         ...options,
@@ -154,6 +196,28 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         searchable: false,
         pagination: false,
         className: "border-0"
+      };
+    }
+
+    if (widgetType === 'pivot') {
+      const widgetData = (widget as any).data || options.data;
+
+      // provider: 'object' — pass through object config for async data loading
+      if (isObjectProvider(widgetData)) {
+        const { data: _dropped, ...restOptions } = options;
+        return {
+          type: 'pivot',
+          ...restOptions,
+          objectName: widgetData.object || widget.object,
+          dataProvider: widgetData,
+          data: [],
+        };
+      }
+
+      return {
+        type: 'pivot',
+        ...options,
+        data: Array.isArray(widgetData) ? widgetData : widgetData?.items || [],
       };
     }
 
