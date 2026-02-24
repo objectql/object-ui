@@ -54,7 +54,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({ schema }) => {
           }
 
           return (
-            <div className="min-h-[300px] border rounded-md p-4 bg-white/50">
+            <div className="min-h-[300px] border rounded-lg p-4 bg-background/50">
               <ChartComponent schema={{ ...schema.chart, data: schema.chart.data || data }} />
             </div>
           );
@@ -62,7 +62,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({ schema }) => {
 
         {/* Render Data Grid Section */}
         {data && data.length > 0 && (
-          <div className="border rounded-md">
+          <div className="border rounded-lg">
              {(() => {
                const GridComponent = showGrid ? (ComponentRegistry.get('aggrid') || ComponentRegistry.get('table')) : null;
                return GridComponent ? (
@@ -78,7 +78,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({ schema }) => {
                  // Simple Fallback Table if Grid plugin missing
                  <div className="overflow-x-auto">
                      <table className="w-full text-sm text-left">
-                         <thead className="text-xs uppercase bg-gray-50">
+                         <thead className="text-xs uppercase bg-muted">
                              <tr>
                                  {columns?.map((col: any) => (
                                      <th key={col.field} className="px-6 py-3">{col.headerName || col.label || col.field}</th>
@@ -87,7 +87,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({ schema }) => {
                          </thead>
                          <tbody>
                              {data.map((row: any, i: number) => (
-                                 <tr key={i} className="bg-white border-b">
+                                 <tr key={i} className="bg-background border-b">
                                      {columns?.map((col: any) => (
                                          <td key={col.field} className="px-6 py-4">{row[col.field]}</td>
                                      ))}
