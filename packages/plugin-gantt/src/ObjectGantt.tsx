@@ -27,6 +27,7 @@ import type { ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@objec
 import { GanttConfigSchema } from '@objectstack/spec/ui';
 import { useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
+import { extractRecords } from '@object-ui/core';
 import { GanttView, type GanttTask } from './GanttView';
 
 export interface ObjectGanttProps {
@@ -178,16 +179,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             $orderby: convertSortToQueryParams(schema.sort),
           });
           
-          let items: any[] = [];
-          if (Array.isArray(result)) {
-            items = result;
-          } else if (result && typeof result === 'object') {
-             if (Array.isArray((result as any).data)) {
-                items = (result as any).data; 
-             } else if (Array.isArray((result as any).records)) {
-                items = (result as any).records;
-             }
-          }
+          let items: any[] = extractRecords(result);
           setData(items);
         } else if (dataConfig?.provider === 'api') {
           console.warn('API provider not yet implemented for ObjectGantt');

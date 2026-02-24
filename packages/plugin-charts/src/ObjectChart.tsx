@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDataScope, useSchemaContext } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, extractRecords } from '@object-ui/core';
 
 /**
  * Client-side aggregation for fetched records.
@@ -49,27 +49,8 @@ export function aggregateRecords(
   });
 }
 
-/**
- * Extract an array of records from various API response formats.
- * Supports: raw array, { records: [] }, { data: [] }, { value: [] }.
- */
-export function extractRecords(results: unknown): any[] {
-  if (Array.isArray(results)) {
-    return results;
-  }
-  if (results && typeof results === 'object') {
-    if (Array.isArray((results as any).records)) {
-      return (results as any).records;
-    }
-    if (Array.isArray((results as any).data)) {
-      return (results as any).data;
-    }
-    if (Array.isArray((results as any).value)) {
-      return (results as any).value;
-    }
-  }
-  return [];
-}
+// Re-export extractRecords from @object-ui/core for backward compatibility
+export { extractRecords } from '@object-ui/core';
 
 export const ObjectChart = (props: any) => {
   const { schema } = props;

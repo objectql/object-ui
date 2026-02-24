@@ -10,6 +10,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import type { DataSource, TimelineSchema, TimelineConfig } from '@object-ui/types';
 import { useDataScope, useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
+import { extractRecords } from '@object-ui/core';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { z } from 'zod';
 import { TimelineRenderer } from './renderer';
@@ -102,16 +103,8 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
             const results = await dataSource.find(schema.objectName, {
                 options: { $top: 100 }
             });
-            let data = results;
-            if ((results as any).records) {
-                data = (results as any).records;
-            } else if ((results as any).data) {
-                data = (results as any).data;
-            }
-
-            if (Array.isArray(data)) {
-                setFetchedData(data);
-            }
+            const data = extractRecords(results);
+            setFetchedData(data);
         } catch (e) {
             console.error(e);
             setError(e as Error);

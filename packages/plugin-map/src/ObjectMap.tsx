@@ -24,6 +24,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData } from '@object-ui/types';
 import { useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay, cn } from '@object-ui/components';
+import { extractRecords } from '@object-ui/core';
 import { z } from 'zod';
 import MapGL, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
@@ -354,16 +355,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
             $orderby: convertSortToQueryParams(schema.sort),
           });
           
-          let items: any[] = [];
-          if (Array.isArray(result)) {
-            items = result;
-          } else if (result && typeof result === 'object') {
-             if (Array.isArray((result as any).data)) {
-                items = (result as any).data; 
-             } else if (Array.isArray((result as any).records)) {
-                items = (result as any).records;
-             }
-          }
+          let items: any[] = extractRecords(result);
           setData(items);
         } else if (dataConfig?.provider === 'api') {
           console.warn('API provider not yet implemented for ObjectMap');

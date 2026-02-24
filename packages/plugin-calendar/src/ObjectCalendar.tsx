@@ -28,6 +28,7 @@ import { CalendarView, type CalendarEvent } from './CalendarView';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
+import { extractRecords } from '@object-ui/core';
 
 export interface CalendarSchema {
   type: 'calendar';
@@ -219,17 +220,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
             $orderby: convertSortToQueryParams(schema.sort),
           });
           
-          let items: any[] = [];
-          
-          if (Array.isArray(result)) {
-            items = result;
-          } else if (result && typeof result === 'object') {
-            if (Array.isArray((result as any).data)) {
-              items = (result as any).data;
-            } else if (Array.isArray((result as any).value)) {
-              items = (result as any).value;
-            }
-          }
+          let items: any[] = extractRecords(result);
           
           if (isMounted) {
             setData(items);

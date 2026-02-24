@@ -10,6 +10,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import type { DataSource } from '@object-ui/types';
 import { useDataScope, useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
+import { extractRecords } from '@object-ui/core';
 import { KanbanRenderer } from './index';
 import { KanbanSchema } from './types';
 
@@ -66,16 +67,7 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
             });
             
             // Handle { value: [] } OData shape or { data: [] } shape or direct array
-            let data: any[] = [];
-            if (Array.isArray(results)) {
-                data = results;
-            } else if (results && typeof results === 'object') {
-                if (Array.isArray((results as any).value)) {
-                    data = (results as any).value;
-                } else if (Array.isArray((results as any).data)) {
-                    data = (results as any).data;
-                }
-            }
+            const data = extractRecords(results);
 
             console.log(`[ObjectKanban] Extracted data (length: ${data.length})`);
 
