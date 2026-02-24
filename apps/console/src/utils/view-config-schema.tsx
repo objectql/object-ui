@@ -1206,7 +1206,7 @@ function buildUserActionsSection(
             // spec: NamedListView.inlineEdit (grid-only: only ObjectGrid supports inline editing)
             buildSwitchField('inlineEdit', t('console.objectView.inlineEdit'), 'toggle-inlineEdit', true,
                 false, undefined, isGridView),
-            // NOTE: clickIntoRecordDetails removed — controlled implicitly via navigation mode, not directly consumed
+            // NOTE: clickIntoRecordDetails removed — behavior is handled by navigation mode config, not consumed as a standalone field by runtime
             // spec: NamedListView.addDeleteRecordsInline (grid-only: inline add/delete is a grid feature)
             buildSwitchField('addDeleteRecordsInline', t('console.objectView.addDeleteRecordsInline'), 'toggle-addDeleteRecordsInline', true,
                 false, undefined, isGridView),
