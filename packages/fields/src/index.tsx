@@ -105,6 +105,32 @@ export function formatPercent(value: number, precision: number = 0): string {
 }
 
 /**
+ * Format date as relative time (e.g., "2 days ago", "Today", "Overdue 3d")
+ */
+export function formatRelativeDate(value: string | Date): string {
+  if (!value) return '-';
+  const date = typeof value === 'string' ? new Date(value) : value;
+  if (isNaN(date.getTime())) return '-';
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffMs = startOfDate.getTime() - startOfToday.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays === -1) return 'Yesterday';
+  if (diffDays < -1) {
+    const absDays = Math.abs(diffDays);
+    if (absDays <= 30) return `${absDays} days ago`;
+    return formatDate(date);
+  }
+  if (diffDays > 1 && diffDays <= 30) return `In ${diffDays} days`;
+  return formatDate(date);
+}
+
+/**
  * Format date value
  */
 export function formatDate(value: string | Date, style?: string): string {
@@ -130,32 +156,6 @@ export function formatDate(value: string | Date, style?: string): string {
     month: 'short',
     day: 'numeric',
   });
-}
-
-/**
- * Format date as relative time (e.g., "2 days ago", "Today", "Overdue 3d")
- */
-export function formatRelativeDate(value: string | Date): string {
-  if (!value) return '-';
-  const date = typeof value === 'string' ? new Date(value) : value;
-  if (isNaN(date.getTime())) return '-';
-
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const diffMs = startOfDate.getTime() - startOfToday.getTime();
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Tomorrow';
-  if (diffDays === -1) return 'Yesterday';
-  if (diffDays < -1) {
-    const absDays = Math.abs(diffDays);
-    if (absDays <= 30) return `${absDays} days ago`;
-    return formatDate(date);
-  }
-  if (diffDays > 1 && diffDays <= 30) return `In ${diffDays} days`;
-  return formatDate(date);
 }
 
 /**
