@@ -76,8 +76,8 @@ export const NLQueryInput: React.FC<NLQueryInputProps> = ({ schema, onSubmit: on
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSubmit()}
                 placeholder={placeholder}
                 className="pl-10 pr-20"
                 disabled={isLoading}
@@ -105,7 +105,7 @@ export const NLQueryInput: React.FC<NLQueryInputProps> = ({ schema, onSubmit: on
           {/* Suggestions */}
           {suggestions.length > 0 && !result && (
             <div className="mt-3 flex flex-wrap gap-2">
-              {suggestions.map((suggestion, idx) => (
+              {suggestions.map((suggestion: string, idx: number) => (
                 <button
                   key={idx}
                   onClick={() => handleSuggestionClick(suggestion)}
@@ -147,7 +147,7 @@ export const NLQueryInput: React.FC<NLQueryInputProps> = ({ schema, onSubmit: on
                 <table className="w-full text-sm">
                   <thead className="bg-muted">
                     <tr>
-                      {result.columns.map((col, idx) => (
+                      {result.columns.map((col: { name: string; label?: string; type?: string }, idx: number) => (
                         <th key={idx} className="px-4 py-2 text-left font-medium">
                           {col.label || col.name}
                         </th>
@@ -155,9 +155,9 @@ export const NLQueryInput: React.FC<NLQueryInputProps> = ({ schema, onSubmit: on
                     </tr>
                   </thead>
                   <tbody>
-                    {result.data.map((row, rowIdx) => (
+                    {result.data.map((row: Record<string, unknown>, rowIdx: number) => (
                       <tr key={rowIdx} className="border-t">
-                        {result.columns!.map((col, colIdx) => (
+                        {result.columns!.map((col: { name: string; label?: string; type?: string }, colIdx: number) => (
                           <td key={colIdx} className="px-4 py-2">
                             {row[col.name]}
                           </td>
@@ -189,7 +189,7 @@ export const NLQueryInput: React.FC<NLQueryInputProps> = ({ schema, onSubmit: on
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
-            {history.slice(0, 5).map((item, idx) => (
+            {history.slice(0, 5).map((item: { query: string; timestamp: string }, idx: number) => (
               <button
                 key={idx}
                 onClick={() => handleSuggestionClick(item.query)}

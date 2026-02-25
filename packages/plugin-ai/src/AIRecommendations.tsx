@@ -99,7 +99,7 @@ export const AIRecommendations: React.FC<AIRecommendationsProps> = ({ schema, on
           variant="ghost"
           size="sm"
           className="h-7 w-7 p-0 text-muted-foreground"
-          onClick={(e) => { e.stopPropagation(); handleDismiss(item); }}
+          onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleDismiss(item); }}
         >
           <X className="h-3.5 w-3.5" />
         </Button>
