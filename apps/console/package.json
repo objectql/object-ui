@@ -21,7 +21,7 @@
   "scripts": {
     "msw:init": "msw init -y public",
     "dev": "pnpm msw:init && vite",
-    "start": "tsx ../../node_modules/@objectstack/cli/bin/objectstack.js serve objectstack.config.ts",
+    "start": "node ../../packages/cli/dist/cli.js serve objectstack.config.ts",
     "start:mock": "pnpm msw:init && vite preview",
     "build:plugin": "tsc -p tsconfig.plugin.json",
     "build": "pnpm msw:init && tsc && VITE_USE_MOCK_SERVER=false vite build && pnpm build:plugin",
