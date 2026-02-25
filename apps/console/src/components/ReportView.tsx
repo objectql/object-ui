@@ -4,8 +4,8 @@ import { ReportViewer, ReportConfigPanel } from '@object-ui/plugin-report';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { Pencil, BarChart3, Loader2 } from 'lucide-react';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import { DesignDrawer } from './DesignDrawer';
 import { useMetadata } from '../context/MetadataProvider';
+import { useAdapter } from '../context/AdapterProvider';
 import type { DataSource } from '@object-ui/types';
 
 // Fallback fields when no schema is available
@@ -23,10 +23,13 @@ const FALLBACK_FIELDS = [
 export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   const { reportName } = useParams<{ reportName: string }>();
   const { showDebug, toggleDebug } = useMetadataInspector();
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const adapter = useAdapter();
+  const [configPanelOpen, setConfigPanelOpen] = useState(false);
+  // Version counter — incremented on save to refresh the stable config reference
+  const [configVersion, setConfigVersion] = useState(0);
   
   // Find report definition from API-driven metadata
-  const { reports, objects, loading } = useMetadata();
+  const { reports, objects, loading, refresh } = useMetadata();
   const initialReport = reports?.find((r: any) => r.name === reportName);
   const [reportData, setReportData] = useState(initialReport);
 
@@ -61,18 +64,71 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
     return FALLBACK_FIELDS;
   }, [reportData, objects]);
 
-  const handleOpenDrawer = useCallback(() => {
+  // ---- Save helper --------------------------------------------------------
+  const saveSchema = useCallback(
+    async (schema: any) => {
+      try {
+        if (adapter) {
+          await adapter.update('sys_report', reportName!, schema);
+          refresh().catch(() => {});
+        }
+      } catch (err) {
+        console.warn('[ReportView] Auto-save failed:', err);
+      }
+    },
+    [adapter, reportName, refresh],
+  );
+
+  // ---- Open / close config panel ------------------------------------------
+  const handleOpenConfigPanel = useCallback(() => {
     setEditSchema(reportData);
-    setDrawerOpen(true);
+    setConfigPanelOpen(true);
+    setConfigVersion((v) => v + 1);
   }, [reportData]);
 
-  const handleCloseDrawer = useCallback((open: boolean) => {
-    setDrawerOpen(open);
+  const handleCloseConfigPanel = useCallback(() => {
+    setConfigPanelOpen(false);
   }, []);
+
+  // ---- Report config panel handlers --------------------------------------
+  // Stabilize config reference: only recompute after explicit actions (panel
+  // open, save). configVersion is incremented on those actions.
+  // This prevents useConfigDraft from resetting the draft on every live field
+  // change (same pattern as DashboardView's dashboardConfig).
+  const reportConfig = useMemo(
+    () => editSchema || reportData,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [configVersion],
+  );
+
+  const handleReportConfigSave = useCallback(
+    (config: Record<string, any>) => {
+      setEditSchema(config);
+      saveSchema(config);
+      setConfigVersion((v) => v + 1);
+    },
+    [saveSchema],
+  );
+
+  const handleReportFieldChange = useCallback(
+    (field: string, value: any) => {
+      setEditSchema((prev: any) => ({ ...prev, [field]: value }));
+    },
+    [],
+  );
 
   // Sync reportData when metadata finishes loading or reportName changes
   useEffect(() => {
     setReportData(initialReport);
+  }, [initialReport]);
+
+  // When metadata refreshes, discard stale editSchema if the config panel
+  // is already closed.
+  useEffect(() => {
+    if (!configPanelOpen) {
+      setEditSchema(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialReport]);
 
   // Load report runtime data when report definition changes
@@ -225,8 +281,8 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
     return mapped;
   };
 
-  // Use live-edited schema for preview when the drawer is open
-  const previewReport = drawerOpen && editSchema ? editSchema : reportData;
+  // Use live-edited schema for preview (persists after closing panel until metadata refreshes)
+  const previewReport = editSchema || reportData;
   const reportForViewer = mapReportForViewer(previewReport);
   const viewerSchema = {
       type: 'report-viewer',
@@ -249,7 +305,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
         <div className="shrink-0 flex items-center gap-1.5">
            <button
              type="button"
-             onClick={handleOpenDrawer}
+             onClick={handleOpenConfigPanel}
              className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm hover:bg-accent hover:text-accent-foreground"
              data-testid="report-edit-button"
            >
@@ -261,38 +317,27 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col sm:flex-row relative">
-         <div className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 bg-muted/5">
+         <div className="flex-1 min-w-0 overflow-auto p-4 sm:p-6 lg:p-8 bg-muted/5">
             <div className="max-w-5xl mx-auto shadow-sm border rounded-lg sm:rounded-xl bg-background overflow-hidden min-h-150">
                 <ReportViewer schema={viewerSchema} />
             </div>
          </div>
+
+         {/* Right-side config panel — inline, matching DashboardView pattern */}
+         <ReportConfigPanel
+           open={configPanelOpen}
+           onClose={handleCloseConfigPanel}
+           config={reportConfig}
+           onSave={handleReportConfigSave}
+           onFieldChange={handleReportFieldChange}
+           availableFields={availableFields}
+         />
 
          <MetadataPanel
             open={showDebug}
             sections={[{ title: 'Report Configuration', data: previewReport }]}
          />
       </div>
-
-      <DesignDrawer
-        open={drawerOpen}
-        onOpenChange={handleCloseDrawer}
-        title={`Edit Report: ${reportData.title || reportData.label || reportName}`}
-        schema={editSchema || reportData}
-        onSchemaChange={setEditSchema}
-        collection="sys_report"
-        recordName={reportName!}
-      >
-        {(schema, onChange) => (
-          <ReportConfigPanel
-            open={true}
-            onClose={() => setDrawerOpen(false)}
-            config={schema}
-            onSave={(updated) => onChange(updated)}
-            onFieldChange={(field, value) => onChange({ ...schema, [field]: value })}
-            availableFields={availableFields}
-          />
-        )}
-      </DesignDrawer>
     </div>
   );
 }
