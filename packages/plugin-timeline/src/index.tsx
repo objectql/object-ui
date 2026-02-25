@@ -309,7 +309,7 @@ import { useSchemaContext } from '@object-ui/react';
 
 // Register object-timeline component
 export const ObjectTimelineRenderer: React.FC<any> = ({ schema, ...props }) => {
-  const { dataSource } = useSchemaContext();
+  const { dataSource } = useSchemaContext() || {};
   return <ObjectTimeline schema={schema} dataSource={dataSource} {...props} />;
 };
 

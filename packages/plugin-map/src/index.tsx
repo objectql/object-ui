@@ -17,7 +17,7 @@ export type { ObjectMapProps };
 
 // Register component
 export const ObjectMapRenderer: React.FC<any> = ({ schema, ...props }) => {
-  const { dataSource } = useSchemaContext();
+  const { dataSource } = useSchemaContext() || {};
   return <ObjectMap schema={schema} dataSource={dataSource} {...props} />;
 };
 
