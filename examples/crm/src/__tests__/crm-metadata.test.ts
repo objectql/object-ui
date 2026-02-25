@@ -167,14 +167,12 @@ describe('CRM Metadata Spec Compliance', () => {
     it('has conditionalFormatting for stock=0 (red) and stock<5 (warning)', () => {
       const rules = allProducts.conditionalFormatting!;
       expect(rules.length).toBe(2);
-      const zeroStock = rules.find((r) => r.operator === 'equals' && r.value === 0);
+      const zeroStock = rules.find((r: any) => r.condition?.includes('=== 0'));
       expect(zeroStock).toBeDefined();
-      expect(zeroStock!.field).toBe('stock');
-      expect(zeroStock!.backgroundColor).toBe('#fee2e2');
-      const lowStock = rules.find((r) => r.operator === 'less_than' && r.value === 5);
+      expect((zeroStock as any).style.backgroundColor).toBe('#fee2e2');
+      const lowStock = rules.find((r: any) => r.condition?.includes('< 5'));
       expect(lowStock).toBeDefined();
-      expect(lowStock!.field).toBe('stock');
-      expect(lowStock!.backgroundColor).toBe('#fef9c3');
+      expect((lowStock as any).style.backgroundColor).toBe('#fef9c3');
     });
 
     it('active_products also uses detailed column configs', () => {

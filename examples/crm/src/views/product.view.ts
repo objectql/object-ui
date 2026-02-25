@@ -17,18 +17,12 @@ export const ProductView = {
       rowHeight: 'short' as const,
       conditionalFormatting: [
         {
-          field: 'stock',
-          operator: 'equals' as const,
-          value: 0,
-          backgroundColor: '#fee2e2',
-          textColor: '#991b1b',
+          condition: '${data.stock === 0}',
+          style: { backgroundColor: '#fee2e2', color: '#991b1b' },
         },
         {
-          field: 'stock',
-          operator: 'less_than' as const,
-          value: 5,
-          backgroundColor: '#fef9c3',
-          textColor: '#854d0e',
+          condition: '${data.stock < 5}',
+          style: { backgroundColor: '#fef9c3', color: '#854d0e' },
         },
       ],
     },
