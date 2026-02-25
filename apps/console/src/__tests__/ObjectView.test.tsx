@@ -605,6 +605,9 @@ describe('ObjectView Component', () => {
         fireEvent.click(screen.getByTitle('console.objectView.designTools'));
         fireEvent.click(screen.getByText('console.objectView.editView'));
 
+        // Expand the Export & Print section (defaultCollapsed)
+        fireEvent.click(screen.getByTestId('section-header-exportPrint'));
+
         // Toggle showRecordCount on
         const recordCountSwitch = screen.getByTestId('toggle-showRecordCount');
         fireEvent.click(recordCountSwitch);
@@ -627,6 +630,9 @@ describe('ObjectView Component', () => {
         // Open config panel
         fireEvent.click(screen.getByTitle('console.objectView.designTools'));
         fireEvent.click(screen.getByText('console.objectView.editView'));
+
+        // Expand the Export & Print section (defaultCollapsed)
+        fireEvent.click(screen.getByTestId('section-header-exportPrint'));
 
         // Toggle allowPrinting on
         const printSwitch = screen.getByTestId('toggle-allowPrinting');

@@ -1880,6 +1880,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-exportPrint'));
         expect(screen.getByTestId('export-formats')).toBeInTheDocument();
         expect(screen.getByTestId('input-export-maxRecords')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-export-includeHeaders')).toBeInTheDocument();

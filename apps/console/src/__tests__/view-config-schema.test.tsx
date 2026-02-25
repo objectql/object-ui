@@ -338,27 +338,27 @@ describe('buildViewConfigSchema', () => {
         expect(schema.breadcrumb).toEqual(['console.objectView.page']);
     });
 
-    it('returns exactly 6 sections', () => {
+    it('returns exactly 10 sections', () => {
         const schema = buildSchema();
-        expect(schema.sections).toHaveLength(6);
+        expect(schema.sections).toHaveLength(10);
     });
 
     it('has correct section keys', () => {
         const schema = buildSchema();
         const keys = schema.sections.map(s => s.key);
-        expect(keys).toEqual(['pageConfig', 'data', 'appearance', 'userActions', 'sharing', 'accessibility']);
+        expect(keys).toEqual(['general', 'toolbar', 'navigation', 'records', 'exportPrint', 'data', 'appearance', 'userActions', 'sharing', 'accessibility']);
     });
 
     // ── Collapsible flags ───────────────────────────────────────────────
 
     describe('collapsible sections', () => {
-        it('pageConfig is NOT collapsible', () => {
+        it('general is NOT collapsible', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig');
+            const section = schema.sections.find(s => s.key === 'general');
             expect(section?.collapsible).toBeFalsy();
         });
 
-        it.each(['data', 'appearance', 'userActions', 'sharing', 'accessibility'])(
+        it.each(['toolbar', 'navigation', 'records', 'data', 'appearance', 'userActions', 'sharing', 'accessibility'])(
             '%s is collapsible',
             (key) => {
                 const schema = buildSchema();
@@ -366,41 +366,76 @@ describe('buildViewConfigSchema', () => {
                 expect(section?.collapsible).toBe(true);
             },
         );
+
+        it('exportPrint is collapsible and defaultCollapsed', () => {
+            const schema = buildSchema();
+            const section = schema.sections.find(s => s.key === 'exportPrint');
+            expect(section?.collapsible).toBe(true);
+            expect(section?.defaultCollapsed).toBe(true);
+        });
     });
 
-    // ── Page Config Section ─────────────────────────────────────────────
+    // ── General Section ─────────────────────────────────────────────
 
-    describe('pageConfig section', () => {
-        it('contains expected field keys in spec order', () => {
+    describe('general section', () => {
+        it('contains label, description, type fields', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const section = schema.sections.find(s => s.key === 'general')!;
             const fieldKeys = section.fields.map(f => f.key);
-            // Spec order: label, type, showSearch, showSort, showFilters, showHideFields, showGroup, showColor, showDensity,
-            //             allowExport(_export), navigation, selection, addRecord, showRecordCount, allowPrinting
-            // description is UI extension (after label)
+            expect(fieldKeys).toEqual(['label', 'description', 'type']);
+        });
+    });
+
+    // ── Toolbar Section ─────────────────────────────────────────────
+
+    describe('toolbar section', () => {
+        it('contains toolbar toggle field keys in spec order', () => {
+            const schema = buildSchema();
+            const section = schema.sections.find(s => s.key === 'toolbar')!;
+            const fieldKeys = section.fields.map(f => f.key);
             expect(fieldKeys).toEqual([
-                'label', 'description', 'type',
                 'showSearch', 'showSort', 'showFilters', 'showHideFields', 'showGroup', 'showColor', 'showDensity',
-                '_export',
-                '_navigationMode', '_navigationWidth', '_navigationOpenNewTab',
-                '_selectionType',
-                '_addRecord',
-                'showRecordCount', 'allowPrinting',
             ]);
         });
 
         it('showSort comes before showFilters per spec', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const section = schema.sections.find(s => s.key === 'toolbar')!;
             const fieldKeys = section.fields.map(f => f.key);
             expect(fieldKeys.indexOf('showSort')).toBeLessThan(fieldKeys.indexOf('showFilters'));
         });
+    });
 
-        it('_export comes before _navigationMode per spec', () => {
+    // ── Navigation Section ──────────────────────────────────────────
+
+    describe('navigation section', () => {
+        it('contains navigation field keys', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const section = schema.sections.find(s => s.key === 'navigation')!;
             const fieldKeys = section.fields.map(f => f.key);
-            expect(fieldKeys.indexOf('_export')).toBeLessThan(fieldKeys.indexOf('_navigationMode'));
+            expect(fieldKeys).toEqual(['_navigationMode', '_navigationWidth', '_navigationOpenNewTab']);
+        });
+    });
+
+    // ── Records Section ─────────────────────────────────────────────
+
+    describe('records section', () => {
+        it('contains selection and addRecord field keys', () => {
+            const schema = buildSchema();
+            const section = schema.sections.find(s => s.key === 'records')!;
+            const fieldKeys = section.fields.map(f => f.key);
+            expect(fieldKeys).toEqual(['_selectionType', '_addRecord']);
+        });
+    });
+
+    // ── Export & Print Section ───────────────────────────────────────
+
+    describe('exportPrint section', () => {
+        it('contains export, showRecordCount, and allowPrinting fields', () => {
+            const schema = buildSchema();
+            const section = schema.sections.find(s => s.key === 'exportPrint')!;
+            const fieldKeys = section.fields.map(f => f.key);
+            expect(fieldKeys).toEqual(['_export', 'showRecordCount', 'allowPrinting']);
         });
     });
 
@@ -531,7 +566,7 @@ describe('buildViewConfigSchema', () => {
     describe('visibleWhen predicates', () => {
         it('navigation width is visible only for drawer/modal/split', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const section = schema.sections.find(s => s.key === 'navigation')!;
             const widthField = section.fields.find(f => f.key === '_navigationWidth')!;
 
             expect(widthField.visibleWhen).toBeDefined();
@@ -545,7 +580,7 @@ describe('buildViewConfigSchema', () => {
 
         it('navigation openNewTab is visible only for page/new_window', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const section = schema.sections.find(s => s.key === 'navigation')!;
             const tabField = section.fields.find(f => f.key === '_navigationOpenNewTab')!;
 
             expect(tabField.visibleWhen).toBeDefined();
@@ -676,7 +711,7 @@ describe('spec alignment', () => {
 
         it('covers all NamedListView toolbar toggles in order', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const section = schema.sections.find(s => s.key === 'toolbar')!;
             const keys = section.fields.map(f => f.key);
             const toolbarFields = [
                 'showSearch', 'showSort', 'showFilters',
@@ -784,7 +819,7 @@ describe('spec alignment', () => {
 
         it('navigation width visible only for drawer/modal/split modes', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const section = schema.sections.find(s => s.key === 'navigation')!;
             const field = section.fields.find(f => f.key === '_navigationWidth')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({ navigation: { mode: 'drawer' } })).toBe(true);
@@ -797,7 +832,7 @@ describe('spec alignment', () => {
 
         it('navigation openNewTab visible only for page/new_window modes', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const section = schema.sections.find(s => s.key === 'navigation')!;
             const field = section.fields.find(f => f.key === '_navigationOpenNewTab')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({ navigation: { mode: 'page' } })).toBe(true);
@@ -811,7 +846,7 @@ describe('spec alignment', () => {
         // ── Toolbar toggle visibility by view type ──────────────────────
         it('showGroup visible for grid (default), kanban, and gallery, hidden for others', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const section = schema.sections.find(s => s.key === 'toolbar')!;
             const field = section.fields.find(f => f.key === 'showGroup')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({})).toBe(true);                    // default = grid
@@ -826,7 +861,7 @@ describe('spec alignment', () => {
 
         it('showColor visible for grid (default), calendar, timeline, gantt, hidden for others', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const section = schema.sections.find(s => s.key === 'toolbar')!;
             const field = section.fields.find(f => f.key === 'showColor')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({})).toBe(true);                    // default = grid
@@ -841,7 +876,7 @@ describe('spec alignment', () => {
 
         it('showDensity visible only for grid (default), hidden for others', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const section = schema.sections.find(s => s.key === 'toolbar')!;
             const field = section.fields.find(f => f.key === 'showDensity')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({})).toBe(true);                    // default = grid
@@ -1006,7 +1041,7 @@ describe('spec alignment', () => {
 
         it('navigation width field has helpText', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const section = schema.sections.find(s => s.key === 'navigation')!;
             const field = section.fields.find(f => f.key === '_navigationWidth')!;
             expect(field.helpText).toBeDefined();
             expect(typeof field.helpText).toBe('string');
@@ -1014,7 +1049,7 @@ describe('spec alignment', () => {
 
         it('navigation openNewTab field has helpText', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'pageConfig')!;
+            const section = schema.sections.find(s => s.key === 'navigation')!;
             const field = section.fields.find(f => f.key === '_navigationOpenNewTab')!;
             expect(field.helpText).toBeDefined();
             expect(typeof field.helpText).toBe('string');
