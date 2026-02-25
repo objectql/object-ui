@@ -179,6 +179,9 @@ export function DashboardWithConfig({
           schema={liveSchema}
           onRefresh={onRefresh}
           recordCount={recordCount}
+          designMode={configOpen}
+          selectedWidgetId={selectedWidgetId}
+          onWidgetClick={handleWidgetSelect}
         />
       </div>
 

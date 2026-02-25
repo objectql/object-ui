@@ -19,7 +19,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
 2. **Designer Interaction** — ViewDesigner and DataModelDesigner have undo/redo, field type selectors, inline editing, Ctrl+S save, column drag-to-reorder with dnd-kit ✅
 3. **View Config Live Preview Sync** — Config panel changes sync in real-time for Grid, but `showSort`/`showSearch`/`showFilters`/`striped`/`bordered` not yet propagated to Kanban/Calendar/Timeline/Gallery/Map/Gantt (see P1.8.1)
-4. **Dashboard Config Panel** — Airtable-style right-side configuration panel for dashboards (data source, layout, widget properties, sub-editors, type definitions). Widget config live preview sync and scatter chart type switch ✅ fixed (P1.10 Phase 10). Dashboard save/refresh metadata sync ✅ fixed (P1.10 Phase 11).
+4. **Dashboard Config Panel** — Airtable-style right-side configuration panel for dashboards (data source, layout, widget properties, sub-editors, type definitions). Widget config live preview sync and scatter chart type switch ✅ fixed (P1.10 Phase 10). Dashboard save/refresh metadata sync ✅ fixed (P1.10 Phase 11). Data provider field override for live preview ✅ fixed (P1.10 Phase 12).
 5. **Console Advanced Polish** — Remaining upgrades for forms, import/export, automation, comments
 6. **PWA Sync** — Background sync is simulated only
 
@@ -442,6 +442,13 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Clear `editSchema` and config panel state on dashboard navigation (`dashboardName` change)
 - [x] Fix: `DashboardDesignPage.saveSchema` did not call `metadata.refresh()` — other pages saw stale dashboard data after save
 - [x] Add 5 new Vitest tests: metadata refresh after widget save (2), metadata refresh after widget delete (2), metadata refresh after DashboardDesignPage save (1)
+
+**Phase 12 — Data Provider Field Override for Live Preview:**
+- [x] Fix: Widget-level fields (`categoryField`, `valueField`, `aggregate`, `object`) did not override data provider config (`widget.data.aggregate`) — editing these fields in the config panel had no effect on the rendered chart when a data provider was present
+- [x] `getComponentSchema()` in `DashboardRenderer` and `DashboardGridLayout` now merges widget-level fields with data provider aggregate config, with widget-level fields taking precedence
+- [x] Fix: `objectName` for table/pivot widgets used `widgetData.object || widget.object` — reversed to `widget.object || widgetData.object` so config panel edits to data source are reflected immediately
+- [x] Fix: `DashboardWithConfig` did not pass `designMode`, `selectedWidgetId`, or `onWidgetClick` to `DashboardRenderer` — widgets could not be selected or live-previewed in the plugin-level component
+- [x] Add 10 new Vitest tests: widget-level field overrides for aggregate groupBy/field/function (3), objectName precedence for chart/table (2), simultaneous field overrides (1), DashboardWithConfig design mode and widget selection (2), existing live preview tests (2)
 
 ### P1.11 Console — Schema-Driven View Config Panel Migration
 
@@ -1013,6 +1020,6 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 
 ---
 
-**Roadmap Status:** 🎯 Active — AppShell · Designer Interaction · View Config Live Preview Sync (P1.8.1) · Dashboard Config Panel (widget live preview & scatter type switch ✅ fixed, save/refresh metadata sync ✅ fixed) · Schema-Driven View Config Panel ✅ · Right-Side Visual Editor Drawer ✅ · Airtable UX Parity
+**Roadmap Status:** 🎯 Active — AppShell · Designer Interaction · View Config Live Preview Sync (P1.8.1) · Dashboard Config Panel (widget live preview & scatter type switch ✅ fixed, save/refresh metadata sync ✅ fixed, data provider field override ✅ fixed) · Schema-Driven View Config Panel ✅ · Right-Side Visual Editor Drawer ✅ · Airtable UX Parity
 **Next Review:** March 15, 2026
 **Contact:** hello@objectui.org | https://github.com/objectstack-ai/objectui

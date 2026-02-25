@@ -234,4 +234,43 @@ describe('DashboardWithConfig', () => {
     expect(container).toBeDefined();
     expect(screen.getByTestId('dashboard-with-config')).toBeDefined();
   });
+
+  it('should enable design mode and pass widget selection props to DashboardRenderer when config is open', () => {
+    render(
+      <DashboardWithConfig
+        schema={sampleSchema}
+        config={sampleConfig}
+        onConfigSave={vi.fn()}
+        onWidgetSave={vi.fn()}
+        defaultConfigOpen={true}
+      />,
+    );
+    // When config panel is open, widget click overlays should be present
+    // (design mode enabled) for interactive widget selection
+    const overlays = screen.queryAllByTestId('widget-click-overlay');
+    expect(overlays.length).toBeGreaterThan(0);
+  });
+
+  it('should switch to WidgetConfigPanel when a widget is clicked in design mode', () => {
+    render(
+      <DashboardWithConfig
+        schema={sampleSchema}
+        config={sampleConfig}
+        onConfigSave={vi.fn()}
+        onWidgetSave={vi.fn()}
+        defaultConfigOpen={true}
+      />,
+    );
+    // Initially shows Dashboard > Configuration
+    expect(screen.getByText('Dashboard')).toBeDefined();
+    expect(screen.getByText('Configuration')).toBeDefined();
+    expect(screen.queryByText('Widget')).toBeNull();
+
+    // Click on a widget preview to select it
+    const widgetOverlay = screen.getByTestId('dashboard-preview-widget-widget-1');
+    fireEvent.click(widgetOverlay);
+
+    // Should now show Widget breadcrumb (WidgetConfigPanel)
+    expect(screen.getByText('Widget')).toBeDefined();
+  });
 });

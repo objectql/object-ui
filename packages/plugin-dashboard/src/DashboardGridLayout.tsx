@@ -137,12 +137,21 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
 
       // provider: 'object' — delegate to ObjectChart for async data loading
       if (isObjectProvider(widgetData)) {
-        const effectiveYField = widgetData.aggregate?.field || yField;
+        // Merge widget-level fields with data provider config.
+        // Widget-level fields take precedence so that config panel
+        // edits are immediately reflected in the live preview.
+        const providerAgg = widgetData.aggregate;
+        const effectiveAggregate = providerAgg ? {
+          field: widget.valueField || providerAgg.field,
+          function: widget.aggregate || providerAgg.function,
+          groupBy: widget.categoryField || providerAgg.groupBy,
+        } : undefined;
+        const effectiveYField = effectiveAggregate?.field || yField;
         return {
           type: 'object-chart',
           chartType: widgetType,
-          objectName: widgetData.object || widget.object,
-          aggregate: widgetData.aggregate,
+          objectName: widget.object || widgetData.object,
+          aggregate: effectiveAggregate,
           xAxisKey: xAxisKey,
           series: [{ dataKey: effectiveYField }],
           colors: CHART_COLORS,
@@ -192,7 +201,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         return {
           type: 'data-table',
           ...restOptions,
-          objectName: widgetData.object || widget.object,
+          objectName: widget.object || widgetData.object,
           dataProvider: widgetData,
           data: [],
           searchable: false,
@@ -233,7 +242,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         return {
           type: 'pivot',
           ...restOptions,
-          objectName: widgetData.object || widget.object,
+          objectName: widget.object || widgetData.object,
           dataProvider: widgetData,
           data: [],
         };
