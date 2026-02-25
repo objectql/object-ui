@@ -1071,6 +1071,11 @@ export const ListView: React.FC<ListViewProps> = ({
           </Popover>
           )}
 
+          {/* --- Separator: Hide Fields | Data Manipulation --- */}
+          {toolbarFlags.showHideFields && (toolbarFlags.showFilters || toolbarFlags.showSort || toolbarFlags.showGroup) && (
+            <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
+          )}
+
           {/* Filter */}
           {toolbarFlags.showFilters && (
           <Popover open={showFilters} onOpenChange={setShowFilters}>
@@ -1209,6 +1214,11 @@ export const ListView: React.FC<ListViewProps> = ({
           </Popover>
           )}
 
+          {/* --- Separator: Data Manipulation | Appearance --- */}
+          {(toolbarFlags.showFilters || toolbarFlags.showSort || toolbarFlags.showGroup) && (toolbarFlags.showColor || toolbarFlags.showDensity) && (
+            <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
+          )}
+
           {/* Color */}
           {toolbarFlags.showColor && (
           <Popover open={showColorPopover} onOpenChange={setShowColorPopover}>
@@ -1273,6 +1283,11 @@ export const ListView: React.FC<ListViewProps> = ({
             <AlignJustify className="h-3.5 w-3.5 mr-1.5" />
             <span className="hidden sm:inline capitalize">{density.mode}</span>
           </Button>
+          )}
+
+          {/* --- Separator: Appearance | Export --- */}
+          {(toolbarFlags.showColor || toolbarFlags.showDensity) && resolvedExportOptions && schema.allowExport !== false && (
+            <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
           )}
 
           {/* Export */}

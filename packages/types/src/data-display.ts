@@ -414,6 +414,11 @@ export interface DataTableSchema extends BaseSchema {
    */
   rowClassName?: (row: any, index: number) => string | undefined;
   /**
+   * Dynamic row inline style
+   * Function that returns CSSProperties for each row (e.g., from conditionalFormatting).
+   */
+  rowStyle?: (row: any, index: number) => React.CSSProperties | undefined;
+  /**
    * Number of columns to freeze (left-pin)
    * When set, the first N columns remain fixed while the rest scroll horizontally.
    * @default 0

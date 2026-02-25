@@ -833,25 +833,37 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [x] Active tab indicator changed to bottom border (`border-b-2 border-primary font-medium text-foreground`)
 - [x] `transition-colors duration-150` added to tab buttons
 
-### P2.8 Airtable Parity: Product View & UI Detail Optimization
+### P2.8 Airtable Parity: Product View & Global UI Detail Optimization
 
-> Product grid view and configuration panel UI/UX optimizations for Airtable-level experience (Issue #768).
+> Platform-level grid, toolbar, and config panel optimizations for Airtable-level experience (Issue #768).
 
-**Product Grid (Grid Area):**
-- [x] `IS ACTIVE` column: explicit `type: 'boolean'` rendering as `<Checkbox disabled>` via BooleanCellRenderer
-- [x] Price column: explicit `type: 'currency'` with `formatCurrency` formatting (`$2,499.99`)
-- [x] Price column: `align: 'right'` for numeric alignment
-- [x] Default `rowHeight: 'short'` for compact information density
-- [x] SKU (`width: 120`) and CATEGORY (`width: 110`) columns narrowed; NAME column wider (`width: 250`)
-- [x] Stock=0 rows: red conditional formatting (`backgroundColor: #fee2e2`, `textColor: #991b1b`)
-- [x] Stock<5 rows: warning conditional formatting (`backgroundColor: #fef9c3`, `textColor: #854d0e`)
-- [x] All columns use detailed `ListColumn` config with explicit `field`, `label`, `width`, `type`, `align`
+**Platform: DataTable & ObjectGrid Enhancements:**
+- [x] `rowStyle` callback prop added to `DataTableSchema` type — enables inline CSSProperties per row
+- [x] `<TableRow>` in data-table.tsx applies `rowStyle` callback for runtime row styling
+- [x] ObjectGrid: `conditionalFormatting` rules wired to `rowStyle` — evaluates both spec-format (`condition`/`style`) and ObjectUI-format (`field`/`operator`/`value`) rules per row using `evaluatePlainCondition` from `@object-ui/core`
+- [x] Row number (#) column: hover shows `<Checkbox>` for multi-select (when `selectable` mode is enabled), replacing expand icon
 
-**Config Panel:**
+**Platform: ListView Toolbar Separators:**
+- [x] Visual `<div>` separators (`h-4 w-px bg-border/60`) between toolbar button groups: Hide Fields | Filter/Sort/Group | Color/Density | Export
+- [x] Separators conditionally rendered only when adjacent groups are visible
+
+**Platform: ViewConfigPanel Advanced Sections:**
+- [x] `userActions`, `sharing`, and `accessibility` sections set to `defaultCollapsed: true` — common settings remain expanded, advanced settings folded by default
+
+**Platform: Config Panel Width:**
 - [x] `--config-panel-width` CSS variable increased from `280px` to `320px` for wider config panel
 
+**CRM Example: Product Grid Column Configs:**
+- [x] All columns upgraded from `string[]` to `ListColumn[]` with explicit `field`, `label`, `width`, `type`, `align`
+- [x] `IS ACTIVE`: `type: 'boolean'` for `<Checkbox disabled>` rendering
+- [x] Price: `type: 'currency'`, `align: 'right'` for `formatCurrency` formatting
+- [x] Default `rowHeight: 'short'` for compact density
+- [x] Conditional formatting: stock=0 red, stock<5 yellow warning
+- [x] Column widths: NAME 250, SKU 120, CATEGORY 110, PRICE 120, STOCK 80
+
 **Tests:**
-- [x] 7 new CRM metadata tests validating column types, widths, rowHeight, conditionalFormatting rules
+- [x] 7 new CRM metadata tests validating column types, widths, rowHeight, conditionalFormatting
+- [x] 136 ViewConfigPanel tests updated for defaultCollapsed sections (expand before access)
 
 ### P2.5 PWA & Offline (Real Sync)
 

@@ -103,6 +103,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     reorderableColumns = true,
     editable = false,
     rowClassName,
+    rowStyle,
     className,
     frozenColumns = 0,
     showRowNumbers = false,
@@ -748,6 +749,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         rowHasChanges && "bg-amber-50 dark:bg-amber-950/20",
                         rowClassName && rowClassName(row, rowIndex)
                       )}
+                      style={rowStyle ? rowStyle(row, rowIndex) : undefined}
                       onClick={(e) => {
                         if (schema.onRowClick && !e.defaultPrevented) {
                            // Simple heuristic to avoid triggering on interactive elements if they didn't stop propagation
@@ -769,10 +771,18 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       )}
                       {showRowNumbers && (
                         <TableCell className={cn("text-center w-12 relative", frozenColumns > 0 && "sticky z-10 bg-background")} style={frozenColumns > 0 ? { left: selectable ? 48 : 0 } : undefined}>
-                          <span className="text-xs text-muted-foreground tabular-nums select-none group-hover/row:invisible">
+                          <span className={cn("text-xs text-muted-foreground tabular-nums select-none", selectable ? "group-hover/row:hidden" : "group-hover/row:invisible")}>
                             {globalIndex + 1}
                           </span>
-                          {schema.onRowClick && (
+                          {selectable ? (
+                            <div className="absolute inset-0 hidden group-hover/row:flex items-center justify-center">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={(checked) => handleSelectRow(rowId, checked as boolean)}
+                                data-testid="row-hover-checkbox"
+                              />
+                            </div>
+                          ) : schema.onRowClick && (
                             <button
                               type="button"
                               className="absolute inset-0 hidden group-hover/row:flex items-center justify-center text-muted-foreground hover:text-primary"
