@@ -798,7 +798,7 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 **Global Theme & Design Tokens:**
 - [x] Hardcoded gray colors in `GridField.tsx`, `ReportRenderer.tsx`, and `ObjectGrid.tsx` replaced with theme tokens (`text-muted-foreground`, `bg-muted`, `border-border`, `border-foreground`)
 - [x] Global font-family (`Inter`, ui-sans-serif, system-ui) injected in `index.css` `:root`
-- [x] `--config-panel-width: 280px` CSS custom property added for unified config panel sizing
+- [x] `--config-panel-width` CSS custom property added for unified config panel sizing (updated to `320px` in P2.8)
 - [x] Border radius standardized to `rounded-lg` across report/grid components
 - [x] `transition-colors duration-150` added to all interactive elements (toolbar buttons, tab bar, sidebar menu buttons)
 - [x] `LayoutRenderer.tsx` outer shell `bg-slate-50/50 dark:bg-zinc-950` replaced with `bg-background` theme token
@@ -832,6 +832,48 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [x] Tab spacing tightened (`gap-0.5`, `px-3 py-1.5`)
 - [x] Active tab indicator changed to bottom border (`border-b-2 border-primary font-medium text-foreground`)
 - [x] `transition-colors duration-150` added to tab buttons
+
+### P2.8 Airtable Parity: Product View & Global UI Detail Optimization
+
+> Platform-level grid, toolbar, sidebar, and config panel optimizations for Airtable-level experience (Issue #768).
+
+**Platform: DataTable & ObjectGrid Enhancements:**
+- [x] `rowStyle` callback prop added to `DataTableSchema` type — enables inline CSSProperties per row
+- [x] `<TableRow>` in data-table.tsx applies `rowStyle` callback for runtime row styling
+- [x] ObjectGrid: `conditionalFormatting` rules wired to `rowStyle` — evaluates both spec-format (`condition`/`style`) and ObjectUI-format (`field`/`operator`/`value`) rules per row using `evaluatePlainCondition` from `@object-ui/core`
+- [x] Row number (#) column: hover shows `<Checkbox>` for multi-select (when `selectable` mode is enabled), replacing expand icon
+
+**Platform: ListView Toolbar:**
+- [x] Visual `<div>` separators (`h-4 w-px bg-border/60`) between toolbar button groups: Search | Hide Fields | Filter/Sort/Group | Color/Density | Export
+- [x] Separators conditionally rendered only when adjacent groups are visible
+- [x] Inline search moved to toolbar left end (`w-48`, Airtable-style)
+- [x] Density button: activated state highlight (`bg-primary/10 border border-primary/20`) when density is non-default
+
+**Platform: ViewTabBar:**
+- [x] Tab "•" dot indicator replaced with descriptive badge (`F`/`S`/`FS`) + tooltip showing "Active filters", "Active sort"
+
+**Platform: Console Sidebar:**
+- [x] Recent items section: default collapsed with chevron toggle (saves sidebar space)
+
+**Platform: ViewConfigPanel Advanced Sections:**
+- [x] `userActions`, `sharing`, and `accessibility` sections set to `defaultCollapsed: true` — common settings remain expanded, advanced settings folded by default
+
+**Platform: Config Panel Width:**
+- [x] `--config-panel-width` CSS variable increased from `280px` to `320px` for wider config panel
+
+**CRM Example: Product Grid Column Configs:**
+- [x] All columns upgraded from `string[]` to `ListColumn[]` with explicit `field`, `label`, `width`, `type`, `align`
+- [x] `IS ACTIVE`: `type: 'boolean'` for `<Checkbox disabled>` rendering
+- [x] Price: `type: 'currency'`, `align: 'right'` for `formatCurrency` formatting
+- [x] Default `rowHeight: 'short'` for compact density
+- [x] Conditional formatting: stock=0 red, stock<5 yellow warning
+- [x] Column widths: NAME 250, SKU 120, CATEGORY 110, PRICE 120, STOCK 80
+
+**Tests:**
+- [x] 7 new CRM metadata tests validating column types, widths, rowHeight, conditionalFormatting
+- [x] 136 ViewConfigPanel tests updated for defaultCollapsed sections (expand before access)
+- [x] 411 ListView + ViewTabBar tests passing
+- [x] 11 AppSidebar tests passing
 
 ### P2.5 PWA & Offline (Real Sync)
 

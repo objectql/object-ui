@@ -378,10 +378,19 @@ export const ViewTabBar: React.FC<ViewTabBarProps> = ({
           <span>{view.label}</span>
         )}
         {hasIndicator && (
-          <span
-            data-testid={`view-tab-indicator-${view.id}`}
-            className="ml-0.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0"
-          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                data-testid={`view-tab-indicator-${view.id}`}
+                className="ml-1 inline-flex items-center justify-center h-4 min-w-[16px] rounded-full bg-primary/15 text-[10px] font-medium text-primary px-1 shrink-0"
+              >
+                {[view.hasActiveFilters && 'F', view.hasActiveSort && 'S'].filter(Boolean).join('')}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs">
+              {[view.hasActiveFilters && 'Active filters', view.hasActiveSort && 'Active sort'].filter(Boolean).join(', ')}
+            </TooltipContent>
+          </Tooltip>
         )}
         {view.isDefault && (
           <Star className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" />
@@ -567,7 +576,9 @@ export const ViewTabBar: React.FC<ViewTabBarProps> = ({
                     <ViewIcon className="h-4 w-4 mr-2" />
                     {view.label}
                     {showIndicators && (view.hasActiveFilters || view.hasActiveSort) && (
-                      <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />
+                      <span className="ml-auto inline-flex items-center justify-center h-4 min-w-[16px] rounded-full bg-primary/15 text-[10px] font-medium text-primary px-1">
+                        {[view.hasActiveFilters && 'F', view.hasActiveSort && 'S'].filter(Boolean).join('')}
+                      </span>
                     )}
                   </DropdownMenuItem>
                 );

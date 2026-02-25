@@ -1310,6 +1310,8 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        // Expand defaultCollapsed userActions section
+        fireEvent.click(screen.getByTestId('section-userActions'));
         expect(screen.getByTestId('toggle-inlineEdit')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-addDeleteRecordsInline')).toBeInTheDocument();
         expect(screen.getByTestId('select-navigation-mode')).toBeInTheDocument();
@@ -1327,6 +1329,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-userActions'));
         fireEvent.click(screen.getByTestId('toggle-inlineEdit'));
         expect(onViewUpdate).toHaveBeenCalledWith('inlineEdit', false);
     });
@@ -1630,6 +1633,8 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        // Expand defaultCollapsed userActions section
+        fireEvent.click(screen.getByTestId('section-userActions'));
         // List-level inline actions should be in the User Actions collapsible section
         expect(screen.getByTestId('toggle-inlineEdit')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-addDeleteRecordsInline')).toBeInTheDocument();
@@ -2105,6 +2110,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-sharing'));
         expect(screen.getByTestId('toggle-sharing-enabled')).toBeInTheDocument();
     });
 
@@ -2118,6 +2124,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-sharing'));
         expect(screen.getByTestId('select-sharing-visibility')).toBeInTheDocument();
         expect(screen.getByTestId('select-sharing-visibility')).toHaveValue('team');
     });
@@ -2134,6 +2141,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-sharing'));
         fireEvent.click(screen.getByTestId('toggle-sharing-enabled'));
         expect(onViewUpdate).toHaveBeenCalledWith('sharing', expect.objectContaining({ enabled: true }));
     });
@@ -2148,6 +2156,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-accessibility'));
         expect(screen.getByTestId('input-aria-label')).toBeInTheDocument();
         expect(screen.getByTestId('input-aria-describedBy')).toBeInTheDocument();
         expect(screen.getByTestId('select-aria-live')).toBeInTheDocument();
@@ -2178,6 +2187,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-userActions'));
         fireEvent.click(screen.getByText('console.objectView.rowActions'));
         expect(screen.getByTestId('row-actions-selector')).toBeInTheDocument();
     });
@@ -2192,6 +2202,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-userActions'));
         fireEvent.click(screen.getByText('console.objectView.bulkActions'));
         expect(screen.getByTestId('bulk-actions-selector')).toBeInTheDocument();
     });
@@ -2285,6 +2296,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-accessibility'));
         fireEvent.change(screen.getByTestId('input-aria-label'), { target: { value: 'Contacts table' } });
         expect(onViewUpdate).toHaveBeenCalledWith('aria', expect.objectContaining({ label: 'Contacts table' }));
     });
@@ -2301,6 +2313,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-accessibility'));
         fireEvent.change(screen.getByTestId('input-aria-describedBy'), { target: { value: 'table-desc' } });
         expect(onViewUpdate).toHaveBeenCalledWith('aria', expect.objectContaining({ describedBy: 'table-desc' }));
     });
@@ -2317,6 +2330,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-accessibility'));
         fireEvent.change(screen.getByTestId('select-aria-live'), { target: { value: 'polite' } });
         expect(onViewUpdate).toHaveBeenCalledWith('aria', expect.objectContaining({ live: 'polite' }));
     });
@@ -2333,6 +2347,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-userActions'));
         fireEvent.click(screen.getByText('console.objectView.rowActions'));
         fireEvent.change(screen.getByTestId('input-rowActions'), { target: { value: 'edit, delete' } });
         expect(onViewUpdate).toHaveBeenCalledWith('rowActions', ['edit', 'delete']);
@@ -2350,6 +2365,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-userActions'));
         fireEvent.click(screen.getByText('console.objectView.bulkActions'));
         fireEvent.change(screen.getByTestId('input-bulkActions'), { target: { value: 'delete, export' } });
         expect(onViewUpdate).toHaveBeenCalledWith('bulkActions', ['delete', 'export']);
@@ -2433,6 +2449,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-userActions'));
         fireEvent.click(screen.getByTestId('toggle-addDeleteRecordsInline'));
         expect(onViewUpdate).toHaveBeenCalledWith('addDeleteRecordsInline', false);
     });
@@ -2449,6 +2466,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-sharing'));
         expect(screen.getByTestId('toggle-sharing-enabled')).toBeInTheDocument();
         expect(screen.queryByTestId('select-sharing-visibility')).not.toBeInTheDocument();
     });
@@ -2463,6 +2481,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-sharing'));
         expect(screen.queryByTestId('select-sharing-visibility')).not.toBeInTheDocument();
     });
 
@@ -2530,6 +2549,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-userActions'));
         fireEvent.click(screen.getByText('console.objectView.bulkActions'));
         fireEvent.change(screen.getByTestId('input-bulkActions'), { target: { value: '' } });
         expect(onViewUpdate).toHaveBeenCalledWith('bulkActions', []);
@@ -2547,6 +2567,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-userActions'));
         fireEvent.click(screen.getByText('console.objectView.rowActions'));
         fireEvent.change(screen.getByTestId('input-rowActions'), { target: { value: '' } });
         expect(onViewUpdate).toHaveBeenCalledWith('rowActions', []);
@@ -2661,6 +2682,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-sharing'));
         fireEvent.change(screen.getByTestId('select-sharing-visibility'), { target: { value: 'organization' } });
         expect(onViewUpdate).toHaveBeenCalledWith('sharing', expect.objectContaining({
             enabled: true,
@@ -2682,6 +2704,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-accessibility'));
         const select = screen.getByTestId('select-aria-live');
         ['polite', 'assertive', 'off'].forEach((mode) => {
             fireEvent.change(select, { target: { value: mode } });

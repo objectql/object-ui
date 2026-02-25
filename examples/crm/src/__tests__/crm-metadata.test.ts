@@ -122,6 +122,68 @@ describe('CRM Metadata Spec Compliance', () => {
     });
   });
 
+  describe('ProductView Airtable Parity', () => {
+    const allProducts = ProductView.listViews.all_products;
+    const activeProducts = ProductView.listViews.active_products;
+
+    it('all_products uses detailed column configs with field, width, and type', () => {
+      const cols = allProducts.columns as Array<Record<string, unknown>>;
+      expect(cols.length).toBe(6);
+      for (const col of cols) {
+        expect(col).toHaveProperty('field');
+        expect(col).toHaveProperty('width');
+      }
+    });
+
+    it('is_active column has boolean type for Checkbox rendering', () => {
+      const cols = allProducts.columns as Array<Record<string, unknown>>;
+      const isActiveCol = cols.find((c) => c.field === 'is_active');
+      expect(isActiveCol).toBeDefined();
+      expect(isActiveCol!.type).toBe('boolean');
+    });
+
+    it('price column has currency type and right alignment', () => {
+      const cols = allProducts.columns as Array<Record<string, unknown>>;
+      const priceCol = cols.find((c) => c.field === 'price');
+      expect(priceCol).toBeDefined();
+      expect(priceCol!.type).toBe('currency');
+      expect(priceCol!.align).toBe('right');
+    });
+
+    it('rowHeight is set to short for compact density', () => {
+      expect(allProducts.rowHeight).toBe('short');
+      expect(activeProducts.rowHeight).toBe('short');
+    });
+
+    it('SKU and CATEGORY columns are narrower than NAME', () => {
+      const cols = allProducts.columns as Array<Record<string, unknown>>;
+      const nameCol = cols.find((c) => c.field === 'name');
+      const skuCol = cols.find((c) => c.field === 'sku');
+      const catCol = cols.find((c) => c.field === 'category');
+      expect((nameCol!.width as number)).toBeGreaterThan(skuCol!.width as number);
+      expect((nameCol!.width as number)).toBeGreaterThan(catCol!.width as number);
+    });
+
+    it('has conditionalFormatting for stock=0 (red) and stock<5 (warning)', () => {
+      const rules = allProducts.conditionalFormatting!;
+      expect(rules.length).toBe(2);
+      const zeroStock = rules.find((r: any) => r.condition?.includes('=== 0'));
+      expect(zeroStock).toBeDefined();
+      expect((zeroStock as any).style.backgroundColor).toBe('#fee2e2');
+      const lowStock = rules.find((r: any) => r.condition?.includes('< 5'));
+      expect(lowStock).toBeDefined();
+      expect((lowStock as any).style.backgroundColor).toBe('#fef9c3');
+    });
+
+    it('active_products also uses detailed column configs', () => {
+      const cols = activeProducts.columns as Array<Record<string, unknown>>;
+      expect(cols.length).toBe(6);
+      const priceCol = cols.find((c) => c.field === 'price');
+      expect(priceCol!.type).toBe('currency');
+      expect(priceCol!.align).toBe('right');
+    });
+  });
+
   describe('Actions', () => {
     it('all actions have name, label, type, and locations', () => {
       for (const action of allActions) {

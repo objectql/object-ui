@@ -21,7 +21,7 @@
  * - Inline editing support
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction } from '@object-ui/react';
 import { getCellRenderer, formatCurrency, formatCompactCurrency, formatDate, formatPercent } from '@object-ui/fields';
@@ -30,6 +30,7 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
+import { evaluatePlainCondition } from '@object-ui/core';
 import { ChevronRight, ChevronDown, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock } from 'lucide-react';
 import { useRowColor } from './useRowColor';
 import { useGroupedData } from './useGroupedData';
@@ -343,6 +344,42 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
 
   // --- Row color support ---
   const getRowClassName = useRowColor(schema.rowColor);
+
+  // --- Conditional formatting support ---
+  const getRowStyle = useCallback((row: Record<string, unknown>): React.CSSProperties | undefined => {
+    const rules = schema.conditionalFormatting;
+    if (!rules || rules.length === 0) return undefined;
+    for (const rule of rules) {
+      let match = false;
+      const expression =
+        ('condition' in rule ? (rule as any).condition : undefined)
+        || ('expression' in rule ? (rule as any).expression : undefined)
+        || undefined;
+      if (expression) {
+        match = evaluatePlainCondition(expression, row as Record<string, any>);
+      } else if ('field' in rule && 'operator' in rule && (rule as any).field && (rule as any).operator) {
+        const r = rule as any;
+        const fieldValue = row[r.field];
+        switch (r.operator) {
+          case 'equals': match = fieldValue === r.value; break;
+          case 'not_equals': match = fieldValue !== r.value; break;
+          case 'contains': match = typeof fieldValue === 'string' && typeof r.value === 'string' && fieldValue.includes(r.value); break;
+          case 'greater_than': match = typeof fieldValue === 'number' && typeof r.value === 'number' && fieldValue > r.value; break;
+          case 'less_than': match = typeof fieldValue === 'number' && typeof r.value === 'number' && fieldValue < r.value; break;
+          case 'in': match = Array.isArray(r.value) && r.value.includes(fieldValue); break;
+        }
+      }
+      if (match) {
+        const style: React.CSSProperties = {};
+        if ('style' in rule && (rule as any).style) Object.assign(style, (rule as any).style);
+        if ('backgroundColor' in rule && (rule as any).backgroundColor) style.backgroundColor = (rule as any).backgroundColor;
+        if ('textColor' in rule && (rule as any).textColor) style.color = (rule as any).textColor;
+        if ('borderColor' in rule && (rule as any).borderColor) style.borderColor = (rule as any).borderColor;
+        return style;
+      }
+    }
+    return undefined;
+  }, [schema.conditionalFormatting]);
 
   // --- Grouping support ---
   const { groups, isGrouped, toggleGroup } = useGroupedData(schema.grouping, data);
@@ -851,6 +888,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     showAddRow: !!operations?.create,
     onAddRecord: onAddRecord,
     rowClassName: schema.rowColor ? (row: any, _idx: number) => getRowClassName(row) : undefined,
+    rowStyle: schema.conditionalFormatting?.length ? (row: any, _idx: number) => getRowStyle(row) : undefined,
     frozenColumns: effectiveFrozenColumns,
     onSelectionChange: (rows: any[]) => {
       setSelectedRows(rows);

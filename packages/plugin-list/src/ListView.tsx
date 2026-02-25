@@ -1012,6 +1012,34 @@ export const ListView: React.FC<ListViewProps> = ({
       {/* Airtable-style Toolbar — Row 2: Tool buttons */}
       <div className="border-b px-2 sm:px-4 py-1 flex items-center justify-between gap-1 sm:gap-2 bg-background">
         <div className="flex items-center gap-0.5 overflow-x-auto flex-1 min-w-0">
+          {/* Search (left end — Airtable-style) */}
+          {toolbarFlags.showSearch && (
+            <div className="relative w-48 shrink-0">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-7 h-7 text-xs bg-muted/50 border-transparent hover:bg-muted focus:bg-background focus:border-input transition-colors"
+              />
+              {searchTerm && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 hover:bg-muted-foreground/20"
+                  onClick={() => handleSearchChange('')}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* --- Separator: Search | Fields --- */}
+          {toolbarFlags.showSearch && toolbarFlags.showHideFields && (
+            <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
+          )}
+
           {/* Hide Fields */}
           {toolbarFlags.showHideFields && (
           <Popover open={showHideFields} onOpenChange={setShowHideFields}>
@@ -1069,6 +1097,11 @@ export const ListView: React.FC<ListViewProps> = ({
               </div>
             </PopoverContent>
           </Popover>
+          )}
+
+          {/* --- Separator: Hide Fields | Data Manipulation --- */}
+          {toolbarFlags.showHideFields && (toolbarFlags.showFilters || toolbarFlags.showSort || toolbarFlags.showGroup) && (
+            <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
           )}
 
           {/* Filter */}
@@ -1209,6 +1242,11 @@ export const ListView: React.FC<ListViewProps> = ({
           </Popover>
           )}
 
+          {/* --- Separator: Data Manipulation | Appearance --- */}
+          {(toolbarFlags.showFilters || toolbarFlags.showSort || toolbarFlags.showGroup) && (toolbarFlags.showColor || toolbarFlags.showDensity) && (
+            <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
+          )}
+
           {/* Color */}
           {toolbarFlags.showColor && (
           <Popover open={showColorPopover} onOpenChange={setShowColorPopover}>
@@ -1266,13 +1304,21 @@ export const ListView: React.FC<ListViewProps> = ({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-muted-foreground hover:text-primary text-xs hidden lg:flex"
+            className={cn(
+              "h-7 px-2 text-muted-foreground hover:text-primary text-xs hidden lg:flex transition-colors duration-150",
+              density.mode !== 'comfortable' && "bg-primary/10 border border-primary/20 text-primary"
+            )}
             onClick={density.cycle}
             title={`Density: ${density.mode}`}
           >
             <AlignJustify className="h-3.5 w-3.5 mr-1.5" />
             <span className="hidden sm:inline capitalize">{density.mode}</span>
           </Button>
+          )}
+
+          {/* --- Separator: Appearance | Export --- */}
+          {(toolbarFlags.showColor || toolbarFlags.showDensity) && resolvedExportOptions && schema.allowExport !== false && (
+            <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
           )}
 
           {/* Export */}
@@ -1336,7 +1382,7 @@ export const ListView: React.FC<ListViewProps> = ({
           )}
         </div>
 
-        {/* Right: Add Record + Search */}
+        {/* Right: Add Record */}
         <div className="flex items-center gap-1">
           {/* Add Record (top position) */}
           {toolbarFlags.showAddRecord && toolbarFlags.addRecordPosition === 'top' && (
@@ -1350,29 +1396,6 @@ export const ListView: React.FC<ListViewProps> = ({
               <Plus className="h-3.5 w-3.5 mr-1.5" />
               <span className="hidden sm:inline">{t('list.addRecord')}</span>
             </Button>
-          )}
-
-          {/* Search */}
-          {toolbarFlags.showSearch && (
-            <div className="relative w-48">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-7 h-7 text-xs bg-muted/50 border-transparent hover:bg-muted focus:bg-background focus:border-input transition-colors"
-              />
-              {searchTerm && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 hover:bg-muted-foreground/20"
-                  onClick={() => handleSearchChange('')}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
           )}
         </div>
       </div>

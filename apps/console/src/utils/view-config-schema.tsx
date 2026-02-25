@@ -1202,6 +1202,7 @@ function buildUserActionsSection(
         key: 'userActions',
         title: t('console.objectView.userActions'),
         collapsible: true,
+        defaultCollapsed: true,
         fields: [
             // spec: NamedListView.inlineEdit (grid-only: only ObjectGrid supports inline editing)
             buildSwitchField('inlineEdit', t('console.objectView.inlineEdit'), 'toggle-inlineEdit', true,
@@ -1290,6 +1291,7 @@ function buildSharingSection(
         key: 'sharing',
         title: t('console.objectView.sharing'),
         collapsible: true,
+        defaultCollapsed: true,
         fields: [
             // spec: NamedListView.sharing.enabled
             {
@@ -1349,6 +1351,7 @@ function buildAccessibilitySection(
         key: 'accessibility',
         title: t('console.objectView.accessibility'),
         collapsible: true,
+        defaultCollapsed: true,
         fields: [
             // spec: NamedListView.aria.label
             {
