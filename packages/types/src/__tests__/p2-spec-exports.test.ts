@@ -30,7 +30,15 @@ import type {
   UserActionsConfigSchema,
   ViewTab,
   ViewTabSchema,
+  ViewFilterRule,
+  ViewFilterRuleSchema,
+  DensityModeSchema,
+  WcagContrastLevelSchema,
 } from '../index';
+
+import type {
+  ThemeModeSchema,
+} from '../theme';
 
 // Runtime Zod schemas are imported directly from the spec package
 import {
@@ -40,6 +48,10 @@ import {
   AppearanceConfigSchema as AppearanceConfigZod,
   UserActionsConfigSchema as UserActionsConfigZod,
   ViewTabSchema as ViewTabZod,
+  ViewFilterRuleSchema as ViewFilterRuleZod,
+  DensityModeSchema as DensityModeZod,
+  WcagContrastLevelSchema as WcagContrastLevelZod,
+  ThemeModeSchema as ThemeModeZod,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -210,8 +222,64 @@ describe('P2.4 Spec Protocol Type Re-exports — View Configuration', () => {
 });
 
 // ============================================================================
-// Type re-export verification (compile-time)
+// v3.0.10 New Spec Types
 // ============================================================================
+describe('v3.0.10 Spec Protocol New Types', () => {
+  describe('ViewFilterRuleSchema', () => {
+    it('should be a valid Zod schema with parse method', () => {
+      expect(ViewFilterRuleZod).toBeDefined();
+      expect(typeof ViewFilterRuleZod.parse).toBe('function');
+      expect(typeof ViewFilterRuleZod.safeParse).toBe('function');
+    });
+
+    it('should validate a ViewFilterRule', () => {
+      const rule: ViewFilterRule = { field: 'status', operator: 'eq', value: 'active' };
+      const result = ViewFilterRuleZod.safeParse(rule);
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('DensityModeSchema', () => {
+    it('should be a valid Zod schema with parse method', () => {
+      expect(DensityModeZod).toBeDefined();
+      expect(typeof DensityModeZod.parse).toBe('function');
+      expect(typeof DensityModeZod.safeParse).toBe('function');
+    });
+
+    it('should validate density mode values', () => {
+      expect(DensityModeZod.safeParse('compact').success).toBe(true);
+      expect(DensityModeZod.safeParse('regular').success).toBe(true);
+      expect(DensityModeZod.safeParse('spacious').success).toBe(true);
+    });
+  });
+
+  describe('ThemeModeSchema', () => {
+    it('should be a valid Zod schema with parse method', () => {
+      expect(ThemeModeZod).toBeDefined();
+      expect(typeof ThemeModeZod.parse).toBe('function');
+      expect(typeof ThemeModeZod.safeParse).toBe('function');
+    });
+
+    it('should validate theme mode values', () => {
+      expect(ThemeModeZod.safeParse('light').success).toBe(true);
+      expect(ThemeModeZod.safeParse('dark').success).toBe(true);
+      expect(ThemeModeZod.safeParse('auto').success).toBe(true);
+    });
+  });
+
+  describe('WcagContrastLevelSchema', () => {
+    it('should be a valid Zod schema with parse method', () => {
+      expect(WcagContrastLevelZod).toBeDefined();
+      expect(typeof WcagContrastLevelZod.parse).toBe('function');
+      expect(typeof WcagContrastLevelZod.safeParse).toBe('function');
+    });
+
+    it('should validate contrast level values', () => {
+      expect(WcagContrastLevelZod.safeParse('AA').success).toBe(true);
+      expect(WcagContrastLevelZod.safeParse('AAA').success).toBe(true);
+    });
+  });
+});
 describe('Type re-exports from @object-ui/types index', () => {
   it('should re-export P2.3 types (compile-time verification)', async () => {
     // Dynamic import to verify exports exist on the module

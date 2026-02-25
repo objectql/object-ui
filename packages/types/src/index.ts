@@ -1035,6 +1035,7 @@ export type {
   RowHeight,
   RowHeightSchema,
   DensityMode,
+  DensityModeSchema,
   TimelineConfig,
   TimelineConfigSchema,
   NavigationConfig,
@@ -1087,6 +1088,14 @@ export type {
   UserActionsConfigSchema,
   ViewTab,
   ViewTabSchema,
+} from '@objectstack/spec/ui';
+
+// ============================================================================
+// v3.0.10 Spec UI Types — View Filter Rules
+// ============================================================================
+export type {
+  ViewFilterRule,
+  ViewFilterRuleSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1161,6 +1170,7 @@ export type {
   AriaProps,
   AriaPropsSchema,
   WcagContrastLevel,
+  WcagContrastLevelSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================

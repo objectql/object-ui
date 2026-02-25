@@ -78,6 +78,12 @@ export type { ZIndex } from '@objectstack/spec/ui';
  */
 export type { ThemeMode } from '@objectstack/spec/ui';
 
+/**
+ * Theme Mode Schema
+ * Canonical Zod schema from @objectstack/spec/ui.
+ */
+export type { ThemeModeSchema } from '@objectstack/spec/ui';
+
 // Import spec types for local use in interfaces below
 import type {
   ColorPalette,
