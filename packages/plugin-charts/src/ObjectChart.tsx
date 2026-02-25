@@ -64,18 +64,35 @@ export const ObjectChart = (props: any) => {
   useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {
-        if (!dataSource || typeof dataSource.find !== 'function' || !schema.objectName) return;
+        if (!dataSource || !schema.objectName) return;
         if (isMounted) setLoading(true);
         try {
-            const results = await dataSource.find(schema.objectName, {
-               $filter: schema.filter
-            });
-            
-            let data: any[] = extractRecords(results);
+            let data: any[];
 
-            // Apply client-side aggregation when aggregate config is provided
-            if (schema.aggregate && data.length > 0) {
-                data = aggregateRecords(data, schema.aggregate);
+            // Prefer server-side aggregation when aggregate config is provided
+            // and dataSource supports the aggregate() method.
+            if (schema.aggregate && typeof dataSource.aggregate === 'function') {
+                const results = await dataSource.aggregate(schema.objectName, {
+                    field: schema.aggregate.field,
+                    function: schema.aggregate.function,
+                    groupBy: schema.aggregate.groupBy,
+                    filter: schema.filter,
+                });
+                data = Array.isArray(results) ? results : [];
+            } else if (typeof dataSource.find === 'function') {
+                // Fallback: fetch all records and aggregate client-side
+                const results = await dataSource.find(schema.objectName, {
+                   $filter: schema.filter
+                });
+                
+                data = extractRecords(results);
+
+                // Apply client-side aggregation when aggregate config is provided
+                if (schema.aggregate && data.length > 0) {
+                    data = aggregateRecords(data, schema.aggregate);
+                }
+            } else {
+                return;
             }
 
             if (isMounted) {

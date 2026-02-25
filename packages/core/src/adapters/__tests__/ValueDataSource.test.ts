@@ -413,3 +413,60 @@ describe('ValueDataSource — isolation', () => {
     expect(ds.count).toBe(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// aggregate
+// ---------------------------------------------------------------------------
+
+describe('ValueDataSource — aggregate', () => {
+  const aggData = [
+    { _id: '1', category: 'A', amount: 10 },
+    { _id: '2', category: 'A', amount: 20 },
+    { _id: '3', category: 'B', amount: 30 },
+    { _id: '4', category: 'B', amount: 40 },
+    { _id: '5', category: 'B', amount: 50 },
+  ];
+
+  function createAggDS() {
+    return new ValueDataSource({ items: aggData });
+  }
+
+  it('should compute sum aggregation', async () => {
+    const ds = createAggDS();
+    const result = await ds.aggregate('items', { field: 'amount', function: 'sum', groupBy: 'category' });
+    expect(result).toHaveLength(2);
+    const groupA = result.find((r: any) => r.category === 'A');
+    const groupB = result.find((r: any) => r.category === 'B');
+    expect(groupA?.amount).toBe(30);
+    expect(groupB?.amount).toBe(120);
+  });
+
+  it('should compute count aggregation', async () => {
+    const ds = createAggDS();
+    const result = await ds.aggregate('items', { field: 'amount', function: 'count', groupBy: 'category' });
+    expect(result).toHaveLength(2);
+    expect(result.find((r: any) => r.category === 'A')?.amount).toBe(2);
+    expect(result.find((r: any) => r.category === 'B')?.amount).toBe(3);
+  });
+
+  it('should compute avg aggregation', async () => {
+    const ds = createAggDS();
+    const result = await ds.aggregate('items', { field: 'amount', function: 'avg', groupBy: 'category' });
+    expect(result.find((r: any) => r.category === 'A')?.amount).toBe(15);
+    expect(result.find((r: any) => r.category === 'B')?.amount).toBe(40);
+  });
+
+  it('should compute min aggregation', async () => {
+    const ds = createAggDS();
+    const result = await ds.aggregate('items', { field: 'amount', function: 'min', groupBy: 'category' });
+    expect(result.find((r: any) => r.category === 'A')?.amount).toBe(10);
+    expect(result.find((r: any) => r.category === 'B')?.amount).toBe(30);
+  });
+
+  it('should compute max aggregation', async () => {
+    const ds = createAggDS();
+    const result = await ds.aggregate('items', { field: 'amount', function: 'max', groupBy: 'category' });
+    expect(result.find((r: any) => r.category === 'A')?.amount).toBe(20);
+    expect(result.find((r: any) => r.category === 'B')?.amount).toBe(50);
+  });
+});

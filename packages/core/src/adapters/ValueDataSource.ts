@@ -13,6 +13,8 @@ import type {
   DataSource,
   QueryParams,
   QueryResult,
+  AggregateParams,
+  AggregateResult,
 } from '@object-ui/types';
 
 // ---------------------------------------------------------------------------
@@ -381,6 +383,43 @@ export class ValueDataSource<T = any> implements DataSource<T> {
 
   async getApp(_appId: string): Promise<any | null> {
     return null;
+  }
+
+  async aggregate(_resource: string, params: AggregateParams): Promise<AggregateResult[]> {
+    const { field, function: aggFn, groupBy } = params;
+    const groups: Record<string, any[]> = {};
+
+    for (const record of this.items as any[]) {
+      const key = String(record[groupBy] ?? 'Unknown');
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(record);
+    }
+
+    return Object.entries(groups).map(([key, group]) => {
+      const values = group.map(r => Number(r[field]) || 0);
+      let result: number;
+
+      switch (aggFn) {
+        case 'count':
+          result = group.length;
+          break;
+        case 'avg':
+          result = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+          break;
+        case 'min':
+          result = values.length > 0 ? Math.min(...values) : 0;
+          break;
+        case 'max':
+          result = values.length > 0 ? Math.max(...values) : 0;
+          break;
+        case 'sum':
+        default:
+          result = values.reduce((a, b) => a + b, 0);
+          break;
+      }
+
+      return { [groupBy]: key, [field]: result };
+    });
   }
 
   // -----------------------------------------------------------------------

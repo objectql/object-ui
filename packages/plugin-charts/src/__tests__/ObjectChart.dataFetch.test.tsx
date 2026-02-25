@@ -98,6 +98,130 @@ describe('ObjectChart data fetching', () => {
       expect(mockFind).toHaveBeenCalled();
     });
   });
+
+  it('should prefer dataSource.aggregate() over find() when aggregate config is set', async () => {
+    const mockFind = vi.fn().mockResolvedValue([]);
+    const mockAggregate = vi.fn().mockResolvedValue([
+      { stage: 'Prospect', amount: 300 },
+      { stage: 'Proposal', amount: 300 },
+    ]);
+    const dataSource = { find: mockFind, aggregate: mockAggregate };
+
+    render(
+      <SchemaRendererProvider dataSource={dataSource}>
+        <ObjectChart
+          schema={{
+            type: 'object-chart',
+            objectName: 'opportunity',
+            chartType: 'bar',
+            xAxisKey: 'stage',
+            series: [{ dataKey: 'amount' }],
+            aggregate: { field: 'amount', function: 'sum', groupBy: 'stage' },
+          }}
+        />
+      </SchemaRendererProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockAggregate).toHaveBeenCalledWith('opportunity', {
+        field: 'amount',
+        function: 'sum',
+        groupBy: 'stage',
+        filter: undefined,
+      });
+    });
+    // find() should NOT be called when aggregate() is available
+    expect(mockFind).not.toHaveBeenCalled();
+  });
+
+  it('should fall back to find() when aggregate() is not available', async () => {
+    const mockFind = vi.fn().mockResolvedValue([
+      { stage: 'Prospect', amount: 100 },
+      { stage: 'Prospect', amount: 200 },
+    ]);
+    // dataSource without aggregate method
+    const dataSource = { find: mockFind };
+
+    render(
+      <SchemaRendererProvider dataSource={dataSource}>
+        <ObjectChart
+          schema={{
+            type: 'object-chart',
+            objectName: 'opportunity',
+            chartType: 'bar',
+            xAxisKey: 'stage',
+            series: [{ dataKey: 'amount' }],
+            aggregate: { field: 'amount', function: 'sum', groupBy: 'stage' },
+          }}
+        />
+      </SchemaRendererProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockFind).toHaveBeenCalledWith('opportunity', { $filter: undefined });
+    });
+  });
+
+  it('should NOT use aggregate() when no aggregate config is set', async () => {
+    const mockFind = vi.fn().mockResolvedValue([
+      { stage: 'Prospect', amount: 100 },
+    ]);
+    const mockAggregate = vi.fn().mockResolvedValue([]);
+    const dataSource = { find: mockFind, aggregate: mockAggregate };
+
+    render(
+      <SchemaRendererProvider dataSource={dataSource}>
+        <ObjectChart
+          schema={{
+            type: 'object-chart',
+            objectName: 'opportunity',
+            chartType: 'bar',
+            xAxisKey: 'stage',
+            series: [{ dataKey: 'amount' }],
+          }}
+        />
+      </SchemaRendererProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockFind).toHaveBeenCalled();
+    });
+    // aggregate() should NOT be called when no aggregate config
+    expect(mockAggregate).not.toHaveBeenCalled();
+  });
+
+  it('should pass filter to aggregate() when both aggregate and filter are set', async () => {
+    const mockAggregate = vi.fn().mockResolvedValue([
+      { stage: 'Won', amount: 500 },
+    ]);
+    const dataSource = { find: vi.fn(), aggregate: mockAggregate };
+    const filter = { status: 'active' };
+
+    render(
+      <SchemaRendererProvider dataSource={dataSource}>
+        <ObjectChart
+          schema={{
+            type: 'object-chart',
+            objectName: 'opportunity',
+            chartType: 'bar',
+            xAxisKey: 'stage',
+            series: [{ dataKey: 'amount' }],
+            filter,
+            aggregate: { field: 'amount', function: 'sum', groupBy: 'stage' },
+          }}
+        />
+      </SchemaRendererProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockAggregate).toHaveBeenCalledWith('opportunity', {
+        field: 'amount',
+        function: 'sum',
+        groupBy: 'stage',
+        filter: { status: 'active' },
+      });
+    });
+  });
 });
 
 describe('ObjectChart fault tolerance', () => {

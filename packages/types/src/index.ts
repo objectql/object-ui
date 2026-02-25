@@ -266,6 +266,8 @@ export type {
   ValidationError,
   APIError,
   FileUploadResult,
+  AggregateParams,
+  AggregateResult,
 } from './data';
 
 // ============================================================================

@@ -15,6 +15,8 @@ import type {
   QueryResult,
   HttpRequest,
   HttpMethod,
+  AggregateParams,
+  AggregateResult,
 } from '@object-ui/types';
 
 // ---------------------------------------------------------------------------
@@ -295,6 +297,31 @@ export class ApiDataSource<T = any> implements DataSource<T> {
 
   async getApp(_appId: string): Promise<any | null> {
     return null;
+  }
+
+  async aggregate(_resource: string, params: AggregateParams): Promise<AggregateResult[]> {
+    const queryParams: Record<string, unknown> = {
+      field: params.field,
+      function: params.function,
+      groupBy: params.groupBy,
+    };
+    if (params.filter) {
+      queryParams.filter = typeof params.filter === 'string'
+        ? params.filter
+        : JSON.stringify(params.filter);
+    }
+
+    const raw = await this.request<any>(this.readConfig, {
+      pathSuffix: 'aggregate',
+      method: 'GET',
+      queryParams,
+    });
+
+    // Normalize: the API might return an array or an object with data/results
+    if (Array.isArray(raw)) return raw;
+    if (raw?.data && Array.isArray(raw.data)) return raw.data;
+    if (raw?.results && Array.isArray(raw.results)) return raw.results;
+    return [];
   }
 
   // -----------------------------------------------------------------------

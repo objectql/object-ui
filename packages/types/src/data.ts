@@ -309,6 +309,42 @@ export interface DataSource<T = any> {
       onProgress?: (percent: number) => void;
     },
   ): Promise<FileUploadResult[]>;
+
+  /**
+   * Perform server-side aggregation on a resource.
+   * Used by chart widgets to offload grouping/aggregation to the backend,
+   * avoiding large data downloads.
+   * Optional — when not implemented, chart components will fall back to
+   * fetching all records via `find()` and aggregating client-side.
+   *
+   * @param resource - Resource name (e.g., 'opportunity')
+   * @param params - Aggregation parameters (field, function, groupBy, filter)
+   * @returns Promise resolving to aggregated results
+   */
+  aggregate?(resource: string, params: AggregateParams): Promise<AggregateResult[]>;
+}
+
+/**
+ * Parameters for server-side aggregation.
+ * Describes how to group and aggregate data on the backend.
+ */
+export interface AggregateParams {
+  /** Field to aggregate (e.g., 'amount') */
+  field: string;
+  /** Aggregation function (e.g., 'sum', 'count', 'avg', 'min', 'max') */
+  function: string;
+  /** Field to group by (e.g., 'stage') */
+  groupBy: string;
+  /** Optional filter to apply before aggregation */
+  filter?: any;
+}
+
+/**
+ * Result of a server-side aggregation.
+ * Each entry represents one group with the aggregated value.
+ */
+export interface AggregateResult {
+  [key: string]: any;
 }
 
 /**
