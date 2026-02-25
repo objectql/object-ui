@@ -835,7 +835,7 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 
 ### P2.8 Airtable Parity: Product View & Global UI Detail Optimization
 
-> Platform-level grid, toolbar, and config panel optimizations for Airtable-level experience (Issue #768).
+> Platform-level grid, toolbar, sidebar, and config panel optimizations for Airtable-level experience (Issue #768).
 
 **Platform: DataTable & ObjectGrid Enhancements:**
 - [x] `rowStyle` callback prop added to `DataTableSchema` type — enables inline CSSProperties per row
@@ -843,9 +843,17 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [x] ObjectGrid: `conditionalFormatting` rules wired to `rowStyle` — evaluates both spec-format (`condition`/`style`) and ObjectUI-format (`field`/`operator`/`value`) rules per row using `evaluatePlainCondition` from `@object-ui/core`
 - [x] Row number (#) column: hover shows `<Checkbox>` for multi-select (when `selectable` mode is enabled), replacing expand icon
 
-**Platform: ListView Toolbar Separators:**
-- [x] Visual `<div>` separators (`h-4 w-px bg-border/60`) between toolbar button groups: Hide Fields | Filter/Sort/Group | Color/Density | Export
+**Platform: ListView Toolbar:**
+- [x] Visual `<div>` separators (`h-4 w-px bg-border/60`) between toolbar button groups: Search | Hide Fields | Filter/Sort/Group | Color/Density | Export
 - [x] Separators conditionally rendered only when adjacent groups are visible
+- [x] Inline search moved to toolbar left end (`w-48`, Airtable-style)
+- [x] Density button: activated state highlight (`bg-primary/10 border border-primary/20`) when density is non-default
+
+**Platform: ViewTabBar:**
+- [x] Tab "•" dot indicator replaced with descriptive badge (`F`/`S`/`FS`) + tooltip showing "Active filters", "Active sort"
+
+**Platform: Console Sidebar:**
+- [x] Recent items section: default collapsed with chevron toggle (saves sidebar space)
 
 **Platform: ViewConfigPanel Advanced Sections:**
 - [x] `userActions`, `sharing`, and `accessibility` sections set to `defaultCollapsed: true` — common settings remain expanded, advanced settings folded by default
@@ -864,6 +872,8 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 **Tests:**
 - [x] 7 new CRM metadata tests validating column types, widths, rowHeight, conditionalFormatting
 - [x] 136 ViewConfigPanel tests updated for defaultCollapsed sections (expand before access)
+- [x] 411 ListView + ViewTabBar tests passing
+- [x] 11 AppSidebar tests passing
 
 ### P2.5 PWA & Offline (Real Sync)
 

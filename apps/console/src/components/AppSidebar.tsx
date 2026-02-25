@@ -48,6 +48,7 @@ import {
   StarOff,
   Search,
   Pencil,
+  ChevronRight,
 } from 'lucide-react';
 import { NavigationRenderer } from '@object-ui/layout';
 import type { NavigationItem } from '@object-ui/types';
@@ -223,6 +224,9 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
 
   // Search filter state for sidebar navigation
   const [navSearchQuery, setNavSearchQuery] = React.useState('');
+
+  // Recent section collapsed by default
+  const [recentExpanded, setRecentExpanded] = React.useState(false);
 
   // Visibility evaluation from Console expression context
   const { evaluator } = useExpressionContext();
@@ -414,13 +418,18 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
            </SidebarGroup>
          )}
 
-         {/* Recent Items */}
+         {/* Recent Items (default collapsed) */}
          {recentItems.length > 0 && (
            <SidebarGroup>
-             <SidebarGroupLabel className="flex items-center gap-1.5">
+             <SidebarGroupLabel
+               className="flex items-center gap-1.5 cursor-pointer select-none"
+               onClick={() => setRecentExpanded(prev => !prev)}
+             >
+               <ChevronRight className={`h-3 w-3 transition-transform duration-150 ${recentExpanded ? 'rotate-90' : ''}`} />
                <Clock className="h-3.5 w-3.5" />
                Recent
              </SidebarGroupLabel>
+             {recentExpanded && (
              <SidebarGroupContent>
                <SidebarMenu>
                  {recentItems.slice(0, 5).map(item => (
@@ -437,6 +446,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                  ))}
                </SidebarMenu>
              </SidebarGroupContent>
+             )}
            </SidebarGroup>
          )}
       </SidebarContent>
