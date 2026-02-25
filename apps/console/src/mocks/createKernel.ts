@@ -95,6 +95,50 @@ async function installBrokerShim(kernel: ObjectKernel): Promise<void> {
 }
 
 /**
+ * Sync `_id` with `id` on all records in the InMemoryDriver.
+ *
+ * The ObjectQL protocol uses `_id` for record identity lookups
+ * (e.g. `filter: { _id: id }`), but InMemoryDriver stores the
+ * generated identity as `id`. Seed data may also carry its own
+ * `_id` that differs from the driver-assigned `id`.
+ *
+ * This helper ensures every record has `_id === id` so that
+ * protocol lookups via `_id` match the driver-assigned `id`.
+ */
+function syncDriverIds(driver: InMemoryDriver): void {
+  const db = (driver as any).db as Record<string, any[]>;
+  for (const records of Object.values(db)) {
+    for (const record of records) {
+      if (record.id) {
+        record._id = record.id;
+      }
+    }
+  }
+}
+
+/**
+ * Wrap the driver's `create` method so that every newly created
+ * record also gets `_id` set to the same value as `id`.
+ */
+function patchDriverCreate(driver: InMemoryDriver): void {
+  const originalCreate = driver.create.bind(driver);
+  (driver as any).create = async (object: string, data: any, options?: any) => {
+    const result = await originalCreate(object, data, options);
+    // Patch the stored record in-place
+    const table = (driver as any).db[object] as any[] | undefined;
+    if (table) {
+      const stored = table[table.length - 1];
+      if (stored && stored.id === result.id) {
+        stored._id = stored.id;
+      }
+    }
+    // Also patch the returned copy
+    if (!result._id) result._id = result.id;
+    return result;
+  };
+}
+
+/**
  * Create and bootstrap an ObjectStack kernel with in-memory driver.
  *
  * This is the single factory used by both browser.ts and server.ts
@@ -125,6 +169,11 @@ export async function createKernel(options: KernelOptions): Promise<KernelResult
   }
 
   await kernel.bootstrap();
+
+  // After bootstrap, sync _id with id for all seed-data records and
+  // wrap create() so that new records also get _id = id.
+  syncDriverIds(driver);
+  patchDriverCreate(driver);
 
   // Re-install broker shim after bootstrap to ensure the protocol service
   // is fully initialised (some plugins register services during start phase).
