@@ -138,14 +138,26 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
 
   useEffect(() => {
     setIsLoading(true);
+    setEditSchema(null);
+    setConfigPanelOpen(false);
+    setSelectedWidgetId(null);
     queueMicrotask(() => setIsLoading(false));
   }, [dashboardName]);
 
-  const { dashboards, objects: metadataObjects } = useMetadata();
+  const { dashboards, objects: metadataObjects, refresh } = useMetadata();
   const dashboard = dashboards?.find((d: any) => d.name === dashboardName);
 
   // Local schema state for live preview — initialized from metadata
   const [editSchema, setEditSchema] = useState<DashboardSchema | null>(null);
+
+  // When metadata refreshes (dashboard reference changes), discard stale
+  // editSchema if the config panel is already closed.
+  useEffect(() => {
+    if (!configPanelOpen) {
+      setEditSchema(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashboard]);
 
   // ---- Save helper --------------------------------------------------------
   const saveSchema = useCallback(
@@ -153,12 +165,14 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
       try {
         if (adapter) {
           await adapter.update('sys_dashboard', dashboardName!, schema);
+          // Refresh metadata cache so closing the config panel shows saved data
+          refresh().catch(() => {});
         }
       } catch (err) {
         console.warn('[DashboardView] Auto-save failed:', err);
       }
     },
-    [adapter, dashboardName],
+    [adapter, dashboardName, refresh],
   );
 
   // ---- Open / close config panel ------------------------------------------
@@ -360,7 +374,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
     );
   }
 
-  const previewSchema = configPanelOpen && editSchema ? editSchema : dashboard;
+  const previewSchema = editSchema || dashboard;
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">

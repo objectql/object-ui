@@ -19,7 +19,7 @@ export function DashboardDesignPage() {
   const navigate = useNavigate();
   const { dashboardName } = useParams<{ dashboardName: string }>();
   const dataSource = useAdapter();
-  const { dashboards } = useMetadata();
+  const { dashboards, refresh } = useMetadata();
 
   const dashboard = dashboards?.find((d: any) => d.name === dashboardName);
 
@@ -41,6 +41,8 @@ export function DashboardDesignPage() {
       try {
         if (dataSource) {
           await dataSource.update('sys_dashboard', dashboardName!, toSave);
+          // Refresh metadata cache so other pages see saved changes
+          refresh().catch(() => {});
           return true;
         }
       } catch {
@@ -48,7 +50,7 @@ export function DashboardDesignPage() {
       }
       return false;
     },
-    [dataSource, dashboardName],
+    [dataSource, dashboardName, refresh],
   );
 
   const handleChange = useCallback(

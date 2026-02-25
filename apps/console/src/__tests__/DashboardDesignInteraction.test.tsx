@@ -14,7 +14,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { DashboardView } from '../components/DashboardView';
 
 // Track props passed to mocked components
-const { rendererCalls, dashboardConfigCalls, widgetConfigCalls } = vi.hoisted(() => ({
+const { rendererCalls, dashboardConfigCalls, widgetConfigCalls, mockRefresh } = vi.hoisted(() => ({
   rendererCalls: {
     designMode: false,
     selectedWidgetId: null as string | null,
@@ -32,6 +32,7 @@ const { rendererCalls, dashboardConfigCalls, widgetConfigCalls } = vi.hoisted(()
     onSave: null as ((config: Record<string, any>) => void) | null,
     onFieldChange: null as ((field: string, value: any) => void) | null,
   },
+  mockRefresh: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock MetadataProvider with a dashboard
@@ -57,7 +58,7 @@ vi.mock('../context/MetadataProvider', () => ({
     pages: [],
     loading: false,
     error: null,
-    refresh: vi.fn(),
+    refresh: mockRefresh,
   }),
 }));
 
@@ -132,6 +133,7 @@ vi.mock('sonner', () => ({
 
 beforeEach(() => {
   mockUpdate.mockClear();
+  mockRefresh.mockClear();
   rendererCalls.designMode = false;
   rendererCalls.selectedWidgetId = null;
   rendererCalls.onWidgetClick = null;
@@ -307,5 +309,22 @@ describe('Dashboard Design Mode — Inline Config Panel', () => {
     expect(screen.getByTestId('renderer-widget-w1')).toHaveTextContent('Live Title');
     // Config panel should still show the widget (not reset or disappear)
     expect(screen.getByTestId('widget-config-panel')).toBeInTheDocument();
+  });
+
+  it('should call metadata refresh after widget deletion (save)', async () => {
+    await renderDashboardView();
+    await openConfigPanel();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('renderer-widget-w1'));
+    });
+
+    mockRefresh.mockClear();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('widget-delete-button'));
+    });
+
+    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockRefresh).toHaveBeenCalled();
   });
 });

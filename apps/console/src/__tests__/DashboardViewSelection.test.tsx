@@ -11,7 +11,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { DashboardView } from '../components/DashboardView';
 
 // Track the latest props passed to mocked components
-const { rendererCalls, dashboardConfigCalls, widgetConfigCalls } = vi.hoisted(() => ({
+const { rendererCalls, dashboardConfigCalls, widgetConfigCalls, mockRefresh } = vi.hoisted(() => ({
   rendererCalls: {
     designMode: false,
     selectedWidgetId: null as string | null,
@@ -31,6 +31,7 @@ const { rendererCalls, dashboardConfigCalls, widgetConfigCalls } = vi.hoisted(()
     onFieldChange: null as ((field: string, value: any) => void) | null,
     onClose: null as (() => void) | null,
   },
+  mockRefresh: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock MetadataProvider with a dashboard
@@ -55,7 +56,7 @@ vi.mock('../context/MetadataProvider', () => ({
     pages: [],
     loading: false,
     error: null,
-    refresh: vi.fn(),
+    refresh: mockRefresh,
   }),
 }));
 
@@ -136,6 +137,7 @@ vi.mock('sonner', () => ({
 
 beforeEach(() => {
   mockUpdate.mockClear();
+  mockRefresh.mockClear();
   rendererCalls.designMode = false;
   rendererCalls.selectedWidgetId = null;
   rendererCalls.onWidgetClick = null;
@@ -359,5 +361,44 @@ describe('DashboardView — Selection Sync Integration', () => {
     expect(screen.getByTestId('renderer-widget-w1')).toHaveTextContent('Live Preview Title');
     // Widget config panel should still be visible
     expect(screen.getByTestId('widget-config-panel')).toBeInTheDocument();
+  });
+
+  it('should call metadata refresh after widget config save', async () => {
+    await renderDashboardView();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('dashboard-edit-button'));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('renderer-widget-w1'));
+    });
+
+    mockRefresh.mockClear();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('widget-config-save'));
+    });
+
+    // Backend save should trigger metadata refresh
+    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockRefresh).toHaveBeenCalled();
+  });
+
+  it('should call metadata refresh after widget deletion', async () => {
+    await renderDashboardView();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('dashboard-edit-button'));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('renderer-widget-w1'));
+    });
+
+    mockRefresh.mockClear();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('widget-delete-button'));
+    });
+
+    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockRefresh).toHaveBeenCalled();
   });
 });

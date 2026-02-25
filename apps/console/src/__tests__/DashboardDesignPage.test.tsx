@@ -10,6 +10,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { DashboardDesignPage } from '../pages/DashboardDesignPage';
 
 // Mock MetadataProvider
+const { mockRefresh } = vi.hoisted(() => ({ mockRefresh: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('../context/MetadataProvider', () => ({
   useMetadata: () => ({
     apps: [],
@@ -30,7 +31,7 @@ vi.mock('../context/MetadataProvider', () => ({
     pages: [],
     loading: false,
     error: null,
-    refresh: vi.fn(),
+    refresh: mockRefresh,
   }),
 }));
 
@@ -117,5 +118,29 @@ describe('DashboardDesignPage', () => {
 
     // Should call dataSource.update with the dashboard schema
     expect(mockUpdate).toHaveBeenCalledWith('sys_dashboard', 'sales-dashboard', expect.objectContaining({ type: 'dashboard' }));
+  });
+
+  it('should refresh metadata after save via onChange', async () => {
+    renderWithRouter('sales-dashboard');
+    mockRefresh.mockClear();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('trigger-change'));
+    });
+
+    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockRefresh).toHaveBeenCalled();
+  });
+
+  it('should refresh metadata after Ctrl+S save', async () => {
+    renderWithRouter('sales-dashboard');
+    mockRefresh.mockClear();
+
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 's', ctrlKey: true });
+    });
+
+    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockRefresh).toHaveBeenCalled();
   });
 });
