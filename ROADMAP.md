@@ -648,6 +648,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] `EditAppPage` merges wizard output with original app config to preserve fields not in wizard (e.g. `active`)
 - [x] `client.meta.saveItem('app', name, schema)` — persists app metadata to backend on create/edit
 - [x] MSW PUT handler for `/meta/:type/:name` — dev/mock mode metadata persistence
+- [x] MSW handler refactored to use `MSWPlugin` + protocol broker shim — filter/sort/top/pagination now work correctly in dev/mock mode (Issue #858)
 - [x] Draft persistence to localStorage with auto-clear on success
 - [x] `createApp` i18n key added to all 10 locales
 - [x] 13 console integration tests (routes, wizard callbacks, draft persistence, saveItem, CommandPalette)
