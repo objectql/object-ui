@@ -925,4 +925,217 @@ describe('DashboardRenderer widget data extraction', () => {
     // Either way, it should not crash
     expect(container).toBeDefined();
   });
+
+  // ---- Live preview: widget-level fields override data provider config ------
+
+  it('should override data provider aggregate.groupBy with widget.categoryField', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'bar',
+          title: 'Live Preview',
+          object: 'opportunity',
+          categoryField: 'region',
+          layout: { x: 0, y: 0, w: 2, h: 2 },
+          options: {
+            xField: 'stage',
+            yField: 'amount',
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+              aggregate: { field: 'amount', function: 'sum', groupBy: 'stage' },
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const chartSchema = schemas.find(s => s.type === 'object-chart');
+
+    expect(chartSchema).toBeDefined();
+    // widget.categoryField ('region') should override aggregate.groupBy ('stage')
+    expect(chartSchema.aggregate.groupBy).toBe('region');
+    expect(chartSchema.xAxisKey).toBe('region');
+  });
+
+  it('should override data provider aggregate.field with widget.valueField', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'area',
+          title: 'Live Preview',
+          object: 'opportunity',
+          valueField: 'expected_revenue',
+          layout: { x: 0, y: 0, w: 3, h: 2 },
+          options: {
+            xField: 'stage',
+            yField: 'amount',
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+              aggregate: { field: 'amount', function: 'sum', groupBy: 'stage' },
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const chartSchema = schemas.find(s => s.type === 'object-chart');
+
+    expect(chartSchema).toBeDefined();
+    // widget.valueField ('expected_revenue') should override aggregate.field ('amount')
+    expect(chartSchema.aggregate.field).toBe('expected_revenue');
+    expect(chartSchema.series).toEqual([{ dataKey: 'expected_revenue' }]);
+  });
+
+  it('should override data provider aggregate.function with widget.aggregate', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'bar',
+          title: 'Live Preview',
+          object: 'opportunity',
+          aggregate: 'count',
+          layout: { x: 0, y: 0, w: 2, h: 2 },
+          options: {
+            xField: 'stage',
+            yField: 'amount',
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+              aggregate: { field: 'amount', function: 'sum', groupBy: 'stage' },
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const chartSchema = schemas.find(s => s.type === 'object-chart');
+
+    expect(chartSchema).toBeDefined();
+    // widget.aggregate ('count') should override aggregate.function ('sum')
+    expect(chartSchema.aggregate.function).toBe('count');
+  });
+
+  it('should prefer widget.object over data provider object for objectName', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'line',
+          title: 'Live Preview',
+          object: 'contact',
+          layout: { x: 0, y: 0, w: 3, h: 2 },
+          options: {
+            xField: 'month',
+            yField: 'count',
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+              aggregate: { field: 'count', function: 'count', groupBy: 'month' },
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const chartSchema = schemas.find(s => s.type === 'object-chart');
+
+    expect(chartSchema).toBeDefined();
+    // widget.object ('contact') should override data.object ('opportunity')
+    expect(chartSchema.objectName).toBe('contact');
+  });
+
+  it('should prefer widget.object for table widgets with data provider', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'table',
+          title: 'Live Preview Table',
+          object: 'contact',
+          layout: { x: 0, y: 0, w: 4, h: 2 },
+          options: {
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const tableSchema = schemas.find(s => s.type === 'data-table');
+
+    if (tableSchema) {
+      // widget.object ('contact') should override data.object ('opportunity')
+      expect(tableSchema.objectName).toBe('contact');
+    }
+  });
+
+  it('should apply all widget-level field overrides simultaneously for live preview', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'pie',
+          title: 'Full Override',
+          object: 'account',
+          categoryField: 'industry',
+          valueField: 'revenue',
+          aggregate: 'avg',
+          layout: { x: 0, y: 0, w: 2, h: 2 },
+          options: {
+            xField: 'stage',
+            yField: 'amount',
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+              aggregate: { field: 'amount', function: 'sum', groupBy: 'stage' },
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const chartSchema = schemas.find(s => s.type === 'object-chart');
+
+    expect(chartSchema).toBeDefined();
+    expect(chartSchema.chartType).toBe('pie');
+    expect(chartSchema.objectName).toBe('account');
+    expect(chartSchema.xAxisKey).toBe('industry');
+    expect(chartSchema.aggregate).toEqual({
+      field: 'revenue',
+      function: 'avg',
+      groupBy: 'industry',
+    });
+    expect(chartSchema.series).toEqual([{ dataKey: 'revenue' }]);
+  });
 });
