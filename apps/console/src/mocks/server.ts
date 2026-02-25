@@ -1,8 +1,10 @@
 /**
  * MSW Server Setup for Tests
  *
- * Uses the shared createKernel() factory and handler factory to create
- * a consistent mock environment for testing.
+ * Uses the shared createKernel() factory with MSWPlugin to create
+ * a consistent mock environment for testing. MSWPlugin exposes the
+ * full ObjectStack protocol, so filter/sort/top/pagination work
+ * identically to server mode.
  *
  * This pattern follows @objectstack/studio — see https://github.com/objectstack-ai/spec
  */
@@ -10,12 +12,13 @@
 import { ObjectKernel } from '@objectstack/runtime';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { setupServer } from 'msw/node';
-import appConfig, { sharedConfig } from '../../objectstack.shared';
+import type { MSWPlugin } from '@objectstack/plugin-msw';
+import appConfig from '../../objectstack.shared';
 import { createKernel } from './createKernel';
-import { createHandlers } from './handlers';
 
 let kernel: ObjectKernel | null = null;
 let driver: InMemoryDriver | null = null;
+let mswPlugin: MSWPlugin | null = null;
 let server: ReturnType<typeof setupServer> | null = null;
 
 export async function startMockServer() {
@@ -26,18 +29,20 @@ export async function startMockServer() {
 
   console.log('[MSW] Starting ObjectStack Runtime (Test Mode)...');
 
-  const result = await createKernel({ appConfig });
+  const result = await createKernel({
+    appConfig,
+    mswOptions: {
+      enableBrowser: false,
+      baseUrl: '/api/v1',
+      logRequests: false,
+    },
+  });
   kernel = result.kernel;
   driver = result.driver;
+  mswPlugin = result.mswPlugin ?? null;
 
-  // Create MSW handlers for both paths to ensure compatibility with client defaults
-  // Pass sharedConfig (pre-defineStack) so handlers can enrich object metadata
-  // with listViews that defineStack's Zod parse strips.
-  const v1Handlers = createHandlers('http://localhost:3000/api/v1', kernel, driver, sharedConfig);
-  const legacyHandlers = createHandlers('http://localhost:3000/api', kernel, driver, sharedConfig);
-  const handlers = [...v1Handlers, ...legacyHandlers];
-
-  // Setup MSW server for Node.js environment
+  // Get handlers from MSWPlugin and set up Node.js MSW server
+  const handlers = mswPlugin?.getHandlers() ?? [];
   server = setupServer(...handlers);
   server.listen({ onUnhandledRequest: 'bypass' });
 
@@ -50,6 +55,7 @@ export function stopMockServer() {
     server.close();
     server = null;
   }
+  mswPlugin = null;
   kernel = null;
   driver = null;
 }

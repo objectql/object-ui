@@ -1,22 +1,23 @@
 /**
  * MSW Browser Worker Setup via ObjectStack Runtime
  *
- * Uses the shared createKernel() factory to bootstrap the ObjectStack kernel,
- * then creates MSW handlers via the shared handler factory.
+ * Uses the shared createKernel() factory to bootstrap the ObjectStack kernel
+ * with MSWPlugin, which automatically exposes all ObjectStack API endpoints
+ * via MSW. This ensures filter/sort/top/pagination work identically to
+ * server mode.
  *
  * This pattern follows @objectstack/studio — see https://github.com/objectstack-ai/spec
  */
 
 import { ObjectKernel } from '@objectstack/runtime';
 import { InMemoryDriver } from '@objectstack/driver-memory';
-import { setupWorker } from 'msw/browser';
-import appConfig, { sharedConfig } from '../../objectstack.shared';
+import type { MSWPlugin } from '@objectstack/plugin-msw';
+import appConfig from '../../objectstack.shared';
 import { createKernel } from './createKernel';
-import { createHandlers } from './handlers';
 
 let kernel: ObjectKernel | null = null;
 let driver: InMemoryDriver | null = null;
-let worker: ReturnType<typeof setupWorker> | null = null;
+let mswPlugin: MSWPlugin | null = null;
 
 export async function startMockServer() {
   // Polyfill process.on for ObjectKernel in browser environment
@@ -35,36 +36,27 @@ export async function startMockServer() {
 
   if (import.meta.env.DEV) console.log('[MSW] Starting ObjectStack Runtime (Browser Mode)...');
 
-  const result = await createKernel({ appConfig });
-  kernel = result.kernel;
-  driver = result.driver;
-
-  // Create MSW handlers that match the response format of HonoServerPlugin
-  // Include both /api/v1 and legacy /api paths so the ObjectStackClient can
-  // reach the mock server regardless of which base URL it probes.
-  // Pass sharedConfig (pre-defineStack) so handlers can enrich object metadata
-  // with listViews that defineStack's Zod parse strips.
-  const v1Handlers = createHandlers('/api/v1', kernel, driver, sharedConfig);
-  const legacyHandlers = createHandlers('/api', kernel, driver, sharedConfig);
-  const handlers = [...v1Handlers, ...legacyHandlers];
-
-  // Start MSW service worker
-  worker = setupWorker(...handlers);
-  await worker.start({
-    onUnhandledRequest: 'bypass',
-    serviceWorker: {
-      url: `${import.meta.env.BASE_URL}mockServiceWorker.js`,
+  const result = await createKernel({
+    appConfig,
+    mswOptions: {
+      enableBrowser: true,
+      baseUrl: '/api/v1',
+      logRequests: import.meta.env.DEV,
     },
   });
+  kernel = result.kernel;
+  driver = result.driver;
+  mswPlugin = result.mswPlugin ?? null;
 
   if (import.meta.env.DEV) console.log('[MSW] ObjectStack Runtime ready');
   return kernel;
 }
 
 export function stopMockServer() {
-  if (worker) {
-    worker.stop();
-    worker = null;
+  if (mswPlugin) {
+    const worker = mswPlugin.getWorker();
+    if (worker) worker.stop();
+    mswPlugin = null;
   }
   kernel = null;
   driver = null;
