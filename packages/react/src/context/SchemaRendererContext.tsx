@@ -41,7 +41,8 @@ export const useSchemaContext = () => {
 export const useDataScope = (path?: string) => {
   const context = useContext(SchemaRendererContext);
   const dataSource = context?.dataSource;
-  if (!dataSource || !path) return dataSource;
+  if (!path) return undefined;
+  if (!dataSource) return undefined;
   // Simple path resolution for now. In real app might be more complex
   return path.split('.').reduce((acc, part) => acc && acc[part], dataSource);
 }

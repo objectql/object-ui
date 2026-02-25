@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { useDataScope, useSchemaContext } from '@object-ui/react';
+import React, { useState, useEffect, useContext } from 'react';
+import { useDataScope, SchemaRendererContext } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
 import { ComponentRegistry, extractRecords } from '@object-ui/core';
 
@@ -54,8 +54,8 @@ export { extractRecords } from '@object-ui/core';
 
 export const ObjectChart = (props: any) => {
   const { schema } = props;
-  const context = useSchemaContext();
-  const dataSource = props.dataSource || context.dataSource;
+  const context = useContext(SchemaRendererContext);
+  const dataSource = props.dataSource || context?.dataSource;
   const boundData = useDataScope(schema.bind);
   
   const [fetchedData, setFetchedData] = useState<any[]>([]);
@@ -64,7 +64,7 @@ export const ObjectChart = (props: any) => {
   useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {
-        if (!dataSource || !schema.objectName) return;
+        if (!dataSource || typeof dataSource.find !== 'function' || !schema.objectName) return;
         if (isMounted) setLoading(true);
         try {
             const results = await dataSource.find(schema.objectName, {
