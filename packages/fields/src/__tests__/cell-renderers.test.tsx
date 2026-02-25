@@ -186,15 +186,15 @@ describe('SelectCellRenderer', () => {
 // 3. DateCellRenderer
 // =========================================================================
 describe('DateCellRenderer', () => {
-  let nowSpy: ReturnType<typeof vi.spyOn>;
-
   beforeEach(() => {
-    // Fix "now" to a known date: 2026-02-24T12:00:00Z
-    nowSpy = vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-02-24T12:00:00Z').getTime());
+    // Fix "now" to a known date: 2026-02-24T12:00:00Z using fake timers
+    // so that new Date() in formatRelativeDate returns a predictable value
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-24T12:00:00Z'));
   });
 
   afterEach(() => {
-    nowSpy.mockRestore();
+    vi.useRealTimers();
   });
 
   it('should render today date as "Today"', () => {
@@ -402,36 +402,48 @@ describe('formatRelativeDate', () => {
   });
 
   it('should return "Today" for today', () => {
-    expect(formatRelativeDate('2026-02-24T08:00:00Z')).toBe('Today');
+    const today = new Date();
+    expect(formatRelativeDate(today)).toBe('Today');
   });
 
   it('should return "Yesterday" for yesterday', () => {
-    expect(formatRelativeDate('2026-02-23T08:00:00Z')).toBe('Yesterday');
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    expect(formatRelativeDate(yesterday)).toBe('Yesterday');
   });
 
   it('should return "Tomorrow" for tomorrow', () => {
-    expect(formatRelativeDate('2026-02-25T08:00:00Z')).toBe('Tomorrow');
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    expect(formatRelativeDate(tomorrow)).toBe('Tomorrow');
   });
 
   it('should return "Overdue Xd" for 2-7 days ago', () => {
-    expect(formatRelativeDate('2026-02-21T08:00:00Z')).toBe('Overdue 3d');
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    expect(formatRelativeDate(threeDaysAgo)).toBe('Overdue 3d');
   });
 
   it('should return formatted date for >7 days ago', () => {
-    const result = formatRelativeDate('2026-02-10T08:00:00Z');
-    // Should be a formatted date like "Feb 10, 2026", not "14 days ago"
-    expect(result).toContain('Feb');
-    expect(result).toContain('2026');
+    const tenDaysAgo = new Date();
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+    const result = formatRelativeDate(tenDaysAgo);
+    const expected = tenDaysAgo.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    expect(result).toBe(expected);
   });
 
   it('should return "In X days" for 2-7 days in the future', () => {
-    expect(formatRelativeDate('2026-02-28T08:00:00Z')).toBe('In 4 days');
+    const fourDaysFromNow = new Date();
+    fourDaysFromNow.setDate(fourDaysFromNow.getDate() + 4);
+    expect(formatRelativeDate(fourDaysFromNow)).toBe('In 4 days');
   });
 
   it('should return formatted date for >7 days in the future', () => {
-    const result = formatRelativeDate('2026-03-15T08:00:00Z');
-    expect(result).toContain('Mar');
-    expect(result).toContain('2026');
+    const fifteenDaysFromNow = new Date();
+    fifteenDaysFromNow.setDate(fifteenDaysFromNow.getDate() + 15);
+    const result = formatRelativeDate(fifteenDaysFromNow);
+    const expected = fifteenDaysFromNow.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    expect(result).toBe(expected);
   });
 });
 
