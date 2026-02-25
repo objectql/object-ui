@@ -336,13 +336,9 @@ describe('ViewConfigPanel', () => {
 
         // 3 fields → 3 checkboxes
         expect(screen.getByTestId('column-selector')).toBeInTheDocument();
-        expect(screen.getByTestId('col-checkbox-name')).toBeInTheDocument();
-        expect(screen.getByTestId('col-checkbox-stage')).toBeInTheDocument();
-        expect(screen.getByTestId('col-checkbox-amount')).toBeInTheDocument();
-        // Columns in activeView should be checked
-        expect(screen.getByTestId('col-checkbox-name')).toBeChecked();
-        expect(screen.getByTestId('col-checkbox-stage')).toBeChecked();
-        expect(screen.getByTestId('col-checkbox-amount')).toBeChecked();
+        expect(screen.getByTestId('col-eye-name')).toBeInTheDocument();
+        expect(screen.getByTestId('col-eye-stage')).toBeInTheDocument();
+        expect(screen.getByTestId('col-eye-amount')).toBeInTheDocument();
     });
 
     it('displays object source name', () => {
@@ -541,6 +537,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-exportPrint'));
         const exportSwitch = screen.getByTestId('toggle-allowExport');
         fireEvent.click(exportSwitch);
         expect(onViewUpdate).toHaveBeenCalledWith('allowExport', true);
@@ -692,7 +689,7 @@ describe('ViewConfigPanel', () => {
         fireEvent.click(screen.getByText('console.objectView.fields'));
 
         // Uncheck the 'stage' column
-        fireEvent.click(screen.getByTestId('col-checkbox-stage'));
+        fireEvent.click(screen.getByTestId('col-eye-stage'));
         expect(onViewUpdate).toHaveBeenCalledWith('columns', ['name', 'amount']);
     });
 
@@ -783,8 +780,9 @@ describe('ViewConfigPanel', () => {
         expect(screen.getByTestId('toggle-showSearch')).toHaveAttribute('aria-checked', 'false');
         expect(screen.getByTestId('toggle-showFilters')).toHaveAttribute('aria-checked', 'true');
         expect(screen.getByTestId('toggle-showSort')).toHaveAttribute('aria-checked', 'false');
-        expect(screen.getByTestId('toggle-allowExport')).toHaveAttribute('aria-checked', 'false');
         expect(screen.getByTestId('toggle-addRecord-enabled')).toHaveAttribute('aria-checked', 'true');
+        fireEvent.click(screen.getByTestId('section-exportPrint'));
+        expect(screen.getByTestId('toggle-allowExport')).toHaveAttribute('aria-checked', 'false');
     });
 
     // ── Real-time draft propagation tests (issue fix) ──
@@ -1534,8 +1532,7 @@ describe('ViewConfigPanel', () => {
         fireEvent.click(screen.getByText('console.objectView.fields'));
 
         // 'amount' should have a checkbox but no move buttons
-        expect(screen.getByTestId('col-checkbox-amount')).toBeInTheDocument();
-        expect(screen.getByTestId('col-checkbox-amount')).not.toBeChecked();
+        expect(screen.getByTestId('col-eye-amount')).toBeInTheDocument();
         expect(screen.queryByTestId('col-move-up-amount')).not.toBeInTheDocument();
         expect(screen.queryByTestId('col-move-down-amount')).not.toBeInTheDocument();
     });
@@ -1555,7 +1552,7 @@ describe('ViewConfigPanel', () => {
         fireEvent.click(screen.getByText('console.objectView.fields'));
 
         // Click checkbox for 'amount' to add it
-        fireEvent.click(screen.getByTestId('col-checkbox-amount'));
+        fireEvent.click(screen.getByTestId('col-eye-amount'));
         expect(onViewUpdate).toHaveBeenCalledWith('columns', ['name', 'stage', 'amount']);
     });
 
@@ -1606,6 +1603,7 @@ describe('ViewConfigPanel', () => {
         expect(screen.getByTestId('toggle-showSort')).toBeInTheDocument();
         expect(screen.getByTestId('select-navigation-mode')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-addRecord-enabled')).toBeInTheDocument();
+        fireEvent.click(screen.getByTestId('section-exportPrint'));
         expect(screen.getByTestId('toggle-allowExport')).toBeInTheDocument();
     });
 
@@ -1619,7 +1617,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
-        expect(screen.getByText('console.objectView.pageConfigHint')).toBeInTheDocument();
+        expect(screen.getByText('console.objectView.generalHint')).toBeInTheDocument();
         expect(screen.getByText('console.objectView.listConfigHint')).toBeInTheDocument();
     });
 
@@ -1673,6 +1671,7 @@ describe('ViewConfigPanel', () => {
         expect(onViewUpdate).toHaveBeenCalledWith('addRecordViaForm', true);
 
         // Toggle allowExport on (starts unchecked by default)
+        fireEvent.click(screen.getByTestId('section-exportPrint'));
         fireEvent.click(screen.getByTestId('toggle-allowExport'));
         expect(onViewUpdate).toHaveBeenCalledWith('allowExport', true);
     });
@@ -1719,6 +1718,7 @@ describe('ViewConfigPanel', () => {
         );
 
         // allowExport toggle should be unchecked (false) when allowExport is undefined
+        fireEvent.click(screen.getByTestId('section-exportPrint'));
         const exportSwitch = screen.getByTestId('toggle-allowExport');
         expect(exportSwitch).toHaveAttribute('aria-checked', 'false');
     });
@@ -1896,6 +1896,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-exportPrint'));
         expect(screen.getByTestId('toggle-showRecordCount')).toBeInTheDocument();
     });
 
@@ -1909,6 +1910,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-exportPrint'));
         expect(screen.getByTestId('toggle-allowPrinting')).toBeInTheDocument();
     });
 
@@ -2383,6 +2385,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-exportPrint'));
         fireEvent.click(screen.getByTestId('toggle-showRecordCount'));
         expect(onViewUpdate).toHaveBeenCalledWith('showRecordCount', true);
     });
@@ -2399,6 +2402,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-exportPrint'));
         fireEvent.click(screen.getByTestId('toggle-allowPrinting'));
         expect(onViewUpdate).toHaveBeenCalledWith('allowPrinting', true);
     });
