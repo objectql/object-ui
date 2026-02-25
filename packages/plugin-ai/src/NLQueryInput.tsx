@@ -159,7 +159,7 @@ export const NLQueryInput: React.FC<NLQueryInputProps> = ({ schema, onSubmit: on
                       <tr key={rowIdx} className="border-t">
                         {result.columns!.map((col: { name: string; label?: string; type?: string }, colIdx: number) => (
                           <td key={colIdx} className="px-4 py-2">
-                            {row[col.name]}
+                            {String(row[col.name] ?? '')}
                           </td>
                         ))}
                       </tr>

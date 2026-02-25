@@ -18,6 +18,7 @@ import type {
   StatusPanelDef,
   GetContextMenuItemsParams,
   MenuItemDef,
+  DefaultMenuItem,
 } from 'ag-grid-community';
 import type { FieldMetadata, ObjectSchemaMetadata } from '@object-ui/types';
 import type { ObjectAgGridImplProps } from './object-aggrid.types';
@@ -215,10 +216,10 @@ export default function ObjectAgGridImpl({
   }, [exportConfig, callbacks, rowData, objectName]);
 
   // Context Menu handler
-  const getContextMenuItems = useCallback((params: GetContextMenuItemsParams): (string | MenuItemDef)[] => {
+  const getContextMenuItems = useCallback((params: GetContextMenuItemsParams): (DefaultMenuItem | MenuItemDef)[] => {
     if (!contextMenu?.enabled) return [];
     
-    const items: (string | MenuItemDef)[] = [];
+    const items: (DefaultMenuItem | MenuItemDef)[] = [];
     const defaultItems = contextMenu.items || ['copy', 'copyWithHeaders', 'separator', 'export'];
     
     defaultItems.forEach(item => {
@@ -247,7 +248,7 @@ export default function ObjectAgGridImpl({
           },
         });
       } else {
-        items.push(item);
+        items.push(item as DefaultMenuItem);
       }
     });
     

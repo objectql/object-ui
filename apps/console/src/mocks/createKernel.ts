@@ -133,7 +133,7 @@ function patchDriverCreate(driver: InMemoryDriver): void {
       }
     }
     // Also patch the returned copy
-    if (!result._id) result._id = result.id;
+    if (!(result as any)._id) (result as any)._id = result.id;
     return result;
   };
 }

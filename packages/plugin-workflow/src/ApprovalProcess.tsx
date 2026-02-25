@@ -110,7 +110,7 @@ export const ApprovalProcess: React.FC<ApprovalProcessProps> = ({ schema }) => {
               </Label>
               <Input
                 value={comment}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setComment(e.target.value)}}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setComment(e.target.value)}
                 placeholder="Add a comment (optional)"
               />
             </div>
