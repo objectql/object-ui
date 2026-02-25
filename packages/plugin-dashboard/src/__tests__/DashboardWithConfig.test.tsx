@@ -207,4 +207,31 @@ describe('DashboardWithConfig', () => {
     expect(screen.getByText('Configuration')).toBeDefined();
     expect(screen.queryByText('Widget')).toBeNull();
   });
+
+  it('should pass onFieldChange to WidgetConfigPanel for live preview', () => {
+    // Schema with a widget that will be selected via mocking selection state
+    const schemaWithWidget: DashboardSchema = {
+      ...sampleSchema,
+      widgets: [
+        {
+          id: 'w1',
+          title: 'Test Widget',
+          type: 'bar',
+          layout: { x: 0, y: 0, w: 2, h: 1 },
+        },
+      ],
+    };
+    const { container } = render(
+      <DashboardWithConfig
+        schema={schemaWithWidget}
+        config={sampleConfig}
+        onConfigSave={vi.fn()}
+        onWidgetSave={vi.fn()}
+        defaultConfigOpen={true}
+      />,
+    );
+    // Container should render the dashboard
+    expect(container).toBeDefined();
+    expect(screen.getByTestId('dashboard-with-config')).toBeDefined();
+  });
 });

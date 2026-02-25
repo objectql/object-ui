@@ -725,4 +725,74 @@ describe('DashboardRenderer widget data extraction', () => {
     expect(container).toBeDefined();
     expect(container.textContent).not.toContain('is not iterable');
   });
+
+  it('should handle scatter chart type as a valid chart widget', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'scatter',
+          title: 'Scatter Plot',
+          layout: { x: 0, y: 0, w: 2, h: 2 },
+          options: {
+            xField: 'x',
+            yField: 'y',
+            data: {
+              provider: 'value',
+              items: [
+                { x: 1, y: 10 },
+                { x: 2, y: 20 },
+              ],
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const chartSchema = schemas.find(s => s.type === 'chart');
+
+    expect(chartSchema).toBeDefined();
+    expect(chartSchema.chartType).toBe('scatter');
+    expect(chartSchema.data).toHaveLength(2);
+    expect(chartSchema.xAxisKey).toBe('x');
+    expect(chartSchema.series).toEqual([{ dataKey: 'y' }]);
+  });
+
+  it('should produce object-chart schema for scatter chart with provider: object', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'scatter',
+          title: 'Object Scatter',
+          object: 'opportunity',
+          layout: { x: 0, y: 0, w: 3, h: 2 },
+          options: {
+            xField: 'amount',
+            yField: 'probability',
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+              aggregate: { field: 'probability', function: 'avg', groupBy: 'amount' },
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const chartSchema = schemas.find(s => s.type === 'object-chart');
+
+    expect(chartSchema).toBeDefined();
+    expect(chartSchema.chartType).toBe('scatter');
+    expect(chartSchema.objectName).toBe('opportunity');
+    expect(chartSchema.aggregate.function).toBe('avg');
+  });
 });

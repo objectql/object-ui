@@ -129,7 +129,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
 
     const widgetType = widget.type;
     const options = (widget.options || {}) as Record<string, any>;
-    if (widgetType === 'bar' || widgetType === 'line' || widgetType === 'area' || widgetType === 'pie' || widgetType === 'donut') {
+    if (widgetType === 'bar' || widgetType === 'line' || widgetType === 'area' || widgetType === 'pie' || widgetType === 'donut' || widgetType === 'scatter') {
       const widgetData = (widget as any).data || options.data;
       const xAxisKey = options.xField || 'name';
       const yField = options.yField || 'value';

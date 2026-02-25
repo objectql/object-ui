@@ -7,10 +7,10 @@
  */
 
 import * as React from 'react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Settings } from 'lucide-react';
 import { cn, Button } from '@object-ui/components';
-import type { DashboardSchema } from '@object-ui/types';
+import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
 
 import { DashboardRenderer } from './DashboardRenderer';
 import { DashboardConfigPanel } from './DashboardConfigPanel';
@@ -52,6 +52,7 @@ export interface DashboardWithConfigProps {
  * - Dashboard-level configuration editing
  * - Click-to-select a widget → sidebar switches to WidgetConfigPanel
  * - Back navigation from widget config to dashboard config
+ * - Live preview: widget config changes are reflected in real time
  */
 export function DashboardWithConfig({
   schema,
@@ -66,10 +67,22 @@ export function DashboardWithConfig({
   const [configOpen, setConfigOpen] = useState(defaultConfigOpen);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
 
-  // Find the selected widget's config (flattened)
+  // Internal schema state for live preview during widget editing.
+  // Updated on every field change; reset when external schema prop changes.
+  const [liveSchema, setLiveSchema] = useState<DashboardSchema>(schema);
+  const [configVersion, setConfigVersion] = useState(0);
+
+  useEffect(() => {
+    setLiveSchema(schema);
+    setConfigVersion((v) => v + 1);
+  }, [schema]);
+
+  // Stable widget config for the config panel — only recomputed on
+  // widget selection change or save (configVersion), NOT on every live
+  // field change. This prevents useConfigDraft from resetting the draft.
   const selectedWidgetConfig = React.useMemo(() => {
-    if (!selectedWidgetId || !schema.widgets) return null;
-    const widget = schema.widgets.find(
+    if (!selectedWidgetId || !liveSchema.widgets) return null;
+    const widget = liveSchema.widgets.find(
       (w) => (w.id || w.title) === selectedWidgetId,
     );
     if (!widget) return null;
@@ -87,7 +100,8 @@ export function DashboardWithConfig({
       layoutW: widget.layout?.w ?? 1,
       layoutH: widget.layout?.h ?? 1,
     };
-  }, [selectedWidgetId, schema.widgets]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedWidgetId, configVersion]);
 
   const handleWidgetSelect = useCallback(
     (widgetId: string) => {
@@ -101,12 +115,37 @@ export function DashboardWithConfig({
     setSelectedWidgetId(null);
   }, []);
 
+  // Live-update handler: updates liveSchema so DashboardRenderer re-renders.
+  const handleWidgetFieldChange = useCallback(
+    (field: string, value: any) => {
+      if (!selectedWidgetId) return;
+      setLiveSchema((prev) => {
+        if (!prev.widgets) return prev;
+        return {
+          ...prev,
+          widgets: prev.widgets.map((w) => {
+            if ((w.id || w.title) !== selectedWidgetId) return w;
+            if (field === 'layoutW') {
+              return { ...w, layout: { ...(w.layout || {}), w: value } as DashboardWidgetSchema['layout'] };
+            }
+            if (field === 'layoutH') {
+              return { ...w, layout: { ...(w.layout || {}), h: value } as DashboardWidgetSchema['layout'] };
+            }
+            return { ...w, [field]: value };
+          }),
+        };
+      });
+    },
+    [selectedWidgetId],
+  );
+
   const handleWidgetSave = useCallback(
     (widgetConfig: Record<string, any>) => {
       if (selectedWidgetId && onWidgetSave) {
         onWidgetSave(selectedWidgetId, widgetConfig);
       }
       setSelectedWidgetId(null);
+      setConfigVersion((v) => v + 1);
     },
     [selectedWidgetId, onWidgetSave],
   );
@@ -137,7 +176,7 @@ export function DashboardWithConfig({
         </div>
 
         <DashboardRenderer
-          schema={schema}
+          schema={liveSchema}
           onRefresh={onRefresh}
           recordCount={recordCount}
         />
@@ -152,6 +191,7 @@ export function DashboardWithConfig({
               onClose={handleWidgetClose}
               config={selectedWidgetConfig}
               onSave={handleWidgetSave}
+              onFieldChange={handleWidgetFieldChange}
             />
           ) : (
             <DashboardConfigPanel
