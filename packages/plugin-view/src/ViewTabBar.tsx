@@ -61,6 +61,7 @@ import {
   Globe,
   GripVertical,
   LayoutGrid,
+  Settings2,
 } from 'lucide-react';
 import {
   DndContext,
@@ -146,6 +147,8 @@ export interface ViewTabBarProps {
   onReorderViews?: (viewIds: string[]) => void;
   /** Called when a view type is changed via quick-switch */
   onChangeViewType?: (viewId: string, newType: string) => void;
+  /** Called when user clicks the gear icon to configure a view */
+  onConfigView?: (viewId: string) => void;
 
   /** Available view types for quick-switch palette */
   availableViewTypes?: AvailableViewType[];
@@ -207,6 +210,7 @@ export const ViewTabBar: React.FC<ViewTabBarProps> = ({
   onPinView,
   onReorderViews,
   onChangeViewType,
+  onConfigView,
   availableViewTypes,
   hasUnsavedChanges = false,
   onResetChanges,
@@ -394,6 +398,17 @@ export const ViewTabBar: React.FC<ViewTabBarProps> = ({
         )}
         {view.isDefault && (
           <Star className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" />
+        )}
+        {isActive && onConfigView && (
+          <button
+            type="button"
+            data-testid={`view-tab-config-${view.id}`}
+            className="ml-0.5 h-4 w-4 flex items-center justify-center rounded hover:bg-accent shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+            onClick={(e) => { e.stopPropagation(); onConfigView(view.id); }}
+            aria-label={`Configure ${view.label}`}
+          >
+            <Settings2 className="h-3 w-3" />
+          </button>
         )}
       </button>
     );

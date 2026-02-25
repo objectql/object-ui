@@ -15,7 +15,7 @@ import React from 'react';
 import { Input, Switch, Checkbox, FilterBuilder, SortBuilder, ConfigRow } from '@object-ui/components';
 import type { ConfigPanelSchema, ConfigField } from '@object-ui/components';
 import type { FilterGroup, SortItem } from '@object-ui/components';
-import { ArrowUp, ArrowDown } from 'lucide-react';
+import { Eye, EyeOff, GripVertical } from 'lucide-react';
 import {
     VIEW_TYPE_LABELS,
     VIEW_TYPE_OPTIONS,
@@ -98,8 +98,16 @@ export function buildViewConfigSchema(opts: ViewSchemaFactoryOptions): ConfigPan
     return {
         breadcrumb: [t('console.objectView.page')], // second segment set dynamically in ViewConfigPanel
         sections: [
-            // ── Page Config Section ──────────────────────────────
-            buildPageConfigSection(t, fieldOptions, objectDef, updateField),
+            // ── General Section (title/description/type) ─────────
+            buildGeneralSection(t, objectDef),
+            // ── Toolbar Section (search/filter/sort toggles) ─────
+            buildToolbarSection(t),
+            // ── Navigation Section (click mode, drawer, etc.) ────
+            buildNavigationSection(t, updateField),
+            // ── Records Section (selection, add record, etc.) ────
+            buildRecordsSection(t, updateField),
+            // ── Export & Print Section ───────────────────────────
+            buildExportPrintSection(t, updateField),
             // ── Data Section ─────────────────────────────────────
             buildDataSection(t, fieldOptions, fieldSelectWithNone, objectDef, updateField, filterGroupValue, sortItemsValue),
             // ── Appearance Section ───────────────────────────────
@@ -115,19 +123,17 @@ export function buildViewConfigSchema(opts: ViewSchemaFactoryOptions): ConfigPan
 }
 
 // ---------------------------------------------------------------------------
-// Page Config Section
+// General Section (title, description, view type)
 // ---------------------------------------------------------------------------
 
-function buildPageConfigSection(
+function buildGeneralSection(
     t: ViewSchemaFactoryOptions['t'],
-    _fieldOptions: FieldOption[],
     objectDef: ViewSchemaFactoryOptions['objectDef'],
-    updateField: ViewSchemaFactoryOptions['updateField'],
 ): ConfigPanelSchema['sections'][number] {
     return {
-        key: 'pageConfig',
-        title: t('console.objectView.page'),
-        hint: t('console.objectView.pageConfigHint'),
+        key: 'general',
+        title: t('console.objectView.general'),
+        hint: t('console.objectView.generalHint'),
         fields: [
             // spec: NamedListView.label — required view display label
             {
@@ -182,6 +188,23 @@ function buildPageConfigSection(
                     </ConfigRow>
                 ),
             },
+        ],
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Toolbar Section (search, sort, filter, hide fields, group, color, density)
+// ---------------------------------------------------------------------------
+
+function buildToolbarSection(
+    t: ViewSchemaFactoryOptions['t'],
+): ConfigPanelSchema['sections'][number] {
+    return {
+        key: 'toolbar',
+        title: t('console.objectView.toolbar'),
+        hint: t('console.objectView.toolbarHint'),
+        collapsible: true,
+        fields: [
             // Toolbar toggles — ordered per spec: showSearch, showSort, showFilters, showHideFields, showGroup, showColor, showDensity
             buildSwitchField('showSearch', t('console.objectView.enableSearch'), 'toggle-showSearch', true),       // spec: NamedListView.showSearch
             buildSwitchField('showSort', t('console.objectView.enableSort'), 'toggle-showSort', true),             // spec: NamedListView.showSort
@@ -193,85 +216,24 @@ function buildPageConfigSection(
                 false, undefined, supportsColorField),
             buildSwitchField('showDensity', t('console.objectView.enableDensity'), 'toggle-showDensity', true,    // spec: NamedListView.showDensity
                 false, undefined, isGridView),
-            // spec: NamedListView.allowExport + NamedListView.exportOptions — export toggle + sub-config
-            {
-                key: '_export',
-                label: t('console.objectView.allowExport'),
-                type: 'custom',
-                render: (_value, _onChange, draft) => {
-                    const hasExport = draft.exportOptions != null || draft.allowExport === true;
-                    return (
-                        <>
-                            <ConfigRow label={t('console.objectView.allowExport')}>
-                                <Switch
-                                    data-testid="toggle-allowExport"
-                                    checked={hasExport}
-                                    onCheckedChange={(checked: boolean) => updateField('allowExport', checked)}
-                                    className="scale-75"
-                                />
-                            </ConfigRow>
-                            {hasExport && (
-                                <>
-                                    <ConfigRow label={t('console.objectView.exportFormats')}>
-                                        <div data-testid="export-formats" className="flex flex-wrap gap-1">
-                                            {(['csv', 'xlsx', 'json', 'pdf'] as const).map(fmt => (
-                                                <label key={fmt} className="flex items-center gap-1 text-xs cursor-pointer">
-                                                    <Checkbox
-                                                        data-testid={`export-format-${fmt}`}
-                                                        checked={(draft.exportOptions?.formats || []).includes(fmt)}
-                                                        onCheckedChange={(checked: boolean) => {
-                                                            const current: string[] = draft.exportOptions?.formats || [];
-                                                            const formats = checked
-                                                                ? [...current, fmt]
-                                                                : current.filter((f: string) => f !== fmt);
-                                                            updateField('exportOptions', { ...(draft.exportOptions || {}), formats });
-                                                        }}
-                                                        className="h-3.5 w-3.5"
-                                                    />
-                                                    {fmt}
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </ConfigRow>
-                                    <ConfigRow label={t('console.objectView.exportMaxRecords')}>
-                                        <Input
-                                            data-testid="input-export-maxRecords"
-                                            className="h-7 text-xs w-20 text-right"
-                                            type="number"
-                                            value={draft.exportOptions?.maxRecords ?? ''}
-                                            placeholder="0"
-                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                                updateField('exportOptions', { ...(draft.exportOptions || {}), maxRecords: Number(e.target.value) || undefined })
-                                            }
-                                        />
-                                    </ConfigRow>
-                                    <ConfigRow label={t('console.objectView.exportIncludeHeaders')}>
-                                        <Switch
-                                            data-testid="toggle-export-includeHeaders"
-                                            checked={draft.exportOptions?.includeHeaders !== false}
-                                            onCheckedChange={(checked: boolean) =>
-                                                updateField('exportOptions', { ...(draft.exportOptions || {}), includeHeaders: checked })
-                                            }
-                                            className="scale-75"
-                                        />
-                                    </ConfigRow>
-                                    <ConfigRow label={t('console.objectView.exportFileNamePrefix')}>
-                                        <Input
-                                            data-testid="input-export-fileNamePrefix"
-                                            className="h-7 text-xs w-24 text-right"
-                                            value={draft.exportOptions?.fileNamePrefix ?? ''}
-                                            placeholder="export"
-                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                                updateField('exportOptions', { ...(draft.exportOptions || {}), fileNamePrefix: e.target.value })
-                                            }
-                                        />
-                                    </ConfigRow>
-                                </>
-                            )}
-                        </>
-                    );
-                },
-            },
+        ],
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Navigation Section (navigation mode, width, open new tab)
+// ---------------------------------------------------------------------------
+
+function buildNavigationSection(
+    t: ViewSchemaFactoryOptions['t'],
+    updateField: ViewSchemaFactoryOptions['updateField'],
+): ConfigPanelSchema['sections'][number] {
+    return {
+        key: 'navigation',
+        title: t('console.objectView.navigationSection'),
+        hint: t('console.objectView.navigationHint'),
+        collapsible: true,
+        fields: [
             // spec: NamedListView.navigation — navigation mode/width/openNewTab
             {
                 key: '_navigationMode',
@@ -350,6 +312,24 @@ function buildPageConfigSection(
                     );
                 },
             },
+        ],
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Records Section (selection, add record, inline editing toggles)
+// ---------------------------------------------------------------------------
+
+function buildRecordsSection(
+    t: ViewSchemaFactoryOptions['t'],
+    updateField: ViewSchemaFactoryOptions['updateField'],
+): ConfigPanelSchema['sections'][number] {
+    return {
+        key: 'records',
+        title: t('console.objectView.records'),
+        hint: t('console.objectView.recordsHint'),
+        collapsible: true,
+        fields: [
             // spec: NamedListView.selection — row selection mode
             {
                 key: '_selectionType',
@@ -437,6 +417,104 @@ function buildPageConfigSection(
                     );
                 },
             },
+        ],
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Export & Print Section
+// ---------------------------------------------------------------------------
+
+function buildExportPrintSection(
+    t: ViewSchemaFactoryOptions['t'],
+    updateField: ViewSchemaFactoryOptions['updateField'],
+): ConfigPanelSchema['sections'][number] {
+    return {
+        key: 'exportPrint',
+        title: t('console.objectView.exportPrint'),
+        hint: t('console.objectView.exportPrintHint'),
+        collapsible: true,
+        defaultCollapsed: true,
+        fields: [
+            // spec: NamedListView.allowExport + NamedListView.exportOptions — export toggle + sub-config
+            {
+                key: '_export',
+                label: t('console.objectView.allowExport'),
+                type: 'custom',
+                render: (_value, _onChange, draft) => {
+                    const hasExport = draft.exportOptions != null || draft.allowExport === true;
+                    return (
+                        <>
+                            <ConfigRow label={t('console.objectView.allowExport')}>
+                                <Switch
+                                    data-testid="toggle-allowExport"
+                                    checked={hasExport}
+                                    onCheckedChange={(checked: boolean) => updateField('allowExport', checked)}
+                                    className="scale-75"
+                                />
+                            </ConfigRow>
+                            {hasExport && (
+                                <>
+                                    <ConfigRow label={t('console.objectView.exportFormats')}>
+                                        <div data-testid="export-formats" className="flex flex-wrap gap-1">
+                                            {(['csv', 'xlsx', 'json', 'pdf'] as const).map(fmt => (
+                                                <label key={fmt} className="flex items-center gap-1 text-xs cursor-pointer">
+                                                    <Checkbox
+                                                        data-testid={`export-format-${fmt}`}
+                                                        checked={(draft.exportOptions?.formats || []).includes(fmt)}
+                                                        onCheckedChange={(checked: boolean) => {
+                                                            const current: string[] = draft.exportOptions?.formats || [];
+                                                            const formats = checked
+                                                                ? [...current, fmt]
+                                                                : current.filter((f: string) => f !== fmt);
+                                                            updateField('exportOptions', { ...(draft.exportOptions || {}), formats });
+                                                        }}
+                                                        className="h-3.5 w-3.5"
+                                                    />
+                                                    {fmt}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </ConfigRow>
+                                    <ConfigRow label={t('console.objectView.exportMaxRecords')}>
+                                        <Input
+                                            data-testid="input-export-maxRecords"
+                                            className="h-7 text-xs w-20 text-right"
+                                            type="number"
+                                            value={draft.exportOptions?.maxRecords ?? ''}
+                                            placeholder="0"
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                                updateField('exportOptions', { ...(draft.exportOptions || {}), maxRecords: Number(e.target.value) || undefined })
+                                            }
+                                        />
+                                    </ConfigRow>
+                                    <ConfigRow label={t('console.objectView.exportIncludeHeaders')}>
+                                        <Switch
+                                            data-testid="toggle-export-includeHeaders"
+                                            checked={draft.exportOptions?.includeHeaders !== false}
+                                            onCheckedChange={(checked: boolean) =>
+                                                updateField('exportOptions', { ...(draft.exportOptions || {}), includeHeaders: checked })
+                                            }
+                                            className="scale-75"
+                                        />
+                                    </ConfigRow>
+                                    <ConfigRow label={t('console.objectView.exportFileNamePrefix')}>
+                                        <Input
+                                            data-testid="input-export-fileNamePrefix"
+                                            className="h-7 text-xs w-24 text-right"
+                                            value={draft.exportOptions?.fileNamePrefix ?? ''}
+                                            placeholder="export"
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                                updateField('exportOptions', { ...(draft.exportOptions || {}), fileNamePrefix: e.target.value })
+                                            }
+                                        />
+                                    </ConfigRow>
+                                </>
+                            )}
+                        </>
+                    );
+                },
+            },
             // spec: NamedListView.showRecordCount (grid-only: record count bar is a grid feature)
             buildSwitchField('showRecordCount', t('console.objectView.showRecordCount'), 'toggle-showRecordCount', false, true,
                 undefined, isGridView),
@@ -475,7 +553,7 @@ function buildDataSection(
                     <ConfigRow label={t('console.objectView.source')} value={objectDef.label || objectDef.name} />
                 ),
             },
-            // spec: NamedListView.columns — fields/columns selector (expandable)
+            // spec: NamedListView.columns — fields/columns selector (expandable, Airtable-style)
             {
                 key: '_columns',
                 label: t('console.objectView.fields'),
@@ -506,6 +584,14 @@ function buildDataSection(
                         updateField('columns', currentCols);
                     };
 
+                    const handleShowAll = () => {
+                        updateField('columns', fieldOptions.map(f => f.value));
+                    };
+
+                    const handleHideAll = () => {
+                        updateField('columns', []);
+                    };
+
                     return (
                         <ExpandableWidget
                             renderSummary={(toggle) => (
@@ -516,59 +602,106 @@ function buildDataSection(
                                 />
                             )}
                         >
-                            <div data-testid="column-selector" className="pb-2 space-y-0.5 max-h-48 overflow-auto">
-                                {Array.isArray(draft.columns) && draft.columns.length > 0 && (
-                                    <div data-testid="selected-columns" className="space-y-0.5 pb-1 mb-1 border-b border-border/50">
-                                        {draft.columns.map((colName: string, idx: number) => {
-                                            const field = fieldOptions.find(f => f.value === colName);
-                                            return (
-                                                <div key={colName} className="flex items-center gap-1 text-xs hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
-                                                    <Checkbox
-                                                        data-testid={`col-checkbox-${colName}`}
-                                                        checked={true}
-                                                        onCheckedChange={() => handleColumnToggle(colName, false)}
-                                                        className="h-3.5 w-3.5 shrink-0"
-                                                    />
-                                                    <span className="truncate flex-1">{field?.label || colName}</span>
-                                                    <button
-                                                        type="button"
-                                                        data-testid={`col-move-up-${colName}`}
-                                                        className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent disabled:opacity-30 shrink-0"
-                                                        disabled={idx === 0}
-                                                        onClick={() => handleColumnMove(colName, 'up')}
-                                                        aria-label={`Move ${field?.label || colName} up`}
-                                                    >
-                                                        <ArrowUp className="h-3 w-3" />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        data-testid={`col-move-down-${colName}`}
-                                                        className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent disabled:opacity-30 shrink-0"
-                                                        disabled={idx === draft.columns.length - 1}
-                                                        onClick={() => handleColumnMove(colName, 'down')}
-                                                        aria-label={`Move ${field?.label || colName} down`}
-                                                    >
-                                                        <ArrowDown className="h-3 w-3" />
-                                                    </button>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                                {fieldOptions
-                                    .filter(f => !Array.isArray(draft.columns) || !draft.columns.includes(f.value))
-                                    .map((f) => (
-                                        <label key={f.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
-                                            <Checkbox
-                                                data-testid={`col-checkbox-${f.value}`}
-                                                checked={false}
-                                                onCheckedChange={() => handleColumnToggle(f.value, true)}
-                                                className="h-3.5 w-3.5"
-                                            />
-                                            <span className="truncate">{f.label}</span>
-                                        </label>
-                                    ))
-                                }
+                            <div data-testid="column-selector" className="pb-2 space-y-1">
+                                {/* Search + Show All / Hide All controls */}
+                                <div className="flex items-center gap-1 pb-1">
+                                    <Input
+                                        data-testid="column-search-input"
+                                        className="h-6 text-xs flex-1"
+                                        placeholder={t('console.objectView.searchFields')}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                            const input = e.target;
+                                            const container = input.closest('[data-testid="column-selector"]');
+                                            if (!container) return;
+                                            const query = input.value.toLowerCase();
+                                            container.querySelectorAll<HTMLElement>('[data-field-name]').forEach(el => {
+                                                const name = el.getAttribute('data-field-name') || '';
+                                                const label = el.getAttribute('data-field-label') || '';
+                                                el.style.display = (!query || name.toLowerCase().includes(query) || label.toLowerCase().includes(query)) ? '' : 'none';
+                                            });
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        data-testid="column-show-all"
+                                        className="text-xs text-primary hover:underline whitespace-nowrap"
+                                        onClick={handleShowAll}
+                                    >
+                                        {t('console.objectView.showAllFields')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        data-testid="column-hide-all"
+                                        className="text-xs text-primary hover:underline whitespace-nowrap"
+                                        onClick={handleHideAll}
+                                    >
+                                        {t('console.objectView.hideAllFields')}
+                                    </button>
+                                </div>
+                                <div className="space-y-0.5 max-h-48 overflow-auto">
+                                    {/* Visible (selected) columns with drag handle + eye toggle */}
+                                    {Array.isArray(draft.columns) && draft.columns.length > 0 && (
+                                        <div data-testid="selected-columns" className="space-y-0.5 pb-1 mb-1 border-b border-border/50">
+                                            {draft.columns.map((colName: string, idx: number) => {
+                                                const field = fieldOptions.find(f => f.value === colName);
+                                                return (
+                                                    <div key={colName} data-field-name={colName} data-field-label={field?.label || colName} className="flex items-center gap-1 text-xs hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1 group">
+                                                        <GripVertical className="h-3 w-3 text-muted-foreground/50 shrink-0 cursor-grab" />
+                                                        <button
+                                                            type="button"
+                                                            data-testid={`col-eye-${colName}`}
+                                                            className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent shrink-0"
+                                                            onClick={() => handleColumnToggle(colName, false)}
+                                                            aria-label={`Hide ${field?.label || colName}`}
+                                                        >
+                                                            <Eye className="h-3.5 w-3.5 text-primary" />
+                                                        </button>
+                                                        <span className="truncate flex-1">{field?.label || colName}</span>
+                                                        <button
+                                                            type="button"
+                                                            data-testid={`col-move-up-${colName}`}
+                                                            className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent disabled:opacity-30 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            disabled={idx === 0}
+                                                            onClick={() => handleColumnMove(colName, 'up')}
+                                                            aria-label={`Move ${field?.label || colName} up`}
+                                                        >
+                                                            <GripVertical className="h-3 w-3 rotate-90" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            data-testid={`col-move-down-${colName}`}
+                                                            className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent disabled:opacity-30 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            disabled={idx === draft.columns.length - 1}
+                                                            onClick={() => handleColumnMove(colName, 'down')}
+                                                            aria-label={`Move ${field?.label || colName} down`}
+                                                        >
+                                                            <GripVertical className="h-3 w-3 -rotate-90" />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    {/* Hidden (unselected) fields with eye-off toggle */}
+                                    {fieldOptions
+                                        .filter(f => !Array.isArray(draft.columns) || !draft.columns.includes(f.value))
+                                        .map((f) => (
+                                            <div key={f.value} data-field-name={f.value} data-field-label={f.label} className="flex items-center gap-1 text-xs cursor-pointer hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1">
+                                                <GripVertical className="h-3 w-3 text-muted-foreground/20 shrink-0" />
+                                                <button
+                                                    type="button"
+                                                    data-testid={`col-eye-${f.value}`}
+                                                    className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent shrink-0"
+                                                    onClick={() => handleColumnToggle(f.value, true)}
+                                                    aria-label={`Show ${f.label}`}
+                                                >
+                                                    <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                                                </button>
+                                                <span className="truncate text-muted-foreground">{f.label}</span>
+                                            </div>
+                                        ))
+                                    }
+                                </div>
                             </div>
                         </ExpandableWidget>
                     );

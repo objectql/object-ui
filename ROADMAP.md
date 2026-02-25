@@ -511,6 +511,29 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] 136 ViewConfigPanel interaction tests pass (removed tests for deleted fields)
 - [x] 10 config-sync integration tests pass
 
+**Phase 7 — Section Restructure & Field Selector Upgrade (Airtable UX Parity):**
+- [x] Split monolithic `pageConfig` section into 5 clear sub-sections: General, Toolbar, Navigation, Records, Export & Print
+- [x] General section: label, description, viewType (always expanded, non-collapsible)
+- [x] Toolbar section: showSearch, showSort, showFilters, showHideFields, showGroup, showColor, showDensity (collapsible)
+- [x] Navigation section: navigation mode, width, openNewTab (collapsible)
+- [x] Records section: selection mode, addRecord sub-editor (collapsible)
+- [x] Export & Print section: allowExport + sub-config, showRecordCount, allowPrinting (collapsible, defaultCollapsed)
+- [x] Field selector upgrade: eye/eye-off toggle for visibility (replacing checkboxes), search input for field filtering, Show All/Hide All batch operations, grip handles for visual reorder hints
+- [x] i18n keys added for all 11 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko, + ar)
+- [x] 110 schema tests pass (+7 new section tests)
+- [x] 136 ViewConfigPanel interaction tests pass (updated for eye toggles, section expansion)
+- [x] 31 ObjectView integration tests pass (updated for section expansion)
+- [x] 10 config-sync integration tests pass
+
+**Phase 8 — Tab Gear Icon, Panel Animation & UX Polish:**
+- [x] Add `onConfigView` prop to ViewTabBar with Settings2 gear icon on active tab
+- [x] Wire gear icon in ObjectView: click opens ViewConfigPanel for that view's settings
+- [x] Panel slide-in/slide-out animation: CSS transition on max-width + opacity (300ms ease-in-out)
+- [x] Auto-sync panel content on view tab switch (ViewConfigPanel resets draft when activeView.id changes)
+- [x] 5 new ViewTabBar gear icon tests (show on active, hide on inactive, callback, event isolation)
+- [x] 3 new ViewConfigPanel tests (search input, Show All, Hide All)
+- [x] 49 ViewTabBar tests pass, 139 ViewConfigPanel tests pass, 31 ObjectView tests pass
+
 **Code Reduction:** ~1655 lines imperative → ~170 lines declarative wrapper + ~1100 lines schema factory + ~180 lines shared utils = **>50% net reduction in component code** with significantly improved maintainability
 
 ### P1.9 Console — Content Area Layout & Responsiveness

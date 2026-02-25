@@ -564,6 +564,11 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                    onChangeViewType={(id, newType) => {
                      console.info('[ViewTabBar] Change view type:', id, newType);
                    }}
+                   onConfigView={isAdmin ? (id) => {
+                     handleViewChange(id);
+                     setViewConfigPanelMode('edit');
+                     setShowViewConfigPanel(true);
+                   } : undefined}
                    availableViewTypes={AVAILABLE_VIEW_TYPES}
                  />
                </div>
@@ -599,18 +604,25 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                         { title: 'Object Definition', data: objectDef },
                     ]}
                 />
-                {/* Inline View Config Panel — Airtable-style right sidebar */}
-                <ViewConfigPanel
-                    open={showViewConfigPanel && isAdmin}
-                    onClose={() => { setShowViewConfigPanel(false); setViewConfigPanelMode('edit'); }}
-                    mode={viewConfigPanelMode}
-                    activeView={activeView}
-                    objectDef={objectDef}
-                    recordCount={recordCount}
-                    onSave={handleViewConfigSave}
-                    onViewUpdate={handleViewUpdate}
-                    onCreate={handleViewCreate}
-                />
+                {/* Inline View Config Panel — Airtable-style right sidebar with slide animation */}
+                <div
+                    data-testid="view-config-panel-wrapper"
+                    className={`transition-[max-width,opacity] duration-300 ease-in-out overflow-hidden ${
+                        showViewConfigPanel && isAdmin ? 'max-w-[280px] opacity-100' : 'max-w-0 opacity-0'
+                    }`}
+                >
+                    <ViewConfigPanel
+                        open={showViewConfigPanel && isAdmin}
+                        onClose={() => { setShowViewConfigPanel(false); setViewConfigPanelMode('edit'); }}
+                        mode={viewConfigPanelMode}
+                        activeView={activeView}
+                        objectDef={objectDef}
+                        recordCount={recordCount}
+                        onSave={handleViewConfigSave}
+                        onViewUpdate={handleViewUpdate}
+                        onCreate={handleViewCreate}
+                    />
+                </div>
              </div>
 
              {/* Record Detail Overlay — navigation mode driven by objectDef.navigation */}

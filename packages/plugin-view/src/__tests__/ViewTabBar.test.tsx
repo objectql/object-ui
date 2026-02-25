@@ -650,4 +650,61 @@ describe('ViewTabBar', () => {
       expect(screen.getByTestId('view-tab-sortable-container')).toBeDefined();
     });
   });
+
+  // ============================
+  // Config View Gear Icon
+  // ============================
+  describe('Config View Gear Icon', () => {
+    it('should show gear icon on active tab when onConfigView is provided', () => {
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          onConfigView={vi.fn()}
+        />
+      );
+      expect(screen.getByTestId('view-tab-config-view-0')).toBeDefined();
+    });
+
+    it('should not show gear icon on inactive tabs', () => {
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          onConfigView={vi.fn()}
+        />
+      );
+      expect(screen.queryByTestId('view-tab-config-view-1')).toBeNull();
+      expect(screen.queryByTestId('view-tab-config-view-2')).toBeNull();
+    });
+
+    it('should not show gear icon when onConfigView is not provided', () => {
+      render(<ViewTabBar {...defaultProps} />);
+      expect(screen.queryByTestId('view-tab-config-view-0')).toBeNull();
+    });
+
+    it('should call onConfigView with viewId when gear icon is clicked', () => {
+      const onConfigView = vi.fn();
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          onConfigView={onConfigView}
+        />
+      );
+      fireEvent.click(screen.getByTestId('view-tab-config-view-0'));
+      expect(onConfigView).toHaveBeenCalledWith('view-0');
+    });
+
+    it('should not trigger onViewChange when gear icon is clicked', () => {
+      const onViewChange = vi.fn();
+      render(
+        <ViewTabBar
+          {...defaultProps}
+          onViewChange={onViewChange}
+          onConfigView={vi.fn()}
+        />
+      );
+      onViewChange.mockClear();
+      fireEvent.click(screen.getByTestId('view-tab-config-view-0'));
+      expect(onViewChange).not.toHaveBeenCalled();
+    });
+  });
 });
