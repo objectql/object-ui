@@ -13,6 +13,13 @@ import { forwardRef, useState, useEffect, useCallback, useRef } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { isObjectProvider } from './utils';
 
+/** Resolve an I18nLabel (string or {key, defaultValue}) to a plain string. */
+function resolveLabel(label: string | { key?: string; defaultValue?: string } | undefined): string | undefined {
+  if (label === undefined || label === null) return undefined;
+  if (typeof label === 'string') return label;
+  return label.defaultValue || label.key;
+}
+
 // Color palette for charts
 const CHART_COLORS = [
   'hsl(var(--chart-1))',
@@ -248,7 +255,8 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
         
         const componentSchema = getComponentSchema();
         const isSelfContained = widget.type === 'metric';
-        const widgetKey = widget.id || widget.title || `widget-${index}`;
+        const resolvedTitle = resolveLabel(widget.title);
+        const widgetKey = widget.id || resolvedTitle || `widget-${index}`;
         const isSelected = designMode && selectedWidgetId === widget.id;
 
         const designModeProps = designMode ? {
@@ -257,7 +265,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
             role: 'button' as const,
             tabIndex: 0,
             'aria-selected': isSelected,
-            'aria-label': `Widget: ${widget.title || `Widget ${index + 1}`}`,
+            'aria-label': `Widget: ${resolvedTitle || `Widget ${index + 1}`}`,
             onClick: (e: React.MouseEvent) => handleWidgetClick(e, widget.id),
             onKeyDown: (e: React.KeyboardEvent) => handleWidgetKeyDown(e, widget.id, index),
         } : {};
@@ -305,10 +313,10 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 }: undefined}
                 {...designModeProps}
             >
-                {widget.title && (
+                {resolvedTitle && (
                     <CardHeader className="pb-2 border-b border-border/40 bg-muted/20 px-3 sm:px-6">
-                        <CardTitle className="text-sm sm:text-base font-medium tracking-tight truncate" title={widget.title}>
-                            {widget.title}
+                        <CardTitle className="text-sm sm:text-base font-medium tracking-tight truncate" title={resolvedTitle}>
+                            {resolvedTitle}
                         </CardTitle>
                     </CardHeader>
                 )}
@@ -325,10 +333,10 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
     const headerSection = schema.header && (
       <div className="col-span-full mb-4">
         {schema.header.showTitle !== false && schema.title && (
-          <h2 className="text-lg font-semibold tracking-tight">{schema.title}</h2>
+          <h2 className="text-lg font-semibold tracking-tight">{resolveLabel(schema.title)}</h2>
         )}
         {schema.header.showDescription !== false && schema.description && (
-          <p className="text-sm text-muted-foreground mt-1">{schema.description}</p>
+          <p className="text-sm text-muted-foreground mt-1">{resolveLabel(schema.description)}</p>
         )}
         {schema.header.actions && schema.header.actions.length > 0 && (
           <div className="flex gap-2 mt-3">

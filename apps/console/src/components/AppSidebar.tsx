@@ -301,7 +301,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                     <div className="flex size-6 items-center justify-center rounded-sm border">
                       {app.icon ? React.createElement(getIcon(app.icon), { className: "size-3" }) : <Database className="size-3" />}
                     </div>
-                    {app.label}
+                    {resolveI18nLabel(app.label, t)}
                     {activeApp.name === app.name && <span className="ml-auto text-xs">✓</span>}
                   </DropdownMenuItem>
                 ))}
@@ -530,7 +530,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
           return (
             <Link key={item.id} to={href} className="flex flex-col items-center gap-0.5 px-2 py-1.5 text-muted-foreground hover:text-foreground transition-colors min-w-[44px] min-h-[44px] justify-center">
               <NavIcon className="h-5 w-5" />
-              <span className="text-[10px] truncate max-w-[60px]">{item.label}</span>
+              <span className="text-[10px] truncate max-w-[60px]">{resolveI18nLabel(item.label, t)}</span>
             </Link>
           );
         })}

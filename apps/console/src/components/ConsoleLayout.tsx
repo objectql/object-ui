@@ -11,6 +11,7 @@ import { AppShell } from '@object-ui/layout';
 import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
 import { useResponsiveSidebar } from '../hooks/useResponsiveSidebar';
+import { resolveI18nLabel } from '../utils';
 import type { ConnectionState } from '../dataSource';
 
 interface ConsoleLayoutProps {
@@ -46,7 +47,7 @@ export function ConsoleLayout({
       }
       navbar={
           <AppHeader 
-            appName={activeApp?.label || activeAppName} 
+            appName={resolveI18nLabel(activeApp?.label) || activeAppName} 
             objects={objects}
             connectionState={connectionState}
           />
@@ -60,7 +61,7 @@ export function ConsoleLayout({
               favicon: activeApp.branding.favicon,
               logo: activeApp.branding.logo,
               title: activeApp.label
-                ? `${activeApp.label} — ObjectStack Console`
+                ? `${resolveI18nLabel(activeApp.label)} — ObjectStack Console`
                 : undefined,
             }
           : undefined

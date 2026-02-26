@@ -33,6 +33,7 @@ import {
 import { useTheme } from './theme-provider';
 import { useExpressionContext, evaluateVisibility } from '../context/ExpressionProvider';
 import { useObjectTranslation } from '@object-ui/i18n';
+import { resolveI18nLabel } from '../utils';
 
 /** Resolve a Lucide icon by name (kebab-case or PascalCase) */
 function getIcon(name?: string): React.ElementType {
@@ -101,11 +102,11 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
                 return (
                   <CommandItem
                     key={item.id}
-                    value={`object ${item.label} ${item.objectName}`}
+                    value={`object ${resolveI18nLabel(item.label, t)} ${item.objectName}`}
                     onSelect={() => runCommand(() => navigate(`${baseUrl}/${item.objectName}`))}
                   >
                     <Icon className="mr-2 h-4 w-4" />
-                    <span>{item.label}</span>
+                    <span>{resolveI18nLabel(item.label, t)}</span>
                   </CommandItem>
                 );
               })}
@@ -120,11 +121,11 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
               .map(item => (
                 <CommandItem
                   key={item.id}
-                  value={`dashboard ${item.label} ${item.dashboardName}`}
+                  value={`dashboard ${resolveI18nLabel(item.label, t)} ${item.dashboardName}`}
                   onSelect={() => runCommand(() => navigate(`${baseUrl}/dashboard/${item.dashboardName}`))}
                 >
                   <LayoutDashboard className="mr-2 h-4 w-4" />
-                  <span>{item.label}</span>
+                  <span>{resolveI18nLabel(item.label, t)}</span>
                 </CommandItem>
               ))}
           </CommandGroup>
@@ -138,11 +139,11 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
               .map(item => (
                 <CommandItem
                   key={item.id}
-                  value={`page ${item.label} ${item.pageName}`}
+                  value={`page ${resolveI18nLabel(item.label, t)} ${item.pageName}`}
                   onSelect={() => runCommand(() => navigate(`${baseUrl}/page/${item.pageName}`))}
                 >
                   <FileText className="mr-2 h-4 w-4" />
-                  <span>{item.label}</span>
+                  <span>{resolveI18nLabel(item.label, t)}</span>
                 </CommandItem>
               ))}
           </CommandGroup>
@@ -156,11 +157,11 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
               .map(item => (
                 <CommandItem
                   key={item.id}
-                  value={`report ${item.label} ${item.reportName}`}
+                  value={`report ${resolveI18nLabel(item.label, t)} ${item.reportName}`}
                   onSelect={() => runCommand(() => navigate(`${baseUrl}/report/${item.reportName}`))}
                 >
                   <BarChart3 className="mr-2 h-4 w-4" />
-                  <span>{item.label}</span>
+                  <span>{resolveI18nLabel(item.label, t)}</span>
                 </CommandItem>
               ))}
           </CommandGroup>
@@ -178,11 +179,11 @@ export function CommandPalette({ apps, activeApp, objects: _objects, onAppChange
                   return (
                     <CommandItem
                       key={app.name}
-                      value={`app ${app.label} ${app.name}`}
+                      value={`app ${resolveI18nLabel(app.label, t)} ${app.name}`}
                       onSelect={() => runCommand(() => onAppChange(app.name))}
                     >
                       <Icon className="mr-2 h-4 w-4" />
-                      <span>{app.label}</span>
+                      <span>{resolveI18nLabel(app.label, t)}</span>
                       {app.name === activeApp?.name && (
                         <span className="ml-auto text-xs text-muted-foreground">{t('console.commandPalette.current')}</span>
                       )}

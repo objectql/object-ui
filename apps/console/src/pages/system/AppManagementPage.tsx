@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMetadata } from '../../context/MetadataProvider';
+import { resolveI18nLabel } from '../../utils';
 
 export function AppManagementPage() {
   const navigate = useNavigate();
@@ -208,14 +209,14 @@ export function AppManagementPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium truncate">{app.label || app.name}</span>
+                      <span className="font-medium truncate">{resolveI18nLabel(app.label) || app.name}</span>
                       {isDefault && <Badge variant="default" className="text-xs">Default</Badge>}
                       <Badge variant={isActive ? 'secondary' : 'outline'} className="text-xs">
                         {isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
                     {app.description && (
-                      <p className="text-xs text-muted-foreground truncate">{app.description}</p>
+                      <p className="text-xs text-muted-foreground truncate">{resolveI18nLabel(app.description)}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
