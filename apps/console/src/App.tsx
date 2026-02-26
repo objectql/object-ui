@@ -28,7 +28,6 @@ const RecordDetailView = lazy(() => import('./components/RecordDetailView').then
 const DashboardView = lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
 const PageView = lazy(() => import('./components/PageView').then(m => ({ default: m.PageView })));
 const ReportView = lazy(() => import('./components/ReportView').then(m => ({ default: m.ReportView })));
-const ViewDesignerPage = lazy(() => import('./components/ViewDesignerPage').then(m => ({ default: m.ViewDesignerPage })));
 const SearchResultsPage = lazy(() => import('./components/SearchResultsPage').then(m => ({ default: m.SearchResultsPage })));
 
 // App Creation / Edit Pages (lazy — only needed during app management)
@@ -344,14 +343,6 @@ export function AppContent() {
         {/* Detail Page */}
         <Route path=":objectName/record/:recordId" element={
             <RecordDetailView key={refreshKey} dataSource={dataSource} objects={allObjects} onEdit={handleEdit} />
-        } />
-
-        {/* View Designer - Create/Edit Views */}
-        <Route path=":objectName/views/new" element={
-            <ViewDesignerPage objects={allObjects} />
-        } />
-        <Route path=":objectName/views/:viewId" element={
-            <ViewDesignerPage objects={allObjects} />
         } />
 
         <Route path="dashboard/:dashboardName" element={

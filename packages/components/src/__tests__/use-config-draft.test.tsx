@@ -113,4 +113,183 @@ describe('useConfigDraft', () => {
     expect(result.current.draft).not.toBe(mutableSource);
     expect(result.current.draft).toEqual(mutableSource);
   });
+
+  // ── Undo / Redo ──────────────────────────────────────────────
+
+  describe('undo/redo', () => {
+    it('should start with canUndo=false and canRedo=false', () => {
+      const { result } = renderHook(() => useConfigDraft(source));
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.canRedo).toBe(false);
+    });
+
+    it('should enable undo after a field update', () => {
+      const { result } = renderHook(() => useConfigDraft(source));
+      act(() => {
+        result.current.updateField('name', 'Changed');
+      });
+      expect(result.current.canUndo).toBe(true);
+      expect(result.current.canRedo).toBe(false);
+    });
+
+    it('should undo to previous state', () => {
+      const { result } = renderHook(() => useConfigDraft(source));
+      act(() => {
+        result.current.updateField('name', 'Changed');
+      });
+      expect(result.current.draft.name).toBe('Changed');
+
+      act(() => {
+        result.current.undo();
+      });
+      expect(result.current.draft.name).toBe('Test');
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.canRedo).toBe(true);
+    });
+
+    it('should redo after undo', () => {
+      const { result } = renderHook(() => useConfigDraft(source));
+      act(() => {
+        result.current.updateField('name', 'Changed');
+      });
+      act(() => {
+        result.current.undo();
+      });
+      act(() => {
+        result.current.redo();
+      });
+      expect(result.current.draft.name).toBe('Changed');
+      expect(result.current.canUndo).toBe(true);
+      expect(result.current.canRedo).toBe(false);
+    });
+
+    it('should clear redo stack when a new change is made after undo', () => {
+      const { result } = renderHook(() => useConfigDraft(source));
+      act(() => {
+        result.current.updateField('name', 'First');
+      });
+      act(() => {
+        result.current.updateField('name', 'Second');
+      });
+      act(() => {
+        result.current.undo();
+      });
+      expect(result.current.canRedo).toBe(true);
+
+      act(() => {
+        result.current.updateField('name', 'Third');
+      });
+      expect(result.current.canRedo).toBe(false);
+      expect(result.current.draft.name).toBe('Third');
+    });
+
+    it('should support multiple undo steps', () => {
+      const { result } = renderHook(() => useConfigDraft(source));
+      act(() => {
+        result.current.updateField('name', 'A');
+      });
+      act(() => {
+        result.current.updateField('name', 'B');
+      });
+      act(() => {
+        result.current.updateField('name', 'C');
+      });
+      expect(result.current.draft.name).toBe('C');
+
+      act(() => {
+        result.current.undo();
+      });
+      expect(result.current.draft.name).toBe('B');
+
+      act(() => {
+        result.current.undo();
+      });
+      expect(result.current.draft.name).toBe('A');
+
+      act(() => {
+        result.current.undo();
+      });
+      expect(result.current.draft.name).toBe('Test');
+      expect(result.current.canUndo).toBe(false);
+    });
+
+    it('should do nothing when undoing with empty history', () => {
+      const { result } = renderHook(() => useConfigDraft(source));
+      act(() => {
+        result.current.undo();
+      });
+      expect(result.current.draft).toEqual(source);
+    });
+
+    it('should do nothing when redoing with empty future', () => {
+      const { result } = renderHook(() => useConfigDraft(source));
+      act(() => {
+        result.current.redo();
+      });
+      expect(result.current.draft).toEqual(source);
+    });
+
+    it('should clear history on discard', () => {
+      const { result } = renderHook(() => useConfigDraft(source));
+      act(() => {
+        result.current.updateField('name', 'Changed');
+      });
+      expect(result.current.canUndo).toBe(true);
+
+      act(() => {
+        result.current.discard();
+      });
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.canRedo).toBe(false);
+    });
+
+    it('should clear history when source changes', () => {
+      const source1 = { name: 'A', value: 1 };
+      const source2 = { name: 'B', value: 2 };
+      const { result, rerender } = renderHook(
+        ({ src }) => useConfigDraft(src),
+        { initialProps: { src: source1 } },
+      );
+      act(() => {
+        result.current.updateField('name', 'Modified');
+      });
+      expect(result.current.canUndo).toBe(true);
+
+      rerender({ src: source2 });
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.canRedo).toBe(false);
+    });
+
+    it('should respect maxHistory limit', () => {
+      const { result } = renderHook(() =>
+        useConfigDraft(source, { maxHistory: 3 }),
+      );
+      act(() => {
+        result.current.updateField('name', 'A');
+      });
+      act(() => {
+        result.current.updateField('name', 'B');
+      });
+      act(() => {
+        result.current.updateField('name', 'C');
+      });
+      act(() => {
+        result.current.updateField('name', 'D');
+      });
+      // maxHistory=3, so only 3 undo steps (not 4)
+      act(() => {
+        result.current.undo();
+      });
+      expect(result.current.draft.name).toBe('C');
+      act(() => {
+        result.current.undo();
+      });
+      expect(result.current.draft.name).toBe('B');
+      act(() => {
+        result.current.undo();
+      });
+      // Should stop here — oldest entry was trimmed
+      expect(result.current.canUndo).toBe(false);
+    });
+  });
 });

@@ -381,7 +381,6 @@ const ko = {
       discard: '취소',
       createView: '뷰 생성',
       newView: '새 뷰',
-      advancedEditor: '고급 편집기',
       typeOptions: '유형 옵션',
       groupByField: '그룹화 필드',
       startDateField: '시작 날짜 필드',

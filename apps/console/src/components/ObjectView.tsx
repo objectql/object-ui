@@ -512,11 +512,6 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                           <Plus className="h-4 w-4 mr-2" />
                           {t('console.objectView.addView')}
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => navigate(viewId ? '../../views/new' : 'views/new', { relative: 'path' })}>
-                          <Wrench className="h-4 w-4 mr-2" />
-                          {t('console.objectView.advancedEditor')}
-                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                     )}

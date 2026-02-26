@@ -1031,7 +1031,7 @@ export interface ObjectViewSchema extends BaseSchema {
   
   /**
    * Show view switcher (for multi-view)
-   * When false (default), view type is fixed at creation in ViewDesigner
+   * When false (default), view type is fixed at creation in ViewConfigPanel
    * @default false
    */
   showViewSwitcher?: boolean;

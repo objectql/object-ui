@@ -386,7 +386,6 @@ const en = {
       discard: 'Discard',
       createView: 'Create View',
       newView: 'New View',
-      advancedEditor: 'Advanced Editor',
       typeOptions: 'Type Options',
       groupByField: 'Group by field',
       startDateField: 'Start date field',

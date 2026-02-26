@@ -381,7 +381,6 @@ const es = {
       discard: 'Descartar',
       createView: 'Crear vista',
       newView: 'Nueva vista',
-      advancedEditor: 'Editor avanzado',
       typeOptions: 'Opciones de tipo',
       groupByField: 'Campo de agrupación',
       startDateField: 'Campo de fecha de inicio',

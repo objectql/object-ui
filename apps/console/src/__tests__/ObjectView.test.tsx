@@ -283,21 +283,6 @@ describe('ObjectView Component', () => {
         expect(screen.getByTestId('view-config-panel')).toBeInTheDocument();
     });
 
-    it('navigates to view designer when Advanced Editor is clicked', () => {
-        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
-        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
-
-        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
-
-        const designBtn = screen.getByTitle('console.objectView.designTools');
-        fireEvent.click(designBtn);
-
-        const advancedBtn = screen.getByText('console.objectView.advancedEditor');
-        fireEvent.click(advancedBtn);
-
-        expect(mockNavigate).toHaveBeenCalledWith('views/new', { relative: 'path' });
-    });
-
     it('shows breadcrumb with object and view name', () => {
         mockUseParams.mockReturnValue({ objectName: 'opportunity' });
         

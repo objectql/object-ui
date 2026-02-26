@@ -27,26 +27,64 @@ vi.mock('@object-ui/components', () => {
 
     // useConfigDraft mock — mirrors real implementation
     function useConfigDraft(source: any, options?: any) {
+        const maxHistory = options?.maxHistory ?? 50;
         const [draft, setDraft] = React.useState({ ...source });
         const [isDirty, setIsDirty] = React.useState(options?.mode === 'create');
+        const pastRef = React.useRef<any[]>([]);
+        const futureRef = React.useRef<any[]>([]);
+        const [, forceRender] = React.useState(0);
 
         React.useEffect(() => {
             setDraft({ ...source });
             setIsDirty(options?.mode === 'create');
+            pastRef.current = [];
+            futureRef.current = [];
         }, [source]); // eslint-disable-line react-hooks/exhaustive-deps
 
         const updateField = React.useCallback((field: string, value: any) => {
-            setDraft((prev: any) => ({ ...prev, [field]: value }));
+            setDraft((prev: any) => {
+                pastRef.current = [...pastRef.current.slice(-(maxHistory - 1)), prev];
+                futureRef.current = [];
+                return { ...prev, [field]: value };
+            });
             setIsDirty(true);
+            forceRender((n: number) => n + 1);
             options?.onUpdate?.(field, value);
         }, [options?.onUpdate]);
+
+        const undo = React.useCallback(() => {
+            if (pastRef.current.length === 0) return;
+            setDraft((prev: any) => {
+                const past = [...pastRef.current];
+                const previous = past.pop()!;
+                pastRef.current = past;
+                futureRef.current = [prev, ...futureRef.current];
+                return previous;
+            });
+            forceRender((n: number) => n + 1);
+        }, []);
+
+        const redo = React.useCallback(() => {
+            if (futureRef.current.length === 0) return;
+            setDraft((prev: any) => {
+                const future = [...futureRef.current];
+                const next = future.shift()!;
+                futureRef.current = future;
+                pastRef.current = [...pastRef.current, prev];
+                return next;
+            });
+            forceRender((n: number) => n + 1);
+        }, []);
 
         const discard = React.useCallback(() => {
             setDraft({ ...source });
             setIsDirty(false);
+            pastRef.current = [];
+            futureRef.current = [];
+            forceRender((n: number) => n + 1);
         }, [source]);
 
-        return { draft, isDirty, updateField, discard, setDraft };
+        return { draft, isDirty, updateField, discard, setDraft, undo, redo, canUndo: pastRef.current.length > 0, canRedo: futureRef.current.length > 0 };
     }
 
     // ConfigPanelRenderer mock — renders schema sections with proper collapse/visibility

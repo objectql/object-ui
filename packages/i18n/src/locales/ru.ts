@@ -381,7 +381,6 @@ const ru = {
       discard: 'Отменить',
       createView: 'Создать представление',
       newView: 'Новое представление',
-      advancedEditor: 'Расширенный редактор',
       typeOptions: 'Параметры типа',
       groupByField: 'Поле группировки',
       startDateField: 'Поле даты начала',

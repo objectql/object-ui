@@ -386,7 +386,6 @@ const de = {
       discard: 'Verwerfen',
       createView: 'Ansicht erstellen',
       newView: 'Neue Ansicht',
-      advancedEditor: 'Erweiterter Editor',
       typeOptions: 'Typoptionen',
       groupByField: 'Gruppierungsfeld',
       startDateField: 'Startdatumsfeld',

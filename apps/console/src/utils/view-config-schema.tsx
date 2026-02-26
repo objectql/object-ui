@@ -17,6 +17,22 @@ import type { ConfigPanelSchema, ConfigField } from '@object-ui/components';
 import type { FilterGroup, SortItem } from '@object-ui/components';
 import { Eye, EyeOff, GripVertical } from 'lucide-react';
 import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    SortableContext,
+    verticalListSortingStrategy,
+    useSortable,
+    arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
     VIEW_TYPE_LABELS,
     VIEW_TYPE_OPTIONS,
     ROW_HEIGHT_OPTIONS,
@@ -40,6 +56,131 @@ function ExpandableWidget({ renderSummary, children }: {
             {renderSummary(() => setExpanded(prev => !prev))}
             {expanded && children}
         </>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Sortable column item — drag-to-reorder within the field selector
+// ---------------------------------------------------------------------------
+
+/** Minimum pointer movement in pixels before drag-to-reorder activates (prevents accidental drags on click) */
+const COLUMN_DRAG_ACTIVATION_DISTANCE = 5;
+
+function SortableColumnItem({ colName, label, idx, total, onToggle, onMove }: {
+    colName: string;
+    label: string;
+    idx: number;
+    total: number;
+    onToggle: (name: string, checked: boolean) => void;
+    onMove: (name: string, direction: 'up' | 'down') => void;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: colName });
+
+    const style: React.CSSProperties = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : undefined,
+        opacity: isDragging ? 0.5 : undefined,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            data-field-name={colName}
+            data-field-label={label}
+            className="flex items-center gap-1 text-xs hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1 group"
+        >
+            <span
+                {...attributes}
+                {...listeners}
+                className="shrink-0 cursor-grab touch-none"
+                data-testid={`col-drag-handle-${colName}`}
+            >
+                <GripVertical className="h-3 w-3 text-muted-foreground/50" />
+            </span>
+            <button
+                type="button"
+                data-testid={`col-eye-${colName}`}
+                className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent shrink-0"
+                onClick={() => onToggle(colName, false)}
+                aria-label={`Hide ${label}`}
+            >
+                <Eye className="h-3.5 w-3.5 text-primary" />
+            </button>
+            <span className="truncate flex-1">{label}</span>
+            <button
+                type="button"
+                data-testid={`col-move-up-${colName}`}
+                className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent disabled:opacity-30 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                disabled={idx === 0}
+                onClick={() => onMove(colName, 'up')}
+                aria-label={`Move ${label} up`}
+            >
+                <GripVertical className="h-3 w-3 rotate-90" />
+            </button>
+            <button
+                type="button"
+                data-testid={`col-move-down-${colName}`}
+                className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent disabled:opacity-30 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                disabled={idx === total - 1}
+                onClick={() => onMove(colName, 'down')}
+                aria-label={`Move ${label} down`}
+            >
+                <GripVertical className="h-3 w-3 -rotate-90" />
+            </button>
+        </div>
+    );
+}
+
+/** Wrapper component for drag-and-drop column selector (uses hooks for sensors) */
+function DraggableColumnList({ columns, fieldOptions, onToggle, onMove, onReorder }: {
+    columns: string[];
+    fieldOptions: FieldOption[];
+    onToggle: (name: string, checked: boolean) => void;
+    onMove: (name: string, direction: 'up' | 'down') => void;
+    onReorder: (newColumns: string[]) => void;
+}) {
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: COLUMN_DRAG_ACTIVATION_DISTANCE } }),
+        useSensor(KeyboardSensor),
+    );
+
+    const handleDragEnd = React.useCallback((event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+        const oldIndex = columns.indexOf(String(active.id));
+        const newIndex = columns.indexOf(String(over.id));
+        if (oldIndex === -1 || newIndex === -1) return;
+        onReorder(arrayMove(columns, oldIndex, newIndex));
+    }, [columns, onReorder]);
+
+    return (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={columns} strategy={verticalListSortingStrategy}>
+                {columns.map((colName, idx) => {
+                    const field = fieldOptions.find(f => f.value === colName);
+                    return (
+                        <SortableColumnItem
+                            key={colName}
+                            colName={colName}
+                            label={field?.label || colName}
+                            idx={idx}
+                            total={columns.length}
+                            onToggle={onToggle}
+                            onMove={onMove}
+                        />
+                    );
+                })}
+            </SortableContext>
+        </DndContext>
     );
 }
 
@@ -639,47 +780,16 @@ function buildDataSection(
                                     </button>
                                 </div>
                                 <div className="space-y-0.5 max-h-48 overflow-auto">
-                                    {/* Visible (selected) columns with drag handle + eye toggle */}
+                                    {/* Visible (selected) columns with drag-and-drop reorder */}
                                     {Array.isArray(draft.columns) && draft.columns.length > 0 && (
                                         <div data-testid="selected-columns" className="space-y-0.5 pb-1 mb-1 border-b border-border/50">
-                                            {draft.columns.map((colName: string, idx: number) => {
-                                                const field = fieldOptions.find(f => f.value === colName);
-                                                return (
-                                                    <div key={colName} data-field-name={colName} data-field-label={field?.label || colName} className="flex items-center gap-1 text-xs hover:bg-accent/50 rounded-sm py-0.5 px-1 -mx-1 group">
-                                                        <GripVertical className="h-3 w-3 text-muted-foreground/50 shrink-0 cursor-grab" />
-                                                        <button
-                                                            type="button"
-                                                            data-testid={`col-eye-${colName}`}
-                                                            className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent shrink-0"
-                                                            onClick={() => handleColumnToggle(colName, false)}
-                                                            aria-label={`Hide ${field?.label || colName}`}
-                                                        >
-                                                            <Eye className="h-3.5 w-3.5 text-primary" />
-                                                        </button>
-                                                        <span className="truncate flex-1">{field?.label || colName}</span>
-                                                        <button
-                                                            type="button"
-                                                            data-testid={`col-move-up-${colName}`}
-                                                            className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent disabled:opacity-30 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                            disabled={idx === 0}
-                                                            onClick={() => handleColumnMove(colName, 'up')}
-                                                            aria-label={`Move ${field?.label || colName} up`}
-                                                        >
-                                                            <GripVertical className="h-3 w-3 rotate-90" />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            data-testid={`col-move-down-${colName}`}
-                                                            className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent disabled:opacity-30 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                            disabled={idx === draft.columns.length - 1}
-                                                            onClick={() => handleColumnMove(colName, 'down')}
-                                                            aria-label={`Move ${field?.label || colName} down`}
-                                                        >
-                                                            <GripVertical className="h-3 w-3 -rotate-90" />
-                                                        </button>
-                                                    </div>
-                                                );
-                                            })}
+                                            <DraggableColumnList
+                                                columns={draft.columns}
+                                                fieldOptions={fieldOptions}
+                                                onToggle={handleColumnToggle}
+                                                onMove={handleColumnMove}
+                                                onReorder={(newCols) => updateField('columns', newCols)}
+                                            />
                                         </div>
                                     )}
                                     {/* Hidden (unselected) fields with eye-off toggle */}
