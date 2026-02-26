@@ -184,6 +184,52 @@ describe('ListView grouping config propagation', () => {
     expect(capturedSchema.grouping).toEqual(groupingConfig);
   });
 
+  it('updates grid schema when user toggles grouping via toolbar', async () => {
+    render(
+      <ListView
+        schema={{
+          type: 'list-view',
+          objectName: 'products',
+          viewType: 'grid',
+          fields: ['name', 'category'],
+          data: testData,
+        }}
+      />,
+    );
+
+    // Initially no grouping
+    expect(capturedSchema).toBeDefined();
+    expect(capturedSchema.type).toBe('object-grid');
+    expect(capturedSchema.grouping).toBeUndefined();
+
+    // Open Group popover
+    const groupButton = screen.getByRole('button', { name: /group/i });
+    fireEvent.click(groupButton);
+
+    // Select the 'category' field checkbox in the group field list
+    const fieldList = screen.getByTestId('group-field-list');
+    const checkboxes = fieldList.querySelectorAll('input[type="checkbox"]');
+    // Find the checkbox for 'category'
+    const categoryCheckbox = Array.from(checkboxes).find(cb => {
+      const label = cb.closest('label');
+      return label?.textContent?.includes('category');
+    });
+    expect(categoryCheckbox).toBeDefined();
+    fireEvent.click(categoryCheckbox!);
+
+    // Schema should now include grouping config
+    expect(capturedSchema.grouping).toBeDefined();
+    expect(capturedSchema.grouping.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'category' }),
+      ]),
+    );
+
+    // Toggle off — click the checkbox again
+    fireEvent.click(categoryCheckbox!);
+    expect(capturedSchema.grouping).toBeUndefined();
+  });
+
   it('does not pass grouping when no grouping config exists', () => {
     render(
       <ListView
