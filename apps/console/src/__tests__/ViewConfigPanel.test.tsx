@@ -27,6 +27,7 @@ vi.mock('@object-ui/components', () => {
 
     // useConfigDraft mock — mirrors real implementation
     function useConfigDraft(source: any, options?: any) {
+        const maxHistory = options?.maxHistory ?? 50;
         const [draft, setDraft] = React.useState({ ...source });
         const [isDirty, setIsDirty] = React.useState(options?.mode === 'create');
         const pastRef = React.useRef<any[]>([]);
@@ -42,7 +43,7 @@ vi.mock('@object-ui/components', () => {
 
         const updateField = React.useCallback((field: string, value: any) => {
             setDraft((prev: any) => {
-                pastRef.current = [...pastRef.current.slice(-49), prev];
+                pastRef.current = [...pastRef.current.slice(-(maxHistory - 1)), prev];
                 futureRef.current = [];
                 return { ...prev, [field]: value };
             });

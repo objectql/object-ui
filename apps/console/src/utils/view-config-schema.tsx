@@ -63,7 +63,7 @@ function ExpandableWidget({ renderSummary, children }: {
 // Sortable column item — drag-to-reorder within the field selector
 // ---------------------------------------------------------------------------
 
-/** Minimum drag distance in pixels to activate column reorder */
+/** Minimum pointer movement in pixels before drag-to-reorder activates (prevents accidental drags on click) */
 const COLUMN_DRAG_ACTIVATION_DISTANCE = 5;
 
 function SortableColumnItem({ colName, label, idx, total, onToggle, onMove }: {
