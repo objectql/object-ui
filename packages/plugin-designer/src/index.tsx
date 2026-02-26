@@ -12,7 +12,6 @@ import { DataModelDesigner } from './DataModelDesigner';
 import { ProcessDesigner } from './ProcessDesigner';
 import { ReportDesigner } from './ReportDesigner';
 import { CollaborationProvider, ConnectionStatusIndicator } from './CollaborationProvider';
-import { ViewDesigner } from './ViewDesigner';
 import { AppCreationWizard } from './AppCreationWizard';
 import { NavigationDesigner } from './NavigationDesigner';
 import { EditorModeToggle } from './EditorModeToggle';
@@ -28,7 +27,6 @@ export {
   ReportDesigner,
   CollaborationProvider,
   ConnectionStatusIndicator,
-  ViewDesigner,
   AppCreationWizard,
   NavigationDesigner,
   EditorModeToggle,
@@ -38,7 +36,6 @@ export {
   BrandingEditor,
 };
 
-export type { ViewDesignerProps, ViewDesignerConfig } from './ViewDesigner';
 export type { AppCreationWizardProps } from './AppCreationWizard';
 export type { NavigationDesignerProps } from './NavigationDesigner';
 export type { EditorModeToggleProps } from './EditorModeToggle';
@@ -125,23 +122,6 @@ ComponentRegistry.register(
       { name: 'sections', type: 'code', label: 'Sections' },
       { name: 'showToolbar', type: 'boolean', label: 'Show Toolbar', defaultValue: true },
       { name: 'showPropertyPanel', type: 'boolean', label: 'Show Property Panel', defaultValue: true },
-      { name: 'readOnly', type: 'boolean', label: 'Read Only', defaultValue: false },
-    ],
-  }
-);
-
-// Register view designer component
-ComponentRegistry.register(
-  'view-designer',
-  ViewDesigner,
-  {
-    label: 'View Designer',
-    category: 'Designer',
-    inputs: [
-      { name: 'objectName', type: 'string', label: 'Object Name' },
-      { name: 'viewId', type: 'string', label: 'View ID' },
-      { name: 'viewLabel', type: 'string', label: 'View Label' },
-      { name: 'viewType', type: 'string', label: 'View Type', defaultValue: 'grid' },
       { name: 'readOnly', type: 'boolean', label: 'Read Only', defaultValue: false },
     ],
   }

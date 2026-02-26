@@ -381,7 +381,7 @@ const pt = {
       discard: 'Descartar',
       createView: 'Criar visualização',
       newView: 'Nova visualização',
-      advancedEditor: 'Editor avançado',
+
       typeOptions: 'Opções de tipo',
       groupByField: 'Campo de agrupamento',
       startDateField: 'Campo de data de início',

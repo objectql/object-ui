@@ -381,7 +381,7 @@ const ja = {
       discard: '破棄',
       createView: 'ビューを作成',
       newView: '新しいビュー',
-      advancedEditor: '詳細エディター',
+
       typeOptions: 'タイプオプション',
       groupByField: 'グループ化フィールド',
       startDateField: '開始日フィールド',

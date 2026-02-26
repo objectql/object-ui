@@ -1,11 +1,10 @@
 # @object-ui/plugin-designer
 
-Visual designers for Object UI — page, view, data model, process, and report designers with collaboration support.
+Visual designers for Object UI — page, data model, process, and report designers with collaboration support.
 
 ## Features
 
 - 🎨 **Page Designer** - Drag-and-drop page builder with component tree
-- 📊 **View Designer** - Configure grid, list, and detail views visually
 - 🗄️ **Data Model Designer** - Entity-relationship diagram editor with auto-layout
 - ⚙️ **Process Designer** - BPMN-style process flow editor with minimap
 - 📝 **Report Designer** - Visual report layout builder with sections
@@ -33,7 +32,6 @@ npm install @object-ui/plugin-designer
 ```tsx
 import {
   PageDesigner,
-  ViewDesigner,
   DataModelDesigner,
   CollaborationProvider,
 } from '@object-ui/plugin-designer';
@@ -47,16 +45,6 @@ function DesignerApp() {
         undoRedo
       />
     </CollaborationProvider>
-  );
-}
-
-function ViewEditor() {
-  return (
-    <ViewDesigner
-      objectName="Contact"
-      viewType="grid"
-      viewLabel="All Contacts"
-    />
   );
 }
 ```
@@ -75,14 +63,6 @@ Drag-and-drop page layout builder:
   undoRedo
   readOnly={false}
 />
-```
-
-### ViewDesigner
-
-Visual view configuration editor:
-
-```tsx
-<ViewDesigner objectName="Order" viewType="grid" viewLabel="My Orders" />
 ```
 
 ### DataModelDesigner

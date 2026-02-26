@@ -382,7 +382,7 @@ const ar = {
       discard: 'تجاهل',
       createView: 'إنشاء عرض',
       newView: 'عرض جديد',
-      advancedEditor: 'محرر متقدم',
+
       typeOptions: 'خيارات النوع',
       groupByField: 'حقل التجميع',
       startDateField: 'حقل تاريخ البدء',

@@ -393,11 +393,11 @@ export interface ReportDesignerSchema extends BaseSchema {
 }
 
 // ============================================================================
-// View Designer (List View Layout Editor)
+// Unified View Configuration
 // ============================================================================
 
-/** Column configuration for the view designer */
-export interface ViewDesignerColumn {
+/** Column configuration for rich view columns */
+export interface ViewColumnConfig {
   /** Field name */
   field: string;
   /** Display label */
@@ -412,49 +412,14 @@ export interface ViewDesignerColumn {
   order?: number;
 }
 
-/** View designer schema */
-export interface ViewDesignerSchema extends BaseSchema {
-  type: 'view-designer';
-  /** Object name this view is for */
-  objectName: string;
-  /** View identifier (for editing existing views) */
-  viewId?: string;
-  /** View display label */
-  viewLabel?: string;
-  /** View type */
-  viewType?: 'grid' | 'kanban' | 'gallery' | 'calendar' | 'timeline' | 'gantt' | 'map';
-  /** Columns / fields to display */
-  columns?: ViewDesignerColumn[];
-  /** Filter conditions */
-  filters?: Array<{ field: string; operator: string; value: any }>;
-  /** Sort configuration */
-  sort?: Array<{ field: string; direction: 'asc' | 'desc' }>;
-  /** Available fields from the object schema */
-  availableFields?: Array<{ name: string; label: string; type: string }>;
-  /** Type-specific options */
-  options?: Record<string, any>;
-  /** Read-only mode */
-  readOnly?: boolean;
-  /** Callback when view config changes */
-  onChange?: string;
-  /** Callback when view is saved */
-  onSave?: string;
-  /** Callback when cancelled */
-  onCancel?: string;
-}
-
-// ============================================================================
-// Unified View Configuration
-// ============================================================================
-
 /** View type union */
 export type UnifiedViewType = 'grid' | 'kanban' | 'gallery' | 'calendar' | 'timeline' | 'gantt' | 'map' | 'chart';
 
 /**
  * Unified data model for view configuration.
  *
- * Used by both ViewConfigPanel (create/edit) and ViewDesigner (advanced editor).
- * Columns may be simple field-name strings or rich ViewDesignerColumn objects;
+ * Used by ViewConfigPanel (create/edit).
+ * Columns may be simple field-name strings or rich ViewColumnConfig objects;
  * consumers should handle both.
  */
 export interface UnifiedViewConfig {
@@ -464,8 +429,8 @@ export interface UnifiedViewConfig {
   label?: string;
   /** View type */
   type?: UnifiedViewType;
-  /** Column configuration — simple field names or rich ViewDesignerColumn objects */
-  columns?: Array<string | ViewDesignerColumn>;
+  /** Column configuration — simple field names or rich ViewColumnConfig objects */
+  columns?: Array<string | ViewColumnConfig>;
   /** Filter conditions in @objectstack/spec JSON-rules array format */
   filter?: any[];
   /** Sort configuration */

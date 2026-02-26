@@ -386,7 +386,7 @@ const fr = {
       discard: 'Annuler',
       createView: 'Créer une vue',
       newView: 'Nouvelle vue',
-      advancedEditor: 'Éditeur avancé',
+
       typeOptions: 'Options de type',
       groupByField: 'Champ de regroupement',
       startDateField: 'Champ de date de début',

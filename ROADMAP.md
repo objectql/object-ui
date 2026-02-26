@@ -13,11 +13,11 @@
 
 ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn. It renders JSON metadata from the @objectstack/spec protocol into pixel-perfect, accessible, and interactive enterprise interfaces.
 
-**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 6,500+ tests, 80 Storybook stories, 43/43 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Designer Phase 1 (ViewDesigner drag-to-reorder ✅), Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), **Feed/Chatter UI** (P1.5), **App Creation & Editing Flow** (P1.11), **System Settings & App Management** (P1.12), **Page/Dashboard Editor Console Integration** (P1.11), and **Right-Side Visual Editor Drawer** (P1.11) — all ✅ complete.
+**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 6,500+ tests, 80 Storybook stories, 43/43 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), **Feed/Chatter UI** (P1.5), **App Creation & Editing Flow** (P1.11), **System Settings & App Management** (P1.12), **Page/Dashboard Editor Console Integration** (P1.11), and **Right-Side Visual Editor Drawer** (P1.11) — all ✅ complete. **ViewDesigner** has been removed — its capabilities (drag-to-reorder, undo/redo) are now provided by the ViewConfigPanel (right-side config panel).
 
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
-2. **Designer Interaction** — ViewDesigner and DataModelDesigner have undo/redo, field type selectors, inline editing, Ctrl+S save, column drag-to-reorder with dnd-kit ✅
+2. **Designer Interaction** — DataModelDesigner has undo/redo, field type selectors, inline editing, Ctrl+S save. ViewDesigner has been removed; its capabilities are now part of ViewConfigPanel (right-side config panel) ✅
 3. **View Config Live Preview Sync** — Config panel changes sync in real-time for Grid, but `showSort`/`showSearch`/`showFilters`/`striped`/`bordered` not yet propagated to Kanban/Calendar/Timeline/Gallery/Map/Gantt (see P1.8.1)
 4. **Dashboard Config Panel** — Airtable-style right-side configuration panel for dashboards (data source, layout, widget properties, sub-editors, type definitions). Widget config live preview sync and scatter chart type switch ✅ fixed (P1.10 Phase 10). Dashboard save/refresh metadata sync ✅ fixed (P1.10 Phase 11). Data provider field override for live preview ✅ fixed (P1.10 Phase 12).
 5. **Console Advanced Polish** — Remaining upgrades for forms, import/export, automation, comments
@@ -89,15 +89,16 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 > **Priority #1.** All items below directly affect end-user experience. Target: indistinguishable from Airtable for core CRUD workflows.
 
-### P1.1 Designer Interaction (ViewDesigner + DataModelDesigner)
+### P1.1 Designer Interaction (DataModelDesigner)
 
-> Source: ROADMAP_DESIGNER Phase 2. These two designers are the core user workflow.
+> Source: ROADMAP_DESIGNER Phase 2. ViewDesigner has been removed — its capabilities (column reorder, undo/redo) are now provided by ViewConfigPanel.
 
-**ViewDesigner:**
+**ViewDesigner:** _(Removed — replaced by ViewConfigPanel)_
 - [x] Column drag-to-reorder via `@dnd-kit/core` (replace up/down buttons with drag handles)
 - [x] Add `Ctrl+S`/`Cmd+S` keyboard shortcut to save
 - [x] Add field type selector dropdown with icons from `DESIGNER_FIELD_TYPES`
 - [x] Column width validation (min/max/pattern check)
+- [x] Removed: ViewDesigner replaced by ViewConfigPanel (right-side config panel)
 
 **DataModelDesigner:**
 - [x] Entity drag-to-move on canvas
@@ -107,7 +108,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 **Shared Infrastructure:**
 - [x] Implement `useDesignerHistory` hook (command pattern with undo/redo stacks)
-- [x] Wire undo/redo to ViewDesigner and DataModelDesigner
+- [x] Wire undo/redo to DataModelDesigner
 
 ### P1.2 Console — Forms & Data Collection
 
@@ -207,7 +208,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Type-specific options in config panel (kanban/calendar/map/gallery/timeline/gantt)
 - [x] Unified create/edit mode (`mode="create"|"edit"`) — single panel entry point
 - [x] Unified data model (`UnifiedViewConfig`) for view configuration
-- [x] ViewDesigner retained as "Advanced Editor" with weaker entry point
+- [x] ViewDesigner removed — its capabilities replaced by ViewConfigPanel (right-side config panel)
 - [x] Panel header breadcrumb navigation (Page > List/Kanban/Gallery)
 - [x] Collapsible/expandable sections with chevron toggle
 - [x] Data section: Sort by (summary), Group by, Prefix field, Fields (count visible)
@@ -1012,7 +1013,7 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 |--------|---------|-------------|--------------|
 | **Protocol Alignment** | ~85% | 90%+ (UI-facing) | Protocol Consistency Assessment |
 | **AppShell Renderer** | ✅ Complete | Sidebar + nav tree from `AppSchema` JSON | Console renders from spec JSON |
-| **Designer Interaction** | Phase 2 (most complete) | ViewDesigner + DataModelDesigner drag/undo | Manual UX testing |
+| **Designer Interaction** | Phase 2 (most complete) | DataModelDesigner drag/undo; ViewDesigner removed (replaced by ViewConfigPanel) | Manual UX testing |
 | **Build Status** | 42/42 pass | 42/42 pass | `pnpm build` |
 | **Test Count** | 5,070+ | 5,618+ | `pnpm test` summary |
 | **Test Coverage** | 90%+ | 90%+ | `pnpm test:coverage` |
@@ -1038,7 +1039,7 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 | Risk | Mitigation |
 |------|------------|
 | AppShell complexity (7 nav types, areas, mobile) | Start with static nav tree, add mobile modes incrementally |
-| Designer DnD integration time | Use `@dnd-kit/core` (already proven in Kanban/Dashboard); ViewDesigner first |
+| Designer DnD integration time | Use `@dnd-kit/core` (already proven in Kanban/Dashboard) |
 | Airtable UX bar is high | Focus on Grid + Kanban + Form triad first; defer Gallery/Timeline polish |
 | PWA real sync complexity | Keep simulated sync as fallback; real sync behind feature flag |
 | Performance regression | Performance budgets in CI, 10K-record benchmarks |
