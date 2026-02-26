@@ -157,7 +157,10 @@ export function resolveIcon(name?: string): React.ComponentType<any> {
 
 /**
  * Resolve a NavigationItem label to a plain string.
- * Supports both plain strings and I18nLabel objects { key, defaultValue }.
+ * Handles both plain strings and I18nLabel objects { key, defaultValue }.
+ * This is a basic client-side fallback resolver — actual i18n translation
+ * is performed at the application level by passing labels through the
+ * i18n `t()` function (e.g. via resolveI18nLabel in the console).
  */
 export function resolveLabel(label: string | { key: string; defaultValue?: string; params?: Record<string, any> }): string {
   if (typeof label === 'string') return label;

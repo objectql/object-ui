@@ -34,9 +34,13 @@ import '@object-ui/plugin-markdown';
 async function loadLanguage(lang: string): Promise<Record<string, unknown>> {
   try {
     const res = await fetch(`/api/v1/i18n/${lang}`);
-    if (!res.ok) return {};
+    if (!res.ok) {
+      console.warn(`[i18n] Failed to load translations for '${lang}': HTTP ${res.status}`);
+      return {};
+    }
     return await res.json();
-  } catch {
+  } catch (err) {
+    console.warn(`[i18n] Failed to load translations for '${lang}':`, err);
     return {};
   }
 }

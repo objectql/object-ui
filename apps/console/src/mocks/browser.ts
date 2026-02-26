@@ -21,15 +21,15 @@ let driver: InMemoryDriver | null = null;
 let mswPlugin: MSWPlugin | null = null;
 
 /**
- * Lazy-load CRM locale bundles for the i18n API endpoint.
+ * Load application-specific locale bundles for the i18n API endpoint.
+ * In this mock environment, loads translations from installed example packages.
  * Returns a flat translation resource for the given language code.
  */
-async function loadCrmLocale(lang: string): Promise<Record<string, unknown>> {
+async function loadAppLocale(lang: string): Promise<Record<string, unknown>> {
   try {
     const { crmLocales } = await import('@object-ui/example-crm');
     const translations = (crmLocales as Record<string, any>)[lang];
     if (!translations) return {};
-    // Nest under `crm.*` namespace so keys like `crm.navigation.dashboard` resolve
     return { crm: translations };
   } catch {
     return {};
@@ -63,7 +63,7 @@ export async function startMockServer() {
         // Serve i18n translation bundles via API
         http.get('/api/v1/i18n/:lang', async ({ params }) => {
           const lang = params.lang as string;
-          const resources = await loadCrmLocale(lang);
+          const resources = await loadAppLocale(lang);
           return HttpResponse.json(resources);
         }),
       ],
