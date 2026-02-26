@@ -366,7 +366,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
              <SidebarInput
                placeholder="Search navigation..."
                value={navSearchQuery}
-               onChange={(e) => setNavSearchQuery(e.target.value)}
+               onChange={(e: any) => setNavSearchQuery(e.target.value)}
                className="pl-8"
              />
            </SidebarGroupContent>
@@ -406,7 +406,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                      </SidebarMenuButton>
                      <SidebarMenuAction
                        showOnHover
-                       onClick={(e) => { e.stopPropagation(); removeFavorite(item.id); }}
+                       onClick={(e: any) => { e.stopPropagation(); removeFavorite(item.id); }}
                        aria-label={`Remove ${item.label} from favorites`}
                      >
                        <StarOff className="h-3 w-3" />

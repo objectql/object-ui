@@ -723,32 +723,32 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                    viewTypeIcons={VIEW_TYPE_ICONS}
                    config={{ ...objectDef.viewTabBar, reorderable: isAdmin ? true : objectDef.viewTabBar?.reorderable }}
                    onAddView={isAdmin ? () => { setViewConfigPanelMode('create'); setShowViewConfigPanel(true); } : undefined}
-                   onRenameView={(id, newName) => {
+                   onRenameView={(id: any, newName: any) => {
                      // Rename is wired for future backend integration
                      console.info('[ViewTabBar] Rename view:', id, newName);
                    }}
-                   onDuplicateView={(id) => {
+                   onDuplicateView={(id: any) => {
                      console.info('[ViewTabBar] Duplicate view:', id);
                    }}
-                   onDeleteView={(id) => {
+                   onDeleteView={(id: any) => {
                      console.info('[ViewTabBar] Delete view:', id);
                    }}
-                   onSetDefaultView={(id) => {
+                   onSetDefaultView={(id: any) => {
                      console.info('[ViewTabBar] Set default view:', id);
                    }}
-                   onShareView={(id) => {
+                   onShareView={(id: any) => {
                      console.info('[ViewTabBar] Share view:', id);
                    }}
-                   onPinView={(id, pinned) => {
+                   onPinView={(id: any, pinned: any) => {
                      console.info('[ViewTabBar] Pin view:', id, pinned);
                    }}
-                   onReorderViews={(viewIds) => {
+                   onReorderViews={(viewIds: any) => {
                      console.info('[ViewTabBar] Reorder views:', viewIds);
                    }}
-                   onChangeViewType={(id, newType) => {
+                   onChangeViewType={(id: any, newType: any) => {
                      console.info('[ViewTabBar] Change view type:', id, newType);
                    }}
-                   onConfigView={isAdmin ? (id) => {
+                   onConfigView={isAdmin ? (id: any) => {
                      handleViewChange(id);
                      setViewConfigPanelMode('edit');
                      setShowViewConfigPanel(true);

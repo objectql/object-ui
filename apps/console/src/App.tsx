@@ -109,13 +109,13 @@ export function AppContent() {
   // Global Undo/Redo with toast notifications (Phase 16 L2)
   useGlobalUndo({
     dataSource: dataSource ?? undefined,
-    onUndo: (op) => {
+    onUndo: (op: any) => {
       toast.info(`Undo: ${op.description}`, {
         duration: 4000,
       });
       setRefreshKey(k => k + 1);
     },
-    onRedo: (op) => {
+    onRedo: (op: any) => {
       toast.info(`Redo: ${op.description}`, {
         duration: 3000,
       });
@@ -124,7 +124,7 @@ export function AppContent() {
   });
 
   useEffect(() => {
-    runner.registerHandler('crud_success', async (action) => {
+    runner.registerHandler('crud_success', async (action: any) => {
       setIsDialogOpen(false);
       setRefreshKey(k => k + 1);
       toast.success(action.params?.message ?? 'Record saved successfully');
@@ -141,7 +141,7 @@ export function AppContent() {
 
   useEffect(() => {
     if (!dataSource) return;
-    const unsub = dataSource.onConnectionStateChange((event) => {
+    const unsub = dataSource.onConnectionStateChange((event: any) => {
       setConnectionState(event.state);
       if (event.error) {
         console.error('[Console] Connection error:', event.error);

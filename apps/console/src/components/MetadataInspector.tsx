@@ -144,6 +144,6 @@ export function useMetadataInspector() {
   const [showDebug, setShowDebug] = useState(autoOpen);
   return {
     showDebug,
-    toggleDebug: () => setShowDebug(prev => !prev),
+    toggleDebug: () => setShowDebug((prev: any) => !prev),
   };
 }

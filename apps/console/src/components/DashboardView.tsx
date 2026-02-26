@@ -58,11 +58,11 @@ function createWidgetId(): string {
 /** Ensure every widget in the schema has a unique id. */
 function ensureWidgetIds(schema: DashboardSchema): DashboardSchema {
   if (!schema.widgets?.length) return schema;
-  const needsFix = schema.widgets.some((w) => !w.id);
+  const needsFix = schema.widgets.some((w: any) => !w.id);
   if (!needsFix) return schema;
   return {
     ...schema,
-    widgets: schema.widgets.map((w) => (w.id ? w : { ...w, id: createWidgetId() })),
+    widgets: schema.widgets.map((w: any) => (w.id ? w : { ...w, id: createWidgetId() })),
   };
 }
 
@@ -217,7 +217,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
       if (!editSchema) return;
       const newSchema = {
         ...editSchema,
-        widgets: editSchema.widgets.filter((w) => w.id !== widgetId),
+        widgets: editSchema.widgets.filter((w: any) => w.id !== widgetId),
       };
       setEditSchema(newSchema);
       saveSchema(newSchema);
@@ -263,7 +263,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
     (field: string, value: any) => {
       if (!editSchema) return;
       // Map config field keys to proper DashboardSchema updates for live preview
-      setEditSchema((prev) => {
+      setEditSchema((prev: any) => {
         if (!prev) return prev;
         if (field === 'refreshInterval') {
           return { ...prev, refreshInterval: Number(value) || 0 };
@@ -275,7 +275,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   );
 
   // ---- Widget config panel handlers ---------------------------------------
-  const selectedWidget = editSchema?.widgets?.find((w) => w.id === selectedWidgetId);
+  const selectedWidget = editSchema?.widgets?.find((w: any) => w.id === selectedWidgetId);
 
   // Stabilize widget config: only recompute after explicit actions (widget
   // switch, save, add). configVersion is incremented on save/add, and
@@ -293,7 +293,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
       const updates = unflattenWidgetConfig(config, selectedWidget);
       const newSchema = {
         ...editSchema,
-        widgets: editSchema.widgets.map((w) =>
+        widgets: editSchema.widgets.map((w: any) =>
           w.id === selectedWidgetId ? { ...w, ...updates } : w,
         ),
       };
@@ -307,16 +307,16 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   const handleWidgetFieldChange = useCallback(
     (field: string, value: any) => {
       if (!selectedWidgetId) return;
-      setEditSchema((prev) => {
+      setEditSchema((prev: any) => {
         if (!prev) return prev;
-        const widget = prev.widgets?.find((w) => w.id === selectedWidgetId);
+        const widget = prev.widgets?.find((w: any) => w.id === selectedWidgetId);
         if (!widget) return prev;
         const flat = flattenWidgetConfig(widget);
         flat[field] = value;
         const updates = unflattenWidgetConfig(flat, widget);
         return {
           ...prev,
-          widgets: prev.widgets.map((w) =>
+          widgets: prev.widgets.map((w: any) =>
             w.id === selectedWidgetId ? { ...w, ...updates } : w,
           ),
         };

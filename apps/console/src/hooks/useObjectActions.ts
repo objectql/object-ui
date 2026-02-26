@@ -70,7 +70,7 @@ export function useObjectActions({
     });
 
     // Handler: delete
-    runner.registerHandler('delete', async (action) => {
+    runner.registerHandler('delete', async (action: any) => {
       const recordId = action.params?.recordId || action.recordId;
       if (!recordId) return { success: false, error: 'No record ID provided' };
 
@@ -88,7 +88,7 @@ export function useObjectActions({
     });
 
     // Handler: navigate
-    runner.registerHandler('navigate', async (action) => {
+    runner.registerHandler('navigate', async (action: any) => {
       const url = action.params?.url || action.url;
       if (url) {
         navigate(url.startsWith('/') ? url : `${baseUrl}/${url}`);

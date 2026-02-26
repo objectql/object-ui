@@ -99,7 +99,7 @@ export function OnboardingWalkthrough() {
   const isLast = currentStep === STEPS.length - 1;
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) dismiss(); }}>
+    <Dialog open={open} onOpenChange={(v: any) => { if (!v) dismiss(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center justify-between">

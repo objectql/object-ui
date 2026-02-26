@@ -281,7 +281,7 @@ function buildGeneralSection(
                 key: 'label',
                 label: t('console.objectView.title'),
                 type: 'custom',
-                render: (value, onChange) => (
+                render: (value: any, onChange: any) => (
                     <ConfigRow label={t('console.objectView.title')}>
                         <Input
                             data-testid="view-title-input"
@@ -297,7 +297,7 @@ function buildGeneralSection(
                 key: 'description',
                 label: t('console.objectView.description'),
                 type: 'custom',
-                render: (value, onChange) => (
+                render: (value: any, onChange: any) => (
                     <ConfigRow label={t('console.objectView.description')}>
                         <Input
                             data-testid="view-description-input"
@@ -314,7 +314,7 @@ function buildGeneralSection(
                 key: 'type',
                 label: t('console.objectView.viewType'),
                 type: 'custom',
-                render: (value, onChange) => (
+                render: (value: any, onChange: any) => (
                     <ConfigRow label={t('console.objectView.viewType')}>
                         <select
                             data-testid="view-type-select"
@@ -380,7 +380,7 @@ function buildNavigationSection(
                 key: '_navigationMode',
                 label: t('console.objectView.navigationMode'),
                 type: 'custom',
-                render: (_value, _onChange, draft) => {
+                render: (_value: any, _onChange: any, draft: any) => {
                     const navMode = draft.navigation?.mode || 'page';
                     return (
                         <ConfigRow label={t('console.objectView.navigationMode')}>
@@ -412,8 +412,8 @@ function buildNavigationSection(
                 label: t('console.objectView.navigationWidth'),
                 type: 'custom',
                 helpText: t('console.objectView.navigationWidthHint'),
-                visibleWhen: (draft) => ['drawer', 'modal', 'split'].includes(draft.navigation?.mode || 'page'),
-                render: (_value, _onChange, draft) => {
+                visibleWhen: (draft: any) => ['drawer', 'modal', 'split'].includes(draft.navigation?.mode || 'page'),
+                render: (_value: any, _onChange: any, draft: any) => {
                     const navMode = draft.navigation?.mode || 'page';
                     return (
                         <ConfigRow label={t('console.objectView.navigationWidth')}>
@@ -436,8 +436,8 @@ function buildNavigationSection(
                 label: t('console.objectView.openNewTab'),
                 type: 'custom',
                 helpText: t('console.objectView.openNewTabHint'),
-                visibleWhen: (draft) => ['page', 'new_window'].includes(draft.navigation?.mode || 'page'),
-                render: (_value, _onChange, draft) => {
+                visibleWhen: (draft: any) => ['page', 'new_window'].includes(draft.navigation?.mode || 'page'),
+                render: (_value: any, _onChange: any, draft: any) => {
                     const navMode = draft.navigation?.mode || 'page';
                     return (
                         <ConfigRow label={t('console.objectView.openNewTab')}>
@@ -476,7 +476,7 @@ function buildRecordsSection(
                 key: '_selectionType',
                 label: t('console.objectView.selectionMode'),
                 type: 'custom',
-                render: (_value, _onChange, draft) => (
+                render: (_value: any, _onChange: any, draft: any) => (
                     <ConfigRow label={t('console.objectView.selectionMode')}>
                         <select
                             data-testid="select-selection-type"
@@ -498,7 +498,7 @@ function buildRecordsSection(
                 key: '_addRecord',
                 label: t('console.objectView.addRecordEnabled'),
                 type: 'custom',
-                render: (_value, _onChange, draft) => {
+                render: (_value: any, _onChange: any, draft: any) => {
                     const hasAddForm = draft.addRecordViaForm === true || draft.addRecord?.enabled === true;
                     return (
                         <>
@@ -582,7 +582,7 @@ function buildExportPrintSection(
                 key: '_export',
                 label: t('console.objectView.allowExport'),
                 type: 'custom',
-                render: (_value, _onChange, draft) => {
+                render: (_value: any, _onChange: any, draft: any) => {
                     const hasExport = draft.exportOptions != null || draft.allowExport === true;
                     return (
                         <>
@@ -699,7 +699,7 @@ function buildDataSection(
                 key: '_columns',
                 label: t('console.objectView.fields'),
                 type: 'custom',
-                render: (_value, _onChange, draft) => {
+                render: (_value: any, _onChange: any, draft: any) => {
                     const visibleColumnsCount = Array.isArray(draft.columns) ? draft.columns.length : 0;
                     const fieldsSummary = visibleColumnsCount > 0
                         ? t('console.objectView.fieldsVisible', { count: visibleColumnsCount })
@@ -822,7 +822,7 @@ function buildDataSection(
                 key: '_filterBy',
                 label: t('console.objectView.filterBy'),
                 type: 'custom',
-                render: (_value, _onChange, _draft) => {
+                render: (_value: any, _onChange: any, _draft: any) => {
                     const filterCount = filterGroupValue.conditions.length;
                     const filterSummary = filterCount > 0
                         ? t('console.objectView.filtersCount', { count: filterCount })
@@ -844,7 +844,7 @@ function buildDataSection(
                                     onChange={(group: FilterGroup) => {
                                         const specFilter = toSpecFilter(
                                             group.logic,
-                                            group.conditions.map(c => ({ field: c.field, operator: c.operator, value: c.value }))
+                                            group.conditions.map((c: any) => ({ field: c.field, operator: c.operator, value: c.value }))
                                         );
                                         updateField('filter', specFilter);
                                     }}
@@ -861,7 +861,7 @@ function buildDataSection(
                 key: '_sortBy',
                 label: t('console.objectView.sortBy'),
                 type: 'custom',
-                render: (_value, _onChange, draft) => {
+                render: (_value: any, _onChange: any, draft: any) => {
                     const sortCount = Array.isArray(draft.sort) ? draft.sort.filter((s: any) => s.field).length : 0;
                     const sortSummary = sortCount > 0
                         ? t('console.objectView.sortsCount', { count: sortCount })
@@ -898,7 +898,7 @@ function buildDataSection(
                 label: t('console.objectView.groupBy'),
                 type: 'custom',
                 visibleWhen: supportsGenericGroupBy,
-                render: (_value, _onChange, draft) => {
+                render: (_value: any, _onChange: any, draft: any) => {
                     const viewType = draft.type || 'grid';
                     const groupByValue = draft.kanban?.groupByField || draft.kanban?.groupField || draft.groupBy || '';
                     return (
@@ -929,7 +929,7 @@ function buildDataSection(
                 key: '_pageSize',
                 label: t('console.objectView.pageSize'),
                 type: 'custom',
-                render: (_value, _onChange, draft) => (
+                render: (_value: any, _onChange: any, draft: any) => (
                     <ConfigRow label={t('console.objectView.pageSize')}>
                         <Input
                             data-testid="input-pagination-pageSize"
@@ -950,7 +950,7 @@ function buildDataSection(
                 key: '_pageSizeOptions',
                 label: t('console.objectView.pageSizeOptions'),
                 type: 'custom',
-                render: (_value, _onChange, draft) => (
+                render: (_value: any, _onChange: any, draft: any) => (
                     <ConfigRow label={t('console.objectView.pageSizeOptions')}>
                         <Input
                             data-testid="input-pagination-pageSizeOptions"
@@ -976,7 +976,7 @@ function buildDataSection(
                 key: '_quickFilters',
                 label: t('console.objectView.quickFilters'),
                 type: 'custom',
-                render: (_value, _onChange, draft) => {
+                render: (_value: any, _onChange: any, draft: any) => {
                     return (
                         <ExpandableWidget
                             renderSummary={(toggle) => (
@@ -1047,7 +1047,7 @@ function buildDataSection(
                 key: '_typeOptions',
                 label: 'Type-specific options',
                 type: 'custom',
-                render: (_value, _onChange, draft) => {
+                render: (_value: any, _onChange: any, draft: any) => {
                     const viewType = draft.type || 'grid';
                     const handleTypeOptionChange = (typeKey: string, optionKey: string, value: any) => {
                         const current = draft[typeKey] || {};
@@ -1237,7 +1237,7 @@ function buildAppearanceSection(
                 label: t('console.objectView.color'),
                 type: 'custom',
                 visibleWhen: supportsColorField,
-                render: (value, onChange) => (
+                render: (value: any, onChange: any) => (
                     <ConfigRow label={t('console.objectView.color')}>
                         <select
                             data-testid="appearance-color"
@@ -1270,7 +1270,7 @@ function buildAppearanceSection(
                 label: t('console.objectView.rowHeight'),
                 type: 'custom',
                 visibleWhen: isGridView,
-                render: (value, onChange) => (
+                render: (value: any, onChange: any) => (
                     <ConfigRow label={t('console.objectView.rowHeight')}>
                         <div className="flex gap-0.5" data-testid="appearance-rowHeight" role="radiogroup" aria-label={t('console.objectView.rowHeight')}>
                             {ROW_HEIGHT_OPTIONS.map(opt => (
@@ -1306,7 +1306,7 @@ function buildAppearanceSection(
                 label: t('console.objectView.conditionalFormatting'),
                 type: 'custom',
                 visibleWhen: supportsConditionalFormatting,
-                render: (_value, _onChange, draft) => {
+                render: (_value: any, _onChange: any, draft: any) => {
                     return (
                         <ExpandableWidget
                             renderSummary={(toggle) => (
@@ -1394,7 +1394,7 @@ function buildAppearanceSection(
                 key: '_emptyState',
                 label: 'Empty state',
                 type: 'custom',
-                render: (_value, _onChange, draft) => (
+                render: (_value: any, _onChange: any, draft: any) => (
                     <>
                         <ConfigRow label={t('console.objectView.emptyStateTitle')}>
                             <Input
@@ -1460,7 +1460,7 @@ function buildUserActionsSection(
                 label: t('console.objectView.rowActions'),
                 type: 'custom',
                 visibleWhen: supportsRowActions,
-                render: (_value, _onChange, draft) => {
+                render: (_value: any, _onChange: any, draft: any) => {
                     return (
                         <ExpandableWidget
                             renderSummary={(toggle) => (
@@ -1492,7 +1492,7 @@ function buildUserActionsSection(
                 label: t('console.objectView.bulkActions'),
                 type: 'custom',
                 visibleWhen: supportsRowActions,
-                render: (_value, _onChange, draft) => {
+                render: (_value: any, _onChange: any, draft: any) => {
                     return (
                         <ExpandableWidget
                             renderSummary={(toggle) => (
@@ -1541,7 +1541,7 @@ function buildSharingSection(
                 key: '_sharingEnabled',
                 label: t('console.objectView.sharingEnabled'),
                 type: 'custom',
-                render: (_value, _onChange, draft) => (
+                render: (_value: any, _onChange: any, draft: any) => (
                     <ConfigRow label={t('console.objectView.sharingEnabled')}>
                         <Switch
                             data-testid="toggle-sharing-enabled"
@@ -1559,8 +1559,8 @@ function buildSharingSection(
                 key: '_sharingVisibility',
                 label: t('console.objectView.sharingVisibility'),
                 type: 'custom',
-                visibleWhen: (draft) => draft.sharing?.enabled === true,
-                render: (_value, _onChange, draft) => (
+                visibleWhen: (draft: any) => draft.sharing?.enabled === true,
+                render: (_value: any, _onChange: any, draft: any) => (
                     <ConfigRow label={t('console.objectView.sharingVisibility')}>
                         <select
                             data-testid="select-sharing-visibility"
@@ -1601,7 +1601,7 @@ function buildAccessibilitySection(
                 key: '_ariaLabel',
                 label: t('console.objectView.ariaLabel'),
                 type: 'custom',
-                render: (_value, _onChange, draft) => (
+                render: (_value: any, _onChange: any, draft: any) => (
                     <ConfigRow label={t('console.objectView.ariaLabel')}>
                         <Input
                             data-testid="input-aria-label"
@@ -1619,7 +1619,7 @@ function buildAccessibilitySection(
                 key: '_ariaDescribedBy',
                 label: t('console.objectView.ariaDescribedBy'),
                 type: 'custom',
-                render: (_value, _onChange, draft) => (
+                render: (_value: any, _onChange: any, draft: any) => (
                     <ConfigRow label={t('console.objectView.ariaDescribedBy')}>
                         <Input
                             data-testid="input-aria-describedBy"
@@ -1637,7 +1637,7 @@ function buildAccessibilitySection(
                 key: '_ariaLive',
                 label: t('console.objectView.ariaLive'),
                 type: 'custom',
-                render: (_value, _onChange, draft) => (
+                render: (_value: any, _onChange: any, draft: any) => (
                     <ConfigRow label={t('console.objectView.ariaLive')}>
                         <select
                             data-testid="select-aria-live"
@@ -1684,7 +1684,7 @@ function buildSwitchField(
         type: 'custom',
         disabledWhen,
         visibleWhen,
-        render: (value, onChange, draft) => (
+        render: (value: any, onChange: any, draft: any) => (
             <ConfigRow label={label}>
                 <Switch
                     data-testid={testId}
@@ -1716,7 +1716,7 @@ function buildFieldMultiSelect(
         label,
         type: 'custom',
         visibleWhen,
-        render: (_value, _onChange, draft) => {
+        render: (_value: any, _onChange: any, draft: any) => {
             return (
                 <ExpandableWidget
                     renderSummary={(toggle) => (

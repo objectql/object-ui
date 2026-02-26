@@ -137,7 +137,7 @@ export function SearchResultsPage() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           value={query}
-          onChange={e => handleSearch(e.target.value)}
+          onChange={(e: any) => handleSearch(e.target.value)}
           placeholder="Search objects, dashboards, pages, reports..."
           className="pl-10 h-11 text-base"
           autoFocus

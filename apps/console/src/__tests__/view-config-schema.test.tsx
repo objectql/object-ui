@@ -345,7 +345,7 @@ describe('buildViewConfigSchema', () => {
 
     it('has correct section keys', () => {
         const schema = buildSchema();
-        const keys = schema.sections.map(s => s.key);
+        const keys = schema.sections.map((s: any) => s.key);
         expect(keys).toEqual(['general', 'toolbar', 'navigation', 'records', 'exportPrint', 'data', 'appearance', 'userActions', 'sharing', 'accessibility']);
     });
 
@@ -354,7 +354,7 @@ describe('buildViewConfigSchema', () => {
     describe('collapsible sections', () => {
         it('general is NOT collapsible', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'general');
+            const section = schema.sections.find((s: any) => s.key === 'general');
             expect(section?.collapsible).toBeFalsy();
         });
 
@@ -362,14 +362,14 @@ describe('buildViewConfigSchema', () => {
             '%s is collapsible',
             (key) => {
                 const schema = buildSchema();
-                const section = schema.sections.find(s => s.key === key);
+                const section = schema.sections.find((s: any) => s.key === key);
                 expect(section?.collapsible).toBe(true);
             },
         );
 
         it('exportPrint is collapsible and defaultCollapsed', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'exportPrint');
+            const section = schema.sections.find((s: any) => s.key === 'exportPrint');
             expect(section?.collapsible).toBe(true);
             expect(section?.defaultCollapsed).toBe(true);
         });
@@ -380,8 +380,8 @@ describe('buildViewConfigSchema', () => {
     describe('general section', () => {
         it('contains label, description, type fields', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'general')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'general')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             expect(fieldKeys).toEqual(['label', 'description', 'type']);
         });
     });
@@ -391,8 +391,8 @@ describe('buildViewConfigSchema', () => {
     describe('toolbar section', () => {
         it('contains toolbar toggle field keys in spec order', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'toolbar')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'toolbar')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             expect(fieldKeys).toEqual([
                 'showSearch', 'showSort', 'showFilters', 'showHideFields', 'showGroup', 'showColor', 'showDensity',
             ]);
@@ -400,8 +400,8 @@ describe('buildViewConfigSchema', () => {
 
         it('showSort comes before showFilters per spec', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'toolbar')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'toolbar')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             expect(fieldKeys.indexOf('showSort')).toBeLessThan(fieldKeys.indexOf('showFilters'));
         });
     });
@@ -411,8 +411,8 @@ describe('buildViewConfigSchema', () => {
     describe('navigation section', () => {
         it('contains navigation field keys', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'navigation')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'navigation')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             expect(fieldKeys).toEqual(['_navigationMode', '_navigationWidth', '_navigationOpenNewTab']);
         });
     });
@@ -422,8 +422,8 @@ describe('buildViewConfigSchema', () => {
     describe('records section', () => {
         it('contains selection and addRecord field keys', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'records')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'records')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             expect(fieldKeys).toEqual(['_selectionType', '_addRecord']);
         });
     });
@@ -433,8 +433,8 @@ describe('buildViewConfigSchema', () => {
     describe('exportPrint section', () => {
         it('contains export, showRecordCount, and allowPrinting fields', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'exportPrint')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'exportPrint')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             expect(fieldKeys).toEqual(['_export', 'showRecordCount', 'allowPrinting']);
         });
     });
@@ -444,8 +444,8 @@ describe('buildViewConfigSchema', () => {
     describe('data section', () => {
         it('contains expected field keys in spec order', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'data')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'data')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             // Spec order: columns, filter, sort, pagination, searchableFields, filterableFields,
             //             hiddenFields, quickFilters, virtualScroll
             // _source is UI extension (first), _groupBy is UI extension (after sort), _typeOptions is UI extension (last)
@@ -464,8 +464,8 @@ describe('buildViewConfigSchema', () => {
 
         it('_columns comes before _filterBy and _sortBy per spec', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'data')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'data')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             expect(fieldKeys.indexOf('_columns')).toBeLessThan(fieldKeys.indexOf('_filterBy'));
             expect(fieldKeys.indexOf('_filterBy')).toBeLessThan(fieldKeys.indexOf('_sortBy'));
         });
@@ -476,8 +476,8 @@ describe('buildViewConfigSchema', () => {
     describe('appearance section', () => {
         it('contains expected field keys in spec order', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'appearance')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'appearance')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             // Spec order: striped, bordered, color, wrapHeaders,
             //             showDescription, resizable, rowHeight, conditionalFormatting, emptyState
             // NOTE: collapseAllByDefault removed — not consumed by runtime
@@ -493,8 +493,8 @@ describe('buildViewConfigSchema', () => {
 
         it('striped and bordered come before color per spec', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'appearance')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'appearance')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             expect(fieldKeys.indexOf('striped')).toBeLessThan(fieldKeys.indexOf('color'));
             expect(fieldKeys.indexOf('bordered')).toBeLessThan(fieldKeys.indexOf('color'));
         });
@@ -505,8 +505,8 @@ describe('buildViewConfigSchema', () => {
     describe('userActions section', () => {
         it('contains expected field keys in spec order', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'userActions')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'userActions')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             // Spec order: inlineEdit, addDeleteRecordsInline, rowActions, bulkActions
             // NOTE: clickIntoRecordDetails removed — controlled via navigation mode
             expect(fieldKeys).toEqual([
@@ -517,8 +517,8 @@ describe('buildViewConfigSchema', () => {
 
         it('inlineEdit comes before addDeleteRecordsInline per spec', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'userActions')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'userActions')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             expect(fieldKeys.indexOf('inlineEdit')).toBeLessThan(fieldKeys.indexOf('addDeleteRecordsInline'));
         });
     });
@@ -528,16 +528,16 @@ describe('buildViewConfigSchema', () => {
     describe('sharing section', () => {
         it('contains sharingEnabled and sharingVisibility fields', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'sharing')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'sharing')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             expect(fieldKeys).toContain('_sharingEnabled');
             expect(fieldKeys).toContain('_sharingVisibility');
         });
 
         it('sharingVisibility has visibleWhen that checks sharing.enabled', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'sharing')!;
-            const visibilityField = section.fields.find(f => f.key === '_sharingVisibility')!;
+            const section = schema.sections.find((s: any) => s.key === 'sharing')!;
+            const visibilityField = section.fields.find((f: any) => f.key === '_sharingVisibility')!;
 
             expect(visibilityField.visibleWhen).toBeDefined();
             // Not enabled → hidden
@@ -553,8 +553,8 @@ describe('buildViewConfigSchema', () => {
     describe('accessibility section', () => {
         it('contains expected field keys', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'accessibility')!;
-            const fieldKeys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'accessibility')!;
+            const fieldKeys = section.fields.map((f: any) => f.key);
             expect(fieldKeys).toContain('_ariaLabel');
             expect(fieldKeys).toContain('_ariaDescribedBy');
             expect(fieldKeys).toContain('_ariaLive');
@@ -566,8 +566,8 @@ describe('buildViewConfigSchema', () => {
     describe('visibleWhen predicates', () => {
         it('navigation width is visible only for drawer/modal/split', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'navigation')!;
-            const widthField = section.fields.find(f => f.key === '_navigationWidth')!;
+            const section = schema.sections.find((s: any) => s.key === 'navigation')!;
+            const widthField = section.fields.find((f: any) => f.key === '_navigationWidth')!;
 
             expect(widthField.visibleWhen).toBeDefined();
             expect(widthField.visibleWhen!({ navigation: { mode: 'drawer' } })).toBe(true);
@@ -580,8 +580,8 @@ describe('buildViewConfigSchema', () => {
 
         it('navigation openNewTab is visible only for page/new_window', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'navigation')!;
-            const tabField = section.fields.find(f => f.key === '_navigationOpenNewTab')!;
+            const section = schema.sections.find((s: any) => s.key === 'navigation')!;
+            const tabField = section.fields.find((f: any) => f.key === '_navigationOpenNewTab')!;
 
             expect(tabField.visibleWhen).toBeDefined();
             expect(tabField.visibleWhen!({ navigation: { mode: 'page' } })).toBe(true);
@@ -649,7 +649,7 @@ describe('spec alignment', () => {
 
         function allFieldKeys() {
             const schema = buildSchema();
-            return schema.sections.flatMap(s => s.fields.map(f => f.key));
+            return schema.sections.flatMap((s: any) => s.fields.map((f: any) => f.key));
         }
 
         // Comprehensive: every NamedListView spec property must map to a UI field
@@ -711,8 +711,8 @@ describe('spec alignment', () => {
 
         it('covers all NamedListView toolbar toggles in order', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'toolbar')!;
-            const keys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'toolbar')!;
+            const keys = section.fields.map((f: any) => f.key);
             const toolbarFields = [
                 'showSearch', 'showSort', 'showFilters',
                 'showHideFields', 'showGroup', 'showColor', 'showDensity',
@@ -729,8 +729,8 @@ describe('spec alignment', () => {
 
         it('covers all NamedListView boolean toggles in userActions in spec order', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'userActions')!;
-            const keys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'userActions')!;
+            const keys = section.fields.map((f: any) => f.key);
             // Spec order: inlineEdit → addDeleteRecordsInline
             // NOTE: clickIntoRecordDetails removed — controlled via navigation mode
             expect(keys.indexOf('inlineEdit')).toBeLessThan(keys.indexOf('addDeleteRecordsInline'));
@@ -756,8 +756,8 @@ describe('spec alignment', () => {
     describe('accessibility section ordering', () => {
         it('has ariaLabel before ariaDescribedBy before ariaLive', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'accessibility')!;
-            const keys = section.fields.map(f => f.key);
+            const section = schema.sections.find((s: any) => s.key === 'accessibility')!;
+            const keys = section.fields.map((f: any) => f.key);
             expect(keys.indexOf('_ariaLabel')).toBeLessThan(keys.indexOf('_ariaDescribedBy'));
             expect(keys.indexOf('_ariaDescribedBy')).toBeLessThan(keys.indexOf('_ariaLive'));
         });
@@ -767,8 +767,8 @@ describe('spec alignment', () => {
     describe('emptyState compound field', () => {
         it('renders title, message, and icon sub-fields', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'appearance')!;
-            const emptyStateField = section.fields.find(f => f.key === '_emptyState')!;
+            const section = schema.sections.find((s: any) => s.key === 'appearance')!;
+            const emptyStateField = section.fields.find((f: any) => f.key === '_emptyState')!;
             expect(emptyStateField).toBeDefined();
             expect(emptyStateField.render).toBeDefined();
         });
@@ -778,8 +778,8 @@ describe('spec alignment', () => {
     describe('switch field default conventions', () => {
         function findField(sectionKey: string, fieldKey: string) {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === sectionKey)!;
-            return section.fields.find(f => f.key === fieldKey)!;
+            const section = schema.sections.find((s: any) => s.key === sectionKey)!;
+            return section.fields.find((f: any) => f.key === fieldKey)!;
         }
 
         it('showDescription is a defaultOn switch field', () => {
@@ -798,8 +798,8 @@ describe('spec alignment', () => {
 
         it('densityMode field was removed (redundant with rowHeight)', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'appearance')!;
-            const field = section.fields.find(f => f.key === 'densityMode');
+            const section = schema.sections.find((s: any) => s.key === 'appearance')!;
+            const field = section.fields.find((f: any) => f.key === 'densityMode');
             expect(field).toBeUndefined();
         });
     });
@@ -808,8 +808,8 @@ describe('spec alignment', () => {
     describe('visibleWhen predicates comprehensive', () => {
         it('sharing visibility requires sharing.enabled', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'sharing')!;
-            const field = section.fields.find(f => f.key === '_sharingVisibility')!;
+            const section = schema.sections.find((s: any) => s.key === 'sharing')!;
+            const field = section.fields.find((f: any) => f.key === '_sharingVisibility')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({ sharing: { enabled: true } })).toBe(true);
             expect(field.visibleWhen!({ sharing: { enabled: false } })).toBe(false);
@@ -819,8 +819,8 @@ describe('spec alignment', () => {
 
         it('navigation width visible only for drawer/modal/split modes', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'navigation')!;
-            const field = section.fields.find(f => f.key === '_navigationWidth')!;
+            const section = schema.sections.find((s: any) => s.key === 'navigation')!;
+            const field = section.fields.find((f: any) => f.key === '_navigationWidth')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({ navigation: { mode: 'drawer' } })).toBe(true);
             expect(field.visibleWhen!({ navigation: { mode: 'modal' } })).toBe(true);
@@ -832,8 +832,8 @@ describe('spec alignment', () => {
 
         it('navigation openNewTab visible only for page/new_window modes', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'navigation')!;
-            const field = section.fields.find(f => f.key === '_navigationOpenNewTab')!;
+            const section = schema.sections.find((s: any) => s.key === 'navigation')!;
+            const field = section.fields.find((f: any) => f.key === '_navigationOpenNewTab')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({ navigation: { mode: 'page' } })).toBe(true);
             expect(field.visibleWhen!({ navigation: { mode: 'new_window' } })).toBe(true);
@@ -846,8 +846,8 @@ describe('spec alignment', () => {
         // ── Toolbar toggle visibility by view type ──────────────────────
         it('showGroup visible for grid (default), kanban, and gallery, hidden for others', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'toolbar')!;
-            const field = section.fields.find(f => f.key === 'showGroup')!;
+            const section = schema.sections.find((s: any) => s.key === 'toolbar')!;
+            const field = section.fields.find((f: any) => f.key === 'showGroup')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({})).toBe(true);                    // default = grid
             expect(field.visibleWhen!({ type: 'grid' })).toBe(true);
@@ -861,8 +861,8 @@ describe('spec alignment', () => {
 
         it('showColor visible for grid (default), calendar, timeline, gantt, hidden for others', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'toolbar')!;
-            const field = section.fields.find(f => f.key === 'showColor')!;
+            const section = schema.sections.find((s: any) => s.key === 'toolbar')!;
+            const field = section.fields.find((f: any) => f.key === 'showColor')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({})).toBe(true);                    // default = grid
             expect(field.visibleWhen!({ type: 'grid' })).toBe(true);
@@ -876,8 +876,8 @@ describe('spec alignment', () => {
 
         it('showDensity visible only for grid (default), hidden for others', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'toolbar')!;
-            const field = section.fields.find(f => f.key === 'showDensity')!;
+            const section = schema.sections.find((s: any) => s.key === 'toolbar')!;
+            const field = section.fields.find((f: any) => f.key === 'showDensity')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({})).toBe(true);                    // default = grid
             expect(field.visibleWhen!({ type: 'grid' })).toBe(true);
@@ -888,8 +888,8 @@ describe('spec alignment', () => {
         // ── Data section visibility by view type ────────────────────────
         it('_groupBy visible for grid (default) and gallery, hidden for others', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'data')!;
-            const field = section.fields.find(f => f.key === '_groupBy')!;
+            const section = schema.sections.find((s: any) => s.key === 'data')!;
+            const field = section.fields.find((f: any) => f.key === '_groupBy')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({})).toBe(true);                    // default = grid
             expect(field.visibleWhen!({ type: 'grid' })).toBe(true);
@@ -903,29 +903,29 @@ describe('spec alignment', () => {
 
         it('searchableFields is universal (no visibleWhen)', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'data')!;
-            const field = section.fields.find(f => f.key === '_searchableFields')!;
+            const section = schema.sections.find((s: any) => s.key === 'data')!;
+            const field = section.fields.find((f: any) => f.key === '_searchableFields')!;
             expect(field.visibleWhen).toBeUndefined();
         });
 
         it('filterableFields is universal (no visibleWhen)', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'data')!;
-            const field = section.fields.find(f => f.key === '_filterableFields')!;
+            const section = schema.sections.find((s: any) => s.key === 'data')!;
+            const field = section.fields.find((f: any) => f.key === '_filterableFields')!;
             expect(field.visibleWhen).toBeUndefined();
         });
 
         it('quickFilters is universal (no visibleWhen)', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'data')!;
-            const field = section.fields.find(f => f.key === '_quickFilters')!;
+            const section = schema.sections.find((s: any) => s.key === 'data')!;
+            const field = section.fields.find((f: any) => f.key === '_quickFilters')!;
             expect(field.visibleWhen).toBeUndefined();
         });
 
         it('virtualScroll visible only for grid', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'data')!;
-            const field = section.fields.find(f => f.key === 'virtualScroll')!;
+            const section = schema.sections.find((s: any) => s.key === 'data')!;
+            const field = section.fields.find((f: any) => f.key === 'virtualScroll')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({})).toBe(true);
             expect(field.visibleWhen!({ type: 'grid' })).toBe(true);
@@ -935,8 +935,8 @@ describe('spec alignment', () => {
         // ── Appearance section visibility by view type / state ──────────
         it('color visible for grid (default), calendar, timeline, gantt, hidden for others', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'appearance')!;
-            const field = section.fields.find(f => f.key === 'color')!;
+            const section = schema.sections.find((s: any) => s.key === 'appearance')!;
+            const field = section.fields.find((f: any) => f.key === 'color')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({})).toBe(true);                    // default = grid
             expect(field.visibleWhen!({ type: 'grid' })).toBe(true);
@@ -950,15 +950,15 @@ describe('spec alignment', () => {
 
         it('showDescription is universal (no visibleWhen)', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'appearance')!;
-            const field = section.fields.find(f => f.key === 'showDescription')!;
+            const section = schema.sections.find((s: any) => s.key === 'appearance')!;
+            const field = section.fields.find((f: any) => f.key === 'showDescription')!;
             expect(field.visibleWhen).toBeUndefined();
         });
 
         it('rowHeight visible only for grid', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'appearance')!;
-            const field = section.fields.find(f => f.key === 'rowHeight')!;
+            const section = schema.sections.find((s: any) => s.key === 'appearance')!;
+            const field = section.fields.find((f: any) => f.key === 'rowHeight')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({})).toBe(true);
             expect(field.visibleWhen!({ type: 'grid' })).toBe(true);
@@ -967,8 +967,8 @@ describe('spec alignment', () => {
 
         it('conditionalFormatting visible for grid (default) and kanban, hidden for others', () => {
             const schema = buildSpecSchema();
-            const section = schema.sections.find(s => s.key === 'appearance')!;
-            const field = section.fields.find(f => f.key === '_conditionalFormatting')!;
+            const section = schema.sections.find((s: any) => s.key === 'appearance')!;
+            const field = section.fields.find((f: any) => f.key === '_conditionalFormatting')!;
             expect(field.visibleWhen).toBeDefined();
             expect(field.visibleWhen!({})).toBe(true);
             expect(field.visibleWhen!({ type: 'grid' })).toBe(true);
@@ -998,29 +998,29 @@ describe('spec alignment', () => {
         for (const fieldKey of gridOnlyFields) {
             it(`${fieldKey} should have visibleWhen predicate`, () => {
                 const schema = buildSchema();
-                const section = schema.sections.find(s => s.key === 'appearance')!;
-                const field = section.fields.find(f => f.key === fieldKey)!;
+                const section = schema.sections.find((s: any) => s.key === 'appearance')!;
+                const field = section.fields.find((f: any) => f.key === fieldKey)!;
                 expect(field.visibleWhen).toBeDefined();
             });
 
             it(`${fieldKey} should be hidden when view type is kanban`, () => {
                 const schema = buildSchema();
-                const section = schema.sections.find(s => s.key === 'appearance')!;
-                const field = section.fields.find(f => f.key === fieldKey)!;
+                const section = schema.sections.find((s: any) => s.key === 'appearance')!;
+                const field = section.fields.find((f: any) => f.key === fieldKey)!;
                 expect(field.visibleWhen!({ type: 'kanban' })).toBe(false);
             });
 
             it(`${fieldKey} should be visible when view type is grid`, () => {
                 const schema = buildSchema();
-                const section = schema.sections.find(s => s.key === 'appearance')!;
-                const field = section.fields.find(f => f.key === fieldKey)!;
+                const section = schema.sections.find((s: any) => s.key === 'appearance')!;
+                const field = section.fields.find((f: any) => f.key === fieldKey)!;
                 expect(field.visibleWhen!({ type: 'grid' })).toBe(true);
             });
 
             it(`${fieldKey} should be visible when view type is undefined (default grid)`, () => {
                 const schema = buildSchema();
-                const section = schema.sections.find(s => s.key === 'appearance')!;
-                const field = section.fields.find(f => f.key === fieldKey)!;
+                const section = schema.sections.find((s: any) => s.key === 'appearance')!;
+                const field = section.fields.find((f: any) => f.key === fieldKey)!;
                 expect(field.visibleWhen!({})).toBe(true);
             });
         }
@@ -1041,16 +1041,16 @@ describe('spec alignment', () => {
 
         it('navigation width field has helpText', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'navigation')!;
-            const field = section.fields.find(f => f.key === '_navigationWidth')!;
+            const section = schema.sections.find((s: any) => s.key === 'navigation')!;
+            const field = section.fields.find((f: any) => f.key === '_navigationWidth')!;
             expect(field.helpText).toBeDefined();
             expect(typeof field.helpText).toBe('string');
         });
 
         it('navigation openNewTab field has helpText', () => {
             const schema = buildSchema();
-            const section = schema.sections.find(s => s.key === 'navigation')!;
-            const field = section.fields.find(f => f.key === '_navigationOpenNewTab')!;
+            const section = schema.sections.find((s: any) => s.key === 'navigation')!;
+            const field = section.fields.find((f: any) => f.key === '_navigationOpenNewTab')!;
             expect(field.helpText).toBeDefined();
             expect(typeof field.helpText).toBe('string');
         });
