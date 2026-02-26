@@ -23,7 +23,7 @@ vi.mock('@object-ui/i18n', () => ({
 
 // Mock components to simple HTML elements
 vi.mock('@object-ui/components', () => {
-    const React = require('react');
+    const React = require('react') as typeof import('react');
 
     // useConfigDraft mock — mirrors real implementation
     function useConfigDraft(source: any, options?: any) {
@@ -89,7 +89,7 @@ vi.mock('@object-ui/components', () => {
 
     // ConfigPanelRenderer mock — renders schema sections with proper collapse/visibility
     function ConfigPanelRenderer({ open, onClose, schema, draft, isDirty, onFieldChange, onSave, onDiscard, panelRef, role, ariaLabel, tabIndex, testId, saveLabel, discardLabel, className }: any) {
-        const [collapsed, setCollapsed] = React.useState({});
+        const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({});
         if (!open) return null;
 
         return React.createElement('div', {

@@ -86,7 +86,9 @@ describe('UserManagementPage', () => {
     await waitFor(() => {
       expect(mockFind).toHaveBeenCalledWith('sys_user');
     });
-    expect(screen.getByText('Alice')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Alice')).toBeInTheDocument();
+    });
   });
 
   it('should show empty state when no users', async () => {
@@ -120,7 +122,9 @@ describe('OrgManagementPage', () => {
     await waitFor(() => {
       expect(mockFind).toHaveBeenCalledWith('sys_org');
     });
-    expect(screen.getByText('Acme')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Acme')).toBeInTheDocument();
+    });
   });
 
   it('should show empty state when no organizations', async () => {
@@ -141,7 +145,9 @@ describe('RoleManagementPage', () => {
     await waitFor(() => {
       expect(mockFind).toHaveBeenCalledWith('sys_role');
     });
-    expect(screen.getByText('Admin')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Admin')).toBeInTheDocument();
+    });
   });
 
   it('should show empty state when no roles', async () => {
@@ -162,7 +168,9 @@ describe('AuditLogPage', () => {
     await waitFor(() => {
       expect(mockFind).toHaveBeenCalledWith('sys_audit_log', expect.objectContaining({ $orderby: { createdAt: 'desc' } }));
     });
-    expect(screen.getByText('create')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('create')).toBeInTheDocument();
+    });
   });
 
   it('should show empty state when no logs', async () => {
@@ -250,7 +258,9 @@ describe('PermissionManagementPage', () => {
     await waitFor(() => {
       expect(mockFind).toHaveBeenCalledWith('sys_permission');
     });
-    expect(screen.getByText('manage_users')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('manage_users')).toBeInTheDocument();
+    });
   });
 
   it('should show empty state when no permissions', async () => {
