@@ -8,7 +8,7 @@
 
 import * as React from 'react';
 import { useState } from 'react';
-import { X, Save, RotateCcw, ChevronRight } from 'lucide-react';
+import { X, Save, RotateCcw, ChevronRight, Undo2, Redo2 } from 'lucide-react';
 
 import { cn } from '../lib/utils';
 import { Button } from '../ui/button';
@@ -64,6 +64,18 @@ export interface ConfigPanelRendererProps {
   discardTestId?: string;
   /** Externally-controlled set of section keys that should be expanded (overrides local collapse state) */
   expandedSections?: string[];
+  /** Undo callback */
+  onUndo?: () => void;
+  /** Redo callback */
+  onRedo?: () => void;
+  /** Whether undo is available */
+  canUndo?: boolean;
+  /** Whether redo is available */
+  canRedo?: boolean;
+  /** Label for undo button */
+  undoLabel?: string;
+  /** Label for redo button */
+  redoLabel?: string;
 }
 
 /**
@@ -101,6 +113,12 @@ export function ConfigPanelRenderer({
   saveTestId,
   discardTestId,
   expandedSections,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  undoLabel = 'Undo',
+  redoLabel = 'Redo',
 }: ConfigPanelRendererProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -152,6 +170,32 @@ export function ConfigPanelRenderer({
           </ol>
         </nav>
         <div className="flex items-center gap-1">
+          {onUndo && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onUndo}
+              disabled={!canUndo}
+              className="h-7 w-7 p-0"
+              data-testid="config-panel-undo"
+              title={undoLabel}
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          {onRedo && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onRedo}
+              disabled={!canRedo}
+              className="h-7 w-7 p-0"
+              data-testid="config-panel-redo"
+              title={redoLabel}
+            >
+              <Redo2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
           {headerExtra}
           <Button
             size="sm"

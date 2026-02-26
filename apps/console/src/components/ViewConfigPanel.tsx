@@ -90,7 +90,7 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
     const effectiveActiveView = mode === 'create' ? defaultNewView : stableActiveView;
 
     // Schema-driven draft state management
-    const { draft, isDirty, updateField, discard } = useConfigDraft(effectiveActiveView, {
+    const { draft, isDirty, updateField, discard, undo, redo, canUndo, canRedo } = useConfigDraft(effectiveActiveView, {
         mode,
         onUpdate: onViewUpdate,
     });
@@ -162,6 +162,12 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
             onFieldChange={updateField}
             onSave={handleSave}
             onDiscard={handleDiscard}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            undoLabel={t('designer.undo')}
+            redoLabel={t('designer.redo')}
             objectDef={objectDef}
             saveLabel={t('console.objectView.save')}
             discardLabel={t('console.objectView.discard')}
