@@ -26,6 +26,9 @@ describe('ObjectStack Spec v0.9.0 Compliance', () => {
             expect(typeof app.name).toBe('string');
             expect(app.label).toBeDefined();
             expect(['string', 'object']).toContain(typeof app.label);
+            if (typeof app.label === 'object') {
+                expect(app.label).toHaveProperty('key');
+            }
             
             // Name convention: lowercase snake_case
             expect(app.name).toMatch(/^[a-z][a-z0-9_]*$/);
@@ -37,6 +40,9 @@ describe('ObjectStack Spec v0.9.0 Compliance', () => {
             // Optional fields that should be defined if present
             if (app.description) {
                 expect(['string', 'object']).toContain(typeof app.description);
+                if (typeof app.description === 'object') {
+                    expect(app.description).toHaveProperty('key');
+                }
             }
             if (app.version) {
                 expect(typeof app.version).toBe('string');
