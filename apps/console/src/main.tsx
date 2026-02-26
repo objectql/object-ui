@@ -10,14 +10,6 @@ import './index.css';
 import { App } from './App';
 import { I18nProvider } from '@object-ui/i18n';
 import { MobileProvider } from '@object-ui/mobile';
-import { crmLocales } from '@object-ui/example-crm';
-
-// Build i18n resources from CRM locale bundles so translations are
-// available under the `crm.*` namespace (e.g. t('crm.navigation.dashboard')).
-const crmI18nResources: Record<string, Record<string, unknown>> = {};
-for (const [lang, translations] of Object.entries(crmLocales)) {
-  crmI18nResources[lang] = { crm: translations };
-}
 
 // Register plugins (side-effect imports for ComponentRegistry)
 import '@object-ui/plugin-grid';
@@ -47,7 +39,7 @@ async function bootstrap() {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <MobileProvider pwa={{ enabled: true, name: 'ObjectUI Console', shortName: 'Console' }}>
-        <I18nProvider config={{ resources: crmI18nResources }}>
+        <I18nProvider>
           <App />
         </I18nProvider>
       </MobileProvider>

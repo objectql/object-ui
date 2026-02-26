@@ -59,8 +59,7 @@ import { usePermissions } from '@object-ui/permissions';
 import { useRecentItems } from '../hooks/useRecentItems';
 import { useFavorites } from '../hooks/useFavorites';
 import { useNavPins } from '../hooks/useNavPins';
-import { resolveI18nLabel, translateCrmNavigation } from '../utils';
-import { useObjectTranslation } from '@object-ui/i18n';
+import { resolveI18nLabel } from '../utils';
 
 // ---------------------------------------------------------------------------
 // useNavOrder – localStorage-persisted drag-and-drop reorder for nav items
@@ -156,7 +155,6 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const { isMobile } = useSidebar();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const { t } = useObjectTranslation();
 
   // Swipe-from-left-edge gesture to open sidebar on mobile
   React.useEffect(() => {
@@ -221,9 +219,8 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   // Apply saved order and pin state to navigation items
   const processedNavigation = React.useMemo(() => {
     const ordered = applyOrder(resolvedNavigation);
-    const pinned = applyPins(ordered);
-    return translateCrmNavigation(pinned, t);
-  }, [resolvedNavigation, applyOrder, applyPins, t]);
+    return applyPins(ordered);
+  }, [resolvedNavigation, applyOrder, applyPins]);
 
   // Search filter state for sidebar navigation
   const [navSearchQuery, setNavSearchQuery] = React.useState('');
@@ -270,15 +267,15 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                     style={primaryColor ? { backgroundColor: primaryColor } : undefined}
                   >
                      {logo ? (
-                       <img src={logo} alt={resolveI18nLabel(activeApp.label, t)} className="size-6 object-contain" />
+                       <img src={logo} alt={resolveI18nLabel(activeApp.label)} className="size-6 object-contain" />
                      ) : (
                        React.createElement(getIcon(activeApp.icon), { className: "size-4" })
                      )}
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">{t('crm.app.name', { defaultValue: resolveI18nLabel(activeApp.label) })}</span>
+                    <span className="truncate font-semibold">{resolveI18nLabel(activeApp.label)}</span>
                     <span className="truncate text-xs">
-                      {t('crm.app.description', { defaultValue: resolveI18nLabel(activeApp.description) }) || `${activeApps.length} Apps Available`}
+                      {resolveI18nLabel(activeApp.description) || `${activeApps.length} Apps Available`}
                     </span>
                   </div>
                   <ChevronsUpDown className="ml-auto" />

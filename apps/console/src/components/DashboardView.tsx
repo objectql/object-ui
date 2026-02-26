@@ -28,9 +28,8 @@ import {
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { SkeletonDashboard } from './skeletons';
 import { useMetadata } from '../context/MetadataProvider';
-import { resolveI18nLabel, translateCrmDashboardWidgets } from '../utils';
+import { resolveI18nLabel } from '../utils';
 import { useAdapter } from '../context/AdapterProvider';
-import { useObjectTranslation } from '@object-ui/i18n';
 import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
 
 // ---------------------------------------------------------------------------
@@ -131,7 +130,6 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   const { dashboardName } = useParams<{ dashboardName: string }>();
   const { showDebug, toggleDebug } = useMetadataInspector();
   const adapter = useAdapter();
-  const { t } = useObjectTranslation();
   const [isLoading, setIsLoading] = useState(true);
   const [configPanelOpen, setConfigPanelOpen] = useState(false);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
@@ -376,18 +374,14 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
     );
   }
 
-  const previewSchema = useMemo(() => {
-    const raw = editSchema || dashboard;
-    if (!raw?.widgets) return raw;
-    return { ...raw, widgets: translateCrmDashboardWidgets(raw.widgets, t) };
-  }, [editSchema, dashboard, t]);
+  const previewSchema = editSchema || dashboard;
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
       {/* ── Header ───────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4 p-4 sm:p-6 border-b shrink-0">
         <div className="min-w-0 flex-1">
-          <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight truncate">{t('crm.dashboard.title', { defaultValue: resolveI18nLabel(dashboard.label) || dashboard.name })}</h1>
+          <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight truncate">{resolveI18nLabel(dashboard.label) || dashboard.name}</h1>
           {dashboard.description && (
             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{resolveI18nLabel(dashboard.description)}</p>
           )}

@@ -84,17 +84,6 @@ vi.mock('../hooks/useNavPins', () => ({
 
 vi.mock('../utils', () => ({
   resolveI18nLabel: (label: any) => (typeof label === 'string' ? label : label?.en || ''),
-  translateCrmNavigation: (items: any[]) => items,
-}));
-
-vi.mock('@object-ui/i18n', () => ({
-  useObjectTranslation: () => ({
-    t: (key: string, opts?: any) => opts?.defaultValue ?? key,
-    language: 'en',
-    changeLanguage: vi.fn(),
-    direction: 'ltr',
-    i18n: {},
-  }),
 }));
 
 // Mock @object-ui/components to keep most components but simplify some

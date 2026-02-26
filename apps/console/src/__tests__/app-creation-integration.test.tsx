@@ -236,7 +236,6 @@ vi.mock('../hooks/useNavPins', () => ({
 
 vi.mock('../utils', () => ({
   resolveI18nLabel: (label: any) => (typeof label === 'string' ? label : label?.en || ''),
-  translateCrmNavigation: (items: any[]) => items,
 }));
 
 // Mock i18n
