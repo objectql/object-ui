@@ -1021,6 +1021,18 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 
 ---
 
+## 🐛 Bug Fixes
+
+### ListView Grouping Config Not Taking Effect (February 2026)
+
+**Root Cause:** `viewComponentSchema` `useMemo` in `ListView.tsx` was missing `groupingConfig`, `rowColorConfig`, and `navigation.handleClick` in its dependency array. When users toggled grouping fields via the toolbar popover, the state changed but the memoized schema was not recomputed, so the child grid/kanban/gallery never received the updated grouping config.
+
+**Fix:** Added `groupingConfig`, `rowColorConfig`, and `navigation.handleClick` to the `useMemo` dependency array at line 856 of `ListView.tsx`.
+
+**Tests:** Added integration test in `ListViewGroupingPropagation.test.tsx` that verifies toggling a group field via the toolbar immediately updates the rendered schema. All 117 ListView tests pass.
+
+---
+
 ## ⚠️ Risk Management
 
 | Risk | Mitigation |

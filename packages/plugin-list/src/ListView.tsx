@@ -853,7 +853,7 @@ export const ListView: React.FC<ListViewProps> = ({
       default:
         return baseProps;
     }
-  }, [currentView, schema, currentSort, effectiveFields]);
+  }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick]);
 
   const hasFilters = currentFilters.conditions && currentFilters.conditions.length > 0;
 
