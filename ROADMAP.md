@@ -1,11 +1,11 @@
 # ObjectUI Development Roadmap
 
-> **Last Updated:** February 25, 2026
+> **Last Updated:** February 26, 2026
 > **Current Version:** v0.5.x
 > **Spec Version:** @objectstack/spec v3.0.10
 > **Client Version:** @objectstack/client v3.0.10
 > **Target UX Benchmark:** 🎯 Airtable parity
-> **Current Priority:** AppShell Navigation · Designer Interaction · View Config Live Preview Sync · Dashboard Config Panel · Airtable UX Polish · **Flow Designer ✅** · **App Creation & Editing Flow ✅** · **System Settings & App Management ✅** · **Right-Side Visual Editor Drawer ✅**
+> **Current Priority:** AppShell Navigation · Designer Interaction · **View Config Live Preview Sync ✅** · Dashboard Config Panel · Airtable UX Polish · **Flow Designer ✅** · **App Creation & Editing Flow ✅** · **System Settings & App Management ✅** · **Right-Side Visual Editor Drawer ✅**
 
 ---
 
@@ -18,7 +18,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
 2. **Designer Interaction** — DataModelDesigner has undo/redo, field type selectors, inline editing, Ctrl+S save. ViewDesigner has been removed; its capabilities (drag-to-reorder columns via @dnd-kit, undo/redo via useConfigDraft history) are now integrated into ViewConfigPanel (right-side config panel) ✅
-3. **View Config Live Preview Sync** — Config panel changes sync in real-time for Grid, but `showSort`/`showSearch`/`showFilters`/`striped`/`bordered` not yet propagated to Kanban/Calendar/Timeline/Gallery/Map/Gantt (see P1.8.1)
+3. ~~**View Config Live Preview Sync** — Config panel changes sync in real-time for Grid, but `showSort`/`showSearch`/`showFilters`/`striped`/`bordered` not yet propagated to Kanban/Calendar/Timeline/Gallery/Map/Gantt (see P1.8.1)~~ ✅ Complete — all 7 phases of P1.8.1 done, 100% coverage across all view types
 4. **Dashboard Config Panel** — Airtable-style right-side configuration panel for dashboards (data source, layout, widget properties, sub-editors, type definitions). Widget config live preview sync and scatter chart type switch ✅ fixed (P1.10 Phase 10). Dashboard save/refresh metadata sync ✅ fixed (P1.10 Phase 11). Data provider field override for live preview ✅ fixed (P1.10 Phase 12).
 5. **Console Advanced Polish** — Remaining upgrades for forms, import/export, automation, comments
 6. **PWA Sync** — Background sync is simulated only
@@ -167,7 +167,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
   - [x] `ThreadedReplies` — collapsible comment reply threading
   - [x] Comprehensive unit tests for all 6 core Feed/Chatter components (96 tests)
   - [x] Console `RecordDetailView` integration: `CommentThread` → `RecordChatterPanel` with `FeedItem[]` data model
-  - [ ] Documentation for Feed/Chatter plugin in `content/docs/plugins/plugin-detail.mdx` (purpose/use cases, JSON schema, props, and Console integration for `RecordChatterPanel`, `RecordActivityTimeline`, and related components)
+  - [x] Documentation for Feed/Chatter plugin in `content/docs/plugins/plugin-detail.mdx` (purpose/use cases, JSON schema, props, and Console integration for `RecordChatterPanel`, `RecordActivityTimeline`, and related components)
 ### P1.6 Console — Automation
 
 > **Spec v3.0.9** significantly expanded the automation/workflow protocol. New node types, BPMN interop, execution tracking, and wait/timer executors are now available in the spec.
@@ -218,7 +218,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] User actions section: Edit records inline (→ inlineEdit), Add/delete records inline, Navigation mode (page/drawer/modal/split/popover/new_window/none)
 - [x] Calendar endDateField support
 - [x] i18n for all 11 locales (en, zh, ja, de, fr, es, ar, ru, pt, ko)
-- [ ] **Live preview: ViewConfigPanel changes sync in real-time to all list types (Grid/Kanban/Calendar/Timeline/Gallery/Map)** _(partially complete — see P1.8.1 gap analysis below)_
+- [x] **Live preview: ViewConfigPanel changes sync in real-time to all list types (Grid/Kanban/Calendar/Timeline/Gallery/Map)** _(all 7 phases complete — see P1.8.1 gap analysis below)_
   - ✅ `showSort` added to `ObjectViewSchema` and propagated through plugin-view (Grid only)
   - ✅ Appearance properties (`rowHeight`, `densityMode`) flow through `renderListView` schema for all view types
   - ✅ `gridSchema` in plugin-view includes `striped`/`bordered` from active view config (Grid only)
@@ -332,7 +332,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Add `showHideFields`/`showGroup`/`showColor`/`showDensity`/`allowExport` to `NamedListView` and `ListViewSchema` types and Zod schema (Issue #719)
 - [x] Add `inlineEdit`/`wrapHeaders`/`clickIntoRecordDetails`/`addRecordViaForm`/`addDeleteRecordsInline`/`collapseAllByDefault`/`fieldTextColor`/`prefixField`/`showDescription` to `NamedListView` and `ListViewSchema` types and Zod schema (Issue #719)
 - [x] Update Console `renderListView` to pass all config properties in `fullSchema`
-- [ ] Audit all `useMemo`/`useEffect` dependency arrays in `plugin-view/ObjectView.tsx` for missing `activeView` sub-properties
+- [x] Audit all `useMemo`/`useEffect` dependency arrays in `plugin-view/ObjectView.tsx` for missing `activeView` sub-properties — all hooks correctly use whole `activeView` object reference; React shallow equality handles sub-property changes
 - [x] Remove hardcoded `showSearch: false` from `generateViewSchema` — use `activeView.showSearch ?? schema.showSearch` instead
 
 **Phase 7 — End-to-End Integration Tests:**
@@ -1017,10 +1017,10 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 | **Protocol Alignment** | ~85% | 90%+ (UI-facing) | Protocol Consistency Assessment |
 | **AppShell Renderer** | ✅ Complete | Sidebar + nav tree from `AppSchema` JSON | Console renders from spec JSON |
 | **Designer Interaction** | Phase 2 (most complete) | DataModelDesigner drag/undo; ViewDesigner removed (replaced by ViewConfigPanel) | Manual UX testing |
-| **Build Status** | 42/42 pass | 42/42 pass | `pnpm build` |
-| **Test Count** | 5,070+ | 5,618+ | `pnpm test` summary |
+| **Build Status** | 43/43 pass | 43/43 pass | `pnpm build` |
+| **Test Count** | 6,700+ | 6,700+ | `pnpm test` summary |
 | **Test Coverage** | 90%+ | 90%+ | `pnpm test:coverage` |
-| **Storybook Stories** | 78 | 91+ (1 per component) | Story file count |
+| **Storybook Stories** | 80 | 91+ (1 per component) | Story file count |
 | **Console i18n** | 100% | 100% | No hardcoded strings |
 
 ---
@@ -1067,6 +1067,6 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 
 ---
 
-**Roadmap Status:** 🎯 Active — AppShell · Designer Interaction · View Config Live Preview Sync (P1.8.1) · Dashboard Config Panel (widget live preview & scatter type switch ✅ fixed, save/refresh metadata sync ✅ fixed, data provider field override ✅ fixed) · Schema-Driven View Config Panel ✅ · Right-Side Visual Editor Drawer ✅ · Airtable UX Parity
+**Roadmap Status:** 🎯 Active — AppShell ✅ · Designer Interaction · View Config Live Preview Sync ✅ · Dashboard Config Panel ✅ · Schema-Driven View Config Panel ✅ · Right-Side Visual Editor Drawer ✅ · Feed/Chatter Documentation ✅ · Airtable UX Parity
 **Next Review:** March 15, 2026
 **Contact:** hello@objectui.org | https://github.com/objectstack-ai/objectui

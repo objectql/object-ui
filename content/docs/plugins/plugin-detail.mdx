@@ -1,0 +1,345 @@
+---
+title: "Plugin Detail — Feed & Chatter"
+---
+
+import { InteractiveDemo } from '@/app/components/InteractiveDemo';
+import { PluginLoader } from '@/app/components/PluginLoader';
+
+Record-level discussion, activity timeline, and collaboration components for enterprise CRUD interfaces.
+
+## Installation
+
+```bash
+npm install @object-ui/plugin-detail
+```
+
+<PluginLoader plugins={['detail']}>
+
+## Overview
+
+The Feed & Chatter system provides Airtable-style record-level collaboration. It includes components for threaded discussions, field change history, @mentions, emoji reactions, and notification subscriptions — all driven by `FeedItem[]` data.
+
+### Key Components
+
+| Component | Purpose |
+|-----------|---------|
+| `RecordChatterPanel` | Main wrapper panel (bottom/right/left positioning, collapsible) |
+| `RecordActivityTimeline` | Core activity feed renderer (filter, pagination, actor display) |
+| `CommentInput` | Comment submission with Ctrl+Enter shortcut |
+| `FieldChangeItem` | Field change history display (old → new values) |
+| `MentionAutocomplete` | @mention suggestion dropdown |
+| `ReactionPicker` | Emoji reaction selector |
+| `ThreadedReplies` | Collapsible reply threading |
+| `SubscriptionToggle` | Bell notification toggle |
+
+## Usage
+
+### Basic RecordChatterPanel
+
+```tsx
+import { RecordChatterPanel } from '@object-ui/plugin-detail';
+import type { FeedItem, RecordSubscription } from '@object-ui/types';
+
+const items: FeedItem[] = [
+  {
+    id: '1',
+    type: 'comment',
+    actor: 'Alice',
+    body: 'Updated the deal stage to Negotiation.',
+    createdAt: '2026-02-25T10:00:00Z',
+    reactions: [{ emoji: '👍', count: 2, reacted: true }],
+  },
+  {
+    id: '2',
+    type: 'field_change',
+    actor: 'System',
+    createdAt: '2026-02-24T15:30:00Z',
+    fieldChanges: [
+      { field: 'stage', oldValue: 'Qualification', newValue: 'Negotiation' },
+    ],
+  },
+];
+
+<RecordChatterPanel
+  config={{
+    position: 'bottom',
+    collapsible: true,
+    defaultCollapsed: false,
+    feed: {
+      enableReactions: true,
+      enableThreading: true,
+      showCommentInput: true,
+    },
+  }}
+  items={items}
+  onAddComment={(text) => console.log('Comment:', text)}
+  onAddReply={(parentId, text) => console.log('Reply:', parentId, text)}
+  onToggleReaction={(itemId, emoji) => console.log('Reaction:', itemId, emoji)}
+/>
+```
+
+### RecordActivityTimeline
+
+```tsx
+import { RecordActivityTimeline } from '@object-ui/plugin-detail';
+
+<RecordActivityTimeline
+  items={items}
+  config={{
+    types: ['comment', 'field_change'],
+    filterMode: 'all',
+    showFilterToggle: true,
+    showCommentInput: true,
+    enableReactions: true,
+    enableThreading: true,
+    enableMentions: true,
+    showSubscriptionToggle: true,
+  }}
+  filterMode="all"
+  onFilterChange={(mode) => console.log('Filter:', mode)}
+  hasMore={false}
+  loading={false}
+/>
+```
+
+### Console Integration
+
+In the Console app, `RecordChatterPanel` is integrated with record detail views. Comments are fetched from the `sys_comment` object using a thread ID pattern of `{objectName}:{recordId}`:
+
+```tsx
+// Thread ID format
+const threadId = `${objectName}:${recordId}`;
+
+// Fetch comments
+const comments = await dataSource.find('sys_comment', {
+  $filter: { threadId },
+  $orderby: 'createdAt asc',
+});
+
+// Map to FeedItem[]
+const feedItems: FeedItem[] = comments.map(c => ({
+  id: c._id,
+  type: 'comment',
+  actor: c.author,
+  body: c.body,
+  createdAt: c.createdAt,
+  reactions: c.reactions ?? [],
+}));
+```
+
+**Full-page detail view** renders the panel non-collapsible at the bottom:
+
+```tsx
+<RecordChatterPanel
+  config={{ position: 'bottom', collapsible: false }}
+  items={feedItems}
+  onAddComment={handleAddComment}
+/>
+```
+
+**Drawer overlay** renders the panel collapsible and default-collapsed:
+
+```tsx
+<RecordChatterPanel
+  config={{ position: 'bottom', collapsible: true, defaultCollapsed: true }}
+  items={feedItems}
+  onAddComment={handleAddComment}
+/>
+```
+
+## Features
+
+- **Threaded Discussions**: Nested comment replies with collapsible threading
+- **Activity Timeline**: Unified view of comments, field changes, tasks, and system events
+- **Filter Modes**: Filter by `all`, `comments_only`, `changes_only`, or `tasks_only`
+- **@Mentions**: Autocomplete dropdown for mentioning users
+- **Emoji Reactions**: Toggle emoji reactions on any feed item
+- **Subscription Toggle**: Bell icon to subscribe/unsubscribe from record notifications
+- **Field Change History**: Visual old → new value display for field changes
+- **Pagination**: Load more items with `hasMore` / `onLoadMore` pattern
+- **Positioning**: Panel can be placed at `bottom`, `right`, or `left` of the record view
+- **Collapsible**: Optional collapse/expand with configurable default state
+
+## Schema API
+
+### RecordChatterPanel Config
+
+```plaintext
+{
+  position?: 'bottom' | 'right' | 'left',    // Panel placement
+  width?: string,                              // CSS width (e.g., '400px')
+  collapsible?: boolean,                       // Enable collapse toggle
+  defaultCollapsed?: boolean,                  // Start collapsed
+  feed?: RecordActivityComponentProps,         // Activity feed config
+  aria?: RecordComponentAriaProps              // Accessibility props
+}
+```
+
+### RecordActivityTimeline Config
+
+```plaintext
+{
+  types?: string[],                // Feed item types to show
+  filterMode?: string,             // Default filter mode
+  showFilterToggle?: boolean,      // Show filter mode buttons
+  limit?: number,                  // Items per page
+  showCompleted?: boolean,         // Show completed tasks
+  unifiedTimeline?: boolean,       // Unified timeline view
+  showCommentInput?: boolean,      // Show comment input
+  enableMentions?: boolean,        // Enable @mentions
+  enableReactions?: boolean,       // Enable emoji reactions
+  enableThreading?: boolean,       // Enable threaded replies
+  showSubscriptionToggle?: boolean // Show subscription toggle
+}
+```
+
+### FeedItem
+
+```plaintext
+{
+  id: string | number,
+  type: 'comment' | 'field_change' | 'task' | 'event' | 'system' | 'email' | 'call',
+  actor: string,                   // Author display name
+  actorAvatarUrl?: string,         // Author avatar URL
+  body?: string,                   // Comment/event body text
+  createdAt: string,               // ISO 8601 timestamp
+  updatedAt?: string,              // Last edit timestamp
+  source?: string,                 // Origin source
+  parentId?: string | number,      // Parent item for threading
+  replyCount?: number,             // Number of replies
+  fieldChanges?: FieldChangeEntry[], // For field_change type
+  mentions?: Mention[],            // @mention references
+  reactions?: Reaction[],          // Emoji reactions
+  pinned?: boolean,                // Pinned comment
+  edited?: boolean                 // Edited flag
+}
+```
+
+### RecordSubscription
+
+```plaintext
+{
+  recordId: string | number,
+  subscribed: boolean,
+  channels?: Array<'in_app' | 'email' | 'push'>
+}
+```
+
+## Properties
+
+### RecordChatterPanel
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `config` | `RecordChatterComponentProps` | `{}` | Panel configuration (position, collapsible, feed) |
+| `items` | `FeedItem[]` | required | Feed items to display |
+| `hasMore` | `boolean` | `false` | Whether more items can be loaded |
+| `onLoadMore` | `() => void` | — | Callback to load next page |
+| `loading` | `boolean` | `false` | Loading state indicator |
+| `onAddComment` | `(text: string) => void` | — | New comment callback |
+| `onAddReply` | `(parentId, text) => void` | — | Reply to comment callback |
+| `onToggleReaction` | `(itemId, emoji) => void` | — | Toggle emoji reaction callback |
+| `subscription` | `RecordSubscription` | — | Current subscription state |
+| `onToggleSubscription` | `(subscribed: boolean) => void` | — | Toggle subscription callback |
+| `filterMode` | `FeedFilterMode` | `'all'` | Active filter mode |
+| `onFilterChange` | `(mode: FeedFilterMode) => void` | — | Filter mode change callback |
+| `className` | `string` | `''` | Additional CSS classes |
+
+### RecordActivityTimeline
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `items` | `FeedItem[]` | required | Feed items to display |
+| `config` | `RecordActivityComponentProps` | `{}` | Timeline configuration |
+| `filterMode` | `FeedFilterMode` | `'all'` | Active filter mode |
+| `onFilterChange` | `(mode) => void` | — | Filter mode change callback |
+| `hasMore` | `boolean` | `false` | Whether more items can be loaded |
+| `onLoadMore` | `() => void` | — | Callback to load next page |
+| `loading` | `boolean` | `false` | Loading state indicator |
+| `onAddComment` | `(text: string) => void` | — | New comment callback |
+| `onAddReply` | `(parentId, text) => void` | — | Reply to comment callback |
+| `onToggleReaction` | `(itemId, emoji) => void` | — | Toggle emoji reaction callback |
+| `subscription` | `RecordSubscription` | — | Current subscription state |
+| `onToggleSubscription` | `(subscribed: boolean) => void` | — | Toggle subscription callback |
+| `className` | `string` | `''` | Additional CSS classes |
+
+### CommentInput
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `onSubmit` | `(text: string) => void` | required | Comment submit callback |
+| `placeholder` | `string` | `'Add a comment...'` | Input placeholder text |
+| `disabled` | `boolean` | `false` | Disable input |
+| `className` | `string` | `''` | Additional CSS classes |
+
+### ReactionPicker
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `reactions` | `Reaction[]` | required | Current reactions |
+| `onToggleReaction` | `(emoji: string) => void` | — | Toggle reaction callback |
+| `emojiOptions` | `string[]` | default set | Available emoji options |
+| `className` | `string` | `''` | Additional CSS classes |
+
+### ThreadedReplies
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `parentItem` | `FeedItem` | required | Parent comment item |
+| `replies` | `FeedItem[]` | required | Reply items |
+| `onAddReply` | `(parentId, text) => void` | — | Add reply callback |
+| `showReplyInput` | `boolean` | `false` | Show reply input |
+| `className` | `string` | `''` | Additional CSS classes |
+
+### SubscriptionToggle
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `subscription` | `RecordSubscription` | required | Current subscription state |
+| `onToggle` | `(subscribed: boolean) => void` | — | Toggle callback |
+| `className` | `string` | `''` | Additional CSS classes |
+
+## Filter Modes
+
+```tsx
+type FeedFilterMode = 'all' | 'comments_only' | 'changes_only' | 'tasks_only';
+
+// Example: Filter to comments only
+<RecordChatterPanel
+  items={items}
+  filterMode="comments_only"
+  onFilterChange={(mode) => setFilterMode(mode)}
+/>
+```
+
+## TypeScript Support
+
+```tsx
+import type {
+  FeedItem,
+  FeedItemType,
+  FieldChangeEntry,
+  Mention,
+  Reaction,
+  RecordSubscription,
+} from '@object-ui/types';
+
+import type {
+  RecordChatterPanelProps,
+  RecordActivityTimelineProps,
+  CommentInputProps,
+  FieldChangeItemProps,
+  ReactionPickerProps,
+  ThreadedRepliesProps,
+  SubscriptionToggleProps,
+  FeedFilterMode,
+} from '@object-ui/plugin-detail';
+```
+
+## Related Documentation
+
+- [Plugin System Overview](/docs/concepts/plugins)
+- [Detail View Plugin](/docs/plugins/plugin-view)
+- [Package README](https://github.com/objectstack-ai/objectui/tree/main/packages/plugin-detail)
+
+</PluginLoader>
