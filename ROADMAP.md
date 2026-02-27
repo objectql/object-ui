@@ -1050,6 +1050,21 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 
 **Tests:** All 32 ObjectView tests and 29 useNavigationOverlay tests pass.
 
+### ListView Multi-Navigation Mode Support — split/popover/page/new_window (February 2026)
+
+**Root Cause:** While `drawer`/`modal` modes worked in the Console ObjectView, the remaining 4 navigation modes had gaps:
+1. Console's `onNavigate` callback relied on implicit fallthrough for `view` action (page mode) — not explicit.
+2. `PluginObjectView`'s `formLayout` only mapped `drawer`/`modal` modes; `split`/`popover` fell through to the default layout (`drawer`), rendering the wrong overlay type.
+3. `PluginObjectView` lacked `NavigationOverlay` integration for `split` (resizable side-by-side panels) and `popover` (compact dialog preview).
+
+**Fix:**
+- Console `onNavigate` now explicitly checks for `action === 'view'` (page mode) alongside the existing `'new_window'` check.
+- `PluginObjectView` `formLayout` now includes `split` and `popover` branches.
+- `PluginObjectView` imports and renders `NavigationOverlay` from `@object-ui/components` for both `split` mode (with `mainContent` wrapping the grid) and `popover` mode (Dialog fallback when no `popoverTrigger`).
+- Split mode close button properly resets form state via `handleFormCancel`.
+
+**Tests:** Updated split/popover tests to verify `NavigationOverlay` rendering (close panel button for split, dialog role for popover). Added split close-and-return test. All 29 PluginObjectView tests and 37 Console ObjectView tests pass.
+
 ### ListView Grouping Mode Empty Rows (February 2026)
 
 **Root Cause:** When grouping is enabled in list view, `buildGroupTableSchema` in `ObjectGrid.tsx` sets `pagination: false` but inherits `pageSize: 10` from the parent schema. The `DataTableRenderer` filler row logic (`Array.from({ length: Math.max(0, pageSize - paginatedData.length) })`) pads each group table with empty rows up to `pageSize`, creating many blank lines.

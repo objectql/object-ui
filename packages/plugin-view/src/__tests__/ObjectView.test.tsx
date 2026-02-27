@@ -300,8 +300,9 @@ describe('ObjectView', () => {
 
       fireEvent.click(screen.getByTestId('grid-row'));
 
-      // Split mode should trigger form display in view mode
+      // Split mode renders NavigationOverlay with split panels including a close button
       expect(screen.getByTestId('object-form')).toBeDefined();
+      expect(screen.getByLabelText('Close panel')).toBeDefined();
     });
 
     it('should open form in view mode when popover navigation mode is clicked', () => {
@@ -315,8 +316,30 @@ describe('ObjectView', () => {
 
       fireEvent.click(screen.getByTestId('grid-row'));
 
-      // Popover mode should trigger form display in view mode
+      // Popover mode renders NavigationOverlay Dialog fallback (no popoverTrigger)
       expect(screen.getByTestId('object-form')).toBeDefined();
+      expect(screen.getByRole('dialog')).toBeDefined();
+    });
+
+    it('should close split panel and return to normal view', () => {
+      const schema: ObjectViewSchema = {
+        type: 'object-view',
+        objectName: 'contacts',
+        navigation: { mode: 'split' },
+      };
+
+      render(<ObjectView schema={schema} dataSource={mockDataSource} />);
+
+      // Open split panel
+      fireEvent.click(screen.getByTestId('grid-row'));
+      expect(screen.getByLabelText('Close panel')).toBeDefined();
+
+      // Close split panel
+      fireEvent.click(screen.getByLabelText('Close panel'));
+
+      // Form should be gone, grid should remain
+      expect(screen.queryByLabelText('Close panel')).toBeNull();
+      expect(screen.getByTestId('object-grid')).toBeDefined();
     });
   });
 

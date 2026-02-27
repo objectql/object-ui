@@ -433,10 +433,14 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                 return;
             }
             // page / view mode — navigate to record detail page
-            if (viewId) {
-                navigate(`../../record/${String(recordId)}`, { relative: 'path' });
-            } else {
-                navigate(`record/${String(recordId)}`);
+            // Handles action === 'view' (from useNavigationOverlay page mode) and
+            // default fallthrough for any unrecognised action
+            if (action === 'view' || !action || action === 'page') {
+                if (viewId) {
+                    navigate(`../../record/${String(recordId)}`, { relative: 'path' });
+                } else {
+                    navigate(`record/${String(recordId)}`);
+                }
             }
         },
     });
