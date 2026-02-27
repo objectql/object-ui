@@ -11,6 +11,8 @@ import React from 'react';
 import {
   getCellRenderer,
   SelectCellRenderer,
+  LookupCellRenderer,
+  UserCellRenderer,
   DateCellRenderer,
   BooleanCellRenderer,
   formatDate,
@@ -60,6 +62,31 @@ describe('getCellRenderer', () => {
   it('should fallback to TextCellRenderer for unknown types', () => {
     const renderer = getCellRenderer('unknown-type');
     expect(renderer).toBeDefined();
+  });
+
+  it('should return LookupCellRenderer for lookup type', () => {
+    const renderer = getCellRenderer('lookup');
+    expect(renderer).toBe(LookupCellRenderer);
+  });
+
+  it('should return LookupCellRenderer for master_detail type', () => {
+    const renderer = getCellRenderer('master_detail');
+    expect(renderer).toBe(LookupCellRenderer);
+  });
+
+  it('should return SelectCellRenderer for status type', () => {
+    const renderer = getCellRenderer('status');
+    expect(renderer).toBe(SelectCellRenderer);
+  });
+
+  it('should return UserCellRenderer for user type', () => {
+    const renderer = getCellRenderer('user');
+    expect(renderer).toBe(UserCellRenderer);
+  });
+
+  it('should return UserCellRenderer for owner type', () => {
+    const renderer = getCellRenderer('owner');
+    expect(renderer).toBe(UserCellRenderer);
   });
 });
 
@@ -475,5 +502,199 @@ describe('formatDate', () => {
     expect(result).toContain('Jan');
     expect(result).toContain('15');
     expect(result).toContain('2026');
+  });
+});
+
+// =========================================================================
+// 7. LookupCellRenderer
+// =========================================================================
+describe('LookupCellRenderer', () => {
+  it('should render dash for null value', () => {
+    render(
+      <LookupCellRenderer
+        value={null}
+        field={{ name: 'customer', type: 'lookup' } as any}
+      />
+    );
+    expect(screen.getByText('-')).toBeInTheDocument();
+  });
+
+  it('should render dash for empty string', () => {
+    render(
+      <LookupCellRenderer
+        value=""
+        field={{ name: 'customer', type: 'lookup' } as any}
+      />
+    );
+    expect(screen.getByText('-')).toBeInTheDocument();
+  });
+
+  it('should resolve primitive ID to label via field options', () => {
+    render(
+      <LookupCellRenderer
+        value={2}
+        field={{
+          name: 'customer',
+          type: 'lookup',
+          options: [
+            { value: 1, label: 'Alice' },
+            { value: 2, label: 'Bob' },
+          ],
+        } as any}
+      />
+    );
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+  });
+
+  it('should resolve string ID to label via field options', () => {
+    render(
+      <LookupCellRenderer
+        value="contact_1"
+        field={{
+          name: 'customer',
+          type: 'lookup',
+          options: [{ value: 'contact_1', label: 'Alice Smith' }],
+        } as any}
+      />
+    );
+    expect(screen.getByText('Alice Smith')).toBeInTheDocument();
+  });
+
+  it('should render raw primitive when no options available', () => {
+    render(
+      <LookupCellRenderer
+        value={42}
+        field={{ name: 'customer', type: 'lookup' } as any}
+      />
+    );
+    expect(screen.getByText('42')).toBeInTheDocument();
+  });
+
+  it('should render object name when value is an object', () => {
+    render(
+      <LookupCellRenderer
+        value={{ name: 'Acme Corp', _id: '123' }}
+        field={{ name: 'account', type: 'lookup' } as any}
+      />
+    );
+    expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+  });
+
+  it('should render object label when name is missing', () => {
+    render(
+      <LookupCellRenderer
+        value={{ label: 'Widget Co', _id: '456' }}
+        field={{ name: 'account', type: 'lookup' } as any}
+      />
+    );
+    expect(screen.getByText('Widget Co')).toBeInTheDocument();
+  });
+
+  it('should render object _id as fallback', () => {
+    render(
+      <LookupCellRenderer
+        value={{ _id: '789' }}
+        field={{ name: 'account', type: 'lookup' } as any}
+      />
+    );
+    expect(screen.getByText('789')).toBeInTheDocument();
+  });
+
+  it('should render tags for array of objects', () => {
+    render(
+      <LookupCellRenderer
+        value={[{ name: 'Alice' }, { name: 'Bob' }]}
+        field={{ name: 'contacts', type: 'lookup' } as any}
+      />
+    );
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+  });
+
+  it('should resolve array of primitive IDs via options', () => {
+    render(
+      <LookupCellRenderer
+        value={[1, 3]}
+        field={{
+          name: 'contacts',
+          type: 'lookup',
+          options: [
+            { value: 1, label: 'Alice' },
+            { value: 2, label: 'Bob' },
+            { value: 3, label: 'Charlie' },
+          ],
+        } as any}
+      />
+    );
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.getByText('Charlie')).toBeInTheDocument();
+    expect(screen.queryByText('Bob')).not.toBeInTheDocument();
+  });
+});
+
+// =========================================================================
+// 8. UserCellRenderer
+// =========================================================================
+describe('UserCellRenderer', () => {
+  it('should render dash for null value', () => {
+    render(
+      <UserCellRenderer
+        value={null}
+        field={{ name: 'owner', type: 'user' } as any}
+      />
+    );
+    expect(screen.getByText('-')).toBeInTheDocument();
+  });
+
+  it('should render text for primitive user ID (number)', () => {
+    render(
+      <UserCellRenderer
+        value={5}
+        field={{ name: 'owner', type: 'user' } as any}
+      />
+    );
+    expect(screen.getByText('5')).toBeInTheDocument();
+  });
+
+  it('should render text for primitive user ID (string)', () => {
+    render(
+      <UserCellRenderer
+        value="user_abc"
+        field={{ name: 'owner', type: 'user' } as any}
+      />
+    );
+    expect(screen.getByText('user_abc')).toBeInTheDocument();
+  });
+
+  it('should render avatar and name for object value', () => {
+    render(
+      <UserCellRenderer
+        value={{ name: 'John Doe', username: 'jdoe' }}
+        field={{ name: 'owner', type: 'user' } as any}
+      />
+    );
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+  });
+
+  it('should use username when name is missing', () => {
+    render(
+      <UserCellRenderer
+        value={{ username: 'jdoe' }}
+        field={{ name: 'owner', type: 'user' } as any}
+      />
+    );
+    expect(screen.getByText('jdoe')).toBeInTheDocument();
+  });
+
+  it('should render multiple avatars for array of user objects', () => {
+    render(
+      <UserCellRenderer
+        value={[{ name: 'Alice' }, { name: 'Bob' }]}
+        field={{ name: 'assignees', type: 'user' } as any}
+      />
+    );
+    // Avatar fallbacks contain initials
+    expect(screen.getByTitle('Alice')).toBeInTheDocument();
+    expect(screen.getByTitle('Bob')).toBeInTheDocument();
   });
 });

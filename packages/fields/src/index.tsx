@@ -533,14 +533,31 @@ export function ImageCellRenderer({ value }: CellRendererProps): React.ReactElem
 /**
  * Lookup/Master-Detail field cell renderer
  */
-export function LookupCellRenderer({ value }: CellRendererProps): React.ReactElement {
-  if (!value) return <span>-</span>;
-  
+export function LookupCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
+  if (value == null || value === '') return <span>-</span>;
+
+  const options: Array<{ value: unknown; label: string }> =
+    (field as { options?: Array<{ value: unknown; label: string }> }).options || [];
+
+  // Resolve a primitive ID to a label via options if available
+  const resolveLabel = (val: unknown): string => {
+    if (options.length > 0) {
+      const found = options.find((opt) => String(opt.value) === String(val));
+      if (found) return found.label;
+    }
+    return String(val);
+  };
+
   if (Array.isArray(value)) {
     return (
       <div className="flex flex-wrap gap-1">
         {value.map((item, idx) => {
-          const label = item.name || item.label || item._id || String(item);
+          let label: string;
+          if (item != null && typeof item === 'object') {
+            label = item.name || item.label || item._id || String(item);
+          } else {
+            label = resolveLabel(item);
+          }
           return (
             <span
               key={idx}
@@ -559,7 +576,8 @@ export function LookupCellRenderer({ value }: CellRendererProps): React.ReactEle
     return <span className="truncate">{label}</span>;
   }
   
-  return <span className="truncate">{String(value)}</span>;
+  // Primitive value (e.g. raw ID): try to resolve from options
+  return <span className="truncate">{resolveLabel(value)}</span>;
 }
 
 /**
@@ -578,11 +596,24 @@ export function FormulaCellRenderer({ value }: CellRendererProps): React.ReactEl
  */
 export function UserCellRenderer({ value }: CellRendererProps): React.ReactElement {
   if (!value) return <span>-</span>;
+
+  // Primitive value: just display the ID/username as text
+  if (typeof value !== 'object') {
+    return <span className="truncate">{String(value)}</span>;
+  }
   
   if (Array.isArray(value)) {
     return (
       <div className="flex -space-x-2">
         {value.slice(0, 3).map((user, idx) => {
+          // Primitive user in array
+          if (typeof user !== 'object' || user === null) {
+            return (
+              <span key={idx} className="truncate text-sm">
+                {String(user)}
+              </span>
+            );
+          }
           const name = user.name || user.username || 'User';
           const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
           
@@ -663,8 +694,8 @@ export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> 
     time: TextCellRenderer,
     select: SelectCellRenderer,
     status: SelectCellRenderer,
-    lookup: SelectCellRenderer, // Default fallback
-    master_detail: SelectCellRenderer, // Default fallback
+    lookup: LookupCellRenderer,
+    master_detail: LookupCellRenderer,
     email: EmailCellRenderer,
     url: UrlCellRenderer,
     phone: PhoneCellRenderer,
@@ -692,6 +723,9 @@ export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> 
 registerFieldRenderer('lookup', LookupCellRenderer);
 registerFieldRenderer('master_detail', LookupCellRenderer);
 registerFieldRenderer('select', SelectCellRenderer);
+registerFieldRenderer('status', SelectCellRenderer);
+registerFieldRenderer('user', UserCellRenderer);
+registerFieldRenderer('owner', UserCellRenderer);
 
 
 

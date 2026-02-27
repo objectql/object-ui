@@ -1059,6 +1059,31 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 
 **Tests:** Added 3 new tests: 1 in `DashboardRenderer.widgetData.test.tsx` verifying metric widgets with I18nLabel trend labels render correctly, and 2 in `MetricCard.test.tsx` verifying I18nLabel resolution for title and description. All 159 dashboard tests pass.
 
+### Field Type Display Issues — Lookup, User, Select, Status Renderers (February 2026)
+
+**Root Cause:** Multiple renderer defects caused incorrect field value display across views:
+
+1. **`LookupCellRenderer`** — Destructured only `value`, ignoring the `field` prop. When the API returned a raw primitive ID (e.g. `customer: 2`), the renderer fell through to `String(value)` and showed `"2"` instead of the related record's name. No attempt was made to resolve IDs via `field.options`.
+
+2. **`UserCellRenderer`** — Did not guard against primitive values (number/string user IDs). Accessing `.name` / `.username` on a number returned `undefined`, silently falling through to `"User"` as the generic label.
+
+3. **`getCellRenderer` standardMap** — `lookup` and `master_detail` were mapped to `SelectCellRenderer` instead of `LookupCellRenderer` in the fallback map. Although the fieldRegistry pre-registration shadowed this bug, it was semantically incorrect.
+
+4. **`status`, `user`, `owner` types** — Not pre-registered in `fieldRegistry`. All went through the `standardMap` path, making their association with renderers implicit and invisible.
+
+**Fix:**
+- `LookupCellRenderer`: now accepts the `field` prop and resolves primitive IDs against `field.options` (matching by `String(opt.value) === String(val)` for type-safe comparison). Arrays of primitive IDs are resolved via the same logic. Null/empty-string guard updated from `!value` to `value == null || value === ''` to handle `0` correctly.
+- `UserCellRenderer`: primitive values (typeof !== 'object') return a plain `<span>` with the string representation. Array items that are not objects are also handled gracefully.
+- `getCellRenderer` standardMap: `lookup` and `master_detail` now correctly reference `LookupCellRenderer`.
+- `fieldRegistry` now explicitly registers `status` → `SelectCellRenderer`, `user` → `UserCellRenderer`, and `owner` → `UserCellRenderer` alongside the existing `lookup`/`master_detail`/`select` registrations.
+
+**Tests:** Added 30 new tests in `cell-renderers.test.tsx`:
+- `getCellRenderer` registry assertions for `lookup`, `master_detail`, `status`, `user`, `owner` types
+- `LookupCellRenderer`: null, empty-string, primitive ID (number), primitive ID (string), unresolved primitive, object with name/label/_id, array of objects, array of primitive IDs resolved via options
+- `UserCellRenderer`: null, primitive number ID, primitive string ID, object with name, object with username, array of user objects
+
+All 307 `@object-ui/fields` tests pass.
+
 ---
 
 ## ⚠️ Risk Management
