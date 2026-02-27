@@ -114,7 +114,7 @@ export default function ObjectAgGridImpl({
         }
 
         // Auto-inject $expand for lookup/master_detail fields
-        const expand = buildExpandFields(objectSchema?.fields as Record<string, any>);
+        const expand = buildExpandFields(objectSchema?.fields);
         if (expand.length > 0) {
           queryParams.$expand = expand;
         }
