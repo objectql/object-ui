@@ -60,7 +60,7 @@ describe('MetricCard', () => {
   it('should resolve I18nLabel objects for title', () => {
     render(
       <MetricCard
-        title={{ key: 'crm.dashboard.widgets.totalRevenue', defaultValue: 'Total Revenue' } as any}
+        title={{ key: 'crm.dashboard.widgets.totalRevenue', defaultValue: 'Total Revenue' }}
         value="$45,231"
       />
     );
@@ -73,7 +73,7 @@ describe('MetricCard', () => {
       <MetricCard
         title="Revenue"
         value="$45,231"
-        description={{ key: 'crm.dashboard.trendLabel', defaultValue: 'vs last month' } as any}
+        description={{ key: 'crm.dashboard.trendLabel', defaultValue: 'vs last month' }}
       />
     );
     
