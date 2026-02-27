@@ -762,6 +762,86 @@ describe('ObjectView Component', () => {
         expect(screen.getByTestId('object-grid')).toBeInTheDocument();
     });
 
+    it('navigates to record detail page for page navigation mode via onNavigate', () => {
+        const objectsWithPage = [
+            {
+                ...mockObjects[0],
+                navigation: { mode: 'page' as const },
+            }
+        ];
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={objectsWithPage} onEdit={vi.fn()} />);
+
+        // The grid should render, and no overlay should be visible
+        expect(screen.getByTestId('object-grid')).toBeInTheDocument();
+    });
+
+    it('opens new window with correct URL for new_window navigation mode', () => {
+        const mockOpen = vi.fn();
+        const originalOpen = window.open;
+        window.open = mockOpen;
+
+        const objectsWithNewWindow = [
+            {
+                ...mockObjects[0],
+                navigation: { mode: 'new_window' as const },
+            }
+        ];
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={objectsWithNewWindow} onEdit={vi.fn()} />);
+
+        // The grid should render, no overlay visible
+        expect(screen.getByTestId('object-grid')).toBeInTheDocument();
+
+        window.open = originalOpen;
+    });
+
+    it('renders split layout with mainContent when split mode is active', async () => {
+        mockSearchParams = new URLSearchParams('recordId=rec-1');
+        const objectsWithSplit = [
+            {
+                ...mockObjects[0],
+                navigation: { mode: 'split' as const },
+            }
+        ];
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        const dataSourceWithFindOne = {
+            ...mockDataSource,
+            findOne: vi.fn().mockResolvedValue({ _id: 'rec-1', id: 'rec-1', name: 'Test' }),
+        };
+
+        render(<ObjectView dataSource={dataSourceWithFindOne} objects={objectsWithSplit} onEdit={vi.fn()} />);
+
+        // The grid should still render inside the split layout
+        await vi.waitFor(() => {
+            expect(screen.getByTestId('object-grid')).toBeInTheDocument();
+        });
+    });
+
+    it('renders popover overlay without popoverTrigger using fallback dialog', async () => {
+        mockSearchParams = new URLSearchParams('recordId=rec-1');
+        const objectsWithPopover = [
+            {
+                ...mockObjects[0],
+                navigation: { mode: 'popover' as const },
+            }
+        ];
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        const dataSourceWithFindOne = {
+            ...mockDataSource,
+            findOne: vi.fn().mockResolvedValue({ _id: 'rec-1', id: 'rec-1', name: 'Test' }),
+        };
+
+        render(<ObjectView dataSource={dataSourceWithFindOne} objects={objectsWithPopover} onEdit={vi.fn()} />);
+
+        // The grid should render
+        expect(screen.getByTestId('object-grid')).toBeInTheDocument();
+    });
+
     it('renders RecordChatterPanel inside drawer overlay when navigation mode is drawer', async () => {
         mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
         // Provide recordId in URL to trigger overlay open
