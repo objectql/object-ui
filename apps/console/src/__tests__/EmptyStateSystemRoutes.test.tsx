@@ -159,7 +159,7 @@ describe('Empty State — No Apps Configured', () => {
     renderApp();
     await waitFor(() => {
       expect(screen.getByTestId('create-first-app-btn')).toBeInTheDocument();
-    }, { timeout: 10000 });
+    }, { timeout: 5000 });
     expect(screen.getByText('No Apps Configured')).toBeInTheDocument();
   });
 
@@ -167,14 +167,14 @@ describe('Empty State — No Apps Configured', () => {
     renderApp();
     await waitFor(() => {
       expect(screen.getByTestId('go-to-settings-btn')).toBeInTheDocument();
-    }, { timeout: 10000 });
+    }, { timeout: 5000 });
   });
 
   it('shows descriptive text about creating apps or visiting settings', async () => {
     renderApp();
     await waitFor(() => {
       expect(screen.getByText(/Create your first app or visit System Settings/i)).toBeInTheDocument();
-    }, { timeout: 10000 });
+    }, { timeout: 5000 });
   });
 });
 
@@ -197,13 +197,13 @@ describe('System Routes Within App Context (No Active App)', () => {
     renderApp('/apps/_new/system');
     await waitFor(() => {
       expect(screen.getByTestId('system-hub-page')).toBeInTheDocument();
-    }, { timeout: 10000 });
+    }, { timeout: 5000 });
   });
 
   it('renders create app page at /apps/_new/create-app when no active app', async () => {
     renderApp('/apps/_new/create-app');
     await waitFor(() => {
       expect(screen.getByTestId('create-app-page')).toBeInTheDocument();
-    }, { timeout: 10000 });
+    }, { timeout: 5000 });
   });
 });

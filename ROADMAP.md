@@ -728,6 +728,15 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Settings button → `/system/` hub (was `/system/profile`)
 - [x] App switcher "Manage All Apps" link → `/system/apps`
 
+**Empty State & System Route Accessibility (P1.12.1):**
+- [x] "Create App" button always shown in empty state (even when config loading fails)
+- [x] "System Settings" link always shown alongside "Create App" in empty state
+- [x] Top-level `/system/*` routes accessible without any app context (promoted to main routes)
+- [x] Top-level `/create-app` route accessible without any app context
+- [x] Sidebar fallback navigation with system menu items when no apps are configured
+- [x] System pages (`SystemHubPage`, `AppManagementPage`) handle missing `appName` gracefully
+- [x] Login/Register/Forgot password pages remain always accessible regardless of app state
+
 **Routes:**
 - [x] `/system/` → SystemHubPage
 - [x] `/system/apps` → AppManagementPage

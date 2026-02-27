@@ -494,10 +494,10 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                    const NavIcon = getIcon(item.icon);
                    return (
                      <SidebarMenuItem key={item.id}>
-                       <SidebarMenuButton asChild tooltip={typeof item.label === 'string' ? item.label : item.label?.defaultValue ?? ''}>
+                       <SidebarMenuButton asChild tooltip={item.label as string}>
                          <Link to={(item as any).url || '/system'}>
                            <NavIcon className="h-4 w-4" />
-                           <span>{resolveI18nLabel(item.label, t)}</span>
+                           <span>{item.label as string}</span>
                          </Link>
                        </SidebarMenuButton>
                      </SidebarMenuItem>
