@@ -984,7 +984,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     : layout;
 
   // Build the record detail content for NavigationOverlay (split/popover modes)
-  const renderOverlayDetail = (record: Record<string, unknown>) => (
+  const renderOverlayDetail = (_record: Record<string, unknown>) => (
     <div className="space-y-3">
       <ObjectForm schema={buildFormSchema()} dataSource={dataSource} />
     </div>
