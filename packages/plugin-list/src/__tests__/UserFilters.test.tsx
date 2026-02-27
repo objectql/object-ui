@@ -398,4 +398,97 @@ describe('UserFilters', () => {
       expect(screen.getByTestId('user-filters-add')).toBeInTheDocument();
     });
   });
+
+  // ============================================
+  // maxVisible Collapse Behavior (Dropdown)
+  // ============================================
+  describe('maxVisible collapse behavior', () => {
+    const manyFieldsConfig = {
+      element: 'dropdown' as const,
+      fields: [
+        { field: 'status', label: 'Status', options: [{ label: 'Active', value: 'active' }] },
+        { field: 'priority', label: 'Priority', options: [{ label: 'High', value: 'high' }] },
+        { field: 'region', label: 'Region', options: [{ label: 'US', value: 'us' }] },
+        { field: 'owner', label: 'Owner', options: [{ label: 'Alice', value: 'alice' }] },
+        { field: 'type', label: 'Type', options: [{ label: 'Bug', value: 'bug' }] },
+      ],
+    };
+
+    it('shows all badges when maxVisible is not set', () => {
+      const onChange = vi.fn();
+      render(<UserFilters config={manyFieldsConfig} onFilterChange={onChange} />);
+
+      expect(screen.getByTestId('filter-badge-status')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-badge-priority')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-badge-region')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-badge-owner')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-badge-type')).toBeInTheDocument();
+      expect(screen.queryByTestId('user-filters-more')).not.toBeInTheDocument();
+    });
+
+    it('shows only maxVisible badges and a "More" button when maxVisible < total fields', () => {
+      const onChange = vi.fn();
+      render(<UserFilters config={manyFieldsConfig} onFilterChange={onChange} maxVisible={2} />);
+
+      // First 2 should be visible
+      expect(screen.getByTestId('filter-badge-status')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-badge-priority')).toBeInTheDocument();
+      // Remaining 3 should NOT be directly visible
+      expect(screen.queryByTestId('filter-badge-region')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('filter-badge-owner')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('filter-badge-type')).not.toBeInTheDocument();
+      // "More" button should show with count
+      const moreBtn = screen.getByTestId('user-filters-more');
+      expect(moreBtn).toBeInTheDocument();
+      expect(moreBtn.textContent).toContain('3');
+    });
+
+    it('shows overflow badges inside "More" popover when clicked', () => {
+      const onChange = vi.fn();
+      render(<UserFilters config={manyFieldsConfig} onFilterChange={onChange} maxVisible={2} />);
+
+      // Click "More" button
+      fireEvent.click(screen.getByTestId('user-filters-more'));
+
+      // Overflow badges should now be visible in the popover
+      expect(screen.getByTestId('user-filters-more-content')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-badge-region')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-badge-owner')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-badge-type')).toBeInTheDocument();
+    });
+
+    it('shows all badges when maxVisible >= total fields', () => {
+      const onChange = vi.fn();
+      render(<UserFilters config={manyFieldsConfig} onFilterChange={onChange} maxVisible={10} />);
+
+      expect(screen.getByTestId('filter-badge-status')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-badge-type')).toBeInTheDocument();
+      expect(screen.queryByTestId('user-filters-more')).not.toBeInTheDocument();
+    });
+
+    it('shows "More" button with maxVisible=0 and all fields overflow', () => {
+      const onChange = vi.fn();
+      render(<UserFilters config={manyFieldsConfig} onFilterChange={onChange} maxVisible={0} />);
+
+      // No direct badges
+      expect(screen.queryByTestId('filter-badge-status')).not.toBeInTheDocument();
+      // "More" button with all 5 overflow
+      const moreBtn = screen.getByTestId('user-filters-more');
+      expect(moreBtn.textContent).toContain('5');
+    });
+
+    it('does not show "More" button for tabs mode even when maxVisible is set', () => {
+      const tabsConfig = {
+        element: 'tabs' as const,
+        tabs: [
+          { id: 'tab-1', label: 'Active', filters: [] },
+          { id: 'tab-2', label: 'Closed', filters: [] },
+        ],
+      };
+      const onChange = vi.fn();
+      render(<UserFilters config={tabsConfig} onFilterChange={onChange} maxVisible={1} />);
+
+      expect(screen.queryByTestId('user-filters-more')).not.toBeInTheDocument();
+    });
+  });
 });

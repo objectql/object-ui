@@ -287,6 +287,7 @@ export const ListView: React.FC<ListViewProps> = ({
     (schema.viewType as ViewType)
   );
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [showSearchPopover, setShowSearchPopover] = React.useState(false);
   
   // Sort State
   const [showSort, setShowSort] = React.useState(false);
@@ -1016,35 +1017,23 @@ export const ListView: React.FC<ListViewProps> = ({
         </div>
       )}
 
-      {/* Airtable-style Toolbar — Row 2: Tool buttons */}
+      {/* Airtable-style Toolbar — Merged: UserFilter badges (left) + Tool buttons (right) */}
       <div className="border-b px-2 sm:px-4 py-1 flex items-center justify-between gap-1 sm:gap-2 bg-background">
         <div className="flex items-center gap-0.5 overflow-x-auto flex-1 min-w-0">
-          {/* Search (left end — Airtable-style) */}
-          {toolbarFlags.showSearch && (
-            <div className="relative w-48 shrink-0">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-7 h-7 text-xs bg-muted/50 border-transparent hover:bg-muted focus:bg-background focus:border-input transition-colors"
-              />
-              {searchTerm && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 hover:bg-muted-foreground/20"
-                  onClick={() => handleSearchChange('')}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* --- Separator: Search | Fields --- */}
-          {toolbarFlags.showSearch && toolbarFlags.showHideFields && (
-            <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
+          {/* User Filters — inline in toolbar (Airtable Interfaces-style) */}
+          {resolvedUserFilters && (
+            <>
+              <div className="shrink-0 min-w-0" data-testid="user-filters">
+                <UserFilters
+                  config={resolvedUserFilters}
+                  objectDef={objectDef}
+                  data={data}
+                  onFilterChange={setUserFilterConditions}
+                  maxVisible={3}
+                />
+              </div>
+              <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
+            </>
           )}
 
           {/* Hide Fields */}
@@ -1387,6 +1376,53 @@ export const ListView: React.FC<ListViewProps> = ({
               <span className="hidden sm:inline">Print</span>
             </Button>
           )}
+
+          {/* --- Separator: Print | Search --- */}
+          {toolbarFlags.showSearch && (schema.allowPrinting || (schema.sharing?.enabled || schema.sharing?.type) || (resolvedExportOptions && schema.allowExport !== false)) && (
+            <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
+          )}
+
+          {/* Search (icon button + popover) */}
+          {toolbarFlags.showSearch && (
+            <Popover open={showSearchPopover} onOpenChange={setShowSearchPopover}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-7 w-7 p-0 text-muted-foreground hover:text-primary text-xs transition-colors duration-150",
+                    searchTerm && "bg-primary/10 border border-primary/20 text-primary"
+                  )}
+                  data-testid="search-icon-button"
+                  title="Search"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 p-2" data-testid="search-popover">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search..."
+                    value={searchTerm}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className="pl-7 h-8 text-xs"
+                    autoFocus
+                  />
+                  {searchTerm && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 hover:bg-muted-foreground/20"
+                      onClick={() => handleSearchChange('')}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
         </div>
 
         {/* Right: Add Record */}
@@ -1433,18 +1469,6 @@ export const ListView: React.FC<ListViewProps> = ({
               </Button>
             );
           })}
-        </div>
-      )}
-
-      {/* User Filters Row (Airtable Interfaces-style) */}
-      {resolvedUserFilters && (
-        <div className="border-b px-2 sm:px-4 py-1 bg-background" data-testid="user-filters">
-          <UserFilters
-            config={resolvedUserFilters}
-            objectDef={objectDef}
-            data={data}
-            onFilterChange={setUserFilterConditions}
-          />
         </div>
       )}
 

@@ -37,6 +37,8 @@ export interface UserFiltersProps {
   data?: any[];
   /** Callback when filter state changes */
   onFilterChange: (filters: any[]) => void;
+  /** Maximum visible filter badges before collapsing into "More" dropdown (dropdown mode only) */
+  maxVisible?: number;
   className?: string;
 }
 
@@ -53,6 +55,7 @@ export function UserFilters({
   objectDef,
   data = [],
   onFilterChange,
+  maxVisible,
   className,
 }: UserFiltersProps) {
   switch (config.element) {
@@ -63,6 +66,7 @@ export function UserFilters({
           objectDef={objectDef}
           data={data}
           onFilterChange={onFilterChange}
+          maxVisible={maxVisible}
           className={className}
         />
       );
@@ -138,10 +142,11 @@ interface DropdownFiltersProps {
   objectDef?: any;
   data: any[];
   onFilterChange: (filters: any[]) => void;
+  maxVisible?: number;
   className?: string;
 }
 
-function DropdownFilters({ fields, objectDef, data, onFilterChange, className }: DropdownFiltersProps) {
+function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, className }: DropdownFiltersProps) {
   const [selectedValues, setSelectedValues] = React.useState<
     Record<string, (string | number | boolean)[]>
   >(() => {
@@ -182,6 +187,92 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, className }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Split fields into visible and overflow based on maxVisible
+  const visibleFields = maxVisible !== undefined && maxVisible < resolvedFields.length
+    ? resolvedFields.slice(0, maxVisible)
+    : resolvedFields;
+  const overflowFields = maxVisible !== undefined && maxVisible < resolvedFields.length
+    ? resolvedFields.slice(maxVisible)
+    : [];
+
+  const renderBadge = (f: ResolvedField) => {
+    const selected = selectedValues[f.field] || [];
+    const hasSelection = selected.length > 0;
+
+    return (
+      <Popover key={f.field}>
+        <PopoverTrigger asChild>
+          <button
+            data-testid={`filter-badge-${f.field}`}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-md border h-7 px-2.5 text-xs font-medium transition-colors shrink-0',
+              hasSelection
+                ? 'border-primary/30 bg-primary/5 text-primary'
+                : 'border-border bg-background hover:bg-accent text-foreground',
+            )}
+          >
+            <span className="truncate max-w-[100px]">{f.label || f.field}</span>
+            {hasSelection && (
+              <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary/10 text-[10px]">
+                {selected.length}
+              </span>
+            )}
+            {hasSelection ? (
+              <X
+                className="h-3 w-3 opacity-60"
+                data-testid={`filter-clear-${f.field}`}
+                onClick={e => {
+                  e.stopPropagation();
+                  handleChange(f.field, []);
+                }}
+              />
+            ) : (
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            )}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-56 p-2">
+          <div className="max-h-60 overflow-y-auto space-y-0.5" data-testid={`filter-options-${f.field}`}>
+            {f.options.map(opt => {
+              const selected = selectedValues[f.field] || [];
+              return (
+                <label
+                  key={String(opt.value)}
+                  className={cn(
+                    'flex items-center gap-2 text-sm py-1.5 px-2 rounded cursor-pointer',
+                    selected.includes(opt.value) ? 'bg-primary/5 text-primary' : 'hover:bg-muted',
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(opt.value)}
+                    onChange={() => {
+                      const next = selected.includes(opt.value)
+                        ? selected.filter(v => v !== opt.value)
+                        : [...selected, opt.value];
+                      handleChange(f.field, next);
+                    }}
+                    className="rounded border-input"
+                  />
+                  {opt.color && (
+                    <span
+                      className="h-2.5 w-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: opt.color }}
+                    />
+                  )}
+                  <span className="truncate flex-1">{opt.label}</span>
+                  {opt.count !== undefined && (
+                    <span className="text-xs text-muted-foreground">{opt.count}</span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  };
+
   return (
     <div className={cn('flex items-center gap-1 overflow-x-auto', className)} data-testid="user-filters-dropdown">
       <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -190,80 +281,30 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, className }:
           No filter fields
         </span>
       ) : (
-        resolvedFields.map(f => {
-          const selected = selectedValues[f.field] || [];
-          const hasSelection = selected.length > 0;
-
-          return (
-            <Popover key={f.field}>
+        <>
+          {visibleFields.map(renderBadge)}
+          {overflowFields.length > 0 && (
+            <Popover>
               <PopoverTrigger asChild>
                 <button
-                  data-testid={`filter-badge-${f.field}`}
-                  className={cn(
-                    'inline-flex items-center gap-1 rounded-md border h-7 px-2.5 text-xs font-medium transition-colors shrink-0',
-                    hasSelection
-                      ? 'border-primary/30 bg-primary/5 text-primary'
-                      : 'border-border bg-background hover:bg-accent text-foreground',
-                  )}
+                  data-testid="user-filters-more"
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-background hover:bg-accent text-foreground h-7 px-2.5 text-xs font-medium transition-colors shrink-0"
                 >
-                  <span className="truncate max-w-[100px]">{f.label || f.field}</span>
-                  {hasSelection && (
-                    <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary/10 text-[10px]">
-                      {selected.length}
-                    </span>
-                  )}
-                  {hasSelection ? (
-                    <X
-                      className="h-3 w-3 opacity-60"
-                      data-testid={`filter-clear-${f.field}`}
-                      onClick={e => {
-                        e.stopPropagation();
-                        handleChange(f.field, []);
-                      }}
-                    />
-                  ) : (
-                    <ChevronDown className="h-3 w-3 opacity-60" />
-                  )}
+                  <span>More</span>
+                  <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-muted text-[10px] font-medium">
+                    {overflowFields.length}
+                  </span>
+                  <ChevronDown className="h-3 w-3 opacity-60" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="start" className="w-56 p-2">
-                <div className="max-h-60 overflow-y-auto space-y-0.5" data-testid={`filter-options-${f.field}`}>
-                  {f.options.map(opt => (
-                    <label
-                      key={String(opt.value)}
-                      className={cn(
-                        'flex items-center gap-2 text-sm py-1.5 px-2 rounded cursor-pointer',
-                        selected.includes(opt.value) ? 'bg-primary/5 text-primary' : 'hover:bg-muted',
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selected.includes(opt.value)}
-                        onChange={() => {
-                          const next = selected.includes(opt.value)
-                            ? selected.filter(v => v !== opt.value)
-                            : [...selected, opt.value];
-                          handleChange(f.field, next);
-                        }}
-                        className="rounded border-input"
-                      />
-                      {opt.color && (
-                        <span
-                          className="h-2.5 w-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: opt.color }}
-                        />
-                      )}
-                      <span className="truncate flex-1">{opt.label}</span>
-                      {opt.count !== undefined && (
-                        <span className="text-xs text-muted-foreground">{opt.count}</span>
-                      )}
-                    </label>
-                  ))}
+              <PopoverContent align="start" className="w-64 p-2" data-testid="user-filters-more-content">
+                <div className="space-y-1">
+                  {overflowFields.map(renderBadge)}
                 </div>
               </PopoverContent>
             </Popover>
-          );
-        })
+          )}
+        </>
       )}
       <button
         className="inline-flex items-center gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors shrink-0"

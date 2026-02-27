@@ -66,7 +66,7 @@ describe('ListView', () => {
     expect(container).toBeTruthy();
   });
 
-  it('should render search input', () => {
+  it('should render search icon button', () => {
     const schema: ListViewSchema = {
       type: 'list-view',
       objectName: 'contacts',
@@ -75,8 +75,7 @@ describe('ListView', () => {
     };
 
     renderWithProvider(<ListView schema={schema} />);
-    const searchInput = screen.getByPlaceholderText(/search/i);
-    expect(searchInput).toBeInTheDocument();
+    expect(screen.getByTestId('search-icon-button')).toBeInTheDocument();
   });
 
   it('should expand search and call onSearchChange when search input changes', () => {
@@ -90,6 +89,8 @@ describe('ListView', () => {
 
     renderWithProvider(<ListView schema={schema} onSearchChange={onSearchChange} />);
     
+    // Click the search icon to open the popover
+    fireEvent.click(screen.getByTestId('search-icon-button'));
     const searchInput = screen.getByPlaceholderText(/search/i);
     fireEvent.change(searchInput, { target: { value: 'test' } });
     expect(onSearchChange).toHaveBeenCalledWith('test');
@@ -197,17 +198,17 @@ describe('ListView', () => {
 
     renderWithProvider(<ListView schema={schema} />);
     
+    // Open search popover
+    fireEvent.click(screen.getByTestId('search-icon-button'));
     const searchInput = screen.getByPlaceholderText(/search/i) as HTMLInputElement;
     
     // Type in search
     fireEvent.change(searchInput, { target: { value: 'test' } });
     expect(searchInput.value).toBe('test');
     
-    // Find and click clear button (the X button inside the search area)
-    const buttons = screen.getAllByRole('button');
-    const clearButton = buttons.find(btn => 
-      btn.querySelector('svg') !== null && searchInput.value !== ''
-    );
+    // Find and click clear button (the X button inside the search popover)
+    const popover = screen.getByTestId('search-popover');
+    const clearButton = popover.querySelector('button');
     
     if (clearButton) {
       fireEvent.click(clearButton);
@@ -595,11 +596,68 @@ describe('ListView', () => {
     });
   });
 
+  // ============================================
+  // Merged Toolbar Layout
+  // ============================================
+  describe('Merged toolbar layout', () => {
+    it('should render userFilters inline within the toolbar row', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'status'],
+        userFilters: {
+          element: 'dropdown',
+          fields: [
+            { field: 'status', label: 'Status', options: [{ label: 'Active', value: 'active' }] },
+          ],
+        },
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      // userFilters should be in the toolbar (not a separate row)
+      const userFilters = screen.getByTestId('user-filters');
+      expect(userFilters).toBeInTheDocument();
+      // Search icon should also be in the same toolbar
+      expect(screen.getByTestId('search-icon-button')).toBeInTheDocument();
+    });
+
+    it('should open search popover when search icon is clicked', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      fireEvent.click(screen.getByTestId('search-icon-button'));
+      expect(screen.getByTestId('search-popover')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument();
+    });
+
+    it('should highlight search icon when search term is active', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      fireEvent.click(screen.getByTestId('search-icon-button'));
+      fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: 'test' } });
+      // The search icon button should have active styling class
+      const searchBtn = screen.getByTestId('search-icon-button');
+      expect(searchBtn.className).toContain('bg-primary');
+    });
+  });
+
   // ============================
   // Toolbar Toggle Visibility
   // ============================
   describe('Toolbar Toggle Visibility', () => {
-    it('should hide Search input when showSearch is false', () => {
+    it('should hide Search icon when showSearch is false', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
@@ -609,10 +667,10 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} />);
-      expect(screen.queryByPlaceholderText(/search/i)).not.toBeInTheDocument();
+      expect(screen.queryByTestId('search-icon-button')).not.toBeInTheDocument();
     });
 
-    it('should show Search input when showSearch is true', () => {
+    it('should show Search icon when showSearch is true', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
@@ -622,10 +680,10 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} />);
-      expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument();
+      expect(screen.getByTestId('search-icon-button')).toBeInTheDocument();
     });
 
-    it('should show Search input when showSearch is undefined (default)', () => {
+    it('should show Search icon when showSearch is undefined (default)', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
@@ -634,7 +692,7 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} />);
-      expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument();
+      expect(screen.getByTestId('search-icon-button')).toBeInTheDocument();
     });
 
     it('should hide Filter button when showFilters is false', () => {
@@ -1220,7 +1278,7 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} />);
-      expect(screen.queryByPlaceholderText(/search/i)).not.toBeInTheDocument();
+      expect(screen.queryByTestId('search-icon-button')).not.toBeInTheDocument();
     });
 
     it('should hide Sort when userActions.sort is false', () => {
@@ -1272,7 +1330,7 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} />);
-      expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument();
+      expect(screen.getByTestId('search-icon-button')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /^sort$/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /filter/i })).toBeInTheDocument();
       expect(screen.getByTitle(/density/i)).toBeInTheDocument();
@@ -1289,7 +1347,7 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} />);
-      expect(screen.queryByPlaceholderText(/search/i)).not.toBeInTheDocument();
+      expect(screen.queryByTestId('search-icon-button')).not.toBeInTheDocument();
     });
   });
 
@@ -1454,7 +1512,8 @@ describe('ListView', () => {
 
       renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
 
-      // Search input is always visible inline
+      // Click search icon to open popover, then type search query
+      fireEvent.click(screen.getByTestId('search-icon-button'));
       const searchInput = screen.getByPlaceholderText(/search/i);
       fireEvent.change(searchInput, { target: { value: 'alice' } });
 
