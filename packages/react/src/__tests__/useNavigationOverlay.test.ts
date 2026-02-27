@@ -198,6 +198,40 @@ describe('useNavigationOverlay', () => {
 
       expect(mockWindowOpen).toHaveBeenCalledWith('/users/456', '_blank');
     });
+
+    it('should delegate to onNavigate with new_window action when onNavigate is provided', () => {
+      const onNavigate = vi.fn();
+      const { result } = renderHook(() =>
+        useNavigationOverlay({
+          navigation: { mode: 'new_window' },
+          objectName: 'contacts',
+          onNavigate,
+        })
+      );
+
+      act(() => {
+        result.current.handleClick({ _id: '789' });
+      });
+
+      expect(onNavigate).toHaveBeenCalledWith('789', 'new_window');
+      expect(mockWindowOpen).not.toHaveBeenCalled();
+      expect(result.current.isOpen).toBe(false);
+    });
+
+    it('should fallback to window.open when onNavigate is not provided', () => {
+      const { result } = renderHook(() =>
+        useNavigationOverlay({
+          navigation: { mode: 'new_window' },
+          objectName: 'accounts',
+        })
+      );
+
+      act(() => {
+        result.current.handleClick({ _id: '101' });
+      });
+
+      expect(mockWindowOpen).toHaveBeenCalledWith('/accounts/101', '_blank');
+    });
   });
 
   // ============================================================

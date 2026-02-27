@@ -425,10 +425,19 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     const navOverlay = useNavigationOverlay({
         navigation: detailNavigation,
         objectName: objectDef.name,
-        onNavigate: (recordId: string | number, _action?: string) => {
-            const newParams = new URLSearchParams(searchParams);
-            newParams.set('recordId', String(recordId));
-            setSearchParams(newParams);
+        onNavigate: (recordId: string | number, action?: string) => {
+            if (action === 'new_window') {
+                // Open record detail in a new browser tab with Console-correct URL
+                const basePath = window.location.pathname.replace(/\/view\/.*$/, '');
+                window.open(`${basePath}/record/${String(recordId)}`, '_blank');
+                return;
+            }
+            // page / view mode — navigate to record detail page
+            if (viewId) {
+                navigate(`../../record/${String(recordId)}`, { relative: 'path' });
+            } else {
+                navigate(`record/${String(recordId)}`);
+            }
         },
     });
     const handleDrawerClose = () => {
@@ -633,9 +642,15 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
         onNavigate: (recordId: string | number, mode: 'view' | 'edit') => {
             if (mode === 'edit') {
                 onEdit?.({ _id: recordId, id: recordId });
+            } else if (mode === 'view') {
+                if (viewId) {
+                    navigate(`../../record/${String(recordId)}`, { relative: 'path' });
+                } else {
+                    navigate(`record/${String(recordId)}`);
+                }
             }
         },
-    }), [objectDef.name, onEdit, activeView?.showSearch, activeView?.showFilters, activeView?.showSort]);
+    }), [objectDef.name, onEdit, activeView?.showSearch, activeView?.showFilters, activeView?.showSort, navigate, viewId]);
 
     return (
         <div className="h-full flex flex-col bg-background min-w-0 overflow-hidden">
@@ -767,6 +782,48 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
 
              {/* 2. Content — Plugin ObjectView with ViewSwitcher + Filter + Sort */}
              <div className="flex-1 overflow-hidden relative flex flex-row">
+                {navOverlay.mode === 'split' && navOverlay.isOpen ? (
+                    <NavigationOverlay
+                        {...navOverlay}
+                        setIsOpen={(open: boolean) => { if (!open) handleDrawerClose(); }}
+                        title={objectDef.label}
+                        mainContent={
+                            <div className="flex-1 min-w-0 relative h-full flex flex-col">
+                                <div className="flex-1 relative overflow-auto p-3 sm:p-4">
+                                    <PluginObjectView
+                                        schema={objectViewSchema}
+                                        dataSource={dataSource}
+                                        views={mergedViews}
+                                        activeViewId={activeViewId}
+                                        onViewChange={handleViewChange}
+                                        onEdit={(record: any) => onEdit?.(record)}
+                                        onRowClick={onRowClick || ((record: any) => {
+                                            navOverlay.handleClick(record);
+                                        })}
+                                        renderListView={renderListView}
+                                    />
+                                </div>
+                                {typeof recordCount === 'number' && (
+                                    <div data-testid="record-count-footer" className="border-t px-3 sm:px-4 py-1.5 text-xs text-muted-foreground bg-muted/5 shrink-0">
+                                        {t('console.objectView.recordCount', { count: recordCount })}
+                                    </div>
+                                )}
+                            </div>
+                        }
+                    >
+                        {(record: Record<string, unknown>) => {
+                            const recordId = (record._id || record.id) as string;
+                            return (
+                                <DrawerDetailContent
+                                    objectDef={objectDef}
+                                    recordId={recordId}
+                                    dataSource={dataSource}
+                                    onEdit={onEdit}
+                                />
+                            );
+                        }}
+                    </NavigationOverlay>
+                ) : (
                 <div className="flex-1 min-w-0 relative h-full flex flex-col">
                     <div className="flex-1 relative overflow-auto p-3 sm:p-4">
                         <PluginObjectView
@@ -789,6 +846,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                         </div>
                     )}
                 </div>
+                )}
                 {/* Metadata panel only shows for admin users */}
                 <MetadataPanel
                     open={showDebug && isAdmin}
@@ -819,6 +877,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
              </div>
 
              {/* Record Detail Overlay — navigation mode driven by objectDef.navigation */}
+             {navOverlay.mode !== 'split' && (
              <NavigationOverlay
                  {...navOverlay}
                  setIsOpen={(open: boolean) => { if (!open) handleDrawerClose(); }}
@@ -837,6 +896,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                      );
                  }}
              </NavigationOverlay>
+             )}
         </div>
     );
 }

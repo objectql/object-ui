@@ -285,6 +285,26 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
 
   // --- Popover Mode ---
   if (mode === 'popover') {
+    if (!popoverTrigger) {
+      // Fallback: render as a compact floating card when no trigger element is provided
+      if (!isOpen) return null;
+      return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <DialogContent
+            className={cn('w-96 max-h-[80vh] overflow-y-auto p-4', className)}
+            style={widthStyle}
+          >
+            <DialogHeader>
+              <DialogTitle className="text-sm">{resolvedTitle}</DialogTitle>
+              {description && <DialogDescription className="text-xs">{description}</DialogDescription>}
+            </DialogHeader>
+            <div className="mt-2">
+              {renderContent(selectedRecord)}
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    }
     return (
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         {popoverTrigger && (

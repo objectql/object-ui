@@ -139,9 +139,13 @@ export function useNavigationOverlay(
         return;
       }
 
-      // new_window / openNewTab — open in new browser tab
+      // new_window / openNewTab — delegate to onNavigate when available, else open directly
       if (mode === 'new_window' || navigation.openNewTab) {
         const recordId = record._id || record.id;
+        if (onNavigate && recordId != null) {
+          onNavigate(recordId as string | number, 'new_window');
+          return;
+        }
         const viewPath = view ? `/${view}` : '';
         const url = objectName ? `/${objectName}/${recordId}${viewPath}` : `/${recordId}${viewPath}`;
         window.open(url, '_blank');

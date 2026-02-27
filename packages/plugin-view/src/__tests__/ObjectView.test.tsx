@@ -288,6 +288,36 @@ describe('ObjectView', () => {
 
       expect(onNavigate).toHaveBeenCalledWith('1', 'view');
     });
+
+    it('should open form in view mode when split navigation mode is clicked', () => {
+      const schema: ObjectViewSchema = {
+        type: 'object-view',
+        objectName: 'contacts',
+        navigation: { mode: 'split' },
+      };
+
+      render(<ObjectView schema={schema} dataSource={mockDataSource} />);
+
+      fireEvent.click(screen.getByTestId('grid-row'));
+
+      // Split mode should trigger form display in view mode
+      expect(screen.getByTestId('object-form')).toBeDefined();
+    });
+
+    it('should open form in view mode when popover navigation mode is clicked', () => {
+      const schema: ObjectViewSchema = {
+        type: 'object-view',
+        objectName: 'contacts',
+        navigation: { mode: 'popover' },
+      };
+
+      render(<ObjectView schema={schema} dataSource={mockDataSource} />);
+
+      fireEvent.click(screen.getByTestId('grid-row'));
+
+      // Popover mode should trigger form display in view mode
+      expect(screen.getByTestId('object-form')).toBeDefined();
+    });
   });
 
   // ============================

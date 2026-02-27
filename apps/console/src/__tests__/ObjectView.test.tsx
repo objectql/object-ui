@@ -33,6 +33,7 @@ vi.mock('@object-ui/plugin-list', () => ({
         {props.schema?.selection?.type && <div data-testid="schema-selection-type">{props.schema.selection.type}</div>}
         {props.schema?.addRecord?.enabled && <div data-testid="schema-addRecord-enabled">addRecord</div>}
         {props.schema?.addRecordViaForm && <div data-testid="schema-addRecordViaForm">addRecordViaForm</div>}
+        <button data-testid="list-row-click" onClick={() => props.onRowClick?.({ _id: 'rec-1', id: 'rec-1', name: 'Test Record' })}>Click Row</button>
       </div>
     );
   },
@@ -760,6 +761,102 @@ describe('ObjectView Component', () => {
         // With default 'page' mode, NavigationOverlay renders nothing (non-overlay mode)
         // and the grid still renders fine
         expect(screen.getByTestId('object-grid')).toBeInTheDocument();
+    });
+
+    it('navigates to record detail page for page navigation mode via onNavigate', () => {
+        const objectsWithPage = [
+            {
+                ...mockObjects[0],
+                navigation: { mode: 'page' as const },
+            }
+        ];
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={objectsWithPage} onEdit={vi.fn()} />);
+
+        // Click a list row — should trigger page navigation
+        fireEvent.click(screen.getByTestId('list-row-click'));
+
+        // Verify React Router navigate was called with the record detail path
+        expect(mockNavigate).toHaveBeenCalledWith('record/rec-1');
+    });
+
+    it('opens new window with correct URL for new_window navigation mode', () => {
+        const mockOpen = vi.fn();
+        const originalOpen = window.open;
+        window.open = mockOpen;
+
+        const objectsWithNewWindow = [
+            {
+                ...mockObjects[0],
+                navigation: { mode: 'new_window' as const },
+            }
+        ];
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={objectsWithNewWindow} onEdit={vi.fn()} />);
+
+        // Click a list row — should open new window
+        fireEvent.click(screen.getByTestId('list-row-click'));
+
+        // Verify window.open was called with a URL containing /record/rec-1
+        expect(mockOpen).toHaveBeenCalledTimes(1);
+        expect(mockOpen.mock.calls[0][0]).toContain('/record/rec-1');
+        expect(mockOpen.mock.calls[0][1]).toBe('_blank');
+
+        window.open = originalOpen;
+    });
+
+    it('renders split layout with mainContent when split mode is active', async () => {
+        const objectsWithSplit = [
+            {
+                ...mockObjects[0],
+                navigation: { mode: 'split' as const },
+            }
+        ];
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        const dataSourceWithFindOne = {
+            ...mockDataSource,
+            findOne: vi.fn().mockResolvedValue({ _id: 'rec-1', id: 'rec-1', name: 'Test' }),
+        };
+
+        render(<ObjectView dataSource={dataSourceWithFindOne} objects={objectsWithSplit} onEdit={vi.fn()} />);
+
+        // Click a list row — should open the split detail panel
+        fireEvent.click(screen.getByTestId('list-row-click'));
+
+        // The grid should still render inside the split layout
+        await vi.waitFor(() => {
+            expect(screen.getByTestId('object-grid')).toBeInTheDocument();
+            // Split mode should render the close button for the detail panel
+            expect(screen.getByLabelText('Close panel')).toBeInTheDocument();
+        });
+    });
+
+    it('renders popover overlay without popoverTrigger using fallback dialog', async () => {
+        const objectsWithPopover = [
+            {
+                ...mockObjects[0],
+                navigation: { mode: 'popover' as const },
+            }
+        ];
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        const dataSourceWithFindOne = {
+            ...mockDataSource,
+            findOne: vi.fn().mockResolvedValue({ _id: 'rec-1', id: 'rec-1', name: 'Test' }),
+        };
+
+        render(<ObjectView dataSource={dataSourceWithFindOne} objects={objectsWithPopover} onEdit={vi.fn()} />);
+
+        // Click a list row — should open the popover fallback dialog
+        fireEvent.click(screen.getByTestId('list-row-click'));
+
+        // The popover fallback dialog should render (dialog role from Radix)
+        await vi.waitFor(() => {
+            expect(screen.getByRole('dialog')).toBeInTheDocument();
+        });
     });
 
     it('renders RecordChatterPanel inside drawer overlay when navigation mode is drawer', async () => {

@@ -219,6 +219,31 @@ describe('NavigationOverlay', () => {
       );
       expect(screen.getByText('Quick View')).toBeInTheDocument();
     });
+
+    it('should render fallback dialog when no popoverTrigger is provided', () => {
+      render(
+        <NavigationOverlay
+          {...createProps({
+            mode: 'popover',
+            title: 'Preview',
+          })}
+        />
+      );
+      expect(screen.getByText('Preview')).toBeInTheDocument();
+      expect(screen.getByText('Test Record')).toBeInTheDocument();
+    });
+
+    it('should not render fallback dialog when closed and no popoverTrigger', () => {
+      const { container } = render(
+        <NavigationOverlay
+          {...createProps({
+            mode: 'popover',
+            isOpen: false,
+          })}
+        />
+      );
+      expect(container.innerHTML).toBe('');
+    });
   });
 
   // ============================================================

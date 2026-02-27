@@ -200,6 +200,13 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Navigation Sync Service — `useNavigationSync` hook auto-syncs App navigation tree on Page/Dashboard CRUD (create, delete, rename) with toast + undo
 - [x] Navigation Sync auto-detection — `NavigationSyncEffect` component monitors metadata changes and auto-syncs navigation across ALL apps when pages/dashboards are added or removed
 - [x] Navigation Sync all-apps convenience API — `sync*AllApps` methods iterate all apps without requiring explicit `appName`
+- [x] **ListView Navigation Mode Fix** — All 6 navigation modes (page/drawer/modal/split/popover/new_window) now work correctly on row click:
+  - ✅ `page` mode navigates to `/record/:recordId` detail page via React Router
+  - ✅ `new_window` mode opens correct Console URL in a new browser tab (delegates to `onNavigate`)
+  - ✅ `split` mode renders resizable split panels with main content + detail panel
+  - ✅ `popover` mode falls back to compact dialog when no `popoverTrigger` is provided
+  - ✅ `useNavigationOverlay` hook delegates `new_window` to `onNavigate` when available for app-specific URL control
+  - ✅ plugin-view `handleRowClick` supports `split` and `popover` branches
 
 ### P1.8 Console — View Config Panel (Phase 20)
 

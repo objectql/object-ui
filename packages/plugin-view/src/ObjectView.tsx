@@ -425,6 +425,12 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         }
         return;
       }
+      if (navigationConfig.mode === 'split' || navigationConfig.mode === 'popover') {
+        setFormMode('view');
+        setSelectedRecord(record);
+        setIsFormOpen(true);
+        return;
+      }
     }
 
     // Default behavior
