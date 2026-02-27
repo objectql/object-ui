@@ -49,6 +49,7 @@ import {
   DrawerHeader,
   DrawerTitle,
   DrawerDescription,
+  NavigationOverlay,
   Button,
   Tabs,
   TabsList,
@@ -974,7 +975,51 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // Determine which form container to render
   const formLayout = navigationConfig?.mode === 'modal' ? 'modal'
     : navigationConfig?.mode === 'drawer' ? 'drawer'
+    : navigationConfig?.mode === 'split' ? 'split'
+    : navigationConfig?.mode === 'popover' ? 'popover'
     : layout;
+
+  // Build the record detail content for NavigationOverlay (split/popover modes)
+  const renderOverlayDetail = (record: Record<string, unknown>) => (
+    <div className="space-y-3">
+      <ObjectForm schema={buildFormSchema()} dataSource={dataSource} />
+    </div>
+  );
+
+  // For split mode, wrap content inside NavigationOverlay with mainContent
+  if (formLayout === 'split') {
+    const objectLabel = (objectSchema?.label as string) || schema.objectName;
+    return (
+      <div className={cn('flex flex-col h-full min-w-0 overflow-hidden', className)}>
+        {(schema.title || schema.description) && (
+          <div className="mb-4 shrink-0">
+            {schema.title && <h2 className="text-2xl font-bold tracking-tight">{schema.title}</h2>}
+            {schema.description && <p className="text-muted-foreground mt-1">{schema.description}</p>}
+          </div>
+        )}
+        <div className="mb-4 shrink-0">{renderToolbar()}</div>
+        <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
+          {isFormOpen && selectedRecord ? (
+            <NavigationOverlay
+              isOpen={isFormOpen}
+              selectedRecord={selectedRecord}
+              mode="split"
+              close={handleFormCancel}
+              setIsOpen={(open: boolean) => { if (!open) handleFormCancel(); }}
+              width={navigationConfig?.width}
+              isOverlay={true}
+              title={`${objectLabel} Detail`}
+              mainContent={<div className="h-full overflow-auto">{renderContent()}</div>}
+            >
+              {renderOverlayDetail}
+            </NavigationOverlay>
+          ) : (
+            renderContent()
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn('flex flex-col h-full min-w-0 overflow-hidden', className)}>
@@ -1003,6 +1048,21 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       {/* Form (drawer or modal) */}
       {formLayout === 'drawer' && renderDrawerForm()}
       {formLayout === 'modal' && renderModalForm()}
+      {/* Popover mode — uses NavigationOverlay Dialog fallback (no popoverTrigger) */}
+      {formLayout === 'popover' && isFormOpen && selectedRecord && (
+        <NavigationOverlay
+          isOpen={isFormOpen}
+          selectedRecord={selectedRecord}
+          mode="popover"
+          close={handleFormCancel}
+          setIsOpen={(open: boolean) => { if (!open) handleFormCancel(); }}
+          width={navigationConfig?.width}
+          isOverlay={true}
+          title={getFormTitle()}
+        >
+          {renderOverlayDetail}
+        </NavigationOverlay>
+      )}
     </div>
   );
 };
