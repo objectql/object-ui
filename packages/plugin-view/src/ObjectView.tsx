@@ -986,6 +986,11 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     </div>
   );
 
+  // Shared handler for NavigationOverlay onOpenChange — close form when overlay is dismissed
+  const handleOverlayOpenChange = useCallback((open: boolean) => {
+    if (!open) handleFormCancel();
+  }, [handleFormCancel]);
+
   // For split mode, wrap content inside NavigationOverlay with mainContent
   if (formLayout === 'split') {
     const objectLabel = (objectSchema?.label as string) || schema.objectName;
@@ -1005,7 +1010,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
               selectedRecord={selectedRecord}
               mode="split"
               close={handleFormCancel}
-              setIsOpen={(open: boolean) => { if (!open) handleFormCancel(); }}
+              setIsOpen={handleOverlayOpenChange}
               width={navigationConfig?.width}
               isOverlay={true}
               title={`${objectLabel} Detail`}
@@ -1055,7 +1060,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           selectedRecord={selectedRecord}
           mode="popover"
           close={handleFormCancel}
-          setIsOpen={(open: boolean) => { if (!open) handleFormCancel(); }}
+          setIsOpen={handleOverlayOpenChange}
           width={navigationConfig?.width}
           isOverlay={true}
           title={getFormTitle()}
