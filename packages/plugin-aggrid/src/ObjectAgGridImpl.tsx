@@ -24,6 +24,7 @@ import type { FieldMetadata, ObjectSchemaMetadata } from '@object-ui/types';
 import type { ObjectAgGridImplProps } from './object-aggrid.types';
 import { FIELD_TYPE_TO_FILTER_TYPE } from './object-aggrid.types';
 import { createFieldCellRenderer, createFieldCellEditor } from './field-renderers';
+import { buildExpandFields } from '@object-ui/core';
 
 /**
  * ObjectAgGridImpl - Metadata-driven AG Grid implementation
@@ -110,6 +111,12 @@ export default function ObjectAgGridImpl({
 
         if (sort) {
           queryParams.$orderby = sort;
+        }
+
+        // Auto-inject $expand for lookup/master_detail fields
+        const expand = buildExpandFields(objectSchema?.fields as Record<string, any>);
+        if (expand.length > 0) {
+          queryParams.$expand = expand;
         }
 
         const result = await dataSource.find(objectName, queryParams);

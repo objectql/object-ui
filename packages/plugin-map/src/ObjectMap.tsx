@@ -24,7 +24,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData } from '@object-ui/types';
 import { useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay, cn } from '@object-ui/components';
-import { extractRecords } from '@object-ui/core';
+import { extractRecords, buildExpandFields } from '@object-ui/core';
 import { z } from 'zod';
 import MapGL, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
@@ -350,9 +350,12 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
 
         if (dataConfig?.provider === 'object') {
           const objectName = dataConfig.object;
+          // Auto-inject $expand for lookup/master_detail fields
+          const expand = buildExpandFields(objectSchema?.fields);
           const result = await dataSource.find(objectName, {
             $filter: schema.filter,
             $orderby: convertSortToQueryParams(schema.sort),
+            ...(expand.length > 0 ? { $expand: expand } : {}),
           });
           
           let items: any[] = extractRecords(result);
@@ -370,7 +373,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     };
 
     fetchData();
-  }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort]);
+  }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, objectSchema]);
 
   // Fetch object schema for field metadata
   useEffect(() => {

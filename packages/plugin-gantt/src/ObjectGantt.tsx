@@ -27,7 +27,7 @@ import type { ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@objec
 import { GanttConfigSchema } from '@objectstack/spec/ui';
 import { useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
-import { extractRecords } from '@object-ui/core';
+import { extractRecords, buildExpandFields } from '@object-ui/core';
 import { GanttView, type GanttTask } from './GanttView';
 
 export interface ObjectGanttProps {
@@ -174,9 +174,12 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
 
         if (dataConfig?.provider === 'object') {
           const objectName = dataConfig.object;
+          // Auto-inject $expand for lookup/master_detail fields
+          const expand = buildExpandFields(objectSchema?.fields);
           const result = await dataSource.find(objectName, {
             $filter: schema.filter,
             $orderby: convertSortToQueryParams(schema.sort),
+            ...(expand.length > 0 ? { $expand: expand } : {}),
           });
           let items: any[] = extractRecords(result);
           setData(items);
@@ -193,7 +196,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     };
 
     fetchData();
-  }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort]);
+  }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, objectSchema]);
 
   // Fetch object schema for field metadata
   useEffect(() => {

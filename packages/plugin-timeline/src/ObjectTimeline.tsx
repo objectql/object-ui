@@ -10,7 +10,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import type { DataSource, TimelineSchema, TimelineConfig } from '@object-ui/types';
 import { useDataScope, useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
-import { extractRecords } from '@object-ui/core';
+import { extractRecords, buildExpandFields } from '@object-ui/core';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { z } from 'zod';
 import { TimelineRenderer } from './renderer';
@@ -82,6 +82,7 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [objectDef, setObjectDef] = useState<any>(null);
 
   // Resolve nested TimelineConfig (spec-compliant)
   const timelineConfig = schema.timeline;
@@ -95,13 +96,32 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
 
   const boundData = useDataScope(schema.bind);
 
+  // Fetch object definition for metadata
+  useEffect(() => {
+    let isMounted = true;
+    const fetchMeta = async () => {
+      if (!dataSource || typeof dataSource.getObjectSchema !== 'function' || !schema.objectName) return;
+      try {
+        const def = await dataSource.getObjectSchema(schema.objectName);
+        if (isMounted) setObjectDef(def);
+      } catch (e) {
+        console.warn('Failed to fetch object def for ObjectTimeline', e);
+      }
+    };
+    fetchMeta();
+    return () => { isMounted = false; };
+  }, [schema.objectName, dataSource]);
+
   useEffect(() => {
     const fetchData = async () => {
         if (!dataSource || typeof dataSource.find !== 'function' || !schema.objectName) return;
         setLoading(true);
         try {
+            // Auto-inject $expand for lookup/master_detail fields
+            const expand = buildExpandFields(objectDef?.fields);
             const results = await dataSource.find(schema.objectName, {
-                options: { $top: 100 }
+                options: { $top: 100 },
+                ...(expand.length > 0 ? { $expand: expand } : {}),
             });
             const data = extractRecords(results);
             setFetchedData(data);
@@ -116,7 +136,7 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
     if (schema.objectName && !boundData && !schema.items && !(props as any).data) {
         fetchData();
     }
-  }, [schema.objectName, dataSource, boundData, schema.items, (props as any).data, refreshKey]);
+  }, [schema.objectName, dataSource, boundData, schema.items, (props as any).data, refreshKey, objectDef]);
 
   const rawData = (props as any).data || boundData || fetchedData;
 

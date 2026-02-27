@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useContext } from 'react';
 import { useDataScope, SchemaRendererContext, useNavigationOverlay } from '@object-ui/react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, buildExpandFields } from '@object-ui/core';
 import { cn, Card, CardContent, NavigationOverlay } from '@object-ui/components';
 import type { GalleryConfig, ViewNavigationConfig, GroupingConfig } from '@object-ui/types';
 import { ChevronRight, ChevronDown } from 'lucide-react';
@@ -58,6 +58,7 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
 
     const [fetchedData, setFetchedData] = useState<Record<string, unknown>[]>([]);
     const [loading, setLoading] = useState(false);
+    const [objectDef, setObjectDef] = useState<any>(null);
 
     // --- NavigationConfig support ---
     const navigation = useNavigationOverlay({
@@ -74,6 +75,22 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
     const titleField = gallery?.titleField ?? schema.titleField ?? 'name';
     const visibleFields = gallery?.visibleFields;
 
+    // Fetch object definition for metadata
+    useEffect(() => {
+        let isMounted = true;
+        const fetchMeta = async () => {
+            if (!dataSource || typeof dataSource.getObjectSchema !== 'function' || !schema.objectName) return;
+            try {
+                const def = await dataSource.getObjectSchema(schema.objectName);
+                if (isMounted) setObjectDef(def);
+            } catch (e) {
+                console.warn('Failed to fetch object def for ObjectGallery', e);
+            }
+        };
+        fetchMeta();
+        return () => { isMounted = false; };
+    }, [schema.objectName, dataSource]);
+
     useEffect(() => {
         let isMounted = true;
 
@@ -86,8 +103,11 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
             if (!dataSource || typeof dataSource.find !== 'function' || !schema.objectName) return;
             if (isMounted) setLoading(true);
             try {
+                // Auto-inject $expand for lookup/master_detail fields
+                const expand = buildExpandFields(objectDef?.fields);
                 const results = await dataSource.find(schema.objectName, {
                     $filter: schema.filter,
+                    ...(expand.length > 0 ? { $expand: expand } : {}),
                 });
 
                 let data: Record<string, unknown>[] = [];
@@ -116,7 +136,7 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
             fetchData();
         }
         return () => { isMounted = false; };
-    }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, props.data]);
+    }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, props.data, objectDef]);
 
     const items: Record<string, unknown>[] = props.data || boundData || schema.data || fetchedData || [];
 

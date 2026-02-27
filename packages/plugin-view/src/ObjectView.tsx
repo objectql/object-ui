@@ -56,6 +56,7 @@ import {
   TabsTrigger,
 } from '@object-ui/components';
 import { Plus } from 'lucide-react';
+import { buildExpandFields } from '@object-ui/core';
 import { ViewSwitcher } from './ViewSwitcher';
 
 /**
@@ -309,10 +310,13 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           ? sortConfig.map(s => ({ field: s.field, order: s.direction }))
           : (currentNamedViewConfig?.sort || activeView?.sort || schema.table?.defaultSort || undefined);
 
+        // Auto-inject $expand for lookup/master_detail fields
+        const expand = buildExpandFields((objectSchema as any)?.fields);
         const results = await dataSource.find(schema.objectName, {
           $filter: finalFilter.length > 0 ? finalFilter : undefined,
           $orderby: sort,
           $top: 100,
+          ...(expand.length > 0 ? { $expand: expand } : {}),
         });
 
         let items: any[] = [];
@@ -337,7 +341,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     fetchData();
     return () => { isMounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema.objectName, dataSource, currentViewType, filterValues, sortConfig, refreshKey, currentNamedViewConfig, activeView, renderListView]);
+  }, [schema.objectName, dataSource, currentViewType, filterValues, sortConfig, refreshKey, currentNamedViewConfig, activeView, renderListView, objectSchema]);
 
   // Determine layout mode
   const layout = schema.layout || 'drawer';

@@ -28,7 +28,7 @@ import { CalendarView, type CalendarEvent } from './CalendarView';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
-import { extractRecords } from '@object-ui/core';
+import { extractRecords, buildExpandFields } from '@object-ui/core';
 
 export interface CalendarSchema {
   type: 'calendar';
@@ -215,9 +215,12 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
 
         if (dataConfig?.provider === 'object') {
           const objectName = dataConfig.object;
+          // Auto-inject $expand for lookup/master_detail fields
+          const expand = buildExpandFields(objectSchema?.fields);
           const result = await dataSource.find(objectName, {
             $filter: schema.filter,
             $orderby: convertSortToQueryParams(schema.sort),
+            ...(expand.length > 0 ? { $expand: expand } : {}),
           });
           
           let items: any[] = extractRecords(result);
@@ -242,7 +245,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
 
     fetchData();
     return () => { isMounted = false; };
-  }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, refreshKey]);
+  }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, refreshKey, objectSchema]);
 
   // Fetch object schema for field metadata
   useEffect(() => {
