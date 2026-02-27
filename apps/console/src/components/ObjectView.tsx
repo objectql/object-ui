@@ -425,6 +425,11 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     const navOverlay = useNavigationOverlay({
         navigation: detailNavigation,
         objectName: objectDef.name,
+        onNavigate: (recordId: string | number, _action?: string) => {
+            const newParams = new URLSearchParams(searchParams);
+            newParams.set('recordId', String(recordId));
+            setSearchParams(newParams);
+        },
     });
     const handleDrawerClose = () => {
         navOverlay.close();
@@ -596,11 +601,13 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                 schema={fullSchema}
                 className={className}
                 onEdit={editHandler}
-                onRowClick={rowClickHandler || ((record: any) => editHandler?.(record))}
+                onRowClick={rowClickHandler || ((record: any) => {
+                    navOverlay.handleClick(record);
+                })}
                 dataSource={ds}
             />
         );
-    }, [activeView, objectDef, objectName, refreshKey]);
+    }, [activeView, objectDef, objectName, refreshKey, navOverlay]);
 
     // Memoize the merged views array so PluginObjectView doesn't get a new
     // reference on every render (which would trigger unnecessary data refetches).
@@ -769,7 +776,9 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                             activeViewId={activeViewId}
                             onViewChange={handleViewChange}
                             onEdit={(record: any) => onEdit?.(record)}
-                            onRowClick={onRowClick || ((record: any) => onEdit?.(record))}
+                            onRowClick={onRowClick || ((record: any) => {
+                                navOverlay.handleClick(record);
+                            })}
                             renderListView={renderListView}
                         />
                     </div>
