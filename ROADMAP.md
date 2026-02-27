@@ -1043,6 +1043,14 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 
 **Tests:** Added 2 tests in `data-table-airtable-ux.test.tsx` verifying filler rows are skipped when pagination is off and still rendered when pagination is on. All 59 related tests pass.
 
+### Metric Widget I18nLabel Render Crash (February 2026)
+
+**Root Cause:** `MetricWidget` and `MetricCard` rendered I18nLabel objects (`{key, defaultValue}`) directly as React children. When CRM dashboard metadata used I18nLabel objects for `trend.label` (e.g. `{ key: 'crm.dashboard.trendLabel', defaultValue: 'vs last month' }`), React threw error #31 ("Objects are not valid as a React child").
+
+**Fix:** Added `resolveLabel()` helper to `MetricWidget.tsx` and `MetricCard.tsx` that converts I18nLabel objects to plain strings before rendering. Updated prop types to accept both string and I18nLabel objects for `label`, `description`, and `trend.label`.
+
+**Tests:** Added 3 new tests: 1 in `DashboardRenderer.widgetData.test.tsx` verifying metric widgets with I18nLabel trend labels render correctly, and 2 in `MetricCard.test.tsx` verifying I18nLabel resolution for title and description. All 159 dashboard tests pass.
+
 ---
 
 ## ⚠️ Risk Management
