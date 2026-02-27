@@ -56,4 +56,27 @@ describe('MetricCard', () => {
     expect(screen.getByText('Count')).toBeInTheDocument();
     expect(screen.getByText('1234')).toBeInTheDocument();
   });
+
+  it('should resolve I18nLabel objects for title', () => {
+    render(
+      <MetricCard
+        title={{ key: 'crm.dashboard.widgets.totalRevenue', defaultValue: 'Total Revenue' } as any}
+        value="$45,231"
+      />
+    );
+    
+    expect(screen.getByText('Total Revenue')).toBeInTheDocument();
+  });
+
+  it('should resolve I18nLabel objects for description', () => {
+    render(
+      <MetricCard
+        title="Revenue"
+        value="$45,231"
+        description={{ key: 'crm.dashboard.trendLabel', defaultValue: 'vs last month' } as any}
+      />
+    );
+    
+    expect(screen.getByText('vs last month')).toBeInTheDocument();
+  });
 });

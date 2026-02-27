@@ -224,6 +224,45 @@ describe('DashboardRenderer widget data extraction', () => {
     expect(container.textContent).toContain('5');
   });
 
+  it('should render metric widgets with I18nLabel objects without crashing', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'metric',
+          layout: { x: 0, y: 0, w: 1, h: 1 },
+          options: {
+            label: 'Total Revenue',
+            value: '$652,000',
+            trend: { value: 12.5, direction: 'up', label: { key: 'crm.dashboard.trendLabel', defaultValue: 'vs last month' } },
+            icon: 'DollarSign',
+          },
+        },
+        {
+          type: 'metric',
+          layout: { x: 1, y: 0, w: 1, h: 1 },
+          options: {
+            label: 'Active Deals',
+            value: '5',
+            trend: { value: 2.1, direction: 'down', label: { key: 'crm.dashboard.trendLabel', defaultValue: 'vs last month' } },
+            icon: 'Briefcase',
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+
+    // Should resolve I18nLabel objects to their defaultValue strings
+    expect(container.textContent).toContain('Total Revenue');
+    expect(container.textContent).toContain('$652,000');
+    expect(container.textContent).toContain('vs last month');
+    expect(container.textContent).toContain('Active Deals');
+    expect(container.textContent).toContain('5');
+  });
+
   it('should assign unique keys to widgets without id or title', () => {
     const schema = {
       type: 'dashboard' as const,

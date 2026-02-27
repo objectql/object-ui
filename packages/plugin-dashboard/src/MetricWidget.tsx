@@ -4,17 +4,24 @@ import { cn } from '@object-ui/components';
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 
+/** Resolve an I18nLabel (string or {key, defaultValue}) to a plain string. */
+function resolveLabel(label: string | { key?: string; defaultValue?: string } | undefined): string | undefined {
+  if (label === undefined || label === null) return undefined;
+  if (typeof label === 'string') return label;
+  return label.defaultValue || label.key;
+}
+
 export interface MetricWidgetProps {
-  label: string;
+  label: string | { key?: string; defaultValue?: string };
   value: string | number;
   trend?: {
     value: number;
-    label?: string;
+    label?: string | { key?: string; defaultValue?: string };
     direction?: 'up' | 'down' | 'neutral';
   };
   icon?: React.ReactNode | string;
   className?: string;
-  description?: string;
+  description?: string | { key?: string; defaultValue?: string };
 }
 
 export const MetricWidget = ({
@@ -39,7 +46,7 @@ export const MetricWidget = ({
     <Card className={cn("h-full", className)} {...props}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">
-          {label}
+          {resolveLabel(label)}
         </CardTitle>
         {resolvedIcon && <div className="h-4 w-4 text-muted-foreground">{resolvedIcon}</div>}
       </CardHeader>
@@ -60,7 +67,7 @@ export const MetricWidget = ({
                 {trend.value}%
               </span>
             )}
-            {description || trend?.label}
+            {resolveLabel(description) || resolveLabel(trend?.label)}
           </p>
         )}
       </CardContent>

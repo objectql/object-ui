@@ -12,13 +12,20 @@ import { cn } from '@object-ui/components';
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 
+/** Resolve an I18nLabel (string or {key, defaultValue}) to a plain string. */
+function resolveLabel(label: string | { key?: string; defaultValue?: string } | undefined): string | undefined {
+  if (label === undefined || label === null) return undefined;
+  if (typeof label === 'string') return label;
+  return label.defaultValue || label.key;
+}
+
 export interface MetricCardProps {
-  title?: string;
+  title?: string | { key?: string; defaultValue?: string };
   value: string | number;
   icon?: string;
   trend?: 'up' | 'down' | 'neutral';
   trendValue?: string;
-  description?: string;
+  description?: string | { key?: string; defaultValue?: string };
   className?: string;
 }
 
@@ -43,7 +50,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
     <Card className={cn("h-full", className)} {...props}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">
-          {title}
+          {resolveLabel(title)}
         </CardTitle>
         {IconComponent && (
           <IconComponent className="h-4 w-4 text-muted-foreground" />
@@ -66,7 +73,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
                 {trendValue}
               </span>
             )}
-            {description}
+            {resolveLabel(description)}
           </p>
         )}
       </CardContent>
