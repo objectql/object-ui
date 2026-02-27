@@ -932,6 +932,10 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [x] Separators conditionally rendered only when adjacent groups are visible
 - [x] Inline search moved to toolbar left end (`w-48`, Airtable-style)
 - [x] Density button: activated state highlight (`bg-primary/10 border border-primary/20`) when density is non-default
+- [x] Merged UserFilters row and tool buttons row into single toolbar line — left: field filter badges, right: tool buttons with separator
+- [x] Search changed from inline input to icon button + Popover — saves toolbar space, matches Airtable pattern
+- [x] UserFilters `maxVisible` prop added — overflow badges collapse into "More" dropdown with Popover
+- [x] Toolbar layout uses flex with `min-w-0` overflow handling for responsive behavior
 
 **Platform: ViewTabBar:**
 - [x] Tab "•" dot indicator replaced with descriptive badge (`F`/`S`/`FS`) + tooltip showing "Active filters", "Active sort"
@@ -956,7 +960,7 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 **Tests:**
 - [x] 7 new CRM metadata tests validating column types, widths, rowHeight, conditionalFormatting
 - [x] 136 ViewConfigPanel tests updated for defaultCollapsed sections (expand before access)
-- [x] 411 ListView + ViewTabBar tests passing
+- [x] 411 ListView + ViewTabBar tests passing (255 plugin-list tests including 9 new toolbar/collapse tests)
 - [x] 11 AppSidebar tests passing
 
 ### P2.5 PWA & Offline (Real Sync)

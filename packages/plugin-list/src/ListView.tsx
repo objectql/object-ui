@@ -1377,10 +1377,13 @@ export const ListView: React.FC<ListViewProps> = ({
             </Button>
           )}
 
-          {/* --- Separator: Print | Search --- */}
-          {toolbarFlags.showSearch && (schema.allowPrinting || (schema.sharing?.enabled || schema.sharing?.type) || (resolvedExportOptions && schema.allowExport !== false)) && (
-            <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
-          )}
+          {/* --- Separator: Print/Share/Export | Search --- */}
+          {(() => {
+            const hasLeftSideItems = schema.allowPrinting || (schema.sharing?.enabled || schema.sharing?.type) || (resolvedExportOptions && schema.allowExport !== false);
+            return toolbarFlags.showSearch && hasLeftSideItems ? (
+              <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
+            ) : null;
+          })()}
 
           {/* Search (icon button + popover) */}
           {toolbarFlags.showSearch && (

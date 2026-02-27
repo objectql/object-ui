@@ -233,9 +233,7 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
         </PopoverTrigger>
         <PopoverContent align="start" className="w-56 p-2">
           <div className="max-h-60 overflow-y-auto space-y-0.5" data-testid={`filter-options-${f.field}`}>
-            {f.options.map(opt => {
-              const selected = selectedValues[f.field] || [];
-              return (
+            {f.options.map(opt => (
                 <label
                   key={String(opt.value)}
                   className={cn(
@@ -265,8 +263,7 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
                     <span className="text-xs text-muted-foreground">{opt.count}</span>
                   )}
                 </label>
-              );
-            })}
+              ))}
           </div>
         </PopoverContent>
       </Popover>
