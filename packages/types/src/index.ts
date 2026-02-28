@@ -632,6 +632,7 @@ export type {
 export type {
   // Report System
   ReportSchema,
+  ReportType,
   ReportExportFormat,
   ReportScheduleFrequency,
   ReportAggregationType,

@@ -257,6 +257,14 @@ export interface ReportExportConfig {
 }
 
 /**
+ * Report Type
+ * - tabular: flat table
+ * - summary: grouped with subtotals
+ * - matrix: pivot table
+ */
+export type ReportType = 'tabular' | 'summary' | 'matrix';
+
+/**
  * Report Schema - Main report configuration
  */
 export interface ReportSchema extends BaseSchema {
@@ -271,6 +279,11 @@ export interface ReportSchema extends BaseSchema {
    * Report description
    */
   description?: string;
+
+  /**
+   * Report type (tabular, summary, matrix)
+   */
+  reportType?: ReportType;
 
   /**
    * Data source configuration
@@ -341,6 +354,26 @@ export interface ReportSchema extends BaseSchema {
    * Report data
    */
   data?: any[];
+
+  /**
+   * Conditional formatting rules
+   */
+  conditionalFormatting?: Array<{
+    field: string;
+    operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than';
+    value: any;
+    backgroundColor?: string;
+    textColor?: string;
+  }>;
+
+  /**
+   * Chart configuration (visual chart editor output)
+   */
+  chartConfig?: {
+    chartType?: string;
+    xAxisField?: string;
+    yAxisFields?: string[];
+  };
 }
 
 /**

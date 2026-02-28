@@ -292,6 +292,128 @@ describe('ReportViewer', () => {
     const tableContainer = container.querySelector('.overflow-x-auto');
     expect(tableContainer).toBeInTheDocument();
   });
+
+  it('should render grouped table with group headers when groupBy is configured', () => {
+    const schema: ReportViewerSchema = {
+      type: 'report-viewer',
+      report: {
+        type: 'report',
+        title: 'Grouped Report',
+        fields: [
+          { name: 'name', label: 'Name' },
+          { name: 'region', label: 'Region' },
+          { name: 'amount', label: 'Amount', type: 'number' },
+        ],
+        groupBy: [
+          { field: 'region', sort: 'asc' },
+        ],
+        sections: [
+          {
+            type: 'table',
+            title: 'Details',
+            columns: [
+              { name: 'name', label: 'Name' },
+              { name: 'region', label: 'Region' },
+              { name: 'amount', label: 'Amount', type: 'number' },
+            ],
+          },
+        ],
+      },
+      data: [
+        { name: 'Deal A', region: 'East', amount: 100 },
+        { name: 'Deal B', region: 'West', amount: 200 },
+        { name: 'Deal C', region: 'East', amount: 300 },
+      ],
+    };
+
+    render(<ReportViewer schema={schema} />);
+
+    // Should render group headers
+    expect(screen.getByText('region: East (2)')).toBeInTheDocument();
+    expect(screen.getByText('region: West (1)')).toBeInTheDocument();
+    // Data rows should still be present
+    expect(screen.getByText('Deal A')).toBeInTheDocument();
+    expect(screen.getByText('Deal B')).toBeInTheDocument();
+    expect(screen.getByText('Deal C')).toBeInTheDocument();
+  });
+
+  it('should render table without grouping when groupBy is empty', () => {
+    const schema: ReportViewerSchema = {
+      type: 'report-viewer',
+      report: {
+        type: 'report',
+        title: 'Flat Report',
+        fields: [
+          { name: 'name', label: 'Name' },
+        ],
+        groupBy: [],
+        sections: [
+          {
+            type: 'table',
+            title: 'Details',
+            columns: [
+              { name: 'name', label: 'Name' },
+            ],
+          },
+        ],
+      },
+      data: [
+        { name: 'Item 1' },
+        { name: 'Item 2' },
+      ],
+    };
+
+    const { container } = render(<ReportViewer schema={schema} />);
+
+    // Should render rows without group headers
+    expect(screen.getByText('Item 1')).toBeInTheDocument();
+    expect(screen.getByText('Item 2')).toBeInTheDocument();
+    // No group header rows (rows with bg-muted/60)
+    const groupHeaders = container.querySelectorAll('.bg-muted\\/60');
+    expect(groupHeaders).toHaveLength(0);
+  });
+
+  it('should apply conditional formatting styles to table cells', () => {
+    const schema: ReportViewerSchema = {
+      type: 'report-viewer',
+      report: {
+        type: 'report',
+        title: 'CF Report',
+        fields: [
+          { name: 'name', label: 'Name' },
+          { name: 'status', label: 'Status' },
+        ],
+        conditionalFormatting: [
+          { field: 'status', operator: 'equals', value: 'Won', backgroundColor: '#bbf7d0' },
+        ] as any,
+        sections: [
+          {
+            type: 'table',
+            title: 'Details',
+            columns: [
+              { name: 'name', label: 'Name' },
+              { name: 'status', label: 'Status' },
+            ],
+          },
+        ],
+      },
+      data: [
+        { name: 'Deal A', status: 'Won' },
+        { name: 'Deal B', status: 'Lost' },
+      ],
+    };
+
+    const { container } = render(<ReportViewer schema={schema} />);
+    // The cell with 'Won' should have a green background
+    const cells = container.querySelectorAll('td');
+    const wonCell = Array.from(cells).find((td) => td.textContent === 'Won');
+    expect(wonCell).toBeDefined();
+    expect(wonCell?.style.backgroundColor).toBe('rgb(187, 247, 208)');
+
+    // The cell with 'Lost' should NOT have background styling
+    const lostCell = Array.from(cells).find((td) => td.textContent === 'Lost');
+    expect(lostCell?.style.backgroundColor).toBe('');
+  });
 });
 
 describe('formatValue', () => {

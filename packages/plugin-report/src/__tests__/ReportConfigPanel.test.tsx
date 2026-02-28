@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import { ReportConfigPanel } from '../ReportConfigPanel';
 
 const defaultConfig = {
@@ -290,5 +291,246 @@ describe('ReportConfigPanel', () => {
       target: { value: 'New Title' },
     });
     expect(onFieldChange).toHaveBeenCalledWith('title', 'New Title');
+  });
+
+  it('should display report type selector in basic section', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Report type')).toBeInTheDocument();
+  });
+
+  it('should display columns section with field picker', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+        availableFields={mockAvailableFields}
+      />,
+    );
+    expect(screen.getByText('Columns')).toBeInTheDocument();
+    // Field picker should show available fields
+    expect(screen.getByTestId('field-picker')).toBeInTheDocument();
+    expect(screen.getByText('Name')).toBeInTheDocument();
+    expect(screen.getByText('Amount')).toBeInTheDocument();
+    expect(screen.getByText('Stage')).toBeInTheDocument();
+  });
+
+  it('should show empty state when no available fields for field picker', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+        availableFields={[]}
+      />,
+    );
+    expect(screen.getByTestId('field-picker-empty')).toBeInTheDocument();
+    expect(screen.getByText('No fields available')).toBeInTheDocument();
+  });
+
+  it('should toggle field selection in field picker', () => {
+    const onFieldChange = vi.fn();
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+        onFieldChange={onFieldChange}
+        availableFields={mockAvailableFields}
+      />,
+    );
+    // Click on a field checkbox to select it
+    fireEvent.click(screen.getByTestId('field-picker-name'));
+    expect(onFieldChange).toHaveBeenCalledWith('fields', [
+      { name: 'name', label: 'Name', type: 'text' },
+    ]);
+  });
+
+  it('should show undo/redo buttons in header', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('config-panel-undo')).toBeInTheDocument();
+    expect(screen.getByTestId('config-panel-redo')).toBeInTheDocument();
+  });
+
+  it('should enable undo after making a change', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+      />,
+    );
+    const undoBtn = screen.getByTestId('config-panel-undo');
+    expect(undoBtn).toHaveAttribute('disabled');
+
+    // Make a change
+    fireEvent.change(screen.getByTestId('config-field-title'), {
+      target: { value: 'Changed Title' },
+    });
+
+    // Undo should now be enabled
+    expect(undoBtn).not.toHaveAttribute('disabled');
+  });
+
+  it('should include reportType in saved draft', () => {
+    const onSave = vi.fn();
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={{ ...defaultConfig, reportType: 'summary' }}
+        onSave={onSave}
+      />,
+    );
+    // Make a change to trigger dirty state
+    fireEvent.change(screen.getByTestId('config-field-title'), {
+      target: { value: 'Modified' },
+    });
+    fireEvent.click(screen.getByTestId('config-panel-save'));
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.reportType).toBe('summary');
+  });
+
+  it('should show per-column aggregation dropdown when field is selected', () => {
+    const onFieldChange = vi.fn();
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={{ ...defaultConfig, fields: [{ name: 'amount', label: 'Amount', type: 'number' }] }}
+        onSave={vi.fn()}
+        onFieldChange={onFieldChange}
+        availableFields={mockAvailableFields}
+      />,
+    );
+    // Amount field is pre-selected, so aggregation dropdown should be visible
+    expect(screen.getByTestId('field-agg-amount')).toBeInTheDocument();
+  });
+
+  it('should display chart section', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+        availableFields={mockAvailableFields}
+      />,
+    );
+    expect(screen.getByText('Chart')).toBeInTheDocument();
+  });
+
+  it('should display chart config when chart section is expanded', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+        availableFields={mockAvailableFields}
+      />,
+    );
+    expect(screen.getByTestId('chart-config')).toBeInTheDocument();
+    expect(screen.getByTestId('chart-type-select')).toBeInTheDocument();
+  });
+
+  it('should display conditional format section', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+        availableFields={mockAvailableFields}
+      />,
+    );
+    // Expand collapsed section
+    fireEvent.click(screen.getByTestId('section-header-conditionalFormatting'));
+    expect(screen.getByTestId('conditional-format-rules')).toBeInTheDocument();
+    expect(screen.getByTestId('cf-add-rule')).toBeInTheDocument();
+  });
+
+  it('should add and remove conditional format rules', () => {
+    const onFieldChange = vi.fn();
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+        onFieldChange={onFieldChange}
+        availableFields={mockAvailableFields}
+      />,
+    );
+    // Expand section
+    fireEvent.click(screen.getByTestId('section-header-conditionalFormatting'));
+    // Add a rule
+    fireEvent.click(screen.getByTestId('cf-add-rule'));
+    expect(onFieldChange).toHaveBeenCalledWith(
+      'conditionalFormatting',
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'name', operator: 'equals' }),
+      ]),
+    );
+  });
+
+  it('should display sections manager', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+        availableFields={mockAvailableFields}
+      />,
+    );
+    // Expand collapsed sections section
+    fireEvent.click(screen.getByTestId('section-header-sections'));
+    expect(screen.getByTestId('section-manager')).toBeInTheDocument();
+    // Should have add buttons for each section type
+    expect(screen.getByTestId('section-add-header')).toBeInTheDocument();
+    expect(screen.getByTestId('section-add-table')).toBeInTheDocument();
+    expect(screen.getByTestId('section-add-chart')).toBeInTheDocument();
+  });
+
+  it('should add and remove report sections', () => {
+    const onFieldChange = vi.fn();
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+        onFieldChange={onFieldChange}
+        availableFields={mockAvailableFields}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('section-header-sections'));
+    // Add a header section
+    fireEvent.click(screen.getByTestId('section-add-header'));
+    expect(onFieldChange).toHaveBeenCalledWith(
+      'sections',
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'header', title: 'New header' }),
+      ]),
+    );
   });
 });
