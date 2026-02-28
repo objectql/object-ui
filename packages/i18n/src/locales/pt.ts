@@ -272,6 +272,12 @@ const pt = {
   console: {
     title: 'Console ObjectStack',
     initializing: 'Inicializando aplicação...',
+    breadcrumb: {
+      dashboards: 'Painéis',
+      pages: 'Páginas',
+      reports: 'Relatórios',
+      system: 'Sistema',
+    },
     loadingSteps: {
       connecting: 'Conectando à fonte de dados',
       loadingConfig: 'Carregando configuração',

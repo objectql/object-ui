@@ -272,6 +272,12 @@ const ru = {
   console: {
     title: 'Консоль ObjectStack',
     initializing: 'Инициализация приложения...',
+    breadcrumb: {
+      dashboards: 'Панели',
+      pages: 'Страницы',
+      reports: 'Отчёты',
+      system: 'Система',
+    },
     loadingSteps: {
       connecting: 'Подключение к источнику данных',
       loadingConfig: 'Загрузка конфигурации',

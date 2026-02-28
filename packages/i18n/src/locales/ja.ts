@@ -272,6 +272,12 @@ const ja = {
   console: {
     title: 'ObjectStack コンソール',
     initializing: 'アプリケーションを初期化中...',
+    breadcrumb: {
+      dashboards: 'ダッシュボード',
+      pages: 'ページ',
+      reports: 'レポート',
+      system: 'システム',
+    },
     loadingSteps: {
       connecting: 'データソースに接続中',
       loadingConfig: '設定を読み込み中',

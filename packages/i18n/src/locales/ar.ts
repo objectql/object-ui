@@ -273,6 +273,12 @@ const ar = {
   console: {
     title: 'وحدة تحكم ObjectStack',
     initializing: 'جاري تهيئة التطبيق...',
+    breadcrumb: {
+      dashboards: 'لوحات المعلومات',
+      pages: 'الصفحات',
+      reports: 'التقارير',
+      system: 'النظام',
+    },
     loadingSteps: {
       connecting: 'جاري الاتصال بمصدر البيانات',
       loadingConfig: 'جاري تحميل الإعدادات',

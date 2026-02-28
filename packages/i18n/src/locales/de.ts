@@ -272,6 +272,12 @@ const de = {
   console: {
     title: 'ObjectStack Konsole',
     initializing: 'Anwendung wird initialisiert...',
+    breadcrumb: {
+      dashboards: 'Dashboards',
+      pages: 'Seiten',
+      reports: 'Berichte',
+      system: 'System',
+    },
     loadingSteps: {
       connecting: 'Verbindung zur Datenquelle herstellen',
       loadingConfig: 'Konfiguration laden',

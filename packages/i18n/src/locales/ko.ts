@@ -272,6 +272,12 @@ const ko = {
   console: {
     title: 'ObjectStack 콘솔',
     initializing: '애플리케이션 초기화 중...',
+    breadcrumb: {
+      dashboards: '대시보드',
+      pages: '페이지',
+      reports: '보고서',
+      system: '시스템',
+    },
     loadingSteps: {
       connecting: '데이터 소스에 연결 중',
       loadingConfig: '설정 로드 중',
