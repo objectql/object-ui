@@ -166,7 +166,7 @@ describe('createLazyPlugin', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Success after retry')).toBeInTheDocument();
-    }, { timeout: 5000 });
+    }, { timeout: 2000 });
 
     // First call + 2 retries (fails) + 1 success = called 3 times
     expect(importFn).toHaveBeenCalledTimes(3);
