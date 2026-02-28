@@ -82,7 +82,7 @@ ComponentRegistry.register('header-bar',
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
-              placeholder={schema.search.placeholder || 'Search...'}
+              placeholder={schema.search.placeholder}
               className="pl-8 w-[200px] lg:w-[300px]"
             />
             {schema.search.shortcut && (

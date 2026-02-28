@@ -40,6 +40,7 @@ export interface SidebarNavProps {
     className?: string;
     collapsible?: "offcanvas" | "icon" | "none";
     searchEnabled?: boolean;
+    searchPlaceholder?: string;
 }
 
 function isNavGroup(item: NavItem | NavGroup): item is NavGroup {
@@ -104,7 +105,7 @@ function NavItemRenderer({ item, pathname }: { item: NavItem; pathname: string }
   );
 }
 
-export function SidebarNav({ items, title = "Application", className, collapsible = "icon", searchEnabled = false }: SidebarNavProps) {
+export function SidebarNav({ items, title = "Application", className, collapsible = "icon", searchEnabled = false, searchPlaceholder = "Search..." }: SidebarNavProps) {
   const location = useLocation();
   const [search, setSearch] = React.useState('');
 
@@ -137,7 +138,7 @@ export function SidebarNav({ items, title = "Application", className, collapsibl
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search..."
+                placeholder={searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8 h-9"

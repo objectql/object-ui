@@ -49,6 +49,7 @@ export type ViewSwitcherProps = {
   onViewChange?: (view: ViewType) => void;
   onCreateView?: () => void;
   onViewAction?: (action: string, view: ViewType) => void;
+  createViewLabel?: string;
   [key: string]: any;
 };
 
@@ -169,12 +170,20 @@ const DEFAULT_VIEW_ACTION_ICONS: Record<string, LucideIcon> = {
   delete: Trash2,
 };
 
+const DEFAULT_VIEW_ACTION_LABELS: Record<string, string> = {
+  share: 'Share',
+  settings: 'Settings',
+  duplicate: 'Duplicate',
+  delete: 'Delete',
+};
+
 export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
   schema,
   className,
   onViewChange,
   onCreateView,
   onViewAction,
+  createViewLabel = 'Create view',
   ...props
 }) => {
   const storageKey = React.useMemo(() => {
@@ -254,7 +263,7 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
             variant="ghost"
             size="icon-sm"
             onClick={() => onViewAction?.(action.type, currentView!)}
-            title={action.type}
+            title={DEFAULT_VIEW_ACTION_LABELS[action.type] || action.type}
           >
             {ActionIcon ? <ActionIcon className="h-3.5 w-3.5" /> : null}
           </Button>
@@ -269,7 +278,7 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
       variant="ghost"
       size="icon-sm"
       onClick={() => onCreateView?.()}
-      title="Create view"
+      title={createViewLabel}
     >
       <Plus className="h-3.5 w-3.5" />
     </Button>
