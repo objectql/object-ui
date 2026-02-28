@@ -291,13 +291,19 @@ The `SidebarNav` provides a collapsible navigation sidebar with menu items.
     href?: string,
     icon?: string,
     badge?: string | number,
-    items?: Array<...>,  // Nested menu items
+    badgeVariant?: 'default' | 'destructive' | 'outline',
+    items?: Array<...>,  // Nested menu items (collapsible children)
     active?: boolean,
     disabled?: boolean
   }>,
   
+  // Items can also be grouped using NavGroup:
+  // items: Array<{ label: string, items: NavItem[] }>
+
   collapsible?: boolean,
   defaultOpen?: boolean,
+  searchEnabled?: boolean,        // Show search input to filter navigation
+  searchPlaceholder?: string,     // Placeholder for search input
   
   className?: string
 }
@@ -305,10 +311,12 @@ The `SidebarNav` provides a collapsible navigation sidebar with menu items.
 
 ### Features
 
-- Nested menu items (2 levels)
-- Active state highlighting
+- Nested menu items (2 levels) with collapsible expand/collapse
+- Active state highlighting via React Router
 - Icon support (Lucide icons)
-- Badge/counter support
+- Badge/counter support with variant styling (`default`, `destructive`, `outline`)
+- NavGroup support for grouped navigation sections
+- Built-in search filtering (`searchEnabled`) across all items and children
 - Collapse/expand animation
 
 ## Common Layout Patterns

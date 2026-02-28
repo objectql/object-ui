@@ -1,11 +1,11 @@
 ---
 title: "SidebarNav"
-description: "Sidebar navigation component with active state and icons"
+description: "Sidebar navigation component with active state, icons, badges, nested items, and search"
 ---
 
 import { ComponentDemo, DemoGrid } from '@/app/components/ComponentDemo';
 
-The SidebarNav component provides a responsive sidebar navigation menu with support for icons, active states, and nested items.
+The SidebarNav component provides a responsive sidebar navigation menu with support for icons, active states, badges, nested collapsible items, grouped navigation, and built-in search filtering.
 
 ## Basic Usage
 
@@ -39,15 +39,26 @@ import { Home, Users, Settings } from 'lucide-react';
 
 ```plaintext
 interface SidebarNavProps {
-  items: NavItem[];              // Navigation items
-  title?: string;                // Sidebar title (default: "Application")
-  className?: string;            // Additional CSS classes
+  items: NavItem[] | NavGroup[];  // Navigation items or grouped items
+  title?: string;                 // Sidebar title (default: "Application")
+  className?: string;             // Additional CSS classes
+  collapsible?: "offcanvas" | "icon" | "none";  // Sidebar collapse mode
+  searchEnabled?: boolean;        // Show search input to filter items
+  searchPlaceholder?: string;     // Placeholder for search input
 }
 
 interface NavItem {
-  title: string;                 // Item label
-  href: string;                  // Navigation URL
-  icon?: React.ComponentType;    // Lucide icon component
+  title: string;                  // Item label
+  href: string;                   // Navigation URL
+  icon?: React.ComponentType;     // Lucide icon component
+  badge?: string | number;        // Badge text or count
+  badgeVariant?: 'default' | 'destructive' | 'outline';  // Badge style
+  children?: NavItem[];           // Nested collapsible sub-items
+}
+
+interface NavGroup {
+  label: string;                  // Group section label
+  items: NavItem[];               // Items in the group
 }
 ```
 
@@ -84,6 +95,88 @@ import {
 />
 ```
 
+### Badges
+
+Add badge counters or labels to navigation items with variant styling:
+
+```plaintext
+<SidebarNav
+  items={[
+    { title: 'Inbox', href: '/inbox', icon: Mail, badge: 12, badgeVariant: 'destructive' },
+    { title: 'Projects', href: '/projects', icon: FolderOpen, badge: '3 new', badgeVariant: 'outline' },
+    { title: 'Contacts', href: '/contacts', icon: Users, badge: 342 },
+  ]}
+/>
+```
+
+### Nested Items
+
+Create collapsible sub-navigation with the `children` property:
+
+```plaintext
+<SidebarNav
+  items={[
+    { title: 'Dashboard', href: '/dashboard', icon: Home },
+    {
+      title: 'Projects',
+      href: '/projects',
+      icon: FolderOpen,
+      badge: 5,
+      children: [
+        { title: 'Active', href: '/projects/active' },
+        { title: 'Archived', href: '/projects/archived' },
+        { title: 'Templates', href: '/projects/templates', badge: 2 },
+      ],
+    },
+    { title: 'Settings', href: '/settings', icon: Settings },
+  ]}
+/>
+```
+
+### Grouped Navigation
+
+Organize items into labeled sections using `NavGroup`:
+
+```plaintext
+<SidebarNav
+  items={[
+    {
+      label: 'Main',
+      items: [
+        { title: 'Dashboard', href: '/dashboard', icon: Home },
+        { title: 'Inbox', href: '/inbox', icon: Mail, badge: 5, badgeVariant: 'destructive' },
+      ],
+    },
+    {
+      label: 'Content',
+      items: [
+        { title: 'Documents', href: '/documents', icon: FileText },
+        { title: 'Projects', href: '/projects', icon: FolderOpen },
+      ],
+    },
+    {
+      label: 'Admin',
+      items: [
+        { title: 'Users', href: '/admin/users', icon: Users },
+        { title: 'Settings', href: '/settings', icon: Settings },
+      ],
+    },
+  ]}
+/>
+```
+
+### Search Filtering
+
+Enable built-in search to filter navigation items and their children:
+
+```plaintext
+<SidebarNav
+  items={navItems}
+  searchEnabled={true}
+  searchPlaceholder="Filter navigation..."
+/>
+```
+
 ### Custom Title
 
 Set a custom title for the sidebar:
@@ -105,40 +198,36 @@ import {
   FolderOpen,
   BarChart,
   Settings,
-  HelpCircle
+  HelpCircle,
+  Mail
 } from 'lucide-react';
 
 const navigationItems = [
   {
-    title: 'Dashboard',
-    href: '/',
-    icon: Home
+    label: 'Workspace',
+    items: [
+      { title: 'Dashboard', href: '/', icon: Home },
+      { title: 'Inbox', href: '/inbox', icon: Mail, badge: 8, badgeVariant: 'destructive' },
+      {
+        title: 'Projects',
+        href: '/projects',
+        icon: FolderOpen,
+        badge: 3,
+        children: [
+          { title: 'Design System', href: '/projects/design' },
+          { title: 'API v2', href: '/projects/api', badge: 'WIP', badgeVariant: 'outline' },
+          { title: 'Mobile App', href: '/projects/mobile' },
+        ],
+      },
+    ],
   },
   {
-    title: 'Projects',
-    href: '/projects',
-    icon: FolderOpen
+    label: 'System',
+    items: [
+      { title: 'Settings', href: '/settings', icon: Settings },
+      { title: 'Help', href: '/help', icon: HelpCircle },
+    ],
   },
-  {
-    title: 'Team',
-    href: '/team',
-    icon: Users
-  },
-  {
-    title: 'Analytics',
-    href: '/analytics',
-    icon: BarChart
-  },
-  {
-    title: 'Settings',
-    href: '/settings',
-    icon: Settings
-  },
-  {
-    title: 'Help',
-    href: '/help',
-    icon: HelpCircle
-  }
 ];
 
 function App() {
@@ -146,6 +235,8 @@ function App() {
     <SidebarNav
       title="My CRM"
       items={navigationItems}
+      searchEnabled={true}
+      searchPlaceholder="Search navigation..."
     />
   );
 }
@@ -180,6 +271,8 @@ The SidebarNav uses Shadcn UI Sidebar components:
 - **SidebarGroupLabel**: Section title
 - **SidebarMenuItem**: Individual menu items
 - **SidebarMenuButton**: Clickable button with active state
+- **SidebarMenuSub**: Nested sub-items container
+- **Badge**: Badge counters with variant styling
 
 ### Active Item
 
@@ -219,6 +312,7 @@ The SidebarNav includes:
 - Keyboard navigation
 - Focus management
 - Screen reader support
+- Collapsible sections with `aria-expanded`
 
 ## Icon Guidelines
 
@@ -237,43 +331,6 @@ Common icons:
 - `Mail` - Messages/email
 - `Calendar` - Events/schedule
 - `FileText` - Documents
-
-## Advanced Features
-
-### Grouping Items
-
-For complex navigation, you can extend the component to support groups:
-
-```plaintext
-// Future enhancement - grouped navigation
-{
-  group: 'Main',
-  items: [
-    { title: 'Dashboard', href: '/' },
-    { title: 'Projects', href: '/projects' }
-  ]
-},
-{
-  group: 'Settings',
-  items: [
-    { title: 'Profile', href: '/profile' },
-    { title: 'Preferences', href: '/preferences' }
-  ]
-}
-```
-
-### Badges
-
-Add badges to navigation items (future enhancement):
-
-```plaintext
-{
-  title: 'Messages',
-  href: '/messages',
-  icon: Mail,
-  badge: '12'  // Unread count
-}
-```
 
 ## Related
 

@@ -888,4 +888,44 @@ describe('ObjectView Component', () => {
             expect(showBtn).toHaveTextContent('Show Discussion (0)');
         });
     });
+
+    // --- ViewSwitcher allowCreateView / viewActions integration ---
+
+    it('sets allowCreateView for admin users (create view callback)', () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Open design tools dropdown and click Add View to exercise handleCreateView
+        fireEvent.click(screen.getByTitle('console.objectView.designTools'));
+        fireEvent.click(screen.getByText('console.objectView.addView'));
+
+        // ViewConfigPanel should be open in create mode
+        expect(screen.getByTestId('view-config-panel')).toBeInTheDocument();
+    });
+
+    it('does not expose view actions for non-admin users', () => {
+        mockAuthUser = { id: 'u2', name: 'Viewer', role: 'viewer' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Non-admin should not see the design tools (which contain view actions)
+        expect(screen.queryByTitle('console.objectView.designTools')).not.toBeInTheDocument();
+    });
+
+    it('opens ViewConfigPanel in edit mode via view action settings callback', () => {
+        mockAuthUser = { id: 'u1', name: 'Admin', role: 'admin' };
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+
+        // Open design tools and click Edit View to exercise handleViewAction('settings')
+        fireEvent.click(screen.getByTitle('console.objectView.designTools'));
+        fireEvent.click(screen.getByText('console.objectView.editView'));
+
+        // ViewConfigPanel should be open in edit mode
+        expect(screen.getByTestId('view-config-panel')).toBeInTheDocument();
+    });
 });

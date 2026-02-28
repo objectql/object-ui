@@ -1067,6 +1067,20 @@ export interface ObjectViewSchema extends BaseSchema {
    * View tab bar UX configuration (inline add, context menu, overflow, indicators).
    */
   viewTabBar?: ViewTabBarConfig;
+
+  /**
+   * Show "+" button in ViewSwitcher to create a new view.
+   * Typically gated on admin permission.
+   */
+  allowCreateView?: boolean;
+
+  /**
+   * Per-view action icons shown in ViewSwitcher (e.g., share, settings, duplicate, delete).
+   */
+  viewActions?: Array<{
+    type: 'share' | 'settings' | 'duplicate' | 'delete';
+    icon?: string;
+  }>;
 }
 
 /**

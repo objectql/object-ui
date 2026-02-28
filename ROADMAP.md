@@ -13,7 +13,7 @@
 
 ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn. It renders JSON metadata from the @objectstack/spec protocol into pixel-perfect, accessible, and interactive enterprise interfaces.
 
-**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 6,700+ tests, 80 Storybook stories, 43/43 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), **Feed/Chatter UI** (P1.5), **App Creation & Editing Flow** (P1.11), **System Settings & App Management** (P1.12), **Page/Dashboard Editor Console Integration** (P1.11), and **Right-Side Visual Editor Drawer** (P1.11) — all ✅ complete. **ViewDesigner** has been removed — its capabilities (drag-to-reorder, undo/redo) are now provided by the ViewConfigPanel (right-side config panel).
+**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 6,700+ tests, 80 Storybook stories, 43/43 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), **Feed/Chatter UI** (P1.5), **App Creation & Editing Flow** (P1.11), **System Settings & App Management** (P1.12), **Page/Dashboard Editor Console Integration** (P1.11), **Right-Side Visual Editor Drawer** (P1.11), and **Console Engine Schema Integration** (P1.14) — all ✅ complete. **ViewDesigner** has been removed — its capabilities (drag-to-reorder, undo/redo) are now provided by the ViewConfigPanel (right-side config panel).
 
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
@@ -791,6 +791,31 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 **Empty Table Ghost Row:**
 - [x] Empty tables show 3 ghost placeholder rows with skeleton-like appearance
 - [x] Ghost rows use varying widths for visual variety
+
+### P1.14 Console Integration — Engine Schema Capabilities ✅
+
+> **Status:** Complete — Console now consumes HeaderBarSchema, ViewSwitcher allowCreateView/viewActions, SidebarNav enhanced props, and Airtable UX defaults.
+
+**ViewSwitcher `allowCreateView` & `viewActions`:**
+- [x] Added `allowCreateView` and `viewActions` to `ObjectViewSchema` type
+- [x] Engine `ObjectView` passes `allowCreateView`/`viewActions` to `ViewSwitcherSchema` builder
+- [x] Engine `ObjectView` accepts and passes `onCreateView`/`onViewAction` callbacks to `ViewSwitcher`
+- [x] Console `ObjectView` sets `allowCreateView: isAdmin` and `viewActions` (settings/share/duplicate/delete)
+- [x] Console wires `onCreateView` → open ViewConfigPanel in create mode
+- [x] Console wires `onViewAction('settings')` → open ViewConfigPanel in edit mode
+
+**AppHeader `HeaderBarSchema` Alignment:**
+- [x] Console `AppHeader` breadcrumb items typed as engine `BreadcrumbItem` type
+- [x] Breadcrumbs with `siblings` dropdown navigation working
+- [x] Search triggers ⌘K command palette (desktop + mobile)
+
+**SidebarNav Enhanced Props:**
+- [x] Storybook stories for badges, nested items, NavGroups, search filtering
+- [x] Documentation updated for `SidebarNav` enhanced API (badges, badgeVariant, children, searchEnabled, NavGroup)
+
+**Airtable UX Defaults Propagation:**
+- [x] Verified: Console `ObjectView` does NOT override `rowHeight`, `density`, or `singleClickEdit`
+- [x] Engine defaults (`compact` rows, `singleClickEdit: true`, browser locale dates) flow through correctly
 
 ---
 

@@ -78,5 +78,10 @@ interface ViewSwitcherSchema {
   onViewChange?: string;
   persistPreference?: boolean;
   storageKey?: string;
+  allowCreateView?: boolean;                          // Show "+" button to create views
+  viewActions?: Array<{                               // Per-view action icons
+    type: 'share' | 'settings' | 'duplicate' | 'delete';
+    icon?: string;
+  }>;
 }
 ```

@@ -141,6 +141,16 @@ export interface ObjectViewProps {
    * Toolbar addon: extra elements to render in the toolbar (e.g., MetadataToggle)
    */
   toolbarAddon?: React.ReactNode;
+
+  /**
+   * Callback when the "+" create view button is clicked in ViewSwitcher.
+   */
+  onCreateView?: () => void;
+
+  /**
+   * Callback when a per-view action is triggered in ViewSwitcher.
+   */
+  onViewAction?: (action: string, viewType: ViewType) => void;
 }
 
 type FormMode = 'create' | 'edit' | 'view';
@@ -205,6 +215,8 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   onEdit: onEditProp,
   renderListView,
   toolbarAddon,
+  onCreateView,
+  onViewAction,
 }) => {
   const [objectSchema, setObjectSchema] = useState<Record<string, unknown> | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -501,8 +513,10 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           icon: iconMap[v.type] || 'table',
         };
       }),
+      allowCreateView: schema.allowCreateView,
+      viewActions: schema.viewActions,
     };
-  }, [hasMultiView, viewsPropResolved, activeView, schema.objectName]);
+  }, [hasMultiView, viewsPropResolved, activeView, schema.objectName, schema.allowCreateView, schema.viewActions]);
 
   // Handle view type change from ViewSwitcher → map back to view ID
   const handleViewTypeChange = useCallback((viewType: ViewType) => {
@@ -955,6 +969,8 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
                 <ViewSwitcher
                   schema={viewSwitcherSchema}
                   onViewChange={handleViewTypeChange}
+                  onCreateView={onCreateView}
+                  onViewAction={onViewAction}
                   className="overflow-x-auto"
                 />
               )}

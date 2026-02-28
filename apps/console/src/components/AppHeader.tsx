@@ -36,6 +36,7 @@ import { ActivityFeed, type ActivityItem } from './ActivityFeed';
 import type { ConnectionState } from '../dataSource';
 import { useAdapter } from '../context/AdapterProvider';
 import { useObjectTranslation } from '@object-ui/i18n';
+import type { BreadcrumbItem as BreadcrumbItemType } from '@object-ui/types';
 
 /** Convert a slug like "crm_dashboard" or "audit-log" to "Crm Dashboard" / "Audit Log" */
 function humanizeSlug(slug: string): string {
@@ -106,8 +107,8 @@ export function AppHeader({ appName, objects, connectionState, presenceUsers, ac
       href: `${baseHref}/${o.name}`,
     }));
 
-    // Determine breadcrumb items with optional siblings for dropdown
-    const breadcrumbItems: { label: string; href?: string; siblings?: { label: string; href: string }[] }[] = [
+    // Determine breadcrumb items using engine BreadcrumbItem type for schema alignment
+    const breadcrumbItems: BreadcrumbItemType[] = [
       { label: appName, href: baseHref }
     ];
     
@@ -150,6 +151,10 @@ export function AppHeader({ appName, objects, connectionState, presenceUsers, ac
         }
       }
     }
+
+    // HeaderBarSchema alignment: breadcrumbItems typed as engine BreadcrumbItemType.
+    // Console-specific concerns (presence, activity, connection) rendered as JSX below.
+    // Future: delegate full rendering to SchemaRenderer with header-bar schema.
 
     return (
         <div className="flex items-center justify-between w-full h-full px-2 sm:px-3 md:px-4 gap-1.5 sm:gap-2">
