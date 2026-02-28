@@ -62,7 +62,7 @@ vi.mock('../context/AdapterProvider', () => ({
 vi.mock('@object-ui/components', () => ({
   Breadcrumb: ({ children, className }: any) => <nav aria-label="breadcrumb" className={className}>{children}</nav>,
   BreadcrumbItem: ({ children }: any) => <li>{children}</li>,
-  BreadcrumbLink: ({ children, asChild }: any) => <span data-testid="breadcrumb-link">{children}</span>,
+  BreadcrumbLink: ({ children }: any) => <span data-testid="breadcrumb-link">{children}</span>,
   BreadcrumbList: ({ children }: any) => <ol>{children}</ol>,
   BreadcrumbPage: ({ children, className }: any) => <span data-testid="breadcrumb-page" className={className}>{children}</span>,
   BreadcrumbSeparator: () => <span>/</span>,
@@ -74,7 +74,7 @@ vi.mock('@object-ui/components', () => ({
   DropdownMenu: ({ children }: any) => <div data-testid="dropdown-menu">{children}</div>,
   DropdownMenuTrigger: ({ children, className }: any) => <button data-testid="dropdown-trigger" className={className}>{children}</button>,
   DropdownMenuContent: ({ children }: any) => <div data-testid="dropdown-content">{children}</div>,
-  DropdownMenuItem: ({ children, asChild }: any) => <div data-testid="dropdown-item">{children}</div>,
+  DropdownMenuItem: ({ children }: any) => <div data-testid="dropdown-item">{children}</div>,
 }));
 
 // Mock lucide-react
