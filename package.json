@@ -58,7 +58,6 @@
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",
-    "pretest:coverage": "turbo run build --filter=@object-ui/types --filter=@object-ui/core --filter=@object-ui/react --filter=@object-ui/components --filter=@object-ui/fields --filter=@object-ui/layout --filter=@object-ui/plugin-kanban --filter=@object-ui/plugin-charts --filter=@object-ui/plugin-form --filter=@object-ui/plugin-grid --filter=@object-ui/plugin-dashboard",
     "test:compliance": "vitest run src/__tests__/compliance.test.tsx",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
