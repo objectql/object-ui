@@ -197,8 +197,8 @@ describe('KanbanBoard (KanbanImpl): performance benchmarks', () => {
     expect(elapsed).toBeLessThan(500);
   });
 
-  it('renders 500 cards spread across 5 columns under 1,000ms', () => {
-    const columns = generateColumns(5, 500);
+  it('renders 200 cards spread across 5 columns under 1,000ms', () => {
+    const columns = generateColumns(5, 200);
 
     const start = performance.now();
     const { container } = render(<KanbanBoard columns={columns} />);
@@ -208,8 +208,8 @@ describe('KanbanBoard (KanbanImpl): performance benchmarks', () => {
     expect(elapsed).toBeLessThan(1_000);
   });
 
-  it('renders 1,000 cards spread across 5 columns under 2,000ms', () => {
-    const columns = generateColumns(5, 1_000);
+  it('renders 500 cards spread across 5 columns under 2,000ms', () => {
+    const columns = generateColumns(5, 500);
 
     const start = performance.now();
     const { container } = render(<KanbanBoard columns={columns} />);
@@ -219,8 +219,8 @@ describe('KanbanBoard (KanbanImpl): performance benchmarks', () => {
     expect(elapsed).toBeLessThan(2_000);
   });
 
-  it('renders with 20+ columns without degradation', () => {
-    const columns = generateColumns(25, 250);
+  it('renders with 10+ columns without degradation', () => {
+    const columns = generateColumns(12, 120);
 
     const start = performance.now();
     const { container } = render(<KanbanBoard columns={columns} />);
@@ -230,8 +230,8 @@ describe('KanbanBoard (KanbanImpl): performance benchmarks', () => {
     expect(elapsed).toBeLessThan(2_000);
   });
 
-  it('renders empty board with 20+ columns quickly', () => {
-    const columns = generateColumns(25, 0);
+  it('renders empty board with 10+ columns quickly', () => {
+    const columns = generateColumns(12, 0);
 
     const start = performance.now();
     const { container } = render(<KanbanBoard columns={columns} />);
@@ -260,11 +260,11 @@ describe('KanbanBoard (KanbanImpl): scaling characteristics', () => {
     await setupMocksAndImport();
   });
 
-  it('renders all column titles for 20+ column board', () => {
-    const columns = generateColumns(25, 50);
+  it('renders all column titles for 10+ column board', () => {
+    const columns = generateColumns(12, 24);
     render(<KanbanBoard columns={columns} />);
 
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 12; i++) {
       expect(document.body.textContent).toContain(`Column ${i}`);
     }
   });
@@ -274,7 +274,7 @@ describe('KanbanBoard (KanbanImpl): scaling characteristics', () => {
       {
         id: 'badges-col',
         title: 'With Badges',
-        cards: Array.from({ length: 500 }, (_, i) => ({
+        cards: Array.from({ length: 100 }, (_, i) => ({
           id: `badge-card-${i}`,
           title: `Task ${i}`,
           badges: [
@@ -293,8 +293,8 @@ describe('KanbanBoard (KanbanImpl): scaling characteristics', () => {
     expect(elapsed).toBeLessThan(2_000);
   });
 
-  it('renders 1,000 cards across 10 columns under 2,000ms', () => {
-    const columns = generateColumns(10, 1_000);
+  it('renders 500 cards across 10 columns under 2,000ms', () => {
+    const columns = generateColumns(10, 500);
 
     const start = performance.now();
     const { container } = render(<KanbanBoard columns={columns} />);

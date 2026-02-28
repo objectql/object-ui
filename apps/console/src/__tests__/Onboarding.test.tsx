@@ -37,9 +37,10 @@ describe('OnboardingWalkthrough', () => {
     
     render(<OnboardingWalkthrough />);
     
-    // Wait a bit then verify it's not shown
-    await new Promise(r => setTimeout(r, 1000));
-    expect(screen.queryByText('Welcome to ObjectUI')).not.toBeInTheDocument();
+    // Verify the dialog is not shown (no artificial delay needed)
+    await waitFor(() => {
+      expect(screen.queryByText('Welcome to ObjectUI')).not.toBeInTheDocument();
+    });
   });
 
   it('shows the first step initially', async () => {
