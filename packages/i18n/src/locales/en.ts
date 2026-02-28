@@ -272,6 +272,12 @@ const en = {
   console: {
     title: 'ObjectStack Console',
     initializing: 'Initializing application...',
+    breadcrumb: {
+      dashboards: 'Dashboards',
+      pages: 'Pages',
+      reports: 'Reports',
+      system: 'System',
+    },
     loadingSteps: {
       connecting: 'Connecting to data source',
       loadingConfig: 'Loading configuration',

@@ -272,6 +272,12 @@ const zh = {
   console: {
     title: 'ObjectStack 控制台',
     initializing: '正在初始化应用程序...',
+    breadcrumb: {
+      dashboards: '仪表盘',
+      pages: '页面',
+      reports: '报告',
+      system: '系统',
+    },
     loadingSteps: {
       connecting: '正在连接数据源',
       loadingConfig: '正在加载配置',

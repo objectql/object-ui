@@ -11,6 +11,13 @@ import type { BreadcrumbSchema } from '@object-ui/types';
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from '../../ui/breadcrumb';
 import { renderChildren } from '../../lib/utils';
 
+/** Resolve a label that may be a plain string or an I18nLabel object */
+function resolveItemLabel(label: string | { key?: string; defaultValue?: string } | undefined): string {
+  if (!label) return '';
+  if (typeof label === 'string') return label;
+  return label.defaultValue || label.key || '';
+}
+
 ComponentRegistry.register('breadcrumb', 
   ({ schema, ...props }: { schema: BreadcrumbSchema; [key: string]: any }) => {
     const { 
@@ -31,9 +38,9 @@ ComponentRegistry.register('breadcrumb',
             <div key={idx} className="flex items-center">
               <BreadcrumbItem>
                 {idx === (schema.items?.length || 0) - 1 ? (
-                  <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                  <BreadcrumbPage>{resolveItemLabel(item.label)}</BreadcrumbPage>
                 ) : (
-                  <BreadcrumbLink href={item.href}>{item.label}</BreadcrumbLink>
+                  <BreadcrumbLink href={item.href}>{resolveItemLabel(item.label)}</BreadcrumbLink>
                 )}
               </BreadcrumbItem>
               {idx < (schema.items?.length || 0) - 1 && <BreadcrumbSeparator />}

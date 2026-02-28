@@ -20,6 +20,13 @@ import {
   BreadcrumbPage
 } from '../../ui';
 
+/** Resolve a label that may be a plain string or an I18nLabel object */
+function resolveCrumbLabel(label: string | { key?: string; defaultValue?: string } | undefined): string {
+  if (!label) return '';
+  if (typeof label === 'string') return label;
+  return label.defaultValue || label.key || '';
+}
+
 ComponentRegistry.register('header-bar', 
   ({ schema }: { schema: HeaderBarSchema }) => (
     <header className="flex h-14 sm:h-16 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
@@ -31,9 +38,9 @@ ComponentRegistry.register('header-bar',
             <React.Fragment key={idx}>
               <BreadcrumbItem>
                 {idx === schema.crumbs.length - 1 ? (
-                   <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                   <BreadcrumbPage>{resolveCrumbLabel(crumb.label)}</BreadcrumbPage>
                 ) : (
-                   <BreadcrumbLink href={crumb.href || '#'}>{crumb.label}</BreadcrumbLink>
+                   <BreadcrumbLink href={crumb.href || '#'}>{resolveCrumbLabel(crumb.label)}</BreadcrumbLink>
                 )}
               </BreadcrumbItem>
               {idx < schema.crumbs.length - 1 && <BreadcrumbSeparator />}

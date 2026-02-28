@@ -35,6 +35,7 @@ import { ConnectionStatus } from './ConnectionStatus';
 import { ActivityFeed, type ActivityItem } from './ActivityFeed';
 import type { ConnectionState } from '../dataSource';
 import { useAdapter } from '../context/AdapterProvider';
+import { useObjectTranslation } from '@object-ui/i18n';
 
 /** Convert a slug like "crm_dashboard" or "audit-log" to "Crm Dashboard" / "Audit Log" */
 function humanizeSlug(slug: string): string {
@@ -55,6 +56,7 @@ export function AppHeader({ appName, objects, connectionState, presenceUsers, ac
     const params = useParams();
     const { isOnline } = useOffline();
     const dataSource = useAdapter();
+    const { t } = useObjectTranslation();
 
     const [apiPresenceUsers, setApiPresenceUsers] = useState<PresenceUser[] | null>(null);
     const [apiActivities, setApiActivities] = useState<ActivityItem[] | null>(null);
@@ -110,22 +112,22 @@ export function AppHeader({ appName, objects, connectionState, presenceUsers, ac
     ];
     
     if (routeType === 'dashboard') {
-      breadcrumbItems.push({ label: 'Dashboards', href: `${breadcrumbItems[0].href}` });
+      breadcrumbItems.push({ label: t('console.breadcrumb.dashboards'), href: `${breadcrumbItems[0].href}` });
       if (pathParts[3]) {
         breadcrumbItems.push({ label: humanizeSlug(pathParts[3]) });
       }
     } else if (routeType === 'page') {
-      breadcrumbItems.push({ label: 'Pages', href: `${breadcrumbItems[0].href}` });
+      breadcrumbItems.push({ label: t('console.breadcrumb.pages'), href: `${breadcrumbItems[0].href}` });
       if (pathParts[3]) {
         breadcrumbItems.push({ label: humanizeSlug(pathParts[3]) });
       }
     } else if (routeType === 'report') {
-      breadcrumbItems.push({ label: 'Reports', href: `${breadcrumbItems[0].href}` });
+      breadcrumbItems.push({ label: t('console.breadcrumb.reports'), href: `${breadcrumbItems[0].href}` });
       if (pathParts[3]) {
         breadcrumbItems.push({ label: humanizeSlug(pathParts[3]) });
       }
     } else if (routeType === 'system') {
-      breadcrumbItems.push({ label: 'System' });
+      breadcrumbItems.push({ label: t('console.breadcrumb.system') });
       if (pathParts[3]) {
         breadcrumbItems.push({ label: humanizeSlug(pathParts[3]) });
       }

@@ -39,6 +39,9 @@ const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
+const SIDEBAR_WIDTH_STORAGE_KEY = "sidebar_width"
+const SIDEBAR_MIN_WIDTH = 200 // px
+const SIDEBAR_MAX_WIDTH = 480 // px
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed"
@@ -48,6 +51,10 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
   toggleSidebar: () => void
+  /** Current sidebar width in pixels (only used when resizable) */
+  sidebarWidth: number | null
+  /** Update sidebar width (only used when resizable) */
+  setSidebarWidth: (width: number | null) => void
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
@@ -83,6 +90,24 @@ const SidebarProvider = React.forwardRef<
   ) => {
     const isMobile = useIsMobile()
     const [openMobile, setOpenMobile] = React.useState(false)
+
+    // Resizable sidebar width state (persisted to localStorage)
+    const [sidebarWidth, setSidebarWidthState] = React.useState<number | null>(() => {
+      try {
+        const stored = localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY)
+        return stored ? Number(stored) : null
+      } catch { return null }
+    })
+    const setSidebarWidth = React.useCallback((width: number | null) => {
+      setSidebarWidthState(width)
+      try {
+        if (width != null) {
+          localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(width))
+        } else {
+          localStorage.removeItem(SIDEBAR_WIDTH_STORAGE_KEY)
+        }
+      } catch { /* ignore */ }
+    }, [])
 
     // This is the internal state of the sidebar.
     // We use openProp and setOpenProp for control from outside the component.
@@ -139,8 +164,10 @@ const SidebarProvider = React.forwardRef<
         openMobile,
         setOpenMobile,
         toggleSidebar,
+        sidebarWidth,
+        setSidebarWidth,
       }),
-      [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+      [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, sidebarWidth, setSidebarWidth]
     )
 
     return (
@@ -149,7 +176,7 @@ const SidebarProvider = React.forwardRef<
           <div
             style={
               {
-                "--sidebar-width": SIDEBAR_WIDTH,
+                "--sidebar-width": sidebarWidth ? `${sidebarWidth}px` : SIDEBAR_WIDTH,
                 "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
                 ...style,
               } as React.CSSProperties
@@ -307,7 +334,47 @@ const SidebarRail = React.forwardRef<
   HTMLButtonElement,
   React.ComponentProps<"button">
 >(({ className, ...props }, ref) => {
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar, setSidebarWidth } = useSidebar()
+  const dragging = React.useRef(false)
+  const startX = React.useRef(0)
+  const startWidth = React.useRef(0)
+
+  const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
+    // Only initiate resize on left mouse button
+    if (e.button !== 0) return
+    e.preventDefault()
+    dragging.current = true
+    startX.current = e.clientX
+
+    // Get the current sidebar width from computed CSS variable
+    const wrapper = (e.target as HTMLElement).closest('[style*="--sidebar-width"]') as HTMLElement | null
+    startWidth.current = wrapper
+      ? parseInt(getComputedStyle(wrapper).getPropertyValue('--sidebar-width')) || 256
+      : 256
+
+    const onPointerMove = (ev: PointerEvent) => {
+      if (!dragging.current) return
+      const delta = ev.clientX - startX.current
+      const newWidth = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, startWidth.current + delta))
+      setSidebarWidth(newWidth)
+    }
+
+    const onPointerUp = () => {
+      dragging.current = false
+      document.removeEventListener('pointermove', onPointerMove)
+      document.removeEventListener('pointerup', onPointerUp)
+    }
+
+    document.addEventListener('pointermove', onPointerMove)
+    document.addEventListener('pointerup', onPointerUp)
+  }, [setSidebarWidth])
+
+  const handleClick = React.useCallback((e: React.MouseEvent) => {
+    // Only toggle on click (not at end of drag)
+    if (Math.abs(e.clientX - startX.current) < 5) {
+      toggleSidebar()
+    }
+  }, [toggleSidebar])
 
   return (
     <button
@@ -315,11 +382,13 @@ const SidebarRail = React.forwardRef<
       data-sidebar="rail"
       aria-label="Toggle Sidebar"
       tabIndex={-1}
-      onClick={toggleSidebar}
-      title="Toggle Sidebar"
+      onPointerDown={handlePointerDown}
+      onClick={handleClick}
+      onDoubleClick={() => setSidebarWidth(null)}
+      title="Drag to resize, click to toggle, double-click to reset"
       className={cn(
         "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex",
-        "[[data-side=left]_&]:cursor-w-resize [[data-side=right]_&]:cursor-e-resize",
+        "[[data-side=left]_&]:cursor-col-resize [[data-side=right]_&]:cursor-col-resize",
         "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
         "group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full group-data-[collapsible=offcanvas]:hover:bg-sidebar",
         "[[data-side=left][data-collapsible=offcanvas]_&]:-right-2",
