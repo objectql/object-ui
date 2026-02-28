@@ -205,7 +205,7 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
           <button
             data-testid={`filter-badge-${f.field}`}
             className={cn(
-              'inline-flex items-center gap-1 rounded-md border h-7 px-2.5 text-xs font-medium transition-colors shrink-0',
+              'inline-flex items-center gap-1 rounded-full border h-7 px-2.5 text-xs font-medium transition-colors shrink-0',
               hasSelection
                 ? 'border-primary/30 bg-primary/5 text-primary'
                 : 'border-border bg-background hover:bg-accent text-foreground',
@@ -285,7 +285,7 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
               <PopoverTrigger asChild>
                 <button
                   data-testid="user-filters-more"
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-background hover:bg-accent text-foreground h-7 px-2.5 text-xs font-medium transition-colors shrink-0"
+                  className="inline-flex items-center gap-1 rounded-full border border-border bg-background hover:bg-accent text-foreground h-7 px-2.5 text-xs font-medium transition-colors shrink-0"
                 >
                   <span>More</span>
                   <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-muted text-[10px] font-medium">

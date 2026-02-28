@@ -342,6 +342,13 @@ export interface DataTableSchema extends BaseSchema {
    */
   selectable?: boolean | 'single' | 'multiple';
   /**
+   * Selection checkbox display style
+   * - 'always': Checkboxes are always visible
+   * - 'hover': Checkboxes only appear on row hover
+   * @default 'always'
+   */
+  selectionStyle?: 'always' | 'hover';
+  /**
    * Enable column sorting
    * @default true
    */

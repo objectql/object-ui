@@ -148,6 +148,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     reorderableColumns = true,
     editable = false,
     singleClickEdit = false,
+    selectionStyle = 'always',
     rowClassName,
     rowStyle,
     className,
@@ -171,6 +172,31 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       accessorKey: col.accessorKey || col.name
     }));
   }, [rawColumns]);
+
+  // Auto-size columns: estimate width from header and data content for columns without explicit widths
+  const autoSizedWidths = useMemo(() => {
+    const widths: Record<string, number> = {};
+    const cols = rawColumns.map((col: any) => ({
+      header: col.header || col.label,
+      accessorKey: col.accessorKey || col.name,
+      width: col.width,
+    }));
+    for (const col of cols) {
+      if (col.width) continue; // Skip columns with explicit widths
+      const headerLen = (col.header || '').length;
+      let maxLen = headerLen;
+      // Sample up to 50 rows for content width estimation
+      const sampleRows = data.slice(0, 50);
+      for (const row of sampleRows) {
+        const val = row[col.accessorKey];
+        const len = val != null ? String(val).length : 0;
+        if (len > maxLen) maxLen = len;
+      }
+      // Estimate pixel width: ~8px per character + 48px padding, min 80, max 400
+      widths[col.accessorKey] = Math.min(400, Math.max(80, maxLen * 8 + 48));
+    }
+    return widths;
+  }, [rawColumns, data]);
 
   // State management
   const [searchQuery, setSearchQuery] = useState('');
@@ -694,14 +720,14 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                 </TableHead>
               )}
               {columns.map((col, index) => {
-                const columnWidth = columnWidths[col.accessorKey] || col.width;
+                const columnWidth = columnWidths[col.accessorKey] || col.width || autoSizedWidths[col.accessorKey];
                 const isDragging = draggedColumn === index;
                 const isDragOver = dragOverColumn === index;
                 const isFrozen = frozenColumns > 0 && index < frozenColumns;
                 const frozenOffset = isFrozen
                   ? columns.slice(0, index).reduce((sum, c, i) => {
                       if (i < frozenColumns) {
-                        const w = columnWidths[c.accessorKey] || c.width;
+                        const w = columnWidths[c.accessorKey] || c.width || autoSizedWidths[c.accessorKey];
                         return sum + (typeof w === 'number' ? w : w ? parseInt(String(w), 10) || 150 : 150);
                       }
                       return sum;
@@ -785,7 +811,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                   <TableRow key={`ghost-${i}`} className="hover:bg-transparent opacity-[0.15] pointer-events-none" data-testid="ghost-row">
                     {selectable && <TableCell className="p-3"><div className="h-4 w-4 rounded border border-muted-foreground/30" /></TableCell>}
                     {showRowNumbers && <TableCell className="text-center p-3"><div className="h-3 w-6 mx-auto rounded bg-muted-foreground/30" /></TableCell>}
-                    {columns.map((col, ci) => (
+                    {columns.map((_col, ci) => (
                       <TableCell key={ci} className="p-3">
                         <div className={cn("h-3 rounded bg-muted-foreground/30", ci === 0 ? "w-3/4" : ci === columns.length - 1 ? "w-1/3" : "w-1/2")} />
                       </TableCell>
@@ -826,11 +852,20 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       }}
                     >
                       {selectable && (
-                        <TableCell className={cn(frozenColumns > 0 && "sticky left-0 z-10 bg-background")}>
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={(checked) => handleSelectRow(rowId, checked as boolean)}
-                          />
+                        <TableCell className={cn(frozenColumns > 0 && "sticky left-0 z-10 bg-background", selectionStyle === 'hover' && "relative")}>
+                          {selectionStyle === 'hover' ? (
+                            <div className={cn("transition-opacity", isSelected ? "opacity-100" : "opacity-0 group-hover/row:opacity-100")}>
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={(checked) => handleSelectRow(rowId, checked as boolean)}
+                              />
+                            </div>
+                          ) : (
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => handleSelectRow(rowId, checked as boolean)}
+                            />
+                          )}
                         </TableCell>
                       )}
                       {showRowNumbers && (
@@ -864,7 +899,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         </TableCell>
                       )}
                       {columns.map((col, colIndex) => {
-                        const columnWidth = columnWidths[col.accessorKey] || col.width;
+                        const columnWidth = columnWidths[col.accessorKey] || col.width || autoSizedWidths[col.accessorKey];
                         const originalValue = row[col.accessorKey];
                         const hasPendingChange = rowChanges[col.accessorKey] !== undefined;
                         const cellValue = hasPendingChange ? rowChanges[col.accessorKey] : originalValue;
@@ -874,7 +909,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         const frozenOffset = isFrozen
                           ? columns.slice(0, colIndex).reduce((sum, c, i) => {
                               if (i < frozenColumns) {
-                                const w = columnWidths[c.accessorKey] || c.width;
+                                const w = columnWidths[c.accessorKey] || c.width || autoSizedWidths[c.accessorKey];
                                 return sum + (typeof w === 'number' ? w : w ? parseInt(String(w), 10) || 150 : 150);
                               }
                               return sum;
