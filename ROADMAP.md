@@ -1129,6 +1129,17 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 
 ## 🐛 Bug Fixes
 
+### Default Navigation Mode (Page) Clicks Have No Effect — Stale Closure (February 2026)
+
+**Root Cause:** Three compounding issues created a stale closure chain in `ObjectView.tsx`:
+1. `{ mode: 'page' }` fallback created a new object literal every render, causing `useNavigationOverlay`'s `handleClick` `useCallback` to be recreated with potentially stale deps.
+2. The `onNavigate` callback was an inline arrow function with unstable identity, so React could batch-skip the render where `handleClick` picks up the fresh closure.
+3. Cascade instability: `navOverlay` (from `useMemo`) got a new reference every render because its deps (`handleClick`, etc.) changed, propagating stale closures through `renderListView`.
+
+**Fix:** Memoized `detailNavigation` with `useMemo` (stable reference for the `{ mode: 'page' }` fallback) and extracted `onNavigate` into a `useCallback` (`handleNavOverlayNavigate`) with `[navigate, viewId]` deps. This ensures stable identities for both inputs to `useNavigationOverlay`, preventing stale closures.
+
+**Tests:** Added 2 stale closure prevention tests in `useNavigationOverlay.test.ts`: (1) verify `handleClick` uses latest `onNavigate` after re-render with new callback, (2) verify navigation works after config changes from undefined to explicit page mode. All 31 useNavigationOverlay tests and 739 console tests pass.
+
 ### ListView Grouping Config Not Taking Effect (February 2026)
 
 **Root Cause:** `viewComponentSchema` `useMemo` in `ListView.tsx` was missing `groupingConfig`, `rowColorConfig`, and `navigation.handleClick` in its dependency array. When users toggled grouping fields via the toolbar popover, the state changed but the memoized schema was not recomputed, so the child grid/kanban/gallery never received the updated grouping config.
