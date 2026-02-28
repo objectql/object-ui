@@ -137,6 +137,12 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   // Use the live editSchema (when available) so that config panel changes
   // to objectName, filters, or limit are immediately reflected in the preview.
   const dataFetchSource = editSchema || reportData;
+
+  // Memoize serialized dependency keys to avoid re-fetching on every render
+  const filtersKey = useMemo(() => JSON.stringify(dataFetchSource?.filters), [dataFetchSource?.filters]);
+  const dataSourceKey = useMemo(() => JSON.stringify(dataFetchSource?.dataSource), [dataFetchSource?.dataSource]);
+  const inlineDataKey = useMemo(() => JSON.stringify(dataFetchSource?.data), [dataFetchSource?.data]);
+
   useEffect(() => {
     if (!dataFetchSource || !dataSource) {
       setReportRuntimeData([]);
@@ -207,15 +213,13 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
 
     // No data source configured
     setReportRuntimeData([]);
-    // Derive a stable dependency key from data-affecting fields to avoid
-    // re-fetching on every keystroke (e.g. title changes).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dataFetchSource?.objectName,
     dataFetchSource?.limit,
-    JSON.stringify(dataFetchSource?.filters),
-    JSON.stringify(dataFetchSource?.dataSource),
-    JSON.stringify(dataFetchSource?.data),
+    filtersKey,
+    dataSourceKey,
+    inlineDataKey,
     dataSource,
   ]);
 

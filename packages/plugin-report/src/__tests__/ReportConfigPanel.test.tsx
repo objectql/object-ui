@@ -302,7 +302,7 @@ describe('ReportConfigPanel', () => {
         onSave={vi.fn()}
       />,
     );
-    expect(screen.getByText('Report type')).toBeDefined();
+    expect(screen.getByText('Report type')).toBeInTheDocument();
   });
 
   it('should display columns section with field picker', () => {
@@ -315,12 +315,12 @@ describe('ReportConfigPanel', () => {
         availableFields={mockAvailableFields}
       />,
     );
-    expect(screen.getByText('Columns')).toBeDefined();
+    expect(screen.getByText('Columns')).toBeInTheDocument();
     // Field picker should show available fields
-    expect(screen.getByTestId('field-picker')).toBeDefined();
-    expect(screen.getByText('Name')).toBeDefined();
-    expect(screen.getByText('Amount')).toBeDefined();
-    expect(screen.getByText('Stage')).toBeDefined();
+    expect(screen.getByTestId('field-picker')).toBeInTheDocument();
+    expect(screen.getByText('Name')).toBeInTheDocument();
+    expect(screen.getByText('Amount')).toBeInTheDocument();
+    expect(screen.getByText('Stage')).toBeInTheDocument();
   });
 
   it('should show empty state when no available fields for field picker', () => {
@@ -333,8 +333,8 @@ describe('ReportConfigPanel', () => {
         availableFields={[]}
       />,
     );
-    expect(screen.getByTestId('field-picker-empty')).toBeDefined();
-    expect(screen.getByText('No fields available')).toBeDefined();
+    expect(screen.getByTestId('field-picker-empty')).toBeInTheDocument();
+    expect(screen.getByText('No fields available')).toBeInTheDocument();
   });
 
   it('should toggle field selection in field picker', () => {
@@ -365,8 +365,8 @@ describe('ReportConfigPanel', () => {
         onSave={vi.fn()}
       />,
     );
-    expect(screen.getByTestId('config-panel-undo')).toBeDefined();
-    expect(screen.getByTestId('config-panel-redo')).toBeDefined();
+    expect(screen.getByTestId('config-panel-undo')).toBeInTheDocument();
+    expect(screen.getByTestId('config-panel-redo')).toBeInTheDocument();
   });
 
   it('should enable undo after making a change', () => {

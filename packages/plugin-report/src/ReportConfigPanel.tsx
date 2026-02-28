@@ -130,7 +130,7 @@ function buildReportSchema(
               { value: 'summary', label: 'Summary' },
               { value: 'matrix', label: 'Matrix' },
             ],
-            helpText: 'Tabular: flat table. Summary: grouped with subtotals. Matrix: pivot table.',
+            helpText: 'Tabular: flat table. Summary: grouped with subtotals. Matrix: pivot table (planned).',
           },
         ],
       },
