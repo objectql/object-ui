@@ -340,6 +340,9 @@ function buildGeneralSection(
 function buildToolbarSection(
     t: ViewSchemaFactoryOptions['t'],
 ): ConfigPanelSchema['sections'][number] {
+    /** Keys of all toolbar toggles (used for enabled-count summary) */
+    const toolbarKeys = ['showSearch', 'showSort', 'showFilters', 'showHideFields', 'showGroup', 'showColor', 'showDensity'];
+
     return {
         key: 'toolbar',
         title: t('console.objectView.toolbar'),
@@ -347,6 +350,23 @@ function buildToolbarSection(
         collapsible: true,
         defaultCollapsed: true,
         fields: [
+            // Summary chip — "X of Y enabled" at-a-glance overview at the top of expanded section
+            {
+                key: '_toolbarSummary',
+                label: t('console.objectView.toolbar'),
+                type: 'custom' as const,
+                render: (_value: any, _onChange: any, draft: Record<string, any>) => {
+                    const total = toolbarKeys.length;
+                    const count = toolbarKeys.filter(k => draft[k] !== false).length;
+                    return (
+                        <div className="flex items-center gap-1.5 py-1" data-testid="toolbar-summary-chip">
+                            <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                {t('console.objectView.toolbarEnabledCount', { count, total })}
+                            </span>
+                        </div>
+                    );
+                },
+            },
             // Toolbar toggles — ordered per spec: showSearch, showSort, showFilters, showHideFields, showGroup, showColor, showDensity
             buildSwitchField('showSearch', t('console.objectView.enableSearch'), 'toggle-showSearch', true),       // spec: NamedListView.showSearch
             buildSwitchField('showSort', t('console.objectView.enableSort'), 'toggle-showSort', true),             // spec: NamedListView.showSort

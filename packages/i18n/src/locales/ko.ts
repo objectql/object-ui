@@ -367,6 +367,7 @@ const ko = {
       generalHint: '보기 제목, 설명 및 유형',
       toolbar: '도구 모음',
       toolbarHint: '검색, 필터, 정렬, 그룹화 및 밀도 전환',
+      toolbarEnabledCount: '{{count}} of {{total}} enabled',
       navigationSection: '탐색',
       navigationHint: '행 클릭 동작 및 상세 보기 설정',
       records: '레코드',

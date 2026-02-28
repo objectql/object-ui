@@ -372,6 +372,7 @@ const fr = {
       generalHint: 'Titre, description et type de la vue',
       toolbar: 'Barre d\'outils',
       toolbarHint: 'Recherche, filtre, tri, regroupement et bascule de densité',
+      toolbarEnabledCount: '{{count}} of {{total}} enabled',
       navigationSection: 'Navigation',
       navigationHint: 'Comportement au clic sur la ligne et paramètres de la vue détaillée',
       records: 'Enregistrements',

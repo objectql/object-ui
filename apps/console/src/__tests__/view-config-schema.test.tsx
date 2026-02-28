@@ -394,7 +394,7 @@ describe('buildViewConfigSchema', () => {
             const section = schema.sections.find((s: any) => s.key === 'toolbar')!;
             const fieldKeys = section.fields.map((f: any) => f.key);
             expect(fieldKeys).toEqual([
-                'showSearch', 'showSort', 'showFilters', 'showHideFields', 'showGroup', 'showColor', 'showDensity',
+                '_toolbarSummary', 'showSearch', 'showSort', 'showFilters', 'showHideFields', 'showGroup', 'showColor', 'showDensity',
             ]);
         });
 

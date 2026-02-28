@@ -372,6 +372,7 @@ const de = {
       generalHint: 'Ansichtstitel, Beschreibung und Typ',
       toolbar: 'Symbolleiste',
       toolbarHint: 'Suche, Filter, Sortierung, Gruppierung und Dichteumschaltung',
+      toolbarEnabledCount: '{{count}} of {{total}} enabled',
       navigationSection: 'Navigation',
       navigationHint: 'Zeilenklickverhalten und Detailansichtseinstellungen',
       records: 'Datensätze',
