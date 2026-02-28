@@ -372,6 +372,7 @@ const zh = {
       generalHint: '视图标题、描述和类型',
       toolbar: '工具栏',
       toolbarHint: '搜索、筛选、排序、分组和密度切换',
+      toolbarEnabledCount: '{{count}} of {{total}} enabled',
       navigationSection: '导航',
       navigationHint: '行点击行为和详情视图设置',
       records: '记录',

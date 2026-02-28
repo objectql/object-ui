@@ -520,6 +520,9 @@ describe('ViewConfigPanel', () => {
         // Initially no footer (not dirty)
         expect(screen.queryByTestId('view-config-footer')).not.toBeInTheDocument();
 
+        // Expand toolbar section (defaultCollapsed)
+        fireEvent.click(screen.getByTestId('section-toolbar'));
+
         // Toggle showSearch switch (default is on → turn off)
         const searchSwitch = screen.getByTestId('toggle-showSearch');
         fireEvent.click(searchSwitch);
@@ -541,6 +544,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-toolbar'));
         const filterSwitch = screen.getByTestId('toggle-showFilters');
         fireEvent.click(filterSwitch);
         expect(onViewUpdate).toHaveBeenCalledWith('showFilters', false);
@@ -558,6 +562,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-toolbar'));
         const sortSwitch = screen.getByTestId('toggle-showSort');
         fireEvent.click(sortSwitch);
         expect(onViewUpdate).toHaveBeenCalledWith('showSort', false);
@@ -593,6 +598,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-records'));
         const formSwitch = screen.getByTestId('toggle-addRecord-enabled');
         fireEvent.click(formSwitch);
         expect(onViewUpdate).toHaveBeenCalledWith('addRecordViaForm', true);
@@ -815,6 +821,8 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-toolbar'));
+        fireEvent.click(screen.getByTestId('section-records'));
         expect(screen.getByTestId('toggle-showSearch')).toHaveAttribute('aria-checked', 'false');
         expect(screen.getByTestId('toggle-showFilters')).toHaveAttribute('aria-checked', 'true');
         expect(screen.getByTestId('toggle-showSort')).toHaveAttribute('aria-checked', 'false');
@@ -838,6 +846,7 @@ describe('ViewConfigPanel', () => {
         );
 
         // Toggle showSearch — panel becomes dirty
+        fireEvent.click(screen.getByTestId('section-toolbar'));
         fireEvent.click(screen.getByTestId('toggle-showSearch'));
         expect(screen.getByTestId('view-config-footer')).toBeInTheDocument();
 
@@ -868,6 +877,7 @@ describe('ViewConfigPanel', () => {
         );
 
         // Make the panel dirty
+        fireEvent.click(screen.getByTestId('section-toolbar'));
         fireEvent.click(screen.getByTestId('toggle-showSearch'));
         expect(screen.getByTestId('view-config-footer')).toBeInTheDocument();
 
@@ -898,6 +908,7 @@ describe('ViewConfigPanel', () => {
         );
 
         // Toggle multiple switches
+        fireEvent.click(screen.getByTestId('section-toolbar'));
         fireEvent.click(screen.getByTestId('toggle-showSearch'));
         fireEvent.click(screen.getByTestId('toggle-showFilters'));
 
@@ -1274,13 +1285,19 @@ describe('ViewConfigPanel', () => {
             />
         );
 
-        // Appearance section is expanded by default
-        expect(screen.getByTestId('toggle-showDescription')).toBeInTheDocument();
+        // Appearance section starts collapsed by default
+        expect(screen.queryByTestId('toggle-showDescription')).not.toBeInTheDocument();
 
-        // Click section header to collapse
+        // Click section header to expand
         fireEvent.click(screen.getByTestId('section-appearance'));
 
-        // Toggle should be hidden
+        // Toggle should now be visible
+        expect(screen.getByTestId('toggle-showDescription')).toBeInTheDocument();
+
+        // Click again to collapse
+        fireEvent.click(screen.getByTestId('section-appearance'));
+
+        // Toggle should be hidden again
         expect(screen.queryByTestId('toggle-showDescription')).not.toBeInTheDocument();
     });
 
@@ -1296,6 +1313,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         expect(screen.getByTestId('appearance-color')).toBeInTheDocument();
         expect(screen.getByTestId('appearance-rowHeight')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-wrapHeaders')).toBeInTheDocument();
@@ -1313,6 +1331,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         const mediumBtn = screen.getByTestId('row-height-medium');
         fireEvent.click(mediumBtn);
         expect(onViewUpdate).toHaveBeenCalledWith('rowHeight', 'medium');
@@ -1330,6 +1349,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         fireEvent.click(screen.getByTestId('toggle-wrapHeaders'));
         expect(onViewUpdate).toHaveBeenCalledWith('wrapHeaders', true);
     });
@@ -1350,6 +1370,7 @@ describe('ViewConfigPanel', () => {
         fireEvent.click(screen.getByTestId('section-userActions'));
         expect(screen.getByTestId('toggle-inlineEdit')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-addDeleteRecordsInline')).toBeInTheDocument();
+        fireEvent.click(screen.getByTestId('section-navigation'));
         expect(screen.getByTestId('select-navigation-mode')).toBeInTheDocument();
     });
 
@@ -1688,7 +1709,12 @@ describe('ViewConfigPanel', () => {
         const panel = screen.getByTestId('view-config-panel');
         expect(panel).toBeInTheDocument();
 
-        // These toggles should be rendered in the page section (always visible, not behind a collapsible)
+        // Expand collapsed sections
+        fireEvent.click(screen.getByTestId('section-toolbar'));
+        fireEvent.click(screen.getByTestId('section-navigation'));
+        fireEvent.click(screen.getByTestId('section-records'));
+
+        // These toggles should be rendered in the page section
         expect(screen.getByTestId('toggle-showSearch')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-showFilters')).toBeInTheDocument();
         expect(screen.getByTestId('toggle-showSort')).toBeInTheDocument();
@@ -1741,6 +1767,11 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        // Expand collapsed sections
+        fireEvent.click(screen.getByTestId('section-toolbar'));
+        fireEvent.click(screen.getByTestId('section-navigation'));
+        fireEvent.click(screen.getByTestId('section-records'));
+
         // Toggle showSearch off
         fireEvent.click(screen.getByTestId('toggle-showSearch'));
         expect(onViewUpdate).toHaveBeenCalledWith('showSearch', false);
@@ -1778,6 +1809,8 @@ describe('ViewConfigPanel', () => {
                 onViewUpdate={onViewUpdate}
             />
         );
+
+        fireEvent.click(screen.getByTestId('section-toolbar'));
 
         // Toggle showHideFields off
         fireEvent.click(screen.getByTestId('toggle-showHideFields'));
@@ -1853,6 +1886,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-navigation'));
         const navSelect = screen.getByTestId('select-navigation-mode');
         expect(navSelect).toBeInTheDocument();
         expect(navSelect).toHaveValue('page');
@@ -1870,6 +1904,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-navigation'));
         expect(screen.getByTestId('input-navigation-width')).toBeInTheDocument();
     });
 
@@ -1883,6 +1918,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-navigation'));
         expect(screen.getByTestId('toggle-navigation-openNewTab')).toBeInTheDocument();
     });
 
@@ -1898,6 +1934,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-navigation'));
         fireEvent.change(screen.getByTestId('select-navigation-mode'), { target: { value: 'none' } });
         expect(onViewUpdate).toHaveBeenCalledWith('navigation', expect.objectContaining({ mode: 'none' }));
         expect(onViewUpdate).toHaveBeenCalledWith('clickIntoRecordDetails', false);
@@ -1913,6 +1950,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-records'));
         expect(screen.getByTestId('select-selection-type')).toBeInTheDocument();
     });
 
@@ -1928,6 +1966,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-records'));
         fireEvent.change(screen.getByTestId('select-selection-type'), { target: { value: 'single' } });
         expect(onViewUpdate).toHaveBeenCalledWith('selection', { type: 'single' });
     });
@@ -2090,6 +2129,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         expect(screen.getByTestId('toggle-resizable')).toBeInTheDocument();
     });
 
@@ -2105,6 +2145,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         fireEvent.click(screen.getByTestId('toggle-resizable'));
         expect(onViewUpdate).toHaveBeenCalledWith('resizable', true);
     });
@@ -2121,6 +2162,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         fireEvent.click(screen.getByText('console.objectView.conditionalFormatting'));
         expect(screen.getByTestId('conditional-formatting-editor')).toBeInTheDocument();
         expect(screen.getByTestId('add-conditional-rule')).toBeInTheDocument();
@@ -2138,6 +2180,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         fireEvent.click(screen.getByText('console.objectView.conditionalFormatting'));
         fireEvent.click(screen.getByTestId('add-conditional-rule'));
         expect(onViewUpdate).toHaveBeenCalledWith('conditionalFormatting', expect.arrayContaining([
@@ -2189,6 +2232,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         expect(screen.getByTestId('input-emptyState-title')).toBeInTheDocument();
         expect(screen.getByTestId('input-emptyState-message')).toBeInTheDocument();
         expect(screen.getByTestId('input-emptyState-icon')).toBeInTheDocument();
@@ -2266,6 +2310,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-records'));
         expect(screen.getByTestId('select-addRecord-position')).toBeInTheDocument();
         expect(screen.getByTestId('select-addRecord-mode')).toBeInTheDocument();
         expect(screen.getByTestId('input-addRecord-formView')).toBeInTheDocument();
@@ -2313,6 +2358,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         expect(screen.getByTestId('row-height-compact')).toBeInTheDocument();
         expect(screen.getByTestId('row-height-short')).toBeInTheDocument();
         expect(screen.getByTestId('row-height-medium')).toBeInTheDocument();
@@ -2342,6 +2388,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         fireEvent.change(screen.getByTestId('input-emptyState-title'), { target: { value: 'No data' } });
         expect(onViewUpdate).toHaveBeenCalledWith('emptyState', expect.objectContaining({ title: 'No data' }));
     });
@@ -2358,6 +2405,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         fireEvent.change(screen.getByTestId('input-emptyState-message'), { target: { value: 'Try adding records' } });
         expect(onViewUpdate).toHaveBeenCalledWith('emptyState', expect.objectContaining({ message: 'Try adding records' }));
     });
@@ -2374,6 +2422,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         fireEvent.change(screen.getByTestId('input-emptyState-icon'), { target: { value: 'inbox' } });
         expect(onViewUpdate).toHaveBeenCalledWith('emptyState', expect.objectContaining({ icon: 'inbox' }));
     });
@@ -2529,6 +2578,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         fireEvent.click(screen.getByTestId('toggle-showDescription'));
         expect(onViewUpdate).toHaveBeenCalledWith('showDescription', false);
     });
@@ -2623,6 +2673,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         const heights = ['compact', 'short', 'medium', 'tall', 'extra_tall'];
         heights.forEach((h) => {
             fireEvent.click(screen.getByTestId(`row-height-${h}`));
@@ -2701,6 +2752,7 @@ describe('ViewConfigPanel', () => {
             />
         );
 
+        fireEvent.click(screen.getByTestId('section-appearance'));
         fireEvent.change(screen.getByTestId('input-emptyState-title'), { target: { value: '<script>alert("xss")</script>' } });
         expect(onViewUpdate).toHaveBeenCalledWith('emptyState', expect.objectContaining({
             title: '<script>alert("xss")</script>',

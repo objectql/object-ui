@@ -372,6 +372,7 @@ const en = {
       generalHint: 'View title, description, and type',
       toolbar: 'Toolbar',
       toolbarHint: 'Search, filter, sort, group, and density toggles',
+      toolbarEnabledCount: '{{count}} of {{total}} enabled',
       navigationSection: 'Navigation',
       navigationHint: 'Row click behavior and detail view settings',
       records: 'Records',

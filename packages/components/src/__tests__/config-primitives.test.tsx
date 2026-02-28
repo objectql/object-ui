@@ -91,4 +91,16 @@ describe('SectionHeader', () => {
     const element = screen.getByTestId('section');
     expect(element.className).toContain('custom-class');
   });
+
+  it('should render icon when provided', () => {
+    render(<SectionHeader title="Data" icon={<span data-testid="icon">📊</span>} testId="section" />);
+    expect(screen.getByTestId('icon')).toBeDefined();
+    expect(screen.getByText('Data')).toBeDefined();
+  });
+
+  it('should render icon alongside collapsible title', () => {
+    render(<SectionHeader title="Data" icon={<span data-testid="icon">📊</span>} collapsible testId="section" />);
+    expect(screen.getByTestId('icon')).toBeDefined();
+    expect(screen.getByTestId('section').tagName).toBe('BUTTON');
+  });
 });

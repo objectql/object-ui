@@ -13,6 +13,8 @@ import { cn } from "../lib/utils"
 export interface SectionHeaderProps {
   /** Section heading text */
   title: string
+  /** Icon rendered before the title */
+  icon?: React.ReactNode
   /** Enable collapse/expand toggle */
   collapsible?: boolean
   /** Current collapsed state */
@@ -31,7 +33,13 @@ export interface SectionHeaderProps {
  * Renders as a `<button>` when collapsible, with a chevron icon
  * indicating the expand/collapse state. Uses `aria-expanded` for accessibility.
  */
-function SectionHeader({ title, collapsible, collapsed, onToggle, testId, className }: SectionHeaderProps) {
+function SectionHeader({ title, icon, collapsible, collapsed, onToggle, testId, className }: SectionHeaderProps) {
+  const titleContent = (
+    <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+      {icon && <span className="text-muted-foreground shrink-0" aria-hidden="true">{icon}</span>}
+      {title}
+    </h3>
+  )
   if (collapsible) {
     return (
       <button
@@ -41,7 +49,7 @@ function SectionHeader({ title, collapsible, collapsed, onToggle, testId, classN
         type="button"
         aria-expanded={!collapsed}
       >
-        <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{title}</h3>
+        {titleContent}
         {collapsed ? (
           <ChevronRight className="h-3 w-3 text-muted-foreground" />
         ) : (
@@ -52,7 +60,7 @@ function SectionHeader({ title, collapsible, collapsed, onToggle, testId, classN
   }
   return (
     <div className={cn("pt-4 pb-1.5 first:pt-0", className)} data-testid={testId}>
-      <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">{title}</h3>
+      {titleContent}
     </div>
   )
 }

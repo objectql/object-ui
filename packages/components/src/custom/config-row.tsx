@@ -39,9 +39,9 @@ function ConfigRow({ label, value, onClick, children, className }: ConfigRowProp
       onClick={onClick}
       type={onClick ? 'button' : undefined}
     >
-      <span className="text-xs text-muted-foreground shrink-0">{label}</span>
+      <span className="text-xs text-muted-foreground shrink-0 max-w-[45%] truncate" title={label}>{label}</span>
       {children || (
-        <span className="text-xs text-foreground truncate ml-4 text-right">{value}</span>
+        <span className="text-xs text-foreground truncate ml-4 text-right max-w-[55%]" title={value}>{value}</span>
       )}
     </Wrapper>
   )

@@ -367,6 +367,7 @@ const pt = {
       generalHint: 'Título, descrição e tipo da visualização',
       toolbar: 'Barra de ferramentas',
       toolbarHint: 'Pesquisa, filtro, ordenação, agrupamento e alternância de densidade',
+      toolbarEnabledCount: '{{count}} of {{total}} enabled',
       navigationSection: 'Navegação',
       navigationHint: 'Comportamento ao clicar na linha e configurações da visualização detalhada',
       records: 'Registros',

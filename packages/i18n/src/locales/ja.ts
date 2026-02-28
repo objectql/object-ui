@@ -367,6 +367,7 @@ const ja = {
       generalHint: 'ビューのタイトル、説明、タイプ',
       toolbar: 'ツールバー',
       toolbarHint: '検索、フィルター、ソート、グループ、密度の切り替え',
+      toolbarEnabledCount: '{{count}} of {{total}} enabled',
       navigationSection: 'ナビゲーション',
       navigationHint: '行クリック時の動作と詳細ビューの設定',
       records: 'レコード',

@@ -368,6 +368,7 @@ const ar = {
       generalHint: 'عنوان العرض والوصف والنوع',
       toolbar: 'شريط الأدوات',
       toolbarHint: 'البحث والتصفية والفرز والتجميع ومفاتيح الكثافة',
+      toolbarEnabledCount: '{{count}} of {{total}} enabled',
       navigationSection: 'التنقل',
       navigationHint: 'سلوك النقر على الصف وإعدادات العرض التفصيلي',
       records: 'السجلات',

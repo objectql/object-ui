@@ -367,6 +367,7 @@ const ru = {
       generalHint: 'Название, описание и тип представления',
       toolbar: 'Панель инструментов',
       toolbarHint: 'Поиск, фильтр, сортировка, группировка и переключение плотности',
+      toolbarEnabledCount: '{{count}} of {{total}} enabled',
       navigationSection: 'Навигация',
       navigationHint: 'Поведение при нажатии на строку и настройки детального представления',
       records: 'Записи',

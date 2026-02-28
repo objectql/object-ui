@@ -7,6 +7,7 @@
  */
 
 import * as React from 'react';
+import { Settings } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Switch } from '../ui/switch';
 import { Checkbox } from '../ui/checkbox';
@@ -235,6 +236,24 @@ export function ConfigFieldRenderer({
       if (field.render) {
         content = <>{field.render(effectiveValue, onChange, draft)}</>;
       }
+      break;
+
+    case 'summary':
+      content = (
+        <ConfigRow
+          label={field.label}
+          onClick={field.onSummaryClick}
+        >
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-foreground truncate max-w-[120px]" data-testid={`config-field-${field.key}-text`}>
+              {field.summaryText ?? effectiveValue ?? ''}
+            </span>
+            {field.onSummaryClick && (
+              <Settings className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" data-testid={`config-field-${field.key}-gear`} />
+            )}
+          </div>
+        </ConfigRow>
+      );
       break;
 
     default:

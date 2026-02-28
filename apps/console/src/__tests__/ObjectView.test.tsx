@@ -475,6 +475,7 @@ describe('ObjectView Component', () => {
         expect(screen.getByTestId('view-config-panel')).toBeInTheDocument();
 
         // Toggle showSearch off — our mock Switch fires onCheckedChange with opposite of aria-checked
+        fireEvent.click(screen.getByTestId('section-header-toolbar')); // Expand toolbar (defaultCollapsed)
         const searchSwitch = screen.getByTestId('toggle-showSearch');
         fireEvent.click(searchSwitch);
 
@@ -500,6 +501,7 @@ describe('ObjectView Component', () => {
         fireEvent.click(screen.getByText('console.objectView.editView'));
 
         // Toggle showSort off
+        fireEvent.click(screen.getByTestId('section-header-toolbar')); // Expand toolbar (defaultCollapsed)
         const sortSwitch = screen.getByTestId('toggle-showSort');
         fireEvent.click(sortSwitch);
 
@@ -643,6 +645,7 @@ describe('ObjectView Component', () => {
         fireEvent.click(screen.getByText('console.objectView.editView'));
 
         // Toggle showSearch off
+        fireEvent.click(screen.getByTestId('section-header-toolbar')); // Expand toolbar (defaultCollapsed)
         const searchSwitch = screen.getByTestId('toggle-showSearch');
         fireEvent.click(searchSwitch);
 
@@ -699,6 +702,7 @@ describe('ObjectView Component', () => {
         fireEvent.click(screen.getByText('console.objectView.editView'));
 
         // Change selection mode to 'single'
+        fireEvent.click(screen.getByTestId('section-header-records')); // Expand records (defaultCollapsed)
         const selectionSelect = screen.getByTestId('select-selection-type');
         fireEvent.change(selectionSelect, { target: { value: 'single' } });
 
@@ -722,6 +726,7 @@ describe('ObjectView Component', () => {
         fireEvent.click(screen.getByText('console.objectView.editView'));
 
         // Toggle addRecord on
+        fireEvent.click(screen.getByTestId('section-header-records')); // Expand records (defaultCollapsed)
         const addRecordSwitch = screen.getByTestId('toggle-addRecord-enabled');
         fireEvent.click(addRecordSwitch);
 
@@ -746,6 +751,7 @@ describe('ObjectView Component', () => {
         fireEvent.click(screen.getByText('console.objectView.editView'));
 
         // Change navigation mode to 'modal'
+        fireEvent.click(screen.getByTestId('section-header-navigation')); // Expand navigation (defaultCollapsed)
         const navSelect = screen.getByTestId('select-navigation-mode');
         fireEvent.change(navSelect, { target: { value: 'modal' } });
 

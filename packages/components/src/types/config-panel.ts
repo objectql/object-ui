@@ -25,6 +25,7 @@ export type ControlType =
   | 'filter'
   | 'sort'
   | 'icon-group'
+  | 'summary'
   | 'custom';
 
 /** A single field within a config section */
@@ -63,6 +64,10 @@ export interface ConfigField {
   disabled?: boolean;
   /** Field definitions for filter/sort sub-editors */
   fields?: Array<{ value: string; label: string; type?: string; options?: Array<{ value: string; label: string }> }>;
+  /** Summary display text for type='summary' */
+  summaryText?: string;
+  /** Click handler for the summary gear/action button (type='summary') */
+  onSummaryClick?: () => void;
 }
 
 /** A group of related config fields */
@@ -73,12 +78,16 @@ export interface ConfigSection {
   title: string;
   /** Hint text displayed below the title */
   hint?: string;
+  /** Icon displayed before the section title (e.g. a Lucide icon element) */
+  icon?: React.ReactNode;
   /** Whether this section supports collapse/expand */
   collapsible?: boolean;
   /** Default collapsed state */
   defaultCollapsed?: boolean;
   /** Fields belonging to this section */
   fields: ConfigField[];
+  /** Nested sub-sections for complex grouping */
+  subsections?: ConfigSection[];
   /** Visibility predicate evaluated against the current draft */
   visibleWhen?: (draft: Record<string, any>) => boolean;
 }

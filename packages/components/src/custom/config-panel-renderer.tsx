@@ -219,9 +219,10 @@ export function ConfigPanelRenderer({
 
           return (
             <div key={section.key} data-testid={`config-section-${section.key}`}>
-              {sectionIdx > 0 && <Separator className="my-1" />}
+              {sectionIdx > 0 && <Separator className="my-3" />}
               <SectionHeader
                 title={section.title}
+                icon={section.icon}
                 collapsible={section.collapsible}
                 collapsed={sectionCollapsed}
                 onToggle={() => toggleCollapse(section.key, section.defaultCollapsed)}
@@ -233,7 +234,7 @@ export function ConfigPanelRenderer({
                 </p>
               )}
               {!sectionCollapsed && (
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {section.fields.map((field) => (
                     <ConfigFieldRenderer
                       key={field.key}
@@ -244,6 +245,37 @@ export function ConfigPanelRenderer({
                       objectDef={objectDef}
                     />
                   ))}
+                  {section.subsections?.map((sub) => {
+                    if (sub.visibleWhen && !sub.visibleWhen(draft)) return null;
+                    const subCollapsed = isCollapsed(sub.key, sub.defaultCollapsed);
+                    return (
+                      <div key={sub.key} data-testid={`config-subsection-${sub.key}`} className="ml-1" role="group" aria-label={sub.title}>
+                        <SectionHeader
+                          title={sub.title}
+                          icon={sub.icon}
+                          collapsible={sub.collapsible}
+                          collapsed={subCollapsed}
+                          onToggle={() => toggleCollapse(sub.key, sub.defaultCollapsed)}
+                          testId={`section-header-${sub.key}`}
+                          className="pt-2 pb-1"
+                        />
+                        {!subCollapsed && (
+                          <div className="space-y-1">
+                            {sub.fields.map((field) => (
+                              <ConfigFieldRenderer
+                                key={field.key}
+                                field={field}
+                                value={draft[field.key]}
+                                onChange={(v) => onFieldChange(field.key, v)}
+                                draft={draft}
+                                objectDef={objectDef}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

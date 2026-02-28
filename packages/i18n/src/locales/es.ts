@@ -367,6 +367,7 @@ const es = {
       generalHint: 'Título, descripción y tipo de la vista',
       toolbar: 'Barra de herramientas',
       toolbarHint: 'Búsqueda, filtro, orden, agrupación y alternancia de densidad',
+      toolbarEnabledCount: '{{count}} of {{total}} enabled',
       navigationSection: 'Navegación',
       navigationHint: 'Comportamiento al hacer clic en la fila y configuración de la vista detallada',
       records: 'Registros',

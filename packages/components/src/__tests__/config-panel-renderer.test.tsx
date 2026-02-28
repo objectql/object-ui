@@ -423,4 +423,158 @@ describe('ConfigPanelRenderer', () => {
       expect((input as HTMLInputElement).disabled).toBe(false);
     });
   });
+
+  describe('section icons', () => {
+    it('should render section icon when provided', () => {
+      const React = require('react');
+      const schemaWithIcon: ConfigPanelSchema = {
+        breadcrumb: ['Test'],
+        sections: [
+          {
+            key: 'sec',
+            title: 'Section With Icon',
+            icon: React.createElement('span', { 'data-testid': 'section-icon' }, '⚙'),
+            fields: [{ key: 'x', label: 'X', type: 'input' }],
+          },
+        ],
+      };
+      render(<ConfigPanelRenderer {...defaultProps} schema={schemaWithIcon} />);
+      expect(screen.getByTestId('section-icon')).toBeDefined();
+      expect(screen.getByText('Section With Icon')).toBeDefined();
+    });
+  });
+
+  describe('subsections', () => {
+    it('should render subsections within a section', () => {
+      const schemaWithSub: ConfigPanelSchema = {
+        breadcrumb: ['Test'],
+        sections: [
+          {
+            key: 'parent',
+            title: 'Parent',
+            fields: [{ key: 'a', label: 'Field A', type: 'input' }],
+            subsections: [
+              {
+                key: 'child',
+                title: 'Child Section',
+                fields: [{ key: 'b', label: 'Field B', type: 'input' }],
+              },
+            ],
+          },
+        ],
+      };
+      render(<ConfigPanelRenderer {...defaultProps} schema={schemaWithSub} />);
+      expect(screen.getByText('Parent')).toBeDefined();
+      expect(screen.getByText('Child Section')).toBeDefined();
+      expect(screen.getByText('Field A')).toBeDefined();
+      expect(screen.getByText('Field B')).toBeDefined();
+      expect(screen.getByTestId('config-subsection-child')).toBeDefined();
+    });
+
+    it('should support collapsible subsections', () => {
+      const schemaWithCollapsibleSub: ConfigPanelSchema = {
+        breadcrumb: ['Test'],
+        sections: [
+          {
+            key: 'parent',
+            title: 'Parent',
+            fields: [{ key: 'a', label: 'Field A', type: 'input' }],
+            subsections: [
+              {
+                key: 'child',
+                title: 'Child',
+                collapsible: true,
+                defaultCollapsed: true,
+                fields: [{ key: 'b', label: 'Field B', type: 'input' }],
+              },
+            ],
+          },
+        ],
+      };
+      render(<ConfigPanelRenderer {...defaultProps} schema={schemaWithCollapsibleSub} />);
+      // Child is defaultCollapsed, so Field B should not be visible
+      expect(screen.queryByText('Field B')).toBeNull();
+      // Click to expand
+      fireEvent.click(screen.getByTestId('section-header-child'));
+      expect(screen.getByText('Field B')).toBeDefined();
+    });
+  });
+
+  describe('summary control type', () => {
+    it('should render summary field with text and gear icon', () => {
+      const onSummaryClick = vi.fn();
+      const schemaWithSummary: ConfigPanelSchema = {
+        breadcrumb: ['Test'],
+        sections: [
+          {
+            key: 'sec',
+            title: 'Section',
+            fields: [
+              {
+                key: 'viz',
+                label: 'Visualizations',
+                type: 'summary',
+                summaryText: 'List, Gallery, Kanban',
+                onSummaryClick,
+              },
+            ],
+          },
+        ],
+      };
+      render(<ConfigPanelRenderer {...defaultProps} schema={schemaWithSummary} />);
+      expect(screen.getByText('Visualizations')).toBeDefined();
+      expect(screen.getByTestId('config-field-viz-text')).toBeDefined();
+      expect(screen.getByText('List, Gallery, Kanban')).toBeDefined();
+      expect(screen.getByTestId('config-field-viz-gear')).toBeDefined();
+    });
+
+    it('should call onSummaryClick when summary row is clicked', () => {
+      const onSummaryClick = vi.fn();
+      const schemaWithSummary: ConfigPanelSchema = {
+        breadcrumb: ['Test'],
+        sections: [
+          {
+            key: 'sec',
+            title: 'Section',
+            fields: [
+              {
+                key: 'viz',
+                label: 'Viz',
+                type: 'summary',
+                summaryText: 'Items',
+                onSummaryClick,
+              },
+            ],
+          },
+        ],
+      };
+      render(<ConfigPanelRenderer {...defaultProps} schema={schemaWithSummary} />);
+      // The ConfigRow wraps in a button when onClick is provided
+      const row = screen.getByText('Viz').closest('button');
+      if (row) fireEvent.click(row);
+      expect(onSummaryClick).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('increased section spacing', () => {
+    it('should use space-y-1 for field spacing within sections', () => {
+      render(<ConfigPanelRenderer {...defaultProps} schema={basicSchema} />);
+      const section = screen.getByTestId('config-section-basic');
+      const fieldContainer = section.querySelector('.space-y-1');
+      expect(fieldContainer).not.toBeNull();
+    });
+
+    it('should use my-3 separator between sections', () => {
+      render(
+        <ConfigPanelRenderer
+          {...defaultProps}
+          schema={collapsibleSchema}
+          draft={{ columns: '3', theme: 'dark', source: 'api' }}
+        />,
+      );
+      const panel = screen.getByTestId('config-panel');
+      const separators = panel.querySelectorAll('.my-3');
+      expect(separators.length).toBeGreaterThan(0);
+    });
+  });
 });
