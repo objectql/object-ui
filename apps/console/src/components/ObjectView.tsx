@@ -372,6 +372,21 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
         }
     };
 
+    // ViewSwitcher callbacks — wired to both PluginObjectView instances
+    const handleCreateView = useCallback(() => {
+        setViewConfigPanelMode('create');
+        setShowViewConfigPanel(true);
+    }, []);
+
+    const handleViewAction = useCallback((actionType: string, viewType: string) => {
+        if (actionType === 'settings') {
+            const matchedView = views.find((v: { id: string; type: string }) => v.type === viewType);
+            if (matchedView) handleViewChange(matchedView.id);
+            setViewConfigPanelMode('edit');
+            setShowViewConfigPanel(true);
+        }
+    }, [views, handleViewChange]);
+
     // Action system for toolbar operations
     const [refreshKey, setRefreshKey] = useState(0);
     const actions = useObjectActions({
@@ -821,15 +836,8 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                                             navOverlay.handleClick(record);
                                         })}
                                         renderListView={renderListView}
-                                        onCreateView={() => { setViewConfigPanelMode('create'); setShowViewConfigPanel(true); }}
-                                        onViewAction={(actionType: string, viewType: string) => {
-                                            if (actionType === 'settings') {
-                                                const matchedView = views.find((v: any) => v.type === viewType);
-                                                if (matchedView) handleViewChange(matchedView.id);
-                                                setViewConfigPanelMode('edit');
-                                                setShowViewConfigPanel(true);
-                                            }
-                                        }}
+                                        onCreateView={handleCreateView}
+                                        onViewAction={handleViewAction}
                                     />
                                 </div>
                                 {typeof recordCount === 'number' && (
@@ -866,15 +874,8 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                                 navOverlay.handleClick(record);
                             })}
                             renderListView={renderListView}
-                            onCreateView={() => { setViewConfigPanelMode('create'); setShowViewConfigPanel(true); }}
-                            onViewAction={(actionType: string, viewType: string) => {
-                                if (actionType === 'settings') {
-                                    const matchedView = views.find((v: any) => v.type === viewType);
-                                    if (matchedView) handleViewChange(matchedView.id);
-                                    setViewConfigPanelMode('edit');
-                                    setShowViewConfigPanel(true);
-                                }
-                            }}
+                            onCreateView={handleCreateView}
+                            onViewAction={handleViewAction}
                         />
                     </div>
                     {/* Record count footer removed — ListView already renders record-count-bar */}
