@@ -408,7 +408,7 @@ describe('ReportViewer', () => {
     const cells = container.querySelectorAll('td');
     const wonCell = Array.from(cells).find((td) => td.textContent === 'Won');
     expect(wonCell).toBeDefined();
-    expect(wonCell?.style.backgroundColor).toBe('rgb(187, 247, 208)');
+    expect(wonCell?.style.backgroundColor).toBe('#bbf7d0');
 
     // The cell with 'Lost' should NOT have background styling
     const lostCell = Array.from(cells).find((td) => td.textContent === 'Lost');
