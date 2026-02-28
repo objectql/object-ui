@@ -652,6 +652,13 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
         showSort: activeView?.showSort !== false,
         showCreate: false, // We render our own create button in the header
         showRefresh: true,
+        allowCreateView: isAdmin,
+        viewActions: isAdmin ? [
+            { type: 'settings' as const },
+            { type: 'share' as const },
+            { type: 'duplicate' as const },
+            { type: 'delete' as const },
+        ] : [],
         onNavigate: (recordId: string | number, mode: 'view' | 'edit') => {
             if (mode === 'edit') {
                 onEdit?.({ _id: recordId, id: recordId });
@@ -663,7 +670,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                 }
             }
         },
-    }), [objectDef.name, onEdit, activeView?.showSearch, activeView?.showFilters, activeView?.showSort, navigate, viewId]);
+    }), [objectDef.name, onEdit, activeView?.showSearch, activeView?.showFilters, activeView?.showSort, navigate, viewId, isAdmin]);
 
     return (
         <div className="h-full flex flex-col bg-background min-w-0 overflow-hidden">
@@ -814,6 +821,15 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                                             navOverlay.handleClick(record);
                                         })}
                                         renderListView={renderListView}
+                                        onCreateView={() => { setViewConfigPanelMode('create'); setShowViewConfigPanel(true); }}
+                                        onViewAction={(actionType: string, viewType: string) => {
+                                            if (actionType === 'settings') {
+                                                const matchedView = views.find((v: any) => v.type === viewType);
+                                                if (matchedView) handleViewChange(matchedView.id);
+                                                setViewConfigPanelMode('edit');
+                                                setShowViewConfigPanel(true);
+                                            }
+                                        }}
                                     />
                                 </div>
                                 {typeof recordCount === 'number' && (
@@ -850,6 +866,15 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                                 navOverlay.handleClick(record);
                             })}
                             renderListView={renderListView}
+                            onCreateView={() => { setViewConfigPanelMode('create'); setShowViewConfigPanel(true); }}
+                            onViewAction={(actionType: string, viewType: string) => {
+                                if (actionType === 'settings') {
+                                    const matchedView = views.find((v: any) => v.type === viewType);
+                                    if (matchedView) handleViewChange(matchedView.id);
+                                    setViewConfigPanelMode('edit');
+                                    setShowViewConfigPanel(true);
+                                }
+                            }}
                         />
                     </div>
                     {/* Record count footer removed — ListView already renders record-count-bar */}
