@@ -24,7 +24,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation } from '@object-ui/react';
-import { getCellRenderer, formatCurrency, formatCompactCurrency, formatDate, formatPercent } from '@object-ui/fields';
+import { getCellRenderer, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel } from '@object-ui/fields';
 import {
   Badge, Button, NavigationOverlay,
   Popover, PopoverContent, PopoverTrigger,
@@ -560,9 +560,29 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       if (cols.length > 0 && typeof cols[0] === 'object' && cols[0] !== null) {
         const firstCol = cols[0] as any;
         
-        // Already in data-table format - use as-is
+        // Already in data-table format - apply type inference for columns without custom cell renderers
         if ('accessorKey' in firstCol) {
-          return cols;
+          return (cols as any[]).map((col) => {
+            if (col.cell) return col; // already has custom renderer
+
+            const syntheticCol: ListColumn = { field: col.accessorKey, label: col.header, type: col.type };
+            const inferredType = inferColumnType(syntheticCol);
+            if (!inferredType) return col;
+
+            const CellRenderer = getCellRenderer(inferredType);
+            const fieldMeta: Record<string, any> = { name: col.accessorKey, type: inferredType };
+
+            if (inferredType === 'select') {
+              const uniqueValues = Array.from(new Set(data.map(row => row[col.accessorKey]).filter(Boolean)));
+              fieldMeta.options = uniqueValues.map((v: any) => ({ value: v, label: humanizeLabel(String(v)) }));
+            }
+
+            return {
+              ...col,
+              headerIcon: getTypeIcon(inferredType),
+              cell: (value: any) => <CellRenderer value={value} field={fieldMeta as any} />,
+            };
+          });
         }
         
         // ListColumn format - convert to data-table format with full feature support
@@ -584,7 +604,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
               if (inferredType === 'select' && !(col as any).options) {
                 // Auto-generate options from unique data values for inferred select fields
                 const uniqueValues = Array.from(new Set(data.map(row => row[col.field]).filter(Boolean)));
-                fieldMeta.options = uniqueValues.map(v => ({ value: v, label: String(v) }));
+                fieldMeta.options = uniqueValues.map(v => ({ value: v, label: humanizeLabel(String(v)) }));
               }
               if ((col as any).options) {
                 fieldMeta.options = (col as any).options;

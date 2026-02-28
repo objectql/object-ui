@@ -16,6 +16,8 @@ import {
   TextCellRenderer,
   DateCellRenderer,
   BooleanCellRenderer,
+  PercentCellRenderer,
+  humanizeLabel,
   formatDate,
   formatRelativeDate,
 } from '../index';
@@ -732,5 +734,133 @@ describe('UserCellRenderer', () => {
     // Avatar fallbacks contain initials
     expect(screen.getByTitle('Alice')).toBeInTheDocument();
     expect(screen.getByTitle('Bob')).toBeInTheDocument();
+  });
+});
+
+// =========================================================================
+// 9. humanizeLabel
+// =========================================================================
+
+describe('humanizeLabel', () => {
+  it('should convert snake_case to Title Case', () => {
+    expect(humanizeLabel('in_progress')).toBe('In Progress');
+  });
+
+  it('should convert kebab-case to Title Case', () => {
+    expect(humanizeLabel('high-priority')).toBe('High Priority');
+  });
+
+  it('should handle single word', () => {
+    expect(humanizeLabel('active')).toBe('Active');
+  });
+
+  it('should handle already Title Case', () => {
+    expect(humanizeLabel('Active')).toBe('Active');
+  });
+
+  it('should handle multiple underscores', () => {
+    expect(humanizeLabel('not_yet_started')).toBe('Not Yet Started');
+  });
+
+  it('should handle empty string', () => {
+    expect(humanizeLabel('')).toBe('');
+  });
+
+  it('should handle mixed separators', () => {
+    expect(humanizeLabel('in_progress-now')).toBe('In Progress Now');
+  });
+});
+
+// =========================================================================
+// 10. SelectCellRenderer humanizeLabel fallback
+// =========================================================================
+describe('SelectCellRenderer humanizeLabel fallback', () => {
+  it('should humanize snake_case value when no option label exists', () => {
+    render(
+      <SelectCellRenderer
+        value="in_progress"
+        field={{ name: 'status', type: 'select', options: [] } as any}
+      />
+    );
+    expect(screen.getByText('In Progress')).toBeInTheDocument();
+  });
+
+  it('should prefer explicit option.label over humanized fallback', () => {
+    render(
+      <SelectCellRenderer
+        value="in_progress"
+        field={{
+          name: 'status',
+          type: 'select',
+          options: [{ value: 'in_progress', label: 'WIP' }],
+        } as any}
+      />
+    );
+    expect(screen.getByText('WIP')).toBeInTheDocument();
+    expect(screen.queryByText('In Progress')).not.toBeInTheDocument();
+  });
+
+  it('should humanize snake_case values in arrays', () => {
+    render(
+      <SelectCellRenderer
+        value={['not_started', 'in_progress']}
+        field={{ name: 'status', type: 'select', options: [] } as any}
+      />
+    );
+    expect(screen.getByText('Not Started')).toBeInTheDocument();
+    expect(screen.getByText('In Progress')).toBeInTheDocument();
+  });
+});
+
+// =========================================================================
+// 11. PercentCellRenderer with progress-type fields
+// =========================================================================
+describe('PercentCellRenderer progress-type fields', () => {
+  it('should render progress field value 75 as 75% with correct bar', () => {
+    const { container } = render(
+      <PercentCellRenderer
+        value={75}
+        field={{ name: 'progress', type: 'percent' } as any}
+      />
+    );
+    expect(screen.getByText('75%')).toBeInTheDocument();
+    const bar = container.querySelector('[role="progressbar"]');
+    expect(bar).toHaveAttribute('aria-valuenow', '75');
+  });
+
+  it('should render completion field value 50 as 50% with correct bar', () => {
+    const { container } = render(
+      <PercentCellRenderer
+        value={50}
+        field={{ name: 'completion', type: 'percent' } as any}
+      />
+    );
+    expect(screen.getByText('50%')).toBeInTheDocument();
+    const bar = container.querySelector('[role="progressbar"]');
+    expect(bar).toHaveAttribute('aria-valuenow', '50');
+  });
+
+  it('should render probability field value 0.75 as 75%', () => {
+    const { container } = render(
+      <PercentCellRenderer
+        value={0.75}
+        field={{ name: 'probability', type: 'percent' } as any}
+      />
+    );
+    expect(screen.getByText('75%')).toBeInTheDocument();
+    const bar = container.querySelector('[role="progressbar"]');
+    expect(bar).toHaveAttribute('aria-valuenow', '75');
+  });
+
+  it('should render rate field value 0.5 as 50%', () => {
+    const { container } = render(
+      <PercentCellRenderer
+        value={0.5}
+        field={{ name: 'rate', type: 'percent' } as any}
+      />
+    );
+    expect(screen.getByText('50%')).toBeInTheDocument();
+    const bar = container.querySelector('[role="progressbar"]');
+    expect(bar).toHaveAttribute('aria-valuenow', '50');
   });
 });

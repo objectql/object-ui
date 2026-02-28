@@ -988,6 +988,9 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [x] ISO datetime fallback: ObjectGrid `inferColumnType()` now detects ISO 8601 datetime strings (`YYYY-MM-DDTHH:MM`) in data values as a catch-all for fields whose names don't match date/datetime patterns.
 - [x] Date/datetime human-friendly display: `DateCellRenderer` (relative format) and `DateTimeCellRenderer` (split date/time) already registered in field registry for all grid/table views.
 - [x] Currency/status/boolean renderers: Already implemented with proper formatting (currency symbol, Badge colors, checkbox display).
+- [x] **accessorKey-format type inference**: `generateColumns()` in ObjectGrid now applies `inferColumnType()` + `getCellRenderer()` to `accessorKey`-format columns that don't already have a `cell` renderer. Previously, `accessorKey` columns bypassed the entire inference pipeline, showing raw dates, plain text status/priority, and raw numbers for progress.
+- [x] **humanizeLabel() utility**: New `humanizeLabel()` export in `@object-ui/fields` converts snake_case/kebab-case values to Title Case (e.g., `in_progress` → `In Progress`). Used as fallback in `SelectCellRenderer` when no explicit `option.label` exists.
+- [x] **PercentCellRenderer progress-field normalization**: `PercentCellRenderer` now uses field name to disambiguate 0-1 fraction vs 0-100 whole number — fields matching `/progress|completion/` treat values as already in 0-100 range (e.g., `75` → `75%`), while other fields like `probability` still treat `0.75` → `75%`.
 
 **Header & Breadcrumb i18n:**
 - [x] AppHeader breadcrumb labels (`Dashboards`, `Pages`, `Reports`, `System`) now use `t()` translation via `useObjectTranslation`.
@@ -997,8 +1000,8 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 
 **Tests:**
 - [x] 46 NavigationRenderer tests passing (pin/favorites/search/reorder)
-- [x] 75 field cell renderer tests passing (date/datetime/select/boolean/percent)
-- [x] 263 ObjectGrid tests passing (inference, rendering, accessibility)
+- [x] 86 field cell renderer tests passing (date/datetime/select/boolean/percent/humanizeLabel/progress)
+- [x] 293 ObjectGrid tests passing (inference, rendering, accessibility, accessorKey-format inference)
 - [x] 28 DataTable tests passing
 - [x] 78 Layout tests passing (NavigationRenderer + AppSchemaRenderer)
 - [x] 11 AppSidebar tests passing
