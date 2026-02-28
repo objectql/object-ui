@@ -105,6 +105,19 @@ export function formatPercent(value: number, precision: number = 0): string {
 }
 
 /**
+ * Humanize a snake_case or kebab-case string into Title Case.
+ * Used as fallback label when no explicit option.label exists.
+ * 
+ * Examples:
+ *   "in_progress" → "In Progress"
+ *   "high-priority" → "High Priority"
+ *   "active" → "Active"
+ */
+export function humanizeLabel(value: string): string {
+  return value.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/**
  * Format date as relative time (e.g., "2 days ago", "Today", "Overdue 3d")
  */
 export function formatRelativeDate(value: string | Date): string {
@@ -219,9 +232,13 @@ export function PercentCellRenderer({ value, field }: CellRendererProps): React.
   const percentField = field as any;
   const precision = percentField.precision ?? 0;
   const numValue = Number(value);
-  const formatted = formatPercent(numValue, precision);
-  // Normalize to 0-100 range for progress bar
-  const barValue = (numValue > -1 && numValue < 1) ? numValue * 100 : numValue;
+  // Use field name to disambiguate 0-1 fraction vs 0-100 whole number:
+  // Fields like "progress" or "completion" store values as 0-100, not 0-1
+  const isWholePercentField = /progress|completion/.test(field?.name?.toLowerCase() || '');
+  const barValue = isWholePercentField
+    ? numValue
+    : (numValue > -1 && numValue < 1) ? numValue * 100 : numValue;
+  const formatted = isWholePercentField ? `${numValue.toFixed(precision)}%` : formatPercent(numValue, precision);
   const clampedBar = Math.max(0, Math.min(100, barValue));
   
   return (
@@ -378,7 +395,7 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
       <div className="flex flex-wrap gap-1">
         {value.map((val, idx) => {
           const option = options.find(opt => opt.value === val);
-          const label = option?.label || val;
+          const label = option?.label || humanizeLabel(String(val));
           const colorClasses = getBadgeColorClasses(option?.color, val);
           
           return (
@@ -397,7 +414,7 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
   
   // Handle single value
   const option = options.find(opt => opt.value === value);
-  const label = option?.label || value;
+  const label = option?.label || humanizeLabel(String(value));
   const colorClasses = getBadgeColorClasses(option?.color, value);
   
   return (
