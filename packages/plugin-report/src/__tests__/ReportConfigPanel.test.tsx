@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import { ReportConfigPanel } from '../ReportConfigPanel';
 
 const defaultConfig = {
@@ -290,5 +291,121 @@ describe('ReportConfigPanel', () => {
       target: { value: 'New Title' },
     });
     expect(onFieldChange).toHaveBeenCalledWith('title', 'New Title');
+  });
+
+  it('should display report type selector in basic section', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Report type')).toBeDefined();
+  });
+
+  it('should display columns section with field picker', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+        availableFields={mockAvailableFields}
+      />,
+    );
+    expect(screen.getByText('Columns')).toBeDefined();
+    // Field picker should show available fields
+    expect(screen.getByTestId('field-picker')).toBeDefined();
+    expect(screen.getByText('Name')).toBeDefined();
+    expect(screen.getByText('Amount')).toBeDefined();
+    expect(screen.getByText('Stage')).toBeDefined();
+  });
+
+  it('should show empty state when no available fields for field picker', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+        availableFields={[]}
+      />,
+    );
+    expect(screen.getByTestId('field-picker-empty')).toBeDefined();
+    expect(screen.getByText('No fields available')).toBeDefined();
+  });
+
+  it('should toggle field selection in field picker', () => {
+    const onFieldChange = vi.fn();
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+        onFieldChange={onFieldChange}
+        availableFields={mockAvailableFields}
+      />,
+    );
+    // Click on a field checkbox to select it
+    fireEvent.click(screen.getByTestId('field-picker-name'));
+    expect(onFieldChange).toHaveBeenCalledWith('fields', [
+      { name: 'name', label: 'Name', type: 'text' },
+    ]);
+  });
+
+  it('should show undo/redo buttons in header', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('config-panel-undo')).toBeDefined();
+    expect(screen.getByTestId('config-panel-redo')).toBeDefined();
+  });
+
+  it('should enable undo after making a change', () => {
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={defaultConfig}
+        onSave={vi.fn()}
+      />,
+    );
+    const undoBtn = screen.getByTestId('config-panel-undo');
+    expect(undoBtn).toHaveAttribute('disabled');
+
+    // Make a change
+    fireEvent.change(screen.getByTestId('config-field-title'), {
+      target: { value: 'Changed Title' },
+    });
+
+    // Undo should now be enabled
+    expect(undoBtn).not.toHaveAttribute('disabled');
+  });
+
+  it('should include reportType in saved draft', () => {
+    const onSave = vi.fn();
+    render(
+      <ReportConfigPanel
+        open={true}
+        onClose={vi.fn()}
+        config={{ ...defaultConfig, reportType: 'summary' }}
+        onSave={onSave}
+      />,
+    );
+    // Make a change to trigger dirty state
+    fireEvent.change(screen.getByTestId('config-field-title'), {
+      target: { value: 'Modified' },
+    });
+    fireEvent.click(screen.getByTestId('config-panel-save'));
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.reportType).toBe('summary');
   });
 });
