@@ -935,7 +935,7 @@ describe('ObjectView Component', () => {
         expect(screen.getByTestId('view-config-panel')).toBeInTheDocument();
     });
 
-    it('ignores external onRowClick for page navigation mode — navigates to record detail', () => {
+    it('navigates to record detail in page mode even if an onRowClick prop is passed (prop is ignored)', () => {
         const externalRowClick = vi.fn();
         const objectsWithPage = [{
             ...mockObjects[0],
