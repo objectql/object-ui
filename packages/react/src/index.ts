@@ -13,6 +13,9 @@ export * from './components/form';
 export * from './LazyPluginLoader';
 export * from './spec-bridge';
 
+// i18n utilities
+export { resolveI18nLabel } from './utils/i18n';
+
 // Built-in i18n support
 export {
   I18nProvider,

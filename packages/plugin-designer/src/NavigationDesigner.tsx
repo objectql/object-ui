@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { resolveI18nLabel } from '@object-ui/react';
 import { useDesignerTranslation } from './hooks/useDesignerTranslation';
 
 function cn(...inputs: (string | undefined | false)[]) {
@@ -139,7 +140,7 @@ function NavItemRow({
   t,
 }: NavItemRowProps) {
   const [editingLabel, setEditingLabel] = useState(false);
-  const [labelDraft, setLabelDraft] = useState(item.label);
+  const [labelDraft, setLabelDraft] = useState(resolveI18nLabel(item.label) ?? '');
   const [editingIcon, setEditingIcon] = useState(false);
   const [iconDraft, setIconDraft] = useState(item.icon || '');
   const meta = NAV_TYPE_META[item.type];
@@ -151,7 +152,7 @@ function NavItemRow({
     if (labelDraft.trim()) {
       onUpdateLabel(item.id, labelDraft.trim());
     } else {
-      setLabelDraft(item.label);
+      setLabelDraft(resolveI18nLabel(item.label) ?? '');
     }
     setEditingLabel(false);
   };
@@ -243,7 +244,7 @@ function NavItemRow({
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleLabelCommit();
               if (e.key === 'Escape') {
-                setLabelDraft(item.label);
+                setLabelDraft(resolveI18nLabel(item.label) ?? '');
                 setEditingLabel(false);
               }
             }}
@@ -258,12 +259,12 @@ function NavItemRow({
             )}
             onDoubleClick={() => {
               if (!readOnly && item.type !== 'separator') {
-                setLabelDraft(item.label);
+                setLabelDraft(resolveI18nLabel(item.label) ?? '');
                 setEditingLabel(true);
               }
             }}
           >
-            {item.label}
+            {resolveI18nLabel(item.label)}
           </span>
         )}
 
@@ -410,7 +411,7 @@ function PreviewItem({ item, depth }: { item: NavigationItem; depth: number }) {
         style={{ marginLeft: depth * 12 }}
       >
         <meta.Icon className="h-3 w-3 text-gray-400" />
-        <span className="truncate">{item.label}</span>
+        <span className="truncate">{resolveI18nLabel(item.label)}</span>
       </li>
       {item.type === 'group' && item.children?.map((child) => (
         <PreviewItem key={child.id} item={child} depth={depth + 1} />
