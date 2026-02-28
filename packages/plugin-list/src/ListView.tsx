@@ -469,7 +469,7 @@ export const ListView: React.FC<ListViewProps> = ({
       };
       return map[schema.rowHeight] || 'comfortable';
     }
-    return 'comfortable';
+    return 'compact';
   }, [schema.densityMode, schema.rowHeight]);
   const density = useDensityMode(resolvedDensity);
 
@@ -1312,7 +1312,7 @@ export const ListView: React.FC<ListViewProps> = ({
             size="sm"
             className={cn(
               "h-7 px-2 text-muted-foreground hover:text-primary text-xs hidden lg:flex transition-colors duration-150",
-              density.mode !== 'comfortable' && "bg-primary/10 border border-primary/20 text-primary"
+              density.mode !== 'compact' && "bg-primary/10 border border-primary/20 text-primary"
             )}
             onClick={density.cycle}
             title={`Density: ${density.mode}`}

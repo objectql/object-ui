@@ -182,7 +182,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [useCardView, setUseCardView] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showExport, setShowExport] = useState(false);
-  const [rowHeightMode, setRowHeightMode] = useState<'compact' | 'short' | 'medium' | 'tall' | 'extra_tall'>(schema.rowHeight ?? 'medium');
+  const [rowHeightMode, setRowHeightMode] = useState<'compact' | 'short' | 'medium' | 'tall' | 'extra_tall'>(schema.rowHeight ?? 'compact');
   const [selectedRows, setSelectedRows] = useState<any[]>([]);
 
   // Column state persistence (order and widths)
@@ -971,6 +971,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     resizableColumns: schema.resizable ?? schema.resizableColumns ?? true,
     reorderableColumns: schema.reorderableColumns ?? false,
     editable: schema.editable ?? false,
+    singleClickEdit: schema.singleClickEdit ?? true,
     className: schema.className,
     cellClassName: rowHeightMode === 'compact'
       ? 'px-3 py-1 text-[13px] leading-tight'

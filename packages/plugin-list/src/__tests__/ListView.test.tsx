@@ -300,8 +300,8 @@ describe('ListView', () => {
 
     renderWithProvider(<ListView schema={schema} />);
     
-    // Default density mode is 'comfortable'
-    const densityButton = screen.getByTitle('Density: comfortable');
+    // Default density mode is 'compact'
+    const densityButton = screen.getByTitle('Density: compact');
     expect(densityButton).toBeInTheDocument();
   });
 

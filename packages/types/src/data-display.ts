@@ -342,6 +342,13 @@ export interface DataTableSchema extends BaseSchema {
    */
   selectable?: boolean | 'single' | 'multiple';
   /**
+   * Selection checkbox display style
+   * - 'always': Checkboxes are always visible
+   * - 'hover': Checkboxes only appear on row hover
+   * @default 'always'
+   */
+  selectionStyle?: 'always' | 'hover';
+  /**
    * Enable column sorting
    * @default true
    */
@@ -388,6 +395,12 @@ export interface DataTableSchema extends BaseSchema {
    * @default false
    */
   editable?: boolean;
+  /**
+   * Enable single-click editing mode
+   * When true with editable, clicking a cell enters edit mode (instead of double-click)
+   * @default false
+   */
+  singleClickEdit?: boolean;
   /**
    * Cell value change handler
    * Called when a cell value is edited

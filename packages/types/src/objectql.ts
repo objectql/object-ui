@@ -497,6 +497,13 @@ export interface ObjectGridSchema extends BaseSchema {
    * @default false
    */
   editable?: boolean;
+
+  /**
+   * Enable single-click editing mode
+   * When true with editable, clicking a cell enters edit mode (instead of double-click)
+   * @default false
+   */
+  singleClickEdit?: boolean;
   
   /**
    * Grouping Configuration (Airtable-style)
@@ -532,7 +539,7 @@ export interface ObjectGridSchema extends BaseSchema {
    * Row height preset for the grid.
    * Controls the density of grid rows.
    * Aligned with @objectstack/spec RowHeight enum.
-   * @default 'medium'
+   * @default 'compact'
    */
   rowHeight?: 'compact' | 'short' | 'medium' | 'tall' | 'extra_tall';
 

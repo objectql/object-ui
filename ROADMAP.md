@@ -746,6 +746,52 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] 11 new tests (SystemHubPage, AppManagementPage, PermissionManagementPage)
 - [x] Total: 20 system page tests passing
 
+### P1.13 Airtable Grid/List UX Optimization ✅
+
+> **Status:** Complete — Grid/List components now match Airtable UX patterns for date formatting, row interactions, editing, density, headers, filters, and empty states.
+
+**Date Field Humanized Format:**
+- [x] `formatDate`, `formatDateTime`, `DateTimeCellRenderer` use browser locale (`undefined` instead of `'en-US'`)
+- [x] All date columns auto-format to localized human-readable format (e.g., "2024/2/28 12:57am")
+
+**Row Hover "Open >" Button:**
+- [x] Expand button changed from icon-only `<Expand>` to text "Open >" with `<ChevronRight>` icon
+- [x] Consistent across Grid and ListView (shown on row hover)
+
+**Single-Click Edit Mode:**
+- [x] Added `singleClickEdit` prop to `DataTableSchema` and `ObjectGridSchema`
+- [x] When true, clicking a cell enters edit mode (instead of double-click)
+
+**Default Compact Row Height:**
+- [x] ObjectGrid default changed from `'medium'` to `'compact'` (32-36px rows)
+- [x] ListView default density changed from `'comfortable'` to `'compact'`
+- [x] Row height toggle preserved in toolbar
+
+**Single-Click Edit Mode:**
+- [x] Added `singleClickEdit` prop to `DataTableSchema` and `ObjectGridSchema`
+- [x] ObjectGrid defaults `singleClickEdit` to `true` (click-to-edit by default)
+- [x] InlineEditing component already compatible (click-to-edit native)
+
+**Column Header Minimal Style:**
+- [x] Headers use `text-xs font-normal text-muted-foreground` (was `text-[11px] font-semibold uppercase tracking-wider`)
+- [x] Sort arrows inline with header text
+
+**Filter Pill/Chip Styling:**
+- [x] Filter badges use `rounded-full` for Airtable-style pill appearance
+- [x] "More" overflow button matches pill styling
+
+**Column Width Auto-Sizing:**
+- [x] Auto column width estimation based on header and data content (80-400px range)
+- [x] Samples up to 50 rows for width calculation
+
+**Row Selection Checkbox Style:**
+- [x] Added `selectionStyle` prop ('always'|'hover') to `DataTableSchema`
+- [x] 'hover' mode shows checkboxes only on row hover
+
+**Empty Table Ghost Row:**
+- [x] Empty tables show 3 ghost placeholder rows with skeleton-like appearance
+- [x] Ghost rows use varying widths for visual variety
+
 ---
 
 ## 🧩 P2 — Polish & Advanced Features

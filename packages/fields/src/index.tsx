@@ -163,8 +163,8 @@ export function formatDate(value: string | Date, style?: string): string {
     return formatRelativeDate(date);
   }
   
-  // Default format: MMM DD, YYYY
-  return date.toLocaleDateString('en-US', {
+  // Default format: locale-aware human-readable (e.g. "Jan 15, 2024" or "2024/1/15")
+  return date.toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -179,7 +179,7 @@ export function formatDateTime(value: string | Date): string {
   const date = typeof value === 'string' ? new Date(value) : value;
   if (isNaN(date.getTime())) return '-';
   
-  return date.toLocaleDateString('en-US', {
+  return date.toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -334,12 +334,12 @@ export function DateTimeCellRenderer({ value }: CellRendererProps): React.ReactE
   const date = typeof value === 'string' ? new Date(value) : value;
   if (isNaN(date.getTime())) return <span className="text-muted-foreground">-</span>;
 
-  const datePart = date.toLocaleDateString('en-US', {
+  const datePart = date.toLocaleDateString(undefined, {
     month: 'numeric',
     day: 'numeric',
     year: 'numeric',
   });
-  const timePart = date.toLocaleTimeString('en-US', {
+  const timePart = date.toLocaleTimeString(undefined, {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
