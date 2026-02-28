@@ -507,4 +507,72 @@ describe('useNavigationOverlay', () => {
       expect(result.current.view).toBeUndefined();
     });
   });
+
+  // ============================================================
+  // Stale closure prevention
+  // ============================================================
+
+  describe('stale closure prevention', () => {
+    it('should use latest onNavigate after re-render with new callback', () => {
+      const onNavigateV1 = vi.fn();
+      const onNavigateV2 = vi.fn();
+
+      const { result, rerender } = renderHook(
+        ({ onNavigate }) =>
+          useNavigationOverlay({
+            navigation: { mode: 'page' },
+            objectName: 'contacts',
+            onNavigate,
+          }),
+        { initialProps: { onNavigate: onNavigateV1 } }
+      );
+
+      // First click uses v1
+      act(() => {
+        result.current.handleClick({ _id: '1' });
+      });
+      expect(onNavigateV1).toHaveBeenCalledWith('1', 'view');
+      expect(onNavigateV2).not.toHaveBeenCalled();
+
+      // Re-render with new onNavigate
+      rerender({ onNavigate: onNavigateV2 });
+
+      // Second click must use v2 (not stale v1)
+      act(() => {
+        result.current.handleClick({ _id: '2' });
+      });
+      expect(onNavigateV2).toHaveBeenCalledWith('2', 'view');
+      expect(onNavigateV1).toHaveBeenCalledTimes(1); // v1 was not called again
+    });
+
+    it('should use latest onNavigate after navigation config changes from undefined to page', () => {
+      const onNavigate = vi.fn();
+
+      const { result, rerender } = renderHook(
+        ({ navigation }) =>
+          useNavigationOverlay({
+            navigation,
+            objectName: 'contacts',
+            onNavigate,
+          }),
+        { initialProps: { navigation: undefined as NavigationConfig | undefined } }
+      );
+
+      // Click with no config — should still call onNavigate (default page behavior)
+      act(() => {
+        result.current.handleClick({ _id: '1' });
+      });
+      expect(onNavigate).toHaveBeenCalledWith('1', 'view');
+
+      // Re-render with explicit page config
+      rerender({ navigation: { mode: 'page' } });
+
+      // Click should still work (not stale)
+      act(() => {
+        result.current.handleClick({ _id: '2' });
+      });
+      expect(onNavigate).toHaveBeenCalledWith('2', 'view');
+      expect(onNavigate).toHaveBeenCalledTimes(2);
+    });
+  });
 });

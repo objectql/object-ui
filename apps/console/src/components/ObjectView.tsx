@@ -420,12 +420,15 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
 
     // Navigation overlay for record detail (supports drawer/modal/split/popover via config)
     // Priority: activeView.navigation > objectDef.navigation > default page
-    const detailNavigation: ViewNavigationConfig = activeView?.navigation ?? objectDef.navigation ?? { mode: 'page' };
+    // Memoize to avoid unstable object identity on every render (stale closure prevention)
+    const detailNavigation: ViewNavigationConfig = useMemo(
+        () => activeView?.navigation ?? objectDef.navigation ?? { mode: 'page' },
+        [activeView?.navigation, objectDef.navigation]
+    );
     const drawerRecordId = searchParams.get('recordId');
-    const navOverlay = useNavigationOverlay({
-        navigation: detailNavigation,
-        objectName: objectDef.name,
-        onNavigate: (recordId: string | number, action?: string) => {
+    // Memoize onNavigate to prevent stale closure in useNavigationOverlay's handleClick
+    const handleNavOverlayNavigate = useCallback(
+        (recordId: string | number, action?: string) => {
             if (action === 'new_window') {
                 // Open record detail in a new browser tab with Console-correct URL
                 const basePath = window.location.pathname.replace(/\/view\/.*$/, '');
@@ -443,6 +446,12 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                 }
             }
         },
+        [navigate, viewId]
+    );
+    const navOverlay = useNavigationOverlay({
+        navigation: detailNavigation,
+        objectName: objectDef.name,
+        onNavigate: handleNavOverlayNavigate,
     });
     const handleDrawerClose = () => {
         navOverlay.close();
