@@ -981,6 +981,7 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [x] Search placeholder contrast: Search icon in AppSidebar improved from `opacity-50` → `opacity-70` for better readability.
 - [x] Recent section position: Recent items section moved above Record Favorites in AppSidebar for quicker access to recently visited items.
 - [x] Favorites section: Already hides automatically when no pinned items exist (verified).
+- [x] Resizable sidebar width: `SidebarRail` enhanced with pointer-event drag-to-resize (min 200px, max 480px). Width persisted to `localStorage`. Click toggles sidebar, double-click resets to default. `useSidebar()` hook now exposes `sidebarWidth` and `setSidebarWidth`.
 
 **Grid/Table Field Inference:**
 - [x] Percent field auto-inference: `inferColumnType()` in ObjectGrid now detects fields with names containing `probability`, `percent`, `percentage`, `completion`, `progress`, `rate` and assigns `PercentCellRenderer` with progress bar display.
@@ -988,11 +989,20 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [x] Date/datetime human-friendly display: `DateCellRenderer` (relative format) and `DateTimeCellRenderer` (split date/time) already registered in field registry for all grid/table views.
 - [x] Currency/status/boolean renderers: Already implemented with proper formatting (currency symbol, Badge colors, checkbox display).
 
+**Header & Breadcrumb i18n:**
+- [x] AppHeader breadcrumb labels (`Dashboards`, `Pages`, `Reports`, `System`) now use `t()` translation via `useObjectTranslation`.
+- [x] `console.breadcrumb` i18n keys added to all 11 locales (en, zh, ja, ko, de, fr, es, pt, ru, ar).
+- [x] `header-bar` renderer: `resolveCrumbLabel()` handles both string and `I18nLabel` objects for breadcrumb labels.
+- [x] `breadcrumb` renderer: `resolveItemLabel()` handles both string and `I18nLabel` objects for item labels.
+
 **Tests:**
 - [x] 46 NavigationRenderer tests passing (pin/favorites/search/reorder)
 - [x] 75 field cell renderer tests passing (date/datetime/select/boolean/percent)
 - [x] 263 ObjectGrid tests passing (inference, rendering, accessibility)
 - [x] 28 DataTable tests passing
+- [x] 78 Layout tests passing (NavigationRenderer + AppSchemaRenderer)
+- [x] 11 AppSidebar tests passing
+- [x] 32 i18n tests passing
 
 ### P2.5 PWA & Offline (Real Sync)
 
