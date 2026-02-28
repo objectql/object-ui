@@ -249,7 +249,7 @@ export function ConfigFieldRenderer({
               {field.summaryText ?? effectiveValue ?? ''}
             </span>
             {field.onSummaryClick && (
-              <Settings className="h-3.5 w-3.5 text-muted-foreground shrink-0" data-testid={`config-field-${field.key}-gear`} />
+              <Settings className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" data-testid={`config-field-${field.key}-gear`} />
             )}
           </div>
         </ConfigRow>

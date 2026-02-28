@@ -249,7 +249,7 @@ export function ConfigPanelRenderer({
                     if (sub.visibleWhen && !sub.visibleWhen(draft)) return null;
                     const subCollapsed = isCollapsed(sub.key, sub.defaultCollapsed);
                     return (
-                      <div key={sub.key} data-testid={`config-subsection-${sub.key}`} className="ml-1">
+                      <div key={sub.key} data-testid={`config-subsection-${sub.key}`} className="ml-1" role="group" aria-label={sub.title}>
                         <SectionHeader
                           title={sub.title}
                           icon={sub.icon}

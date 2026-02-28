@@ -36,7 +36,7 @@ export interface SectionHeaderProps {
 function SectionHeader({ title, icon, collapsible, collapsed, onToggle, testId, className }: SectionHeaderProps) {
   const titleContent = (
     <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-      {icon && <span className="text-muted-foreground shrink-0">{icon}</span>}
+      {icon && <span className="text-muted-foreground shrink-0" aria-hidden="true">{icon}</span>}
       {title}
     </h3>
   )
