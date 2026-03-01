@@ -305,14 +305,14 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         let resolvedSchema: any = null;
         const cols = normalizeColumns(schemaColumns) || schemaFields;
 
-        if (cols && objectName) {
-          // We have explicit columns — use a minimal schema stub
-          resolvedSchema = { name: objectName, fields: {} };
-        } else if (objectName && dataSource) {
-          // Fetch full schema from DataSource
+        if (objectName && dataSource) {
+          // Always fetch full schema for field type metadata (enables rich type-aware rendering)
           const schemaData = await dataSource.getObjectSchema(objectName);
           if (cancelled) return;
           resolvedSchema = schemaData;
+        } else if (cols && objectName) {
+          // Fallback: minimal schema stub when no dataSource available
+          resolvedSchema = { name: objectName, fields: {} };
         } else if (!objectName) {
           throw new Error('Object name required for data fetching');
         } else {
@@ -595,14 +595,23 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
               // Build custom cell renderer based on column configuration
               let cellRenderer: ((value: any, row: any) => React.ReactNode) | undefined;
 
-              // Type-based cell renderer with auto-inference (e.g., "currency", "date", "boolean")
-              const inferredType = inferColumnType(col);
+              // Type-based cell renderer: explicit col type > objectDef type > heuristic inference
+              const objectDefField = objectSchema?.fields?.[col.field];
+              const inferredType = col.type || objectDefField?.type || inferColumnType({ field: col.field }) || null;
               const CellRenderer = inferredType ? getCellRenderer(inferredType) : null;
 
-              // Build field metadata for cell renderers (includes options for select fields)
+              // Build field metadata for cell renderers with objectDef enrichment
               const fieldMeta: Record<string, any> = { name: col.field, type: inferredType || 'text' };
-              if (inferredType === 'select' && !(col as any).options) {
-                // Auto-generate options from unique data values for inferred select fields
+              // Merge objectDef field properties (options with colors, currency, precision, etc.)
+              if (objectDefField) {
+                if (objectDefField.label) fieldMeta.label = objectDefField.label;
+                if (objectDefField.currency) fieldMeta.currency = objectDefField.currency;
+                if (objectDefField.precision !== undefined) fieldMeta.precision = objectDefField.precision;
+                if (objectDefField.format) fieldMeta.format = objectDefField.format;
+                if (objectDefField.options) fieldMeta.options = objectDefField.options;
+              }
+              // Auto-generate options from data for inferred select without existing options
+              if (inferredType === 'select' && !fieldMeta.options) {
                 const uniqueValues = Array.from(new Set(data.map(row => row[col.field]).filter(Boolean)));
                 fieldMeta.options = uniqueValues.map(v => ({ value: v, label: humanizeLabel(String(v)) }));
               }
@@ -735,14 +744,76 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         }
       }
       
-      // String array format - filter out invalid entries
+      // String array format - enrich with objectDef field metadata for type-aware rendering
       return (cols as string[])
         .filter((fieldName) => typeof fieldName === 'string' && fieldName.trim().length > 0)
-        .map((fieldName) => {
-          const fieldLabel = objectSchema?.fields?.[fieldName]?.label;
+        .map((fieldName, colIndex) => {
+          const fieldDef = objectSchema?.fields?.[fieldName];
+          const fieldLabel = fieldDef?.label;
+          const header = fieldLabel || fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' ');
+
+          // Resolve type: objectDef type > heuristic inference (consistent with ListColumn path)
+          const resolvedType = fieldDef?.type || inferColumnType({ field: fieldName }) || null;
+          const CellRenderer = resolvedType ? getCellRenderer(resolvedType) : null;
+
+          // Build field metadata with objectDef enrichment
+          const fieldMeta: Record<string, any> = { name: fieldName, type: resolvedType || 'text' };
+          if (fieldDef) {
+            if (fieldDef.label) fieldMeta.label = fieldDef.label;
+            if (fieldDef.currency) fieldMeta.currency = fieldDef.currency;
+            if (fieldDef.precision !== undefined) fieldMeta.precision = fieldDef.precision;
+            if (fieldDef.format) fieldMeta.format = fieldDef.format;
+            if (fieldDef.options) fieldMeta.options = fieldDef.options;
+          }
+          // Auto-generate select options from data when no options defined
+          if (resolvedType === 'select' && !fieldMeta.options) {
+            const uniqueValues = Array.from(new Set(data.map(row => row[fieldName]).filter(Boolean)));
+            fieldMeta.options = uniqueValues.map((v: any) => ({ value: v, label: humanizeLabel(String(v)) }));
+          }
+
+          const numericTypes = ['number', 'currency', 'percent'];
+          const inferredAlign = resolvedType && numericTypes.includes(resolvedType) ? 'right' as const : undefined;
+
+          // Auto-link primary field (first column) to record detail
+          const isPrimaryField = colIndex === 0;
+          let cellRenderer: ((value: any, row?: any) => React.ReactNode) | undefined;
+
+          if (isPrimaryField && CellRenderer) {
+            cellRenderer = (value: any, row: any) => {
+              const displayContent = <CellRenderer value={value} field={fieldMeta as any} />;
+              return (
+                <button
+                  type="button"
+                  className="text-primary font-medium underline-offset-4 hover:underline cursor-pointer bg-transparent border-none p-0 text-left font-inherit"
+                  data-testid="primary-field-link"
+                  onClick={(e) => { e.stopPropagation(); navigation.handleClick(row); }}
+                >
+                  {displayContent}
+                </button>
+              );
+            };
+          } else if (isPrimaryField) {
+            cellRenderer = (value: any, row: any) => (
+              <button
+                type="button"
+                className="text-primary font-medium underline-offset-4 hover:underline cursor-pointer bg-transparent border-none p-0 text-left font-inherit"
+                data-testid="primary-field-link"
+                onClick={(e) => { e.stopPropagation(); navigation.handleClick(row); }}
+              >
+                {value != null && value !== '' ? String(value) : <span className="text-muted-foreground/50 text-xs italic">—</span>}
+              </button>
+            );
+          } else if (CellRenderer) {
+            cellRenderer = (value: any) => <CellRenderer value={value} field={fieldMeta as any} />;
+          }
+
           return {
-            header: fieldLabel || fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' '),
+            header,
             accessorKey: fieldName,
+            ...(resolvedType && { headerIcon: getTypeIcon(resolvedType) }),
+            ...(inferredAlign && { align: inferredAlign }),
+            ...(cellRenderer && { cell: cellRenderer }),
+            sortable: fieldDef?.sortable !== false,
           };
         });
     }
