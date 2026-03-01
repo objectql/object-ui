@@ -245,7 +245,7 @@ function DrawerDetailContent({ objectDef, recordId, dataSource, onEdit }: {
     );
 }
 
-export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
+export function ObjectView({ dataSource, objects, onEdit }: any) {
     const navigate = useNavigate();
     const { objectName, viewId } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -484,7 +484,7 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
     }, [drawerRecordId]);
 
     // Render multi-view content via ListView plugin (for kanban, calendar, etc.)
-    const renderListView = useCallback(({ schema: listSchema, dataSource: ds, onEdit: editHandler, onRowClick: rowClickHandler, className }: any) => {
+    const renderListView = useCallback(({ schema: listSchema, dataSource: ds, onEdit: editHandler, className }: any) => {
         const key = `${objectName}-${activeView.id}-${refreshKey}`;
         const viewDef = activeView;
 
@@ -638,9 +638,9 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                 schema={fullSchema}
                 className={className}
                 onEdit={editHandler}
-                onRowClick={rowClickHandler || ((record: any) => {
+                onRowClick={(record: any) => {
                     navOverlay.handleClick(record);
-                })}
+                }}
                 dataSource={ds}
             />
         );
@@ -832,9 +832,9 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                                         activeViewId={activeViewId}
                                         onViewChange={handleViewChange}
                                         onEdit={(record: any) => onEdit?.(record)}
-                                        onRowClick={onRowClick || ((record: any) => {
+                                        onRowClick={(record: any) => {
                                             navOverlay.handleClick(record);
-                                        })}
+                                        }}
                                         renderListView={renderListView}
                                         onCreateView={handleCreateView}
                                         onViewAction={handleViewAction}
@@ -870,9 +870,9 @@ export function ObjectView({ dataSource, objects, onEdit, onRowClick }: any) {
                             activeViewId={activeViewId}
                             onViewChange={handleViewChange}
                             onEdit={(record: any) => onEdit?.(record)}
-                            onRowClick={onRowClick || ((record: any) => {
+                            onRowClick={(record: any) => {
                                 navOverlay.handleClick(record);
-                            })}
+                            }}
                             renderListView={renderListView}
                             onCreateView={handleCreateView}
                             onViewAction={handleViewAction}

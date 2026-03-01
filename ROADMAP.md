@@ -1191,6 +1191,14 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 
 **Tests:** All 32 ObjectView tests and 29 useNavigationOverlay tests pass.
 
+### App.tsx handleRowClick Overriding All Navigation Modes (February 2026)
+
+**Root Cause:** `App.tsx` defined a `handleRowClick` that hardcoded `setSearchParams({recordId})` (drawer-only behavior) and passed it unconditionally to `<ObjectView>` via `onRowClick={handleRowClick}`. This overrode the internal `navOverlay.handleClick` in Console's `ObjectView`, preventing page/modal/split/popover/new_window navigation modes from working.
+
+**Fix:** Removed `handleRowClick` from `App.tsx` and the `onRowClick` prop from both `<ObjectView>` route elements. Updated Console `ObjectView` to always use `navOverlay.handleClick` (3 locations) instead of falling back to the external `onRowClick` prop. Removed the unused `onRowClick` prop from the `ObjectView` function signature.
+
+**Tests:** All 42 ObjectView tests and 33 useNavigationOverlay tests pass (3 new tests added).
+
 ### ListView Multi-Navigation Mode Support — split/popover/page/new_window (February 2026)
 
 **Root Cause:** While `drawer`/`modal` modes worked in the Console ObjectView, the remaining 4 navigation modes had gaps:

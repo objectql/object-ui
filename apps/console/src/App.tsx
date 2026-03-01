@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useCallback, lazy, Suspense, useMemo, type ReactNode } from 'react';
 import { ModalForm } from '@object-ui/plugin-form';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
@@ -90,7 +90,6 @@ export function AppContent() {
   // App Selection
   const navigate = useNavigate();
   const location = useLocation();
-  const [, setSearchParams] = useSearchParams();
   const { appName } = useParams();
   const { apps, objects: allObjects, loading: metadataLoading } = useMetadata();
   
@@ -230,18 +229,6 @@ export function AppContent() {
     setIsDialogOpen(true);
   };
   
-  const handleRowClick = (record: any) => {
-     const id = record._id || record.id;
-     if (id) {
-        // Open Drawer
-        setSearchParams(prev => {
-            const next = new URLSearchParams(prev);
-            next.set('recordId', id);
-            return next;
-        });
-     }
-  };
-
   const handleAppChange = (newAppName: string) => {
       navigate(`/apps/${newAppName}`);
   };
@@ -347,7 +334,6 @@ export function AppContent() {
                 dataSource={dataSource} 
                 objects={allObjects} 
                 onEdit={handleEdit} 
-                onRowClick={handleRowClick}
             />
         } />
 
@@ -357,7 +343,6 @@ export function AppContent() {
                 dataSource={dataSource} 
                 objects={allObjects} 
                 onEdit={handleEdit} 
-                onRowClick={handleRowClick}
             />
         } />
         

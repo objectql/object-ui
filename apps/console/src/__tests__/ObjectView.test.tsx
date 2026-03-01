@@ -934,4 +934,39 @@ describe('ObjectView Component', () => {
         // ViewConfigPanel should be open in edit mode
         expect(screen.getByTestId('view-config-panel')).toBeInTheDocument();
     });
+
+    it('navigates to record detail in page mode even if an onRowClick prop is passed (prop is ignored)', () => {
+        const externalRowClick = vi.fn();
+        const objectsWithPage = [{
+            ...mockObjects[0],
+            navigation: { mode: 'page' as const },
+        }];
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+        render(<ObjectView dataSource={mockDataSource} objects={objectsWithPage} onEdit={vi.fn()} onRowClick={externalRowClick} />);
+        fireEvent.click(screen.getByTestId('list-row-click'));
+        expect(mockNavigate).toHaveBeenCalledWith('record/rec-1');
+        expect(externalRowClick).not.toHaveBeenCalled();
+    });
+
+    it('navigates to record detail when no navigation config and no onRowClick', () => {
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+        render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
+        fireEvent.click(screen.getByTestId('list-row-click'));
+        expect(mockNavigate).toHaveBeenCalledWith('record/rec-1');
+    });
+
+    it('opens drawer overlay instead of navigating for drawer navigation mode', () => {
+        const objectsWithDrawer = [{
+            ...mockObjects[0],
+            navigation: { mode: 'drawer' as const },
+        }];
+        mockUseParams.mockReturnValue({ objectName: 'opportunity' });
+        const dataSourceWithFindOne = {
+            ...mockDataSource,
+            findOne: vi.fn().mockResolvedValue({ _id: 'rec-1', id: 'rec-1', name: 'Test' }),
+        };
+        render(<ObjectView dataSource={dataSourceWithFindOne} objects={objectsWithDrawer} onEdit={vi.fn()} />);
+        fireEvent.click(screen.getByTestId('list-row-click'));
+        expect(mockNavigate).not.toHaveBeenCalledWith(expect.stringContaining('record/'));
+    });
 });
