@@ -17,7 +17,8 @@ export const AccountActions = [
     label: 'Assign Owner',
     icon: 'user-plus',
     type: 'api' as const,
-    locations: ['record_header' as const, 'list_item' as const],
+    locations: ['record_header' as const, 'list_item' as const, 'list_toolbar' as const],
+    bulkEnabled: true,
     params: [
       { name: 'owner_id', label: 'New Owner', type: 'lookup' as const, required: true },
     ],

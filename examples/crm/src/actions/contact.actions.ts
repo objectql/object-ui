@@ -4,7 +4,8 @@ export const ContactActions = [
     label: 'Send Email',
     icon: 'mail',
     type: 'api' as const,
-    locations: ['record_header' as const, 'list_item' as const],
+    locations: ['record_header' as const, 'list_item' as const, 'list_toolbar' as const],
+    bulkEnabled: true,
     params: [
       { name: 'subject', label: 'Subject', type: 'text' as const, required: true },
       { name: 'body', label: 'Message', type: 'textarea' as const },
@@ -17,6 +18,7 @@ export const ContactActions = [
     icon: 'user-check',
     type: 'api' as const,
     locations: ['record_header' as const],
+    visible: "type !== 'Customer'",
     confirmText: 'Convert this contact to a customer?',
     refreshAfter: true,
     successMessage: 'Contact converted to customer',

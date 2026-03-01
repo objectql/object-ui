@@ -4,7 +4,9 @@ export const OpportunityActions = [
     label: 'Change Stage',
     icon: 'arrow-right-circle',
     type: 'api' as const,
-    locations: ['record_header' as const, 'list_item' as const],
+    locations: ['record_header' as const, 'list_item' as const, 'list_toolbar' as const],
+    bulkEnabled: true,
+    visible: "stage !== 'closed_won' && stage !== 'closed_lost'",
     params: [
       {
         name: 'new_stage', label: 'New Stage', type: 'select' as const, required: true,
@@ -28,6 +30,7 @@ export const OpportunityActions = [
     type: 'api' as const,
     locations: ['record_header' as const],
     variant: 'primary' as const,
+    visible: "stage !== 'closed_won' && stage !== 'closed_lost'",
     confirmText: 'Mark this opportunity as Closed Won?',
     refreshAfter: true,
     successMessage: 'Opportunity marked as won!',
@@ -39,6 +42,7 @@ export const OpportunityActions = [
     type: 'api' as const,
     locations: ['record_more' as const],
     variant: 'danger' as const,
+    visible: "stage !== 'closed_won' && stage !== 'closed_lost'",
     params: [
       { name: 'loss_reason', label: 'Reason for Loss', type: 'text' as const, required: true },
     ],

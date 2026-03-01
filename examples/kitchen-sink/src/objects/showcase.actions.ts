@@ -4,7 +4,9 @@ export const ShowcaseActions = [
     label: 'Change Status',
     icon: 'arrow-right-circle',
     type: 'api' as const,
-    locations: ['record_header' as const, 'list_item' as const],
+    locations: ['record_header' as const, 'list_item' as const, 'list_toolbar' as const],
+    bulkEnabled: true,
+    visible: "status !== 'archived'",
     params: [
       {
         name: 'new_status', label: 'New Status', type: 'select' as const, required: true,
@@ -25,7 +27,8 @@ export const ShowcaseActions = [
     label: 'Assign Owner',
     icon: 'user-plus',
     type: 'api' as const,
-    locations: ['record_header' as const],
+    locations: ['record_header' as const, 'list_toolbar' as const],
+    bulkEnabled: true,
     params: [
       { name: 'owner_email', label: 'Owner Email', type: 'email' as const, required: true },
       { name: 'notify', label: 'Send Notification', type: 'boolean' as const },
@@ -40,6 +43,7 @@ export const ShowcaseActions = [
     type: 'api' as const,
     locations: ['record_more' as const],
     variant: 'danger' as const,
+    visible: "status !== 'archived'",
     confirmText: 'Are you sure you want to archive this item?',
     refreshAfter: true,
     successMessage: 'Item archived',

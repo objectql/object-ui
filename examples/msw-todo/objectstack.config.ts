@@ -27,6 +27,45 @@ export const TaskObject = ObjectSchema.create({
 });
 
 /**
+ * Task Actions — complete, toggle, and delete operations
+ */
+export const TaskActions = [
+  {
+    name: 'task_complete',
+    label: 'Mark Complete',
+    icon: 'check-circle-2',
+    type: 'api' as const,
+    locations: ['record_header' as const, 'list_item' as const, 'list_toolbar' as const],
+    visible: 'is_completed === false',
+    bulkEnabled: true,
+    refreshAfter: true,
+    successMessage: 'Task completed',
+  },
+  {
+    name: 'task_reopen',
+    label: 'Reopen Task',
+    icon: 'rotate-ccw',
+    type: 'api' as const,
+    locations: ['record_header' as const, 'list_item' as const],
+    visible: 'is_completed === true',
+    refreshAfter: true,
+    successMessage: 'Task reopened',
+  },
+  {
+    name: 'task_delete',
+    label: 'Delete Task',
+    icon: 'trash-2',
+    type: 'api' as const,
+    locations: ['record_more' as const, 'list_toolbar' as const],
+    variant: 'danger' as const,
+    bulkEnabled: true,
+    confirmText: 'Are you sure you want to delete this task?',
+    refreshAfter: true,
+    successMessage: 'Task deleted',
+  },
+];
+
+/**
  * App Configuration — Standard ObjectStackDefinition format
  */
 export default defineStack({
@@ -46,6 +85,9 @@ export default defineStack({
         },
       },
     },
+  ],
+  actions: [
+    ...TaskActions,
   ],
   apps: [
     App.create({
