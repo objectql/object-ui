@@ -83,6 +83,7 @@ function mergeActionsIntoObjects(objects: any[], configs: any[]): any[] {
 
   // Sort object names longest-first so "order_item" matches before "order"
   const objectNames = objects.map((o: any) => o.name as string)
+    .filter(Boolean)
     .sort((a, b) => b.length - a.length);
 
   const actionsByObject: Record<string, any[]> = {};
