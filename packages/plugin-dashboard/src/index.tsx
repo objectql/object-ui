@@ -13,11 +13,12 @@ import { MetricWidget } from './MetricWidget';
 import { MetricCard } from './MetricCard';
 import { PivotTable } from './PivotTable';
 import { ObjectPivotTable } from './ObjectPivotTable';
+import { ObjectDataTable } from './ObjectDataTable';
 import { DashboardConfigPanel } from './DashboardConfigPanel';
 import { WidgetConfigPanel } from './WidgetConfigPanel';
 import { DashboardWithConfig } from './DashboardWithConfig';
 
-export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, PivotTable, ObjectPivotTable, DashboardConfigPanel, WidgetConfigPanel, DashboardWithConfig };
+export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, PivotTable, ObjectPivotTable, ObjectDataTable, DashboardConfigPanel, WidgetConfigPanel, DashboardWithConfig };
 
 // Register dashboard component
 ComponentRegistry.register(
@@ -175,6 +176,29 @@ ComponentRegistry.register(
   }
 );
 
+// Register object-aware data table (async data loading)
+ComponentRegistry.register(
+  'object-data-table',
+  ObjectDataTable,
+  {
+    namespace: 'plugin-dashboard',
+    label: 'Object Data Table',
+    category: 'Dashboard',
+    icon: 'table',
+    inputs: [
+      { name: 'objectName', type: 'string', label: 'Object Name', required: true },
+      { name: 'columns', type: 'array', label: 'Columns' },
+      { name: 'filter', type: 'array', label: 'Filter' },
+      { name: 'searchable', type: 'boolean', label: 'Searchable' },
+      { name: 'pagination', type: 'boolean', label: 'Pagination' },
+    ],
+    defaultProps: {
+      searchable: false,
+      pagination: false,
+    }
+  }
+);
+
 // Standard Export Protocol - for manual integration
 export const dashboardComponents = {
   DashboardRenderer,
@@ -183,6 +207,7 @@ export const dashboardComponents = {
   MetricCard,
   PivotTable,
   ObjectPivotTable,
+  ObjectDataTable,
   DashboardConfigPanel,
   WidgetConfigPanel,
   DashboardWithConfig,

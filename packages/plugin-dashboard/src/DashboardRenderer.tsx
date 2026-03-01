@@ -192,17 +192,17 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 // Support data at widget level or nested inside options
                 const widgetData = (widget as any).data || options.data;
 
-                // provider: 'object' — pass through object config for async data loading
+                // provider: 'object' — use ObjectDataTable for async data loading
                 if (isObjectProvider(widgetData)) {
                     const { data: _data, ...restOptions } = options;
                     return {
-                        type: 'data-table',
+                        type: 'object-data-table',
                         ...restOptions,
                         objectName: widget.object || widgetData.object,
                         dataProvider: widgetData,
-                        data: [],
-                        searchable: false,
-                        pagination: false,
+                        filter: widgetData.filter || widget.filter,
+                        searchable: widget.searchable ?? false,
+                        pagination: widget.pagination ?? false,
                         className: "border-0"
                     };
                 }
@@ -210,12 +210,12 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 // No explicit data provider but widget has object binding
                 if (!widgetData && widget.object) {
                     return {
-                        type: 'data-table',
+                        type: 'object-data-table',
                         ...options,
                         objectName: widget.object,
-                        data: [],
-                        searchable: false,
-                        pagination: false,
+                        filter: widget.filter,
+                        searchable: widget.searchable ?? false,
+                        pagination: widget.pagination ?? false,
                         className: "border-0"
                     };
                 }

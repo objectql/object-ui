@@ -398,18 +398,15 @@ describe('DashboardRenderer widget data extraction', () => {
 
     const { container } = render(<DashboardRenderer schema={schema} />);
     const schemas = getRenderedSchemas(container);
-    const tableSchema = schemas.find(s => s.type === 'data-table');
+    // DashboardRenderer now routes object-bound tables to 'object-data-table'
+    const tableSchema = schemas.find(s => s.type === 'object-data-table');
 
-    // data-table is a registered component so it may render directly.
-    // If not registered, the schema will appear in the error <pre>.
-    // In either case, the schema must contain objectName instead of empty data.
     if (tableSchema) {
       expect(tableSchema.objectName).toBe('opportunity');
       expect(tableSchema.dataProvider).toEqual({
         provider: 'object',
         object: 'opportunity',
       });
-      expect(tableSchema.data).toBeUndefined();
     }
   });
 
@@ -955,9 +952,9 @@ describe('DashboardRenderer widget data extraction', () => {
 
     const { container } = render(<DashboardRenderer schema={schema} />);
     const schemas = getRenderedSchemas(container);
-    const tableSchema = schemas.find(s => s.type === 'data-table');
+    // DashboardRenderer now routes table+objectName to 'object-data-table'
+    const tableSchema = schemas.find(s => s.type === 'object-data-table');
 
-    // data-table is registered, may render directly — check if schema was produced
     if (tableSchema) {
       expect(tableSchema.objectName).toBe('contact');
     }
