@@ -291,6 +291,13 @@ export const ListView: React.FC<ListViewProps> = ({
     viewType: propSchema.viewType || 'grid'
   }), [propSchema]);
 
+  // Convenience: resolve field label with schema.objectName pre-bound
+  const tFieldLabel = React.useCallback(
+    (fieldName: string, fallback: string) =>
+      schema.objectName ? resolveFieldLabel(schema.objectName, fieldName, fallback) : fallback,
+    [schema.objectName, resolveFieldLabel],
+  );
+
   // Resolve toolbar visibility flags: userActions overrides showX flags
   const toolbarFlags = React.useMemo(() => {
     const ua = schema.userActions;
@@ -433,7 +440,7 @@ export const ListView: React.FC<ListViewProps> = ({
       if (FILTERABLE_FIELD_TYPES.has(field.type) || (field.options && !field.type)) {
         derivedFields.push({
           field: key,
-          label: schema.objectName ? resolveFieldLabel(schema.objectName, key, field.label || key) : (field.label || key),
+          label: tFieldLabel(key, field.label || key),
           type: field.type === 'boolean' ? 'boolean' : field.type === 'multi-select' ? 'multi-select' : 'select',
         });
       }
@@ -897,9 +904,10 @@ export const ListView: React.FC<ListViewProps> = ({
         // Fallback to schema fields if objectDef not loaded yet
         fields = (schema.fields || []).map((f: any) => {
            if (typeof f === 'string') return { value: f, label: f, type: 'text' };
+           const fieldName = f.name || f.fieldName;
            return {
-              value: f.name || f.fieldName,
-              label: schema.objectName ? resolveFieldLabel(schema.objectName, f.name || f.fieldName, f.label || f.name) : (f.label || f.name),
+              value: fieldName,
+              label: tFieldLabel(fieldName, f.label || f.name),
               type: f.type || 'text',
               options: f.options
            };
@@ -907,7 +915,7 @@ export const ListView: React.FC<ListViewProps> = ({
     } else {
         fields = Object.entries(objectDef.fields).map(([key, field]: [string, any]) => ({
             value: key,
-            label: schema.objectName ? resolveFieldLabel(schema.objectName, key, field.label || key) : (field.label || key),
+            label: tFieldLabel(key, field.label || key),
             type: field.type || 'text',
             options: field.options
         }));
@@ -994,15 +1002,13 @@ export const ListView: React.FC<ListViewProps> = ({
   const allFields = React.useMemo(() => {
     return (schema.fields || []).map((f: any) => {
       if (typeof f === 'string') {
-        const label = schema.objectName ? resolveFieldLabel(schema.objectName, f, f) : f;
-        return { name: f, label };
+        return { name: f, label: tFieldLabel(f, f) };
       }
       const name = f.name || f.fieldName || f.field;
       const rawLabel = f.label || f.name || f.field;
-      const label = schema.objectName ? resolveFieldLabel(schema.objectName, name, rawLabel) : rawLabel;
-      return { name, label };
+      return { name, label: tFieldLabel(name, rawLabel) };
     });
-  }, [schema.fields, schema.objectName, resolveFieldLabel]);
+  }, [schema.fields, tFieldLabel]);
 
   return (
     <div
