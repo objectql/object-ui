@@ -499,4 +499,45 @@ describe('DetailView', () => {
     const badgeTexts = Array.from(headerBadges).map(b => b.textContent);
     expect(badgeTexts).toContain('Active');
   });
+
+  it('should show "Record not found" when data is null after loading', async () => {
+    const mockDataSource = {
+      findOne: vi.fn().mockResolvedValue(null),
+    } as any;
+
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      objectName: 'contact',
+      resourceId: 'nonexistent-id',
+      fields: [{ name: 'name', label: 'Name' }],
+    };
+
+    const { findByText } = render(<DetailView schema={schema} dataSource={mockDataSource} />);
+    
+    expect(await findByText('Record not found')).toBeInTheDocument();
+    expect(await findByText(/does not exist or may have been deleted/)).toBeInTheDocument();
+  });
+
+  it('should show "Go back" button in "Record not found" state when showBack is true', async () => {
+    const mockDataSource = {
+      findOne: vi.fn().mockResolvedValue(null),
+    } as any;
+    const onBack = vi.fn();
+
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      objectName: 'contact',
+      resourceId: 'nonexistent-id',
+      fields: [{ name: 'name', label: 'Name' }],
+      showBack: true,
+    };
+
+    const { findByText } = render(<DetailView schema={schema} dataSource={mockDataSource} onBack={onBack} />);
+    
+    const goBackBtn = await findByText('Go back');
+    fireEvent.click(goBackBtn);
+    expect(onBack).toHaveBeenCalled();
+  });
 });

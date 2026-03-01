@@ -232,6 +232,23 @@ export const DetailView: React.FC<DetailViewProps> = ({
     );
   }
 
+  if (!data && !schema.data) {
+    return (
+      <div className={cn('flex flex-col items-center justify-center py-16 text-center', className)}>
+        <p className="text-lg font-semibold">Record not found</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          The record you are looking for does not exist or may have been deleted.
+        </p>
+        {(schema.showBack ?? true) && (
+          <Button variant="outline" size="sm" onClick={handleBack} className="mt-4 gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Go back
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <TooltipProvider>
       <div className={cn('space-y-6', className)}>

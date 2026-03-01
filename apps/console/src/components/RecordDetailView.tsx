@@ -34,17 +34,22 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
   const [recordViewers, setRecordViewers] = useState<PresenceUser[]>([]);
   const objectDef = objects.find((o: any) => o.name === objectName);
 
+  // Strip objectName prefix from URL-based recordId (e.g. "contact-123" → "123")
+  const pureRecordId = recordId && objectName && recordId.startsWith(`${objectName}-`)
+    ? recordId.slice(objectName.length + 1)
+    : recordId;
+
   const currentUser = user
     ? { id: user.id, name: user.name, avatar: user.image }
     : FALLBACK_USER;
 
   // Fetch presence and comments from API
   useEffect(() => {
-    if (!dataSource || !objectName || !recordId) return;
-    const threadId = `${objectName}:${recordId}`;
+    if (!dataSource || !objectName || !pureRecordId) return;
+    const threadId = `${objectName}:${pureRecordId}`;
 
     // Fetch record viewers
-    dataSource.find('sys_presence', { $filter: `recordId eq '${recordId}'` })
+    dataSource.find('sys_presence', { $filter: `recordId eq '${pureRecordId}'` })
       .then((res: any) => { if (res.data?.length) setRecordViewers(res.data); })
       .catch(() => {});
 
@@ -72,7 +77,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
         }
       })
       .catch(() => {});
-  }, [dataSource, objectName, recordId, currentUser]);
+  }, [dataSource, objectName, pureRecordId, currentUser]);
 
   const handleAddComment = useCallback(
     async (text: string) => {
@@ -87,7 +92,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
       setFeedItems(prev => [...prev, newItem]);
       // Persist to backend
       if (dataSource) {
-        const threadId = `${objectName}:${recordId}`;
+        const threadId = `${objectName}:${pureRecordId}`;
         dataSource.create('sys_comment', {
           id: newItem.id,
           threadId,
@@ -98,7 +103,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
         }).catch(() => {});
       }
     },
-    [currentUser, dataSource, objectName, recordId],
+    [currentUser, dataSource, objectName, pureRecordId],
   );
 
   const handleAddReply = useCallback(
@@ -122,7 +127,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
         );
       });
       if (dataSource) {
-        const threadId = `${objectName}:${recordId}`;
+        const threadId = `${objectName}:${pureRecordId}`;
         dataSource.create('sys_comment', {
           id: newItem.id,
           threadId,
@@ -134,7 +139,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
         }).catch(() => {});
       }
     },
-    [currentUser, dataSource, objectName, recordId],
+    [currentUser, dataSource, objectName, pureRecordId],
   );
 
   const handleToggleReaction = useCallback(
@@ -250,7 +255,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
   const detailSchema: DetailViewSchema = {
     type: 'detail-view',
     objectName: objectDef.name,
-    resourceId: recordId,
+    resourceId: pureRecordId,
     showBack: true,
     onBack: 'history',
     showEdit: true,
@@ -278,11 +283,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
             schema={detailSchema}
             dataSource={dataSource}
             onEdit={() => {
-              // Strip objectName prefix from URL-based recordId (e.g. "contact-123" → "123")
-              const pureId = recordId && objectName && recordId.startsWith(`${objectName}-`)
-                ? recordId.slice(objectName.length + 1)
-                : recordId;
-              onEdit({ _id: pureId, id: pureId });
+              onEdit({ _id: pureRecordId, id: pureRecordId });
             }}
           />
 

@@ -78,13 +78,17 @@ function renderDetailView(
 describe('RecordDetailView — onEdit recordId stripping', () => {
   it('strips objectName prefix from recordId when editing', async () => {
     const onEdit = vi.fn();
+    const ds = createMockDataSource();
 
-    renderDetailView('contact-1772350253615-4', 'contact', onEdit);
+    renderDetailView('contact-1772350253615-4', 'contact', onEdit, ds);
 
-    // Wait for the detail view to load
+    // Wait for the detail view to load (primaryField "name" renders as heading)
     await waitFor(() => {
-      expect(screen.getByText('Contact')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Alice');
     });
+
+    // findOne should be called with the stripped ID (no objectName prefix)
+    expect(ds.findOne).toHaveBeenCalledWith('contact', '1772350253615-4');
 
     // Click the Edit button
     const editButton = await screen.findByRole('button', { name: /edit/i });
@@ -101,12 +105,16 @@ describe('RecordDetailView — onEdit recordId stripping', () => {
 
   it('passes recordId as-is when no objectName prefix', async () => {
     const onEdit = vi.fn();
+    const ds = createMockDataSource();
 
-    renderDetailView('plain-id-12345', 'contact', onEdit);
+    renderDetailView('plain-id-12345', 'contact', onEdit, ds);
 
     await waitFor(() => {
-      expect(screen.getByText('Contact')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Alice');
     });
+
+    // findOne should be called with the original ID (no prefix to strip)
+    expect(ds.findOne).toHaveBeenCalledWith('contact', 'plain-id-12345');
 
     const editButton = await screen.findByRole('button', { name: /edit/i });
     await userEvent.click(editButton);
