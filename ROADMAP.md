@@ -470,12 +470,14 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] I18nLabel resolution: `WidgetConfigPanel` pre-processes `title` and `description` config values via `resolveLabel()` to prevent `[object Object]` display
 - [x] `DashboardRenderer`: widget description rendered in card headers with `line-clamp-2`; I18nLabel resolved via `resolveLabel()`
 - [x] `ObjectPivotTable`: new async-aware pivot wrapper (following ObjectChart pattern) — skeleton loading, error state, no-data-source message, empty state delegation to PivotTable
+- [x] `ObjectDataTable`: new async-aware table wrapper — skeleton loading, error state, empty state, auto-column derivation from fetched data keys
 - [x] `DashboardRenderer`: pivot widgets with `objectName` or `provider: 'object'` routed to `object-pivot` type (ObjectPivotTable) for async data loading
+- [x] `DashboardRenderer`: table widgets with `objectName` or `provider: 'object'` routed to `object-data-table` type (ObjectDataTable) for async data loading
 - [x] `DashboardRenderer`: grid column clamping — widget `layout.w` clamped to `Math.min(w, columns)` preventing layout overflow
 - [x] `MetricWidget`: overflow protection — `overflow-hidden` on Card, `truncate` on label/value/description, `shrink-0` on icon/trend
 - [x] `PivotTable`: friendly empty state with grid icon + "No data available" message instead of empty table body
 - [x] `PivotTable`: improved total/subtotal row styling — `bg-muted/40` on tfoot, `bg-muted/20` on row-total column, `font-bold` on grand total
-- [x] Add 23 new Vitest tests: ObjectPivotTable (8), context-aware sections (6), I18nLabel resolution (2), pivot type option (1), pivot object binding (1), widget description rendering (2), grid column clamping (1), pivot empty state (2)
+- [x] Add 29 new Vitest tests: ObjectPivotTable (8), ObjectDataTable (6), context-aware sections (6), I18nLabel resolution (2), pivot type option (1), pivot object binding (1), widget description rendering (2), grid column clamping (1), pivot empty state (2)
 
 ### P1.11 Console — Schema-Driven View Config Panel Migration
 

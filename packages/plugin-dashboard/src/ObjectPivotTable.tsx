@@ -79,7 +79,7 @@ export const ObjectPivotTable: React.FC<ObjectPivotTableProps> = ({ schema, data
       }
     };
 
-    if (schema.objectName && !boundData && !schema.data?.length) {
+    if (schema.objectName && !boundData && (!schema.data || schema.data.length === 0)) {
       fetchData();
     }
 

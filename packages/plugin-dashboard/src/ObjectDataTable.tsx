@@ -103,7 +103,9 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
   const derivedColumns = useMemo(() => {
     if (schema.columns && schema.columns.length > 0) return schema.columns;
     if (finalData.length === 0) return [];
+    // Exclude internal/private fields (prefixed with '_') from auto-derived columns
     const keys = Object.keys(finalData[0]).filter(k => !k.startsWith('_'));
+    // Convert camelCase keys to human-readable headers (e.g. firstName → First Name)
     return keys.map(k => ({
       header: k.charAt(0).toUpperCase() + k.slice(1).replace(/([A-Z])/g, ' $1'),
       accessorKey: k,
