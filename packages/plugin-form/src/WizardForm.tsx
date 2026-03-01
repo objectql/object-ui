@@ -18,23 +18,9 @@ import type { FormField, DataSource } from '@object-ui/types';
 import { Button, cn } from '@object-ui/components';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { FormSection } from './FormSection';
-import { SchemaRenderer, useObjectLabel } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 import type { FormSectionConfig } from './TabbedForm';
-
-/**
- * Safe wrapper for useObjectLabel that falls back to identity when I18nProvider is unavailable.
- */
-function useWizardFieldLabel() {
-  try {
-    const { fieldLabel } = useObjectLabel();
-    return { fieldLabel };
-  } catch {
-    return {
-      fieldLabel: (_objectName: string, _fieldName: string, fallback: string) => fallback,
-    };
-  }
-}
 
 export interface WizardFormSchema {
   type: 'object-form';
@@ -167,7 +153,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   dataSource,
   className,
 }) => {
-  const { fieldLabel } = useWizardFieldLabel();
+  const { fieldLabel } = useSafeFieldLabel();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);

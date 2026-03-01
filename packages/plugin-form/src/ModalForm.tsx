@@ -27,23 +27,9 @@ import {
 } from '@object-ui/components';
 import { Loader2 } from 'lucide-react';
 import { FormSection } from './FormSection';
-import { SchemaRenderer, useObjectLabel } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 import { applyAutoLayout, inferModalSize } from './autoLayout';
-
-/**
- * Safe wrapper for useObjectLabel that falls back to identity when I18nProvider is unavailable.
- */
-function useModalFieldLabel() {
-  try {
-    const { fieldLabel } = useObjectLabel();
-    return { fieldLabel };
-  } catch {
-    return {
-      fieldLabel: (_objectName: string, _fieldName: string, fallback: string) => fallback,
-    };
-  }
-}
 
 export interface ModalFormSectionConfig {
   name?: string;
@@ -137,7 +123,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
   dataSource,
   className,
 }) => {
-  const { fieldLabel } = useModalFieldLabel();
+  const { fieldLabel } = useSafeFieldLabel();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formFields, setFormFields] = useState<FormField[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({});

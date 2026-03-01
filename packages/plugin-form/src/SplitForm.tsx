@@ -23,22 +23,8 @@ import {
   cn,
 } from '@object-ui/components';
 import { FormSection } from './FormSection';
-import { SchemaRenderer, useObjectLabel } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
-
-/**
- * Safe wrapper for useObjectLabel that falls back to identity when I18nProvider is unavailable.
- */
-function useSplitFieldLabel() {
-  try {
-    const { fieldLabel } = useObjectLabel();
-    return { fieldLabel };
-  } catch {
-    return {
-      fieldLabel: (_objectName: string, _fieldName: string, fallback: string) => fallback,
-    };
-  }
-}
 
 export interface SplitFormSectionConfig {
   name?: string;
@@ -99,7 +85,7 @@ export const SplitForm: React.FC<SplitFormProps> = ({
   dataSource,
   className,
 }) => {
-  const { fieldLabel } = useSplitFieldLabel();
+  const { fieldLabel } = useSafeFieldLabel();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);

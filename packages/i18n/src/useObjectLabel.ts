@@ -19,7 +19,12 @@
 
 import { useObjectTranslation } from './provider';
 
-/** Built-in Object UI top-level locale keys — not app namespaces. */
+/**
+ * Built-in Object UI top-level locale keys — not app namespaces.
+ * Update this set when new top-level platform translation keys are added
+ * to `packages/i18n/src/locales/en.ts` to prevent them from being treated
+ * as app namespaces during dynamic namespace discovery.
+ */
 const BUILTIN_KEYS = new Set([
   'common', 'validation', 'form', 'table', 'grid', 'calendar',
   'list', 'kanban', 'chart', 'dashboard', 'configPanel',
@@ -98,4 +103,20 @@ export function useObjectLabel() {
     fieldLabel: (objectName: string, fieldName: string, fallback: string) =>
       resolve(`fields.${objectName}.${fieldName}`, fallback),
   };
+}
+
+/**
+ * Safe wrapper for useObjectLabel that falls back to identity functions
+ * when no I18nProvider is available. Suitable for plugin components that
+ * may be rendered outside an i18n context.
+ */
+export function useSafeFieldLabel() {
+  try {
+    const { fieldLabel } = useObjectLabel();
+    return { fieldLabel };
+  } catch {
+    return {
+      fieldLabel: (_objectName: string, _fieldName: string, fallback: string) => fallback,
+    };
+  }
 }

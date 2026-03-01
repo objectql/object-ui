@@ -23,7 +23,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
-import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useObjectLabel } from '@object-ui/react';
+import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useSafeFieldLabel } from '@object-ui/react';
 import { getCellRenderer, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel } from '@object-ui/fields';
 import {
   Badge, Button, NavigationOverlay,
@@ -86,20 +86,6 @@ function useGridTranslation() {
         }
         return value;
       },
-    };
-  }
-}
-
-/**
- * Safe wrapper for useObjectLabel that falls back to identity when I18nProvider is unavailable.
- */
-function useGridFieldLabel() {
-  try {
-    const { fieldLabel } = useObjectLabel();
-    return { fieldLabel };
-  } catch {
-    return {
-      fieldLabel: (_objectName: string, _fieldName: string, fallback: string) => fallback,
     };
   }
 }
@@ -192,7 +178,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const { t } = useGridTranslation();
-  const { fieldLabel: resolveFieldLabel } = useGridFieldLabel();
+  const { fieldLabel: resolveFieldLabel } = useSafeFieldLabel();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [useCardView, setUseCardView] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);

@@ -24,23 +24,9 @@ import {
   cn,
 } from '@object-ui/components';
 import { FormSection } from './FormSection';
-import { SchemaRenderer, useObjectLabel } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 import { applyAutoLayout } from './autoLayout';
-
-/**
- * Safe wrapper for useObjectLabel that falls back to identity when I18nProvider is unavailable.
- */
-function useDrawerFieldLabel() {
-  try {
-    const { fieldLabel } = useObjectLabel();
-    return { fieldLabel };
-  } catch {
-    return {
-      fieldLabel: (_objectName: string, _fieldName: string, fallback: string) => fallback,
-    };
-  }
-}
 
 /**
  * Container-query-based grid classes for form field layout.
@@ -125,7 +111,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
   dataSource,
   className,
 }) => {
-  const { fieldLabel } = useDrawerFieldLabel();
+  const { fieldLabel } = useSafeFieldLabel();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formFields, setFormFields] = useState<FormField[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({});

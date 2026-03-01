@@ -103,6 +103,9 @@ vi.mock('@object-ui/i18n', () => ({
     objectDescription: (obj: any) => obj.description,
     fieldLabel: (_objectName: string, _fieldName: string, fallback: string) => fallback,
   }),
+  useSafeFieldLabel: () => ({
+    fieldLabel: (_objectName: string, _fieldName: string, fallback: string) => fallback,
+  }),
 }));
 
 // Mock @object-ui/components to keep most components but simplify some
