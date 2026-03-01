@@ -522,4 +522,45 @@ describe('Inline data with DataSource schema fetch', () => {
     // find() should NOT be called
     expect(mockDataSource.find).not.toHaveBeenCalled();
   });
+
+  it('should enrich ListColumn[] with objectSchema types when inline data + dataSource', async () => {
+    const mockDataSource = createMockDataSource(opportunitySchema, []);
+
+    const schema: any = {
+      type: 'object-grid' as const,
+      objectName: 'opportunity',
+      data: { provider: 'value', items: opportunityData },
+      // ListColumn[] without explicit type — objectSchema should provide types
+      columns: [
+        { field: 'name', label: 'Name' },
+        { field: 'stage', label: 'Stage' },
+        { field: 'amount', label: 'Amount' },
+      ],
+    };
+
+    render(
+      <ActionProvider>
+        <ObjectGrid schema={schema} dataSource={mockDataSource} />
+      </ActionProvider>
+    );
+
+    // Schema should be fetched
+    await waitFor(() => {
+      expect(mockDataSource.getObjectSchema).toHaveBeenCalledWith('opportunity');
+    });
+
+    // Stage should render with colored badge from objectSchema select options
+    await waitFor(() => {
+      const closedWonBadge = screen.getByText('Closed Won');
+      expect(closedWonBadge).toHaveClass('bg-green-100');
+    });
+
+    // Amount should be formatted as currency from objectSchema type
+    await waitFor(() => {
+      expect(screen.getByText('$150,000.00')).toBeInTheDocument();
+    });
+
+    // find() should NOT be called
+    expect(mockDataSource.find).not.toHaveBeenCalled();
+  });
 });
