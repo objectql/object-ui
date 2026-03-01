@@ -1,6 +1,7 @@
 import { defineStack } from '@objectstack/spec';
 import { App } from '@objectstack/spec/ui';
 import { TodoTask } from './src/domains/todo/task.object';
+import { TodoTaskActions } from './src/domains/todo/task.actions';
 
 // Helper to create dates relative to today
 const daysFromNow = (days: number) => {
@@ -54,6 +55,9 @@ export default defineStack({
         },
       },
     },
+  ],
+  actions: [
+    ...TodoTaskActions,
   ],
   apps: [
     App.create({

@@ -67,6 +67,51 @@ function mergeViewsIntoObjects(objects: any[], configs: any[]): any[] {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Merge stack-level actions into object definitions.
+// Actions declared at the stack level (actions[]) need to be merged into
+// individual object definitions so the runtime protocol (and Console/Studio)
+// can render action buttons directly from objectDef.actions.
+// Matching uses explicit objectName on the action, or longest object-name
+// prefix of the action name (e.g. "account_send_email" → "account").
+// ---------------------------------------------------------------------------
+function mergeActionsIntoObjects(objects: any[], configs: any[]): any[] {
+  const allActions: any[] = [];
+  for (const config of configs) {
+    if (Array.isArray(config.actions)) {
+      allActions.push(...config.actions);
+    }
+  }
+  if (allActions.length === 0) return objects;
+
+  // Sort object names longest-first so "order_item" matches before "order"
+  const objectNames = objects.map((o: any) => o.name as string)
+    .sort((a, b) => b.length - a.length);
+
+  const actionsByObject: Record<string, any[]> = {};
+  for (const action of allActions) {
+    let target: string | undefined = action.objectName;
+    if (!target) {
+      for (const name of objectNames) {
+        if (action.name.startsWith(name + '_')) {
+          target = name;
+          break;
+        }
+      }
+    }
+    if (target) {
+      if (!actionsByObject[target]) actionsByObject[target] = [];
+      actionsByObject[target].push(action);
+    }
+  }
+
+  return objects.map((obj: any) => {
+    const actions = actionsByObject[obj.name];
+    if (!actions) return obj;
+    return { ...obj, actions: [...(obj.actions || []), ...actions] };
+  });
+}
+
 const allConfigs = [crmConfig, todoConfig, kitchenSinkConfig];
 
 export const sharedConfig = {
@@ -81,12 +126,15 @@ export const sharedConfig = {
   // ============================================================================
   // Merged Stack Configuration (CRM + Todo + Kitchen Sink + Mock Metadata)
   // ============================================================================
-  objects: mergeViewsIntoObjects(
-    [
-      ...(crmConfig.objects || []),
-      ...(todoConfig.objects || []),
-      ...(kitchenSinkConfig.objects || []),
-    ],
+  objects: mergeActionsIntoObjects(
+    mergeViewsIntoObjects(
+      [
+        ...(crmConfig.objects || []),
+        ...(todoConfig.objects || []),
+        ...(kitchenSinkConfig.objects || []),
+      ],
+      allConfigs,
+    ),
     allConfigs,
   ),
   apps: [
@@ -143,10 +191,13 @@ export const sharedConfig = {
 };
 
 // defineStack() validates the config but strips non-standard properties like
-// listViews from objects. Re-merge listViews after validation so the runtime
-// protocol serves objects with their view definitions (calendar, kanban, etc.).
+// listViews and actions from objects. Re-merge after validation so the runtime
+// protocol serves objects with their view and action definitions.
 const validated = defineStack(sharedConfig as Parameters<typeof defineStack>[0]);
 export default {
   ...validated,
-  objects: mergeViewsIntoObjects(validated.objects || [], allConfigs),
+  objects: mergeActionsIntoObjects(
+    mergeViewsIntoObjects(validated.objects || [], allConfigs),
+    allConfigs,
+  ),
 };

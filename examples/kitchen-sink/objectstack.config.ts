@@ -3,6 +3,7 @@ import { App } from '@objectstack/spec/ui';
 import { KitchenSinkObject } from './src/objects/kitchen_sink.object';
 import { AccountObject } from './src/objects/account.object';
 import { ShowcaseObject } from './src/objects/showcase.object';
+import { ShowcaseActions } from './src/objects/showcase.actions';
 
 // Helper to create dates relative to today
 const daysFromNow = (days: number) => {
@@ -53,6 +54,9 @@ export default defineStack({
         },
       },
     },
+  ],
+  actions: [
+    ...ShowcaseActions,
   ],
   apps: [
     App.create({
