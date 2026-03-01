@@ -1088,6 +1088,26 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [x] 11 AppSidebar tests passing
 - [x] 32 i18n tests passing
 
+### P2.10 ActionBar Rendering & useActionEngine Integration ✅
+
+> Location-aware action toolbar component and React hook for ActionEngine.
+> Bridges ActionSchema metadata → visible, clickable action buttons at all defined locations.
+
+- [x] `action:bar` component — Composite toolbar renderer that accepts `ActionSchema[]` + `location` filter
+  - Filters actions by `ActionLocation` (list_toolbar, list_item, record_header, record_more, record_related, global_nav)
+  - Resolves each action's `component` type (action:button, action:icon, action:menu, action:group) via ComponentRegistry
+  - Overflow support: actions beyond `maxVisible` threshold grouped into "More" dropdown (action:menu)
+  - Supports horizontal/vertical direction, gap, variant/size defaults, custom className
+  - WCAG: `role="toolbar"` + `aria-label="Actions"`
+  - Registered in ComponentRegistry with inputs/defaultProps for Designer/Studio integration
+- [x] `useActionEngine` hook — React wrapper around `ActionEngine`
+  - `getActionsForLocation(location)` — returns filtered, priority-sorted actions
+  - `getBulkActions()` — returns bulk-enabled actions
+  - `executeAction(name)` — executes by name with optional context override
+  - `handleShortcut(keys)` — keyboard shortcut dispatch
+  - Memoized engine instance, stable callbacks
+- [x] Tests: 23 tests (12 ActionBar, 11 useActionEngine) covering registration, rendering, location filtering, overflow, styling, execution, shortcuts
+
 ### P2.5 PWA & Offline (Real Sync)
 
 - [ ] Background sync queue → real server sync (replace simulation)

@@ -16,3 +16,4 @@ import './action-button';
 import './action-icon';
 import './action-menu';
 import './action-group';
+import './action-bar';
