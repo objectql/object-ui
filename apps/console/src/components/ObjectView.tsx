@@ -26,7 +26,7 @@ import type { ListViewSchema, ViewNavigationConfig, FeedItem } from '@object-ui/
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { ViewConfigPanel } from './ViewConfigPanel';
 import { useObjectActions } from '../hooks/useObjectActions';
-import { useObjectTranslation } from '@object-ui/i18n';
+import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 import { useAuth } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
@@ -251,6 +251,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
     const [searchParams, setSearchParams] = useSearchParams();
     const { showDebug, toggleDebug } = useMetadataInspector();
     const { t } = useObjectTranslation();
+    const { objectLabel, objectDescription: objectDesc } = useObjectLabel();
     
     // Inline view config panel state (Airtable-style right sidebar)
     const [showViewConfigPanel, setShowViewConfigPanel] = useState(false);
@@ -698,13 +699,13 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                     <div className="min-w-0">
                         {/* Breadcrumb: Object > View */}
                         <div className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5">
-                            <span className="truncate">{objectDef.label}</span>
+                            <span className="truncate">{objectLabel(objectDef)}</span>
                             <ChevronRight className="h-3 w-3 shrink-0" />
                             <span className="truncate font-medium text-foreground">{activeView?.label || t('console.objectView.allRecords')}</span>
                         </div>
-                        <h1 className="text-base sm:text-lg font-semibold tracking-tight text-foreground truncate">{objectDef.label}</h1>
+                        <h1 className="text-base sm:text-lg font-semibold tracking-tight text-foreground truncate">{objectLabel(objectDef)}</h1>
                         {objectDef.description && (
-                            <p className="text-xs text-muted-foreground truncate hidden sm:block max-w-md">{objectDef.description}</p>
+                            <p className="text-xs text-muted-foreground truncate hidden sm:block max-w-md">{objectDesc(objectDef)}</p>
                         )}
                     </div>
                  </div>
@@ -819,7 +820,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                     <NavigationOverlay
                         {...navOverlay}
                         setIsOpen={(open: boolean) => { if (!open) handleDrawerClose(); }}
-                        title={objectDef.label}
+                        title={objectLabel(objectDef)}
                         mainContent={
                             <div className="flex-1 min-w-0 relative h-full flex flex-col">
                                 <div className="flex-1 relative overflow-auto p-3 sm:p-4">

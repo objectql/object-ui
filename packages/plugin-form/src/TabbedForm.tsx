@@ -17,7 +17,7 @@ import React, { useState, useCallback } from 'react';
 import type { FormField, DataSource } from '@object-ui/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger, cn } from '@object-ui/components';
 import { FormSection } from './FormSection';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 
 export interface FormSectionConfig {
@@ -166,6 +166,7 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
   dataSource,
   className,
 }) => {
+  const { fieldLabel } = useSafeFieldLabel();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
@@ -232,7 +233,7 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
         const field = objectSchema.fields[fieldName];
         fields.push({
           name: fieldName,
-          label: field.label || fieldName,
+          label: fieldLabel(schema.objectName, fieldName, field.label || fieldName),
           type: mapFieldTypeToFormType(field.type),
           required: field.required || false,
           disabled: schema.readOnly || schema.mode === 'view' || field.readonly,

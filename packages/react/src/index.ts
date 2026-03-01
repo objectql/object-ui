@@ -20,6 +20,8 @@ export { resolveI18nLabel } from './utils/i18n';
 export {
   I18nProvider,
   useObjectTranslation,
+  useObjectLabel,
+  useSafeFieldLabel,
   useI18nContext,
   createI18n,
   getDirection,

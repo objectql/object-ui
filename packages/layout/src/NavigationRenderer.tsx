@@ -113,6 +113,22 @@ export interface NavigationRendererProps {
 
   /** Called when navigation items are reordered via drag */
   onReorder?: (reorderedItems: NavigationItem[]) => void;
+
+  /**
+   * Optional label resolver for object-type navigation items.
+   * When provided, called with `(objectName, fallbackLabel)` for items
+   * where `item.type === 'object'` and `item.label` is a plain string.
+   * Enables convention-based i18n auto-resolution without coupling
+   * the layout package to i18n.
+   */
+  resolveObjectLabel?: (objectName: string, fallbackLabel: string) => string;
+
+  /**
+   * Optional i18n translation function for resolving I18nLabel objects
+   * (`{ key, defaultValue }`). When provided, labels are translated
+   * through i18next; otherwise falls back to `defaultValue`.
+   */
+  t?: (key: string, options?: any) => string;
 }
 
 // ---------------------------------------------------------------------------
@@ -158,13 +174,38 @@ export function resolveIcon(name?: string): React.ComponentType<any> {
 /**
  * Resolve a NavigationItem label to a plain string.
  * Handles both plain strings and I18nLabel objects { key, defaultValue }.
- * This is a basic client-side fallback resolver — actual i18n translation
- * is performed at the application level by passing labels through the
- * i18n `t()` function (e.g. via resolveI18nLabel in the console).
+ * When a `t` function is provided, I18nLabel objects are translated via i18next.
  */
-export function resolveLabel(label: string | { key: string; defaultValue?: string; params?: Record<string, any> }): string {
+export function resolveLabel(
+  label: string | { key: string; defaultValue?: string; params?: Record<string, any> },
+  t?: (key: string, options?: any) => string,
+): string {
   if (typeof label === 'string') return label;
+  if (t) {
+    const result = t(label.key, { defaultValue: label.defaultValue, ...label.params });
+    if (result && result !== label.key) return result;
+  }
   return label.defaultValue || label.key;
+}
+
+/**
+ * Resolve a navigation item label, applying:
+ * 1. i18n translation for I18nLabel objects (when `t` is provided)
+ * 2. Convention-based i18n for object-type items with plain string labels
+ *    (when `resolveObjectLabel` is provided)
+ */
+function resolveItemLabel(
+  item: NavigationItem,
+  resolver?: (objectName: string, fallbackLabel: string) => string,
+  t?: (key: string, options?: any) => string,
+): string {
+  const base = resolveLabel(item.label, t);
+  // Only apply convention-based resolution for object-type items with plain string labels.
+  // I18nLabel objects (with explicit key/defaultValue) already have their own translation keys.
+  if (resolver && item.type === 'object' && item.objectName && typeof item.label === 'string') {
+    return resolver(item.objectName, base);
+  }
+  return base;
 }
 
 // ---------------------------------------------------------------------------
@@ -253,6 +294,8 @@ function SortableNavigationItem({
   enablePinning,
   onPinToggle,
   enableReorder,
+  resolveObjectLabel,
+  t: tProp,
 }: {
   item: NavigationItem;
   basePath: string;
@@ -262,6 +305,8 @@ function SortableNavigationItem({
   enablePinning?: boolean;
   onPinToggle?: (itemId: string, pinned: boolean) => void;
   enableReorder?: boolean;
+  resolveObjectLabel?: (objectName: string, fallbackLabel: string) => string;
+  t?: (key: string, options?: any) => string;
 }) {
   const {
     attributes,
@@ -290,6 +335,8 @@ function SortableNavigationItem({
         enablePinning={enablePinning}
         onPinToggle={onPinToggle}
         dragListeners={enableReorder ? listeners : undefined}
+        resolveObjectLabel={resolveObjectLabel}
+        t={tProp}
       />
     </div>
   );
@@ -308,6 +355,8 @@ function NavigationItemRenderer({
   enablePinning,
   onPinToggle,
   dragListeners,
+  resolveObjectLabel,
+  t: tProp,
 }: {
   item: NavigationItem;
   basePath: string;
@@ -317,6 +366,8 @@ function NavigationItemRenderer({
   enablePinning?: boolean;
   onPinToggle?: (itemId: string, pinned: boolean) => void;
   dragListeners?: Record<string, any>;
+  resolveObjectLabel?: (objectName: string, fallbackLabel: string) => string;
+  t?: (key: string, options?: any) => string;
 }) {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(item.defaultOpen !== false);
@@ -343,7 +394,7 @@ function NavigationItemRenderer({
         <SidebarGroup>
           <SidebarGroupLabel asChild>
             <CollapsibleTrigger className="flex w-full items-center justify-between">
-              {resolveLabel(item.label)}
+              {resolveLabel(item.label, tProp)}
               <LucideIcons.ChevronRight
                 className={`ml-auto h-4 w-4 transition-transform ${isOpen ? 'rotate-90' : ''}`}
               />
@@ -362,6 +413,8 @@ function NavigationItemRenderer({
                     onAction={onAction}
                     enablePinning={enablePinning}
                     onPinToggle={onPinToggle}
+                    resolveObjectLabel={resolveObjectLabel}
+                    t={tProp}
                   />
                 ))}
               </SidebarMenu>
@@ -383,11 +436,11 @@ function NavigationItemRenderer({
           </span>
         )}
         <SidebarMenuButton
-          tooltip={resolveLabel(item.label)}
+          tooltip={resolveLabel(item.label, tProp)}
           onClick={() => onAction?.(item)}
         >
           <Icon className="h-4 w-4" />
-          <span>{resolveLabel(item.label)}</span>
+          <span>{resolveLabel(item.label, tProp)}</span>
           {item.badge != null && (
             <Badge variant={item.badgeVariant ?? 'default'} className="ml-auto text-[10px] px-1.5 py-0">
               {item.badge}
@@ -398,7 +451,7 @@ function NavigationItemRenderer({
           <SidebarMenuAction
             showOnHover={!item.pinned}
             onClick={() => onPinToggle(item.id, !item.pinned)}
-            aria-label={item.pinned ? `Unpin ${resolveLabel(item.label)}` : `Pin ${resolveLabel(item.label)}`}
+            aria-label={item.pinned ? `Unpin ${resolveLabel(item.label, tProp)}` : `Pin ${resolveLabel(item.label, tProp)}`}
           >
             {item.pinned ? (
               <LucideIcons.PinOff className="h-3.5 w-3.5" />
@@ -415,11 +468,12 @@ function NavigationItemRenderer({
   const Icon = resolveIcon(item.icon);
   const { href, external } = resolveHref(item, basePath);
   const isActive = href !== '#' && location.pathname.startsWith(href);
+  const itemLabel = resolveItemLabel(item, resolveObjectLabel, tProp);
 
   const content = (
     <>
       <Icon className="h-4 w-4" />
-      <span>{resolveLabel(item.label)}</span>
+      <span>{itemLabel}</span>
       {item.badge != null && (
         <Badge variant={item.badgeVariant ?? 'default'} className="ml-auto text-[10px] px-1.5 py-0">
           {item.badge}
@@ -435,7 +489,7 @@ function NavigationItemRenderer({
           <LucideIcons.GripVertical className="h-3.5 w-3.5" />
         </span>
       )}
-      <SidebarMenuButton asChild isActive={isActive} tooltip={resolveLabel(item.label)}>
+      <SidebarMenuButton asChild isActive={isActive} tooltip={itemLabel}>
         {external ? (
           <a href={href} target="_blank" rel="noopener noreferrer">
             {content}
@@ -450,7 +504,7 @@ function NavigationItemRenderer({
         <SidebarMenuAction
           showOnHover={!item.pinned}
           onClick={() => onPinToggle(item.id, !item.pinned)}
-          aria-label={item.pinned ? `Unpin ${resolveLabel(item.label)}` : `Pin ${resolveLabel(item.label)}`}
+          aria-label={item.pinned ? `Unpin ${itemLabel}` : `Pin ${itemLabel}`}
         >
           {item.pinned ? (
             <LucideIcons.PinOff className="h-3.5 w-3.5" />
@@ -507,6 +561,8 @@ export function NavigationRenderer({
   onPinToggle,
   enableReorder,
   onReorder,
+  resolveObjectLabel,
+  t: tProp,
 }: NavigationRendererProps) {
   // --- Search filtering ---
   const filteredItems = useMemo(
@@ -552,6 +608,8 @@ export function NavigationRenderer({
     onAction,
     enablePinning,
     onPinToggle,
+    resolveObjectLabel,
+    t: tProp,
   };
 
   const hasGroups = sorted.some((i) => i.type === 'group');

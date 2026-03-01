@@ -15,7 +15,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import type { ObjectFormSchema, FormField, FormSchema, DataSource } from '@object-ui/types';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules, evaluateCondition, formatFileSize } from '@object-ui/fields';
 import { TabbedForm } from './TabbedForm';
 import { WizardForm } from './WizardForm';
@@ -202,6 +202,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
   schema,
   dataSource,
 }) => {
+  const { fieldLabel } = useSafeFieldLabel();
 
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formFields, setFormFields] = useState<FormField[]>([]);
@@ -333,7 +334,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
         // Auto-generate field from schema
         const formField: FormField = {
           name: name,
-          label: field.label || fieldName,
+          label: fieldLabel(schema.objectName, name, field.label || fieldName),
           type: mapFieldTypeToFormType(field.type),
           required: field.required || false,
           disabled: schema.readOnly || schema.mode === 'view' || field.readonly,

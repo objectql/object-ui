@@ -24,7 +24,7 @@ import {
   cn,
 } from '@object-ui/components';
 import { FormSection } from './FormSection';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 import { applyAutoLayout } from './autoLayout';
 
@@ -111,6 +111,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
   dataSource,
   className,
 }) => {
+  const { fieldLabel } = useSafeFieldLabel();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formFields, setFormFields] = useState<FormField[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -181,7 +182,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
         const field = objectSchema.fields[fieldName];
         fields.push({
           name: fieldName,
-          label: field.label || fieldName,
+          label: fieldLabel(schema.objectName, fieldName, field.label || fieldName),
           type: mapFieldTypeToFormType(field.type),
           required: field.required || false,
           disabled: schema.readOnly || schema.mode === 'view' || field.readonly,
@@ -233,7 +234,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
 
       generated.push({
         name,
-        label: field.label || name,
+        label: fieldLabel(schema.objectName, name, field.label || name),
         type: mapFieldTypeToFormType(field.type),
         required: field.required || false,
         disabled: schema.readOnly || schema.mode === 'view' || field.readonly,

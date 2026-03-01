@@ -37,6 +37,9 @@ export { createI18n, getDirection, getAvailableLanguages, type I18nConfig, type 
 // React integration
 export { I18nProvider, useObjectTranslation, useI18nContext, type I18nProviderProps } from './provider';
 
+// Convention-based object/field label i18n
+export { useObjectLabel, useSafeFieldLabel } from './useObjectLabel';
+
 // Locale packs
 export { builtInLocales, isRTL, RTL_LANGUAGES } from './locales/index';
 export { default as en } from './locales/en';

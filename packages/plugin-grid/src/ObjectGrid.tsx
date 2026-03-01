@@ -23,7 +23,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
-import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation } from '@object-ui/react';
+import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useSafeFieldLabel } from '@object-ui/react';
 import { getCellRenderer, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel } from '@object-ui/fields';
 import {
   Badge, Button, NavigationOverlay,
@@ -178,6 +178,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const { t } = useGridTranslation();
+  const { fieldLabel: resolveFieldLabel } = useSafeFieldLabel();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [useCardView, setUseCardView] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -618,7 +619,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           return (cols as ListColumn[])
             .filter((col) => col?.field && typeof col.field === 'string' && !col.hidden)
             .map((col, colIndex) => {
-              const header = col.label || col.field.charAt(0).toUpperCase() + col.field.slice(1).replace(/_/g, ' ');
+              const rawHeader = col.label || col.field.charAt(0).toUpperCase() + col.field.slice(1).replace(/_/g, ' ');
+              const header = schema.objectName ? resolveFieldLabel(schema.objectName, col.field, rawHeader) : rawHeader;
 
               // Build custom cell renderer based on column configuration
               let cellRenderer: ((value: any, row: any) => React.ReactNode) | undefined;
@@ -777,8 +779,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         .filter((fieldName) => typeof fieldName === 'string' && fieldName.trim().length > 0)
         .map((fieldName, colIndex) => {
           const fieldDef = objectSchema?.fields?.[fieldName];
-          const fieldLabel = fieldDef?.label;
-          const header = fieldLabel || fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' ');
+          const rawFieldLabel = fieldDef?.label;
+          const rawHeader = rawFieldLabel || fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' ');
+          const header = schema.objectName ? resolveFieldLabel(schema.objectName, fieldName, rawHeader) : rawHeader;
 
           // Resolve type: objectDef type > heuristic inference (consistent with ListColumn path)
           const resolvedType = fieldDef?.type || inferColumnType({ field: fieldName }) || null;
@@ -901,7 +904,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       const CellRenderer = getCellRenderer(field.type);
       const numericTypes = ['number', 'currency', 'percent'];
       generatedColumns.push({
-        header: field.label || fieldName,
+        header: schema.objectName ? resolveFieldLabel(schema.objectName, fieldName, field.label || fieldName) : field.label || fieldName,
         accessorKey: fieldName,
         ...(numericTypes.includes(field.type) && { align: 'right' }),
         cell: (value: any) => <CellRenderer value={value} field={field} />,
@@ -910,7 +913,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     });
 
     return generatedColumns;
-  }, [objectSchema, schemaFields, schemaColumns, dataConfig, hasInlineData, navigation.handleClick, executeAction, data]);
+  }, [objectSchema, schemaFields, schemaColumns, dataConfig, hasInlineData, navigation.handleClick, executeAction, data, resolveFieldLabel, schema.objectName]);
 
   const handleExport = useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
     const exportConfig = schema.exportOptions;

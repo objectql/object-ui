@@ -836,6 +836,21 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Verified: Console `ObjectView` does NOT override `rowHeight`, `density`, or `singleClickEdit`
 - [x] Engine defaults (`compact` rows, `singleClickEdit: true`, browser locale dates) flow through correctly
 
+### P1.15 Convention-based Auto-resolution for Object & Field Label i18n ✅
+
+- [x] `useObjectLabel` hook in `@object-ui/i18n` — convention-based resolver (`objectLabel`, `objectDescription`, `fieldLabel`)
+- [x] Dynamic app namespace discovery (no hardcoded `crm.` prefix — scans i18next resources for app namespaces)
+- [x] `useSafeFieldLabel` shared wrapper for plugins without I18nProvider
+- [x] Wired into Console `ObjectView` (breadcrumb, page title, description, drawer title)
+- [x] Wired into `ObjectGrid` column headers (ListColumn, string[], auto-generated paths)
+- [x] Wired into `ListView` toolbar field labels (hide fields, group by, sort/filter builder)
+- [x] Wired into `NavigationRenderer` via optional `resolveObjectLabel` + `t()` props for full i18n
+- [x] Wired into Console `AppSidebar` to pass resolver and `t` to NavigationRenderer
+- [x] Wired into all form variants (ObjectForm, ModalForm, WizardForm, DrawerForm, TabbedForm, SplitForm)
+- [x] `I18nProvider` loads app-specific translations on mount (fixes initial language loading)
+- [x] 10 unit tests for `useObjectLabel` hook
+- [x] Zero changes to object metadata files or translation files
+
 ---
 
 ## 🧩 P2 — Polish & Advanced Features
