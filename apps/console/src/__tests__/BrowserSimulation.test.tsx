@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import '@object-ui/fields'; // Ensure fields are registered for ObjectForm tests
 import '@object-ui/plugin-dashboard'; // Ensure dashboard component is registered
 import '@object-ui/plugin-report'; // Ensure report component is registered
+import '@object-ui/plugin-markdown'; // Ensure markdown component is registered
 
 // -----------------------------------------------------------------------------
 // SYSTEM INTEGRATION TEST: Console Application
