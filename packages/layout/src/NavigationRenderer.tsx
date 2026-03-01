@@ -113,6 +113,15 @@ export interface NavigationRendererProps {
 
   /** Called when navigation items are reordered via drag */
   onReorder?: (reorderedItems: NavigationItem[]) => void;
+
+  /**
+   * Optional label resolver for object-type navigation items.
+   * When provided, called with `(objectName, fallbackLabel)` for items
+   * where `item.type === 'object'` and `item.label` is a plain string.
+   * Enables convention-based i18n auto-resolution without coupling
+   * the layout package to i18n.
+   */
+  resolveObjectLabel?: (objectName: string, fallbackLabel: string) => string;
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +174,21 @@ export function resolveIcon(name?: string): React.ComponentType<any> {
 export function resolveLabel(label: string | { key: string; defaultValue?: string; params?: Record<string, any> }): string {
   if (typeof label === 'string') return label;
   return label.defaultValue || label.key;
+}
+
+/**
+ * Resolve a navigation item label, applying convention-based i18n for object-type items
+ * when a `resolveObjectLabel` callback is provided.
+ */
+function resolveItemLabel(
+  item: NavigationItem,
+  resolver?: (objectName: string, fallbackLabel: string) => string,
+): string {
+  const base = resolveLabel(item.label);
+  if (resolver && item.type === 'object' && item.objectName && typeof item.label === 'string') {
+    return resolver(item.objectName, base);
+  }
+  return base;
 }
 
 // ---------------------------------------------------------------------------
@@ -253,6 +277,7 @@ function SortableNavigationItem({
   enablePinning,
   onPinToggle,
   enableReorder,
+  resolveObjectLabel,
 }: {
   item: NavigationItem;
   basePath: string;
@@ -262,6 +287,7 @@ function SortableNavigationItem({
   enablePinning?: boolean;
   onPinToggle?: (itemId: string, pinned: boolean) => void;
   enableReorder?: boolean;
+  resolveObjectLabel?: (objectName: string, fallbackLabel: string) => string;
 }) {
   const {
     attributes,
@@ -290,6 +316,7 @@ function SortableNavigationItem({
         enablePinning={enablePinning}
         onPinToggle={onPinToggle}
         dragListeners={enableReorder ? listeners : undefined}
+        resolveObjectLabel={resolveObjectLabel}
       />
     </div>
   );
@@ -308,6 +335,7 @@ function NavigationItemRenderer({
   enablePinning,
   onPinToggle,
   dragListeners,
+  resolveObjectLabel,
 }: {
   item: NavigationItem;
   basePath: string;
@@ -317,6 +345,7 @@ function NavigationItemRenderer({
   enablePinning?: boolean;
   onPinToggle?: (itemId: string, pinned: boolean) => void;
   dragListeners?: Record<string, any>;
+  resolveObjectLabel?: (objectName: string, fallbackLabel: string) => string;
 }) {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(item.defaultOpen !== false);
@@ -362,6 +391,7 @@ function NavigationItemRenderer({
                     onAction={onAction}
                     enablePinning={enablePinning}
                     onPinToggle={onPinToggle}
+                    resolveObjectLabel={resolveObjectLabel}
                   />
                 ))}
               </SidebarMenu>
@@ -415,11 +445,12 @@ function NavigationItemRenderer({
   const Icon = resolveIcon(item.icon);
   const { href, external } = resolveHref(item, basePath);
   const isActive = href !== '#' && location.pathname.startsWith(href);
+  const itemLabel = resolveItemLabel(item, resolveObjectLabel);
 
   const content = (
     <>
       <Icon className="h-4 w-4" />
-      <span>{resolveLabel(item.label)}</span>
+      <span>{itemLabel}</span>
       {item.badge != null && (
         <Badge variant={item.badgeVariant ?? 'default'} className="ml-auto text-[10px] px-1.5 py-0">
           {item.badge}
@@ -435,7 +466,7 @@ function NavigationItemRenderer({
           <LucideIcons.GripVertical className="h-3.5 w-3.5" />
         </span>
       )}
-      <SidebarMenuButton asChild isActive={isActive} tooltip={resolveLabel(item.label)}>
+      <SidebarMenuButton asChild isActive={isActive} tooltip={itemLabel}>
         {external ? (
           <a href={href} target="_blank" rel="noopener noreferrer">
             {content}
@@ -450,7 +481,7 @@ function NavigationItemRenderer({
         <SidebarMenuAction
           showOnHover={!item.pinned}
           onClick={() => onPinToggle(item.id, !item.pinned)}
-          aria-label={item.pinned ? `Unpin ${resolveLabel(item.label)}` : `Pin ${resolveLabel(item.label)}`}
+          aria-label={item.pinned ? `Unpin ${itemLabel}` : `Pin ${itemLabel}`}
         >
           {item.pinned ? (
             <LucideIcons.PinOff className="h-3.5 w-3.5" />
@@ -507,6 +538,7 @@ export function NavigationRenderer({
   onPinToggle,
   enableReorder,
   onReorder,
+  resolveObjectLabel,
 }: NavigationRendererProps) {
   // --- Search filtering ---
   const filteredItems = useMemo(
@@ -552,6 +584,7 @@ export function NavigationRenderer({
     onAction,
     enablePinning,
     onPinToggle,
+    resolveObjectLabel,
   };
 
   const hasGroups = sorted.some((i) => i.type === 'group');

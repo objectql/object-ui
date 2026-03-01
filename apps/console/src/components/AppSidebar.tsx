@@ -60,7 +60,7 @@ import { useRecentItems } from '../hooks/useRecentItems';
 import { useFavorites } from '../hooks/useFavorites';
 import { useNavPins } from '../hooks/useNavPins';
 import { resolveI18nLabel } from '../utils';
-import { useObjectTranslation } from '@object-ui/i18n';
+import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 
 // ---------------------------------------------------------------------------
 // useNavOrder – localStorage-persisted drag-and-drop reorder for nav items
@@ -157,6 +157,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const { t } = useObjectTranslation();
+  const { objectLabel: resolveNavObjectLabel } = useObjectLabel();
 
   // Swipe-from-left-edge gesture to open sidebar on mobile
   React.useEffect(() => {
@@ -414,6 +415,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
              onPinToggle={togglePin}
              enableReorder
              onReorder={handleReorder}
+             resolveObjectLabel={(objectName, fallback) => resolveNavObjectLabel({ name: objectName, label: fallback })}
            />
 
            {/* Recent Items (elevated position for quick access) */}
