@@ -277,7 +277,13 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
           <DetailView
             schema={detailSchema}
             dataSource={dataSource}
-            onEdit={() => onEdit({ _id: recordId, id: recordId })}
+            onEdit={() => {
+              // Strip objectName prefix from URL-based recordId (e.g. "contact-123" → "123")
+              const pureId = recordId && objectName && recordId.startsWith(`${objectName}-`)
+                ? recordId.slice(objectName.length + 1)
+                : recordId;
+              onEdit({ _id: pureId, id: pureId });
+            }}
           />
 
           {/* Comments & Discussion */}

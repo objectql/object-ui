@@ -400,6 +400,7 @@ export function AppContent() {
                   description: editingRecord ? `Update details for ${currentObjectDef?.label}` : `Add a new ${currentObjectDef?.label} to your database.`,
                   open: isDialogOpen,
                   onOpenChange: setIsDialogOpen,
+                  modalSize: 'lg',
                   layout: 'vertical',
                   fields: currentObjectDef.fields 
                       ? (Array.isArray(currentObjectDef.fields) 
