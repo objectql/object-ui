@@ -98,6 +98,19 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
     const direction = schema.direction || 'horizontal';
     const gap = schema.gap || 'gap-2';
 
+    // Render overflow menu for excess actions
+    const MenuRenderer = overflowActions.length > 0 ? ComponentRegistry.get('action:menu') : null;
+    const overflowMenu = MenuRenderer ? (
+      <MenuRenderer
+        schema={{
+          type: 'action:menu' as const,
+          actions: overflowActions,
+          variant: schema.variant || 'ghost',
+          size: schema.size || 'sm',
+        }}
+      />
+    ) : null;
+
     return (
       <div
         ref={ref}
@@ -131,20 +144,7 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
           );
         })}
 
-        {overflowActions.length > 0 && (() => {
-          const MenuRenderer = ComponentRegistry.get('action:menu');
-          if (!MenuRenderer) return null;
-          return (
-            <MenuRenderer
-              schema={{
-                type: 'action:menu' as const,
-                actions: overflowActions,
-                variant: schema.variant || 'ghost',
-                size: schema.size || 'sm',
-              }}
-            />
-          );
-        })()}
+        {overflowActions.length > 0 && overflowMenu}
       </div>
     );
   },
