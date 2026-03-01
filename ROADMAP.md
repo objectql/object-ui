@@ -1349,6 +1349,26 @@ All 313 `@object-ui/fields` tests pass.
 
 ---
 
+### ListView/DetailView/DetailSection — Lookup Field & Type Display Consistency (March 2026)
+
+> **Issue #939:** Lookup/master_detail fields displayed raw IDs (e.g. `o1`, `p1`) instead of expanded names across ListView, DetailView, and DetailSection.
+
+**Root Causes:**
+
+1. **ListView `$expand` race condition** — `expandFields` depended on async `objectDef` which could be `null` on first fetch, causing data to be requested without `$expand` and returning raw foreign-key IDs.
+2. **DetailView missing `$expand` and objectSchema** — `findOne()` was called without `$expand` parameters and without loading `objectSchema`, so lookup fields could never be expanded.
+3. **DetailSection missing objectSchema enrichment** — When `field.type` was not explicitly set, `displayValue` fell through to `String(value)`, bypassing type-aware CellRenderers even when objectSchema metadata was available.
+
+**Fix:**
+
+- **ListView** (`packages/plugin-list/src/ListView.tsx`): Added `objectDefLoaded` state flag. Data fetch effect is gated on `objectDefLoaded` so the first fetch always includes correct `$expand` parameters. The `objectDef` fetch effect sets the flag in `finally` block to handle both success and error cases.
+- **DetailView** (`packages/plugin-detail/src/DetailView.tsx`): Added `objectSchema` state. Data fetch effect now calls `getObjectSchema()` first, computes `$expand` via `buildExpandFields()`, and passes the params to `findOne()`. The resolved `objectSchema` is passed to `DetailSection` components.
+- **DetailSection** (`packages/plugin-detail/src/DetailSection.tsx`): Added optional `objectSchema` prop. When `field.type` is not set, the field is enriched with type, options, currency, precision, format, reference_to, and reference_field from `objectSchema` before selecting a CellRenderer. Explicit `field.type` always takes precedence over objectSchema.
+
+**Tests:** 7 new tests added (2 ListView, 3 DetailView, 4 DetailSection). All 505 plugin-detail + plugin-list tests pass.
+
+---
+
 ## ⚠️ Risk Management
 
 | Risk | Mitigation |

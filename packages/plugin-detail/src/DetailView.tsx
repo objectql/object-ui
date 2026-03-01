@@ -93,7 +93,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
       const resourceId = schema.resourceId;
       const prefix = `${objectName}-`;
 
-      // Collect all visible field names from sections and top-level fields
+      // Collect all visible fields from sections and top-level fields
       const allFields = [
         ...(schema.sections?.flatMap(s => s.fields) || []),
         ...(schema.fields || []),
