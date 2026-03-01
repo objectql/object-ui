@@ -31,39 +31,33 @@ import { useObjectTranslation } from './provider';
 export function useObjectLabel() {
   const { t } = useObjectTranslation();
 
+  /** Check whether a translation lookup returned a valid translated string. */
+  const resolve = (key: string, fallback: string): string => {
+    const translated = t(key, { defaultValue: '' });
+    return (translated && translated !== key && translated !== '')
+      ? translated
+      : fallback;
+  };
+
   return {
     /**
      * Resolve translated object label, falling back to objectDef.label.
      */
-    objectLabel: (objectDef: { name: string; label: string }) => {
-      const key = `crm.objects.${objectDef.name}.label`;
-      const translated = t(key, { defaultValue: '' });
-      return (translated && translated !== key && translated !== '')
-        ? translated
-        : objectDef.label;
-    },
+    objectLabel: (objectDef: { name: string; label: string }) =>
+      resolve(`crm.objects.${objectDef.name}.label`, objectDef.label),
 
     /**
      * Resolve translated object description, falling back to objectDef.description.
      */
     objectDescription: (objectDef: { name: string; description?: string }) => {
       if (!objectDef.description) return undefined;
-      const key = `crm.objects.${objectDef.name}.description`;
-      const translated = t(key, { defaultValue: '' });
-      return (translated && translated !== key && translated !== '')
-        ? translated
-        : objectDef.description;
+      return resolve(`crm.objects.${objectDef.name}.description`, objectDef.description);
     },
 
     /**
      * Resolve translated field label, falling back to the provided fallback string.
      */
-    fieldLabel: (objectName: string, fieldName: string, fallback: string) => {
-      const key = `crm.fields.${objectName}.${fieldName}`;
-      const translated = t(key, { defaultValue: '' });
-      return (translated && translated !== key && translated !== '')
-        ? translated
-        : fallback;
-    },
+    fieldLabel: (objectName: string, fieldName: string, fallback: string) =>
+      resolve(`crm.fields.${objectName}.${fieldName}`, fallback),
   };
 }

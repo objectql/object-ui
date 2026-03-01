@@ -861,7 +861,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       const CellRenderer = getCellRenderer(field.type);
       const numericTypes = ['number', 'currency', 'percent'];
       generatedColumns.push({
-        header: schema.objectName ? resolveFieldLabel(schema.objectName, fieldName, field.label || fieldName) : (field.label || fieldName),
+        header: schema.objectName ? resolveFieldLabel(schema.objectName, fieldName, field.label || fieldName) : field.label || fieldName,
         accessorKey: fieldName,
         ...(numericTypes.includes(field.type) && { align: 'right' }),
         cell: (value: any) => <CellRenderer value={value} field={field} />,

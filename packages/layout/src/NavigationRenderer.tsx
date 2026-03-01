@@ -185,6 +185,8 @@ function resolveItemLabel(
   resolver?: (objectName: string, fallbackLabel: string) => string,
 ): string {
   const base = resolveLabel(item.label);
+  // Only apply convention-based resolution for object-type items with plain string labels.
+  // I18nLabel objects (with explicit key/defaultValue) already have their own translation keys.
   if (resolver && item.type === 'object' && item.objectName && typeof item.label === 'string') {
     return resolver(item.objectName, base);
   }
