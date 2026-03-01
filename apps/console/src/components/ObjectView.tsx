@@ -30,7 +30,7 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 import { useAuth } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
-import { useNavigationOverlay } from '@object-ui/react';
+import { useNavigationOverlay, SchemaRenderer } from '@object-ui/react';
 
 /** Map view types to Lucide icons (Airtable-style) */
 const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
@@ -719,17 +719,15 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                     )}
                     
                     {/* Schema-driven toolbar actions */}
-                    {objectDef.actions?.filter((a: any) => a.location === 'list_toolbar').map((action: any) => (
-                      <Button
-                        key={action.name || action.label}
-                        size="sm"
-                        variant={action.variant || "outline"}
-                        className="shadow-none h-8 sm:h-9"
-                        onClick={() => actions.execute(action)}
-                      >
-                        {action.label || action.name}
-                      </Button>
-                    ))}
+                    {objectDef.actions?.some((a: any) => a.locations?.includes('list_toolbar')) && (
+                      <SchemaRenderer schema={{
+                        type: 'action:bar',
+                        location: 'list_toolbar',
+                        actions: objectDef.actions,
+                        size: 'sm',
+                        variant: 'outline',
+                      }} />
+                    )}
 
                     {/* Design tools menu — visible only to admin users */}
                     {isAdmin && (

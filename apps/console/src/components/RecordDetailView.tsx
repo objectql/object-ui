@@ -247,6 +247,11 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
         },
       ];
 
+  // Filter actions for record_header location
+  const recordHeaderActions = (objectDef.actions || []).filter(
+    (a: any) => a.locations?.includes('record_header'),
+  );
+
   const detailSchema: DetailViewSchema = {
     type: 'detail-view',
     objectName: objectDef.name,
@@ -257,6 +262,13 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
     title: objectDef.label,
     primaryField,
     sections,
+    ...(recordHeaderActions.length > 0 && {
+      actions: [{
+        type: 'action:bar',
+        location: 'record_header',
+        actions: recordHeaderActions,
+      } as any],
+    }),
   };
 
   return (
