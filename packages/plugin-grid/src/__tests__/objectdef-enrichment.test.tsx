@@ -352,3 +352,215 @@ describe('ListColumn[] with DataSource objectDef merge', () => {
     expect(wonBadge).toHaveClass('bg-blue-100');
   });
 });
+
+// =========================================================================
+// Inline data + DataSource: schema should be fetched for type-aware rendering
+// (Regression test for: inline data skipping objectSchema load)
+// =========================================================================
+describe('Inline data with DataSource schema fetch', () => {
+  it('should fetch objectSchema even when data is inline (provider: value)', async () => {
+    const mockDataSource = createMockDataSource(opportunitySchema, []);
+
+    const schema: any = {
+      type: 'object-grid' as const,
+      objectName: 'opportunity',
+      data: { provider: 'value', items: opportunityData },
+      columns: ['name', 'amount', 'stage', 'close_date', 'probability'],
+    };
+
+    render(
+      <ActionProvider>
+        <ObjectGrid schema={schema} dataSource={mockDataSource} />
+      </ActionProvider>
+    );
+
+    // Schema should be fetched even with inline data
+    await waitFor(() => {
+      expect(mockDataSource.getObjectSchema).toHaveBeenCalledWith('opportunity');
+    });
+
+    // Data should render
+    await waitFor(() => {
+      expect(screen.getByText('Enterprise License')).toBeInTheDocument();
+    });
+
+    // Amount should be formatted as currency using objectSchema field type
+    await waitFor(() => {
+      expect(screen.getByText('$150,000.00')).toBeInTheDocument();
+    });
+
+    // Stage should render with labels from objectSchema options
+    await waitFor(() => {
+      expect(screen.getByText('Closed Won')).toBeInTheDocument();
+    });
+
+    // Stage badge should have color from objectSchema
+    const closedWonBadge = screen.getByText('Closed Won');
+    expect(closedWonBadge).toHaveClass('bg-green-100');
+
+    // find() should NOT have been called (data is inline)
+    expect(mockDataSource.find).not.toHaveBeenCalled();
+  });
+
+  it('should use objectSchema labels for column headers with inline data', async () => {
+    const mockDataSource = createMockDataSource(opportunitySchema, []);
+
+    const schema: any = {
+      type: 'object-grid' as const,
+      objectName: 'opportunity',
+      data: { provider: 'value', items: opportunityData },
+      columns: ['name', 'amount', 'close_date'],
+    };
+
+    render(
+      <ActionProvider>
+        <ObjectGrid schema={schema} dataSource={mockDataSource} />
+      </ActionProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockDataSource.getObjectSchema).toHaveBeenCalledWith('opportunity');
+    });
+
+    // Headers should use objectSchema labels (not raw field names)
+    await waitFor(() => {
+      expect(screen.getByText('Opportunity Name')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Amount')).toBeInTheDocument();
+    expect(screen.getByText('Close Date')).toBeInTheDocument();
+  });
+
+  it('should render lookup/select fields with CellRenderers when inline data + objectSchema', async () => {
+    const lookupSchema = {
+      name: 'order',
+      fields: {
+        name: { name: 'name', type: 'text', label: 'Order' },
+        status: {
+          name: 'status', type: 'select', label: 'Status',
+          options: [
+            { value: 'pending', label: 'Pending', color: 'yellow' },
+            { value: 'shipped', label: 'Shipped', color: 'blue' },
+            { value: 'delivered', label: 'Delivered', color: 'green' },
+          ],
+        },
+        assigned_to: { name: 'assigned_to', type: 'lookup', label: 'Assigned To' },
+      },
+    };
+
+    const inlineOrderData = [
+      { _id: 'o1', name: 'Order 001', status: 'pending', assigned_to: 'Alice' },
+      { _id: 'o2', name: 'Order 002', status: 'shipped', assigned_to: 'Bob' },
+      { _id: 'o3', name: 'Order 003', status: 'delivered', assigned_to: 'Charlie' },
+    ];
+
+    const mockDataSource = createMockDataSource(lookupSchema, []);
+
+    const schema: any = {
+      type: 'object-grid' as const,
+      objectName: 'order',
+      data: { provider: 'value', items: inlineOrderData },
+      columns: ['name', 'status', 'assigned_to'],
+    };
+
+    render(
+      <ActionProvider>
+        <ObjectGrid schema={schema} dataSource={mockDataSource} />
+      </ActionProvider>
+    );
+
+    // Schema should be fetched
+    await waitFor(() => {
+      expect(mockDataSource.getObjectSchema).toHaveBeenCalledWith('order');
+    });
+
+    // Status should render with select renderer (colored badges)
+    await waitFor(() => {
+      expect(screen.getByText('Pending')).toBeInTheDocument();
+    });
+
+    const pendingBadge = screen.getByText('Pending');
+    expect(pendingBadge).toHaveClass('bg-yellow-100');
+
+    const shippedBadge = screen.getByText('Shipped');
+    expect(shippedBadge).toHaveClass('bg-blue-100');
+
+    // find() should NOT be called
+    expect(mockDataSource.find).not.toHaveBeenCalled();
+  });
+
+  it('should enrich legacy inline data fallback (no columns) with objectSchema', async () => {
+    const mockDataSource = createMockDataSource(opportunitySchema, []);
+
+    const schema: any = {
+      type: 'object-grid' as const,
+      objectName: 'opportunity',
+      data: { provider: 'value', items: opportunityData },
+      // No columns specified — should auto-derive from data keys + objectSchema
+    };
+
+    render(
+      <ActionProvider>
+        <ObjectGrid schema={schema} dataSource={mockDataSource} />
+      </ActionProvider>
+    );
+
+    // Schema should still be fetched
+    await waitFor(() => {
+      expect(mockDataSource.getObjectSchema).toHaveBeenCalledWith('opportunity');
+    });
+
+    // Data should render with objectSchema-enriched columns
+    await waitFor(() => {
+      expect(screen.getByText('Enterprise License')).toBeInTheDocument();
+    });
+
+    // Amount should be formatted (objectSchema type: currency)
+    await waitFor(() => {
+      expect(screen.getByText('$150,000.00')).toBeInTheDocument();
+    });
+
+    // find() should NOT be called
+    expect(mockDataSource.find).not.toHaveBeenCalled();
+  });
+
+  it('should enrich ListColumn[] with objectSchema types when inline data + dataSource', async () => {
+    const mockDataSource = createMockDataSource(opportunitySchema, []);
+
+    const schema: any = {
+      type: 'object-grid' as const,
+      objectName: 'opportunity',
+      data: { provider: 'value', items: opportunityData },
+      // ListColumn[] without explicit type — objectSchema should provide types
+      columns: [
+        { field: 'name', label: 'Name' },
+        { field: 'stage', label: 'Stage' },
+        { field: 'amount', label: 'Amount' },
+      ],
+    };
+
+    render(
+      <ActionProvider>
+        <ObjectGrid schema={schema} dataSource={mockDataSource} />
+      </ActionProvider>
+    );
+
+    // Schema should be fetched
+    await waitFor(() => {
+      expect(mockDataSource.getObjectSchema).toHaveBeenCalledWith('opportunity');
+    });
+
+    // Stage should render with colored badge from objectSchema select options
+    await waitFor(() => {
+      const closedWonBadge = screen.getByText('Closed Won');
+      expect(closedWonBadge).toHaveClass('bg-green-100');
+    });
+
+    // Amount should be formatted as currency from objectSchema type
+    await waitFor(() => {
+      expect(screen.getByText('$150,000.00')).toBeInTheDocument();
+    });
+
+    // find() should NOT be called
+    expect(mockDataSource.find).not.toHaveBeenCalled();
+  });
+});

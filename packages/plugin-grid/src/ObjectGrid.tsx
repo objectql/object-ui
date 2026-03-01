@@ -287,6 +287,34 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     }
   }, [hasInlineData, dataConfig]);
 
+  // --- Inline data: still fetch objectSchema for type-aware rendering ---
+  // When data is inline (provider: 'value'), we skip the data fetch but still need
+  // the object schema to resolve field types (lookup, select, currency, etc.) and
+  // enable proper CellRenderer selection.
+  useEffect(() => {
+    if (!hasInlineData) return;
+    if (!objectName || !dataSource) return;
+
+    let cancelled = false;
+
+    const fetchSchema = async () => {
+      try {
+        const schemaData = await dataSource.getObjectSchema(objectName);
+        if (!cancelled) {
+          setObjectSchema(schemaData);
+        }
+      } catch (err) {
+        // Schema fetch failure for inline data is non-fatal; columns will
+        // still fall back to heuristic inference.
+        console.warn(`[ObjectGrid] Failed to fetch objectSchema for inline data (objectName: ${objectName}):`, err);
+      }
+    };
+
+    fetchSchema();
+
+    return () => { cancelled = true; };
+  }, [hasInlineData, objectName, dataSource]);
+
   // --- Unified async data loading effect ---
   // Combines schema fetch + data fetch into a single async flow with AbortController.
   // This avoids the fragile "chained effects" pattern where Effect 1 sets objectSchema,
@@ -823,10 +851,39 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       const inlineData = dataConfig?.provider === 'value' ? dataConfig.items as any[] : [];
       if (inlineData.length > 0) {
         const fieldsToShow = schemaFields || Object.keys(inlineData[0]);
-        return fieldsToShow.map((fieldName) => ({
-          header: fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' '),
-          accessorKey: fieldName,
-        }));
+        return fieldsToShow.map((fieldName) => {
+          const fieldDef = objectSchema?.fields?.[fieldName];
+          const resolvedType = fieldDef?.type || inferColumnType({ field: fieldName }) || null;
+          const CellRenderer = resolvedType ? getCellRenderer(resolvedType) : null;
+          const header = fieldDef?.label || fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' ');
+
+          // Build field metadata with objectDef enrichment
+          const fieldMeta: Record<string, any> = { name: fieldName, type: resolvedType || 'text' };
+          if (fieldDef) {
+            if (fieldDef.label) fieldMeta.label = fieldDef.label;
+            if (fieldDef.currency) fieldMeta.currency = fieldDef.currency;
+            if (fieldDef.precision !== undefined) fieldMeta.precision = fieldDef.precision;
+            if (fieldDef.format) fieldMeta.format = fieldDef.format;
+            if (fieldDef.options) fieldMeta.options = fieldDef.options;
+          }
+          // Auto-generate select options from data when no options defined
+          if (resolvedType === 'select' && !fieldMeta.options) {
+            const uniqueValues = Array.from(new Set(data.map(row => row[fieldName]).filter(Boolean)));
+            fieldMeta.options = uniqueValues.map((v: any) => ({ value: v, label: humanizeLabel(String(v)) }));
+          }
+
+          const numericTypes = ['number', 'currency', 'percent'];
+          const inferredAlign = resolvedType && numericTypes.includes(resolvedType) ? 'right' as const : undefined;
+
+          return {
+            header,
+            accessorKey: fieldName,
+            ...(resolvedType && { headerIcon: getTypeIcon(resolvedType) }),
+            ...(inferredAlign && { align: inferredAlign }),
+            ...(CellRenderer && { cell: (value: any) => <CellRenderer value={value} field={fieldMeta as any} /> }),
+            sortable: fieldDef?.sortable !== false,
+          };
+        });
       }
     }
 
