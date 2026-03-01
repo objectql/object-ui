@@ -233,25 +233,25 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
             if (widgetType === 'pivot') {
                 const widgetData = (widget as any).data || options.data;
 
-                // provider: 'object' — pass through object config for async data loading
+                // provider: 'object' — use ObjectPivotTable for async data loading
                 if (isObjectProvider(widgetData)) {
                     const { data: _data, ...restOptions } = options;
                     return {
-                        type: 'pivot',
+                        type: 'object-pivot',
                         ...restOptions,
                         objectName: widget.object || widgetData.object,
                         dataProvider: widgetData,
-                        data: [],
+                        filter: widgetData.filter || widget.filter,
                     };
                 }
 
                 // No explicit data provider but widget has object binding
                 if (!widgetData && widget.object) {
                     return {
-                        type: 'pivot',
+                        type: 'object-pivot',
                         ...options,
                         objectName: widget.object,
-                        data: [],
+                        filter: widget.filter,
                     };
                 }
 

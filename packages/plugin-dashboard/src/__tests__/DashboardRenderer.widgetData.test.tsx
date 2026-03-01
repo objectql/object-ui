@@ -439,7 +439,8 @@ describe('DashboardRenderer widget data extraction', () => {
 
     const { container } = render(<DashboardRenderer schema={schema} />);
     const schemas = getRenderedSchemas(container);
-    const pivotSchema = schemas.find(s => s.type === 'pivot');
+    // DashboardRenderer now routes object-bound pivots to 'object-pivot'
+    const pivotSchema = schemas.find(s => s.type === 'object-pivot');
 
     if (pivotSchema) {
       expect(pivotSchema.objectName).toBe('sales');
@@ -447,7 +448,6 @@ describe('DashboardRenderer widget data extraction', () => {
         provider: 'object',
         object: 'sales',
       });
-      expect(pivotSchema.data).toBeUndefined();
     }
   });
 
@@ -1200,13 +1200,12 @@ describe('DashboardRenderer widget data extraction', () => {
       ],
     } as any;
 
-    // Since PivotTable is registered, SchemaRenderer renders it directly.
-    // With no data and objectName set, the pivot renders empty state.
+    // DashboardRenderer routes pivot+objectName to 'object-pivot' type.
+    // ObjectPivotTable renders "no data source" message when no context provided.
     const { container } = render(<DashboardRenderer schema={schema} />);
     expect(container).toBeDefined();
-    // Should render without crash and show the pivot empty state
-    const emptyState = container.querySelector('[data-testid="pivot-empty-state"]');
-    expect(emptyState).toBeDefined();
+    // Should render without crash
+    expect(container.textContent).not.toContain('is not iterable');
   });
 
   // ---- Widget description rendering -----------------------------------------

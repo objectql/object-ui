@@ -212,7 +212,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({ schema, className }) => 
               </th>
             ))}
             {showRowTotals && (
-              <th className="text-right p-2 font-semibold text-muted-foreground">Total</th>
+              <th className="text-right p-2 font-semibold text-muted-foreground bg-muted/20">Total</th>
             )}
           </tr>
         </thead>
@@ -232,7 +232,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({ schema, className }) => 
                 </td>
               ))}
               {showRowTotals && (
-                <td className="text-right p-2 font-semibold tabular-nums">
+                <td className="text-right p-2 font-semibold tabular-nums bg-muted/20">
                   {fmt(rowTotals[row] ?? 0)}
                 </td>
               )}
@@ -241,7 +241,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({ schema, className }) => 
         </tbody>
         {showColumnTotals && (
           <tfoot>
-            <tr className="border-t-2 border-border font-semibold">
+            <tr className="border-t-2 border-border font-semibold bg-muted/40">
               <td className="p-2">Total</td>
               {colKeys.map((col) => (
                 <td key={col} className="text-right p-2 tabular-nums">
@@ -249,7 +249,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({ schema, className }) => 
                 </td>
               ))}
               {showRowTotals && (
-                <td className="text-right p-2 tabular-nums">
+                <td className="text-right p-2 tabular-nums font-bold">
                   {fmt(grandTotal)}
                 </td>
               )}

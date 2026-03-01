@@ -12,11 +12,12 @@ import { DashboardGridLayout } from './DashboardGridLayout';
 import { MetricWidget } from './MetricWidget';
 import { MetricCard } from './MetricCard';
 import { PivotTable } from './PivotTable';
+import { ObjectPivotTable } from './ObjectPivotTable';
 import { DashboardConfigPanel } from './DashboardConfigPanel';
 import { WidgetConfigPanel } from './WidgetConfigPanel';
 import { DashboardWithConfig } from './DashboardWithConfig';
 
-export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, PivotTable, DashboardConfigPanel, WidgetConfigPanel, DashboardWithConfig };
+export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, PivotTable, ObjectPivotTable, DashboardConfigPanel, WidgetConfigPanel, DashboardWithConfig };
 
 // Register dashboard component
 ComponentRegistry.register(
@@ -116,6 +117,42 @@ ComponentRegistry.register(
   }
 );
 
+// Register object-aware pivot table (async data loading)
+ComponentRegistry.register(
+  'object-pivot',
+  ObjectPivotTable,
+  {
+    namespace: 'plugin-dashboard',
+    label: 'Object Pivot Table',
+    category: 'Dashboard',
+    icon: 'table-2',
+    inputs: [
+      { name: 'objectName', type: 'string', label: 'Object Name', required: true },
+      { name: 'title', type: 'string', label: 'Title' },
+      { name: 'rowField', type: 'string', label: 'Row Field', required: true },
+      { name: 'columnField', type: 'string', label: 'Column Field', required: true },
+      { name: 'valueField', type: 'string', label: 'Value Field', required: true },
+      { name: 'aggregation', type: 'enum', label: 'Aggregation', enum: [
+        { label: 'Sum', value: 'sum' },
+        { label: 'Count', value: 'count' },
+        { label: 'Average', value: 'avg' },
+        { label: 'Min', value: 'min' },
+        { label: 'Max', value: 'max' },
+      ]},
+      { name: 'showRowTotals', type: 'boolean', label: 'Show Row Totals' },
+      { name: 'showColumnTotals', type: 'boolean', label: 'Show Column Totals' },
+      { name: 'filter', type: 'array', label: 'Filter' },
+      { name: 'format', type: 'string', label: 'Number Format' },
+    ],
+    defaultProps: {
+      rowField: '',
+      columnField: '',
+      valueField: '',
+      aggregation: 'sum',
+    }
+  }
+);
+
 // Register dashboard grid layout component
 ComponentRegistry.register(
   'dashboard-grid',
@@ -145,6 +182,7 @@ export const dashboardComponents = {
   MetricWidget,
   MetricCard,
   PivotTable,
+  ObjectPivotTable,
   DashboardConfigPanel,
   WidgetConfigPanel,
   DashboardWithConfig,

@@ -68,8 +68,8 @@ const SORT_BY_OPTIONS = [
 ];
 
 const SORT_ORDER_OPTIONS = [
-  { value: 'asc', label: 'Ascending' },
-  { value: 'desc', label: 'Descending' },
+  { value: 'asc', label: '↑' },
+  { value: 'desc', label: '↓' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -259,16 +259,22 @@ function buildWidgetSchema(
           {
             key: 'rowSortBy',
             label: 'Sort by',
-            type: 'select',
+            type: 'icon-group',
             options: SORT_BY_OPTIONS,
             defaultValue: 'group',
           },
           {
             key: 'rowSortOrder',
             label: 'Sort order',
-            type: 'select',
+            type: 'icon-group',
             options: SORT_ORDER_OPTIONS,
             defaultValue: 'asc',
+          },
+          {
+            key: 'showRowLabels',
+            label: 'Show label',
+            type: 'switch',
+            defaultValue: true,
           },
           {
             key: 'showRowTotals',
@@ -290,16 +296,22 @@ function buildWidgetSchema(
           {
             key: 'columnSortBy',
             label: 'Sort by',
-            type: 'select',
+            type: 'icon-group',
             options: SORT_BY_OPTIONS,
             defaultValue: 'group',
           },
           {
             key: 'columnSortOrder',
             label: 'Sort order',
-            type: 'select',
+            type: 'icon-group',
             options: SORT_ORDER_OPTIONS,
             defaultValue: 'asc',
+          },
+          {
+            key: 'showColumnLabels',
+            label: 'Show label',
+            type: 'switch',
+            defaultValue: true,
           },
           {
             key: 'showColumnTotals',
