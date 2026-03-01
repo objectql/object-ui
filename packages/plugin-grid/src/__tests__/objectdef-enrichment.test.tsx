@@ -106,9 +106,9 @@ describe('String[] columns with inline data', () => {
 
     // Stage should be rendered as badge (inference detects "stage" as select)
     await waitFor(() => {
-      // Inferred select auto-generates options from data — value text may be humanized
-      const badges = screen.getAllByText(/closed.won|Closed.won/i);
-      expect(badges.length).toBeGreaterThan(0);
+      // Inferred select auto-generates options from data with humanized labels
+      const badge = screen.getByText('Closed Won');
+      expect(badge).toBeInTheDocument();
     });
   });
 

@@ -597,7 +597,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
 
               // Type-based cell renderer: explicit col type > objectDef type > heuristic inference
               const objectDefField = objectSchema?.fields?.[col.field];
-              const inferredType = inferColumnType(col) || objectDefField?.type || null;
+              const inferredType = col.type || objectDefField?.type || inferColumnType({ field: col.field }) || null;
               const CellRenderer = inferredType ? getCellRenderer(inferredType) : null;
 
               // Build field metadata for cell renderers with objectDef enrichment
@@ -611,7 +611,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 if (objectDefField.options) fieldMeta.options = objectDefField.options;
               }
               // Auto-generate options from data for inferred select without existing options
-              if (inferredType === 'select' && !fieldMeta.options && !(col as any).options) {
+              if (inferredType === 'select' && !fieldMeta.options) {
                 const uniqueValues = Array.from(new Set(data.map(row => row[col.field]).filter(Boolean)));
                 fieldMeta.options = uniqueValues.map(v => ({ value: v, label: humanizeLabel(String(v)) }));
               }
@@ -752,9 +752,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           const fieldLabel = fieldDef?.label;
           const header = fieldLabel || fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' ');
 
-          // Resolve type: objectDef type > heuristic inference
-          const syntheticCol: ListColumn = { field: fieldName };
-          const resolvedType = fieldDef?.type || inferColumnType(syntheticCol);
+          // Resolve type: objectDef type > heuristic inference (consistent with ListColumn path)
+          const resolvedType = fieldDef?.type || inferColumnType({ field: fieldName }) || null;
           const CellRenderer = resolvedType ? getCellRenderer(resolvedType) : null;
 
           // Build field metadata with objectDef enrichment
