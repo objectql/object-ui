@@ -252,4 +252,69 @@ describe('DetailSection', () => {
     expect(grid!.className).toContain('lg:grid-cols-3');
     expect(grid!.className).not.toContain('md:grid-cols-3');
   });
+
+  it('should enrich field type from objectSchema when field.type is not set', () => {
+    const section = {
+      title: 'Info',
+      fields: [{ name: 'status', label: 'Status' }],
+      columns: 1,
+    };
+    const objectSchema = {
+      fields: {
+        status: {
+          type: 'select',
+          options: [
+            { value: 'Draft', label: 'Draft', color: 'yellow' },
+            { value: 'Active', label: 'Active', color: 'green' },
+          ],
+        },
+      },
+    };
+    render(<DetailSection section={section} data={{ status: 'Draft' }} objectSchema={objectSchema} />);
+    // Should render via SelectCellRenderer (displays label), not plain String()
+    expect(screen.getByText('Draft')).toBeInTheDocument();
+  });
+
+  it('should render percent field from objectSchema enrichment', () => {
+    const section = {
+      title: 'Info',
+      fields: [{ name: 'discount', label: 'Discount' }],
+      columns: 1,
+    };
+    const objectSchema = {
+      fields: {
+        discount: { type: 'percent' },
+      },
+    };
+    render(<DetailSection section={section} data={{ discount: 25 }} objectSchema={objectSchema} />);
+    // PercentCellRenderer should format as "25%" 
+    expect(screen.getByText(/25/)).toBeInTheDocument();
+    expect(screen.getByText(/%/)).toBeInTheDocument();
+  });
+
+  it('should fall back to String(value) when neither field.type nor objectSchema provides a type', () => {
+    const section = {
+      title: 'Info',
+      fields: [{ name: 'notes', label: 'Notes' }],
+      columns: 1,
+    };
+    render(<DetailSection section={section} data={{ notes: 'Hello World' }} />);
+    expect(screen.getByText('Hello World')).toBeInTheDocument();
+  });
+
+  it('should prefer explicit field.type over objectSchema type', () => {
+    const section = {
+      title: 'Info',
+      fields: [{ name: 'name', label: 'Name', type: 'text' as const }],
+      columns: 1,
+    };
+    const objectSchema = {
+      fields: {
+        name: { type: 'number' },
+      },
+    };
+    render(<DetailSection section={section} data={{ name: 'Alice' }} objectSchema={objectSchema} />);
+    // Should use 'text' renderer, not 'number'
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+  });
 });

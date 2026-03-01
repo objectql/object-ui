@@ -1364,6 +1364,30 @@ All 313 `@object-ui/fields` tests pass.
 
 ---
 
+### ListView/DetailView/DetailSection — Lookup Field & Type Display Consistency (March 2026)
+
+> **Issue #939:** Lookup/master_detail fields displayed raw IDs (e.g. `o1`, `p1`) instead of expanded names across ListView, DetailView, and DetailSection.
+
+**Root Causes (5 independent bugs):**
+
+1. **ListView `$expand` race condition** — `expandFields` depended on async `objectDef` which could be `null` on first fetch, causing data to be requested without `$expand` and returning raw foreign-key IDs.
+2. **DetailView missing `$expand` and objectSchema** — `findOne()` was called without `$expand` parameters and without loading `objectSchema`, so lookup fields could never be expanded.
+3. **DetailSection missing objectSchema enrichment** — When `field.type` was not explicitly set, `displayValue` fell through to `String(value)`, bypassing type-aware CellRenderers even when objectSchema metadata was available.
+4. **ObjectStackAdapter `find()` dropping `$expand`** — The `@objectstack/client` v3.0.10's `data.find()` (GET) does not support `expand` in its `QueryOptions` interface, so `$expand` was silently dropped during `convertQueryParams()`.
+5. **ObjectStackAdapter `findOne()` ignoring params** — The `findOne()` method declared its params argument as `_params` (unused), meaning `$expand` was never sent to the server.
+
+**Fix:**
+
+- **ListView** (`packages/plugin-list/src/ListView.tsx`): Added `objectDefLoaded` state flag. Data fetch effect is gated on `objectDefLoaded` so the first fetch always includes correct `$expand` parameters. The `objectDef` fetch effect sets the flag in `finally` block to handle both success and error cases.
+- **DetailView** (`packages/plugin-detail/src/DetailView.tsx`): Added `objectSchema` state. Data fetch effect now calls `getObjectSchema()` first, computes `$expand` via `buildExpandFields()`, and passes the params to `findOne()`. The resolved `objectSchema` is passed to `DetailSection` components.
+- **DetailSection** (`packages/plugin-detail/src/DetailSection.tsx`): Added optional `objectSchema` prop. When `field.type` is not set, the field is enriched with type, options, currency, precision, format, reference_to, and reference_field from `objectSchema` before selecting a CellRenderer. Explicit `field.type` always takes precedence over objectSchema.
+- **ObjectStackAdapter `find()`** (`packages/data-objectstack/src/index.ts`): When `$expand` is present, routes to `client.data.query()` (POST) which supports the full query AST including expand. Added `buildQueryAST()` and `normalizeQueryResult()` private helpers.
+- **ObjectStackAdapter `findOne()`** (`packages/data-objectstack/src/index.ts`): When `$expand` is present, uses `client.data.query()` with `['_id', '=', id]` filter and `expand` map. Falls back to `client.data.get()` when no expand is needed.
+
+**Tests:** 15 new tests added (2 ListView, 3 DetailView, 4 DetailSection, 8 data-objectstack). All 505 plugin tests + 94 data-objectstack tests pass.
+
+---
+
 ## ⚠️ Risk Management
 
 | Risk | Mitigation |

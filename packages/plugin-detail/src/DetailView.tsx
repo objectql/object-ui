@@ -43,6 +43,7 @@ import { RelatedList } from './RelatedList';
 import { RecordComments } from './RecordComments';
 import { ActivityTimeline } from './ActivityTimeline';
 import { SchemaRenderer } from '@object-ui/react';
+import { buildExpandFields } from '@object-ui/core';
 import type { DetailViewSchema, DataSource } from '@object-ui/types';
 
 export interface DetailViewProps {
@@ -73,9 +74,12 @@ export const DetailView: React.FC<DetailViewProps> = ({
   const [isFavorite, setIsFavorite] = React.useState(false);
   const [isInlineEditing, setIsInlineEditing] = React.useState(false);
   const [editedValues, setEditedValues] = React.useState<Record<string, any>>({});
+  const [objectSchema, setObjectSchema] = React.useState<any>(null);
 
-  // Fetch data if API or DataSource provided
+  // Fetch objectSchema + data with $expand when DataSource is provided
   React.useEffect(() => {
+    let isMounted = true;
+
     // If inline data provided, use it
      if (schema.data) {
         setData(schema.data);
@@ -89,40 +93,74 @@ export const DetailView: React.FC<DetailViewProps> = ({
       const resourceId = schema.resourceId;
       const prefix = `${objectName}-`;
 
-      dataSource.findOne(objectName, resourceId).then((result) => {
-        if (result) {
-          setData(result);
-          setLoading(false);
-          return;
+      // Collect all visible fields from sections and top-level fields
+      const allFields = [
+        ...(schema.sections?.flatMap(s => s.fields) || []),
+        ...(schema.fields || []),
+      ];
+
+      // Load objectSchema first, then fetch data with $expand
+      const schemaPromise = dataSource.getObjectSchema
+        ? dataSource.getObjectSchema(objectName).catch(() => null)
+        : Promise.resolve(null);
+
+      schemaPromise.then((resolvedSchema) => {
+        if (!isMounted) return;
+        if (resolvedSchema) {
+          setObjectSchema(resolvedSchema);
         }
-        // Fallback: try alternate ID format for backward compatibility
-        const altId = resourceId.startsWith(prefix)
-          ? resourceId.slice(prefix.length)   // strip prefix
-          : `${prefix}${resourceId}`;          // prepend prefix
-        return dataSource.findOne(objectName, altId).then((fallbackResult) => {
-          setData(fallbackResult);
-          setLoading(false);
-        }).catch(() => {
-          setData(null);
-          setLoading(false);
+
+        // Compute $expand from objectSchema
+        const expandFields = buildExpandFields(resolvedSchema?.fields, allFields);
+        const params = expandFields.length > 0 ? { $expand: expandFields } : undefined;
+
+        return dataSource.findOne(objectName, resourceId, params).then((result) => {
+          if (!isMounted) return;
+          if (result) {
+            setData(result);
+            setLoading(false);
+            return;
+          }
+          // Fallback: try alternate ID format for backward compatibility
+          const resIdStr = String(resourceId);
+          const altId = resIdStr.startsWith(prefix)
+            ? resIdStr.slice(prefix.length)   // strip prefix
+            : `${prefix}${resIdStr}`;          // prepend prefix
+          return dataSource.findOne(objectName, altId, params).then((fallbackResult) => {
+            if (isMounted) {
+              setData(fallbackResult);
+              setLoading(false);
+            }
+          }).catch(() => {
+            if (isMounted) {
+              setData(null);
+              setLoading(false);
+            }
+          });
         });
       }).catch((err) => {
-         console.error('Failed to fetch detail data:', err);
-         setLoading(false);
+         if (isMounted) {
+           console.error('Failed to fetch detail data:', err);
+           setLoading(false);
+         }
       });
     } else if (schema.api && schema.resourceId) {
       setLoading(true);
       fetch(`${schema.api}/${schema.resourceId}`)
         .then(res => res.json())
         .then(result => {
-          setData(result?.data || result);
+          if (isMounted) {
+            setData(result?.data || result);
+          }
         })
         .catch(err => {
           console.error('Failed to fetch detail data:', err);
         })
-        .finally(() => setLoading(false));
+        .finally(() => { if (isMounted) setLoading(false); });
     }
-  }, [schema.api, schema.resourceId]);
+
+    return () => { isMounted = false; };
+  }, [schema.api, schema.resourceId, schema.objectName, dataSource, schema.sections, schema.fields]);
 
   const handleBack = React.useCallback(() => {
     if (onBack) {
@@ -488,6 +526,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
               key={index}
               section={section}
               data={{ ...data, ...editedValues }}
+              objectSchema={objectSchema}
               isEditing={isInlineEditing}
               onFieldChange={handleInlineFieldChange}
             />
@@ -503,6 +542,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
             columns: schema.columns,
           }}
           data={{ ...data, ...editedValues }}
+          objectSchema={objectSchema}
           isEditing={isInlineEditing}
           onFieldChange={handleInlineFieldChange}
         />

@@ -114,6 +114,69 @@ describe('ListView Data Fetch', () => {
   });
 
   // =========================================================================
+  // $expand race condition fix (Issue #939 Bug 1)
+  // =========================================================================
+  describe('$expand with objectSchema', () => {
+    it('should include $expand in find() when objectSchema has lookup fields', async () => {
+      mockDataSource.getObjectSchema = vi.fn().mockResolvedValue({
+        fields: {
+          name: { type: 'text' },
+          customer: { type: 'lookup', reference_to: 'contact' },
+          account: { type: 'master_detail', reference_to: 'account' },
+        },
+      });
+      mockDataSource.find.mockResolvedValue([
+        { _id: '1', name: 'Order 1', customer: { name: 'Alice' }, account: { name: 'Acme' } },
+      ]);
+
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'orders',
+        viewType: 'grid',
+        fields: ['name', 'customer', 'account'],
+      };
+
+      renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+      await vi.waitFor(() => {
+        expect(mockDataSource.find).toHaveBeenCalledWith(
+          'orders',
+          expect.objectContaining({
+            $expand: expect.arrayContaining(['customer', 'account']),
+          }),
+        );
+      });
+    });
+
+    it('should wait for objectSchema before fetching data', async () => {
+      let resolveSchema: (value: any) => void;
+      const schemaPromise = new Promise(resolve => { resolveSchema = resolve; });
+      mockDataSource.getObjectSchema = vi.fn().mockReturnValue(schemaPromise);
+      mockDataSource.find.mockResolvedValue([{ _id: '1', name: 'Item 1' }]);
+
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'orders',
+        viewType: 'grid',
+        fields: ['name'],
+      };
+
+      renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+      // find() should NOT be called yet because objectSchema hasn't resolved
+      expect(mockDataSource.find).not.toHaveBeenCalled();
+
+      // Resolve objectSchema
+      resolveSchema!({ fields: { name: { type: 'text' } } });
+
+      // Now find() should be called
+      await vi.waitFor(() => {
+        expect(mockDataSource.find).toHaveBeenCalled();
+      });
+    });
+  });
+
+  // =========================================================================
   // Request Debounce (Issue #5)
   // =========================================================================
   describe('request debounce', () => {

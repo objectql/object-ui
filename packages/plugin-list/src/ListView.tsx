@@ -386,6 +386,7 @@ export const ListView: React.FC<ListViewProps> = ({
   const [data, setData] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [objectDef, setObjectDef] = React.useState<any>(null);
+  const [objectDefLoaded, setObjectDefLoaded] = React.useState(false);
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [dataLimitReached, setDataLimitReached] = React.useState(false);
 
@@ -514,7 +515,10 @@ export const ListView: React.FC<ListViewProps> = ({
   React.useEffect(() => {
     let isMounted = true;
     const fetchObjectDef = async () => {
-      if (!dataSource || !schema.objectName) return;
+      if (!dataSource || !schema.objectName) {
+        setObjectDefLoaded(true);
+        return;
+      }
       try {
         const def = await dataSource.getObjectSchema(schema.objectName);
         if (isMounted) {
@@ -522,6 +526,10 @@ export const ListView: React.FC<ListViewProps> = ({
         }
       } catch (err) {
         console.warn("Failed to fetch object schema for ListView:", err);
+      } finally {
+        if (isMounted) {
+          setObjectDefLoaded(true);
+        }
       }
     };
     fetchObjectDef();
@@ -556,6 +564,9 @@ export const ListView: React.FC<ListViewProps> = ({
       setDataLimitReached(false);
       return;
     }
+
+    // Wait for objectDef to load before fetching data so that $expand is computed
+    if (!objectDefLoaded) return;
     
     const fetchData = async () => {
       if (!dataSource || !schema.objectName) return;
@@ -646,7 +657,7 @@ export const ListView: React.FC<ListViewProps> = ({
     fetchData();
     
     return () => { isMounted = false; };
-  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, activeQuickFilters, normalizedQuickFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields]); // Re-fetch on filter/sort/search change
+  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, activeQuickFilters, normalizedQuickFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded]); // Re-fetch on filter/sort/search change
 
   // Available view types based on schema configuration
   const availableViews = React.useMemo(() => {

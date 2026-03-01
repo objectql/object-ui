@@ -33,6 +33,8 @@ export interface DetailSectionProps {
   section: DetailViewSectionType;
   data?: any;
   className?: string;
+  /** Object schema from DataSource for field type enrichment */
+  objectSchema?: any;
   /** Whether inline editing is active */
   isEditing?: boolean;
   /** Callback when a field value changes during inline editing */
@@ -43,6 +45,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
   section,
   data,
   className,
+  objectSchema,
   isEditing = false,
   onFieldChange,
 }) => {
@@ -75,11 +78,24 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
 
     const displayValue = (() => {
       if (value === null || value === undefined) return '-';
-      // Use type-aware cell renderer when field.type is available
-      if (field.type) {
-        const CellRenderer = getCellRenderer(field.type);
+      // Enrich field with objectSchema metadata when field.type is not set
+      const objectDefField = objectSchema?.fields?.[field.name];
+      const resolvedType = field.type || objectDefField?.type;
+      const enrichedField: Record<string, any> = { ...field };
+      if (!field.type && objectDefField) {
+        if (objectDefField.type) enrichedField.type = objectDefField.type;
+        if (objectDefField.options && !enrichedField.options) enrichedField.options = objectDefField.options;
+        if (objectDefField.currency && !enrichedField.currency) enrichedField.currency = objectDefField.currency;
+        if (objectDefField.precision !== undefined && enrichedField.precision === undefined) enrichedField.precision = objectDefField.precision;
+        if (objectDefField.format && !enrichedField.format) enrichedField.format = objectDefField.format;
+        if (objectDefField.reference_to && !enrichedField.reference_to) enrichedField.reference_to = objectDefField.reference_to;
+        if (objectDefField.reference_field && !enrichedField.reference_field) enrichedField.reference_field = objectDefField.reference_field;
+      }
+      // Use type-aware cell renderer when field type is available (explicit or enriched)
+      if (resolvedType) {
+        const CellRenderer = getCellRenderer(resolvedType);
         if (CellRenderer) {
-          return <CellRenderer value={value} field={field as unknown as FieldMetadata} />;
+          return <CellRenderer value={value} field={enrichedField as unknown as FieldMetadata} />;
         }
       }
       return String(value);

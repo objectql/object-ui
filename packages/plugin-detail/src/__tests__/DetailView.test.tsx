@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { DetailView } from '../DetailView';
 import type { DetailViewSchema } from '@object-ui/types';
 
@@ -537,5 +537,87 @@ describe('DetailView', () => {
     const goBackBtn = await findByText('Go back');
     fireEvent.click(goBackBtn);
     expect(onBack).toHaveBeenCalled();
+  });
+
+  it('should call findOne with $expand when objectSchema has lookup fields', async () => {
+    const mockDataSource = {
+      getObjectSchema: vi.fn().mockResolvedValue({
+        fields: {
+          name: { type: 'text' },
+          customer: { type: 'lookup', reference_to: 'contact' },
+          account: { type: 'master_detail', reference_to: 'account' },
+        },
+      }),
+      findOne: vi.fn().mockResolvedValue({ name: 'Order 1', customer: { name: 'Alice' }, account: { name: 'Acme' } }),
+    } as any;
+
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Order Details',
+      objectName: 'order',
+      resourceId: 'order-1',
+      fields: [
+        { name: 'name', label: 'Name' },
+        { name: 'customer', label: 'Customer' },
+        { name: 'account', label: 'Account' },
+      ],
+    };
+
+    render(<DetailView schema={schema} dataSource={mockDataSource} />);
+
+    await waitFor(() => {
+      expect(mockDataSource.getObjectSchema).toHaveBeenCalledWith('order');
+      expect(mockDataSource.findOne).toHaveBeenCalledWith(
+        'order',
+        'order-1',
+        expect.objectContaining({ $expand: expect.arrayContaining(['customer', 'account']) }),
+      );
+    });
+  });
+
+  it('should call findOne without $expand when objectSchema has no lookup fields', async () => {
+    const mockDataSource = {
+      getObjectSchema: vi.fn().mockResolvedValue({
+        fields: {
+          name: { type: 'text' },
+          email: { type: 'text' },
+        },
+      }),
+      findOne: vi.fn().mockResolvedValue({ name: 'Alice', email: 'alice@example.com' }),
+    } as any;
+
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      objectName: 'contact',
+      resourceId: 'c1',
+      fields: [
+        { name: 'name', label: 'Name' },
+        { name: 'email', label: 'Email' },
+      ],
+    };
+
+    render(<DetailView schema={schema} dataSource={mockDataSource} />);
+
+    await waitFor(() => {
+      expect(mockDataSource.findOne).toHaveBeenCalledWith('contact', 'c1', undefined);
+    });
+  });
+
+  it('should still work when getObjectSchema is not available on dataSource', async () => {
+    const mockDataSource = {
+      findOne: vi.fn().mockResolvedValue({ name: 'Bob' }),
+    } as any;
+
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      objectName: 'contact',
+      resourceId: 'c1',
+      fields: [{ name: 'name', label: 'Name' }],
+    };
+
+    const { findByText } = render(<DetailView schema={schema} dataSource={mockDataSource} />);
+    expect(await findByText('Bob')).toBeInTheDocument();
   });
 });
