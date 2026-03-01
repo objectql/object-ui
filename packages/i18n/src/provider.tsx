@@ -99,7 +99,11 @@ export function I18nProvider({ config, instance: externalInstance, loadLanguage,
         // Force re-render so components pick up newly loaded translations
         setLanguage(currentLang);
       }
-    }).catch(() => { /* graceful degradation — use built-in translations */ });
+    }).catch((err) => {
+      // Allow retry on failure by removing from loaded set
+      loadedAppLangs.current.delete(currentLang);
+      console.warn(`[i18n] Failed to load app translations for '${currentLang}':`, err);
+    });
   }, [i18nInstance, loadLanguage]);
 
   const contextValue = useMemo<I18nContextValue>(
@@ -109,8 +113,13 @@ export function I18nProvider({ config, instance: externalInstance, loadLanguage,
         // Dynamic language pack loading (v2.0.7)
         if (loadLanguage && !loadedAppLangs.current.has(lang)) {
           loadedAppLangs.current.add(lang);
-          const resources = await loadLanguage(lang);
-          i18nInstance.addResourceBundle(lang, 'translation', resources, true, true);
+          try {
+            const resources = await loadLanguage(lang);
+            i18nInstance.addResourceBundle(lang, 'translation', resources, true, true);
+          } catch (err) {
+            loadedAppLangs.current.delete(lang);
+            console.warn(`[i18n] Failed to load app translations for '${lang}':`, err);
+          }
         }
         await i18nInstance.changeLanguage(lang);
       },
