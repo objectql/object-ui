@@ -263,6 +263,11 @@ export function PercentCellRenderer({ value, field }: CellRendererProps): React.
   );
 }
 
+/** Field names that trigger warning badge when boolean value is false */
+const STATUS_FIELD_NAMES = new Set([
+  'active', 'is_active', 'enabled', 'is_enabled', 'verified', 'is_verified',
+]);
+
 /**
  * Boolean field cell renderer (Airtable-style checkbox)
  * Supports semantic rendering for completion fields (green indicator)
@@ -294,14 +299,10 @@ export function BooleanCellRenderer({ value, field }: CellRendererProps): React.
   }
 
   // Warning badge for active/enabled fields when false
-  const isStatusField = fieldName === 'active' || fieldName === 'is_active'
-    || fieldName === 'enabled' || fieldName === 'is_enabled'
-    || fieldName === 'verified' || fieldName === 'is_verified';
-
-  if (isStatusField && !value) {
+  if (STATUS_FIELD_NAMES.has(fieldName) && !value) {
     return (
       <Badge variant="destructive" className="text-xs" data-testid="boolean-warning-badge">
-        {field?.label || humanizeLabel(field?.name || 'Inactive')} — Off
+        {field?.label || humanizeLabel(fieldName)} — Off
       </Badge>
     );
   }
@@ -458,7 +459,7 @@ export function EmailCellRenderer({ value }: CellRendererProps): React.ReactElem
     navigator.clipboard.writeText(String(value)).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }).catch(() => { /* clipboard not available */ });
   };
   
   return (
@@ -529,7 +530,7 @@ export function PhoneCellRenderer({ value }: CellRendererProps): React.ReactElem
     navigator.clipboard.writeText(String(value)).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }).catch(() => { /* clipboard not available */ });
   };
   
   return (
