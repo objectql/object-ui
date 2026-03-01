@@ -257,7 +257,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   const val = data?.[fieldName];
                   if (val === null || val === undefined || val === '') return null;
                   return (
-                    <Badge key={fieldName} variant="secondary" className="text-xs">
+                    <Badge key={fieldName} variant="secondary" className="text-xs" aria-label={`${fieldName}: ${val}`}>
                       {String(val)}
                     </Badge>
                   );

@@ -198,10 +198,11 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
     );
   }
 
-  // Auto-detect primary field (name or title)
-  const primaryField = Object.keys(objectDef.fields || {}).find(
-    (key) => key === 'name' || key === 'title'
-  );
+  // Auto-detect primary field: prefer objectDef metadata, then 'name' or 'title' heuristic
+  const primaryField = objectDef.primaryField
+    || Object.keys(objectDef.fields || {}).find(
+      (key) => key === 'name' || key === 'title'
+    );
 
   // Build sections: prefer form sections from objectDef, fallback to flat field list
   const formSections = objectDef.views?.form?.sections;
@@ -213,7 +214,10 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
         fields: (sec.fields || []).map((f: any) => {
           const fieldName = typeof f === 'string' ? f : f.name;
           const fieldDef = objectDef.fields[fieldName];
-          if (!fieldDef) return { name: fieldName, label: fieldName };
+          if (!fieldDef) {
+            console.warn(`[RecordDetailView] Field "${fieldName}" not found in ${objectDef.name} definition`);
+            return { name: fieldName, label: fieldName };
+          }
           return {
             name: fieldName,
             label: fieldDef.label || fieldName,
