@@ -254,38 +254,48 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   async find(resource: string, params?: QueryParams): Promise<QueryResult<T>> {
     await this.connect();
 
-    const queryOptions = this.convertQueryParams(params);
-    const result: unknown = await this.client.data.find<T>(resource, queryOptions);
-
-    // Handle legacy/raw array response (e.g. from some mock servers or non-OData endpoints)
-    if (Array.isArray(result)) {
-      return {
-        data: result,
-        total: result.length,
-        page: 1,
-        pageSize: result.length,
-        hasMore: false,
-      };
+    // When $expand is requested, use data.query() (POST) which supports the full
+    // query AST including expand. The simpler data.find() (GET) does not support expand.
+    if (params?.$expand && params.$expand.length > 0) {
+      const queryBody = this.buildQueryAST(resource, params);
+      const result: unknown = await this.client.data.query<T>(resource, queryBody);
+      return this.normalizeQueryResult(result, params);
     }
 
-    const resultObj = result as { records?: T[]; total?: number; value?: T[]; count?: number };
-    const records = resultObj.records || resultObj.value || [];
-    const total = resultObj.total ?? resultObj.count ?? records.length;
-    return {
-      data: records,
-      total,
-      // Calculate page number safely
-      page: params?.$skip && params.$top ? Math.floor(params.$skip / params.$top) + 1 : 1,
-      pageSize: params?.$top,
-      hasMore: params?.$top ? records.length === params.$top : false,
-    };
+    const queryOptions = this.convertQueryParams(params);
+    const result: unknown = await this.client.data.find<T>(resource, queryOptions);
+    return this.normalizeQueryResult(result, params);
   }
 
   /**
    * Find a single record by ID.
    */
-  async findOne(resource: string, id: string | number, _params?: QueryParams): Promise<T | null> {
+  async findOne(resource: string, id: string | number, params?: QueryParams): Promise<T | null> {
     await this.connect();
+
+    // When $expand is requested, use data.query() (POST) with an ID filter
+    // because data.get() (GET) does not support expand through the client SDK.
+    if (params?.$expand && params.$expand.length > 0) {
+      try {
+        const expand: Record<string, object> = {};
+        for (const field of params.$expand) {
+          expand[field] = {};
+        }
+        const result: unknown = await this.client.data.query<T>(resource, {
+          filters: [['_id', '=', String(id)]],
+          expand,
+          limit: 1,
+        });
+        const resultObj = result as { records?: T[] };
+        const records = resultObj.records || [];
+        return records[0] || null;
+      } catch (error: unknown) {
+        if ((error as Record<string, unknown>)?.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+    }
 
     try {
       const result = await this.client.data.get<T>(resource, String(id));
@@ -488,6 +498,92 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         { resource, originalError: error }
       );
     }
+  }
+
+  /**
+   * Normalize the result from data.find() or data.query() into a consistent QueryResult.
+   */
+  private normalizeQueryResult(result: unknown, params?: QueryParams): QueryResult<T> {
+    // Handle legacy/raw array response (e.g. from some mock servers or non-OData endpoints)
+    if (Array.isArray(result)) {
+      return {
+        data: result,
+        total: result.length,
+        page: 1,
+        pageSize: result.length,
+        hasMore: false,
+      };
+    }
+
+    const resultObj = result as { records?: T[]; total?: number; value?: T[]; count?: number };
+    const records = resultObj.records || resultObj.value || [];
+    const total = resultObj.total ?? resultObj.count ?? records.length;
+    return {
+      data: records,
+      total,
+      // Calculate page number safely
+      page: params?.$skip && params.$top ? Math.floor(params.$skip / params.$top) + 1 : 1,
+      pageSize: params?.$top,
+      hasMore: params?.$top ? records.length === params.$top : false,
+    };
+  }
+
+  /**
+   * Build a query AST for data.query() from ObjectUI QueryParams.
+   * Used when $expand is required (data.find() does not support expand).
+   */
+  private buildQueryAST(_resource: string, params: QueryParams): Record<string, unknown> {
+    const query: Record<string, unknown> = {};
+
+    // Selection
+    if (params.$select) {
+      query.select = params.$select;
+    }
+
+    // Filtering
+    if (params.$filter) {
+      if (Array.isArray(params.$filter)) {
+        query.filters = params.$filter;
+      } else {
+        query.filters = convertFiltersToAST(params.$filter);
+      }
+    }
+
+    // Sorting - convert to AST sort nodes
+    if (params.$orderby) {
+      if (Array.isArray(params.$orderby)) {
+        query.sort = params.$orderby.map((item: any) => {
+          if (typeof item === 'string') return item;
+          const field = item.field;
+          const order = item.order || 'asc';
+          return order === 'desc' ? `-${field}` : field;
+        });
+      } else {
+        const sortArray = Object.entries(params.$orderby).map(([field, order]) => {
+          return order === 'desc' ? `-${field}` : field;
+        });
+        query.sort = sortArray;
+      }
+    }
+
+    // Pagination
+    if (params.$skip !== undefined) {
+      query.offset = params.$skip;
+    }
+    if (params.$top !== undefined) {
+      query.limit = params.$top;
+    }
+
+    // Expand — build expand map for query AST
+    if (params.$expand && params.$expand.length > 0) {
+      const expand: Record<string, object> = {};
+      for (const field of params.$expand) {
+        expand[field] = {};
+      }
+      query.expand = expand;
+    }
+
+    return query;
   }
 
   /**
