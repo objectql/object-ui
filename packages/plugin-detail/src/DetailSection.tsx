@@ -28,6 +28,7 @@ import { SchemaRenderer } from '@object-ui/react';
 import { getCellRenderer } from '@object-ui/fields';
 import type { DetailViewSection as DetailViewSectionType, DetailViewField, FieldMetadata } from '@object-ui/types';
 import { applyDetailAutoLayout } from './autoLayout';
+import { useDetailTranslation } from './useDetailTranslation';
 
 export interface DetailSectionProps {
   section: DetailViewSectionType;
@@ -51,6 +52,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
 }) => {
   const [isCollapsed, setIsCollapsed] = React.useState(section.defaultCollapsed ?? false);
   const [copiedField, setCopiedField] = React.useState<string | null>(null);
+  const { t } = useDetailTranslation();
 
   const handleCopyField = React.useCallback((fieldName: string, value: any) => {
     const textValue = value !== null && value !== undefined ? String(value) : '';
@@ -77,7 +79,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
                       field.span === 6 ? 'col-span-6' : '';
 
     const displayValue = (() => {
-      if (value === null || value === undefined) return '-';
+      if (value === null || value === undefined) return <span className="text-muted-foreground/50 text-xs italic">—</span>;
       // Enrich field with objectSchema metadata — merge missing properties
       // even when field.type is explicitly set (e.g., type: 'lookup' without reference_to)
       const objectDefField = objectSchema?.fields?.[field.name];
@@ -159,7 +161,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {isCopied ? 'Copied!' : 'Copy to clipboard'}
+                  {isCopied ? t('detail.copied') : t('detail.copyToClipboard')}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

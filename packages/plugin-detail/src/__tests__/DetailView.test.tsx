@@ -621,4 +621,43 @@ describe('DetailView', () => {
     const { findByText } = render(<DetailView schema={schema} dataSource={mockDataSource} />);
     expect(await findByText('Bob')).toBeInTheDocument();
   });
+
+  it('should use i18n fallback for "Record not found" text', async () => {
+    const mockDataSource = {
+      findOne: vi.fn().mockResolvedValue(null),
+    } as any;
+
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      objectName: 'contact',
+      resourceId: 'nonexistent-id',
+      fields: [{ name: 'name', label: 'Name' }],
+    };
+
+    const { findByText } = render(<DetailView schema={schema} dataSource={mockDataSource} />);
+    // These use the default English translations from useDetailTranslation fallback
+    expect(await findByText('Record not found')).toBeInTheDocument();
+    expect(await findByText('Go back')).toBeInTheDocument();
+  });
+
+  it('should use i18n fallback for related section heading', () => {
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Account Details',
+      data: { name: 'Acme Corp' },
+      fields: [{ name: 'name', label: 'Name' }],
+      related: [
+        {
+          title: 'Contacts',
+          type: 'table',
+          data: [],
+        },
+      ],
+    };
+
+    render(<DetailView schema={schema} />);
+    // The "Related" heading uses t('detail.related')
+    expect(screen.getByText('Related')).toBeInTheDocument();
+  });
 });

@@ -28,7 +28,7 @@ import { useObjectTranslation } from './provider';
 const BUILTIN_KEYS = new Set([
   'common', 'validation', 'form', 'table', 'grid', 'calendar',
   'list', 'kanban', 'chart', 'dashboard', 'configPanel',
-  'appDesigner', 'console', 'errors',
+  'appDesigner', 'console', 'errors', 'detail',
 ]);
 
 /**

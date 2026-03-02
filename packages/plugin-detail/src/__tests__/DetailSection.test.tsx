@@ -87,7 +87,7 @@ describe('DetailSection', () => {
       columns: 1,
     };
     render(<DetailSection section={section} data={{}} />);
-    expect(screen.getByText('-')).toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
   });
 
   it('should render section title', () => {
@@ -214,7 +214,7 @@ describe('DetailSection', () => {
     };
     render(<DetailSection section={section} data={{ name: 'Alice' }} />);
     expect(screen.getByText('Alice')).toBeInTheDocument();
-    expect(screen.getByText('-')).toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
   });
 
   it('should use md: breakpoint for 2-column layouts', () => {
