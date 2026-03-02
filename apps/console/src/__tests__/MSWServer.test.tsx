@@ -95,4 +95,33 @@ describe('MSW Server Integration', () => {
       expect(record.priority).toBe('high');
     }
   });
+
+  // ── Stable seed-data IDs ──────────────────────────────────────────────
+  // Seed records carry an explicit `_id`. After kernel bootstrap and
+  // syncDriverIds(), `id` should equal the seed `_id`, NOT a random
+  // driver-generated value. This ensures URLs with record IDs remain
+  // valid across page refreshes.
+
+  it('should preserve seed _id as canonical id (stable across refreshes)', async () => {
+    const driver = getDriver();
+    const opportunities = await driver!.find('opportunity', { object: 'opportunity' });
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    // Seed data defines _id "101" for the first opportunity.
+    // After syncDriverIds, id must equal _id (both "101").
+    const first = opportunities.find((r: any) => r._id === '101');
+    expect(first).toBeDefined();
+    expect(first.id).toBe('101');
+    expect(first._id).toBe('101');
+  });
+
+  it('should fetch a seed record by _id via HTTP', async () => {
+    // GET /data/opportunity/101 — uses the stable seed _id
+    const res = await fetch('http://localhost/api/v1/data/opportunity/101');
+    expect(res.ok).toBe(true);
+    const body = await res.json();
+    const record = body.data?.record ?? body.record;
+    expect(record).toBeDefined();
+    expect(record.name).toBe('ObjectStack Enterprise License');
+  });
 });
