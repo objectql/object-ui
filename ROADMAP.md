@@ -1400,6 +1400,30 @@ All 313 `@object-ui/fields` tests pass.
 | View config live preview dependency chain breakage | `generateViewSchema` hardcodes non-grid defaults; per-view-type integration tests required (see P1.8.1) |
 | Config property type gaps (`NamedListView` missing fields) | Add first-class properties to `@object-ui/types`; use Zod schema to validate at runtime |
 
+### P2.11 Airtable UX Polish: Table Selection, i18n, Layout, and Density ✅
+
+> **Status:** Complete — Comprehensive UX polish for Airtable-level table experience.
+
+**i18n Compliance:**
+- [x] All hardcoded UI strings in `data-table.tsx` replaced with `t()` calls (12+ strings)
+- [x] All hardcoded UI strings in `ListView.tsx` replaced with `t()` calls (6+ strings)
+- [x] New i18n keys added to `en.ts` and `zh.ts` locale files (table/list sections)
+- [x] Default fallback translations ensure standalone usage works without I18nProvider
+
+**Row Selection Auto-Enable:**
+- [x] `ObjectGrid` auto-enables `selectionMode: 'multiple'` when `batchActions`/`bulkActions` are defined
+- [x] No explicit `selectable` config needed for bulk action workflows
+
+**Column Width Optimization:**
+- [x] Selection checkbox and row number columns reduced from `w-12` (48px) to `w-10` (40px)
+- [x] Frozen column offset calculations updated to match new widths
+
+**Border/Cell Contrast:**
+- [x] Table row borders increased from `border-border/50` to `border-border` for better scanability
+
+**Pagination Density:**
+- [x] Filler row `colSpan` now correctly includes `showRowNumbers` count
+
 ---
 
 ## 📚 Reference

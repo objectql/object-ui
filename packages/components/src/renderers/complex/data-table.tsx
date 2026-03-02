@@ -79,7 +79,7 @@ const TABLE_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'table.addRecord': 'Add record',
   'table.open': 'Open',
   'table.search': 'Search...',
-  'table.modified': '{{count}} row(s) modified',
+  'table.modified': '{{count}} row modified',
   'table.selected': '{{count}} selected',
   'common.actions': 'Actions',
 };

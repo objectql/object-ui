@@ -81,7 +81,7 @@ const en = {
     addRecord: 'Add record',
     open: 'Open',
     search: 'Search...',
-    modified: '{{count}} row(s) modified',
+    modified: '{{count}} row modified',
     selected: '{{count}} selected',
   },
   grid: {
