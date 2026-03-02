@@ -1,9 +1,9 @@
 # ObjectUI Development Roadmap
 
-> **Last Updated:** March 1, 2026
+> **Last Updated:** March 2, 2026
 > **Current Version:** v0.5.x
-> **Spec Version:** @objectstack/spec v3.0.10
-> **Client Version:** @objectstack/client v3.0.10
+> **Spec Version:** @objectstack/spec v3.2.0
+> **Client Version:** @objectstack/client v3.2.0
 > **Target UX Benchmark:** 🎯 Airtable parity
 > **Current Priority:** AppShell Navigation · Designer Interaction · **View Config Live Preview Sync ✅** · Dashboard Config Panel · Airtable UX Polish · **Flow Designer ✅** · **App Creation & Editing Flow ✅** · **System Settings & App Management ✅** · **Right-Side Visual Editor Drawer ✅**
 
@@ -46,6 +46,15 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 | **Kernel Enhancements** | `PluginBuildOptions`, `PluginPublishOptions`, `PluginValidateOptions`, `MetadataCategory`, `NamespaceConflictError` | Plugin development tooling (P2.4) |
 
 **UI Sub-Export:** No breaking changes — `@objectstack/spec/ui` types are identical between v3.0.8 and v3.0.9.
+
+---
+
+## 🔄 Spec v3.2.0 Upgrade Summary
+
+> Upgraded from `@objectstack/spec v3.0.10` → `v3.2.0` on March 2, 2026. All `@objectstack/*` packages upgraded to v3.2.0.
+
+**Breaking Changes Applied:**
+- Actions with `type: 'api'` now require a `target` field (the API endpoint/handler name). Added `target` to all API actions across examples (CRM, todo, msw-todo, kitchen-sink).
 
 ---
 
