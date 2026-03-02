@@ -42,86 +42,10 @@ import { DetailTabs } from './DetailTabs';
 import { RelatedList } from './RelatedList';
 import { RecordComments } from './RecordComments';
 import { ActivityTimeline } from './ActivityTimeline';
-import { SchemaRenderer, useObjectTranslation } from '@object-ui/react';
+import { SchemaRenderer } from '@object-ui/react';
 import { buildExpandFields } from '@object-ui/core';
 import type { DetailViewSchema, DataSource } from '@object-ui/types';
-
-/**
- * Default English translations for the detail view.
- * Used as fallback when no I18nProvider is available.
- */
-const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
-  'detail.back': 'Back',
-  'detail.edit': 'Edit',
-  'detail.editInline': 'Edit inline',
-  'detail.save': 'Save',
-  'detail.saveChanges': 'Save changes',
-  'detail.editFieldsInline': 'Edit fields inline',
-  'detail.share': 'Share',
-  'detail.duplicate': 'Duplicate',
-  'detail.export': 'Export',
-  'detail.viewHistory': 'View history',
-  'detail.delete': 'Delete',
-  'detail.moreActions': 'More actions',
-  'detail.addToFavorites': 'Add to favorites',
-  'detail.removeFromFavorites': 'Remove from favorites',
-  'detail.previousRecord': 'Previous record',
-  'detail.nextRecord': 'Next record',
-  'detail.recordOf': '{{current}} of {{total}}',
-  'detail.recordNotFound': 'Record not found',
-  'detail.recordNotFoundDescription': 'The record you are looking for does not exist or may have been deleted.',
-  'detail.goBack': 'Go back',
-  'detail.details': 'Details',
-  'detail.related': 'Related',
-  'detail.relatedRecords': '{{count}} records',
-  'detail.relatedRecordOne': '{{count}} record',
-  'detail.noRelatedRecords': 'No related records found',
-  'detail.loading': 'Loading...',
-  'detail.copyToClipboard': 'Copy to clipboard',
-  'detail.copied': 'Copied!',
-  'detail.deleteConfirmation': 'Are you sure you want to delete this record?',
-  'detail.editRecord': 'Edit record',
-  'detail.viewAll': 'View All',
-  'detail.new': 'New',
-  'detail.emptyValue': '—',
-};
-
-/**
- * Safe wrapper for useObjectTranslation that falls back to English defaults
- * when I18nProvider is not available (e.g., standalone usage).
- */
-function useDetailTranslation() {
-  try {
-    const result = useObjectTranslation();
-    const testValue = result.t('detail.back');
-    if (testValue === 'detail.back') {
-      return {
-        t: (key: string, options?: Record<string, unknown>) => {
-          let value = DETAIL_DEFAULT_TRANSLATIONS[key] || key;
-          if (options) {
-            for (const [k, v] of Object.entries(options)) {
-              value = value.replace(`{{${k}}}`, String(v));
-            }
-          }
-          return value;
-        },
-      };
-    }
-    return { t: result.t };
-  } catch {
-    return {
-      t: (key: string, options?: Record<string, unknown>) => {
-        let value = DETAIL_DEFAULT_TRANSLATIONS[key] || key;
-        if (options) {
-          for (const [k, v] of Object.entries(options)) {
-            value = value.replace(`{{${k}}}`, String(v));
-          }
-        }
-        return value;
-      },
-    };
-  }
-}
+import { useDetailTranslation } from './useDetailTranslation';
 
 export interface DetailViewProps {
   schema: DetailViewSchema;

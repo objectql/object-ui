@@ -8,51 +8,10 @@
 
 import * as React from 'react';
 import { Card, CardHeader, CardTitle, CardContent, Button } from '@object-ui/components';
-import { SchemaRenderer, useObjectTranslation } from '@object-ui/react';
+import { SchemaRenderer } from '@object-ui/react';
 import { Plus, ExternalLink } from 'lucide-react';
 import type { DataSource } from '@object-ui/types';
-
-const RELATED_TRANSLATIONS: Record<string, string> = {
-  'detail.relatedRecords': '{{count}} records',
-  'detail.relatedRecordOne': '{{count}} record',
-  'detail.noRelatedRecords': 'No related records found',
-  'detail.loading': 'Loading...',
-  'detail.viewAll': 'View All',
-  'detail.new': 'New',
-};
-
-function useRelatedTranslation() {
-  try {
-    const result = useObjectTranslation();
-    const testValue = result.t('detail.loading');
-    if (testValue === 'detail.loading') {
-      return {
-        t: (key: string, options?: Record<string, unknown>) => {
-          let value = RELATED_TRANSLATIONS[key] || key;
-          if (options) {
-            for (const [k, v] of Object.entries(options)) {
-              value = value.replace(`{{${k}}}`, String(v));
-            }
-          }
-          return value;
-        },
-      };
-    }
-    return { t: result.t };
-  } catch {
-    return {
-      t: (key: string, options?: Record<string, unknown>) => {
-        let value = RELATED_TRANSLATIONS[key] || key;
-        if (options) {
-          for (const [k, v] of Object.entries(options)) {
-            value = value.replace(`{{${k}}}`, String(v));
-          }
-        }
-        return value;
-      },
-    };
-  }
-}
+import { useDetailTranslation } from './useDetailTranslation';
 
 export interface RelatedListProps {
   title: string;
@@ -83,7 +42,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
 }) => {
   const [relatedData, setRelatedData] = React.useState(data);
   const [loading, setLoading] = React.useState(false);
-  const { t } = useRelatedTranslation();
+  const { t } = useDetailTranslation();
 
   React.useEffect(() => {
     if (api && !data.length) {

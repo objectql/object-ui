@@ -15,6 +15,7 @@ import type { DetailViewSchema } from '@object-ui/types';
 
 export { DetailView, DetailSection, DetailTabs, RelatedList };
 export { inferDetailColumns, isWideFieldType, applyAutoSpan, applyDetailAutoLayout } from './autoLayout';
+export { useDetailTranslation, DETAIL_DEFAULT_TRANSLATIONS, createSafeTranslationHook } from './useDetailTranslation';
 export { RecordComments } from './RecordComments';
 export { ActivityTimeline } from './ActivityTimeline';
 export { InlineCreateRelated } from './InlineCreateRelated';

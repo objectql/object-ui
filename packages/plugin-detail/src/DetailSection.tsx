@@ -24,28 +24,11 @@ import {
   TooltipTrigger,
 } from '@object-ui/components';
 import { ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
-import { SchemaRenderer, useObjectTranslation } from '@object-ui/react';
+import { SchemaRenderer } from '@object-ui/react';
 import { getCellRenderer } from '@object-ui/fields';
 import type { DetailViewSection as DetailViewSectionType, DetailViewField, FieldMetadata } from '@object-ui/types';
 import { applyDetailAutoLayout } from './autoLayout';
-
-const SECTION_TRANSLATIONS: Record<string, string> = {
-  'detail.copyToClipboard': 'Copy to clipboard',
-  'detail.copied': 'Copied!',
-};
-
-function useSectionTranslation() {
-  try {
-    const result = useObjectTranslation();
-    const testValue = result.t('detail.copyToClipboard');
-    if (testValue === 'detail.copyToClipboard') {
-      return { t: (key: string) => SECTION_TRANSLATIONS[key] || key };
-    }
-    return { t: result.t };
-  } catch {
-    return { t: (key: string) => SECTION_TRANSLATIONS[key] || key };
-  }
-}
+import { useDetailTranslation } from './useDetailTranslation';
 
 export interface DetailSectionProps {
   section: DetailViewSectionType;
@@ -69,7 +52,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
 }) => {
   const [isCollapsed, setIsCollapsed] = React.useState(section.defaultCollapsed ?? false);
   const [copiedField, setCopiedField] = React.useState<string | null>(null);
-  const { t } = useSectionTranslation();
+  const { t } = useDetailTranslation();
 
   const handleCopyField = React.useCallback((fieldName: string, value: any) => {
     const textValue = value !== null && value !== undefined ? String(value) : '';
