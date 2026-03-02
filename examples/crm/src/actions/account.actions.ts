@@ -4,6 +4,7 @@ export const AccountActions = [
     label: 'Send Email',
     icon: 'mail',
     type: 'api' as const,
+    target: 'account_send_email',
     locations: ['record_header' as const, 'list_item' as const],
     params: [
       { name: 'to', label: 'To Email', type: 'email' as const, required: true },
@@ -17,6 +18,7 @@ export const AccountActions = [
     label: 'Assign Owner',
     icon: 'user-plus',
     type: 'api' as const,
+    target: 'account_assign_owner',
     locations: ['record_header' as const, 'list_item' as const, 'list_toolbar' as const],
     bulkEnabled: true,
     params: [
@@ -30,6 +32,7 @@ export const AccountActions = [
     label: 'Merge Accounts',
     icon: 'git-merge',
     type: 'api' as const,
+    target: 'account_merge',
     locations: ['record_more' as const],
     confirmText: 'Are you sure you want to merge these accounts? This action cannot be undone.',
     variant: 'danger' as const,

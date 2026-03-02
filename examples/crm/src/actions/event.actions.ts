@@ -4,6 +4,7 @@ export const EventActions = [
     label: 'Send Invitation',
     icon: 'send',
     type: 'api' as const,
+    target: 'event_send_invitation',
     locations: ['record_header' as const],
     params: [
       { name: 'message', label: 'Optional Message', type: 'textarea' as const },
@@ -15,6 +16,7 @@ export const EventActions = [
     label: 'Mark as Completed',
     icon: 'check-circle',
     type: 'api' as const,
+    target: 'event_mark_completed',
     locations: ['record_header' as const],
     confirmText: 'Mark this event as completed?',
     refreshAfter: true,
@@ -25,6 +27,7 @@ export const EventActions = [
     label: 'Cancel Event',
     icon: 'x-circle',
     type: 'api' as const,
+    target: 'event_cancel',
     locations: ['record_more' as const],
     variant: 'danger' as const,
     params: [

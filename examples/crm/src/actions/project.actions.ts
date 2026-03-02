@@ -4,6 +4,7 @@ export const ProjectActions = [
     label: 'Change Status',
     icon: 'circle-check',
     type: 'api' as const,
+    target: 'task_change_status',
     objectName: 'project_task',
     locations: ['record_header' as const, 'list_item' as const],
     params: [
@@ -25,6 +26,7 @@ export const ProjectActions = [
     label: 'Assign User',
     icon: 'user-plus',
     type: 'api' as const,
+    target: 'task_assign',
     objectName: 'project_task',
     locations: ['record_header' as const, 'list_item' as const],
     params: [

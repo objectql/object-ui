@@ -4,6 +4,7 @@ export const OrderActions = [
     label: 'Change Status',
     icon: 'refresh-cw',
     type: 'api' as const,
+    target: 'order_change_status',
     locations: ['record_header' as const, 'list_item' as const],
     params: [
       {
@@ -26,6 +27,7 @@ export const OrderActions = [
     label: 'Generate Invoice',
     icon: 'file-text',
     type: 'api' as const,
+    target: 'order_generate_invoice',
     locations: ['record_header' as const],
     confirmText: 'Generate an invoice for this order?',
     successMessage: 'Invoice generated successfully',
@@ -35,6 +37,7 @@ export const OrderActions = [
     label: 'Mark as Shipped',
     icon: 'truck',
     type: 'api' as const,
+    target: 'order_mark_shipped',
     locations: ['record_header' as const],
     params: [
       { name: 'tracking_number', label: 'Tracking Number', type: 'text' as const, required: true },
