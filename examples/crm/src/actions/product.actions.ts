@@ -4,6 +4,7 @@ export const ProductActions = [
     label: 'Toggle Active',
     icon: 'toggle-left',
     type: 'api' as const,
+    target: 'product_toggle_active',
     locations: ['record_header' as const, 'list_item' as const],
     refreshAfter: true,
     successMessage: 'Product status updated',
@@ -13,6 +14,7 @@ export const ProductActions = [
     label: 'Update Price',
     icon: 'dollar-sign',
     type: 'api' as const,
+    target: 'product_update_price',
     locations: ['record_header' as const],
     params: [
       { name: 'new_price', label: 'New Price', type: 'currency' as const, required: true },
