@@ -511,7 +511,7 @@ export function App() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="object-ui-theme">
       <ConsoleToaster position="bottom-right" />
-      <ConditionalAuthWrapper authUrl="/api/auth">
+      <ConditionalAuthWrapper authUrl="/api/v1/auth">
         <PreviewBanner />
         <BrowserRouter basename={import.meta.env.BASE_URL?.replace(/\/$/, '') || '/'}>
             <Suspense fallback={<LoadingScreen />}>

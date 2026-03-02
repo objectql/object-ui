@@ -36,20 +36,20 @@ export interface AuthProviderProps extends AuthProviderConfig {
  *
  * @example
  * ```tsx
- * <AuthProvider authUrl="/api/auth">
+ * <AuthProvider authUrl="/api/v1/auth">
  *   <App />
  * </AuthProvider>
  * ```
  * 
  * @example With disabled auth (development mode)
  * ```tsx
- * <AuthProvider authUrl="/api/auth" enabled={false}>
+ * <AuthProvider authUrl="/api/v1/auth" enabled={false}>
  *   <App />
  * </AuthProvider>
  * ```
  * @example With preview mode (marketplace demo)
  * ```tsx
- * <AuthProvider authUrl="/api/auth" previewMode={{ simulatedRole: 'admin', bannerMessage: 'Demo mode' }}>
+ * <AuthProvider authUrl="/api/v1/auth" previewMode={{ simulatedRole: 'admin', bannerMessage: 'Demo mode' }}>
  *   <App />
  * </AuthProvider>
  * ```

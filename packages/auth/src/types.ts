@@ -86,7 +86,7 @@ export interface SignUpData {
 
 /** Auth client configuration */
 export interface AuthClientConfig {
-  /** Authentication server URL (e.g., "/api/auth") */
+  /** Authentication server URL (e.g., "/api/v1/auth") */
   baseURL: string;
   /** Custom fetch function for requests */
   fetchFn?: typeof fetch;

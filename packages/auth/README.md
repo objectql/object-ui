@@ -147,7 +147,7 @@ import { AuthProvider, PreviewBanner } from '@object-ui/auth';
 function App() {
   return (
     <AuthProvider
-      authUrl="/api/auth"
+      authUrl="/api/v1/auth"
       previewMode={{
         simulatedRole: 'admin',
         simulatedUserName: 'Demo Admin',

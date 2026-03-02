@@ -32,7 +32,7 @@ export interface AuthenticatedAdapterOptions {
  * import { ObjectStackAdapter } from '@object-ui/data-objectstack';
  * import { createAuthClient, createAuthenticatedFetch } from '@object-ui/auth';
  *
- * const authClient = createAuthClient({ baseURL: '/api/auth' });
+ * const authClient = createAuthClient({ baseURL: '/api/v1/auth' });
  * const authenticatedFetch = createAuthenticatedFetch(authClient);
  *
  * const adapter = new ObjectStackAdapter({

@@ -17,7 +17,7 @@ import type { AuthClient, AuthClientConfig, AuthUser, AuthSession, SignInCredent
  *
  * @example
  * ```ts
- * const authClient = createAuthClient({ baseURL: '/api/auth' });
+ * const authClient = createAuthClient({ baseURL: '/api/v1/auth' });
  * const { user, session } = await authClient.signIn({ email, password });
  * ```
  */
