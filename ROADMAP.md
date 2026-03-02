@@ -1436,6 +1436,41 @@ All 313 `@object-ui/fields` tests pass.
 
 ---
 
+## 📦 Detail Page & Related List i18n (P1.15)
+
+> **Goal:** Salesforce-style detail page enhancements: i18n for all detail page UI elements, improved empty value display, related list actions, and auto-discovery of related lists.
+
+**i18n Integration:**
+- [x] Add `detail.*` translation keys to all 11 locale files (en, zh, ja, de, fr, es, ar, ru, pt, ko)
+- [x] `useDetailTranslation` safe wrapper hook with English fallback (follows existing useGridTranslation/useListViewTranslation pattern)
+- [x] DetailView fully i18n-integrated (Back, Edit, Share, Delete, Duplicate, Export, View history, Record not found, Related heading, favorites, navigation)
+- [x] DetailSection copy tooltip i18n via `useSectionTranslation`
+- [x] RelatedList i18n-integrated (record counts, loading, empty state)
+- [x] Add `'detail'` to `BUILTIN_KEYS` in `useObjectLabel.ts` to prevent namespace collision
+
+**Empty Value Display:**
+- [x] Replace hardcoded `-` with styled em-dash (`—`) using `text-muted-foreground/50 text-xs italic` for elegant empty state
+
+**Related List Enhancements:**
+- [x] Add `onNew` prop and "New" button to RelatedList header
+- [x] Add `onViewAll` prop and "View All" button to RelatedList header
+- [x] Record count uses singular/plural i18n keys
+
+**Tests:**
+- [x] 10 new RelatedList tests (title, record counts, empty state, New/View All buttons)
+- [x] 2 new DetailView i18n fallback tests (Record not found text, Related heading)
+- [x] Updated DetailSection tests for new empty value styling
+
+**Remaining (future PRs):**
+- [ ] Auto-discover related lists from objectSchema reference fields
+- [ ] Tab layout (Details/Related/Activity) for detail page
+- [ ] Related list row-level Edit/Delete quick actions
+- [ ] Related list pagination, sorting, filtering
+- [ ] Collapsible section groups
+- [ ] Header highlight area with key fields
+
+---
+
 ## 📚 Reference
 
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — Contribution guidelines
