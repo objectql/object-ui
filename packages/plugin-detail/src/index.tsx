@@ -14,6 +14,8 @@ import { RelatedList } from './RelatedList';
 import type { DetailViewSchema } from '@object-ui/types';
 
 export { DetailView, DetailSection, DetailTabs, RelatedList };
+export { SectionGroup } from './SectionGroup';
+export { HeaderHighlight } from './HeaderHighlight';
 export { inferDetailColumns, isWideFieldType, applyAutoSpan, applyDetailAutoLayout } from './autoLayout';
 export { useDetailTranslation, DETAIL_DEFAULT_TRANSLATIONS, createSafeTranslationHook } from './useDetailTranslation';
 export { RecordComments } from './RecordComments';
@@ -37,6 +39,8 @@ export type { DetailViewProps } from './DetailView';
 export type { DetailSectionProps } from './DetailSection';
 export type { DetailTabsProps } from './DetailTabs';
 export type { RelatedListProps } from './RelatedList';
+export type { SectionGroupProps } from './SectionGroup';
+export type { HeaderHighlightProps } from './HeaderHighlight';
 export type { RecordCommentsProps } from './RecordComments';
 export type { ActivityTimelineProps, ActivityFilterType } from './ActivityTimeline';
 export type { InlineCreateRelatedProps, RelatedFieldDefinition, RelatedRecordOption } from './InlineCreateRelated';

@@ -21,6 +21,10 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
 } from '@object-ui/components';
 import { 
   ArrowLeft, 
@@ -40,6 +44,8 @@ import {
 import { DetailSection } from './DetailSection';
 import { DetailTabs } from './DetailTabs';
 import { RelatedList } from './RelatedList';
+import { SectionGroup } from './SectionGroup';
+import { HeaderHighlight } from './HeaderHighlight';
 import { RecordComments } from './RecordComments';
 import { ActivityTimeline } from './ActivityTimeline';
 import { SchemaRenderer } from '@object-ui/react';
@@ -288,6 +294,40 @@ export const DetailView: React.FC<DetailViewProps> = ({
     return () => document.removeEventListener('keydown', handler);
   }, [schema.recordNavigation]);
 
+  // Auto-discover related lists from objectSchema reference fields
+  const discoveredRelated = React.useMemo(() => {
+    if (!schema.autoDiscoverRelated || !objectSchema?.fields) return [];
+    // Only auto-discover when no explicit related config is provided
+    if (schema.related && schema.related.length > 0) return [];
+    const refs: Array<{ title: string; type: 'list' | 'grid' | 'table'; objectName: string; referenceField: string }> = [];
+    const fields = objectSchema.fields;
+    for (const [fieldName, fieldDef] of Object.entries<any>(fields)) {
+      if (
+        fieldDef &&
+        (fieldDef.type === 'lookup' || fieldDef.type === 'master_detail') &&
+        fieldDef.reference_to
+      ) {
+        refs.push({
+          title: fieldDef.label || fieldName.charAt(0).toUpperCase() + fieldName.slice(1),
+          type: 'table',
+          objectName: fieldDef.reference_to,
+          referenceField: fieldName,
+        });
+      }
+    }
+    return refs;
+  }, [schema.autoDiscoverRelated, schema.related, objectSchema]);
+
+  // Merge explicit and auto-discovered related lists
+  const effectiveRelated = React.useMemo(() => {
+    if (schema.related && schema.related.length > 0) return schema.related;
+    return discoveredRelated.map((r) => ({
+      title: r.title,
+      type: r.type,
+      data: [] as any[],
+    }));
+  }, [schema.related, discoveredRelated]);
+
   if (loading || schema.loading) {
     return (
       <div className={cn('space-y-4', className)}>
@@ -528,70 +568,205 @@ export const DetailView: React.FC<DetailViewProps> = ({
         </div>
       )}
 
-      {/* Sections */}
-      {schema.sections && schema.sections.length > 0 && (
-        <div className="space-y-3 sm:space-y-4">
-          {schema.sections.map((section, index) => (
+      {/* Header Highlight Area */}
+      {schema.highlightFields && schema.highlightFields.length > 0 && (
+        <HeaderHighlight fields={schema.highlightFields} data={data} />
+      )}
+
+      {/* Auto Tabs mode: wrap sections, related, activity into tabs */}
+      {schema.autoTabs && !schema.tabs?.length ? (
+        <Tabs defaultValue="details" className="w-full">
+          <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0">
+            <TabsTrigger
+              value="details"
+              className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            >
+              {t('detail.details')}
+            </TabsTrigger>
+            {effectiveRelated.length > 0 && (
+              <TabsTrigger
+                value="related"
+                className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              >
+                <span className="flex items-center gap-1.5">
+                  {t('detail.related')}
+                  <Badge variant="secondary" className="text-xs">{effectiveRelated.length}</Badge>
+                </span>
+              </TabsTrigger>
+            )}
+            {schema.activities && schema.activities.length > 0 && (
+              <TabsTrigger
+                value="activity"
+                className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              >
+                <span className="flex items-center gap-1.5">
+                  {t('detail.activity')}
+                  <Badge variant="secondary" className="text-xs">{schema.activities.length}</Badge>
+                </span>
+              </TabsTrigger>
+            )}
+          </TabsList>
+
+          {/* Details Tab Content */}
+          <TabsContent value="details" className="mt-4">
+            <div className="space-y-3 sm:space-y-4">
+              {/* Section Groups */}
+              {schema.sectionGroups && schema.sectionGroups.length > 0 && (
+                schema.sectionGroups.map((group, index) => (
+                  <SectionGroup
+                    key={index}
+                    group={group}
+                    data={{ ...data, ...editedValues }}
+                    objectSchema={objectSchema}
+                    isEditing={isInlineEditing}
+                    onFieldChange={handleInlineFieldChange}
+                  />
+                ))
+              )}
+              {schema.sections && schema.sections.length > 0 && (
+                schema.sections.map((section, index) => (
+                  <DetailSection
+                    key={index}
+                    section={section}
+                    data={{ ...data, ...editedValues }}
+                    objectSchema={objectSchema}
+                    isEditing={isInlineEditing}
+                    onFieldChange={handleInlineFieldChange}
+                  />
+                ))
+              )}
+              {schema.fields && schema.fields.length > 0 && !schema.sections?.length && (
+                <DetailSection
+                  section={{
+                    fields: schema.fields,
+                    columns: schema.columns,
+                  }}
+                  data={{ ...data, ...editedValues }}
+                  objectSchema={objectSchema}
+                  isEditing={isInlineEditing}
+                  onFieldChange={handleInlineFieldChange}
+                />
+              )}
+              {/* Comments in details tab */}
+              {schema.comments && (
+                <RecordComments
+                  comments={schema.comments}
+                  onAddComment={schema.onAddComment}
+                />
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Related Tab Content */}
+          {effectiveRelated.length > 0 && (
+            <TabsContent value="related" className="mt-4">
+              <div className="space-y-4">
+                {effectiveRelated.map((related, index) => (
+                  <RelatedList
+                    key={index}
+                    title={related.title}
+                    type={related.type}
+                    api={related.api}
+                    data={related.data}
+                    columns={related.columns as any}
+                    dataSource={dataSource}
+                  />
+                ))}
+              </div>
+            </TabsContent>
+          )}
+
+          {/* Activity Tab Content */}
+          {schema.activities && schema.activities.length > 0 && (
+            <TabsContent value="activity" className="mt-4">
+              <ActivityTimeline activities={schema.activities} />
+            </TabsContent>
+          )}
+        </Tabs>
+      ) : (
+        <>
+          {/* Section Groups */}
+          {schema.sectionGroups && schema.sectionGroups.length > 0 && (
+            <div className="space-y-3 sm:space-y-4">
+              {schema.sectionGroups.map((group, index) => (
+                <SectionGroup
+                  key={index}
+                  group={group}
+                  data={{ ...data, ...editedValues }}
+                  objectSchema={objectSchema}
+                  isEditing={isInlineEditing}
+                  onFieldChange={handleInlineFieldChange}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Sections */}
+          {schema.sections && schema.sections.length > 0 && (
+            <div className="space-y-3 sm:space-y-4">
+              {schema.sections.map((section, index) => (
+                <DetailSection
+                  key={index}
+                  section={section}
+                  data={{ ...data, ...editedValues }}
+                  objectSchema={objectSchema}
+                  isEditing={isInlineEditing}
+                  onFieldChange={handleInlineFieldChange}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Direct Fields (if no sections) */}
+          {schema.fields && schema.fields.length > 0 && !schema.sections?.length && (
             <DetailSection
-              key={index}
-              section={section}
+              section={{
+                fields: schema.fields,
+                columns: schema.columns,
+              }}
               data={{ ...data, ...editedValues }}
               objectSchema={objectSchema}
               isEditing={isInlineEditing}
               onFieldChange={handleInlineFieldChange}
             />
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* Direct Fields (if no sections) */}
-      {schema.fields && schema.fields.length > 0 && !schema.sections?.length && (
-        <DetailSection
-          section={{
-            fields: schema.fields,
-            columns: schema.columns,
-          }}
-          data={{ ...data, ...editedValues }}
-          objectSchema={objectSchema}
-          isEditing={isInlineEditing}
-          onFieldChange={handleInlineFieldChange}
-        />
-      )}
+          {/* Tabs */}
+          {schema.tabs && schema.tabs.length > 0 && (
+            <DetailTabs tabs={schema.tabs} data={data} />
+          )}
 
-      {/* Tabs */}
-      {schema.tabs && schema.tabs.length > 0 && (
-        <DetailTabs tabs={schema.tabs} data={data} />
-      )}
+          {/* Related Lists */}
+          {effectiveRelated.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold">{t('detail.related')}</h2>
+              {effectiveRelated.map((related, index) => (
+                <RelatedList
+                  key={index}
+                  title={related.title}
+                  type={related.type}
+                  api={related.api}
+                  data={related.data}
+                  columns={related.columns as any}
+                  dataSource={dataSource}
+                />
+              ))}
+            </div>
+          )}
 
-      {/* Related Lists */}
-      {schema.related && schema.related.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">{t('detail.related')}</h2>
-          {schema.related.map((related, index) => (
-            <RelatedList
-              key={index}
-              title={related.title}
-              type={related.type}
-              api={related.api}
-              data={related.data}
-              columns={related.columns as any}
-              dataSource={dataSource}
+          {/* Comments */}
+          {schema.comments && (
+            <RecordComments
+              comments={schema.comments}
+              onAddComment={schema.onAddComment}
             />
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* Comments */}
-      {schema.comments && (
-        <RecordComments
-          comments={schema.comments}
-          onAddComment={schema.onAddComment}
-        />
-      )}
-
-      {/* Activity Timeline */}
-      {schema.activities && schema.activities.length > 0 && (
-        <ActivityTimeline activities={schema.activities} />
+          {/* Activity Timeline */}
+          {schema.activities && schema.activities.length > 0 && (
+            <ActivityTimeline activities={schema.activities} />
+          )}
+        </>
       )}
 
       {/* Custom Footer */}

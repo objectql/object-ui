@@ -7,9 +7,24 @@
  */
 
 import * as React from 'react';
-import { Card, CardHeader, CardTitle, CardContent, Button } from '@object-ui/components';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  Button,
+  Input,
+} from '@object-ui/components';
 import { SchemaRenderer } from '@object-ui/react';
-import { Plus, ExternalLink } from 'lucide-react';
+import {
+  Plus,
+  ExternalLink,
+  Edit,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUpDown,
+} from 'lucide-react';
 import type { DataSource } from '@object-ui/types';
 import { useDetailTranslation } from './useDetailTranslation';
 
@@ -26,6 +41,16 @@ export interface RelatedListProps {
   onNew?: () => void;
   /** Callback when "View All" button is clicked */
   onViewAll?: () => void;
+  /** Callback when a row Edit action is clicked */
+  onRowEdit?: (row: any) => void;
+  /** Callback when a row Delete action is clicked */
+  onRowDelete?: (row: any) => void;
+  /** Page size for pagination (enables pagination when set) */
+  pageSize?: number;
+  /** Enable column sorting */
+  sortable?: boolean;
+  /** Enable text filtering */
+  filterable?: boolean;
 }
 
 export const RelatedList: React.FC<RelatedListProps> = ({
@@ -39,9 +64,18 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   dataSource,
   onNew,
   onViewAll,
+  onRowEdit,
+  onRowDelete,
+  pageSize,
+  sortable = false,
+  filterable = false,
 }) => {
   const [relatedData, setRelatedData] = React.useState(data);
   const [loading, setLoading] = React.useState(false);
+  const [currentPage, setCurrentPage] = React.useState(0);
+  const [sortField, setSortField] = React.useState<string | null>(null);
+  const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('asc');
+  const [filterText, setFilterText] = React.useState('');
   const { t } = useDetailTranslation();
 
   React.useEffect(() => {
@@ -75,6 +109,58 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     }
   }, [api, data, dataSource]);
 
+  // Filter data
+  const filteredData = React.useMemo(() => {
+    if (!filterText) return relatedData;
+    const lower = filterText.toLowerCase();
+    return relatedData.filter((row) =>
+      Object.values(row).some((val) =>
+        val !== null && val !== undefined && String(val).toLowerCase().includes(lower)
+      )
+    );
+  }, [relatedData, filterText]);
+
+  // Sort data
+  const sortedData = React.useMemo(() => {
+    if (!sortField) return filteredData;
+    return [...filteredData].sort((a, b) => {
+      const aVal = a[sortField];
+      const bVal = b[sortField];
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+      const cmp = String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+  }, [filteredData, sortField, sortDirection]);
+
+  // Paginate data
+  const effectivePageSize = pageSize && pageSize > 0 ? pageSize : 0;
+  const totalPages = effectivePageSize ? Math.max(1, Math.ceil(sortedData.length / effectivePageSize)) : 1;
+  const paginatedData = effectivePageSize
+    ? sortedData.slice(currentPage * effectivePageSize, (currentPage + 1) * effectivePageSize)
+    : sortedData;
+
+  // Reset to first page when filter/sort changes
+  React.useEffect(() => {
+    setCurrentPage(0);
+  }, [filterText, sortField, sortDirection]);
+
+  const handleSort = React.useCallback((field: string) => {
+    if (sortField === field) {
+      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  }, [sortField]);
+
+  const handleDeleteRow = React.useCallback((row: any) => {
+    if (window.confirm(t('detail.deleteRowConfirmation'))) {
+      onRowDelete?.(row);
+    }
+  }, [onRowDelete, t]);
+
   const viewSchema = React.useMemo(() => {
     if (schema) return schema;
 
@@ -84,24 +170,26 @@ export const RelatedList: React.FC<RelatedListProps> = ({
       case 'table':
         return {
           type: 'data-table',
-          data: relatedData,
+          data: paginatedData,
           columns: columns || [],
-          pagination: relatedData.length > 10,
-          pageSize: 10,
+          pagination: false, // We handle pagination ourselves
+          pageSize: effectivePageSize || 10,
         };
       case 'list':
         return {
           type: 'data-list',
-          data: relatedData,
+          data: paginatedData,
         };
       default:
         return { type: 'div', children: 'No view configured' };
     }
-  }, [type, relatedData, columns, schema]);
+  }, [type, paginatedData, columns, schema, effectivePageSize]);
 
   const recordCountText = relatedData.length === 1
     ? t('detail.relatedRecordOne', { count: relatedData.length })
     : t('detail.relatedRecords', { count: relatedData.length });
+
+  const hasRowActions = !!onRowEdit || !!onRowDelete;
 
   return (
     <Card className={className}>
@@ -130,6 +218,43 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {/* Filter bar */}
+        {filterable && relatedData.length > 0 && (
+          <div className="mb-3">
+            <Input
+              placeholder={t('detail.filterPlaceholder')}
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+        )}
+
+        {/* Sortable column headers */}
+        {sortable && columns && columns.length > 0 && relatedData.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {columns.map((col: any) => {
+              const field = col.accessorKey || col.field || col.name;
+              if (!field) return null;
+              const label = col.header || col.label || field;
+              const isActive = sortField === field;
+              return (
+                <Button
+                  key={field}
+                  variant={isActive ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="gap-1 h-7 text-xs"
+                  onClick={() => handleSort(field)}
+                >
+                  <ArrowUpDown className="h-3 w-3" />
+                  {label}
+                  {isActive && (sortDirection === 'asc' ? ' ↑' : ' ↓')}
+                </Button>
+              );
+            })}
+          </div>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">
             {t('detail.loading')}
@@ -139,7 +264,75 @@ export const RelatedList: React.FC<RelatedListProps> = ({
             {t('detail.noRelatedRecords')}
           </div>
         ) : (
-          <SchemaRenderer schema={viewSchema} />
+          <>
+            <SchemaRenderer schema={viewSchema} />
+
+            {/* Row-level actions (rendered as a simple action list below data) */}
+            {hasRowActions && paginatedData.length > 0 && (
+              <div className="mt-2 space-y-1" data-testid="row-actions">
+                {paginatedData.map((row, idx) => (
+                  <div key={row.id || idx} className="flex items-center justify-between px-2 py-1 text-xs border-b last:border-b-0">
+                    <span className="truncate text-muted-foreground">
+                      {row.name || row.title || row.id || `Row ${idx + 1}`}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {onRowEdit && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs gap-1 px-2"
+                          onClick={() => onRowEdit(row)}
+                        >
+                          <Edit className="h-3 w-3" />
+                          {t('detail.editRow')}
+                        </Button>
+                      )}
+                      {onRowDelete && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs gap-1 px-2 text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteRow(row)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          {t('detail.deleteRow')}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Pagination controls */}
+        {effectivePageSize > 0 && sortedData.length > effectivePageSize && (
+          <div className="flex items-center justify-between mt-3 pt-3 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              disabled={currentPage === 0}
+              onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+            >
+              <ChevronLeft className="h-3 w-3" />
+              {t('detail.previousPage')}
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {t('detail.pageOf', { current: currentPage + 1, total: totalPages })}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              disabled={currentPage >= totalPages - 1}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+            >
+              {t('detail.nextPage')}
+              <ChevronRight className="h-3 w-3" />
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>

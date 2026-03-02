@@ -711,6 +711,8 @@ export type {
   DetailViewField,
   DetailViewSection,
   DetailViewTab,
+  SectionGroup,
+  HighlightField,
   ViewSwitcherSchema,
   FilterUISchema,
   SortUISchema,

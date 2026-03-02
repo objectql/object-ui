@@ -1461,13 +1461,13 @@ All 313 `@object-ui/fields` tests pass.
 - [x] 2 new DetailView i18n fallback tests (Record not found text, Related heading)
 - [x] Updated DetailSection tests for new empty value styling
 
-**Remaining (future PRs):**
-- [ ] Auto-discover related lists from objectSchema reference fields
-- [ ] Tab layout (Details/Related/Activity) for detail page
-- [ ] Related list row-level Edit/Delete quick actions
-- [ ] Related list pagination, sorting, filtering
-- [ ] Collapsible section groups
-- [ ] Header highlight area with key fields
+**Completed:**
+- [x] Auto-discover related lists from objectSchema reference fields
+- [x] Tab layout (Details/Related/Activity) for detail page
+- [x] Related list row-level Edit/Delete quick actions
+- [x] Related list pagination, sorting, filtering
+- [x] Collapsible section groups
+- [x] Header highlight area with key fields
 
 ---
 
