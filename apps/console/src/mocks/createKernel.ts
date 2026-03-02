@@ -102,14 +102,23 @@ async function installBrokerShim(kernel: ObjectKernel): Promise<void> {
  * generated identity as `id`. Seed data may also carry its own
  * `_id` that differs from the driver-assigned `id`.
  *
- * This helper ensures every record has `_id === id` so that
- * protocol lookups via `_id` match the driver-assigned `id`.
+ * When seed data provides an explicit `_id`, that value is promoted
+ * to `id` so that record identifiers remain stable across page
+ * refreshes (the driver would otherwise generate a new timestamp-based
+ * `id` every time the in-memory kernel reboots).
+ *
+ * When no explicit `_id` exists, `_id` is derived from the
+ * driver-assigned `id` so protocol lookups still work.
  */
 function syncDriverIds(driver: InMemoryDriver): void {
   const db = (driver as any).db as Record<string, any[]>;
   for (const records of Object.values(db)) {
     for (const record of records) {
-      if (record.id) {
+      if (record._id != null && record._id !== record.id) {
+        // Seed data carries an explicit _id → promote it to canonical id
+        record.id = record._id;
+      } else if (record.id) {
+        // No explicit seed _id → derive _id from driver-assigned id
         record._id = record.id;
       }
     }

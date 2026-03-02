@@ -289,6 +289,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
           $top: 1,
         };
         const result = await this.rawFindWithPopulate(resource, findParams);
+        // Handle array responses (some servers return data as flat arrays)
+        if (Array.isArray(result)) {
+          return result[0] || null;
+        }
         const resultObj = result as { records?: T[]; value?: T[] };
         const records = resultObj.records || resultObj.value || [];
         return records[0] || null;
