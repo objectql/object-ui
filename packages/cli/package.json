@@ -50,7 +50,7 @@
     "@object-ui/components": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@oclif/core": "^4.8.1",
+    "@oclif/core": "^4.8.2",
     "@types/glob": "^9.0.0",
     "@vitejs/plugin-react": "^5.1.4",
     "chalk": "^5.6.2",

@@ -134,7 +134,7 @@
     "@objectstack/plugin-hono-server": "^3.2.0",
     "@objectstack/studio": "^3.2.0",
     "coverage-v8": "0.0.1-security",
-    "hono": "^4.12.2",
+    "hono": "^4.12.3",
     "pino": "^8.21.0",
     "pino-pretty": "^13.1.3"
   },

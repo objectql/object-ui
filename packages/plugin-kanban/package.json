@@ -38,7 +38,7 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@tanstack/react-virtual": "^3.13.18",
+    "@tanstack/react-virtual": "^3.13.19",
     "lucide-react": "^0.575.0"
   },
   "peerDependencies": {
