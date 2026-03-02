@@ -1,5 +1,11 @@
 # @object-ui/console
 
+## 4.0.0
+
+### Minor Changes
+
+- e5aa689: Unify all package versions with a minor release bump
+
 ## 3.0.3
 
 ### Patch Changes

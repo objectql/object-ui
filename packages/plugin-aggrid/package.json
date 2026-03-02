@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-aggrid",
-  "version": "3.0.3",
+  "version": "4.0.0",
   "type": "module",
   "license": "MIT",
   "description": "AG Grid data grid plugin for Object UI, powered by AG Grid Community",
@@ -49,10 +49,8 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "^5.1.4",
-  
     "ag-grid-react": "^35.1.0",
     "ag-grid-community": "^35.1.0",
-
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vite-plugin-dts": "^4.5.4"

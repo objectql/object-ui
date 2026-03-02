@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.0.0
+
+### Minor Changes
+
+- e5aa689: Unify all package versions with a minor release bump
+
+### Patch Changes
+
+- Updated dependencies [e5aa689]
+  - @object-ui/types@4.0.0
+  - @object-ui/core@4.0.0
+
 ## 3.0.3
 
 ### Patch Changes

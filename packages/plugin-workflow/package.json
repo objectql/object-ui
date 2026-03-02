@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-workflow",
-  "version": "3.0.3",
+  "version": "4.0.0",
   "type": "module",
   "main": "dist/index.umd.cjs",
   "module": "dist/index.js",
