@@ -91,6 +91,17 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.viewAll': 'View All',
   'detail.new': 'New',
   'detail.emptyValue': '—',
+  'detail.activity': 'Activity',
+  'detail.editRow': 'Edit',
+  'detail.deleteRow': 'Delete',
+  'detail.deleteRowConfirmation': 'Are you sure you want to delete this record?',
+  'detail.actions': 'Actions',
+  'detail.previousPage': 'Previous',
+  'detail.nextPage': 'Next',
+  'detail.pageOf': 'Page {{current}} of {{total}}',
+  'detail.sortBy': 'Sort by',
+  'detail.filterPlaceholder': 'Filter...',
+  'detail.highlightFields': 'Key Fields',
 };
 
 /**

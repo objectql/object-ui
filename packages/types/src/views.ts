@@ -91,6 +91,52 @@ export interface DetailViewField {
 }
 
 /**
+ * Collapsible Section Group — groups multiple DetailViewSections under
+ * a single collapsible header.
+ */
+export interface SectionGroup {
+  /**
+   * Group title
+   */
+  title: string;
+  /**
+   * Group description
+   */
+  description?: string;
+  /**
+   * Group icon
+   */
+  icon?: string;
+  /**
+   * Whether the group is collapsible
+   * @default true
+   */
+  collapsible?: boolean;
+  /**
+   * Default collapsed state
+   */
+  defaultCollapsed?: boolean;
+  /**
+   * Sections in this group
+   */
+  sections: DetailViewSection[];
+}
+
+/**
+ * Header Highlight Field — a key field to display prominently in the header area.
+ */
+export interface HighlightField {
+  /** Field name from the record data */
+  name: string;
+  /** Display label */
+  label: string;
+  /** Optional field type for formatting */
+  type?: DetailViewField['type'];
+  /** Optional icon */
+  icon?: string;
+}
+
+/**
  * Detail View Section/Group
  */
 export interface DetailViewSection {
@@ -511,6 +557,28 @@ export interface DetailViewSchema extends BaseSchema {
      */
     fields?: string[];
   }>;
+  /**
+   * When true, auto-discover related lists from objectSchema reference fields
+   * (lookup, master_detail) when no explicit `related` is provided.
+   * Requires a DataSource with getObjectSchema.
+   * @default false
+   */
+  autoDiscoverRelated?: boolean;
+  /**
+   * When true, automatically generate Details/Related/Activity tabs
+   * when no explicit `tabs` are configured. Sections go into the Details tab,
+   * related lists go into the Related tab, and activities go into the Activity tab.
+   * @default false
+   */
+  autoTabs?: boolean;
+  /**
+   * Section groups — groups of sections rendered under a collapsible header.
+   */
+  sectionGroups?: SectionGroup[];
+  /**
+   * Key fields to display prominently in a highlight banner below the header.
+   */
+  highlightFields?: HighlightField[];
   /**
    * Record navigation configuration for prev/next navigation.
    * Allows navigating through a result set from within the detail view.
