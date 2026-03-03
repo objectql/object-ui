@@ -68,6 +68,13 @@ const dateOperators = ["equals", "notEquals", "before", "after", "between", "isE
 const selectOperators = ["equals", "notEquals", "in", "notIn", "isEmpty", "isNotEmpty"]
 const lookupOperators = ["equals", "notEquals", "in", "notIn", "isEmpty", "isNotEmpty"]
 
+/** Normalize a filter value into an array for multi-select scenarios */
+function normalizeToArray(value: FilterCondition["value"]): (string | number | boolean)[] {
+  if (Array.isArray(value)) return value
+  if (value !== undefined && value !== null && value !== "") return [value as string | number | boolean]
+  return []
+}
+
 function FilterBuilder({
   fields = [],
   value,
@@ -183,9 +190,7 @@ function FilterBuilder({
     
     // For select/lookup fields with options and multi-select operator (in/notIn)
     if (field?.options && isMultiOperator) {
-      const selectedValues = Array.isArray(condition.value)
-        ? (condition.value as (string | number | boolean)[])
-        : condition.value ? [condition.value] : []
+      const selectedValues = normalizeToArray(condition.value)
       return (
         <div className="max-h-40 overflow-y-auto space-y-0.5 border rounded-md p-2">
           {field.options.map((opt) => {

@@ -175,9 +175,10 @@ export const FilterUI: React.FC<FilterUIProps> = ({
           </Select>
         );
       case 'multi-select': {
-        const selectedValues: any[] = Array.isArray(values[filter.field])
-          ? values[filter.field]
-          : values[filter.field] ? [values[filter.field]] : [];
+        const currentVal = values[filter.field];
+        const selectedValues: (string | number | boolean)[] = Array.isArray(currentVal)
+          ? currentVal
+          : currentVal ? [currentVal] : [];
         return (
           <div className="max-h-40 overflow-y-auto space-y-0.5 border rounded-md p-2">
             {filter.options?.map(option => {
