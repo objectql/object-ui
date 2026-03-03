@@ -31,7 +31,6 @@ import { useAuth } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
 import { useNavigationOverlay, SchemaRenderer } from '@object-ui/react';
 
-/** Map view types to Lucide icons (Airtable-style) */
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User' };
 
 /**
