@@ -6,7 +6,7 @@
  * the object field definitions.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { DetailView, RecordChatterPanel } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
@@ -15,7 +15,7 @@ import { useAuth } from '@object-ui/auth';
 import { Database, Users } from 'lucide-react';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { SkeletonDetail } from './skeletons';
-import type { DetailViewSchema, FeedItem } from '@object-ui/types';
+import type { DetailViewSchema, FeedItem, HighlightField, SectionGroup } from '@object-ui/types';
 
 interface RecordDetailViewProps {
   dataSource: any;
@@ -25,6 +25,9 @@ interface RecordDetailViewProps {
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User' };
 
+/** Field names automatically promoted to the highlight banner when present. */
+const HIGHLIGHT_FIELD_NAMES = ['status', 'stage', 'priority', 'category', 'type', 'owner', 'amount'];
+
 export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailViewProps) {
   const { objectName, recordId } = useParams();
   const { showDebug } = useMetadataInspector();
@@ -32,12 +35,66 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
   const [isLoading, setIsLoading] = useState(true);
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [recordViewers, setRecordViewers] = useState<PresenceUser[]>([]);
+  const [childRelatedData, setChildRelatedData] = useState<Record<string, any[]>>({});
   const objectDef = objects.find((o: any) => o.name === objectName);
 
   // Use the URL recordId as-is — it contains the actual record _id.
   // Navigation code passes `record._id || record.id` directly into the URL
   // without adding any prefix, so no stripping is needed.
   const pureRecordId = recordId;
+
+  // Discover reverse references: other objects with lookup/master_detail fields
+  // pointing to the current object (e.g., order_item.order → order).
+  const childRelations = useMemo(() => {
+    if (!objectDef || !objects) return [];
+    const relations: Array<{ childObject: string; childLabel: string; referenceField: string }> = [];
+    for (const obj of objects) {
+      if (obj.name === objectDef.name) continue;
+      for (const [fieldName, fieldDef] of Object.entries<any>(obj.fields || {})) {
+        if (
+          fieldDef &&
+          (fieldDef.type === 'lookup' || fieldDef.type === 'master_detail') &&
+          (fieldDef.reference_to || fieldDef.reference) === objectDef.name
+        ) {
+          relations.push({
+            childObject: obj.name,
+            childLabel: obj.label || obj.name,
+            referenceField: fieldName,
+          });
+        }
+      }
+    }
+    return relations;
+  }, [objectDef, objects]);
+
+  // Fetch related child records for each reverse reference
+  useEffect(() => {
+    if (!dataSource || !pureRecordId || childRelations.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      childRelations.map(({ childObject, referenceField }) =>
+        dataSource.find(childObject, {
+          $filter: { [referenceField]: pureRecordId },
+        })
+          .then((res: any) => {
+            const items = Array.isArray(res) ? res : res?.data || [];
+            return { childObject, items };
+          })
+          .catch((err: any) => {
+            console.warn(`[RecordDetailView] Failed to fetch related ${childObject}:`, err);
+            return { childObject, items: [] as any[] };
+          })
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      const data: Record<string, any[]> = {};
+      for (const { childObject, items } of results) {
+        data[childObject] = items;
+      }
+      setChildRelatedData(data);
+    });
+    return () => { cancelled = true; };
+  }, [dataSource, pureRecordId, childRelations]);
 
   const currentUser = user
     ? { id: user.id, name: user.name, avatar: user.image }
@@ -223,12 +280,13 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
             console.warn(`[RecordDetailView] Field "${fieldName}" not found in ${objectDef.name} definition`);
             return { name: fieldName, label: fieldName };
           }
+          const refTarget = fieldDef.reference_to || fieldDef.reference;
           return {
             name: fieldName,
             label: fieldDef.label || fieldName,
             type: fieldDef.type || 'text',
             ...(fieldDef.options && { options: fieldDef.options }),
-            ...(fieldDef.reference_to && { reference_to: fieldDef.reference_to }),
+            ...(refTarget && { reference_to: refTarget }),
             ...(fieldDef.reference_field && { reference_field: fieldDef.reference_field }),
             ...(fieldDef.currency && { currency: fieldDef.currency }),
           };
@@ -239,12 +297,13 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
           title: 'Details',
           fields: Object.keys(objectDef.fields || {}).map(key => {
             const fieldDef = objectDef.fields[key];
+            const refTarget = fieldDef.reference_to || fieldDef.reference;
             return {
               name: key,
               label: fieldDef.label || key,
               type: fieldDef.type || 'text',
               ...(fieldDef.options && { options: fieldDef.options }),
-              ...(fieldDef.reference_to && { reference_to: fieldDef.reference_to }),
+              ...(refTarget && { reference_to: refTarget }),
               ...(fieldDef.reference_field && { reference_field: fieldDef.reference_field }),
               ...(fieldDef.currency && { currency: fieldDef.currency }),
             };
@@ -257,6 +316,28 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
     (a: any) => a.locations?.includes('record_header'),
   );
 
+  // Build highlightFields: prefer explicit config, fallback to auto-detect key fields
+  const explicitHighlight: HighlightField[] | undefined = objectDef.views?.detail?.highlightFields;
+  const highlightFields: HighlightField[] = explicitHighlight
+    ?? Object.entries(objectDef.fields || {})
+      .filter(([key]: [string, any]) => HIGHLIGHT_FIELD_NAMES.includes(key))
+      .map(([key, def]: [string, any]) => ({
+        name: key,
+        label: def.label || key,
+        ...(def.type && { type: def.type }),
+      }));
+
+  // Build sectionGroups from objectDef detail/form config if available
+  const sectionGroups: SectionGroup[] | undefined =
+    objectDef.views?.detail?.sectionGroups ?? objectDef.views?.form?.sectionGroups;
+
+  // Build related entries from reverse-reference child objects
+  const related = childRelations.map(({ childObject, childLabel }) => ({
+    title: childLabel,
+    type: 'table' as const,
+    data: childRelatedData[childObject] || [],
+  }));
+
   const detailSchema: DetailViewSchema = {
     type: 'detail-view',
     objectName: objectDef.name,
@@ -267,6 +348,11 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
     title: objectDef.label,
     primaryField,
     sections,
+    autoTabs: true,
+    autoDiscoverRelated: true,
+    ...(related.length > 0 && { related }),
+    ...(highlightFields.length > 0 && { highlightFields }),
+    ...(sectionGroups && sectionGroups.length > 0 && { sectionGroups }),
     ...(recordHeaderActions.length > 0 && {
       actions: [{
         type: 'action:bar',

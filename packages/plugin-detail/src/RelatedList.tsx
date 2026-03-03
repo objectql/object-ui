@@ -78,6 +78,11 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   const [filterText, setFilterText] = React.useState('');
   const { t } = useDetailTranslation();
 
+  // Sync internal state when data prop changes (e.g., parent fetches async data)
+  React.useEffect(() => {
+    setRelatedData(data);
+  }, [data]);
+
   React.useEffect(() => {
     if (api && !data.length) {
       setLoading(true);

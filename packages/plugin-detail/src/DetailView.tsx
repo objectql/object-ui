@@ -302,15 +302,16 @@ export const DetailView: React.FC<DetailViewProps> = ({
     const refs: Array<{ title: string; type: 'list' | 'grid' | 'table'; objectName: string; referenceField: string }> = [];
     const fields = objectSchema.fields;
     for (const [fieldName, fieldDef] of Object.entries<any>(fields)) {
+      const refTarget = fieldDef?.reference_to || fieldDef?.reference;
       if (
         fieldDef &&
         (fieldDef.type === 'lookup' || fieldDef.type === 'master_detail') &&
-        fieldDef.reference_to
+        refTarget
       ) {
         refs.push({
           title: fieldDef.label || fieldName.charAt(0).toUpperCase() + fieldName.slice(1),
           type: 'table',
-          objectName: fieldDef.reference_to,
+          objectName: refTarget,
           referenceField: fieldName,
         });
       }
@@ -324,6 +325,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
     return discoveredRelated.map((r) => ({
       title: r.title,
       type: r.type,
+      api: r.objectName,
       data: [] as any[],
     }));
   }, [schema.related, discoveredRelated]);
