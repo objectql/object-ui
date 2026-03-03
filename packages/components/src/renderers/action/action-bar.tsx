@@ -36,6 +36,7 @@ import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema, ActionLocation, ActionComponent } from '@object-ui/types';
 import { useCondition } from '@object-ui/react';
 import { cn } from '../../lib/utils';
+import { useIsMobile } from '../../hooks/use-mobile';
 
 export interface ActionBarSchema {
   type: 'action:bar';
@@ -45,6 +46,8 @@ export interface ActionBarSchema {
   location?: ActionLocation;
   /** Maximum visible inline actions before overflow into "More" menu (default: 3) */
   maxVisible?: number;
+  /** Maximum visible inline actions on mobile (default: 1) */
+  mobileMaxVisible?: number;
   /** Visibility condition expression */
   visible?: string;
   /** Layout direction */
@@ -71,6 +74,7 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
     } = props;
 
     const isVisible = useCondition(schema.visible ? `\${${schema.visible}}` : undefined);
+    const isMobile = useIsMobile();
 
     // Filter actions by location
     const filteredActions = useMemo(() => {
@@ -82,7 +86,10 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
     }, [schema.actions, schema.location]);
 
     // Split into visible inline actions and overflow
-    const maxVisible = schema.maxVisible ?? 3;
+    // On mobile, show fewer actions inline (default: 1)
+    const maxVisible = isMobile
+      ? (schema.mobileMaxVisible ?? 1)
+      : (schema.maxVisible ?? 3);
     const { inlineActions, overflowActions } = useMemo(() => {
       if (filteredActions.length <= maxVisible) {
         return { inlineActions: filteredActions, overflowActions: [] as ActionSchema[] };

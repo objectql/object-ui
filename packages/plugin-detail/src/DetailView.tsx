@@ -469,7 +469,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
               <SchemaRenderer key={index} schema={action} data={data} />
             ))}
 
-            {/* Inline Edit Toggle */}
+            {/* Inline Edit Toggle - hidden on mobile, accessible via more menu */}
             {inlineEdit && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -477,7 +477,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                     variant={isInlineEditing ? 'default' : 'outline'} 
                     size="sm"
                     onClick={handleInlineEditToggle}
-                    className="gap-2"
+                    className="gap-2 hidden sm:inline-flex"
                   >
                     {isInlineEditing ? (
                       <>
@@ -498,21 +498,21 @@ export const DetailView: React.FC<DetailViewProps> = ({
               </Tooltip>
             )}
 
-            {/* Share Button */}
+            {/* Share Button - hidden on mobile, accessible via more menu */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={handleShare}>
+                <Button variant="outline" size="icon" onClick={handleShare} className="hidden sm:inline-flex">
                   <Share2 className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{t('detail.share')}</TooltipContent>
             </Tooltip>
 
-            {/* Edit Button */}
+            {/* Edit Button - hidden on mobile, accessible via more menu */}
             {schema.showEdit && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="default" onClick={handleEdit} className="gap-2">
+                  <Button variant="default" onClick={handleEdit} className="gap-2 hidden sm:inline-flex">
                     <Edit className="h-4 w-4" />
                     <span className="hidden sm:inline">{t('detail.edit')}</span>
                   </Button>
@@ -534,6 +534,24 @@ export const DetailView: React.FC<DetailViewProps> = ({
                 <TooltipContent>{t('detail.moreActions')}</TooltipContent>
               </Tooltip>
               <DropdownMenuContent align="end" className="w-[calc(100vw-2rem)] sm:w-48 max-h-[60vh] overflow-y-auto">
+                {/* Mobile-only: Share, Edit, Inline Edit */}
+                <DropdownMenuItem onClick={handleShare} className="sm:hidden">
+                  <Share2 className="h-4 w-4 mr-2" />
+                  {t('detail.share')}
+                </DropdownMenuItem>
+                {schema.showEdit && (
+                  <DropdownMenuItem onClick={handleEdit} className="sm:hidden">
+                    <Edit className="h-4 w-4 mr-2" />
+                    {t('detail.edit')}
+                  </DropdownMenuItem>
+                )}
+                {inlineEdit && (
+                  <DropdownMenuItem onClick={handleInlineEditToggle} className="sm:hidden">
+                    <Edit className="h-4 w-4 mr-2" />
+                    {isInlineEditing ? t('detail.save') : t('detail.editInline')}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator className="sm:hidden" />
                 <DropdownMenuItem onClick={handleDuplicate}>
                   <Copy className="h-4 w-4 mr-2" />
                   {t('detail.duplicate')}

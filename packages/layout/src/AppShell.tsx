@@ -136,8 +136,8 @@ export function AppShell({
       {sidebar}
       <SidebarInset>
         <header className="flex h-14 sm:h-16 shrink-0 items-center gap-2 border-b bg-background px-2 sm:px-4">
-          <SidebarTrigger className="-ml-1" />
-          <div className="w-px h-4 bg-border mx-1 sm:mx-2" />
+          <SidebarTrigger className="-ml-1 hidden md:inline-flex" />
+          <div className="w-px h-4 bg-border mx-1 sm:mx-2 hidden md:block" />
           {navbar}
         </header>
         <main className={cn("flex-1 min-w-0 overflow-auto p-3 sm:p-4 md:p-6", className)}>
