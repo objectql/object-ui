@@ -369,6 +369,7 @@ export function DateTimeCellRenderer({ value }: CellRendererProps): React.ReactE
 }
 
 // Semantic color mapping (auto-detect from value text for priority & status fields)
+// Keys use underscore notation; lookup normalizes spaces/hyphens to underscores automatically.
 const SEMANTIC_COLOR_MAP: Record<string, string> = {
   // Priority values
   critical: 'red',

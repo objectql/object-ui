@@ -275,6 +275,26 @@ describe('SelectCellRenderer', () => {
     expect(container.querySelector('[class*="bg-blue-100"]')).toBeInTheDocument();
   });
 
+  it('should auto-detect status semantic colors with hyphen (in-progress → blue)', () => {
+    const { container } = render(
+      <SelectCellRenderer
+        value="in-progress"
+        field={{ name: 'status', type: 'select', options: [] } as any}
+      />
+    );
+    expect(container.querySelector('[class*="bg-blue-100"]')).toBeInTheDocument();
+  });
+
+  it('should auto-detect status semantic colors with spaces (in progress → blue)', () => {
+    const { container } = render(
+      <SelectCellRenderer
+        value="in progress"
+        field={{ name: 'status', type: 'select', options: [] } as any}
+      />
+    );
+    expect(container.querySelector('[class*="bg-blue-100"]')).toBeInTheDocument();
+  });
+
   it('should render dash for null/empty value', () => {
     render(
       <SelectCellRenderer

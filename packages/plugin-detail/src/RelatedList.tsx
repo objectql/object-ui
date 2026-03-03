@@ -260,15 +260,18 @@ export const RelatedList: React.FC<RelatedListProps> = ({
 
   const hasRowActions = !!onRowEdit || !!onRowDelete;
 
+  const headerClassName = collapsible ? 'cursor-pointer select-none' : undefined;
+  const handleHeaderClick = collapsible ? () => setCollapsed((c) => !c) : undefined;
+
   return (
     <Card className={className}>
-      <CardHeader className={collapsible ? 'cursor-pointer select-none' : undefined} onClick={collapsible ? () => setCollapsed((c) => !c) : undefined}>
+      <CardHeader className={headerClassName} onClick={handleHeaderClick}>
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {collapsible && (
               collapsed
-                ? <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                ? (<ChevronRight className="h-4 w-4 text-muted-foreground" />)
+                : (<ChevronDown className="h-4 w-4 text-muted-foreground" />)
             )}
             <span>{title}</span>
             <span className="text-sm font-normal text-muted-foreground">
