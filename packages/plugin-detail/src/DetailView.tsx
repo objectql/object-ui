@@ -319,7 +319,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
   }, [schema.autoDiscoverRelated, schema.related, objectSchema]);
 
   // Merge explicit and auto-discovered related lists
-  const effectiveRelated = React.useMemo(() => {
+  const effectiveRelated: NonNullable<DetailViewSchema['related']> = React.useMemo(() => {
     if (schema.related && schema.related.length > 0) return schema.related;
     return discoveredRelated.map((r) => ({
       title: r.title,
