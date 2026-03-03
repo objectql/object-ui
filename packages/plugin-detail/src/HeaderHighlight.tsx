@@ -52,7 +52,7 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
               <div key={field.name} className="flex flex-col gap-0.5">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   {field.icon && <span className="mr-1">{field.icon}</span>}
-                  {objectName ? fieldLabel(objectName, field.name, field.label) : field.label}
+                  {fieldLabel(objectName || '', field.name, field.label)}
                 </span>
                 <span className="text-sm font-semibold truncate">
                   {String(value)}

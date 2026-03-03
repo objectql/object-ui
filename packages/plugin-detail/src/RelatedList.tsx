@@ -190,9 +190,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
       .filter(([key]) => !key.startsWith('_'))
       .map(([key, def]: [string, any]) => ({
         accessorKey: key,
-        header: resolvedObjectName
-          ? resolveFieldLabel(resolvedObjectName, key, def.label || key)
-          : (def.label || key),
+        header: resolveFieldLabel(resolvedObjectName, key, def.label || key),
       }));
   }, [columns, objectSchema, objectName, api, resolveFieldLabel]);
 

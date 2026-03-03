@@ -1495,6 +1495,10 @@ All 313 `@object-ui/fields` tests pass.
 - [x] Header highlight area with key fields
 - [x] Console `RecordDetailView` integration: `autoTabs`, `autoDiscoverRelated`, `highlightFields`, `sectionGroups` wired into `detailSchema` for end-to-end availability
 - [x] Console reverse-reference discovery: child objects (e.g., `order_item` → `order`) auto-discovered and rendered with filtered data
+- [x] `useSafeFieldLabel` wired into `DetailSection`, `RelatedList`, `HeaderHighlight` for convention-based field label i18n (#968, #883, #942)
+- [x] `objectName` threaded through `DetailView` → `SectionGroup` → `DetailSection` / `HeaderHighlight` / `RelatedList`
+- [x] RelatedList sortable headers fixed to use `effectiveColumns` (auto-generated from schema) instead of raw `columns` prop
+- [x] Added missing `detail.*` i18n keys (`activity`, `editRow`, `deleteRow`, `previousPage`, `nextPage`, etc.) to en.ts and zh.ts
 
 ---
 

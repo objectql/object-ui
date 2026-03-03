@@ -116,7 +116,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     return (
       <div key={field.name} className={cn("space-y-1.5 group", spanClass)}>
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          {objectName ? fieldLabel(objectName, field.name, field.label || field.name) : (field.label || field.name)}
+          {fieldLabel(objectName || '', field.name, field.label || field.name)}
         </div>
         {isEditing && !field.readonly ? (
           <div className="min-h-[44px] sm:min-h-0">
