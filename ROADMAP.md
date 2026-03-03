@@ -1068,6 +1068,13 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [x] Merged UserFilters row and tool buttons row into single toolbar line — left: field filter badges, right: tool buttons with separator
 - [x] Search changed from inline input to icon button + Popover — saves toolbar space, matches Airtable pattern
 - [x] UserFilters `maxVisible` prop added — overflow badges collapse into "More" dropdown with Popover
+- [x] FilterBuilder: multi-select support for `in`/`notIn` operators — checkbox list UI replaces text input for select/lookup/master_detail fields
+- [x] FilterBuilder: lookup/master_detail field types now show dropdown selector instead of manual ID input
+- [x] FilterBuilder: all field types mapped — `currency`/`percent`/`rating` → number operators, `datetime`/`time` → date operators with proper input types, `status` → select operators, `user`/`owner` → lookup operators
+- [x] FilterUI: `multi-select` filter type added — checkbox-based multi-value selection for filter forms
+- [x] FilterCondition value type expanded to support arrays `(string | number | boolean)[]` for multi-value filters
+- [x] ObjectView filterSchema: `lookup`/`master_detail`/`user`/`owner` fields auto-map to `multi-select` type; `status` fields auto-map to `select`
+- [x] Console `normalizeFieldType`: `lookup`/`master_detail`/`user`/`owner`/`status`/`time` types now properly classified for filter/sort config
 - [x] Toolbar layout uses flex with `min-w-0` overflow handling for responsive behavior
 
 **Platform: ViewTabBar:**

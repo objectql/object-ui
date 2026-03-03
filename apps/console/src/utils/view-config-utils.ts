@@ -65,12 +65,19 @@ export const BUILDER_TO_SPEC_OP: Record<string, string> = {
 // Field type normalization: ObjectUI → FilterBuilder
 // ---------------------------------------------------------------------------
 
+/**
+ * Normalize raw field types to the 5 categories supported by FilterBuilder/SortBuilder.
+ * Lookup-like types (lookup, master_detail, user, owner) map to 'select' because
+ * FilterBuilder handles them identically when options are provided — the distinction
+ * between select and lookup operators is handled within FilterBuilder itself via the
+ * original field.type passed through ListView's filterFields.
+ */
 export function normalizeFieldType(rawType?: string): 'text' | 'number' | 'boolean' | 'date' | 'select' {
     const t = (rawType || '').toLowerCase();
     if (['integer', 'int', 'float', 'double', 'number', 'currency', 'money', 'percent', 'rating'].includes(t)) return 'number';
-    if (['date', 'datetime', 'datetime_tz', 'timestamp'].includes(t)) return 'date';
+    if (['date', 'datetime', 'datetime_tz', 'timestamp', 'time'].includes(t)) return 'date';
     if (['boolean', 'bool', 'checkbox', 'switch'].includes(t)) return 'boolean';
-    if (['select', 'picklist', 'single_select', 'multi_select', 'enum'].includes(t)) return 'select';
+    if (['select', 'picklist', 'single_select', 'multi_select', 'enum', 'status', 'lookup', 'master_detail', 'user', 'owner'].includes(t)) return 'select';
     return 'text';
 }
 

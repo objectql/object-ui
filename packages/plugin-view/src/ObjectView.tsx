@@ -546,7 +546,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
 
     const filterableFieldDefs = fieldEntries.map(([key, f]: [string, any]) => {
       const fieldType = f.type || 'text';
-      let filterType: 'text' | 'number' | 'select' | 'date' | 'boolean' = 'text';
+      let filterType: 'text' | 'number' | 'select' | 'multi-select' | 'date' | 'boolean' = 'text';
       let options: Array<{ label: string; value: any }> | undefined;
 
       if (fieldType === 'number' || fieldType === 'currency' || fieldType === 'percent') {
@@ -555,11 +555,18 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         filterType = 'boolean';
       } else if (fieldType === 'date' || fieldType === 'datetime') {
         filterType = 'date';
-      } else if (fieldType === 'select' || f.options) {
+      } else if (fieldType === 'select' || fieldType === 'status' || f.options) {
         filterType = 'select';
         options = (f.options || []).map((o: any) =>
           typeof o === 'string' ? { label: o, value: o } : { label: o.label, value: o.value },
         );
+      } else if (fieldType === 'lookup' || fieldType === 'master_detail' || fieldType === 'user' || fieldType === 'owner') {
+        if (f.options && f.options.length > 0) {
+          filterType = 'multi-select';
+          options = (f.options || []).map((o: any) =>
+            typeof o === 'string' ? { label: o, value: o } : { label: o.label, value: o.value },
+          );
+        }
       }
       return {
         field: key,

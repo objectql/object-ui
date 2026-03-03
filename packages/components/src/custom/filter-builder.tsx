@@ -13,6 +13,7 @@ import { X, Plus, Trash2 } from "lucide-react"
 
 import { cn } from "../lib/utils"
 import { Button } from "../ui/button"
+import { Checkbox } from "../ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 import { Input } from "../ui/input"
 
@@ -20,7 +21,7 @@ export interface FilterCondition {
   id: string
   field: string
   operator: string
-  value: string | number | boolean
+  value: string | number | boolean | (string | number | boolean)[]
 }
 
 export interface FilterGroup {
@@ -65,6 +66,23 @@ const numberOperators = ["equals", "notEquals", "greaterThan", "lessThan", "grea
 const booleanOperators = ["equals", "notEquals"]
 const dateOperators = ["equals", "notEquals", "before", "after", "between", "isEmpty", "isNotEmpty"]
 const selectOperators = ["equals", "notEquals", "in", "notIn", "isEmpty", "isNotEmpty"]
+const lookupOperators = ["equals", "notEquals", "in", "notIn", "isEmpty", "isNotEmpty"]
+
+/** Field types that share the same operator/input behavior as number (numeric comparison operators, number input) */
+const numberLikeTypes = ["number", "currency", "percent", "rating"]
+/** Field types that share the same operator/input behavior as date (before/after operators, date/datetime/time input) */
+const dateLikeTypes = ["date", "datetime", "time"]
+/** Field types that use select operators (equals/in/notIn) and render dropdown or checkbox list when options provided */
+const selectLikeTypes = ["select", "status"]
+/** Relational/reference field types that use lookup operators (equals/in/notIn) and render dropdown or checkbox list when options provided */
+const lookupLikeTypes = ["lookup", "master_detail", "user", "owner"]
+
+/** Normalize a filter value into an array for multi-select scenarios */
+function normalizeToArray(value: FilterCondition["value"]): (string | number | boolean)[] {
+  if (Array.isArray(value)) return value
+  if (value !== undefined && value !== null && value !== "") return [value as string | number | boolean]
+  return []
+}
 
 function FilterBuilder({
   fields = [],
@@ -139,19 +157,22 @@ function FilterBuilder({
     const field = fields.find((f) => f.value === fieldValue)
     const fieldType = field?.type || "text"
 
-    switch (fieldType) {
-      case "number":
-        return defaultOperators.filter((op) => numberOperators.includes(op.value))
-      case "boolean":
-        return defaultOperators.filter((op) => booleanOperators.includes(op.value))
-      case "date":
-        return defaultOperators.filter((op) => dateOperators.includes(op.value))
-      case "select":
-        return defaultOperators.filter((op) => selectOperators.includes(op.value))
-      case "text":
-      default:
-        return defaultOperators.filter((op) => textOperators.includes(op.value))
+    if (numberLikeTypes.includes(fieldType)) {
+      return defaultOperators.filter((op) => numberOperators.includes(op.value))
     }
+    if (fieldType === "boolean") {
+      return defaultOperators.filter((op) => booleanOperators.includes(op.value))
+    }
+    if (dateLikeTypes.includes(fieldType)) {
+      return defaultOperators.filter((op) => dateOperators.includes(op.value))
+    }
+    if (selectLikeTypes.includes(fieldType)) {
+      return defaultOperators.filter((op) => selectOperators.includes(op.value))
+    }
+    if (lookupLikeTypes.includes(fieldType)) {
+      return defaultOperators.filter((op) => lookupOperators.includes(op.value))
+    }
+    return defaultOperators.filter((op) => textOperators.includes(op.value))
   }
 
   const needsValueInput = (operator: string) => {
@@ -162,21 +183,51 @@ function FilterBuilder({
     const field = fields.find((f) => f.value === fieldValue)
     const fieldType = field?.type || "text"
     
-    switch (fieldType) {
-      case "number":
-        return "number"
-      case "date":
-        return "date"
-      default:
-        return "text"
-    }
+    if (numberLikeTypes.includes(fieldType)) return "number"
+    if (fieldType === "date") return "date"
+    if (fieldType === "datetime") return "datetime-local"
+    if (fieldType === "time") return "time"
+    return "text"
   }
 
   const renderValueInput = (condition: FilterCondition) => {
     const field = fields.find((f) => f.value === condition.field)
+    const isMultiOperator = ["in", "notIn"].includes(condition.operator)
     
-    // For select fields with options
-    if (field?.type === "select" && field.options) {
+    // For select/lookup fields with options and multi-select operator (in/notIn)
+    if (field?.options && isMultiOperator) {
+      const selectedValues = normalizeToArray(condition.value)
+      return (
+        <div className="max-h-40 overflow-y-auto space-y-0.5 border rounded-md p-2">
+          {field.options.map((opt) => {
+            const isChecked = selectedValues.map(String).includes(String(opt.value))
+            return (
+              <label
+                key={opt.value}
+                className={cn(
+                  "flex items-center gap-2 text-sm py-1 px-1.5 rounded cursor-pointer",
+                  isChecked ? "bg-primary/5 text-primary" : "hover:bg-muted",
+                )}
+              >
+                <Checkbox
+                  checked={isChecked}
+                  onCheckedChange={(checked) => {
+                    const next = checked
+                      ? [...selectedValues, opt.value]
+                      : selectedValues.filter((v) => String(v) !== String(opt.value))
+                    updateCondition(condition.id, { value: next })
+                  }}
+                />
+                <span className="truncate">{opt.label}</span>
+              </label>
+            )
+          })}
+        </div>
+      )
+    }
+
+    // For select/lookup fields with options (single select)
+    if (field?.options && (selectLikeTypes.includes(field.type || "") || lookupLikeTypes.includes(field.type || ""))) {
       return (
         <Select
           value={String(condition.value || "")}
@@ -235,9 +286,9 @@ function FilterBuilder({
     const handleValueChange = (newValue: string) => {
       let convertedValue: string | number | boolean = newValue
       
-      if (field?.type === "number" && newValue !== "") {
+      if (numberLikeTypes.includes(field?.type || "") && newValue !== "") {
         convertedValue = parseFloat(newValue) || 0
-      } else if (field?.type === "date") {
+      } else if (dateLikeTypes.includes(field?.type || "")) {
         convertedValue = newValue // Keep as ISO string
       }
       

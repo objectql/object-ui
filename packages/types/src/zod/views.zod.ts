@@ -148,7 +148,7 @@ export const FilterUISchema = BaseSchema.extend({
   filters: z.array(z.object({
     field: z.string().describe('Filter field'),
     label: z.string().optional().describe('Filter label'),
-    type: z.enum(['text', 'number', 'select', 'date', 'date-range', 'boolean']).describe('Filter type'),
+    type: z.enum(['text', 'number', 'select', 'multi-select', 'date', 'date-range', 'boolean']).describe('Filter type'),
     operator: z.enum(['equals', 'contains', 'startsWith', 'gt', 'lt', 'between', 'in']).optional().describe('Filter operator'),
     options: z.array(z.object({ label: z.string(), value: z.any() })).optional().describe('Options for select filter'),
     placeholder: z.string().optional().describe('Placeholder'),

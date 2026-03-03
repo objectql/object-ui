@@ -694,7 +694,7 @@ export interface FilterUISchema extends BaseSchema {
     /**
      * Filter type
      */
-    type: 'text' | 'number' | 'select' | 'date' | 'date-range' | 'boolean';
+    type: 'text' | 'number' | 'select' | 'multi-select' | 'date' | 'date-range' | 'boolean';
     /**
      * Filter operator
      */

@@ -174,6 +174,39 @@ export const FilterUI: React.FC<FilterUIProps> = ({
             </SelectContent>
           </Select>
         );
+      case 'multi-select': {
+        const currentVal = values[filter.field];
+        const selectedValues: (string | number | boolean)[] = Array.isArray(currentVal)
+          ? currentVal
+          : currentVal ? [currentVal] : [];
+        return (
+          <div className="max-h-40 overflow-y-auto space-y-0.5 border rounded-md p-2">
+            {filter.options?.map(option => {
+              const isChecked = selectedValues.map(String).includes(String(option.value));
+              return (
+                <label
+                  key={String(option.value)}
+                  className={cn(
+                    'flex items-center gap-2 text-sm py-1 px-1.5 rounded cursor-pointer',
+                    isChecked ? 'bg-primary/5 text-primary' : 'hover:bg-muted',
+                  )}
+                >
+                  <Checkbox
+                    checked={isChecked}
+                    onCheckedChange={(checked) => {
+                      const next = checked
+                        ? [...selectedValues, option.value]
+                        : selectedValues.filter(v => String(v) !== String(option.value));
+                      updateValue(filter.field, next);
+                    }}
+                  />
+                  <span className="truncate">{option.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        );
+      }
       case 'date':
         return (
           <Input
