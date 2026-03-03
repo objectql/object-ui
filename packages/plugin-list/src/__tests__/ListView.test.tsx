@@ -1577,6 +1577,68 @@ describe('ListView', () => {
       expect(mockDataSource.find).not.toHaveBeenCalled();
     });
 
+    it('should filter inline array data by searchTerm', async () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        data: [
+          { _id: '1', name: 'Alice', email: 'alice@test.com' },
+          { _id: '2', name: 'Bob', email: 'bob@test.com' },
+          { _id: '3', name: 'Charlie', email: 'charlie@test.com' },
+        ] as any,
+      };
+
+      mockDataSource.find.mockClear();
+      renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+      await vi.waitFor(() => {
+        expect(screen.getByText('3 records')).toBeInTheDocument();
+      });
+
+      // Open search popover and type search query
+      fireEvent.click(screen.getByTestId('search-icon-button'));
+      fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: 'alice' } });
+
+      await vi.waitFor(() => {
+        expect(screen.getByText('1 record')).toBeInTheDocument();
+      });
+      expect(mockDataSource.find).not.toHaveBeenCalled();
+    });
+
+    it('should filter value provider data by searchTerm', async () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+        data: {
+          provider: 'value',
+          items: [
+            { _id: '1', name: 'Alice', email: 'alice@test.com' },
+            { _id: '2', name: 'Bob', email: 'bob@test.com' },
+          ],
+        } as any,
+      };
+
+      mockDataSource.find.mockClear();
+      renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+
+      await vi.waitFor(() => {
+        expect(screen.getByText('2 records')).toBeInTheDocument();
+      });
+
+      // Open search popover and type search query
+      fireEvent.click(screen.getByTestId('search-icon-button'));
+      fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: 'bob' } });
+
+      await vi.waitFor(() => {
+        expect(screen.getByText('1 record')).toBeInTheDocument();
+      });
+      expect(mockDataSource.find).not.toHaveBeenCalled();
+    });
+
     it('should fall back to dataSource.find when schema.data is not set', async () => {
       const mockItems = [
         { _id: '1', name: 'Alice', email: 'alice@test.com' },

@@ -557,7 +557,16 @@ export const ListView: React.FC<ListViewProps> = ({
     if (schema.data && typeof schema.data === 'object' && !Array.isArray(schema.data)) {
       const dataConfig = schema.data as any;
       if (dataConfig.provider === 'value' && Array.isArray(dataConfig.items)) {
-        setData(dataConfig.items);
+        let items = dataConfig.items;
+        if (searchTerm) {
+          const q = searchTerm.toLowerCase();
+          items = items.filter((row: any) =>
+            Object.values(row).some(
+              (v) => v != null && String(v).toLowerCase().includes(q),
+            ),
+          );
+        }
+        setData(items);
         setLoading(false);
         setDataLimitReached(false);
         return;
@@ -565,7 +574,16 @@ export const ListView: React.FC<ListViewProps> = ({
     }
     // Also support schema.data as a plain array (shorthand for value provider)
     if (Array.isArray(schema.data)) {
-      setData(schema.data as any[]);
+      let items = schema.data as any[];
+      if (searchTerm) {
+        const q = searchTerm.toLowerCase();
+        items = items.filter((row: any) =>
+          Object.values(row).some(
+            (v) => v != null && String(v).toLowerCase().includes(q),
+          ),
+        );
+      }
+      setData(items);
       setLoading(false);
       setDataLimitReached(false);
       return;
@@ -1455,7 +1473,7 @@ export const ListView: React.FC<ListViewProps> = ({
                   <Search className="h-3.5 w-3.5" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-64 p-2" data-testid="search-popover">
+              <PopoverContent align="end" className="w-[calc(100vw-2rem)] sm:w-64 p-2" data-testid="search-popover">
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <Input
