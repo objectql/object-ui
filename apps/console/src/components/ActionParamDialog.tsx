@@ -141,7 +141,7 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
                   id={param.name}
                   type="number"
                   value={values[param.name] ?? ''}
-                  onChange={(e) => updateValue(param.name, e.target.valueAsNumber)}
+                  onChange={(e) => updateValue(param.name, e.target.value === '' ? undefined : e.target.valueAsNumber)}
                   placeholder={param.placeholder}
                   className={errors[param.name] ? 'border-destructive' : ''}
                 />
