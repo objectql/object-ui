@@ -200,9 +200,9 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       className={cn(
         "grid gap-3 sm:gap-4",
         effectiveColumns === 1 ? "grid-cols-1" :
-        effectiveColumns === 2 ? "grid-cols-1 sm:grid-cols-2" :
-        effectiveColumns === 3 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" :
-        "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+        effectiveColumns === 2 ? "grid-cols-1 md:grid-cols-2" :
+        effectiveColumns === 3 ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" :
+        "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
       )}
     >
       {layoutFields.map(renderField)}

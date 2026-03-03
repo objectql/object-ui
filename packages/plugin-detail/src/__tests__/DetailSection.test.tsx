@@ -112,7 +112,7 @@ describe('DetailSection', () => {
     const { container } = render(
       <DetailSection section={section} data={{}} />
     );
-    // The grid container should have the sm:grid-cols-2 class
+    // The grid container should have the md:grid-cols-2 class
     const grid = container.querySelector('.grid');
     expect(grid).toBeTruthy();
     expect(grid!.className).toContain('md:grid-cols-2');
