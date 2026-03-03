@@ -86,8 +86,10 @@ export const RelatedList: React.FC<RelatedListProps> = ({
 
   // Auto-fetch object schema when api/dataSource available but columns missing
   React.useEffect(() => {
-    if (api && dataSource?.getObjectSchema && (!columns || columns.length === 0)) {
-      dataSource.getObjectSchema(api).then(setObjectSchema).catch(() => {});
+    if (api && dataSource?.getObjectSchema && !columns?.length) {
+      dataSource.getObjectSchema(api).then(setObjectSchema).catch((err: unknown) => {
+        console.warn(`[RelatedList] Failed to fetch schema for ${api}:`, err);
+      });
     }
   }, [api, dataSource, columns]);
 

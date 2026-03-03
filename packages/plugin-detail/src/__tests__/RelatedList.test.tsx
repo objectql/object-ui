@@ -91,6 +91,14 @@ describe('RelatedList', () => {
     await waitFor(() => {
       expect(mockDataSource.getObjectSchema).toHaveBeenCalledWith('order_item');
     });
+
+    // Verify columns are generated from schema (excluding _id)
+    await waitFor(() => {
+      expect(screen.getByText('Product')).toBeInTheDocument();
+      expect(screen.getByText('Quantity')).toBeInTheDocument();
+    });
+    // _id should be filtered out
+    expect(screen.queryByText('ID')).not.toBeInTheDocument();
   });
 
   it('should not fetch object schema when explicit columns are provided', () => {
