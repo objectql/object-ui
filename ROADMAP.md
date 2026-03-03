@@ -860,6 +860,16 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] 10 unit tests for `useObjectLabel` hook
 - [x] Zero changes to object metadata files or translation files
 
+### P1.16 Console Base Path Unification ✅
+
+> **Status:** Complete — Console app base path unified to `/` across all environments.
+
+- [x] `apps/console/vite.config.ts`: base path changed from `/console/` to `/`
+- [x] `e2e/helpers/index.ts`: `CONSOLE_BASE` changed from `/console` to `''`
+- [x] `apps/console/vercel.json`: removed `VITE_BASE_PATH=/` override (now redundant)
+- [x] `playwright.config.ts`: webServer url updated from `/console/` to `/`
+- [x] `apps/console/plugin.ts`: updated JSDoc to reflect new base path
+
 ---
 
 ## 🧩 P2 — Polish & Advanced Features

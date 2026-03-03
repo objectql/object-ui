@@ -2,9 +2,9 @@ import type { Page } from '@playwright/test';
 
 /**
  * Base path for the console app.
- * Matches `base` in `apps/console/vite.config.ts` (defaults to '/console/').
+ * Matches `base` in `apps/console/vite.config.ts` (always '/').
  */
-export const CONSOLE_BASE = '/console';
+export const CONSOLE_BASE = '';
 
 /** Wait for React to mount (at least one child inside #root). */
 export async function waitForReactMount(page: Page) {

@@ -5,8 +5,7 @@
  * HonoServerPlugin auto-discovers this plugin via `type: 'ui-plugin'`
  * and mounts it at `/<slug>` (i.e. `/console`).
  *
- * The SPA must be built with the matching base path:
- *   VITE_BASE_PATH=/console/ pnpm build
+ * The SPA is built with base path '/' by default.
  *
  * Usage in any ObjectStack application:
  *

@@ -68,7 +68,7 @@ export default defineConfig({
     command: process.env.CI
       ? 'pnpm --filter @object-ui/console preview --port 4173'
       : 'pnpm turbo run build --filter=@object-ui/console && pnpm --filter @object-ui/console preview --port 4173',
-    url: 'http://localhost:4173/console/',
+    url: 'http://localhost:4173/',
     reuseExistingServer: !process.env.CI,
     timeout: 180 * 1000,
   },
