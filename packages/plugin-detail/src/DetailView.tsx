@@ -694,6 +694,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
                     columns={related.columns as any}
                     dataSource={dataSource}
                     objectName={related.api}
+                    collapsible
+                    pageSize={5}
                   />
                 ))}
               </div>
@@ -777,6 +779,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   columns={related.columns as any}
                   dataSource={dataSource}
                   objectName={related.api}
+                  collapsible
+                  pageSize={5}
                 />
               ))}
             </div>

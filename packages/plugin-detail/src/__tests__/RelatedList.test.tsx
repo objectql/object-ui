@@ -16,23 +16,23 @@ describe('RelatedList', () => {
     expect(screen.getByText('Contacts')).toBeInTheDocument();
   });
 
-  it('should show record count for empty list', () => {
+  it('should show record count badge for empty list', () => {
     render(<RelatedList title="Contacts" type="table" data={[]} />);
-    expect(screen.getByText('0 records')).toBeInTheDocument();
+    expect(screen.getByText('0')).toBeInTheDocument();
   });
 
-  it('should show singular record count for one item', () => {
+  it('should show record count badge for one item', () => {
     render(<RelatedList title="Contacts" type="table" data={[{ id: 1, name: 'Alice' }]} />);
-    expect(screen.getByText('1 record')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
   });
 
-  it('should show plural record count for multiple items', () => {
+  it('should show record count badge for multiple items', () => {
     const data = [
       { id: 1, name: 'Alice' },
       { id: 2, name: 'Bob' },
     ];
     render(<RelatedList title="Orders" type="table" data={data} />);
-    expect(screen.getByText('2 records')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
   });
 
   it('should show "No related records found" for empty data', () => {

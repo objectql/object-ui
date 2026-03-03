@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
+  Badge,
   Button,
   Input,
 } from '@object-ui/components';
@@ -25,7 +26,6 @@ import {
   ChevronRight,
   ArrowUpDown,
   ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 import type { DataSource, FieldMetadata } from '@object-ui/types';
 import { getCellRenderer } from '@object-ui/fields';
@@ -254,10 +254,6 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     }
   }, [type, paginatedData, effectiveColumns, schema, effectivePageSize]);
 
-  const recordCountText = relatedData.length === 1
-    ? t('detail.relatedRecordOne', { count: relatedData.length })
-    : t('detail.relatedRecords', { count: relatedData.length });
-
   const hasRowActions = !!onRowEdit || !!onRowDelete;
 
   const headerClassName = collapsible ? 'cursor-pointer select-none' : undefined;
@@ -274,9 +270,9 @@ export const RelatedList: React.FC<RelatedListProps> = ({
                 : (<ChevronDown className="h-4 w-4 text-muted-foreground" />)
             )}
             <span>{title}</span>
-            <span className="text-sm font-normal text-muted-foreground">
-              {recordCountText}
-            </span>
+            <Badge variant="secondary" className="text-xs font-normal">
+              {relatedData.length}
+            </Badge>
           </div>
           <div className="flex items-center gap-1">
             {onNew && (
