@@ -23,6 +23,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
+import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useSafeFieldLabel } from '@object-ui/react';
 import { getCellRenderer, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel } from '@object-ui/fields';
 import {
@@ -88,6 +89,13 @@ function useGridTranslation() {
       },
     };
   }
+}
+
+/** Resolve an I18nLabel (string | {key, defaultValue}) to a plain string. */
+function resolveColumnLabel(label: string | I18nLabel | undefined): string | undefined {
+  if (label == null) return undefined;
+  if (typeof label === 'string') return label;
+  return label.defaultValue || label.key;
 }
 
 export interface ObjectGridProps {
@@ -619,7 +627,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           return (cols as ListColumn[])
             .filter((col) => col?.field && typeof col.field === 'string' && !col.hidden)
             .map((col, colIndex) => {
-              const rawHeader = col.label || col.field.charAt(0).toUpperCase() + col.field.slice(1).replace(/_/g, ' ');
+              const rawHeader = resolveColumnLabel(col.label) || col.field.charAt(0).toUpperCase() + col.field.slice(1).replace(/_/g, ' ');
               const header = schema.objectName ? resolveFieldLabel(schema.objectName, col.field, rawHeader) : rawHeader;
 
               // Build custom cell renderer based on column configuration

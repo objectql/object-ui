@@ -1493,6 +1493,8 @@ All 313 `@object-ui/fields` tests pass.
 - [x] Related list pagination, sorting, filtering
 - [x] Collapsible section groups
 - [x] Header highlight area with key fields
+- [x] Console `RecordDetailView` integration: `autoTabs`, `autoDiscoverRelated`, `highlightFields`, `sectionGroups` wired into `detailSchema` for end-to-end availability
+- [x] Console reverse-reference discovery: child objects (e.g., `order_item` → `order`) auto-discovered and rendered with filtered data
 
 ---
 

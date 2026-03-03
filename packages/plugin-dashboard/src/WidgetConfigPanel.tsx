@@ -509,7 +509,7 @@ export function WidgetConfigPanel({
   availableFields,
 }: WidgetConfigPanelProps) {
   // Pre-process config to resolve any I18nLabel values for title/description
-  const normalizedConfig = React.useMemo(() => ({
+  const normalizedConfig: Record<string, any> = React.useMemo(() => ({
     ...config,
     title: typeof config.title === 'object' ? resolveLabel(config.title) : config.title,
     description: typeof config.description === 'object' ? resolveLabel(config.description) : config.description,
