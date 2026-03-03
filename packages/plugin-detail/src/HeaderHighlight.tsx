@@ -9,18 +9,23 @@
 import * as React from 'react';
 import { cn, Card, CardContent } from '@object-ui/components';
 import type { HighlightField } from '@object-ui/types';
+import { useSafeFieldLabel } from '@object-ui/react';
 
 export interface HeaderHighlightProps {
   fields: HighlightField[];
   data?: any;
   className?: string;
+  /** Object name for i18n field label resolution */
+  objectName?: string;
 }
 
 export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
   fields,
   data,
   className,
+  objectName,
 }) => {
+  const { fieldLabel } = useSafeFieldLabel();
   if (!fields.length || !data) return null;
 
   // Filter to only fields with values
@@ -47,7 +52,7 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
               <div key={field.name} className="flex flex-col gap-0.5">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   {field.icon && <span className="mr-1">{field.icon}</span>}
-                  {field.label}
+                  {objectName ? fieldLabel(objectName, field.name, field.label) : field.label}
                 </span>
                 <span className="text-sm font-semibold truncate">
                   {String(value)}

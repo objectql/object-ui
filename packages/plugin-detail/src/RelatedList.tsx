@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import type { DataSource } from '@object-ui/types';
 import { useDetailTranslation } from './useDetailTranslation';
+import { useSafeFieldLabel } from '@object-ui/react';
 
 export interface RelatedListProps {
   title: string;
@@ -37,6 +38,8 @@ export interface RelatedListProps {
   columns?: any[];
   className?: string;
   dataSource?: DataSource;
+  /** Object name for i18n field label resolution */
+  objectName?: string;
   /** Callback when "New" button is clicked */
   onNew?: () => void;
   /** Callback when "View All" button is clicked */
@@ -62,6 +65,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   columns,
   className,
   dataSource,
+  objectName,
   onNew,
   onViewAll,
   onRowEdit,
@@ -78,6 +82,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   const [filterText, setFilterText] = React.useState('');
   const [objectSchema, setObjectSchema] = React.useState<any>(null);
   const { t } = useDetailTranslation();
+  const { fieldLabel: resolveFieldLabel } = useSafeFieldLabel();
 
   // Sync internal state when data prop changes (e.g., parent fetches async data)
   React.useEffect(() => {
@@ -180,13 +185,16 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   const effectiveColumns = React.useMemo(() => {
     if (columns && columns.length > 0) return columns;
     if (!objectSchema?.fields) return [];
+    const resolvedObjectName = objectName || api || '';
     return Object.entries(objectSchema.fields)
       .filter(([key]) => !key.startsWith('_'))
       .map(([key, def]: [string, any]) => ({
         accessorKey: key,
-        header: def.label || key,
+        header: resolvedObjectName
+          ? resolveFieldLabel(resolvedObjectName, key, def.label || key)
+          : (def.label || key),
       }));
-  }, [columns, objectSchema]);
+  }, [columns, objectSchema, objectName, api, resolveFieldLabel]);
 
   const viewSchema = React.useMemo(() => {
     if (schema) return schema;
@@ -258,9 +266,9 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         )}
 
         {/* Sortable column headers */}
-        {sortable && columns && columns.length > 0 && relatedData.length > 0 && (
+        {sortable && effectiveColumns && effectiveColumns.length > 0 && relatedData.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
-            {columns.map((col: any) => {
+            {effectiveColumns.map((col: any) => {
               const field = col.accessorKey || col.field || col.name;
               if (!field) return null;
               const label = col.header || col.label || field;

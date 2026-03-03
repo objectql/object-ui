@@ -22,6 +22,8 @@ export interface SectionGroupProps {
   data?: any;
   className?: string;
   objectSchema?: any;
+  /** Object name for i18n field label resolution */
+  objectName?: string;
   isEditing?: boolean;
   onFieldChange?: (field: string, value: any) => void;
 }
@@ -31,6 +33,7 @@ export const SectionGroup: React.FC<SectionGroupProps> = ({
   data,
   className,
   objectSchema,
+  objectName,
   isEditing = false,
   onFieldChange,
 }) => {
@@ -45,6 +48,7 @@ export const SectionGroup: React.FC<SectionGroupProps> = ({
           section={section}
           data={data}
           objectSchema={objectSchema}
+          objectName={objectName}
           isEditing={isEditing}
           onFieldChange={onFieldChange}
         />

@@ -29,6 +29,7 @@ import { getCellRenderer } from '@object-ui/fields';
 import type { DetailViewSection as DetailViewSectionType, DetailViewField, FieldMetadata } from '@object-ui/types';
 import { applyDetailAutoLayout } from './autoLayout';
 import { useDetailTranslation } from './useDetailTranslation';
+import { useSafeFieldLabel } from '@object-ui/react';
 
 export interface DetailSectionProps {
   section: DetailViewSectionType;
@@ -36,6 +37,8 @@ export interface DetailSectionProps {
   className?: string;
   /** Object schema from DataSource for field type enrichment */
   objectSchema?: any;
+  /** Object name for i18n field label resolution */
+  objectName?: string;
   /** Whether inline editing is active */
   isEditing?: boolean;
   /** Callback when a field value changes during inline editing */
@@ -47,12 +50,14 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
   data,
   className,
   objectSchema,
+  objectName,
   isEditing = false,
   onFieldChange,
 }) => {
   const [isCollapsed, setIsCollapsed] = React.useState(section.defaultCollapsed ?? false);
   const [copiedField, setCopiedField] = React.useState<string | null>(null);
   const { t } = useDetailTranslation();
+  const { fieldLabel } = useSafeFieldLabel();
 
   const handleCopyField = React.useCallback((fieldName: string, value: any) => {
     const textValue = value !== null && value !== undefined ? String(value) : '';
@@ -111,7 +116,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     return (
       <div key={field.name} className={cn("space-y-1.5 group", spanClass)}>
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          {field.label || field.name}
+          {objectName ? fieldLabel(objectName, field.name, field.label || field.name) : (field.label || field.name)}
         </div>
         {isEditing && !field.readonly ? (
           <div className="min-h-[44px] sm:min-h-0">
