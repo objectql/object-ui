@@ -280,12 +280,13 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
             console.warn(`[RecordDetailView] Field "${fieldName}" not found in ${objectDef.name} definition`);
             return { name: fieldName, label: fieldName };
           }
+          const refTarget = fieldDef.reference_to || fieldDef.reference;
           return {
             name: fieldName,
             label: fieldDef.label || fieldName,
             type: fieldDef.type || 'text',
             ...(fieldDef.options && { options: fieldDef.options }),
-            ...((fieldDef.reference_to || fieldDef.reference) && { reference_to: fieldDef.reference_to || fieldDef.reference }),
+            ...(refTarget && { reference_to: refTarget }),
             ...(fieldDef.reference_field && { reference_field: fieldDef.reference_field }),
             ...(fieldDef.currency && { currency: fieldDef.currency }),
           };
@@ -296,12 +297,13 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
           title: 'Details',
           fields: Object.keys(objectDef.fields || {}).map(key => {
             const fieldDef = objectDef.fields[key];
+            const refTarget = fieldDef.reference_to || fieldDef.reference;
             return {
               name: key,
               label: fieldDef.label || key,
               type: fieldDef.type || 'text',
               ...(fieldDef.options && { options: fieldDef.options }),
-              ...((fieldDef.reference_to || fieldDef.reference) && { reference_to: fieldDef.reference_to || fieldDef.reference }),
+              ...(refTarget && { reference_to: refTarget }),
               ...(fieldDef.reference_field && { reference_field: fieldDef.reference_field }),
               ...(fieldDef.currency && { currency: fieldDef.currency }),
             };

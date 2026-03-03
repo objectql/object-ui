@@ -91,7 +91,8 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
         if (objectDefField.currency && !enrichedField.currency) enrichedField.currency = objectDefField.currency;
         if (objectDefField.precision !== undefined && enrichedField.precision === undefined) enrichedField.precision = objectDefField.precision;
         if (objectDefField.format && !enrichedField.format) enrichedField.format = objectDefField.format;
-        if ((objectDefField.reference_to || objectDefField.reference) && !enrichedField.reference_to) enrichedField.reference_to = objectDefField.reference_to || objectDefField.reference;
+        const refTarget = objectDefField.reference_to || objectDefField.reference;
+        if (refTarget && !enrichedField.reference_to) enrichedField.reference_to = refTarget;
         if (objectDefField.reference_field && !enrichedField.reference_field) enrichedField.reference_field = objectDefField.reference_field;
       }
       // Use type-aware cell renderer when field type is available (explicit or enriched)
