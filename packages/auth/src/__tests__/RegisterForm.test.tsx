@@ -132,4 +132,36 @@ describe('RegisterForm', () => {
     });
     expect(onError).toHaveBeenCalled();
   });
+
+  it('uses custom linkComponent for login link', () => {
+    const CustomLink = ({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) => (
+      <span data-testid="custom-link" data-href={href} className={className}>{children}</span>
+    );
+    renderWithAuth(<RegisterForm loginUrl="/login" linkComponent={CustomLink} />);
+    const link = screen.getByTestId('custom-link');
+    expect(link.getAttribute('data-href')).toBe('/login');
+  });
+
+  it('renders custom labels when provided', () => {
+    renderWithAuth(
+      <RegisterForm
+        labels={{
+          nameLabel: '名前',
+          emailLabel: 'メール',
+          passwordLabel: 'パスワード',
+          confirmPasswordLabel: 'パスワード確認',
+          submitButton: 'アカウント作成',
+          hasAccountText: 'アカウントをお持ちですか？',
+          signInText: 'ログイン',
+        }}
+      />
+    );
+    expect(screen.getByLabelText('名前')).toBeTruthy();
+    expect(screen.getByLabelText('メール')).toBeTruthy();
+    expect(screen.getByLabelText('パスワード')).toBeTruthy();
+    expect(screen.getByLabelText('パスワード確認')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'アカウント作成' })).toBeTruthy();
+    expect(screen.getByText('アカウントをお持ちですか？')).toBeTruthy();
+    expect(screen.getByText('ログイン')).toBeTruthy();
+  });
 });

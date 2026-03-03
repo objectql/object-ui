@@ -90,4 +90,30 @@ describe('ForgotPasswordForm', () => {
     });
     expect(onError).toHaveBeenCalled();
   });
+
+  it('uses custom linkComponent for login link', () => {
+    const CustomLink = ({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) => (
+      <span data-testid="custom-link" data-href={href} className={className}>{children}</span>
+    );
+    renderWithAuth(<ForgotPasswordForm loginUrl="/login" linkComponent={CustomLink} />);
+    const link = screen.getByTestId('custom-link');
+    expect(link.getAttribute('data-href')).toBe('/login');
+  });
+
+  it('renders custom labels when provided', () => {
+    renderWithAuth(
+      <ForgotPasswordForm
+        labels={{
+          emailLabel: 'E-Mail',
+          submitButton: 'Link senden',
+          rememberPasswordText: 'Passwort eingefallen?',
+          signInText: 'Anmelden',
+        }}
+      />
+    );
+    expect(screen.getByLabelText('E-Mail')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Link senden' })).toBeTruthy();
+    expect(screen.getByText('Passwort eingefallen?')).toBeTruthy();
+    expect(screen.getByText('Anmelden')).toBeTruthy();
+  });
 });

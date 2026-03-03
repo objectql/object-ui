@@ -120,4 +120,38 @@ describe('LoginForm', () => {
       expect(screen.getByRole('alert')).toBeTruthy();
     });
   });
+
+  it('uses custom linkComponent for links', () => {
+    const CustomLink = ({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) => (
+      <span data-testid="custom-link" data-href={href} className={className}>{children}</span>
+    );
+    renderWithAuth(
+      <LoginForm registerUrl="/register" forgotPasswordUrl="/forgot" linkComponent={CustomLink} />
+    );
+    const links = screen.getAllByTestId('custom-link');
+    expect(links).toHaveLength(2);
+    expect(links[0].getAttribute('data-href')).toBe('/forgot');
+    expect(links[1].getAttribute('data-href')).toBe('/register');
+  });
+
+  it('renders custom labels when provided', () => {
+    renderWithAuth(
+      <LoginForm
+        labels={{
+          emailLabel: 'Correo',
+          passwordLabel: 'Contraseña',
+          submitButton: 'Iniciar sesión',
+          forgotPasswordText: '¿Olvidaste tu contraseña?',
+          noAccountText: '¿No tienes cuenta?',
+          signUpText: 'Regístrate',
+        }}
+      />
+    );
+    expect(screen.getByLabelText('Correo')).toBeTruthy();
+    expect(screen.getByLabelText('Contraseña')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeTruthy();
+    expect(screen.getByText('¿Olvidaste tu contraseña?')).toBeTruthy();
+    expect(screen.getByText('¿No tienes cuenta?')).toBeTruthy();
+    expect(screen.getByText('Regístrate')).toBeTruthy();
+  });
 });
