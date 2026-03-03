@@ -335,6 +335,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
   const related = childRelations.map(({ childObject, childLabel }) => ({
     title: childLabel,
     type: 'table' as const,
+    api: childObject,
     data: childRelatedData[childObject] || [],
   }));
 

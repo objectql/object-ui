@@ -76,12 +76,20 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   const [sortField, setSortField] = React.useState<string | null>(null);
   const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('asc');
   const [filterText, setFilterText] = React.useState('');
+  const [objectSchema, setObjectSchema] = React.useState<any>(null);
   const { t } = useDetailTranslation();
 
   // Sync internal state when data prop changes (e.g., parent fetches async data)
   React.useEffect(() => {
     setRelatedData(data);
   }, [data]);
+
+  // Auto-fetch object schema when api/dataSource available but columns missing
+  React.useEffect(() => {
+    if (api && dataSource?.getObjectSchema && (!columns || columns.length === 0)) {
+      dataSource.getObjectSchema(api).then(setObjectSchema).catch(() => {});
+    }
+  }, [api, dataSource, columns]);
 
   React.useEffect(() => {
     if (api && !data.length) {
@@ -166,6 +174,18 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     }
   }, [onRowDelete, t]);
 
+  // Generate effective columns from explicit prop or object schema fields
+  const effectiveColumns = React.useMemo(() => {
+    if (columns && columns.length > 0) return columns;
+    if (!objectSchema?.fields) return [];
+    return Object.entries(objectSchema.fields)
+      .filter(([key]) => !key.startsWith('_'))
+      .map(([key, def]: [string, any]) => ({
+        accessorKey: key,
+        header: def.label || key,
+      }));
+  }, [columns, objectSchema]);
+
   const viewSchema = React.useMemo(() => {
     if (schema) return schema;
 
@@ -176,7 +196,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         return {
           type: 'data-table',
           data: paginatedData,
-          columns: columns || [],
+          columns: effectiveColumns,
           pagination: false, // We handle pagination ourselves
           pageSize: effectivePageSize || 10,
         };
@@ -188,7 +208,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
       default:
         return { type: 'div', children: 'No view configured' };
     }
-  }, [type, paginatedData, columns, schema, effectivePageSize]);
+  }, [type, paginatedData, effectiveColumns, schema, effectivePageSize]);
 
   const recordCountText = relatedData.length === 1
     ? t('detail.relatedRecordOne', { count: relatedData.length })

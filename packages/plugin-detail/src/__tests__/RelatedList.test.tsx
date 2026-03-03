@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { RelatedList } from '../RelatedList';
 
 describe('RelatedList', () => {
@@ -62,5 +62,55 @@ describe('RelatedList', () => {
     render(<RelatedList title="Contacts" type="table" data={[]} />);
     expect(screen.queryByText('New')).not.toBeInTheDocument();
     expect(screen.queryByText('View All')).not.toBeInTheDocument();
+  });
+
+  it('should auto-generate columns from object schema when api and dataSource provided but no columns', async () => {
+    const mockDataSource = {
+      getObjectSchema: vi.fn().mockResolvedValue({
+        name: 'order_item',
+        fields: {
+          product: { type: 'string', label: 'Product' },
+          quantity: { type: 'number', label: 'Quantity' },
+          _id: { type: 'string', label: 'ID' },
+        },
+      }),
+      find: vi.fn(),
+    } as any;
+
+    const data = [{ product: 'Widget', quantity: 5 }];
+    render(
+      <RelatedList
+        title="Order Items"
+        type="table"
+        api="order_item"
+        data={data}
+        dataSource={mockDataSource}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockDataSource.getObjectSchema).toHaveBeenCalledWith('order_item');
+    });
+  });
+
+  it('should not fetch object schema when explicit columns are provided', () => {
+    const mockDataSource = {
+      getObjectSchema: vi.fn(),
+      find: vi.fn(),
+    } as any;
+
+    const columns = [{ accessorKey: 'name', header: 'Name' }];
+    render(
+      <RelatedList
+        title="Contacts"
+        type="table"
+        api="contact"
+        data={[{ name: 'Alice' }]}
+        columns={columns}
+        dataSource={mockDataSource}
+      />,
+    );
+
+    expect(mockDataSource.getObjectSchema).not.toHaveBeenCalled();
   });
 });
