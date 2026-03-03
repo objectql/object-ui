@@ -543,10 +543,9 @@ describe('ObjectView Component', () => {
         const titleInput = await screen.findByDisplayValue('All Opportunities');
         fireEvent.change(titleInput, { target: { value: 'Live Preview Test' } });
 
-        // The label change should propagate live through viewDraft
+        // The label change should propagate live through viewDraft (visible in config panel input)
         await vi.waitFor(() => {
-            const updatedItems = screen.getAllByText('Live Preview Test');
-            expect(updatedItems.length).toBeGreaterThanOrEqual(1);
+            expect(screen.getByDisplayValue('Live Preview Test')).toBeInTheDocument();
         });
     });
 
@@ -570,7 +569,7 @@ describe('ObjectView Component', () => {
         // The label updates immediately (live preview) — this verifies that
         // viewDraft → activeView data flow propagates config changes without save.
         await vi.waitFor(() => {
-            expect(screen.getByText('Changed Live')).toBeInTheDocument();
+            expect(screen.getByDisplayValue('Changed Live')).toBeInTheDocument();
         });
 
         // Grid persists after config change (no remount)

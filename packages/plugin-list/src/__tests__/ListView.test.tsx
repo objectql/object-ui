@@ -1035,6 +1035,7 @@ describe('ListView', () => {
         viewType: 'grid',
         fields: ['name', 'email'],
         sort: ['name desc' as any],
+        showSort: true,
       };
 
       const { container } = renderWithProvider(<ListView schema={schema} />);
@@ -1621,6 +1622,7 @@ describe('ListView', () => {
         objectName: 'contacts',
         viewType: 'grid',
         fields: ['name', 'email'],
+        showGroup: true,
       };
 
       renderWithProvider(<ListView schema={schema} />);
@@ -1635,6 +1637,7 @@ describe('ListView', () => {
         objectName: 'contacts',
         viewType: 'grid',
         fields: ['name', 'email'],
+        showGroup: true,
       };
 
       renderWithProvider(<ListView schema={schema} />);
@@ -1654,6 +1657,7 @@ describe('ListView', () => {
         viewType: 'grid',
         fields: ['name', 'email', 'status'],
         grouping: { fields: [{ field: 'status', order: 'asc' }] },
+        showGroup: true,
       };
 
       renderWithProvider(<ListView schema={schema} />);
@@ -2058,6 +2062,7 @@ describe('ListView', () => {
           { name: 'phone', label: 'Phone', type: 'text' },
         ] as any,
         filterableFields: ['name', 'email'],
+        showFilters: true,
       };
 
       renderWithProvider(<ListView schema={schema} />);
@@ -2075,6 +2080,7 @@ describe('ListView', () => {
           { name: 'name', label: 'Name', type: 'text' },
           { name: 'email', label: 'Email', type: 'text' },
         ] as any,
+        showFilters: true,
       };
 
       renderWithProvider(<ListView schema={schema} />);
@@ -2092,6 +2098,7 @@ describe('ListView', () => {
           { name: 'email', label: 'Email', type: 'text' },
         ] as any,
         filterableFields: [],
+        showFilters: true,
       };
 
       renderWithProvider(<ListView schema={schema} />);

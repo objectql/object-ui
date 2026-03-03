@@ -193,6 +193,7 @@ describe('ListView grouping config propagation', () => {
           viewType: 'grid',
           fields: ['name', 'category'],
           data: testData,
+          showGroup: true,
         }}
       />,
     );
