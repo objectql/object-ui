@@ -59,11 +59,18 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
     }
   }, [state.open, state.params]);
 
+  const isMissingValue = (value: unknown): boolean => {
+    if (value === undefined || value === null) return true;
+    if (typeof value === 'string') return value.trim() === '';
+    if (Array.isArray(value)) return value.length === 0;
+    return false;
+  };
+
   const handleSubmit = () => {
     // Validate required fields
     const newErrors: Record<string, boolean> = {};
     for (const param of state.params) {
-      if (param.required && !values[param.name]) {
+      if (param.required && isMissingValue(values[param.name])) {
         newErrors[param.name] = true;
       }
     }
@@ -107,7 +114,7 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
 
               {param.type === 'select' && param.options ? (
                 <Select
-                  value={values[param.name] || ''}
+                  value={values[param.name] ?? ''}
                   onValueChange={(val) => updateValue(param.name, val)}
                 >
                   <SelectTrigger id={param.name} className={errors[param.name] ? 'border-destructive' : ''}>
@@ -124,16 +131,25 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
               ) : param.type === 'textarea' ? (
                 <Textarea
                   id={param.name}
-                  value={values[param.name] || ''}
+                  value={values[param.name] ?? ''}
                   onChange={(e) => updateValue(param.name, e.target.value)}
+                  placeholder={param.placeholder}
+                  className={errors[param.name] ? 'border-destructive' : ''}
+                />
+              ) : param.type === 'number' ? (
+                <Input
+                  id={param.name}
+                  type="number"
+                  value={values[param.name] ?? ''}
+                  onChange={(e) => updateValue(param.name, e.target.valueAsNumber)}
                   placeholder={param.placeholder}
                   className={errors[param.name] ? 'border-destructive' : ''}
                 />
               ) : (
                 <Input
                   id={param.name}
-                  type={(['number', 'email', 'url', 'date', 'datetime-local', 'time', 'password'] as string[]).includes(param.type) ? param.type : 'text'}
-                  value={values[param.name] || ''}
+                  type={(['email', 'url', 'date', 'datetime-local', 'time', 'password'] as string[]).includes(param.type) ? param.type : 'text'}
+                  value={values[param.name] ?? ''}
                   onChange={(e) => updateValue(param.name, e.target.value)}
                   placeholder={param.placeholder}
                   className={errors[param.name] ? 'border-destructive' : ''}

@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
@@ -217,7 +217,7 @@ describe('RecordDetailView — Action buttons', () => {
     // dataSource.update should NOT be called
     // (wait a tick to ensure no async calls happen)
     await new Promise(r => setTimeout(r, 100));
-    expect(ds.update).not.toHaveBeenCalledWith('opportunity', 'opp-1', expect.anything());
+    expect(ds.update).not.toHaveBeenCalled();
   });
 
   it('shows param collection dialog for Change Stage action', async () => {

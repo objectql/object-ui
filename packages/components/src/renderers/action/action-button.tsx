@@ -41,6 +41,7 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
       'data-obj-id': dataObjId,
       'data-obj-type': dataObjType,
       style,
+      data,
       ...rest
     } = props;
 
@@ -48,7 +49,7 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
     const [loading, setLoading] = useState(false);
 
     // Record data may be passed from SchemaRenderer (e.g. DetailView passes record data)
-    const recordData = rest.data != null && typeof rest.data === 'object' ? rest.data as Record<string, any> : {};
+    const recordData = data != null && typeof data === 'object' ? data as Record<string, any> : {};
 
     // Evaluate visibility and enabled conditions with record data context
     const isVisible = useCondition(schema.visible ? `\${${schema.visible}}` : undefined, recordData);
@@ -66,10 +67,12 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
       setLoading(true);
 
       try {
-        // Detect if schema.params are ActionParam definitions (array of {name,type,...})
-        // vs actual param values (Record<string, any>)
-        const isParamDefs = Array.isArray(schema.params) && schema.params.length > 0 &&
-          typeof schema.params[0] === 'object' && 'name' in schema.params[0] && 'type' in schema.params[0];
+        // Route params correctly:
+        // - Array of objects with name+type → ActionParamDef[] → pass as actionParams for collection
+        // - Otherwise → pass as actual param values
+        const paramsPayload = Array.isArray(schema.params)
+          ? { actionParams: schema.params as any }
+          : { params: schema.params as Record<string, any> | undefined };
 
         await execute({
           type: schema.actionType || schema.type,
@@ -78,9 +81,7 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
           execute: schema.execute,
           endpoint: schema.endpoint,
           method: schema.method,
-          ...(isParamDefs
-            ? { actionParams: schema.params as any }
-            : { params: schema.params as Record<string, any> | undefined }),
+          ...paramsPayload,
           confirmText: schema.confirmText,
           successMessage: schema.successMessage,
           errorMessage: schema.errorMessage,

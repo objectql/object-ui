@@ -20,7 +20,7 @@ import { SkeletonDetail } from './skeletons';
 import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog';
 import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog';
 import type { DetailViewSchema, FeedItem } from '@object-ui/types';
-import type { ActionDef, ActionContext as ActionCtx, ActionParamDef } from '@object-ui/core';
+import type { ActionDef, ActionParamDef } from '@object-ui/core';
 
 interface RecordDetailViewProps {
   dataSource: any;
@@ -80,7 +80,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
   }, [navigate]);
 
   // API action handler — maps logical action targets to dataSource operations
-  const apiHandler = useCallback(async (action: ActionDef, _context: ActionCtx) => {
+  const apiHandler = useCallback(async (action: ActionDef) => {
     try {
       const target = action.target || action.name;
       const params = action.params || {};
@@ -103,8 +103,11 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
           break;
       }
 
-      setActionRefreshKey(k => k + 1);
-      return { success: true, reload: true };
+      const shouldRefresh = action.refreshAfter === true;
+      if (shouldRefresh) {
+        setActionRefreshKey(k => k + 1);
+      }
+      return { success: true, reload: shouldRefresh };
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
