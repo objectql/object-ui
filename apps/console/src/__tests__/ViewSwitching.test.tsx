@@ -90,12 +90,17 @@ describe('Console View Switching Integration', () => {
         );
     };
 
-    it('no longer renders view tabs (moved to config panel)', () => {
+    it('renders view tabs without drag or add features', () => {
         renderObjectView();
         
-        // ViewTabBar was removed, so view names should not appear as tabs
-        // Only the default grid view is rendered
-        expect(screen.queryByTestId('view-tab-bar')).not.toBeInTheDocument();
+        // ViewTabBar should be present for switching views
+        const allTasksElements = screen.getAllByText('All Tasks');
+        expect(allTasksElements.length).toBeGreaterThanOrEqual(1);
+        expect(screen.getByText('Board')).toBeInTheDocument();
+        expect(screen.getByText('Schedule')).toBeInTheDocument();
+        expect(screen.getByText('Roadmap')).toBeInTheDocument();
+        expect(screen.getByText('History')).toBeInTheDocument();
+        expect(screen.getByText('Sites')).toBeInTheDocument();
     });
 
     it('switches to Timeline view correctly', async () => {

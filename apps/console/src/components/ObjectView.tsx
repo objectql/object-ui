@@ -9,18 +9,19 @@
  * - ListView delegation for non-grid view types (kanban, calendar, chart, etc.)
  */
 
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, type ComponentType } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { ObjectChart } from '@object-ui/plugin-charts';
 import { ListView } from '@object-ui/plugin-list';
 import { DetailView, RecordChatterPanel } from '@object-ui/plugin-detail';
-import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
+import { ObjectView as PluginObjectView, ViewTabBar } from '@object-ui/plugin-view';
+import type { ViewTabItem } from '@object-ui/plugin-view';
 // Import plugins for side-effects (registration)
 import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-calendar';
 import { Button, Empty, EmptyTitle, EmptyDescription, NavigationOverlay, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@object-ui/components';
-import { Plus, Table as TableIcon, Settings2, Wrench } from 'lucide-react';
+import { Plus, Table as TableIcon, Settings2, Wrench, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3 } from 'lucide-react';
 import type { ListViewSchema, ViewNavigationConfig, FeedItem } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { ViewConfigPanel } from './ViewConfigPanel';
@@ -30,6 +31,18 @@ import { usePermissions } from '@object-ui/permissions';
 import { useAuth } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
 import { useNavigationOverlay, SchemaRenderer } from '@object-ui/react';
+
+/** Map view types to Lucide icons (Airtable-style) */
+const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+    grid: TableIcon,
+    kanban: KanbanSquare,
+    calendar: Calendar,
+    gallery: LayoutGrid,
+    timeline: Activity,
+    gantt: GanttChart,
+    map: MapPin,
+    chart: BarChart3,
+};
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User' };
 
@@ -732,7 +745,24 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                  </div>
              </div>
 
-             {/* View Tabs removed — view switching is handled via ViewConfigPanel (right sidebar) */}
+             {/* View Tabs — read-only view switcher (design features like drag/add are in ViewConfigPanel) */}
+             {views.length > 1 && (
+               <div className="border-b px-3 sm:px-4 bg-background overflow-x-auto shrink-0">
+                 <ViewTabBar
+                   views={views.map((view: { id: string; label: string; type: string; filter?: any[]; sort?: any[] }) => ({
+                     id: view.id,
+                     label: view.label,
+                     type: view.type,
+                     hasActiveFilters: Array.isArray((view as any).filter) && (view as any).filter.length > 0,
+                     hasActiveSort: Array.isArray((view as any).sort) && (view as any).sort.length > 0,
+                   } as ViewTabItem))}
+                   activeViewId={activeViewId}
+                   onViewChange={handleViewChange}
+                   viewTypeIcons={VIEW_TYPE_ICONS}
+                   config={{ reorderable: false }}
+                 />
+               </div>
+             )}
 
              {/* 2. Content — Plugin ObjectView with ViewSwitcher + Filter + Sort */}
              <div className="flex-1 overflow-hidden relative flex flex-row">

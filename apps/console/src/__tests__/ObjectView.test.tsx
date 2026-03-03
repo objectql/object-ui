@@ -170,6 +170,11 @@ describe('ObjectView Component', () => {
         // Check Header (h1 only, breadcrumb removed)
         const headers = screen.getAllByText('Opportunity');
         expect(headers.length).toBeGreaterThanOrEqual(1);
+        
+        // Check view tabs are rendered (without drag/add features)
+        const allOppTexts = screen.getAllByText('All Opportunities');
+        expect(allOppTexts.length).toBeGreaterThanOrEqual(1);
+        expect(screen.getByText('Pipeline')).toBeInTheDocument();
 
         // Check Grid is rendered (default)
         expect(screen.getByTestId('object-grid')).toBeInTheDocument();
