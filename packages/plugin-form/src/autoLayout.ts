@@ -117,15 +117,13 @@ export function filterCreateModeFields(
  * Used to auto-upgrade the modal width when auto-layout detects multi-column forms.
  *
  * Mapping:
- * - 1 column  → 'default' (max-w-lg)
- * - 2 columns → 'lg'      (max-w-2xl)
- * - 3 columns → 'xl'      (max-w-4xl)
- * - 4+ columns → 'full'   (max-w-[95vw])
+ * - 1 column   → 'default' (max-w-lg)
+ * - 2 columns  → 'xl'      (max-w-5xl)
+ * - 3+ columns → 'full'    (max-w-[95vw])
  */
 export function inferModalSize(columns: number): 'sm' | 'default' | 'lg' | 'xl' | 'full' {
   if (columns <= 1) return 'default';
-  if (columns === 2) return 'lg';
-  if (columns === 3) return 'xl';
+  if (columns === 2) return 'xl';
   return 'full';
 }
 

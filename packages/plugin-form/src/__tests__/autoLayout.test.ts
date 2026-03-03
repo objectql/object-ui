@@ -76,15 +76,12 @@ describe('autoLayout', () => {
       expect(inferModalSize(1)).toBe('default');
     });
 
-    it('returns lg for 2 columns', () => {
-      expect(inferModalSize(2)).toBe('lg');
+    it('returns xl for 2 columns', () => {
+      expect(inferModalSize(2)).toBe('xl');
     });
 
-    it('returns xl for 3 columns', () => {
-      expect(inferModalSize(3)).toBe('xl');
-    });
-
-    it('returns full for 4+ columns', () => {
+    it('returns full for 3+ columns', () => {
+      expect(inferModalSize(3)).toBe('full');
       expect(inferModalSize(4)).toBe('full');
       expect(inferModalSize(5)).toBe('full');
     });

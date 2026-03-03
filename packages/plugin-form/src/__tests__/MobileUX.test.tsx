@@ -323,7 +323,7 @@ describe('ModalForm Container Query Layout', () => {
 });
 
 describe('ModalForm Sections — Modal Size Auto-Upgrade', () => {
-  it('auto-upgrades modal to lg when sections use 2-column layout', async () => {
+  it('auto-upgrades modal to xl when sections use 2-column layout', async () => {
     const mockDataSource = createMockDataSource();
 
     render(
@@ -356,10 +356,10 @@ describe('ModalForm Sections — Modal Size Auto-Upgrade', () => {
       expect(screen.getByText('Create Task')).toBeInTheDocument();
     });
 
-    // Dialog should auto-upgrade to lg (max-w-2xl) because sections have columns: 2
+    // Dialog should auto-upgrade to xl (max-w-5xl) because sections have columns: 2
     const dialogContent = document.querySelector('[role="dialog"]');
     expect(dialogContent).not.toBeNull();
-    expect(dialogContent!.className).toContain('max-w-2xl');
+    expect(dialogContent!.className).toContain('max-w-5xl');
   });
 
   it('keeps default size when all sections use 1-column layout', async () => {

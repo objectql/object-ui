@@ -101,7 +101,7 @@ const modalSizeClasses: Record<string, string> = {
   sm: 'max-w-sm',
   default: 'max-w-lg',
   lg: 'max-w-2xl',
-  xl: 'max-w-4xl',
+  xl: 'max-w-5xl',
   full: 'max-w-[95vw] w-full',
 };
 
