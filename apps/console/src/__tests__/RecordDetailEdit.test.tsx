@@ -185,7 +185,11 @@ describe('RecordDetailView — detail schema features', () => {
       expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Alice');
     });
 
-    // The highlightFields should include "Status" and display its value
+    // The highlightFields should render "Status" label in the highlight banner
+    // (also appears in the detail section, so multiple matches expected)
+    const statusElements = screen.getAllByText('Status');
+    expect(statusElements.length).toBeGreaterThanOrEqual(2); // highlight banner + detail section
+    // The value "Active" should appear in the highlight area and/or detail section
     const activeElements = screen.getAllByText('Active');
     expect(activeElements.length).toBeGreaterThanOrEqual(1);
   });

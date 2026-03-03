@@ -25,6 +25,9 @@ interface RecordDetailViewProps {
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User' };
 
+/** Field names automatically promoted to the highlight banner when present. */
+const HIGHLIGHT_FIELD_NAMES = ['status', 'stage', 'priority', 'category', 'type', 'owner', 'amount'];
+
 export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailViewProps) {
   const { objectName, recordId } = useParams();
   const { showDebug } = useMetadataInspector();
@@ -258,7 +261,6 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
   );
 
   // Build highlightFields: prefer explicit config, fallback to auto-detect key fields
-  const HIGHLIGHT_FIELD_NAMES = ['status', 'stage', 'priority', 'category', 'type', 'owner', 'amount'];
   const explicitHighlight: HighlightField[] | undefined = objectDef.views?.detail?.highlightFields;
   const highlightFields: HighlightField[] = explicitHighlight
     ?? Object.entries(objectDef.fields || {})
