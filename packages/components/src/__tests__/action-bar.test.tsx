@@ -94,6 +94,40 @@ describe('ActionBar (action:bar)', () => {
       expect(container.textContent).toContain('Action 1');
       expect(container.textContent).toContain('Action 2');
     });
+
+    it('deduplicates actions by name', () => {
+      const { container } = renderComponent({
+        type: 'action:bar',
+        actions: [
+          { name: 'change_status', label: 'Change Status', type: 'script', component: 'action:button' },
+          { name: 'assign_user', label: 'Assign User', type: 'script', component: 'action:button' },
+          { name: 'change_status', label: 'Change Status', type: 'script', component: 'action:button' },
+        ],
+      });
+      const toolbar = container.querySelector('[role="toolbar"]');
+      expect(toolbar).toBeTruthy();
+      // Should only render 2 actions (duplicates removed)
+      expect(toolbar!.children.length).toBe(2);
+      expect(container.textContent).toContain('Change Status');
+      expect(container.textContent).toContain('Assign User');
+    });
+
+    it('deduplicates actions after location filtering', () => {
+      const { container } = renderComponent({
+        type: 'action:bar',
+        location: 'record_header',
+        actions: [
+          { name: 'change_status', label: 'Change Status', type: 'script', locations: ['record_header'] },
+          { name: 'assign_user', label: 'Assign User', type: 'script', locations: ['record_header'] },
+          { name: 'change_status', label: 'Change Status', type: 'script', locations: ['record_header', 'record_more'] },
+          { name: 'assign_user', label: 'Assign User', type: 'script', locations: ['record_header'] },
+        ],
+      });
+      const toolbar = container.querySelector('[role="toolbar"]');
+      expect(toolbar).toBeTruthy();
+      // Should only render 2 unique actions
+      expect(toolbar!.children.length).toBe(2);
+    });
   });
 
   describe('overflow', () => {

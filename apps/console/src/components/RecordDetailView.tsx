@@ -386,10 +386,10 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
         },
       ];
 
-  // Filter actions for record_header location
+  // Filter actions for record_header location and deduplicate by name
   const recordHeaderActions = (objectDef.actions || []).filter(
     (a: any) => a.locations?.includes('record_header'),
-  );
+  ).filter((a: any, i: number, arr: any[]) => arr.findIndex((b: any) => b.name === a.name) === i);
 
   // Build highlightFields: prefer explicit config, fallback to auto-detect key fields
   const explicitHighlight: HighlightField[] | undefined = objectDef.views?.detail?.highlightFields;

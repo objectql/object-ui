@@ -76,13 +76,22 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
     const isVisible = useCondition(schema.visible ? `\${${schema.visible}}` : undefined);
     const isMobile = useIsMobile();
 
-    // Filter actions by location
+    // Filter actions by location and deduplicate by name
     const filteredActions = useMemo(() => {
       const actions = schema.actions || [];
-      if (!schema.location) return actions;
-      return actions.filter(
-        a => !a.locations || a.locations.length === 0 || a.locations.includes(schema.location!),
-      );
+      const located = !schema.location
+        ? actions
+        : actions.filter(
+            a => !a.locations || a.locations.length === 0 || a.locations.includes(schema.location!),
+          );
+      // Deduplicate by action name — keep first occurrence
+      const seen = new Set<string>();
+      return located.filter(a => {
+        if (!a.name) return true;
+        if (seen.has(a.name)) return false;
+        seen.add(a.name);
+        return true;
+      });
     }, [schema.actions, schema.location]);
 
     // Split into visible inline actions and overflow
