@@ -545,6 +545,16 @@ export interface DashboardWidgetSchema {
    */
   responsive?: any;
   /**
+   * Enable search input for table-type widgets.
+   * @default false
+   */
+  searchable?: boolean;
+  /**
+   * Enable pagination for table-type widgets.
+   * @default false
+   */
+  pagination?: boolean;
+  /**
    * ARIA accessibility attributes.
    * Aligned with @objectstack/spec AriaPropsSchema.
    */

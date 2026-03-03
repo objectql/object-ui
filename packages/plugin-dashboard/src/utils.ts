@@ -7,7 +7,7 @@
  */
 
 /** Returns true when the widget data config uses provider: 'object' (async data source). */
-export function isObjectProvider(widgetData: unknown): widgetData is { provider: 'object'; object?: string; aggregate?: any } {
+export function isObjectProvider(widgetData: unknown): widgetData is { provider: 'object'; object?: string; aggregate?: any; filter?: any } {
   return (
     widgetData != null &&
     typeof widgetData === 'object' &&

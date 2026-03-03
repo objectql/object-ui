@@ -619,7 +619,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           return (cols as ListColumn[])
             .filter((col) => col?.field && typeof col.field === 'string' && !col.hidden)
             .map((col, colIndex) => {
-              const rawHeader = col.label || col.field.charAt(0).toUpperCase() + col.field.slice(1).replace(/_/g, ' ');
+              const rawLabel = col.label;
+              const rawHeader = (typeof rawLabel === 'string' ? rawLabel : typeof rawLabel === 'object' && rawLabel ? (rawLabel as any).defaultValue || (rawLabel as any).key : null) || col.field.charAt(0).toUpperCase() + col.field.slice(1).replace(/_/g, ' ');
               const header = schema.objectName ? resolveFieldLabel(schema.objectName, col.field, rawHeader) : rawHeader;
 
               // Build custom cell renderer based on column configuration
