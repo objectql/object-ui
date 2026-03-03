@@ -270,7 +270,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
                 : (<ChevronDown className="h-4 w-4 text-muted-foreground" />)
             )}
             <span>{title}</span>
-            <Badge variant="secondary" className="text-xs font-normal">
+            <Badge variant="secondary" className="text-xs font-normal" aria-label={`${relatedData.length} records`}>
               {relatedData.length}
             </Badge>
           </div>
