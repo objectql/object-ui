@@ -520,7 +520,7 @@ const ko = {
       submitButton: '재설정 링크 보내기',
       submittingButton: '전송 중...',
       successTitle: '이메일을 확인하세요',
-      successDescription: '비밀번호 재설정 링크를 전송했습니다:',
+      successDescription: '{{email}}(으)로 비밀번호 재설정 링크를 전송했습니다. 수신함을 확인해주세요.',
       backToSignInText: '로그인으로 돌아가기',
       rememberPasswordText: '비밀번호가 기억나시나요?',
       signInText: '로그인',

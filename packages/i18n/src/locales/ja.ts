@@ -520,7 +520,7 @@ const ja = {
       submitButton: 'リセットリンクを送信',
       submittingButton: '送信中...',
       successTitle: 'メールをご確認ください',
-      successDescription: 'パスワードリセットリンクを送信しました：',
+      successDescription: '{{email}} にパスワードリセットリンクを送信しました。受信箱をご確認ください。',
       backToSignInText: 'サインインに戻る',
       rememberPasswordText: 'パスワードを覚えていますか？',
       signInText: 'サインイン',

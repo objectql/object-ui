@@ -520,7 +520,7 @@ const es = {
       submitButton: 'Enviar enlace de restablecimiento',
       submittingButton: 'Enviando...',
       successTitle: 'Revisa tu correo electrónico',
-      successDescription: 'Hemos enviado un enlace para restablecer la contraseña a',
+      successDescription: 'Hemos enviado un enlace para restablecer la contraseña a {{email}}. Por favor revisa tu bandeja de entrada.',
       backToSignInText: 'Volver a iniciar sesión',
       rememberPasswordText: '¿Recuerdas tu contraseña?',
       signInText: 'Iniciar sesión',

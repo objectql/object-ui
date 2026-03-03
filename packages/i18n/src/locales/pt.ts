@@ -520,7 +520,7 @@ const pt = {
       submitButton: 'Enviar link de redefinição',
       submittingButton: 'Enviando...',
       successTitle: 'Verifique seu e-mail',
-      successDescription: 'Enviamos um link para redefinição de senha para',
+      successDescription: 'Enviamos um link para redefinição de senha para {{email}}. Por favor verifique sua caixa de entrada.',
       backToSignInText: 'Voltar para o login',
       rememberPasswordText: 'Lembra da sua senha?',
       signInText: 'Entrar',

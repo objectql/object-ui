@@ -521,7 +521,7 @@ const ar = {
       submitButton: 'إرسال رابط إعادة التعيين',
       submittingButton: 'جارٍ الإرسال...',
       successTitle: 'تحقق من بريدك الإلكتروني',
-      successDescription: 'لقد أرسلنا رابط إعادة تعيين كلمة المرور إلى',
+      successDescription: 'لقد أرسلنا رابط إعادة تعيين كلمة المرور إلى {{email}}. يرجى التحقق من بريدك الوارد.',
       backToSignInText: 'العودة إلى تسجيل الدخول',
       rememberPasswordText: 'تتذكر كلمة المرور؟',
       signInText: 'تسجيل الدخول',

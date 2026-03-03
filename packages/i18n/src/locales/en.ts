@@ -583,7 +583,7 @@ const en = {
       submitButton: 'Send Reset Link',
       submittingButton: 'Sending...',
       successTitle: 'Check your email',
-      successDescription: "We've sent a password reset link to",
+      successDescription: "We've sent a password reset link to {{email}}. Please check your inbox.",
       backToSignInText: 'Back to sign in',
       rememberPasswordText: 'Remember your password?',
       signInText: 'Sign in',

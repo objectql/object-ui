@@ -525,7 +525,7 @@ const de = {
       submitButton: 'Link zum Zurücksetzen senden',
       submittingButton: 'Wird gesendet...',
       successTitle: 'Überprüfen Sie Ihre E-Mails',
-      successDescription: 'Wir haben einen Link zum Zurücksetzen des Passworts gesendet an',
+      successDescription: 'Wir haben einen Link zum Zurücksetzen des Passworts an {{email}} gesendet. Bitte überprüfen Sie Ihren Posteingang.',
       backToSignInText: 'Zurück zur Anmeldung',
       rememberPasswordText: 'Passwort doch bekannt?',
       signInText: 'Anmelden',

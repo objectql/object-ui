@@ -525,7 +525,7 @@ const fr = {
       submitButton: 'Envoyer le lien de réinitialisation',
       submittingButton: 'Envoi en cours...',
       successTitle: 'Vérifiez vos e-mails',
-      successDescription: 'Nous avons envoyé un lien de réinitialisation du mot de passe à',
+      successDescription: 'Nous avons envoyé un lien de réinitialisation du mot de passe à {{email}}. Veuillez vérifier votre boîte de réception.',
       backToSignInText: 'Retour à la connexion',
       rememberPasswordText: 'Vous vous souvenez de votre mot de passe ?',
       signInText: 'Se connecter',

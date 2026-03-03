@@ -520,7 +520,7 @@ const ru = {
       submitButton: 'Отправить ссылку для сброса',
       submittingButton: 'Отправка...',
       successTitle: 'Проверьте почту',
-      successDescription: 'Мы отправили ссылку для сброса пароля на',
+      successDescription: 'Мы отправили ссылку для сброса пароля на {{email}}. Пожалуйста, проверьте свою почту.',
       backToSignInText: 'Вернуться к входу',
       rememberPasswordText: 'Помните свой пароль?',
       signInText: 'Войти',

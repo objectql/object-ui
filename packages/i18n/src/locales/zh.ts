@@ -583,7 +583,7 @@ const zh = {
       submitButton: '发送重置链接',
       submittingButton: '发送中...',
       successTitle: '请查看您的邮箱',
-      successDescription: '我们已将密码重置链接发送至',
+      successDescription: '我们已将密码重置链接发送至 {{email}}，请检查您的收件箱。',
       backToSignInText: '返回登录',
       rememberPasswordText: '记住密码了？',
       signInText: '登录',

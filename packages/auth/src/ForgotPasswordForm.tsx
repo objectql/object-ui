@@ -76,7 +76,7 @@ export function ForgotPasswordForm({
     submitButton: labels.submitButton ?? 'Send Reset Link',
     submittingButton: labels.submittingButton ?? 'Sending...',
     successTitle: labels.successTitle ?? 'Check your email',
-    successDescription: labels.successDescription ?? `We've sent a password reset link to`,
+    successDescription: labels.successDescription ?? "We've sent a password reset link to {{email}}. Please check your inbox.",
     backToSignInText: labels.backToSignInText ?? 'Back to sign in',
     rememberPasswordText: labels.rememberPasswordText ?? 'Remember your password?',
     signInText: labels.signInText ?? 'Sign in',
@@ -98,13 +98,14 @@ export function ForgotPasswordForm({
   };
 
   if (submitted) {
+    const successMsg = l.successDescription.includes('{{email}}')
+      ? l.successDescription.replace('{{email}}', email)
+      : `${l.successDescription} ${email}`;
     return (
       <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[380px]">
         <div className="flex flex-col space-y-2 text-center">
           <h1 className="text-2xl font-semibold tracking-tight">{l.successTitle}</h1>
-          <p className="text-sm text-muted-foreground">
-            {l.successDescription} <strong>{email}</strong>.
-          </p>
+          <p className="text-sm text-muted-foreground">{successMsg}</p>
         </div>
         {loginUrl && (
           <p className="px-8 text-center text-sm text-muted-foreground">
