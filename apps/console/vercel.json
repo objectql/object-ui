@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@object-ui/console^... && cd apps/console && pnpm msw:init && VITE_BASE_PATH=/ VITE_USE_MOCK_SERVER=true vite build",
+  "buildCommand": "cd ../.. && NODE_OPTIONS=--max-old-space-size=4096 pnpm turbo run build --filter=@object-ui/console^... --concurrency=3 && cd apps/console && pnpm msw:init && VITE_BASE_PATH=/ VITE_USE_MOCK_SERVER=true vite build",
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
