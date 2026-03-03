@@ -541,4 +541,101 @@ describe('FilterUI', () => {
       window.removeEventListener('filter:changed', spy);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // 9. Multi-select filter type
+  // -------------------------------------------------------------------------
+  describe('multi-select filter type', () => {
+    const multiSelectFilters: FilterUISchema['filters'] = [
+      {
+        field: 'tags',
+        label: 'Tags',
+        type: 'multi-select',
+        options: [
+          { label: 'Frontend', value: 'frontend' },
+          { label: 'Backend', value: 'backend' },
+          { label: 'DevOps', value: 'devops' },
+        ],
+      },
+    ];
+
+    it('renders checkboxes for multi-select type', () => {
+      render(
+        <FilterUI
+          schema={makeSchema({ filters: multiSelectFilters })}
+        />,
+      );
+
+      expect(screen.getByText('Tags')).toBeInTheDocument();
+      const checkboxes = screen.getAllByTestId('checkbox');
+      expect(checkboxes.length).toBe(3);
+      expect(screen.getByText('Frontend')).toBeInTheDocument();
+      expect(screen.getByText('Backend')).toBeInTheDocument();
+      expect(screen.getByText('DevOps')).toBeInTheDocument();
+    });
+
+    it('calls onChange with array when multi-select checkbox is toggled', () => {
+      const onChange = vi.fn();
+      render(
+        <FilterUI
+          schema={makeSchema({ filters: multiSelectFilters })}
+          onChange={onChange}
+        />,
+      );
+
+      const checkboxes = screen.getAllByTestId('checkbox');
+      fireEvent.click(checkboxes[0]); // Frontend
+      expect(onChange).toHaveBeenCalledWith({ tags: ['frontend'] });
+    });
+
+    it('adds to selection when another checkbox is checked', () => {
+      const onChange = vi.fn();
+      render(
+        <FilterUI
+          schema={makeSchema({
+            filters: multiSelectFilters,
+            values: { tags: ['frontend'] },
+          })}
+          onChange={onChange}
+        />,
+      );
+
+      const checkboxes = screen.getAllByTestId('checkbox');
+      fireEvent.click(checkboxes[1]); // Backend
+      expect(onChange).toHaveBeenCalledWith({ tags: ['frontend', 'backend'] });
+    });
+
+    it('removes from selection when checkbox is unchecked', () => {
+      const onChange = vi.fn();
+      render(
+        <FilterUI
+          schema={makeSchema({
+            filters: multiSelectFilters,
+            values: { tags: ['frontend', 'backend'] },
+          })}
+          onChange={onChange}
+        />,
+      );
+
+      // Uncheck Frontend (first checkbox)
+      const checkboxes = screen.getAllByTestId('checkbox');
+      fireEvent.click(checkboxes[0]); // Frontend
+      expect(onChange).toHaveBeenCalledWith({ tags: ['backend'] });
+    });
+
+    it('shows selected count in active badge for popover layout', () => {
+      render(
+        <FilterUI
+          schema={makeSchema({
+            layout: 'popover',
+            filters: multiSelectFilters,
+            values: { tags: ['frontend', 'backend'] },
+          })}
+        />,
+      );
+
+      // Active count should be 1 (tags field has a value)
+      expect(screen.getByText('1')).toBeInTheDocument();
+    });
+  });
 });
