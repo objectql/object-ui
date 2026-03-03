@@ -1,5 +1,17 @@
 # @object-ui/plugin-list
 
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @object-ui/types@3.1.1
+  - @object-ui/components@3.1.1
+  - @object-ui/core@3.1.1
+  - @object-ui/mobile@3.1.1
+  - @object-ui/react@3.1.1
+  - @object-ui/i18n@3.1.1
+
 ## 3.0.3
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @object-ui/plugin-aggrid
 
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @object-ui/types@3.1.1
+  - @object-ui/components@3.1.1
+  - @object-ui/core@3.1.1
+  - @object-ui/data-objectstack@3.1.1
+  - @object-ui/fields@3.1.1
+  - @object-ui/react@3.1.1
+
 ## 3.0.3
 
 ### Patch Changes
