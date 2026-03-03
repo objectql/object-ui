@@ -9,19 +9,18 @@
  * - ListView delegation for non-grid view types (kanban, calendar, chart, etc.)
  */
 
-import { useMemo, useState, useCallback, useEffect, type ComponentType } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { ObjectChart } from '@object-ui/plugin-charts';
 import { ListView } from '@object-ui/plugin-list';
 import { DetailView, RecordChatterPanel } from '@object-ui/plugin-detail';
 import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
-import type { AvailableViewType } from '@object-ui/plugin-view';
 // Import plugins for side-effects (registration)
 import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-calendar';
 import { Button, Empty, EmptyTitle, EmptyDescription, NavigationOverlay, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@object-ui/components';
-import { Plus, Table as TableIcon, Settings2, Wrench, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3 } from 'lucide-react';
+import { Plus, Table as TableIcon, Settings2, Wrench } from 'lucide-react';
 import type { ListViewSchema, ViewNavigationConfig, FeedItem } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { ViewConfigPanel } from './ViewConfigPanel';
@@ -31,30 +30,6 @@ import { usePermissions } from '@object-ui/permissions';
 import { useAuth } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
 import { useNavigationOverlay, SchemaRenderer } from '@object-ui/react';
-
-/** Map view types to Lucide icons (Airtable-style) */
-const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
-    grid: TableIcon,
-    kanban: KanbanSquare,
-    calendar: Calendar,
-    gallery: LayoutGrid,
-    timeline: Activity,
-    gantt: GanttChart,
-    map: MapPin,
-    chart: BarChart3,
-};
-
-/** Available view types for quick-switch palette */
-const AVAILABLE_VIEW_TYPES: AvailableViewType[] = [
-    { type: 'grid', label: 'Grid', description: 'Spreadsheet-style rows and columns' },
-    { type: 'kanban', label: 'Kanban', description: 'Drag cards between columns' },
-    { type: 'calendar', label: 'Calendar', description: 'View records on a calendar' },
-    { type: 'gallery', label: 'Gallery', description: 'Visual card layout' },
-    { type: 'timeline', label: 'Timeline', description: 'Chronological event view' },
-    { type: 'gantt', label: 'Gantt', description: 'Project timeline with dependencies' },
-    { type: 'map', label: 'Map', description: 'Geographic location view' },
-    { type: 'chart', label: 'Chart', description: 'Data visualization' },
-];
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User' };
 

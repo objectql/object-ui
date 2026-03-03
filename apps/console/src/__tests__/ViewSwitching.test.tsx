@@ -90,17 +90,12 @@ describe('Console View Switching Integration', () => {
         );
     };
 
-    it('renders all view tabs', () => {
+    it('no longer renders view tabs (moved to config panel)', () => {
         renderObjectView();
         
-        // "All Tasks" appears in breadcrumb and tab, so use getAllByText
-        const allTasksElements = screen.getAllByText('All Tasks');
-        expect(allTasksElements.length).toBeGreaterThanOrEqual(1);
-        expect(screen.getByText('Board')).toBeInTheDocument();
-        expect(screen.getByText('Schedule')).toBeInTheDocument();
-        expect(screen.getByText('Roadmap')).toBeInTheDocument();
-        expect(screen.getByText('History')).toBeInTheDocument();
-        expect(screen.getByText('Sites')).toBeInTheDocument();
+        // ViewTabBar was removed, so view names should not appear as tabs
+        // Only the default grid view is rendered
+        expect(screen.queryByTestId('view-tab-bar')).not.toBeInTheDocument();
     });
 
     it('switches to Timeline view correctly', async () => {
