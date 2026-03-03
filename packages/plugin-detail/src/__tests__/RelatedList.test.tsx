@@ -121,4 +121,40 @@ describe('RelatedList', () => {
 
     expect(mockDataSource.getObjectSchema).not.toHaveBeenCalled();
   });
+
+  it('should render collapsed state when collapsible and defaultCollapsed are true', () => {
+    const data = [{ id: 1, name: 'Alice' }];
+    render(
+      <RelatedList title="Contacts" type="table" data={data} collapsible defaultCollapsed />,
+    );
+    expect(screen.getByText('Contacts')).toBeInTheDocument();
+    // Content should be hidden when collapsed
+    expect(screen.queryByText('Alice')).not.toBeInTheDocument();
+  });
+
+  it('should expand collapsed card when header is clicked', () => {
+    render(
+      <RelatedList title="Contacts" type="table" data={[]} collapsible defaultCollapsed />,
+    );
+    // Initially collapsed - content should be hidden
+    expect(screen.queryByText('No related records found')).not.toBeInTheDocument();
+    // Click the header to expand
+    fireEvent.click(screen.getByText('Contacts'));
+    // Content should now be visible
+    expect(screen.getByText('No related records found')).toBeInTheDocument();
+  });
+
+  it('should show content by default when collapsible is true but defaultCollapsed is false', () => {
+    render(
+      <RelatedList title="Contacts" type="table" data={[]} collapsible />,
+    );
+    expect(screen.getByText('No related records found')).toBeInTheDocument();
+  });
+
+  it('should show content when collapsible is false (default)', () => {
+    render(
+      <RelatedList title="Contacts" type="table" data={[]} />,
+    );
+    expect(screen.getByText('No related records found')).toBeInTheDocument();
+  });
 });

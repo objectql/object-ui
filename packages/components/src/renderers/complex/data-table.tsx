@@ -796,7 +796,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         {col.headerIcon && (
                           <span className="text-muted-foreground flex-shrink-0">{col.headerIcon}</span>
                         )}
-                        <span className="text-xs font-normal text-muted-foreground">{col.header}</span>
+                        <span className="text-xs font-normal text-muted-foreground whitespace-nowrap truncate">{col.header}</span>
                         {sortable && col.sortable !== false && getSortIcon(col.accessorKey)}
                       </div>
                       {resizableColumns && col.resizable !== false && (
