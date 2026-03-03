@@ -14,14 +14,14 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { ObjectChart } from '@object-ui/plugin-charts';
 import { ListView } from '@object-ui/plugin-list';
 import { DetailView, RecordChatterPanel } from '@object-ui/plugin-detail';
-import { ObjectView as PluginObjectView, ViewTabBar } from '@object-ui/plugin-view';
-import type { ViewTabItem, AvailableViewType } from '@object-ui/plugin-view';
+import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
+import type { AvailableViewType } from '@object-ui/plugin-view';
 // Import plugins for side-effects (registration)
 import '@object-ui/plugin-grid';
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-calendar';
 import { Button, Empty, EmptyTitle, EmptyDescription, NavigationOverlay, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@object-ui/components';
-import { Plus, Table as TableIcon, Settings2, Wrench, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3, ChevronRight } from 'lucide-react';
+import { Plus, Table as TableIcon, Settings2, Wrench, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3 } from 'lucide-react';
 import type { ListViewSchema, ViewNavigationConfig, FeedItem } from '@object-ui/types';
 import { MetadataToggle, MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { ViewConfigPanel } from './ViewConfigPanel';
@@ -697,12 +697,6 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                         <TableIcon className="h-4 w-4 text-primary" />
                     </div>
                     <div className="min-w-0">
-                        {/* Breadcrumb: Object > View */}
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5">
-                            <span className="truncate">{objectLabel(objectDef)}</span>
-                            <ChevronRight className="h-3 w-3 shrink-0" />
-                            <span className="truncate font-medium text-foreground">{activeView?.label || t('console.objectView.allRecords')}</span>
-                        </div>
                         <h1 className="text-base sm:text-lg font-semibold tracking-tight text-foreground truncate">{objectLabel(objectDef)}</h1>
                         {objectDef.description && (
                             <p className="text-xs text-muted-foreground truncate hidden sm:block max-w-md">{objectDesc(objectDef)}</p>
@@ -763,56 +757,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                  </div>
              </div>
 
-             {/* View Tabs — Airtable-style named-view switcher with management UX */}
-             {views.length > 1 && (
-               <div className="border-b px-3 sm:px-4 bg-background overflow-x-auto shrink-0">
-                 <ViewTabBar
-                   views={views.map((view: { id: string; label: string; type: string; filter?: any[]; sort?: any[] }) => ({
-                     id: view.id,
-                     label: view.label,
-                     type: view.type,
-                     hasActiveFilters: Array.isArray((view as any).filter) && (view as any).filter.length > 0,
-                     hasActiveSort: Array.isArray((view as any).sort) && (view as any).sort.length > 0,
-                   } as ViewTabItem))}
-                   activeViewId={activeViewId}
-                   onViewChange={handleViewChange}
-                   viewTypeIcons={VIEW_TYPE_ICONS}
-                   config={{ ...objectDef.viewTabBar, reorderable: isAdmin ? true : objectDef.viewTabBar?.reorderable }}
-                   onAddView={isAdmin ? () => { setViewConfigPanelMode('create'); setShowViewConfigPanel(true); } : undefined}
-                   onRenameView={(id: any, newName: any) => {
-                     // Rename is wired for future backend integration
-                     console.info('[ViewTabBar] Rename view:', id, newName);
-                   }}
-                   onDuplicateView={(id: any) => {
-                     console.info('[ViewTabBar] Duplicate view:', id);
-                   }}
-                   onDeleteView={(id: any) => {
-                     console.info('[ViewTabBar] Delete view:', id);
-                   }}
-                   onSetDefaultView={(id: any) => {
-                     console.info('[ViewTabBar] Set default view:', id);
-                   }}
-                   onShareView={(id: any) => {
-                     console.info('[ViewTabBar] Share view:', id);
-                   }}
-                   onPinView={(id: any, pinned: any) => {
-                     console.info('[ViewTabBar] Pin view:', id, pinned);
-                   }}
-                   onReorderViews={(viewIds: any) => {
-                     console.info('[ViewTabBar] Reorder views:', viewIds);
-                   }}
-                   onChangeViewType={(id: any, newType: any) => {
-                     console.info('[ViewTabBar] Change view type:', id, newType);
-                   }}
-                   onConfigView={isAdmin ? (id: any) => {
-                     handleViewChange(id);
-                     setViewConfigPanelMode('edit');
-                     setShowViewConfigPanel(true);
-                   } : undefined}
-                   availableViewTypes={AVAILABLE_VIEW_TYPES}
-                 />
-               </div>
-             )}
+             {/* View Tabs removed — view switching is handled via ViewConfigPanel (right sidebar) */}
 
              {/* 2. Content — Plugin ObjectView with ViewSwitcher + Filter + Sort */}
              <div className="flex-1 overflow-hidden relative flex flex-row">

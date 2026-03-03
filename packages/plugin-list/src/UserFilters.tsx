@@ -303,14 +303,6 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
           )}
         </>
       )}
-      <button
-        className="inline-flex items-center gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors shrink-0"
-        data-testid="user-filters-add"
-        title="Add filter"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">Add filter</span>
-      </button>
     </div>
   );
 }

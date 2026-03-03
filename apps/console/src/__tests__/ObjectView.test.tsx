@@ -167,14 +167,9 @@ describe('ObjectView Component', () => {
         
         render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
         
-        // Check Header (appears in breadcrumb and h1)
+        // Check Header (h1 only, breadcrumb removed)
         const headers = screen.getAllByText('Opportunity');
         expect(headers.length).toBeGreaterThanOrEqual(1);
-        
-        // Check Tabs exist (also appears in breadcrumb)
-        const allOppTexts = screen.getAllByText('All Opportunities');
-        expect(allOppTexts.length).toBeGreaterThanOrEqual(1);
-        expect(screen.getByText('Pipeline')).toBeInTheDocument();
 
         // Check Grid is rendered (default)
         expect(screen.getByTestId('object-grid')).toBeInTheDocument();
@@ -284,14 +279,14 @@ describe('ObjectView Component', () => {
         expect(screen.getByTestId('view-config-panel')).toBeInTheDocument();
     });
 
-    it('shows breadcrumb with object and view name', () => {
+    it('does not show breadcrumb in ObjectView (removed to avoid duplication with AppHeader)', () => {
         mockUseParams.mockReturnValue({ objectName: 'opportunity' });
         
         render(<ObjectView dataSource={mockDataSource} objects={mockObjects} onEdit={vi.fn()} />);
         
-        // Breadcrumb should show object label and active view label (may appear in tabs too)
-        const allOppTexts = screen.getAllByText('All Opportunities');
-        expect(allOppTexts.length).toBeGreaterThanOrEqual(2); // breadcrumb + tab
+        // Breadcrumb removed — "All Opportunities" should not appear in the header area
+        // The h1 title should still show the object label
+        expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Opportunity');
     });
 
     it('shows object description when present', () => {

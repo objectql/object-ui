@@ -369,10 +369,10 @@ describe('UserFilters', () => {
   });
 
   // ============================================
-  // Add Filter Entry Point
+  // Add Filter Entry Point (removed)
   // ============================================
   describe('Add filter entry', () => {
-    it('renders "Add filter" button in dropdown mode', () => {
+    it('does not render "Add filter" button (removed from UI)', () => {
       const config = {
         element: 'dropdown' as const,
         fields: [
@@ -387,15 +387,7 @@ describe('UserFilters', () => {
       };
       const onChange = vi.fn();
       render(<UserFilters config={config} onFilterChange={onChange} />);
-      expect(screen.getByTestId('user-filters-add')).toBeInTheDocument();
-      expect(screen.getByText('Add filter')).toBeInTheDocument();
-    });
-
-    it('renders "Add filter" button even when no fields are provided', () => {
-      const config = { element: 'dropdown' as const };
-      const onChange = vi.fn();
-      render(<UserFilters config={config} onFilterChange={onChange} />);
-      expect(screen.getByTestId('user-filters-add')).toBeInTheDocument();
+      expect(screen.queryByTestId('user-filters-add')).not.toBeInTheDocument();
     });
   });
 

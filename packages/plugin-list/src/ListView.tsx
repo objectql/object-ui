@@ -1071,12 +1071,11 @@ export const ListView: React.FC<ListViewProps> = ({
         </div>
       )}
 
-      {/* Airtable-style Toolbar — Merged: UserFilter badges (left) + Tool buttons (right) */}
+      {/* Airtable-style Toolbar — UserFilter badges (left) + Tool buttons (right) */}
       <div className="border-b px-2 sm:px-4 py-1 flex items-center justify-between gap-1 sm:gap-2 bg-background">
-        <div className="flex items-center gap-0.5 overflow-x-auto flex-1 min-w-0">
+        <div className="flex items-center gap-0.5 overflow-x-auto min-w-0">
           {/* User Filters — inline in toolbar (Airtable Interfaces-style) */}
           {resolvedUserFilters && (
-            <>
               <div className="shrink-0 min-w-0" data-testid="user-filters">
                 <UserFilters
                   config={resolvedUserFilters}
@@ -1086,10 +1085,10 @@ export const ListView: React.FC<ListViewProps> = ({
                   maxVisible={3}
                 />
               </div>
-              <div className="h-4 w-px bg-border/60 mx-0.5 shrink-0" />
-            </>
           )}
+        </div>
 
+        <div className="flex items-center gap-0.5 shrink-0">
           {/* Hide Fields */}
           {toolbarFlags.showHideFields && (
           <Popover open={showHideFields} onOpenChange={setShowHideFields}>
@@ -1480,10 +1479,7 @@ export const ListView: React.FC<ListViewProps> = ({
               </PopoverContent>
             </Popover>
           )}
-        </div>
 
-        {/* Right: Add Record */}
-        <div className="flex items-center gap-1">
           {/* Add Record (top position) */}
           {toolbarFlags.showAddRecord && toolbarFlags.addRecordPosition === 'top' && (
             <Button

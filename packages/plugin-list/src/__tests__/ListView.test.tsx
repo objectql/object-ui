@@ -540,7 +540,7 @@ describe('ListView', () => {
       expect(screen.getByTestId('filter-badge-is_active')).toBeInTheDocument();
     });
 
-    it('should show Add filter button in userFilters', () => {
+    it('should not show Add filter button in userFilters (removed from UI)', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
@@ -555,7 +555,7 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} />);
-      expect(screen.getByTestId('user-filters-add')).toBeInTheDocument();
+      expect(screen.queryByTestId('user-filters-add')).not.toBeInTheDocument();
     });
 
     it('should not render userFilters when objectDef has no filterable fields', async () => {
