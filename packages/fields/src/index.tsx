@@ -368,8 +368,10 @@ export function DateTimeCellRenderer({ value }: CellRendererProps): React.ReactE
   );
 }
 
-// Priority semantic color mapping (auto-detect from value text)
-const PRIORITY_COLOR_MAP: Record<string, string> = {
+// Semantic color mapping (auto-detect from value text for priority & status fields)
+// Keys use underscore notation; lookup normalizes spaces/hyphens to underscores automatically.
+const SEMANTIC_COLOR_MAP: Record<string, string> = {
+  // Priority values
   critical: 'red',
   urgent: 'red',
   high: 'orange',
@@ -377,6 +379,31 @@ const PRIORITY_COLOR_MAP: Record<string, string> = {
   normal: 'blue',
   low: 'gray',
   none: 'gray',
+  // Status values
+  paid: 'green',
+  completed: 'green',
+  done: 'green',
+  active: 'green',
+  approved: 'green',
+  resolved: 'green',
+  pending: 'yellow',
+  waiting: 'yellow',
+  on_hold: 'yellow',
+  shipped: 'blue',
+  in_progress: 'blue',
+  open: 'blue',
+  processing: 'blue',
+  draft: 'gray',
+  new: 'gray',
+  inactive: 'gray',
+  closed: 'gray',
+  cancelled: 'red',
+  canceled: 'red',
+  rejected: 'red',
+  failed: 'red',
+  overdue: 'red',
+  delivered: 'purple',
+  archived: 'indigo',
 };
 
 // Color to Tailwind class mapping for custom Badge styling
@@ -394,7 +421,7 @@ const BADGE_COLOR_MAP: Record<string, string> = {
 
 function getBadgeColorClasses(color?: string, val?: string): string {
   const resolvedColor = color
-    || (val ? PRIORITY_COLOR_MAP[String(val).toLowerCase()] : undefined);
+    || (val ? SEMANTIC_COLOR_MAP[String(val).toLowerCase().replace(/[\s-]/g, '_')] : undefined);
   return BADGE_COLOR_MAP[resolvedColor || ''] || 'bg-muted text-muted-foreground border-border';
 }
 

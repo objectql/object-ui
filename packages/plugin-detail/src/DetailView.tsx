@@ -53,6 +53,9 @@ import { buildExpandFields } from '@object-ui/core';
 import type { DetailViewSchema, DataSource } from '@object-ui/types';
 import { useDetailTranslation } from './useDetailTranslation';
 
+/** Default page size for related lists in the detail view */
+const DEFAULT_RELATED_PAGE_SIZE = 5;
+
 export interface DetailViewProps {
   schema: DetailViewSchema;
   dataSource?: DataSource;
@@ -694,6 +697,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
                     columns={related.columns as any}
                     dataSource={dataSource}
                     objectName={related.api}
+                    collapsible
+                    pageSize={DEFAULT_RELATED_PAGE_SIZE}
                   />
                 ))}
               </div>
@@ -777,6 +782,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   columns={related.columns as any}
                   dataSource={dataSource}
                   objectName={related.api}
+                  collapsible
+                  pageSize={DEFAULT_RELATED_PAGE_SIZE}
                 />
               ))}
             </div>

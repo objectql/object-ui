@@ -796,7 +796,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         {col.headerIcon && (
                           <span className="text-muted-foreground flex-shrink-0">{col.headerIcon}</span>
                         )}
-                        <span className="text-xs font-normal text-muted-foreground">{col.header}</span>
+                        <span className="text-xs font-normal text-muted-foreground whitespace-nowrap truncate">{col.header}</span>
                         {sortable && col.sortable !== false && getSortIcon(col.accessorKey)}
                       </div>
                       {resizableColumns && col.resizable !== false && (
@@ -858,7 +858,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       key={rowId} 
                       data-state={isSelected ? 'selected' : undefined}
                       className={cn(
-                        "bg-background border-b border-border hover:bg-muted/30 group/row",
+                        "bg-background border-b border-border hover:bg-muted/50 group/row",
                         schema.onRowClick && "cursor-pointer",
                         rowHasChanges && "bg-amber-50 dark:bg-amber-950/20",
                         rowClassName && rowClassName(row, rowIndex)

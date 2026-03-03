@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
   CardContent,
+  Badge,
   Button,
   Input,
 } from '@object-ui/components';
@@ -24,6 +25,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowUpDown,
+  ChevronDown,
 } from 'lucide-react';
 import type { DataSource, FieldMetadata } from '@object-ui/types';
 import { getCellRenderer } from '@object-ui/fields';
@@ -55,6 +57,10 @@ export interface RelatedListProps {
   sortable?: boolean;
   /** Enable text filtering */
   filterable?: boolean;
+  /** Whether the card is collapsible */
+  collapsible?: boolean;
+  /** Whether the card starts collapsed (requires collapsible=true) */
+  defaultCollapsed?: boolean;
 }
 
 export const RelatedList: React.FC<RelatedListProps> = ({
@@ -74,6 +80,8 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   pageSize,
   sortable = false,
   filterable = false,
+  collapsible = false,
+  defaultCollapsed = false,
 }) => {
   const [relatedData, setRelatedData] = React.useState(data);
   const [loading, setLoading] = React.useState(false);
@@ -82,6 +90,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('asc');
   const [filterText, setFilterText] = React.useState('');
   const [objectSchema, setObjectSchema] = React.useState<any>(null);
+  const [collapsed, setCollapsed] = React.useState(defaultCollapsed);
   const { t } = useDetailTranslation();
   const { fieldLabel: resolveFieldLabel } = useSafeFieldLabel();
 
@@ -245,31 +254,35 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     }
   }, [type, paginatedData, effectiveColumns, schema, effectivePageSize]);
 
-  const recordCountText = relatedData.length === 1
-    ? t('detail.relatedRecordOne', { count: relatedData.length })
-    : t('detail.relatedRecords', { count: relatedData.length });
-
   const hasRowActions = !!onRowEdit || !!onRowDelete;
+
+  const headerClassName = collapsible ? 'cursor-pointer select-none' : undefined;
+  const handleHeaderClick = collapsible ? () => setCollapsed((c) => !c) : undefined;
 
   return (
     <Card className={className}>
-      <CardHeader>
+      <CardHeader className={headerClassName} onClick={handleHeaderClick}>
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
+            {collapsible && (
+              collapsed
+                ? (<ChevronRight className="h-4 w-4 text-muted-foreground" />)
+                : (<ChevronDown className="h-4 w-4 text-muted-foreground" />)
+            )}
             <span>{title}</span>
-            <span className="text-sm font-normal text-muted-foreground">
-              {recordCountText}
-            </span>
+            <Badge variant="secondary" className="text-xs font-normal" aria-label={`${relatedData.length} records`}>
+              {relatedData.length}
+            </Badge>
           </div>
           <div className="flex items-center gap-1">
             {onNew && (
-              <Button variant="ghost" size="sm" onClick={onNew} className="gap-1 h-7 text-xs">
+              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onNew(); }} className="gap-1 h-7 text-xs">
                 <Plus className="h-3.5 w-3.5" />
                 {t('detail.new')}
               </Button>
             )}
             {onViewAll && (
-              <Button variant="ghost" size="sm" onClick={onViewAll} className="gap-1 h-7 text-xs">
+              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onViewAll(); }} className="gap-1 h-7 text-xs">
                 {t('detail.viewAll')}
                 <ExternalLink className="h-3 w-3" />
               </Button>
@@ -277,7 +290,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      {!collapsed && <CardContent>
         {/* Filter bar */}
         {filterable && relatedData.length > 0 && (
           <div className="mb-3">
@@ -394,7 +407,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
             </Button>
           </div>
         )}
-      </CardContent>
+      </CardContent>}
     </Card>
   );
 };

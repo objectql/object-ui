@@ -205,6 +205,96 @@ describe('SelectCellRenderer', () => {
     expect(container.querySelector('[class*="bg-gray-100"]')).toBeInTheDocument();
   });
 
+  it('should auto-detect status semantic colors (Paid → green)', () => {
+    const { container } = render(
+      <SelectCellRenderer
+        value="Paid"
+        field={{ name: 'status', type: 'select', options: [] } as any}
+      />
+    );
+    expect(container.querySelector('[class*="bg-green-100"]')).toBeInTheDocument();
+  });
+
+  it('should auto-detect status semantic colors (Pending → yellow)', () => {
+    const { container } = render(
+      <SelectCellRenderer
+        value="Pending"
+        field={{ name: 'status', type: 'select', options: [] } as any}
+      />
+    );
+    expect(container.querySelector('[class*="bg-yellow-100"]')).toBeInTheDocument();
+  });
+
+  it('should auto-detect status semantic colors (Shipped → blue)', () => {
+    const { container } = render(
+      <SelectCellRenderer
+        value="Shipped"
+        field={{ name: 'status', type: 'select', options: [] } as any}
+      />
+    );
+    expect(container.querySelector('[class*="bg-blue-100"]')).toBeInTheDocument();
+  });
+
+  it('should auto-detect status semantic colors (Draft → gray)', () => {
+    const { container } = render(
+      <SelectCellRenderer
+        value="Draft"
+        field={{ name: 'status', type: 'select', options: [] } as any}
+      />
+    );
+    expect(container.querySelector('[class*="bg-gray-100"]')).toBeInTheDocument();
+  });
+
+  it('should auto-detect status semantic colors (Cancelled → red)', () => {
+    const { container } = render(
+      <SelectCellRenderer
+        value="Cancelled"
+        field={{ name: 'status', type: 'select', options: [] } as any}
+      />
+    );
+    expect(container.querySelector('[class*="bg-red-100"]')).toBeInTheDocument();
+  });
+
+  it('should auto-detect status semantic colors (Delivered → purple)', () => {
+    const { container } = render(
+      <SelectCellRenderer
+        value="Delivered"
+        field={{ name: 'status', type: 'select', options: [] } as any}
+      />
+    );
+    expect(container.querySelector('[class*="bg-purple-100"]')).toBeInTheDocument();
+  });
+
+  it('should auto-detect status semantic colors with snake_case (in_progress → blue)', () => {
+    const { container } = render(
+      <SelectCellRenderer
+        value="in_progress"
+        field={{ name: 'status', type: 'select', options: [] } as any}
+      />
+    );
+    expect(container.querySelector('[class*="bg-blue-100"]')).toBeInTheDocument();
+  });
+
+  it('should auto-detect status semantic colors with hyphen (in-progress → blue)', () => {
+    const { container } = render(
+      <SelectCellRenderer
+        value="in-progress"
+        field={{ name: 'status', type: 'select', options: [] } as any}
+      />
+    );
+    expect(container.querySelector('[class*="bg-blue-100"]')).toBeInTheDocument();
+  });
+
+  it('should auto-detect status semantic colors with spaces (in progress → blue)', () => {
+    const { container } = render(
+      <SelectCellRenderer
+        value="in progress"
+        field={{ name: 'status', type: 'select', options: [] } as any}
+      />
+    );
+    expect(container.querySelector('[class*="bg-blue-100"]')).toBeInTheDocument();
+  });
+
   it('should render dash for null/empty value', () => {
     render(
       <SelectCellRenderer
