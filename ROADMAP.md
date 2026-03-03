@@ -1499,6 +1499,8 @@ All 313 `@object-ui/fields` tests pass.
 - [x] `objectName` threaded through `DetailView` → `SectionGroup` → `DetailSection` / `HeaderHighlight` / `RelatedList`
 - [x] RelatedList sortable headers fixed to use `effectiveColumns` (auto-generated from schema) instead of raw `columns` prop
 - [x] Added missing `detail.*` i18n keys (`activity`, `editRow`, `deleteRow`, `previousPage`, `nextPage`, etc.) to en.ts and zh.ts
+- [x] RelatedList auto-generated columns use `getCellRenderer` for type-aware cell rendering (date, currency, select/badge, lookup, boolean, etc.)
+- [x] Console `RecordDetailView` fallback section title uses `t('detail.details')` instead of hardcoded English
 
 ---
 

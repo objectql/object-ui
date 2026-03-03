@@ -12,7 +12,7 @@ import { DetailView, RecordChatterPanel } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { PresenceAvatars, type PresenceUser } from '@object-ui/collaboration';
 import { useAuth } from '@object-ui/auth';
-import { ActionProvider } from '@object-ui/react';
+import { ActionProvider, useObjectTranslation } from '@object-ui/react';
 import { toast } from 'sonner';
 import { Database, Users } from 'lucide-react';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
@@ -38,6 +38,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
   const { showDebug } = useMetadataInspector();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { t } = useObjectTranslation();
   const [isLoading, setIsLoading] = useState(true);
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [recordViewers, setRecordViewers] = useState<PresenceUser[]>([]);
@@ -368,7 +369,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
       }))
     : [
         {
-          title: 'Details',
+          title: t('detail.details', { defaultValue: 'Details' }),
           fields: Object.keys(objectDef.fields || {}).map(key => {
             const fieldDef = objectDef.fields[key];
             const refTarget = fieldDef.reference_to || fieldDef.reference;

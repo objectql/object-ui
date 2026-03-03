@@ -25,7 +25,8 @@ import {
   ChevronRight,
   ArrowUpDown,
 } from 'lucide-react';
-import type { DataSource } from '@object-ui/types';
+import type { DataSource, FieldMetadata } from '@object-ui/types';
+import { getCellRenderer } from '@object-ui/fields';
 import { useDetailTranslation } from './useDetailTranslation';
 import { useSafeFieldLabel } from '@object-ui/react';
 
@@ -188,10 +189,36 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     const resolvedObjectName = objectName || api || '';
     return Object.entries(objectSchema.fields)
       .filter(([key]) => !key.startsWith('_'))
-      .map(([key, def]: [string, any]) => ({
-        accessorKey: key,
-        header: resolveFieldLabel(resolvedObjectName, key, def.label || key),
-      }));
+      .map(([key, def]: [string, any]) => {
+        const col: any = {
+          accessorKey: key,
+          header: resolveFieldLabel(resolvedObjectName, key, def.label || key),
+        };
+        // Add type-aware cell renderer for typed fields
+        if (def.type) {
+          const CellRenderer = getCellRenderer(def.type);
+          if (CellRenderer) {
+            const fieldMeta: FieldMetadata = {
+              name: key,
+              label: def.label || key,
+              type: def.type,
+              ...(def.options && { options: def.options }),
+              ...(def.currency && { currency: def.currency }),
+              ...(def.precision !== undefined && { precision: def.precision }),
+              ...(def.format && { format: def.format }),
+              ...((def.reference_to || def.reference) && { reference_to: def.reference_to || def.reference }),
+              ...(def.reference_field && { reference_field: def.reference_field }),
+            };
+            col.cell = (value: any) => {
+              if (value === null || value === undefined) {
+                return React.createElement('span', { className: 'text-muted-foreground/50 text-xs italic' }, '—');
+              }
+              return React.createElement(CellRenderer, { value, field: fieldMeta });
+            };
+          }
+        }
+        return col;
+      });
   }, [columns, objectSchema, objectName, api, resolveFieldLabel]);
 
   const viewSchema = React.useMemo(() => {
