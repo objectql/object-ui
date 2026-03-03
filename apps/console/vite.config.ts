@@ -108,6 +108,8 @@ export default defineConfig({
       '@object-ui/plugin-markdown': path.resolve(__dirname, '../../packages/plugin-markdown/src'),
       '@object-ui/plugin-timeline': path.resolve(__dirname, '../../packages/plugin-timeline/src'),
       '@object-ui/plugin-view': path.resolve(__dirname, '../../packages/plugin-view/src'),
+      '@object-ui/mobile': path.resolve(__dirname, '../../packages/mobile/src'),
+      '@object-ui/plugin-designer': path.resolve(__dirname, '../../packages/plugin-designer/src'),
 
 
     },
