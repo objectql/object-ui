@@ -18,6 +18,7 @@ import { AppPlugin, DriverPlugin } from '@objectstack/runtime';
 import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { HonoServerPlugin } from '@objectstack/plugin-hono-server';
+import { AuthPlugin } from '@objectstack/plugin-auth';
 import { ConsolePlugin } from '@object-ui/console';
 import { composeStacks } from '@objectstack/spec';
 import { mergeViewsIntoObjects } from '@object-ui/core';
@@ -67,6 +68,10 @@ export default {
     new ObjectQLPlugin(),
     new DriverPlugin(new InMemoryDriver()),
     new AppPlugin(mergedApp),
+    new AuthPlugin({
+      secret: process.env.AUTH_SECRET || 'objectui-dev-secret',
+      baseUrl: 'http://localhost:3000',
+    }),
     new HonoServerPlugin({ port: 3000 }),
     new ConsolePlugin(),
   ],

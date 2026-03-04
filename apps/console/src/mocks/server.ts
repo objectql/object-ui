@@ -16,6 +16,7 @@ import { setupServer } from 'msw/node';
 import type { MSWPlugin } from '@objectstack/plugin-msw';
 import appConfig from '../../objectstack.shared';
 import { createKernel } from './createKernel';
+import { createAuthHandlers } from './authHandlers';
 
 let kernel: ObjectKernel | null = null;
 let driver: InMemoryDriver | null = null;
@@ -53,6 +54,8 @@ export async function startMockServer() {
       baseUrl: '/api/v1',
       logRequests: false,
       customHandlers: [
+        // Mock auth endpoints (better-auth compatible)
+        ...createAuthHandlers('/api/v1/auth'),
         http.get('/api/v1/i18n/:lang', async ({ params }) => {
           const lang = params.lang as string;
           const resources = await loadAppLocale(lang);
