@@ -1,5 +1,5 @@
 import type { ObjectStackDefinition } from '@objectstack/spec';
-import { composeStacks } from '@object-ui/core';
+import { composeStacks } from '@objectstack/spec';
 import crmConfigImport from '@object-ui/example-crm/objectstack.config';
 import todoConfigImport from '@object-ui/example-todo/objectstack.config';
 import kitchenSinkConfigImport from '@object-ui/example-kitchen-sink/objectstack.config';
@@ -13,18 +13,47 @@ function resolveDefault<T>(mod: MaybeDefault<T>): T {
   return mod as T;
 }
 
+// ---------------------------------------------------------------------------
+// Adapter: merge stack-level views (views[].listViews) into object definitions.
+// The runtime reads listViews from each object; this bridges the gap until
+// the runtime/provider layer handles it natively.
+// ---------------------------------------------------------------------------
+function mergeViewsIntoObjects(objects: any[], views: any[]): any[] {
+  const viewsByObject: Record<string, Record<string, any>> = {};
+  for (const view of views) {
+    if (!view.listViews) continue;
+    for (const [viewName, listView] of Object.entries(view.listViews as Record<string, any>)) {
+      const objectName = listView?.data?.object;
+      if (!objectName) continue;
+      if (!viewsByObject[objectName]) viewsByObject[objectName] = {};
+      viewsByObject[objectName][viewName] = listView;
+    }
+  }
+  return objects.map((obj: any) => {
+    const v = viewsByObject[obj.name];
+    if (!v) return obj;
+    return { ...obj, listViews: { ...(obj.listViews || {}), ...v } };
+  });
+}
+
 const crmConfig = resolveDefault<ObjectStackDefinition>(crmConfigImport);
 const todoConfig = resolveDefault<ObjectStackDefinition>(todoConfigImport);
 const kitchenSinkConfig = resolveDefault<ObjectStackDefinition>(kitchenSinkConfigImport);
 
-// Single-pass composition: composeStacks handles object deduplication (override),
-// views→objects mapping, and actions→objects assignment via objectName.
-// No defineStack() validation pass — it would strip runtime properties (listViews,
-// actions) from objects, requiring a double-pass hack to restore them.
-const composed = composeStacks(
-  [crmConfig, todoConfig, kitchenSinkConfig] as Record<string, any>[],
-  { objectConflict: 'override' },
-);
+const allConfigs = [crmConfig, todoConfig, kitchenSinkConfig];
+
+// Aggregate seed data from all manifest.data arrays (spec selects one manifest,
+// so we collect data from all stacks before composing).
+const allData = allConfigs.flatMap((c: any) => c.manifest?.data || c.data || []);
+
+// Protocol-level composition via @objectstack/spec: handles object dedup,
+// array concatenation, actions→objects mapping, and manifest selection.
+const composed = composeStacks(allConfigs as any[], { objectConflict: 'override' }) as any;
+
+// Adapter: merge views[].listViews into object definitions for the runtime.
+if (composed.objects && composed.views) {
+  composed.objects = mergeViewsIntoObjects(composed.objects, composed.views);
+}
 
 // Patch CRM App Navigation to include Report using a supported navigation type
 // (type: 'url' passes schema validation while still routing correctly via React Router)
@@ -80,7 +109,7 @@ export const sharedConfig = {
     version: '0.1.0',
     type: 'app',
     name: '@object-ui/console',
-    data: composed.manifest.data,
+    data: allData,
   },
   plugins: [],
   datasources: [

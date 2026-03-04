@@ -19,10 +19,33 @@ import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { HonoServerPlugin } from '@objectstack/plugin-hono-server';
 import { ConsolePlugin } from '@object-ui/console';
-import { composeStacks } from '@object-ui/core';
+import { composeStacks } from '@objectstack/spec';
 import { CRMPlugin } from './examples/crm/plugin';
 import { TodoPlugin } from './examples/todo/plugin';
 import { KitchenSinkPlugin } from './examples/kitchen-sink/plugin';
+
+// ---------------------------------------------------------------------------
+// Adapter: merge stack-level views (views[].listViews) into object definitions.
+// The runtime reads listViews from each object; this bridges the gap until
+// the runtime/provider layer handles it natively.
+// ---------------------------------------------------------------------------
+function mergeViewsIntoObjects(objects: any[], views: any[]): any[] {
+  const viewsByObject: Record<string, Record<string, any>> = {};
+  for (const view of views) {
+    if (!view.listViews) continue;
+    for (const [viewName, listView] of Object.entries(view.listViews as Record<string, any>)) {
+      const objectName = listView?.data?.object;
+      if (!objectName) continue;
+      if (!viewsByObject[objectName]) viewsByObject[objectName] = {};
+      viewsByObject[objectName][viewName] = listView;
+    }
+  }
+  return objects.map((obj: any) => {
+    const v = viewsByObject[obj.name];
+    if (!v) return obj;
+    return { ...obj, listViews: { ...(obj.listViews || {}), ...v } };
+  });
+}
 
 // Instantiate example plugins
 const plugins = [new CRMPlugin(), new TodoPlugin(), new KitchenSinkPlugin()];
@@ -33,11 +56,18 @@ const allConfigs = plugins.map((p) => {
   return (raw as any).default || raw;
 });
 
-// Single-pass composition: composeStacks handles object deduplication,
-// views→objects mapping, and actions→objects assignment via objectName.
-// No defineStack() validation pass needed — it would strip runtime properties
-// (listViews, actions) from objects, requiring a second merge pass to restore them.
-const composed = composeStacks(allConfigs, { objectConflict: 'override' });
+// Aggregate seed data from all manifest.data arrays (spec selects one manifest,
+// so we collect data from all stacks before composing).
+const allData = allConfigs.flatMap((c: any) => c.manifest?.data || c.data || []);
+
+// Protocol-level composition via @objectstack/spec: handles object dedup,
+// array concatenation, actions→objects mapping, and manifest selection.
+const composed = composeStacks(allConfigs as any[], { objectConflict: 'override' }) as any;
+
+// Adapter: merge views[].listViews into object definitions for the runtime.
+if (composed.objects && composed.views) {
+  composed.objects = mergeViewsIntoObjects(composed.objects, composed.views);
+}
 
 const mergedApp = {
   ...composed,
@@ -47,7 +77,7 @@ const mergedApp = {
     version: '0.0.0',
     description: 'ObjectUI monorepo development workspace',
     type: 'app',
-    data: composed.manifest.data,
+    data: allData,
   },
 };
 
