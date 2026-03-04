@@ -1,5 +1,6 @@
 import type { ObjectStackDefinition } from '@objectstack/spec';
 import { composeStacks } from '@objectstack/spec';
+import { mergeViewsIntoObjects } from '@object-ui/core';
 import crmConfigImport from '@object-ui/example-crm/objectstack.config';
 import todoConfigImport from '@object-ui/example-todo/objectstack.config';
 import kitchenSinkConfigImport from '@object-ui/example-kitchen-sink/objectstack.config';
@@ -11,29 +12,6 @@ function resolveDefault<T>(mod: MaybeDefault<T>): T {
     return (mod as { default: T }).default;
   }
   return mod as T;
-}
-
-// ---------------------------------------------------------------------------
-// Adapter: merge stack-level views (views[].listViews) into object definitions.
-// The runtime reads listViews from each object; this bridges the gap until
-// the runtime/provider layer handles it natively.
-// ---------------------------------------------------------------------------
-function mergeViewsIntoObjects(objects: any[], views: any[]): any[] {
-  const viewsByObject: Record<string, Record<string, any>> = {};
-  for (const view of views) {
-    if (!view.listViews) continue;
-    for (const [viewName, listView] of Object.entries(view.listViews as Record<string, any>)) {
-      const objectName = listView?.data?.object;
-      if (!objectName) continue;
-      if (!viewsByObject[objectName]) viewsByObject[objectName] = {};
-      viewsByObject[objectName][viewName] = listView;
-    }
-  }
-  return objects.map((obj: any) => {
-    const v = viewsByObject[obj.name];
-    if (!v) return obj;
-    return { ...obj, listViews: { ...(obj.listViews || {}), ...v } };
-  });
 }
 
 const crmConfig = resolveDefault<ObjectStackDefinition>(crmConfigImport);

@@ -20,32 +20,10 @@ import { InMemoryDriver } from '@objectstack/driver-memory';
 import { HonoServerPlugin } from '@objectstack/plugin-hono-server';
 import { ConsolePlugin } from '@object-ui/console';
 import { composeStacks } from '@objectstack/spec';
+import { mergeViewsIntoObjects } from '@object-ui/core';
 import { CRMPlugin } from './examples/crm/plugin';
 import { TodoPlugin } from './examples/todo/plugin';
 import { KitchenSinkPlugin } from './examples/kitchen-sink/plugin';
-
-// ---------------------------------------------------------------------------
-// Adapter: merge stack-level views (views[].listViews) into object definitions.
-// The runtime reads listViews from each object; this bridges the gap until
-// the runtime/provider layer handles it natively.
-// ---------------------------------------------------------------------------
-function mergeViewsIntoObjects(objects: any[], views: any[]): any[] {
-  const viewsByObject: Record<string, Record<string, any>> = {};
-  for (const view of views) {
-    if (!view.listViews) continue;
-    for (const [viewName, listView] of Object.entries(view.listViews as Record<string, any>)) {
-      const objectName = listView?.data?.object;
-      if (!objectName) continue;
-      if (!viewsByObject[objectName]) viewsByObject[objectName] = {};
-      viewsByObject[objectName][viewName] = listView;
-    }
-  }
-  return objects.map((obj: any) => {
-    const v = viewsByObject[obj.name];
-    if (!v) return obj;
-    return { ...obj, listViews: { ...(obj.listViews || {}), ...v } };
-  });
-}
 
 // Instantiate example plugins
 const plugins = [new CRMPlugin(), new TodoPlugin(), new KitchenSinkPlugin()];
