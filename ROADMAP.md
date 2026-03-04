@@ -1166,7 +1166,7 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 
 ### P2.6 Plugin Modularization & Dynamic Management
 
-> **Status:** Phase 1 complete — Plugin class standard, install/uninstall API, example plugin classes.
+> **Status:** Phase 1 complete — Plugin class standard, install/uninstall API, example plugin classes. Phase 1.5 complete — composeStacks, plugin isolation, duplicate merge removal.
 
 Plugin architecture refactoring to support true modular development, plugin isolation, and dynamic plugin install/uninstall at runtime.
 
@@ -1181,15 +1181,26 @@ Plugin architecture refactoring to support true modular development, plugin isol
 - [x] Refactor root `objectstack.config.ts` to use plugin-based config collection via `getConfig()`
 - [x] Unit tests for `install()` / `uninstall()` (5 new tests, 18 total in PluginSystem)
 
+**Phase 1.5 — Plugin Isolation & Config Composition ✅**
+- [x] Add explicit `objectName` to all example plugin actions (CRM: 28 actions, Todo: 6 actions, Kitchen Sink: 3 actions)
+- [x] Rename Kitchen Sink `account` → `ks_account` to eliminate same-name object conflicts across plugins
+- [x] Create `composeStacks()` utility in `@object-ui/core` — declarative stack merging with `objectConflict` option, automatic views→objects and actions→objects mapping
+- [x] Remove duplicate `mergeActionsIntoObjects()` from root config and console shared config
+- [x] Remove duplicate `mergeViewsIntoObjects()` from root config and console shared config (moved into `composeStacks`)
+- [x] Refactor root `objectstack.config.ts` and `apps/console/objectstack.shared.ts` to use `composeStacks()`
+- [x] Unit tests for `composeStacks()` (13 tests covering merging, dedup, views, actions, cross-stack)
+
 **Phase 2 — Dynamic Plugin Loading (Planned)**
 - [ ] Hot-reload / lazy loading of plugins for development
 - [ ] Runtime plugin discovery and loading from registry
 - [ ] Plugin dependency graph visualization in Console
 
 **Phase 3 — Plugin Identity & Isolation (Planned)**
+- [x] Eliminate same-name object conflicts across plugins (Kitchen Sink `account` → `ks_account`)
 - [ ] Preserve origin plugin metadata on objects, actions, dashboards for runtime inspection
 - [ ] Per-plugin i18n namespace support
 - [ ] Per-plugin permissions and data isolation
+- [ ] Move `mergeViewsIntoObjects` from `composeStacks` to runtime/provider layer
 
 **Phase 4 — Cross-Repo Plugin Ecosystem (Planned)**
 - [ ] Plugin marketplace / registry for third-party plugins
@@ -1227,7 +1238,7 @@ Plugin architecture refactoring to support true modular development, plugin isol
 - [x] **P1: Chart Widget Server-Side Aggregation** — Fixed chart widgets (bar/line/area/pie/donut/scatter) downloading all raw data and aggregating client-side. Added optional `aggregate()` method to `DataSource` interface (`AggregateParams`, `AggregateResult` types) enabling server-side grouping/aggregation via analytics API (e.g. `GET /api/v1/analytics/{resource}?category=…&metric=…&agg=…`). `ObjectChart` now prefers `dataSource.aggregate()` when available, falling back to `dataSource.find()` + client-side aggregation for backward compatibility. Implemented `aggregate()` in `ValueDataSource` (in-memory), `ApiDataSource` (HTTP), and `ObjectStackAdapter` (analytics API with client-side fallback). Only detail widgets (grid/table/list) continue to fetch full data. 9 new tests.
 - [x] **P1: Spec-Aligned CRM I18n** — Fixed CRM internationalization not taking effect on the console. Root cause: CRM metadata used plain string labels instead of spec-aligned `I18nLabel` objects. Fix: (1) Updated CRM app/dashboard/navigation metadata to use `I18nLabel` objects (`{ key, defaultValue }`) per spec. (2) Updated `NavigationItem` and `NavigationArea` types to support I18nLabel. (3) Added `resolveLabel()` helper in NavigationRenderer. (4) Updated `resolveI18nLabel()` to accept `t()` function for translation. (5) Added `loadLanguage` callback in I18nProvider for API-based translation loading. (6) Added `/api/v1/i18n/:lang` endpoint to mock server. Console contains zero CRM-specific code.
 - [x] **P0: Opportunity List View & ObjectDef Column Enrichment** — Fixed ObjectGrid not using objectDef field metadata for type-aware rendering when columns are `string[]` or `ListColumn[]` without full options. (1) Schema resolution always fetches full schema from DataSource for field type metadata. (2) String[] column path enriched with objectDef types, options (with colors), currency, precision for proper CurrencyCellRenderer, SelectCellRenderer (colored badges), PercentCellRenderer, DateCellRenderer. (3) ListColumn[] fieldMeta deep-merged with objectDef field properties (select options with colors, currency code, precision). (4) Opportunity view columns upgraded from bare `string[]` to `ListColumn[]` with explicit types, alignment, and summary aggregation. 9 new tests.
-- [x] **P1: Actions Merge into Object Definitions** — Fixed action buttons never showing in Console/Studio because example object definitions lacked `actions` field. Added `mergeActionsIntoObjects()` helper (mirrors existing `mergeViewsIntoObjects` pattern) to root config and console shared config. Uses longest-prefix name matching with explicit `objectName` fallback. Created todo task actions (6: complete, start, clone, defer, set_reminder, assign) and kitchen-sink showcase actions (3: change_status, assign_owner, archive). All CRM/Todo/Kitchen Sink objects now serve `actions` in metadata. Fixes #840.
+- [x] **P1: Actions Merge into Object Definitions** — Fixed action buttons never showing in Console/Studio because example object definitions lacked `actions` field. Initially added `mergeActionsIntoObjects()` helper with longest-prefix name matching. Later refactored: all actions now declare explicit `objectName`, and merging is handled by `composeStacks()` in `@object-ui/core`. Created todo task actions (6: complete, start, clone, defer, set_reminder, assign) and kitchen-sink showcase actions (3: change_status, assign_owner, archive). All CRM/Todo/Kitchen Sink objects now serve `actions` in metadata. Fixes #840.
 - [x] **P1: Unified Debug/Metadata Entry — Remove Redundant Metadata Button** — Removed the visible `<MetadataToggle>` button from RecordDetailView, DashboardView, PageView, and ReportView headers. End users no longer see a "</> Metadata" button that had no practical purpose. The MetadataInspector panel is now only accessible via `?__debug` URL parameter (auto-opens when debug mode is active). ObjectView retains its admin-only Design Tools menu entry for metadata inspection. This unifies the debug entry point and improves end-user UX by removing redundant UI elements.
 
 ### Ecosystem & Marketplace
