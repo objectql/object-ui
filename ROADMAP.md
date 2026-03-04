@@ -1474,6 +1474,20 @@ All 313 `@object-ui/fields` tests pass.
 
 ---
 
+### DetailSection — Mobile Responsive col-span Fix (March 2026)
+
+> **Bug:** On mobile devices, detail page fields displayed in 3-column layout instead of single column, causing content to squeeze together and severely impacting readability.
+
+**Root Cause:** When `applyAutoSpan` set `span: 3` on wide fields (textarea, markdown, etc.) in a 3-column layout, the resulting `col-span-3` CSS class was applied without responsive prefixes. In CSS Grid, when an item has `col-span-3` in a `grid-cols-1` layout, the browser creates 2 implicit column tracks — and subsequent auto-placed items flow into those implicit columns, producing a 3-column layout even on mobile.
+
+**Fix:**
+
+- **DetailSection** (`packages/plugin-detail/src/DetailSection.tsx`): Added `getResponsiveSpanClass()` helper that generates responsive col-span classes matching the grid breakpoints. For a 3-column layout: no col-span at base (mobile single-column), `md:col-span-2` at tablet, `lg:col-span-3` at desktop. For a 2-column layout: no col-span at base, `md:col-span-2` at tablet+. This ensures col-span never exceeds the visible column count at each breakpoint, preventing implicit grid columns on mobile.
+
+**Tests:** 11 new tests (8 getResponsiveSpanClass unit tests + 3 DetailSection integration tests verifying no bare col-span-N classes appear). All 52 plugin-detail tests pass.
+
+---
+
 ### RecordDetailView — Action Button Full-Chain Integration (March 2026)
 
 > **Issue #107:** All Action buttons on record detail pages (Change Stage, Mark as Won, etc.) clicked with zero response — no dialogs, no API calls, no toast, no data refresh.

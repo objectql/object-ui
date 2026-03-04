@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { DetailSection } from '../DetailSection';
+import { DetailSection, getResponsiveSpanClass } from '../DetailSection';
 
 describe('DetailSection', () => {
   it('should render text fields as plain text', () => {
@@ -316,5 +316,114 @@ describe('DetailSection', () => {
     render(<DetailSection section={section} data={{ name: 'Alice' }} objectSchema={objectSchema} />);
     // Should use 'text' renderer, not 'number'
     expect(screen.getByText('Alice')).toBeInTheDocument();
+  });
+
+  it('should use responsive span classes for wide fields in 3-column layout', () => {
+    const section = {
+      title: 'Wide Fields',
+      fields: Array.from({ length: 12 }, (_, i) => ({
+        name: `field_${i}`,
+        label: `Field ${i}`,
+        type: i === 5 ? 'textarea' : 'text',
+      })),
+    };
+    const { container } = render(
+      <DetailSection section={section} data={{}} />
+    );
+    const grid = container.querySelector('.grid');
+    expect(grid).toBeTruthy();
+    expect(grid!.className).toContain('lg:grid-cols-3');
+    // Wide field (textarea) should have responsive span, not bare col-span-3
+    const fields = container.querySelectorAll('[class*="col-span"]');
+    fields.forEach((field) => {
+      // No bare col-span-3 at base level — must be lg: prefixed
+      const classes = field.className.split(/\s+/);
+      const hasBareSpan3 = classes.some((c: string) => c === 'col-span-3');
+      expect(hasBareSpan3).toBe(false);
+    });
+  });
+
+  it('should use responsive span classes for wide fields in 2-column layout', () => {
+    const section = {
+      title: 'Wide Fields',
+      fields: [
+        { name: 'a', label: 'A', type: 'text' },
+        { name: 'b', label: 'B', type: 'text' },
+        { name: 'c', label: 'C', type: 'text' },
+        { name: 'd', label: 'D', type: 'text' },
+        { name: 'notes', label: 'Notes', type: 'textarea' },
+      ],
+    };
+    const { container } = render(
+      <DetailSection section={section} data={{}} />
+    );
+    const grid = container.querySelector('.grid');
+    expect(grid!.className).toContain('md:grid-cols-2');
+    // Wide field should have md:col-span-2, not bare col-span-2
+    const fields = container.querySelectorAll('[class*="col-span"]');
+    fields.forEach((field) => {
+      const classes = field.className.split(/\s+/);
+      const hasBareSpan2 = classes.some((c: string) => c === 'col-span-2');
+      expect(hasBareSpan2).toBe(false);
+    });
+  });
+
+  it('should not apply col-span at base breakpoint to prevent implicit grid columns on mobile', () => {
+    const section = {
+      title: 'Mobile Safe',
+      fields: Array.from({ length: 15 }, (_, i) => ({
+        name: `field_${i}`,
+        label: `Field ${i}`,
+        type: i === 0 ? 'textarea' : 'text',
+      })),
+    };
+    const { container } = render(
+      <DetailSection section={section} data={{}} />
+    );
+    // Ensure no bare col-span-N (N>1) classes without responsive prefix
+    const allElements = container.querySelectorAll('*');
+    allElements.forEach((el) => {
+      const classes = el.className?.split?.(/\s+/) || [];
+      classes.forEach((cls: string) => {
+        if (cls.match(/^col-span-[2-9]$/)) {
+          throw new Error(`Found bare "${cls}" class without responsive prefix — would break mobile single-column layout`);
+        }
+      });
+    });
+  });
+});
+
+describe('getResponsiveSpanClass', () => {
+  it('should return empty string for no span', () => {
+    expect(getResponsiveSpanClass(undefined, 2)).toBe('');
+  });
+
+  it('should return empty string for span=1', () => {
+    expect(getResponsiveSpanClass(1, 3)).toBe('');
+  });
+
+  it('should return empty string for 1-column layout', () => {
+    expect(getResponsiveSpanClass(3, 1)).toBe('');
+  });
+
+  it('should return md:col-span-2 for span=2 in 2-column layout', () => {
+    expect(getResponsiveSpanClass(2, 2)).toBe('md:col-span-2');
+  });
+
+  it('should cap span to 2 in 2-column layout', () => {
+    expect(getResponsiveSpanClass(3, 2)).toBe('md:col-span-2');
+    expect(getResponsiveSpanClass(6, 2)).toBe('md:col-span-2');
+  });
+
+  it('should return md:col-span-2 for span=2 in 3-column layout', () => {
+    expect(getResponsiveSpanClass(2, 3)).toBe('md:col-span-2');
+  });
+
+  it('should return responsive classes for span=3 in 3-column layout', () => {
+    expect(getResponsiveSpanClass(3, 3)).toBe('md:col-span-2 lg:col-span-3');
+  });
+
+  it('should cap span to 3 in 3-column layout', () => {
+    expect(getResponsiveSpanClass(6, 3)).toBe('md:col-span-2 lg:col-span-3');
   });
 });

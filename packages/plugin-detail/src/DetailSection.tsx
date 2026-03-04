@@ -31,6 +31,28 @@ import { applyDetailAutoLayout } from './autoLayout';
 import { useDetailTranslation } from './useDetailTranslation';
 import { useSafeFieldLabel } from '@object-ui/react';
 
+/**
+ * Compute responsive col-span classes so that col-span never exceeds the
+ * visible column count at each Tailwind breakpoint.
+ *
+ * For columns=1: no span class (always single column)
+ * For columns=2: md:col-span-{min(span,2)}
+ * For columns>=3: md:col-span-{min(span,2)} lg:col-span-{min(span,3)}
+ */
+export function getResponsiveSpanClass(span: number | undefined, columns: number): string {
+  if (!span || span <= 1 || columns <= 1) return '';
+
+  if (columns === 2) {
+    return span >= 2 ? 'md:col-span-2' : '';
+  }
+
+  // columns >= 3: grid-cols-1 md:grid-cols-2 lg:grid-cols-3
+  if (span === 2) return 'md:col-span-2';
+  if (span >= 3) return 'md:col-span-2 lg:col-span-3';
+
+  return '';
+}
+
 export interface DetailSectionProps {
   section: DetailViewSectionType;
   data?: any;
@@ -67,6 +89,23 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     });
   }, []);
 
+  // Filter out empty fields when hideEmpty is set
+  const visibleFields = section.hideEmpty
+    ? section.fields.filter((field) => {
+        const value = data?.[field.name] ?? field.value;
+        return value !== null && value !== undefined && value !== '';
+      })
+    : section.fields;
+
+  // Hide entire section when all fields are empty
+  if (visibleFields.length === 0) return null;
+
+  // Apply auto-layout: infer columns and auto-span wide fields
+  const { fields: layoutFields, columns: effectiveColumns } = applyDetailAutoLayout(
+    visibleFields,
+    section.columns
+  );
+
   const renderField = (field: DetailViewField) => {
     const value = data?.[field.name] ?? field.value;
     
@@ -75,13 +114,9 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       return <SchemaRenderer schema={field.render} data={{ ...data, value }} />;
     }
 
-    // Calculate span class based on field.span value
-    const spanClass = field.span === 1 ? 'col-span-1' :
-                      field.span === 2 ? 'col-span-2' :
-                      field.span === 3 ? 'col-span-3' :
-                      field.span === 4 ? 'col-span-4' :
-                      field.span === 5 ? 'col-span-5' :
-                      field.span === 6 ? 'col-span-6' : '';
+    // Calculate responsive span class so col-span never exceeds the visible
+    // column count at each breakpoint, preventing implicit columns on mobile.
+    const spanClass = getResponsiveSpanClass(field.span, effectiveColumns);
 
     const displayValue = (() => {
       if (value === null || value === undefined) return <span className="text-muted-foreground/50 text-xs italic">—</span>;
@@ -177,23 +212,6 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       </div>
     );
   };
-
-  // Filter out empty fields when hideEmpty is set
-  const visibleFields = section.hideEmpty
-    ? section.fields.filter((field) => {
-        const value = data?.[field.name] ?? field.value;
-        return value !== null && value !== undefined && value !== '';
-      })
-    : section.fields;
-
-  // Hide entire section when all fields are empty
-  if (visibleFields.length === 0) return null;
-
-  // Apply auto-layout: infer columns and auto-span wide fields
-  const { fields: layoutFields, columns: effectiveColumns } = applyDetailAutoLayout(
-    visibleFields,
-    section.columns
-  );
 
   const content = (
     <div 
