@@ -338,8 +338,8 @@ describe('DetailSection', () => {
     fields.forEach((field) => {
       // No bare col-span-3 at base level — must be lg: prefixed
       const classes = field.className.split(/\s+/);
-      const bareSpan3 = classes.some((c: string) => c === 'col-span-3');
-      expect(bareSpan3).toBe(false);
+      const hasBareSpan3 = classes.some((c: string) => c === 'col-span-3');
+      expect(hasBareSpan3).toBe(false);
     });
   });
 
@@ -363,8 +363,8 @@ describe('DetailSection', () => {
     const fields = container.querySelectorAll('[class*="col-span"]');
     fields.forEach((field) => {
       const classes = field.className.split(/\s+/);
-      const bareSpan2 = classes.some((c: string) => c === 'col-span-2');
-      expect(bareSpan2).toBe(false);
+      const hasBareSpan2 = classes.some((c: string) => c === 'col-span-2');
+      expect(hasBareSpan2).toBe(false);
     });
   });
 
