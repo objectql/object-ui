@@ -5,6 +5,7 @@ export const OpportunityContactActions = [
     icon: 'star',
     type: 'api' as const,
     target: 'opportunity_contact_set_primary',
+    objectName: 'opportunity_contact',
     locations: ['record_header' as const, 'list_item' as const],
     refreshAfter: true,
     successMessage: 'Primary contact updated',

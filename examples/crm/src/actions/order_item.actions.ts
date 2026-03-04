@@ -5,6 +5,7 @@ export const OrderItemActions = [
     icon: 'hash',
     type: 'api' as const,
     target: 'order_item_adjust_quantity',
+    objectName: 'order_item',
     locations: ['record_header' as const, 'list_item' as const],
     params: [
       { name: 'new_quantity', label: 'New Quantity', type: 'number' as const, required: true },

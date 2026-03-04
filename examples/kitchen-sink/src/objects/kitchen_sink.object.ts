@@ -58,12 +58,9 @@ export const KitchenSinkObject = ObjectSchema.create({
     signature: Field.signature({ label: 'Signature' }),
     
     // Relationships
-    // For these to work, 'account' must exist in the schema. 
-    // Since this is now isolated, we might need a mock 'account' object or rely on dynamic binding.
-    // For now, we will assume 'account' might be present in the runtime environment or just leave it.
-    // However, validation might fail if 'account' object isn't in scope of THIS stack.
-    // Let's keep it but knowing we might need to add a dummy account object to this stack too for compilation.
-    account: Field.lookup('account', { label: 'Lookup (Account)' }),
+    // ks_account is a minimal account object scoped to the kitchen-sink plugin
+    // to avoid name conflicts with CRM's account object.
+    account: Field.lookup('ks_account', { label: 'Lookup (Account)' }),
     
     // Location
     location: Field.location({ label: 'Location' }),
