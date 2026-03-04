@@ -147,7 +147,8 @@ export function useNavigationOverlay(
           return;
         }
         const viewPath = view ? `/${view}` : '';
-        const url = objectName ? `/${objectName}/${recordId}${viewPath}` : `/${recordId}${viewPath}`;
+        const encodedId = encodeURIComponent(String(recordId));
+        const url = objectName ? `/${objectName}/${encodedId}${viewPath}` : `/${encodedId}${viewPath}`;
         window.open(url, '_blank');
         return;
       }

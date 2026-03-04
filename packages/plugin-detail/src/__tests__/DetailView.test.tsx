@@ -539,6 +539,37 @@ describe('DetailView', () => {
     expect(onBack).toHaveBeenCalled();
   });
 
+  it('should try fallback with alternate ID when first findOne throws an error', async () => {
+    let callCount = 0;
+    const mockDataSource = {
+      findOne: vi.fn().mockImplementation((_obj: string, id: string) => {
+        callCount++;
+        if (callCount === 1) {
+          // First call throws (simulate server error)
+          return Promise.reject(new Error('Server error'));
+        }
+        // Second call (fallback) succeeds
+        return Promise.resolve({ name: 'Alice' });
+      }),
+    } as any;
+
+    const schema: DetailViewSchema = {
+      type: 'detail-view',
+      title: 'Contact Details',
+      objectName: 'contact',
+      resourceId: 'contact-123',
+      fields: [{ name: 'name', label: 'Name' }],
+    };
+
+    const { findByText } = render(<DetailView schema={schema} dataSource={mockDataSource} />);
+    // The fallback should find the record using the stripped ID
+    expect(await findByText('Alice')).toBeInTheDocument();
+    // findOne should be called twice: first with original ID, then with stripped prefix
+    expect(mockDataSource.findOne).toHaveBeenCalledTimes(2);
+    expect(mockDataSource.findOne).toHaveBeenNthCalledWith(1, 'contact', 'contact-123');
+    expect(mockDataSource.findOne).toHaveBeenNthCalledWith(2, 'contact', '123');
+  });
+
   it('should call findOne with $expand when objectSchema has lookup fields', async () => {
     const mockDataSource = {
       getObjectSchema: vi.fn().mockResolvedValue({

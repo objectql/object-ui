@@ -300,7 +300,9 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         if ((error as Record<string, unknown>)?.status === 404) {
           return null;
         }
-        throw error;
+        // Fall through to direct GET without $expand — some servers don't
+        // support the filter+populate API, so gracefully degrade to a
+        // simple data.get() call below rather than failing with "Record not found".
       }
     }
 

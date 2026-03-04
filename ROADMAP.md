@@ -1284,6 +1284,17 @@ Plugin architecture refactoring to support true modular development, plugin isol
 
 ## 🐛 Bug Fixes
 
+### Record Detail "Record Not Found" in External Metadata Environments (March 2026)
+
+**Root Cause:** Three compounding issues caused "Record not found" when navigating from a list to a record detail page in external metadata environments:
+1. `DetailView.tsx`'s alt-ID fallback only triggered when `findOne` returned null. If it threw an error (server 500, network failure, etc.), the error propagated to the outer catch handler and the fallback was never tried.
+2. `ObjectStackAdapter.findOne` with `$expand` used `rawFindWithPopulate` with `$filter: { _id: id }`, which some external servers don't support. On failure it threw, instead of falling back to the simpler `data.get()` call.
+3. Record IDs in navigation URLs were not URL-encoded, which could cause routing issues with IDs containing special characters.
+
+**Fix:** Made `DetailView` catch all errors from the first `findOne` (converting to null) so the alt-ID fallback always runs. Made `ObjectStackAdapter.findOne` fall through to direct `data.get()` when the `$expand` raw request fails with a non-404 error. Added `encodeURIComponent` for record IDs in all navigation URL construction points.
+
+**Tests:** 32 DetailView tests, 12 expand tests, 33 useNavigationOverlay tests, 6 RecordDetailEdit tests — all pass.
+
 ### Auth Registration and Login Unavailable in MSW/Server Modes (March 2026)
 
 **Root Cause:** `createKernel.ts` (MSW mode) and `objectstack.config.ts` (Server mode) did not load `AuthPlugin`, so the kernel had no 'auth' service. All `/api/v1/auth/*` endpoints (sign-up, sign-in, get-session, sign-out) returned 404.

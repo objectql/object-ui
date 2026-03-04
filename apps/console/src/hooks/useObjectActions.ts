@@ -127,7 +127,7 @@ export function useObjectActions({
 
   const navigateToRecord = useCallback(
     (recordId: string) => {
-      navigate(`${baseUrl}/${objectName}/record/${recordId}`);
+      navigate(`${baseUrl}/${objectName}/record/${encodeURIComponent(recordId)}`);
     },
     [navigate, baseUrl, objectName],
   );

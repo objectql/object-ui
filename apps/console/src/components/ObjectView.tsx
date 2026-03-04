@@ -436,7 +436,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
             if (action === 'new_window') {
                 // Open record detail in a new browser tab with Console-correct URL
                 const basePath = window.location.pathname.replace(/\/view\/.*$/, '');
-                window.open(`${basePath}/record/${String(recordId)}`, '_blank');
+                window.open(`${basePath}/record/${encodeURIComponent(String(recordId))}`, '_blank');
                 return;
             }
             // page / view mode — navigate to record detail page
@@ -444,9 +444,9 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
             // default fallthrough for any unrecognised action
             if (action === 'view' || !action || action === 'page') {
                 if (viewId) {
-                    navigate(`../../record/${String(recordId)}`, { relative: 'path' });
+                    navigate(`../../record/${encodeURIComponent(String(recordId))}`, { relative: 'path' });
                 } else {
-                    navigate(`record/${String(recordId)}`);
+                    navigate(`record/${encodeURIComponent(String(recordId))}`);
                 }
             }
         },
@@ -669,9 +669,9 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                 onEdit?.({ _id: recordId, id: recordId });
             } else if (mode === 'view') {
                 if (viewId) {
-                    navigate(`../../record/${String(recordId)}`, { relative: 'path' });
+                    navigate(`../../record/${encodeURIComponent(String(recordId))}`, { relative: 'path' });
                 } else {
-                    navigate(`record/${String(recordId)}`);
+                    navigate(`record/${encodeURIComponent(String(recordId))}`);
                 }
             }
         },

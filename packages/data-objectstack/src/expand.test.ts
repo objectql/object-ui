@@ -177,6 +177,28 @@ describe('ObjectStackAdapter $expand support', () => {
 
       expect(result).toBeNull();
     });
+
+    it('should fall through to data.get() when $expand raw request fails with non-404 error', async () => {
+      // The raw populate request fails (e.g., server doesn't support the filter+populate API)
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: () => Promise.resolve({ message: 'unsupported' }),
+      });
+      // But the direct data.get() call succeeds
+      mockClient.data.get.mockResolvedValue({ record: { _id: 'order-1', name: 'Order 1' } });
+
+      const result = await adapter.findOne('order', 'order-1', {
+        $expand: ['customer'],
+      });
+
+      // Should have tried raw request first
+      expect(mockFetch).toHaveBeenCalled();
+      // Then fell through to data.get()
+      expect(mockClient.data.get).toHaveBeenCalledWith('order', 'order-1');
+      expect(result).toEqual({ _id: 'order-1', name: 'Order 1' });
+    });
   });
 
   describe('raw request format', () => {

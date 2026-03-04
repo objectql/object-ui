@@ -419,7 +419,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       }
       if (navigationConfig.mode === 'new_window' || navigationConfig.openNewTab) {
         const recordId = record._id || record.id;
-        const url = `/${schema.objectName}/${recordId}`;
+        const url = `/${schema.objectName}/${encodeURIComponent(String(recordId))}`;
         window.open(url, '_blank');
         return;
       }
