@@ -7,7 +7,7 @@
  */
 
 import type { Registry } from './Registry.js';
-import type { PluginScope, PluginScopeConfig } from '@object-ui/types';
+import type { PluginScope, PluginScopeConfig, AppMetadataPlugin, AppPluginContext } from '@object-ui/types';
 import { PluginScopeImpl } from './PluginScopeImpl.js';
 
 export interface PluginDefinition {
@@ -157,5 +157,50 @@ export class PluginSystem {
    */
   getAllPlugins(): PluginDefinition[] {
     return Array.from(this.plugins.values());
+  }
+
+  /**
+   * Install an AppMetadataPlugin at runtime.
+   *
+   * Wraps the plugin as a PluginDefinition, calls its `init()` and `start()`
+   * lifecycle hooks, and loads it into the system.
+   *
+   * @param plugin - An AppMetadataPlugin instance
+   * @param registry - The component registry
+   * @param ctx - Optional context passed to the plugin's start() hook
+   */
+  async install(plugin: AppMetadataPlugin, registry: Registry, ctx?: AppPluginContext): Promise<void> {
+    if (this.loaded.has(plugin.name)) {
+      console.warn(`Plugin "${plugin.name}" is already installed. Skipping.`);
+      return;
+    }
+
+    await plugin.init();
+
+    const definition: PluginDefinition = {
+      name: plugin.name,
+      version: plugin.version,
+      register: () => {},
+      onLoad: async () => {
+        await plugin.start(ctx ?? { logger: console });
+      },
+      onUnload: async () => {
+        await plugin.stop();
+      },
+    };
+
+    await this.loadPlugin(definition, registry);
+  }
+
+  /**
+   * Uninstall an AppMetadataPlugin at runtime.
+   *
+   * Calls the plugin's `stop()` lifecycle hook (via onUnload) and
+   * removes it from the system.
+   *
+   * @param pluginName - Name of the plugin to uninstall
+   */
+  async uninstall(pluginName: string): Promise<void> {
+    await this.unloadPlugin(pluginName);
   }
 }

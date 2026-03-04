@@ -18,6 +18,7 @@
  *   import { crmConfig } from '@object-ui/example-crm/plugin';
  */
 
+import type { AppPluginContext } from '@object-ui/types';
 import config from './objectstack.config';
 
 /** Raw CRM stack configuration for direct merging */
@@ -39,7 +40,7 @@ export class CRMPlugin {
     // No initialization needed
   }
 
-  async start(ctx: any) {
+  async start(ctx: AppPluginContext) {
     const logger = ctx.logger || console;
 
     try {
@@ -52,6 +53,15 @@ export class CRMPlugin {
       logger.warn(`[CRM] Could not auto-register via AppPlugin: ${e.message}`);
       logger.info('[CRM] Config is available via crmConfig export for manual merging');
     }
+  }
+
+  async stop() {
+    // Teardown: no persistent resources to release
+  }
+
+  /** Raw stack configuration for legacy/manual merging */
+  getConfig() {
+    return config;
   }
 }
 

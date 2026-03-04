@@ -7,7 +7,8 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./objectstack.config": "./objectstack.config.ts"
+    "./objectstack.config": "./objectstack.config.ts",
+    "./plugin": "./plugin.ts"
   },
   "scripts": {
     "serve": "objectstack serve objectstack.config.ts",

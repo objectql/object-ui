@@ -223,4 +223,87 @@ describe('PluginSystem', () => {
     expect(pluginSystem.isLoaded('failing-plugin')).toBe(false);
     expect(pluginSystem.getPlugin('failing-plugin')).toBeUndefined();
   });
+
+  describe('install / uninstall (AppMetadataPlugin)', () => {
+    it('should install an AppMetadataPlugin and call init + start', async () => {
+      const initFn = vi.fn();
+      const startFn = vi.fn();
+      const stopFn = vi.fn();
+
+      const appPlugin = {
+        name: '@test/my-plugin',
+        version: '1.0.0',
+        type: 'app-metadata' as const,
+        description: 'Test metadata plugin',
+        init: initFn,
+        start: startFn,
+        stop: stopFn,
+        getConfig: () => ({ objects: [] }),
+      };
+
+      await pluginSystem.install(appPlugin, registry, { logger: console });
+
+      expect(initFn).toHaveBeenCalledTimes(1);
+      expect(startFn).toHaveBeenCalledTimes(1);
+      expect(startFn).toHaveBeenCalledWith({ logger: console });
+      expect(pluginSystem.isLoaded('@test/my-plugin')).toBe(true);
+    });
+
+    it('should not install the same plugin twice', async () => {
+      const appPlugin = {
+        name: '@test/dup-plugin',
+        version: '1.0.0',
+        type: 'app-metadata' as const,
+        init: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+      };
+
+      await pluginSystem.install(appPlugin, registry);
+      await pluginSystem.install(appPlugin, registry);
+
+      expect(appPlugin.init).toHaveBeenCalledTimes(1);
+    });
+
+    it('should uninstall a plugin and call stop', async () => {
+      const stopFn = vi.fn();
+      const appPlugin = {
+        name: '@test/removable',
+        version: '1.0.0',
+        type: 'app-metadata' as const,
+        init: vi.fn(),
+        start: vi.fn(),
+        stop: stopFn,
+      };
+
+      await pluginSystem.install(appPlugin, registry);
+      expect(pluginSystem.isLoaded('@test/removable')).toBe(true);
+
+      await pluginSystem.uninstall('@test/removable');
+      expect(pluginSystem.isLoaded('@test/removable')).toBe(false);
+      expect(stopFn).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw when uninstalling a plugin that is not installed', async () => {
+      await expect(pluginSystem.uninstall('@test/nonexistent')).rejects.toThrow(
+        'Plugin "@test/nonexistent" is not loaded'
+      );
+    });
+
+    it('should provide default context when none is given', async () => {
+      const startFn = vi.fn();
+      const appPlugin = {
+        name: '@test/default-ctx',
+        version: '1.0.0',
+        type: 'app-metadata' as const,
+        init: vi.fn(),
+        start: startFn,
+        stop: vi.fn(),
+      };
+
+      await pluginSystem.install(appPlugin, registry);
+
+      expect(startFn).toHaveBeenCalledWith({ logger: console });
+    });
+  });
 });

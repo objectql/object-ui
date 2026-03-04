@@ -1,6 +1,6 @@
 # ObjectUI Development Roadmap
 
-> **Last Updated:** March 2, 2026
+> **Last Updated:** March 4, 2026
 > **Current Version:** v0.5.x
 > **Spec Version:** @objectstack/spec v3.2.0
 > **Client Version:** @objectstack/client v3.2.0
@@ -1163,6 +1163,38 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 - [ ] Background sync queue → real server sync (replace simulation)
 - [ ] Conflict resolution on reconnection wired into Console flow
 - [ ] Optimistic updates with TransactionManager state application
+
+### P2.6 Plugin Modularization & Dynamic Management
+
+> **Status:** Phase 1 complete — Plugin class standard, install/uninstall API, example plugin classes.
+
+Plugin architecture refactoring to support true modular development, plugin isolation, and dynamic plugin install/uninstall at runtime.
+
+**Phase 1 — Plugin Class Standard & Example Plugins ✅**
+- [x] Define `AppMetadataPlugin` interface in `@object-ui/types` (name, version, type, description, init/start/stop/getConfig)
+- [x] Define `PluginContext` interface for lifecycle hook context (logger, kernel)
+- [x] Add `install(plugin)` / `uninstall(pluginName)` convenience methods to `PluginSystem` in `@object-ui/core`
+- [x] Create `CRMPlugin` with full lifecycle (init/start/stop/getConfig) — `examples/crm/plugin.ts`
+- [x] Create `TodoPlugin` — `examples/todo/plugin.ts`
+- [x] Create `KitchenSinkPlugin` — `examples/kitchen-sink/plugin.ts`
+- [x] Update `package.json` exports for all example apps (`./plugin` entry point)
+- [x] Refactor root `objectstack.config.ts` to use plugin-based config collection via `getConfig()`
+- [x] Unit tests for `install()` / `uninstall()` (5 new tests, 18 total in PluginSystem)
+
+**Phase 2 — Dynamic Plugin Loading (Planned)**
+- [ ] Hot-reload / lazy loading of plugins for development
+- [ ] Runtime plugin discovery and loading from registry
+- [ ] Plugin dependency graph visualization in Console
+
+**Phase 3 — Plugin Identity & Isolation (Planned)**
+- [ ] Preserve origin plugin metadata on objects, actions, dashboards for runtime inspection
+- [ ] Per-plugin i18n namespace support
+- [ ] Per-plugin permissions and data isolation
+
+**Phase 4 — Cross-Repo Plugin Ecosystem (Planned)**
+- [ ] Plugin marketplace / registry for third-party plugins
+- [ ] Plugin publish/validate tooling (spec v3.0.9 `PluginBuildOptions`, `PluginPublishOptions`)
+- [ ] Cross-repo plugin loading from npm packages
 
 ---
 

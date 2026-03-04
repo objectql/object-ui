@@ -185,6 +185,70 @@ export interface ComponentInput {
 export type PluginEventHandler = (data?: any) => void;
 
 /**
+ * Plugin lifecycle context passed to init/start/stop hooks
+ */
+export interface AppPluginContext {
+  /** Logger instance (falls back to console) */
+  logger?: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
+  /** Kernel/runtime reference for plugin registration */
+  kernel?: { use?: (plugin: AppMetadataPlugin | Record<string, unknown>) => Promise<void> | void };
+  [key: string]: unknown;
+}
+
+/**
+ * App Metadata Plugin Interface
+ *
+ * Standard interface for plugins that provide application metadata
+ * (objects, views, actions, dashboards, etc.) to ObjectStack.
+ * All example apps and third-party plugins should implement this interface.
+ *
+ * @example
+ * ```typescript
+ * export class MyPlugin implements AppMetadataPlugin {
+ *   name = '@my-org/my-plugin';
+ *   version = '1.0.0';
+ *   type = 'app-metadata' as const;
+ *   description = 'My custom plugin';
+ *
+ *   async init() { }
+ *   async start(ctx) { ... }
+ *   async stop() { }
+ * }
+ * ```
+ */
+export interface AppMetadataPlugin {
+  /** Unique plugin identifier (npm-style, e.g. '@object-ui/example-crm') */
+  readonly name: string;
+  /** Semantic version */
+  readonly version: string;
+  /** Plugin type discriminator */
+  readonly type: 'app-metadata';
+  /** Human-readable description */
+  readonly description?: string;
+
+  /**
+   * Initialize the plugin (pre-start setup).
+   * Called before start() to allow validation or config loading.
+   */
+  init(): Promise<void> | void;
+
+  /**
+   * Start the plugin — register metadata with the kernel/runtime.
+   * @param ctx - Lifecycle context providing logger and kernel references
+   */
+  start(ctx: AppPluginContext): Promise<void> | void;
+
+  /**
+   * Stop the plugin — tear down resources and deregister.
+   * Called when the plugin is uninstalled or the host shuts down.
+   */
+  stop(): Promise<void> | void;
+
+  /** Raw stack configuration for legacy/manual merging */
+  getConfig?(): any;
+}
+
+/**
  * Plugin scope configuration
  */
 export interface PluginScopeConfig {

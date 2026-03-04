@@ -12,6 +12,11 @@
  * because CRM and Kitchen Sink both define an `account` object, which would
  * trigger an ownership conflict in the ObjectQL Schema Registry.
  *
+ * Plugins: Each example app exports a plugin class (CRMPlugin, TodoPlugin,
+ * KitchenSinkPlugin) that implements the AppMetadataPlugin interface.
+ * For standalone use, each plugin can be loaded independently via
+ * `kernel.use(new CRMPlugin())`. In the dev workspace, we collect their
+ * configs via `getConfig()` and merge them into a single AppPlugin.
  */
 import { defineStack } from '@objectstack/spec';
 import { AppPlugin, DriverPlugin } from '@objectstack/runtime';
@@ -19,23 +24,21 @@ import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { HonoServerPlugin } from '@objectstack/plugin-hono-server';
 import { ConsolePlugin } from '@object-ui/console';
-import CrmConfig from './examples/crm/objectstack.config';
-import TodoConfig from './examples/todo/objectstack.config';
-import KitchenSinkConfig from './examples/kitchen-sink/objectstack.config';
+import { CRMPlugin } from './examples/crm/plugin';
+import { TodoPlugin } from './examples/todo/plugin';
+import { KitchenSinkPlugin } from './examples/kitchen-sink/plugin';
 
-const crm = (CrmConfig as any).default || CrmConfig;
-const todo = (TodoConfig as any).default || TodoConfig;
-const kitchenSink = (KitchenSinkConfig as any).default || KitchenSinkConfig;
+// Instantiate example plugins
+const plugins = [new CRMPlugin(), new TodoPlugin(), new KitchenSinkPlugin()];
 
-// Base objects from built-in examples
-const baseObjects = [
-  ...(crm.objects || []),
-  ...(todo.objects || []),
-  ...(kitchenSink.objects || []),
-];
+// Collect raw configs from each plugin via getConfig()
+const allConfigs = plugins.map((p) => {
+  const raw = p.getConfig();
+  return (raw as any).default || raw;
+});
 
-// Collect all example configs for view merging
-const allConfigs = [crm, todo, kitchenSink];
+// Base objects from all plugins
+const baseObjects = allConfigs.flatMap((cfg: any) => cfg.objects || []);
 
 // ---------------------------------------------------------------------------
 // Merge stack-level views into object definitions.
@@ -110,7 +113,7 @@ function mergeActionsIntoObjects(objects: any[], configs: any[]): any[] {
   });
 }
 
-// Merge all example configs into a single app bundle for AppPlugin
+// Merge all plugin configs into a single app bundle for AppPlugin
 const mergedApp = defineStack({
   manifest: {
     id: 'dev-workspace',
@@ -118,36 +121,14 @@ const mergedApp = defineStack({
     version: '0.0.0',
     description: 'ObjectUI monorepo development workspace',
     type: 'app',
-    data: [
-      ...(crm.manifest?.data || []),
-      ...(todo.manifest?.data || []),
-      ...(kitchenSink.manifest?.data || []),
-    ],
+    data: allConfigs.flatMap((cfg: any) => cfg.manifest?.data || []),
   },
   objects: baseObjects,
-  views: [
-    ...(crm.views || []),
-    ...(todo.views || []),
-    ...(kitchenSink.views || []),
-  ],
-  apps: [
-    ...(crm.apps || []),
-    ...(todo.apps || []),
-    ...(kitchenSink.apps || []),
-  ],
-  dashboards: [
-    ...(crm.dashboards || []),
-    ...(todo.dashboards || []),
-    ...(kitchenSink.dashboards || []),
-  ],
-  reports: [
-    ...(crm.reports || []),
-  ],
-  pages: [
-    ...(crm.pages || []),
-    ...(todo.pages || []),
-    ...(kitchenSink.pages || []),
-  ],
+  views: allConfigs.flatMap((cfg: any) => cfg.views || []),
+  apps: allConfigs.flatMap((cfg: any) => cfg.apps || []),
+  dashboards: allConfigs.flatMap((cfg: any) => cfg.dashboards || []),
+  reports: allConfigs.flatMap((cfg: any) => cfg.reports || []),
+  pages: allConfigs.flatMap((cfg: any) => cfg.pages || []),
 } as any);
 
 // Re-merge listViews and actions that defineStack stripped from objects

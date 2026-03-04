@@ -5,7 +5,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./objectstack.config": "./objectstack.config.ts"
+    "./objectstack.config": "./objectstack.config.ts",
+    "./plugin": "./plugin.ts"
   },
   "scripts": {
     "serve": "objectstack serve objectstack.config.ts",
