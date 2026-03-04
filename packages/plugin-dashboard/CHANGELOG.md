@@ -1,5 +1,14 @@
 # @object-ui/plugin-dashboard
 
+## 3.1.2
+
+### Patch Changes
+
+- @object-ui/types@3.1.2
+- @object-ui/core@3.1.2
+- @object-ui/react@3.1.2
+- @object-ui/components@3.1.2
+
 ## 3.1.1
 
 ### Patch Changes

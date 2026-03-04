@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.1.2
+
+### Patch Changes
+
+- 3faaa3a: chore(deps): bump hono from 4.12.3 to 4.12.4
+  - @object-ui/types@3.1.2
+  - @object-ui/core@3.1.2
+
 ## 3.1.1
 
 ### Patch Changes
