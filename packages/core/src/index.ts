@@ -26,4 +26,5 @@ export * from './data-scope/index.js';
 export * from './errors/index.js';
 export * from './utils/debug.js';
 export * from './utils/debug-collector.js';
+export * from './utils/compose-stacks.js';
 export * from './protocols/index.js';

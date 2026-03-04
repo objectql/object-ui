@@ -5,6 +5,7 @@ export const ShowcaseActions = [
     icon: 'arrow-right-circle',
     type: 'api' as const,
     target: 'showcase_change_status',
+    objectName: 'showcase',
     locations: ['record_header' as const, 'list_item' as const, 'list_toolbar' as const],
     bulkEnabled: true,
     visible: "status !== 'archived'",
@@ -29,6 +30,7 @@ export const ShowcaseActions = [
     icon: 'user-plus',
     type: 'api' as const,
     target: 'showcase_assign_owner',
+    objectName: 'showcase',
     locations: ['record_header' as const, 'list_toolbar' as const],
     bulkEnabled: true,
     params: [
@@ -44,6 +46,7 @@ export const ShowcaseActions = [
     icon: 'archive',
     type: 'api' as const,
     target: 'showcase_archive',
+    objectName: 'showcase',
     locations: ['record_more' as const],
     variant: 'danger' as const,
     visible: "status !== 'archived'",

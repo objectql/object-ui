@@ -5,6 +5,7 @@ export const TodoTaskActions = [
     icon: 'check-circle-2',
     type: 'api' as const,
     target: 'todo_task_complete',
+    objectName: 'todo_task',
     locations: ['record_header' as const, 'list_item' as const, 'list_toolbar' as const],
     visible: 'is_completed === false',
     bulkEnabled: true,
@@ -18,6 +19,7 @@ export const TodoTaskActions = [
     icon: 'play',
     type: 'api' as const,
     target: 'todo_task_start',
+    objectName: 'todo_task',
     locations: ['record_header' as const, 'list_item' as const],
     visible: "status === 'Backlog' || status === 'Todo'",
     refreshAfter: true,
@@ -29,6 +31,7 @@ export const TodoTaskActions = [
     icon: 'copy',
     type: 'api' as const,
     target: 'todo_task_clone',
+    objectName: 'todo_task',
     locations: ['record_more' as const],
     refreshAfter: true,
     successMessage: 'Task cloned successfully',
@@ -39,6 +42,7 @@ export const TodoTaskActions = [
     icon: 'clock',
     type: 'api' as const,
     target: 'todo_task_defer',
+    objectName: 'todo_task',
     locations: ['record_header' as const],
     visible: "status !== 'Done'",
     params: [
@@ -53,6 +57,7 @@ export const TodoTaskActions = [
     icon: 'bell',
     type: 'api' as const,
     target: 'todo_task_set_reminder',
+    objectName: 'todo_task',
     locations: ['record_more' as const],
     params: [
       { name: 'reminder_date', label: 'Reminder Date', type: 'datetime' as const, required: true },
@@ -66,6 +71,7 @@ export const TodoTaskActions = [
     icon: 'user-plus',
     type: 'api' as const,
     target: 'todo_task_assign',
+    objectName: 'todo_task',
     locations: ['record_header' as const, 'list_item' as const, 'list_toolbar' as const],
     bulkEnabled: true,
     params: [

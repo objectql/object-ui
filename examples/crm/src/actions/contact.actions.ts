@@ -5,6 +5,7 @@ export const ContactActions = [
     icon: 'mail',
     type: 'api' as const,
     target: 'contact_send_email',
+    objectName: 'contact',
     locations: ['record_header' as const, 'list_item' as const, 'list_toolbar' as const],
     bulkEnabled: true,
     params: [
@@ -19,6 +20,7 @@ export const ContactActions = [
     icon: 'user-check',
     type: 'api' as const,
     target: 'contact_convert_to_customer',
+    objectName: 'contact',
     locations: ['record_header' as const],
     visible: "type !== 'Customer'",
     confirmText: 'Convert this contact to a customer?',
@@ -31,6 +33,7 @@ export const ContactActions = [
     icon: 'phone',
     type: 'api' as const,
     target: 'contact_log_call',
+    objectName: 'contact',
     locations: ['record_header' as const, 'list_item' as const],
     params: [
       { name: 'call_subject', label: 'Subject', type: 'text' as const, required: true },
