@@ -187,7 +187,7 @@ export type PluginEventHandler = (data?: any) => void;
 /**
  * Plugin lifecycle context passed to init/start/stop hooks
  */
-export interface PluginContext {
+export interface AppPluginContext {
   /** Logger instance (falls back to console) */
   logger?: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
   /** Kernel/runtime reference for plugin registration */
@@ -236,7 +236,7 @@ export interface AppMetadataPlugin {
    * Start the plugin — register metadata with the kernel/runtime.
    * @param ctx - Lifecycle context providing logger and kernel references
    */
-  start(ctx: PluginContext): Promise<void> | void;
+  start(ctx: AppPluginContext): Promise<void> | void;
 
   /**
    * Stop the plugin — tear down resources and deregister.

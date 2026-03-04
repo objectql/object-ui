@@ -18,7 +18,7 @@
  *   import { todoConfig } from '@object-ui/example-todo/plugin';
  */
 
-import type { PluginContext } from '@object-ui/types';
+import type { AppPluginContext } from '@object-ui/types';
 import config from './objectstack.config';
 
 /** Raw Todo stack configuration for direct merging */
@@ -40,7 +40,7 @@ export class TodoPlugin {
     // No initialization needed
   }
 
-  async start(ctx: PluginContext) {
+  async start(ctx: AppPluginContext) {
     const logger = ctx.logger || console;
 
     try {

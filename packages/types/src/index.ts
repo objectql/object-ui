@@ -810,7 +810,7 @@ export type {
 export type {
   PluginScope,
   PluginScopeConfig,
-  PluginContext,
+  AppPluginContext,
   AppMetadataPlugin,
   ComponentMeta as PluginComponentMeta,
   ComponentInput as PluginComponentInput,

@@ -18,7 +18,7 @@
  *   import { crmConfig } from '@object-ui/example-crm/plugin';
  */
 
-import type { PluginContext } from '@object-ui/types';
+import type { AppPluginContext } from '@object-ui/types';
 import config from './objectstack.config';
 
 /** Raw CRM stack configuration for direct merging */
@@ -40,7 +40,7 @@ export class CRMPlugin {
     // No initialization needed
   }
 
-  async start(ctx: PluginContext) {
+  async start(ctx: AppPluginContext) {
     const logger = ctx.logger || console;
 
     try {
