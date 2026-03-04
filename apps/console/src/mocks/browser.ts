@@ -64,7 +64,7 @@ export async function startMockServer() {
         // Mock auth endpoints (better-auth compatible)
         ...createAuthHandlers('/api/v1/auth'),
         // Serve i18n translation bundles via API
-        http.get('/api/v1/i18n/:lang', async ({ params }) => {
+        http.get('/api/v1/i18n/translations/:lang', async ({ params }) => {
           const lang = params.lang as string;
           const resources = await loadAppLocale(lang);
           return HttpResponse.json(resources);
