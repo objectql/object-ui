@@ -14,9 +14,10 @@
 
 import { ObjectKernel, DriverPlugin, AppPlugin } from '@objectstack/runtime';
 import { ObjectQLPlugin } from '@objectstack/objectql';
-import { InMemoryDriver } from '@objectstack/driver-memory';
+import { InMemoryDriver, MemoryAnalyticsService } from '@objectstack/driver-memory';
 import { MSWPlugin } from '@objectstack/plugin-msw';
 import type { MSWPluginOptions } from '@objectstack/plugin-msw';
+import type { Cube } from '@objectstack/spec/data';
 
 export interface KernelOptions {
   /** Application configuration (defineStack output) */
@@ -99,6 +100,17 @@ async function installBrokerShim(kernel: ObjectKernel): Promise<void> {
         return protocol.getMetaItems({ type: method, packageId: params.packageId });
       }
 
+      // Analytics service calls (e.g. analytics.query, analytics.meta)
+      if (service === 'analytics') {
+        let analytics: any;
+        try { analytics = await kernel.getService('analytics'); } catch { /* noop */ }
+        if (analytics) {
+          if (method === 'query') return analytics.query(params);
+          if (method === 'meta') return analytics.getMeta(params?.cubeName);
+          if (method === 'sql') return analytics.generateSql(params);
+        }
+      }
+
       throw new Error(`[BrokerShim] Unhandled action: ${action}`);
     },
   };
@@ -158,6 +170,89 @@ function patchDriverCreate(driver: InMemoryDriver): void {
 }
 
 /**
+ * Build cube definitions from the appConfig objects.
+ *
+ * Scans objects for numeric/currency fields and generates a Cube per object
+ * with sensible default measures (count + sum/avg for each numeric field)
+ * and dimensions (all non-numeric scalar fields).
+ *
+ * Only used in demo/MSW/dev environments to provide out-of-the-box
+ * analytics without requiring explicit cube configuration.
+ */
+function buildCubesFromConfig(appConfig: any): Cube[] {
+  const objects: any[] = appConfig?.objects ?? [];
+  const cubes: Cube[] = [];
+
+  for (const obj of objects) {
+    if (!obj?.name || !obj?.fields) continue;
+
+    const measures: Record<string, any> = {
+      count: {
+        name: 'count',
+        label: 'Count',
+        type: 'count' as const,
+        sql: 'id',
+      },
+    };
+
+    const dimensions: Record<string, any> = {};
+
+    for (const [fieldName, fieldDef] of Object.entries<any>(obj.fields)) {
+      if (!fieldDef) continue;
+      const fType = fieldDef.type;
+
+      // Numeric / currency / percent fields → aggregate measures
+      if (fType === 'currency' || fType === 'number' || fType === 'percent') {
+        measures[`${fieldName}_sum`] = {
+          name: `${fieldName}_sum`,
+          label: `${fieldDef.label ?? fieldName} (Sum)`,
+          type: 'sum' as const,
+          sql: fieldName,
+        };
+        measures[`${fieldName}_avg`] = {
+          name: `${fieldName}_avg`,
+          label: `${fieldDef.label ?? fieldName} (Avg)`,
+          type: 'avg' as const,
+          sql: fieldName,
+        };
+      }
+
+      // Scalar fields → dimensions for grouping
+      if (fType === 'text' || fType === 'select' || fType === 'boolean') {
+        dimensions[fieldName] = {
+          name: fieldName,
+          label: fieldDef.label ?? fieldName,
+          type: fType === 'boolean' ? ('boolean' as const) : ('string' as const),
+          sql: fieldName,
+        };
+      }
+
+      // Date/datetime fields → time dimensions
+      if (fType === 'date' || fType === 'datetime') {
+        dimensions[fieldName] = {
+          name: fieldName,
+          label: fieldDef.label ?? fieldName,
+          type: 'time' as const,
+          sql: fieldName,
+          granularities: ['day', 'week', 'month', 'quarter', 'year'],
+        };
+      }
+    }
+
+    cubes.push({
+      name: String(obj.name),
+      title: obj.label ? String(obj.label) : undefined,
+      description: obj.description ? String(obj.description) : undefined,
+      sql: String(obj.name), // table name matches object name in InMemoryDriver
+      measures,
+      dimensions,
+    } as Cube);
+  }
+
+  return cubes;
+}
+
+/**
  * Create and bootstrap an ObjectStack kernel with in-memory driver.
  *
  * This is the single factory used by both browser.ts and server.ts
@@ -177,6 +272,20 @@ export async function createKernel(options: KernelOptions): Promise<KernelResult
   await kernel.use(new ObjectQLPlugin());
   await kernel.use(new DriverPlugin(driver, 'memory'));
   await kernel.use(new AppPlugin(appConfig));
+
+  // Register MemoryAnalyticsService so that HttpDispatcher can serve
+  // /api/v1/analytics/* endpoints in demo/MSW/dev environments.
+  // Without this, analytics routes return 405 because the kernel has
+  // no 'analytics' service and the dispatcher skips the handler.
+  const cubes = buildCubesFromConfig(appConfig);
+  const memoryAnalytics = new MemoryAnalyticsService({ driver, cubes });
+  kernel.registerService('analytics', {
+    query: (query: any) => memoryAnalytics.query(query),
+    getMeta: (cubeName?: string) => memoryAnalytics.getMeta(cubeName),
+    // HttpDispatcher calls getMetadata(); adapt to MemoryAnalyticsService.getMeta()
+    getMetadata: () => memoryAnalytics.getMeta(),
+    generateSql: (query: any) => memoryAnalytics.generateSql(query),
+  });
 
   let mswPlugin: MSWPlugin | undefined;
   if (mswOptions) {
