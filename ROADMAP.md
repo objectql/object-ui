@@ -1283,6 +1283,17 @@ Plugin architecture refactoring to support true modular development, plugin isol
 
 ## 🐛 Bug Fixes
 
+### Auth Registration and Login Unavailable in MSW/Server Modes (March 2026)
+
+**Root Cause:** `createKernel.ts` (MSW mode) and `objectstack.config.ts` (Server mode) did not load `AuthPlugin`, so the kernel had no 'auth' service. All `/api/v1/auth/*` endpoints (sign-up, sign-in, get-session, sign-out) returned 404.
+
+**Fix:**
+1. Added `AuthPlugin` from `@objectstack/plugin-auth` to `objectstack.config.ts` for server mode (`pnpm dev:server`).
+2. Created `authHandlers.ts` with in-memory mock implementations of better-auth endpoints for MSW mode (`pnpm dev`). Mock handlers are added to `customHandlers` in both `browser.ts` and `server.ts`.
+3. Mock handlers support: sign-up/email, sign-in/email, get-session, sign-out, forgot-password, reset-password, update-user.
+
+**Tests:** 11 new auth handler tests, all existing MSW (7) and auth (24) tests pass.
+
 ### Default Navigation Mode (Page) Clicks Have No Effect — Stale Closure (February 2026)
 
 **Root Cause:** Three compounding issues created a stale closure chain in `ObjectView.tsx`:
