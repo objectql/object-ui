@@ -14,7 +14,6 @@
  * `kernel.use(new CRMPlugin())`. In the dev workspace, we collect their
  * configs via `getConfig()` and merge them with `composeStacks()`.
  */
-import { defineStack } from '@objectstack/spec';
 import { AppPlugin, DriverPlugin } from '@objectstack/runtime';
 import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver } from '@objectstack/driver-memory';
@@ -34,14 +33,14 @@ const allConfigs = plugins.map((p) => {
   return (raw as any).default || raw;
 });
 
-// Compose all plugin configs into a single stack definition.
-// composeStacks handles object deduplication, views→objects mapping,
-// and actions→objects assignment via objectName.
+// Single-pass composition: composeStacks handles object deduplication,
+// views→objects mapping, and actions→objects assignment via objectName.
+// No defineStack() validation pass needed — it would strip runtime properties
+// (listViews, actions) from objects, requiring a second merge pass to restore them.
 const composed = composeStacks(allConfigs, { objectConflict: 'override' });
 
-// Validate via defineStack, then re-apply runtime properties (listViews, actions)
-// that defineStack strips during validation.
-const mergedApp = defineStack({
+const mergedApp = {
+  ...composed,
   manifest: {
     id: 'dev-workspace',
     name: 'dev_workspace',
@@ -50,24 +49,6 @@ const mergedApp = defineStack({
     type: 'app',
     data: composed.manifest.data,
   },
-  objects: composed.objects,
-  views: composed.views,
-  apps: composed.apps,
-  dashboards: composed.dashboards,
-  reports: composed.reports,
-  pages: composed.pages,
-} as any);
-
-// defineStack() validates the config but strips non-standard properties like
-// listViews and actions from objects. A second composeStacks pass restores
-// these runtime properties onto the validated objects. This double-pass is
-// necessary because defineStack's Zod schema doesn't preserve custom fields.
-const mergedAppWithViews = {
-  ...mergedApp,
-  objects: composeStacks([
-    { objects: mergedApp.objects || [] },
-    ...allConfigs.map((cfg: any) => ({ views: cfg.views || [], actions: cfg.actions || [] })),
-  ]).objects,
 };
 
 // Export only plugins — no top-level objects/manifest/apps.
@@ -77,7 +58,7 @@ export default {
   plugins: [
     new ObjectQLPlugin(),
     new DriverPlugin(new InMemoryDriver()),
-    new AppPlugin(mergedAppWithViews),
+    new AppPlugin(mergedApp),
     new HonoServerPlugin({ port: 3000 }),
     new ConsolePlugin(),
   ],

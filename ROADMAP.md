@@ -1188,7 +1188,11 @@ Plugin architecture refactoring to support true modular development, plugin isol
 - [x] Remove duplicate `mergeActionsIntoObjects()` from root config and console shared config
 - [x] Remove duplicate `mergeViewsIntoObjects()` from root config and console shared config (moved into `composeStacks`)
 - [x] Refactor root `objectstack.config.ts` and `apps/console/objectstack.shared.ts` to use `composeStacks()`
-- [x] Unit tests for `composeStacks()` (13 tests covering merging, dedup, views, actions, cross-stack)
+- [x] Unit tests for `composeStacks()` (15 tests covering merging, dedup, views, actions, cross-stack, conflict detection)
+- [x] Eliminate `defineStack()` double-pass hack — single `composeStacks()` call produces final config with runtime properties (listViews, actions) preserved. `defineStack()` Zod validation stripped these fields, requiring a second `composeStacks` pass to restore them.
+- [x] Use `composed.apps` unified flow in console shared config — replaced manual `[...crmApps, ...(todoConfig.apps || []), ...]` spreading with CRM navigation patch applied to composed output
+- [x] Use `composed.reports` in console shared config — replaced `...(crmConfig.reports || [])` with `...(composed.reports || [])` to include reports from all stacks
+- [x] **composeStacks responsibility split:** `@object-ui/core` composeStacks handles runtime mapping (merging views→objects listViews, actions→objects) while `@objectstack/spec` composeStacks handles protocol-level composition (broader field concatenation, manifest selection, i18n). ObjectUI apps use the core version for single-pass config with runtime properties preserved.
 
 **Phase 2 — Dynamic Plugin Loading (Planned)**
 - [ ] Hot-reload / lazy loading of plugins for development

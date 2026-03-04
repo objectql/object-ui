@@ -281,4 +281,32 @@ describe('composeStacks', () => {
     // Manifest data merged
     expect(result.manifest.data).toHaveLength(2);
   });
+
+  it('should detect conflicting object names with objectConflict: "error"', () => {
+    // Simulates a scenario where two plugins define 'account' without prefixing
+    const crm = {
+      objects: [{ name: 'account', label: 'CRM Account', fields: {} }],
+    };
+    const ks = {
+      objects: [{ name: 'account', label: 'KS Account', fields: {} }],
+    };
+
+    expect(() => composeStacks([crm, ks], { objectConflict: 'error' })).toThrow(
+      'duplicate object name "account"'
+    );
+  });
+
+  it('should allow prefixed object names to coexist without conflict', () => {
+    // After renaming: CRM keeps 'account', Kitchen Sink uses 'ks_account'
+    const crm = {
+      objects: [{ name: 'account', label: 'CRM Account', fields: {} }],
+    };
+    const ks = {
+      objects: [{ name: 'ks_account', label: 'KS Account', fields: {} }],
+    };
+
+    const result = composeStacks([crm, ks], { objectConflict: 'error' });
+    expect(result.objects).toHaveLength(2);
+    expect(result.objects.map((o: any) => o.name).sort()).toEqual(['account', 'ks_account']);
+  });
 });

@@ -1,4 +1,3 @@
-import { defineStack } from '@objectstack/spec';
 import type { ObjectStackDefinition } from '@objectstack/spec';
 import { composeStacks } from '@object-ui/core';
 import crmConfigImport from '@object-ui/example-crm/objectstack.config';
@@ -18,32 +17,30 @@ const crmConfig = resolveDefault<ObjectStackDefinition>(crmConfigImport);
 const todoConfig = resolveDefault<ObjectStackDefinition>(todoConfigImport);
 const kitchenSinkConfig = resolveDefault<ObjectStackDefinition>(kitchenSinkConfigImport);
 
-// Patch CRM App Navigation to include Report using a supported navigation type
-// (type: 'url' passes schema validation while still routing correctly via React Router)
-const crmApps = crmConfig.apps ? JSON.parse(JSON.stringify(crmConfig.apps)) : [];
-if (crmApps.length > 0) {
-    const crmApp = crmApps[0];
-    if (crmApp && crmApp.navigation) {
-        // Insert report after dashboard
-        const dashboardIdx = crmApp.navigation.findIndex((n: any) => n.id === 'nav_dashboard');
-        const insertIdx = dashboardIdx !== -1 ? dashboardIdx + 1 : 0;
-        crmApp.navigation.splice(insertIdx, 0, {
-            id: 'nav_sales_report',
-            type: 'url',
-            url: '/apps/crm_app/report/sales_performance_q1',
-            label: 'Sales Report',
-            icon: 'file-bar-chart'
-        });
-    }
-}
-
-// Compose all example stacks into a single merged definition.
-// composeStacks handles object deduplication (override), views→objects mapping,
-// and actions→objects assignment via objectName.
+// Single-pass composition: composeStacks handles object deduplication (override),
+// views→objects mapping, and actions→objects assignment via objectName.
+// No defineStack() validation pass — it would strip runtime properties (listViews,
+// actions) from objects, requiring a double-pass hack to restore them.
 const composed = composeStacks(
   [crmConfig, todoConfig, kitchenSinkConfig] as Record<string, any>[],
   { objectConflict: 'override' },
 );
+
+// Patch CRM App Navigation to include Report using a supported navigation type
+// (type: 'url' passes schema validation while still routing correctly via React Router)
+const apps = JSON.parse(JSON.stringify(composed.apps || []));
+const crmApp = apps.find((a: any) => a.name === 'crm_app');
+if (crmApp?.navigation) {
+    const dashboardIdx = crmApp.navigation.findIndex((n: any) => n.id === 'nav_dashboard');
+    const insertIdx = dashboardIdx !== -1 ? dashboardIdx + 1 : 0;
+    crmApp.navigation.splice(insertIdx, 0, {
+        id: 'nav_sales_report',
+        type: 'url',
+        url: '/apps/crm_app/report/sales_performance_q1',
+        label: 'Sales Report',
+        icon: 'file-bar-chart'
+    });
+}
 
 export const sharedConfig = {
   // ============================================================================
@@ -58,15 +55,11 @@ export const sharedConfig = {
   // Merged Stack Configuration (CRM + Todo + Kitchen Sink)
   // ============================================================================
   objects: composed.objects,
-  apps: [
-    ...crmApps,
-    ...(todoConfig.apps || []),
-    ...(kitchenSinkConfig.apps || []),
-  ],
+  apps,
   dashboards: composed.dashboards,
   reports: [
-    ...(crmConfig.reports || []),
-    // Manually added report since CRM config validation prevents it
+    ...(composed.reports || []),
+    // Console-specific report not in any example stack
     {
       name: 'sales_performance_q1',
       label: 'Q1 Sales Performance',
@@ -99,17 +92,4 @@ export const sharedConfig = {
   ]
 };
 
-const allConfigs = [crmConfig, todoConfig, kitchenSinkConfig];
-
-// defineStack() validates the config but strips non-standard properties like
-// listViews and actions from objects. A second composeStacks pass restores
-// these runtime properties onto the validated objects. This double-pass is
-// necessary because defineStack's Zod schema doesn't preserve custom fields.
-const validated = defineStack(sharedConfig as Parameters<typeof defineStack>[0]);
-export default {
-  ...validated,
-  objects: composeStacks([
-    { objects: validated.objects || [] },
-    ...allConfigs.map((cfg: any) => ({ views: cfg.views || [], actions: cfg.actions || [] })),
-  ]).objects,
-};
+export default sharedConfig;
