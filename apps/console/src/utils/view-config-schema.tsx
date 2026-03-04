@@ -1071,6 +1071,7 @@ function buildDataSection(
                     const uf = draft.userFilters || { element: 'dropdown', fields: [] };
                     const currentElement = uf.element || 'dropdown';
                     const currentFields: Array<{ field: string; label?: string }> = uf.fields || [];
+                    const currentTabs: Array<{ id: string; label: string; filters: any[]; default?: boolean }> = uf.tabs || [];
 
                     // Derive available fields from objectDef
                     const availableFields = fieldOptions.map(f => f.value);
@@ -1081,12 +1082,17 @@ function buildDataSection(
                         { value: 'toggle', label: t('console.objectView.ufToggle') },
                     ];
 
-                    const summary = currentFields.length > 0
-                        ? currentFields.map(f => {
-                            const fo = fieldOptions.find(o => o.value === f.field);
-                            return fo?.label || f.field;
-                        }).join(', ')
-                        : t('console.objectView.none');
+                    // Summary: show field labels for dropdown/toggle, tab count for tabs
+                    const summary = currentElement === 'tabs'
+                        ? (currentTabs.length > 0
+                            ? currentTabs.map(tab => tab.label || tab.id).join(', ')
+                            : t('console.objectView.none'))
+                        : (currentFields.length > 0
+                            ? currentFields.map(f => {
+                                const fo = fieldOptions.find(o => o.value === f.field);
+                                return fo?.label || f.field;
+                            }).join(', ')
+                            : t('console.objectView.none'));
 
                     return (
                         <ExpandableWidget
@@ -1118,48 +1124,127 @@ function buildDataSection(
                                         ))}
                                     </div>
                                 </div>
-                                {/* Field list */}
-                                <div className="space-y-1">
-                                    {currentFields.map((f: any, idx: number) => (
-                                        <div key={f.field || idx} data-testid={`uf-field-${idx}`} className="flex items-center gap-1 text-xs">
-                                            <span className="flex-1 truncate">{fieldOptions.find(o => o.value === f.field)?.label || f.field}</span>
-                                            <button
-                                                type="button"
-                                                data-testid={`uf-remove-field-${idx}`}
-                                                className="text-destructive hover:text-destructive/80 text-xs"
-                                                onClick={() => {
-                                                    const updated = currentFields.filter((_: any, i: number) => i !== idx);
-                                                    updateField('userFilters', { ...uf, fields: updated });
+                                {/* Dropdown / Toggle mode: field list */}
+                                {(currentElement === 'dropdown' || currentElement === 'toggle') && (
+                                    <div data-testid="uf-fields-section" className="space-y-1">
+                                        {currentFields.map((f: any, idx: number) => (
+                                            <div key={f.field || idx} data-testid={`uf-field-${idx}`} className="flex items-center gap-1 text-xs">
+                                                <span className="flex-1 truncate">{fieldOptions.find(o => o.value === f.field)?.label || f.field}</span>
+                                                <button
+                                                    type="button"
+                                                    data-testid={`uf-remove-field-${idx}`}
+                                                    className="text-destructive hover:text-destructive/80 text-xs"
+                                                    onClick={() => {
+                                                        const updated = currentFields.filter((_: any, i: number) => i !== idx);
+                                                        updateField('userFilters', { ...uf, fields: updated });
+                                                    }}
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {availableFields.length > 0 ? (
+                                            <select
+                                                data-testid="uf-add-field"
+                                                className="text-xs h-6 w-full border rounded px-1"
+                                                value=""
+                                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                                    if (!e.target.value) return;
+                                                    const newField = { field: e.target.value };
+                                                    updateField('userFilters', { ...uf, fields: [...currentFields, newField] });
+                                                    e.target.value = '';
                                                 }}
                                             >
-                                                ✕
-                                            </button>
-                                        </div>
-                                    ))}
-                                    {availableFields.length > 0 ? (
-                                        <select
-                                            data-testid="uf-add-field"
-                                            className="text-xs h-6 w-full border rounded px-1"
-                                            value=""
-                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                                                if (!e.target.value) return;
-                                                const newField = { field: e.target.value };
-                                                updateField('userFilters', { ...uf, fields: [...currentFields, newField] });
-                                                e.target.value = '';
+                                                <option value="">{t('console.objectView.ufAddField')}</option>
+                                                {availableFields
+                                                    .filter(fv => !currentFields.some((cf: any) => cf.field === fv))
+                                                    .map(fv => {
+                                                        const fo = fieldOptions.find(o => o.value === fv);
+                                                        return <option key={fv} value={fv}>{fo?.label || fv}</option>;
+                                                    })}
+                                            </select>
+                                        ) : (
+                                            <span className="text-xs text-muted-foreground">{t('console.objectView.ufNoFields')}</span>
+                                        )}
+                                    </div>
+                                )}
+                                {/* Tabs mode: tab list editor */}
+                                {currentElement === 'tabs' && (
+                                    <div data-testid="uf-tabs-section" className="space-y-1">
+                                        {currentTabs.map((tab: any, idx: number) => (
+                                            <div key={tab.id || idx} data-testid={`uf-tab-${idx}`} className="flex items-center gap-1 text-xs">
+                                                <Input
+                                                    data-testid={`uf-tab-label-${idx}`}
+                                                    className="h-6 text-xs flex-1"
+                                                    value={tab.label || ''}
+                                                    placeholder={t('console.objectView.ufTabLabel')}
+                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                        const updated = [...currentTabs];
+                                                        updated[idx] = { ...updated[idx], label: e.target.value };
+                                                        updateField('userFilters', { ...uf, tabs: updated });
+                                                    }}
+                                                />
+                                                <Checkbox
+                                                    data-testid={`uf-tab-default-${idx}`}
+                                                    checked={tab.default === true}
+                                                    onCheckedChange={(checked: boolean) => {
+                                                        const updated = currentTabs.map((t: any, i: number) => ({
+                                                            ...t,
+                                                            default: i === idx ? checked : false,
+                                                        }));
+                                                        updateField('userFilters', { ...uf, tabs: updated });
+                                                    }}
+                                                    className="h-3.5 w-3.5"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    data-testid={`uf-remove-tab-${idx}`}
+                                                    className="text-destructive hover:text-destructive/80 text-xs"
+                                                    onClick={() => {
+                                                        const updated = currentTabs.filter((_: any, i: number) => i !== idx);
+                                                        updateField('userFilters', { ...uf, tabs: updated });
+                                                    }}
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            data-testid="uf-add-tab"
+                                            className="text-xs text-primary hover:underline"
+                                            onClick={() => {
+                                                const newTab = { id: crypto.randomUUID(), label: '', filters: [], default: false };
+                                                updateField('userFilters', { ...uf, tabs: [...currentTabs, newTab] });
                                             }}
                                         >
-                                            <option value="">{t('console.objectView.ufAddField')}</option>
-                                            {availableFields
-                                                .filter(fv => !currentFields.some((cf: any) => cf.field === fv))
-                                                .map(fv => {
-                                                    const fo = fieldOptions.find(o => o.value === fv);
-                                                    return <option key={fv} value={fv}>{fo?.label || fv}</option>;
-                                                })}
-                                        </select>
-                                    ) : (
-                                        <span className="text-xs text-muted-foreground">{t('console.objectView.ufNoFields')}</span>
-                                    )}
-                                </div>
+                                            {t('console.objectView.ufAddTab')}
+                                        </button>
+                                        {/* Tabs mode toggles */}
+                                        <div className="flex items-center gap-2 pt-1">
+                                            <Checkbox
+                                                data-testid="uf-show-all-records"
+                                                checked={uf.showAllRecords === true}
+                                                onCheckedChange={(checked: boolean) => {
+                                                    updateField('userFilters', { ...uf, showAllRecords: checked });
+                                                }}
+                                                className="h-3.5 w-3.5"
+                                            />
+                                            <span className="text-xs">{t('console.objectView.ufShowAllRecords')}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Checkbox
+                                                data-testid="uf-allow-add-tab"
+                                                checked={uf.allowAddTab === true}
+                                                onCheckedChange={(checked: boolean) => {
+                                                    updateField('userFilters', { ...uf, allowAddTab: checked });
+                                                }}
+                                                className="h-3.5 w-3.5"
+                                            />
+                                            <span className="text-xs">{t('console.objectView.ufAllowAddTab')}</span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </ExpandableWidget>
                     );

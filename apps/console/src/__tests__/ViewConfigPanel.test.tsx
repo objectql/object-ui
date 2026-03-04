@@ -2222,6 +2222,191 @@ describe('ViewConfigPanel', () => {
         ]));
     });
 
+    // ── User Filters editor tests ──
+
+    it('renders user filters editor when expanded', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.userFilters'));
+        expect(screen.getByTestId('user-filters-editor')).toBeInTheDocument();
+        expect(screen.getByTestId('uf-element-dropdown')).toBeInTheDocument();
+        expect(screen.getByTestId('uf-element-tabs')).toBeInTheDocument();
+        expect(screen.getByTestId('uf-element-toggle')).toBeInTheDocument();
+    });
+
+    it('updates draft element type when clicking element buttons', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.userFilters'));
+        fireEvent.click(screen.getByTestId('uf-element-tabs'));
+        expect(onViewUpdate).toHaveBeenCalledWith('userFilters', expect.objectContaining({ element: 'tabs' }));
+    });
+
+    it('adds a filter field via the field selector', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={mockActiveView}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.userFilters'));
+        const addField = screen.getByTestId('uf-add-field');
+        fireEvent.change(addField, { target: { value: 'name' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('userFilters', expect.objectContaining({
+            fields: expect.arrayContaining([{ field: 'name' }]),
+        }));
+    });
+
+    it('removes a filter field when clicking remove button', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{
+                    ...mockActiveView,
+                    userFilters: {
+                        element: 'dropdown',
+                        fields: [{ field: 'name' }, { field: 'stage' }],
+                    },
+                }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.userFilters'));
+        expect(screen.getByTestId('uf-field-0')).toBeInTheDocument();
+        expect(screen.getByTestId('uf-field-1')).toBeInTheDocument();
+        fireEvent.click(screen.getByTestId('uf-remove-field-0'));
+        expect(onViewUpdate).toHaveBeenCalledWith('userFilters', expect.objectContaining({
+            fields: [{ field: 'stage' }],
+        }));
+    });
+
+    it('shows tabs editor when element is tabs', () => {
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{
+                    ...mockActiveView,
+                    userFilters: {
+                        element: 'tabs',
+                        tabs: [{ id: 't1', label: 'Active', filters: [], default: true }],
+                    },
+                }}
+                objectDef={mockObjectDef}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.userFilters'));
+        expect(screen.getByTestId('uf-tabs-section')).toBeInTheDocument();
+        expect(screen.getByTestId('uf-tab-0')).toBeInTheDocument();
+        expect(screen.getByTestId('uf-add-tab')).toBeInTheDocument();
+        expect(screen.getByTestId('uf-show-all-records')).toBeInTheDocument();
+        expect(screen.getByTestId('uf-allow-add-tab')).toBeInTheDocument();
+    });
+
+    it('adds a tab in tabs mode', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{
+                    ...mockActiveView,
+                    userFilters: { element: 'tabs', tabs: [] },
+                }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.userFilters'));
+        fireEvent.click(screen.getByTestId('uf-add-tab'));
+        expect(onViewUpdate).toHaveBeenCalledWith('userFilters', expect.objectContaining({
+            tabs: expect.arrayContaining([
+                expect.objectContaining({ label: '', filters: [], default: false }),
+            ]),
+        }));
+    });
+
+    it('removes a tab in tabs mode', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{
+                    ...mockActiveView,
+                    userFilters: {
+                        element: 'tabs',
+                        tabs: [
+                            { id: 't1', label: 'Active', filters: [], default: true },
+                            { id: 't2', label: 'My Items', filters: [] },
+                        ],
+                    },
+                }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.userFilters'));
+        fireEvent.click(screen.getByTestId('uf-remove-tab-0'));
+        expect(onViewUpdate).toHaveBeenCalledWith('userFilters', expect.objectContaining({
+            tabs: [expect.objectContaining({ id: 't2', label: 'My Items' })],
+        }));
+    });
+
+    it('edits a tab label in tabs mode', () => {
+        const onViewUpdate = vi.fn();
+        render(
+            <ViewConfigPanel
+                open={true}
+                onClose={vi.fn()}
+                activeView={{
+                    ...mockActiveView,
+                    userFilters: {
+                        element: 'tabs',
+                        tabs: [{ id: 't1', label: 'Active', filters: [] }],
+                    },
+                }}
+                objectDef={mockObjectDef}
+                onViewUpdate={onViewUpdate}
+            />
+        );
+
+        fireEvent.click(screen.getByText('console.objectView.userFilters'));
+        const labelInput = screen.getByTestId('uf-tab-label-0');
+        fireEvent.change(labelInput, { target: { value: 'My Customers' } });
+        expect(onViewUpdate).toHaveBeenCalledWith('userFilters', expect.objectContaining({
+            tabs: [expect.objectContaining({ id: 't1', label: 'My Customers' })],
+        }));
+    });
+
     it('renders empty state inputs in appearance section', () => {
         render(
             <ViewConfigPanel
