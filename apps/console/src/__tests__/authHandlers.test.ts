@@ -10,7 +10,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupServer } from 'msw/node';
-import { createAuthHandlers } from '../mocks/authHandlers';
+import { createAuthHandlers, resetAuthState } from '../mocks/authHandlers';
 
 const BASE_URL = 'http://localhost/api/v1/auth';
 const handlers = createAuthHandlers('/api/v1/auth');
@@ -18,14 +18,7 @@ const server = setupServer(...handlers);
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
 afterAll(() => server.close());
-
-/**
- * Reset the in-memory user store between tests by importing a
- * fresh set of handlers. Because the module-level Maps/state
- * persist across tests within the same module, we accept that
- * state accumulates during a single describe block and structure
- * tests as a sequential flow: sign-up → sign-in → session → sign-out.
- */
+beforeEach(() => resetAuthState());
 
 describe('Mock Auth Handlers', () => {
   it('should register a new user via sign-up', async () => {
@@ -51,6 +44,13 @@ describe('Mock Auth Handlers', () => {
   });
 
   it('should reject duplicate sign-up', async () => {
+    // Register a user first
+    await fetch(`${BASE_URL}/sign-up/email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Alice', email: 'alice@example.com', password: 'secret123' }),
+    });
+
     const res = await fetch(`${BASE_URL}/sign-up/email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -77,6 +77,13 @@ describe('Mock Auth Handlers', () => {
   });
 
   it('should sign in with correct credentials', async () => {
+    // Register user first
+    await fetch(`${BASE_URL}/sign-up/email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Alice', email: 'alice@example.com', password: 'secret123' }),
+    });
+
     const res = await fetch(`${BASE_URL}/sign-in/email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -106,7 +113,12 @@ describe('Mock Auth Handlers', () => {
   });
 
   it('should return current session after sign-in', async () => {
-    // First sign in to establish a session
+    // Register and sign in
+    await fetch(`${BASE_URL}/sign-up/email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Alice', email: 'alice@example.com', password: 'secret123' }),
+    });
     await fetch(`${BASE_URL}/sign-in/email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -150,7 +162,12 @@ describe('Mock Auth Handlers', () => {
   });
 
   it('should update user when authenticated', async () => {
-    // Sign in first
+    // Register and sign in first
+    await fetch(`${BASE_URL}/sign-up/email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Alice', email: 'alice@example.com', password: 'secret123' }),
+    });
     await fetch(`${BASE_URL}/sign-in/email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -171,9 +188,6 @@ describe('Mock Auth Handlers', () => {
   });
 
   it('should reject update-user when not authenticated', async () => {
-    // Sign out first
-    await fetch(`${BASE_URL}/sign-out`, { method: 'POST' });
-
     const res = await fetch(`${BASE_URL}/update-user`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

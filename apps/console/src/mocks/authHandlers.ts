@@ -6,6 +6,9 @@
  * enable sign-up, sign-in, session, and sign-out flows in the MSW
  * (browser / test) environment where no real AuthPlugin is available.
  *
+ * NOTE: This is a mock/testing module only. Passwords are stored in
+ * plain text — never use this pattern in production code.
+ *
  * Endpoints:
  *   POST /sign-up/email  — register a new user
  *   POST /sign-in/email  — authenticate with email + password
@@ -38,12 +41,25 @@ const users = new Map<string, MockUser & { password: string }>();
 let currentSession: { user: MockUser; session: MockSession } | null = null;
 let nextId = 1;
 
+/** Reset all in-memory auth state. Call in test `beforeEach` for isolation. */
+export function resetAuthState(): void {
+  users.clear();
+  currentSession = null;
+  nextId = 1;
+}
+
 function generateToken(): string {
   return `mock-token-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function generateExpiry(): string {
   return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+}
+
+/** Return a user object without the password field. */
+function toSafeUser(user: MockUser & { password: string }): MockUser {
+  const { password: _, ...safe } = user;
+  return safe;
 }
 
 /**
@@ -94,7 +110,7 @@ export function createAuthHandlers(baseUrl: string): HttpHandler[] {
         token: generateToken(),
         expiresAt: generateExpiry(),
       };
-      const { password: _, ...safeUser } = user;
+      const safeUser = toSafeUser(user);
       currentSession = { user: safeUser, session };
 
       return HttpResponse.json({ user: safeUser, session });
@@ -126,7 +142,7 @@ export function createAuthHandlers(baseUrl: string): HttpHandler[] {
         token: generateToken(),
         expiresAt: generateExpiry(),
       };
-      const { password: _, ...safeUser } = stored;
+      const safeUser = toSafeUser(stored);
       currentSession = { user: safeUser, session };
 
       return HttpResponse.json({ user: safeUser, session });
