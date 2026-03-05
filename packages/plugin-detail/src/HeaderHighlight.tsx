@@ -24,14 +24,15 @@ function toSafeString(value: unknown): string {
   if (Array.isArray(value)) {
     return value.map((v) => {
       if (v != null && typeof v === 'object') {
-        return (v as any).name || (v as any).label || (v as any)._id || JSON.stringify(v);
+        const obj = v as Record<string, unknown>;
+        return obj.name || obj.label || obj._id || '[Object]';
       }
       return String(v);
     }).join(', ');
   }
   if (typeof value === 'object') {
-    const obj = value as Record<string, any>;
-    return obj.name || obj.label || obj._id || JSON.stringify(value);
+    const obj = value as Record<string, unknown>;
+    return String(obj.name || obj.label || obj._id || '[Object]');
   }
   return String(value);
 }
@@ -60,6 +61,19 @@ const SEMANTIC_COLOR_MAP: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-800 border-red-300',
   rejected: 'bg-red-100 text-red-800 border-red-300',
   failed: 'bg-red-100 text-red-800 border-red-300',
+};
+
+/** Map named colors to full Tailwind class strings (JIT-safe, no template interpolation) */
+const COLOR_CLASS_MAP: Record<string, string> = {
+  gray: 'bg-gray-100 text-gray-800 border-gray-300',
+  red: 'bg-red-100 text-red-800 border-red-300',
+  orange: 'bg-orange-100 text-orange-800 border-orange-300',
+  yellow: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+  green: 'bg-green-100 text-green-800 border-green-300',
+  blue: 'bg-blue-100 text-blue-800 border-blue-300',
+  indigo: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+  purple: 'bg-purple-100 text-purple-800 border-purple-300',
+  pink: 'bg-pink-100 text-pink-800 border-pink-300',
 };
 
 function getSemanticBadgeClasses(val: string): string {
@@ -154,7 +168,7 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
                 const option = options.find((opt) => String(opt.value) === strVal);
                 const label = option?.label || humanizeLabel(strVal);
                 const colorClasses = option?.color
-                  ? `bg-${option.color}-100 text-${option.color}-800 border-${option.color}-300`
+                  ? (COLOR_CLASS_MAP[option.color] || 'bg-muted text-muted-foreground border-border')
                   : getSemanticBadgeClasses(strVal);
                 displayNode = (
                   <Badge variant="outline" className={colorClasses}>
