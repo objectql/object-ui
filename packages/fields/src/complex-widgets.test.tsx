@@ -201,7 +201,7 @@ describe('Complex & Relationship Widgets', () => {
                     $top: 50,
                     $search: 'acme',
                 });
-            }, { timeout: 1000 });
+            }, { timeout: 500 });
         });
 
         it('selects a dynamically loaded option', async () => {

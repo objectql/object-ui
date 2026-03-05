@@ -106,7 +106,10 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
     [dataSource, referenceTo, displayField, idField],
   );
 
-  // Fetch data when dialog opens
+  // Fetch data when dialog opens.
+  // We intentionally depend only on `isOpen` so the effect fires once per
+  // open/close transition. `fetchLookupData` is stable-enough via its own
+  // useCallback deps; including it here would cause spurious re-fetches.
   useEffect(() => {
     if (isOpen && hasDataSource) {
       fetchLookupData(searchQuery || undefined);
@@ -185,7 +188,9 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
     }
   };
 
-  // Keyboard handler for Enter-to-select
+  // Keyboard handler for Enter/Space-to-select.
+  // We inline the selection logic to avoid depending on the `handleSelect`
+  // closure which changes on every render.
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent, option: LookupOption) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -194,7 +199,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [value, multiple],
+    [value, multiple, onChange],
   );
 
   if (readonly) {
@@ -304,7 +309,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
 
             {/* Loading state (initial load only, not search refinement) */}
             {loading && filteredOptions.length === 0 && !error && (
-              <div className="flex flex-col items-center gap-2 py-6" role="status" aria-label="Loading">
+              <div className="flex flex-col items-center gap-2 py-6" role="status" aria-live="polite">
                 <Loader2 className="size-6 animate-spin text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">Loading…</p>
               </div>
