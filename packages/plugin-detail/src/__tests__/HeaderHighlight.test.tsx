@@ -66,17 +66,17 @@ describe('HeaderHighlight', () => {
     expect(screen.getByText('💰')).toBeInTheDocument();
   });
 
-  it('should render currency fields formatted via getCellRenderer when type is provided', () => {
+  it('should render currency fields with formatted value', () => {
     const currencyFields: HighlightField[] = [
       { name: 'amount', label: 'Amount', type: 'currency' },
     ];
     render(<HeaderHighlight fields={currencyFields} data={{ amount: 250000 }} />);
-    // CurrencyCellRenderer should format the number — should NOT show raw "250000"
+    // Should format as currency — should NOT show raw "250000"
     expect(screen.queryByText('250000')).not.toBeInTheDocument();
     expect(screen.getByText(/250,000/)).toBeInTheDocument();
   });
 
-  it('should render select fields as badge via getCellRenderer when type is provided', () => {
+  it('should render select fields as badge', () => {
     const selectFields: HighlightField[] = [
       { name: 'stage', label: 'Stage', type: 'select' },
     ];
@@ -114,12 +114,12 @@ describe('HeaderHighlight', () => {
         }}
       />
     );
-    // Should use CurrencyCellRenderer, not raw String()
+    // Should format as currency, not raw String()
     expect(screen.queryByText('5000')).not.toBeInTheDocument();
     expect(screen.getByText(/5,000/)).toBeInTheDocument();
   });
 
-  it('should fall back to String(value) when no type info is available', () => {
+  it('should fall back to string when no type info is available', () => {
     const fieldsNoType: HighlightField[] = [
       { name: 'custom', label: 'Custom' },
     ];
@@ -156,7 +156,7 @@ describe('HeaderHighlight', () => {
     expect(screen.getByText('Acme Corp')).toBeInTheDocument();
   });
 
-  it('should pass object values through to object-safe renderers (lookup, user)', () => {
+  it('should safely render lookup object values as string', () => {
     const lookupFields: HighlightField[] = [
       { name: 'owner', label: 'Owner' },
     ];
@@ -168,7 +168,7 @@ describe('HeaderHighlight', () => {
         owner: { type: 'lookup' },
       },
     };
-    // LookupCellRenderer handles object values natively
+    // Object value is coerced to safe string (name extracted)
     render(
       <HeaderHighlight
         fields={lookupFields}
@@ -177,5 +177,33 @@ describe('HeaderHighlight', () => {
       />
     );
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+  });
+
+  it('should safely render array values', () => {
+    const arrayFields: HighlightField[] = [
+      { name: 'tags', label: 'Tags' },
+    ];
+    const arrayData = {
+      tags: ['urgent', 'follow-up'],
+    };
+    const { container } = render(
+      <HeaderHighlight fields={arrayFields} data={arrayData} />
+    );
+    expect(container.innerHTML).not.toBe('');
+    expect(screen.getByText('urgent, follow-up')).toBeInTheDocument();
+  });
+
+  it('should safely render array of objects', () => {
+    const arrayFields: HighlightField[] = [
+      { name: 'contacts', label: 'Contacts' },
+    ];
+    const arrayData = {
+      contacts: [{ name: 'Alice' }, { name: 'Bob' }],
+    };
+    const { container } = render(
+      <HeaderHighlight fields={arrayFields} data={arrayData} />
+    );
+    expect(container.innerHTML).not.toBe('');
+    expect(screen.getByText('Alice, Bob')).toBeInTheDocument();
   });
 });

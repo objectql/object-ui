@@ -7,13 +7,65 @@
  */
 
 import * as React from 'react';
-import { cn, Card, CardContent } from '@object-ui/components';
-import type { HighlightField, FieldMetadata } from '@object-ui/types';
-import { getCellRenderer } from '@object-ui/fields';
+import { cn, Card, CardContent, Badge } from '@object-ui/components';
+import type { HighlightField } from '@object-ui/types';
+import { formatCurrency, formatPercent, formatDate, formatDateTime, humanizeLabel } from '@object-ui/fields';
 import { useSafeFieldLabel } from '@object-ui/react';
 
-/** Renderer types that natively handle object values without crashing */
-const OBJECT_SAFE_TYPES = ['lookup', 'master_detail', 'user', 'owner', 'file', 'image', 'object'];
+/**
+ * Coerce any value to a safe primitive string.
+ * Handles MongoDB types ($numberDecimal, $oid), expanded references, arrays, etc.
+ */
+function toSafeString(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) {
+    return value.map((v) => {
+      if (v != null && typeof v === 'object') {
+        return (v as any).name || (v as any).label || (v as any)._id || JSON.stringify(v);
+      }
+      return String(v);
+    }).join(', ');
+  }
+  if (typeof value === 'object') {
+    const obj = value as Record<string, any>;
+    return obj.name || obj.label || obj._id || JSON.stringify(value);
+  }
+  return String(value);
+}
+
+/**
+ * Semantic color mapping for select/status badge auto-coloring.
+ */
+const SEMANTIC_COLOR_MAP: Record<string, string> = {
+  critical: 'bg-red-100 text-red-800 border-red-300',
+  urgent: 'bg-red-100 text-red-800 border-red-300',
+  high: 'bg-orange-100 text-orange-800 border-orange-300',
+  medium: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+  normal: 'bg-blue-100 text-blue-800 border-blue-300',
+  low: 'bg-gray-100 text-gray-800 border-gray-300',
+  paid: 'bg-green-100 text-green-800 border-green-300',
+  completed: 'bg-green-100 text-green-800 border-green-300',
+  done: 'bg-green-100 text-green-800 border-green-300',
+  active: 'bg-green-100 text-green-800 border-green-300',
+  approved: 'bg-green-100 text-green-800 border-green-300',
+  pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+  in_progress: 'bg-blue-100 text-blue-800 border-blue-300',
+  open: 'bg-blue-100 text-blue-800 border-blue-300',
+  draft: 'bg-gray-100 text-gray-800 border-gray-300',
+  new: 'bg-gray-100 text-gray-800 border-gray-300',
+  closed: 'bg-gray-100 text-gray-800 border-gray-300',
+  cancelled: 'bg-red-100 text-red-800 border-red-300',
+  rejected: 'bg-red-100 text-red-800 border-red-300',
+  failed: 'bg-red-100 text-red-800 border-red-300',
+};
+
+function getSemanticBadgeClasses(val: string): string {
+  const key = val.toLowerCase().replace(/[\s-]/g, '_');
+  return SEMANTIC_COLOR_MAP[key] || 'bg-muted text-muted-foreground border-border';
+}
 
 export interface HeaderHighlightProps {
   fields: HighlightField[];
@@ -55,35 +107,65 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
         )}>
           {visibleFields.map((field) => {
             const value = data[field.name];
-            // Enrich field with objectSchema metadata for type-aware rendering
+            // Resolve field metadata from objectSchema
             const objectDefField = objectSchema?.fields?.[field.name];
             const resolvedType = field.type || objectDefField?.type;
-            const enrichedField: Record<string, any> = { ...field };
-            if (objectDefField) {
-              if (!field.type && objectDefField.type) enrichedField.type = objectDefField.type;
-              if (objectDefField.options && !enrichedField.options) enrichedField.options = objectDefField.options;
-              if (objectDefField.currency && !enrichedField.currency) enrichedField.currency = objectDefField.currency;
-              if (objectDefField.precision !== undefined && enrichedField.precision === undefined) enrichedField.precision = objectDefField.precision;
-              if (objectDefField.format && !enrichedField.format) enrichedField.format = objectDefField.format;
-            }
+            const options: Array<{ value: string; label: string; color?: string }> =
+              objectDefField?.options || (field as any).options || [];
+            const currency: string = objectDefField?.currency || (field as any).currency || 'USD';
+            const precision: number = objectDefField?.precision ?? (field as any).precision ?? 0;
 
-            // Use type-aware cell renderer when field type is available
-            let displayValue: React.ReactNode = String(value);
-            if (resolvedType) {
-              const CellRenderer = getCellRenderer(resolvedType);
-              if (CellRenderer) {
-                // Guard: plain objects (e.g. MongoDB Decimal128 {$numberDecimal}, expanded refs)
-                // can crash renderers that pass non-primitive values straight to JSX children.
-                // Types like lookup/user/owner/file/image handle objects natively.
-                const isPlainObject = value !== null && typeof value === 'object'
-                  && !Array.isArray(value) && !(value instanceof Date);
+            // Format the value as a safe string based on field type.
+            // Uses direct formatting functions instead of CellRenderers
+            // to guarantee only primitives reach JSX (prevents React error #310).
+            let displayNode: React.ReactNode;
 
-                if (isPlainObject && !OBJECT_SAFE_TYPES.includes(resolvedType)) {
-                  displayValue = String(value?.name || value?.label || value?._id || JSON.stringify(value));
-                } else {
-                  displayValue = <CellRenderer value={value} field={enrichedField as unknown as FieldMetadata} />;
-                }
+            switch (resolvedType) {
+              case 'currency': {
+                const num = Number(toSafeString(value));
+                displayNode = isNaN(num) ? toSafeString(value) : formatCurrency(num, currency);
+                break;
               }
+              case 'number': {
+                const num = Number(toSafeString(value));
+                displayNode = isNaN(num) ? toSafeString(value) : new Intl.NumberFormat('en-US', {
+                  minimumFractionDigits: precision,
+                  maximumFractionDigits: precision,
+                }).format(num);
+                break;
+              }
+              case 'percent': {
+                const num = Number(toSafeString(value));
+                displayNode = isNaN(num) ? toSafeString(value) : formatPercent(num, precision);
+                break;
+              }
+              case 'date':
+                displayNode = formatDate(toSafeString(value), objectDefField?.format);
+                break;
+              case 'datetime':
+                displayNode = formatDateTime(toSafeString(value));
+                break;
+              case 'boolean':
+                displayNode = value ? 'Yes' : 'No';
+                break;
+              case 'select':
+              case 'status': {
+                const strVal = toSafeString(value);
+                const option = options.find((opt) => String(opt.value) === strVal);
+                const label = option?.label || humanizeLabel(strVal);
+                const colorClasses = option?.color
+                  ? `bg-${option.color}-100 text-${option.color}-800 border-${option.color}-300`
+                  : getSemanticBadgeClasses(strVal);
+                displayNode = (
+                  <Badge variant="outline" className={colorClasses}>
+                    {label}
+                  </Badge>
+                );
+                break;
+              }
+              default:
+                displayNode = toSafeString(value);
+                break;
             }
 
             return (
@@ -93,7 +175,7 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
                   {fieldLabel(objectName || '', field.name, field.label)}
                 </span>
                 <span className="text-sm font-semibold truncate">
-                  {displayValue}
+                  {displayNode}
                 </span>
               </div>
             );
