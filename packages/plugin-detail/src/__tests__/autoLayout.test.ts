@@ -37,6 +37,33 @@ describe('Detail Auto-Layout', () => {
       expect(inferDetailColumns(15)).toBe(3);
       expect(inferDetailColumns(50)).toBe(3);
     });
+
+    it('should cap to 1 column when containerWidth < 640', () => {
+      expect(inferDetailColumns(15, 500)).toBe(1);
+      expect(inferDetailColumns(5, 639)).toBe(1);
+    });
+
+    it('should cap to 2 columns when containerWidth < 900', () => {
+      expect(inferDetailColumns(15, 800)).toBe(2);
+      expect(inferDetailColumns(15, 640)).toBe(2);
+      expect(inferDetailColumns(5, 899)).toBe(2);
+    });
+
+    it('should not cap columns when containerWidth >= 900', () => {
+      expect(inferDetailColumns(15, 900)).toBe(3);
+      expect(inferDetailColumns(15, 1200)).toBe(3);
+    });
+
+    it('should not cap below field-count inference', () => {
+      // 2 fields → 1 column, containerWidth 800 would cap at 2, but inference says 1
+      expect(inferDetailColumns(2, 800)).toBe(1);
+    });
+
+    it('should still work without containerWidth (backward compatible)', () => {
+      expect(inferDetailColumns(15)).toBe(3);
+      expect(inferDetailColumns(5)).toBe(2);
+      expect(inferDetailColumns(2)).toBe(1);
+    });
   });
 
   describe('isWideFieldType', () => {
@@ -179,6 +206,23 @@ describe('Detail Auto-Layout', () => {
       const result = applyDetailAutoLayout(fields, undefined);
       expect(result.columns).toBe(2);
       expect(result.fields.length).toBe(8);
+    });
+
+    it('should cap columns based on containerWidth when provided', () => {
+      const fields = Array.from({ length: 15 }, (_, i) => ({
+        name: `f${i}`, label: `F${i}`, type: 'text',
+      }));
+      // Narrow container: should cap to 1
+      const result = applyDetailAutoLayout(fields, undefined, 500);
+      expect(result.columns).toBe(1);
+    });
+
+    it('should still respect explicit schemaColumns regardless of containerWidth', () => {
+      const fields = Array.from({ length: 15 }, (_, i) => ({
+        name: `f${i}`, label: `F${i}`, type: 'text',
+      }));
+      const result = applyDetailAutoLayout(fields, 3, 500);
+      expect(result.columns).toBe(3);
     });
   });
 });

@@ -30,9 +30,6 @@ interface RecordDetailViewProps {
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User' };
 
-/** Field names automatically promoted to the highlight banner when present. */
-const HIGHLIGHT_FIELD_NAMES = ['status', 'stage', 'priority', 'category', 'type', 'owner', 'amount'];
-
 export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailViewProps) {
   const { objectName, recordId } = useParams();
   const { showDebug } = useMetadataInspector();
@@ -398,16 +395,8 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
     });
   })();
 
-  // Build highlightFields: prefer explicit config, fallback to auto-detect key fields
-  const explicitHighlight: HighlightField[] | undefined = objectDef.views?.detail?.highlightFields;
-  const highlightFields: HighlightField[] = explicitHighlight
-    ?? Object.entries(objectDef.fields || {})
-      .filter(([key]: [string, any]) => HIGHLIGHT_FIELD_NAMES.includes(key))
-      .map(([key, def]: [string, any]) => ({
-        name: key,
-        label: def.label || key,
-        ...(def.type && { type: def.type }),
-      }));
+  // Build highlightFields: exclusively from objectDef metadata (no hardcoded fallback)
+  const highlightFields: HighlightField[] = objectDef.views?.detail?.highlightFields ?? [];
 
   // Build sectionGroups from objectDef detail/form config if available
   const sectionGroups: SectionGroup[] | undefined =
@@ -421,7 +410,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
     data: childRelatedData[childObject] || [],
   }));
 
-  const detailSchema: DetailViewSchema = {
+  const detailSchema: DetailViewSchema = useMemo(() => ({
     type: 'detail-view',
     objectName: objectDef.name,
     resourceId: pureRecordId,
@@ -443,7 +432,8 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
         actions: recordHeaderActions,
       } as any],
     }),
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [objectDef.name, pureRecordId, childRelatedData, actionRefreshKey]);
 
   return (
     <div className="h-full bg-background overflow-hidden flex flex-col relative">
@@ -482,13 +472,14 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
             <RecordChatterPanel
               config={{
                 position: 'bottom',
-                collapsible: false,
+                collapsible: true,
                 feed: {
                   enableReactions: true,
                   enableThreading: true,
                   showCommentInput: true,
                 },
               }}
+              collapseWhenEmpty
               items={feedItems}
               onAddComment={handleAddComment}
               onAddReply={handleAddReply}

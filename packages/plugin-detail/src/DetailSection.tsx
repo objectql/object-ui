@@ -53,6 +53,15 @@ export function getResponsiveSpanClass(span: number | undefined, columns: number
   return '';
 }
 
+export interface VirtualScrollOptions {
+  /** Enable virtual scrolling for large field sets */
+  enabled?: boolean;
+  /** Height of each field row in px (default: 60) */
+  itemHeight?: number;
+  /** Number of fields to render in the initial batch before revealing all (default: 20) */
+  batchSize?: number;
+}
+
 export interface DetailSectionProps {
   section: DetailViewSectionType;
   data?: any;
@@ -65,6 +74,8 @@ export interface DetailSectionProps {
   isEditing?: boolean;
   /** Callback when a field value changes during inline editing */
   onFieldChange?: (field: string, value: any) => void;
+  /** Virtual scrolling configuration for sections with many fields */
+  virtualScroll?: VirtualScrollOptions;
 }
 
 export const DetailSection: React.FC<DetailSectionProps> = ({
@@ -75,9 +86,11 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
   objectName,
   isEditing = false,
   onFieldChange,
+  virtualScroll,
 }) => {
   const [isCollapsed, setIsCollapsed] = React.useState(section.defaultCollapsed ?? false);
   const [copiedField, setCopiedField] = React.useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = React.useState<number | undefined>(undefined);
   const { t } = useDetailTranslation();
   const { fieldLabel } = useSafeFieldLabel();
 
@@ -213,6 +226,32 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     );
   };
 
+  // Virtual scroll: progressive batch rendering for large field sets
+  const vsEnabled = virtualScroll?.enabled === true;
+  const vsBatchSize = virtualScroll?.batchSize ?? 20;
+  /** Delay (ms) before revealing remaining fields after the initial batch */
+  const VS_REVEAL_DELAY = 100;
+
+  React.useEffect(() => {
+    if (!vsEnabled) {
+      setVisibleCount(undefined);
+      return;
+    }
+    // Start with a batch, then progressively reveal more
+    if (layoutFields.length <= vsBatchSize) {
+      setVisibleCount(undefined);
+      return;
+    }
+    setVisibleCount(vsBatchSize);
+    const timer = setTimeout(() => setVisibleCount(undefined), VS_REVEAL_DELAY);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vsEnabled, layoutFields.length, vsBatchSize]);
+
+  const renderedFields = visibleCount !== undefined
+    ? layoutFields.slice(0, visibleCount)
+    : layoutFields;
+
   const content = (
     <div 
       className={cn(
@@ -223,7 +262,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
         "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
       )}
     >
-      {layoutFields.map(renderField)}
+      {renderedFields.map(renderField)}
     </div>
   );
 

@@ -600,7 +600,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
 
       {/* Header Highlight Area */}
       {schema.highlightFields && schema.highlightFields.length > 0 && (
-        <HeaderHighlight fields={schema.highlightFields} data={data} objectName={schema.objectName} />
+        <HeaderHighlight fields={schema.highlightFields} data={data} objectName={schema.objectName} objectSchema={objectSchema} />
       )}
 
       {/* Auto Tabs mode: wrap sections, related, activity into tabs */}

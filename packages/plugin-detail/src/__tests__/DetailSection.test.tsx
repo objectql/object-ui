@@ -391,6 +391,67 @@ describe('DetailSection', () => {
       });
     });
   });
+
+  it('should initially render a batch when virtualScroll is enabled with many fields', () => {
+    const section = {
+      title: 'Virtual',
+      fields: Array.from({ length: 50 }, (_, i) => ({
+        name: `field_${i}`,
+        label: `Field ${i}`,
+        type: 'text',
+      })),
+    };
+    const { container } = render(
+      <DetailSection
+        section={section}
+        data={{}}
+        virtualScroll={{ enabled: true, batchSize: 10 }}
+      />
+    );
+    const grid = container.querySelector('.grid');
+    expect(grid).toBeTruthy();
+    // Initially should render only the batch (10 fields), not all 50
+    const fieldElements = grid!.children;
+    expect(fieldElements.length).toBeLessThanOrEqual(10);
+  });
+
+  it('should render all fields when virtualScroll is disabled', () => {
+    const section = {
+      title: 'No Virtual',
+      fields: Array.from({ length: 50 }, (_, i) => ({
+        name: `field_${i}`,
+        label: `Field ${i}`,
+        type: 'text',
+      })),
+    };
+    const { container } = render(
+      <DetailSection section={section} data={{}} />
+    );
+    const grid = container.querySelector('.grid');
+    expect(grid).toBeTruthy();
+    expect(grid!.children.length).toBe(50);
+  });
+
+  it('should render all fields when virtualScroll is enabled but field count is below batch size', () => {
+    const section = {
+      title: 'Small',
+      fields: Array.from({ length: 5 }, (_, i) => ({
+        name: `field_${i}`,
+        label: `Field ${i}`,
+        type: 'text',
+      })),
+    };
+    const { container } = render(
+      <DetailSection
+        section={section}
+        data={{}}
+        virtualScroll={{ enabled: true, batchSize: 20 }}
+      />
+    );
+    const grid = container.querySelector('.grid');
+    expect(grid).toBeTruthy();
+    expect(grid!.children.length).toBe(5);
+  });
 });
 
 describe('getResponsiveSpanClass', () => {

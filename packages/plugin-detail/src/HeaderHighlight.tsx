@@ -9,6 +9,7 @@
 import * as React from 'react';
 import { cn, Card, CardContent } from '@object-ui/components';
 import type { HighlightField } from '@object-ui/types';
+import { getCellRenderer } from '@object-ui/fields';
 import { useSafeFieldLabel } from '@object-ui/react';
 
 export interface HeaderHighlightProps {
@@ -17,6 +18,8 @@ export interface HeaderHighlightProps {
   className?: string;
   /** Object name for i18n field label resolution */
   objectName?: string;
+  /** Object schema for field metadata enrichment */
+  objectSchema?: any;
 }
 
 export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
@@ -24,6 +27,7 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
   data,
   className,
   objectName,
+  objectSchema,
 }) => {
   const { fieldLabel } = useSafeFieldLabel();
   if (!fields.length || !data) return null;
@@ -48,6 +52,23 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
         )}>
           {visibleFields.map((field) => {
             const value = data[field.name];
+            // Enrich field metadata from objectSchema
+            const objectDefField = objectSchema?.fields?.[field.name];
+            const resolvedType = field.type || objectDefField?.type;
+            const enrichedField = {
+              name: field.name,
+              label: field.label,
+              type: resolvedType || 'text',
+              ...(objectDefField?.options && { options: objectDefField.options }),
+              ...(objectDefField?.currency && { currency: objectDefField.currency }),
+              ...(objectDefField?.precision !== undefined && { precision: objectDefField.precision }),
+              ...(objectDefField?.format && { format: objectDefField.format }),
+            };
+
+            // Use type-aware cell renderer — all renderers coerce values via
+            // coerceToSafeValue() so even object/array data is safe (no error #310).
+            const CellRenderer = getCellRenderer(resolvedType || 'text');
+
             return (
               <div key={field.name} className="flex flex-col gap-0.5">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -55,7 +76,7 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
                   {fieldLabel(objectName || '', field.name, field.label)}
                 </span>
                 <span className="text-sm font-semibold truncate">
-                  {String(value)}
+                  <CellRenderer value={value} field={enrichedField as any} />
                 </span>
               </div>
             );

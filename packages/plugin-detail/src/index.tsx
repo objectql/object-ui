@@ -36,7 +36,7 @@ export { SubscriptionToggle } from './SubscriptionToggle';
 export { ReactionPicker } from './ReactionPicker';
 export { ThreadedReplies } from './ThreadedReplies';
 export type { DetailViewProps } from './DetailView';
-export type { DetailSectionProps } from './DetailSection';
+export type { DetailSectionProps, VirtualScrollOptions } from './DetailSection';
 export type { DetailTabsProps } from './DetailTabs';
 export type { RelatedListProps } from './RelatedList';
 export type { SectionGroupProps } from './SectionGroup';

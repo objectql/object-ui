@@ -38,6 +38,8 @@ export interface RecordChatterPanelProps {
   filterMode?: FeedFilterMode;
   /** Called when filter changes */
   onFilterChange?: (mode: FeedFilterMode) => void;
+  /** When true, auto-collapse panel when there are no feed items */
+  collapseWhenEmpty?: boolean;
   className?: string;
 }
 
@@ -63,12 +65,13 @@ export const RecordChatterPanel: React.FC<RecordChatterPanelProps> = ({
   onToggleSubscription,
   filterMode,
   onFilterChange,
+  collapseWhenEmpty = false,
   className,
 }) => {
   const position = config?.position ?? 'right';
   const width = config?.width ?? '360px';
   const collapsible = config?.collapsible ?? true;
-  const defaultCollapsed = config?.defaultCollapsed ?? false;
+  const defaultCollapsed = (collapseWhenEmpty && items.length === 0) || (config?.defaultCollapsed ?? false);
 
   const [collapsed, setCollapsed] = React.useState(defaultCollapsed);
 
@@ -142,6 +145,7 @@ export const RecordChatterPanel: React.FC<RecordChatterPanelProps> = ({
             onToggleSubscription={onToggleSubscription}
             filterMode={filterMode}
             onFilterChange={onFilterChange}
+            collapseWhenEmpty={collapseWhenEmpty}
             className="border-0 shadow-none"
           />
         </div>
@@ -194,6 +198,7 @@ export const RecordChatterPanel: React.FC<RecordChatterPanelProps> = ({
             onToggleSubscription={onToggleSubscription}
             filterMode={filterMode}
             onFilterChange={onFilterChange}
+            collapseWhenEmpty={collapseWhenEmpty}
           />
         </div>
       )}

@@ -224,4 +224,42 @@ describe('RecordChatterPanel', () => {
       expect(screen.getByLabelText('Show discussion')).toBeInTheDocument();
     });
   });
+
+  describe('collapseWhenEmpty', () => {
+    it('should auto-collapse when empty and collapseWhenEmpty is true (inline mode)', () => {
+      render(
+        <RecordChatterPanel
+          config={{ position: 'bottom', collapsible: true }}
+          collapseWhenEmpty
+          items={[]}
+        />,
+      );
+      // Should be collapsed because items is empty
+      expect(screen.getByLabelText('Show discussion')).toBeInTheDocument();
+    });
+
+    it('should not auto-collapse when items exist and collapseWhenEmpty is true', () => {
+      render(
+        <RecordChatterPanel
+          config={{ position: 'bottom', collapsible: true }}
+          collapseWhenEmpty
+          items={mockItems}
+        />,
+      );
+      // Should be expanded because there are items
+      expect(screen.getByText('Activity')).toBeInTheDocument();
+    });
+
+    it('should auto-collapse sidebar when empty and collapseWhenEmpty is true', () => {
+      render(
+        <RecordChatterPanel
+          config={{ position: 'right', collapsible: true }}
+          collapseWhenEmpty
+          items={[]}
+        />,
+      );
+      // Should be collapsed
+      expect(screen.getByLabelText('Open discussion panel')).toBeInTheDocument();
+    });
+  });
 });

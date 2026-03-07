@@ -1041,3 +1041,132 @@ describe('PercentCellRenderer progress-type fields', () => {
     expect(bar).toHaveAttribute('aria-valuenow', '50');
   });
 });
+
+// =========================================================================
+// Object value safety (coerceToSafeValue) — prevents React error #310
+// =========================================================================
+import {
+  NumberCellRenderer,
+  CurrencyCellRenderer,
+  FormulaCellRenderer,
+  coerceToSafeValue,
+} from '../index';
+
+describe('coerceToSafeValue', () => {
+  it('should pass through primitives unchanged', () => {
+    expect(coerceToSafeValue('hello')).toBe('hello');
+    expect(coerceToSafeValue(42)).toBe(42);
+    expect(coerceToSafeValue(true)).toBe(true);
+    expect(coerceToSafeValue(null)).toBe(null);
+    expect(coerceToSafeValue(undefined)).toBe(undefined);
+  });
+
+  it('should extract number from MongoDB $numberDecimal', () => {
+    expect(coerceToSafeValue({ $numberDecimal: '250000' })).toBe(250000);
+  });
+
+  it('should extract string from MongoDB $oid', () => {
+    expect(coerceToSafeValue({ $oid: 'abc123' })).toBe('abc123');
+  });
+
+  it('should extract string from MongoDB $date', () => {
+    expect(coerceToSafeValue({ $date: '2024-01-01T00:00:00Z' })).toBe('2024-01-01T00:00:00Z');
+  });
+
+  it('should extract name from expanded reference object', () => {
+    expect(coerceToSafeValue({ _id: 'x', name: 'Acme Corp' })).toBe('Acme Corp');
+  });
+
+  it('should extract label when name is not present', () => {
+    expect(coerceToSafeValue({ _id: 'x', label: 'Active' })).toBe('Active');
+  });
+
+  it('should fall back to _id when no name/label', () => {
+    expect(coerceToSafeValue({ _id: 'abc123' })).toBe('abc123');
+  });
+
+  it('should handle arrays of primitives', () => {
+    expect(coerceToSafeValue(['a', 'b', 'c'])).toBe('a, b, c');
+  });
+
+  it('should handle arrays of objects', () => {
+    expect(coerceToSafeValue([{ name: 'Alice' }, { name: 'Bob' }])).toBe('Alice, Bob');
+  });
+
+  it('should convert Date to ISO string', () => {
+    const d = new Date('2024-06-15T12:00:00Z');
+    expect(coerceToSafeValue(d)).toBe('2024-06-15T12:00:00.000Z');
+  });
+});
+
+describe('NumberCellRenderer object safety', () => {
+  it('should handle MongoDB $numberDecimal without crashing', () => {
+    const { container } = render(
+      <NumberCellRenderer
+        value={{ $numberDecimal: '250000' }}
+        field={{ name: 'amount', type: 'number' } as any}
+      />
+    );
+    expect(container.innerHTML).not.toBe('');
+    expect(screen.getByText('250,000')).toBeInTheDocument();
+  });
+
+  it('should handle expanded reference object without crashing', () => {
+    const { container } = render(
+      <NumberCellRenderer
+        value={{ _id: 'abc', name: 'Not a number' }}
+        field={{ name: 'amount', type: 'number' } as any}
+      />
+    );
+    expect(container.innerHTML).not.toBe('');
+    // Should render the extracted name string, not crash
+    expect(screen.getByText('Not a number')).toBeInTheDocument();
+  });
+});
+
+describe('CurrencyCellRenderer object safety', () => {
+  it('should handle MongoDB $numberDecimal', () => {
+    const { container } = render(
+      <CurrencyCellRenderer
+        value={{ $numberDecimal: '5000' }}
+        field={{ name: 'price', type: 'currency', currency: 'USD' } as any}
+      />
+    );
+    expect(container.innerHTML).not.toBe('');
+    expect(screen.getByText(/5,000/)).toBeInTheDocument();
+  });
+});
+
+describe('TextCellRenderer object safety', () => {
+  it('should extract name from object instead of [object Object]', () => {
+    render(
+      <TextCellRenderer
+        value={{ _id: 'abc', name: 'Acme Corp' }}
+        field={{ name: 'company', type: 'text' } as any}
+      />
+    );
+    expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+  });
+
+  it('should handle arrays of objects', () => {
+    render(
+      <TextCellRenderer
+        value={[{ name: 'Alice' }, { name: 'Bob' }]}
+        field={{ name: 'contacts', type: 'text' } as any}
+      />
+    );
+    expect(screen.getByText('Alice, Bob')).toBeInTheDocument();
+  });
+});
+
+describe('FormulaCellRenderer object safety', () => {
+  it('should extract value from MongoDB $numberDecimal', () => {
+    render(
+      <FormulaCellRenderer
+        value={{ $numberDecimal: '42.5' }}
+        field={{ name: 'calc', type: 'formula' } as any}
+      />
+    );
+    expect(screen.getByText('42.5')).toBeInTheDocument();
+  });
+});

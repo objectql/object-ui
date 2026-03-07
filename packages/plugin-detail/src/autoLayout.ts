@@ -46,16 +46,31 @@ export function isWideFieldType(type: string): boolean {
 
 /**
  * Infer optimal number of columns for a detail section based on field count.
+ * When containerWidth is provided, limits columns for narrower viewports.
  *
- * Rules:
+ * Rules (field-count based):
  * - 0-3 fields  → 1 column
  * - 4-10 fields → 2 columns
  * - 11+ fields  → 3 columns
+ *
+ * Responsive capping (when containerWidth is supplied):
+ * - containerWidth < 640px  → max 1 column
+ * - containerWidth < 900px  → max 2 columns
+ * - containerWidth >= 900px → no cap
  */
-export function inferDetailColumns(fieldCount: number): number {
-  if (fieldCount <= 3) return 1;
-  if (fieldCount <= 10) return 2;
-  return 3;
+export function inferDetailColumns(fieldCount: number, containerWidth?: number): number {
+  let cols: number;
+  if (fieldCount <= 3) cols = 1;
+  else if (fieldCount <= 10) cols = 2;
+  else cols = 3;
+
+  // Apply responsive capping when container width is known
+  if (containerWidth !== undefined) {
+    if (containerWidth < 640) return Math.min(cols, 1);
+    if (containerWidth < 900) return Math.min(cols, 2);
+  }
+
+  return cols;
 }
 
 /**
@@ -89,11 +104,13 @@ export function applyAutoSpan(
  *
  * @param fields - The section fields
  * @param schemaColumns - User-provided columns (from DetailViewSection or DetailViewSchema)
+ * @param containerWidth - Optional container width in px for responsive column capping
  * @returns Object with processed fields and inferred columns
  */
 export function applyDetailAutoLayout(
   fields: DetailViewField[],
-  schemaColumns: number | undefined
+  schemaColumns: number | undefined,
+  containerWidth?: number
 ): { fields: DetailViewField[]; columns: number } {
   // If user explicitly set columns, respect it but still apply auto span
   if (schemaColumns !== undefined) {
@@ -101,8 +118,8 @@ export function applyDetailAutoLayout(
     return { fields: processed, columns: schemaColumns };
   }
 
-  // Infer columns from field count
-  const columns = inferDetailColumns(fields.length);
+  // Infer columns from field count (with optional container-width capping)
+  const columns = inferDetailColumns(fields.length, containerWidth);
 
   // Apply auto span for wide fields
   const processed = applyAutoSpan(fields, columns);

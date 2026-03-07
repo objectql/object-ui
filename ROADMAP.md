@@ -1414,7 +1414,34 @@ All 313 `@object-ui/fields` tests pass.
 
 ---
 
-### DetailView Rendering Optimization (March 2026)
+### DetailView/RecordDetailView SDUI Optimization (March 2026)
+
+> Type-aware rendering, responsive layout, virtual scrolling, metadata-driven highlights, performance optimization, and activity panel collapse-when-empty.
+
+**HeaderHighlight (`@object-ui/plugin-detail`):**
+- [x] Use `getCellRenderer` for type-aware display (currency → `$250,000.00`, select → Badge, etc.) instead of raw `String(value)`
+- [x] Add `objectSchema` prop for field metadata enrichment (type, options, currency, precision, format)
+
+**autoLayout (`@object-ui/plugin-detail`):**
+- [x] `inferDetailColumns` accepts optional `containerWidth` for responsive column capping (`<640px→1col`, `<900px→max 2col`)
+- [x] `applyDetailAutoLayout` passes through `containerWidth` parameter
+
+**RecordChatterPanel (`@object-ui/plugin-detail`):**
+- [x] `collapseWhenEmpty` prop: auto-collapse panel when no feed items exist
+- [x] Pass `collapseWhenEmpty` through to embedded `RecordActivityTimeline`
+
+**DetailSection (`@object-ui/plugin-detail`):**
+- [x] `virtualScroll` config (`VirtualScrollOptions`): progressive batch rendering for sections with many fields
+- [x] Export `VirtualScrollOptions` type from package index
+
+**RecordDetailView (`apps/console`):**
+- [x] Wrap `detailSchema` construction with `useMemo` (deps: `objectDef`, `pureRecordId`, `related`, `childRelatedData`, `actionRefreshKey`)
+- [x] Remove hardcoded `HIGHLIGHT_FIELD_NAMES`; read exclusively from `objectDef.views.detail.highlightFields` (no fallback)
+- [x] Enable `collapseWhenEmpty` + `collapsible: true` on `RecordChatterPanel`
+
+**Tests:** 125 plugin-detail tests passing (17 new) covering HeaderHighlight type-aware rendering, autoLayout responsive columns, RecordChatterPanel collapseWhenEmpty, DetailSection virtualScroll.
+
+---
 
 > Platform-level DetailView enhancements: auto-grouping from form sections, empty value hiding, smart header with primaryField/summaryFields, responsive breakpoint fix, and activity timeline collapse.
 

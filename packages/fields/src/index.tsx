@@ -61,6 +61,39 @@ export interface CellRendererProps {
 }
 
 /**
+ * Coerce a value to a safe primitive for rendering.
+ * Handles MongoDB wrapper types ($numberDecimal, $oid, $date), expanded
+ * reference objects, and arrays so that no raw object is ever passed as
+ * a React child — preventing React error #310.
+ */
+export function coerceToSafeValue(value: unknown): string | number | boolean | null | undefined {
+  if (value == null) return value as null | undefined;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) {
+    return value.map((v) => {
+      if (v != null && typeof v === 'object') {
+        const obj = v as Record<string, unknown>;
+        return String(obj.name || obj.label || obj._id || '[Object]');
+      }
+      return String(v);
+    }).join(', ');
+  }
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    // MongoDB numeric wrapper: { $numberDecimal: "250000" }
+    if ('$numberDecimal' in obj) return Number(obj.$numberDecimal);
+    // MongoDB ObjectId wrapper: { $oid: "abc123" }
+    if ('$oid' in obj) return String(obj.$oid);
+    // MongoDB date wrapper: { $date: "2024-01-01T00:00:00Z" }
+    if ('$date' in obj) return String(obj.$date);
+    // Expanded reference / general object: extract name/label/_id
+    return String(obj.name || obj.label || obj._id || '[Object]');
+  }
+  return String(value);
+}
+
+/**
  * Format currency value
  */
 export function formatCurrency(value: number, currency: string = 'USD'): string {
@@ -192,7 +225,8 @@ export function formatDateTime(value: string | Date): string {
  * Text field cell renderer
  */
 export function TextCellRenderer({ value }: CellRendererProps): React.ReactElement {
-  return <span className="truncate">{(value != null && value !== '') ? String(value) : '-'}</span>;
+  const safe = coerceToSafeValue(value);
+  return <span className="truncate">{(safe != null && safe !== '') ? String(safe) : '-'}</span>;
 }
 
 /**
@@ -201,11 +235,13 @@ export function TextCellRenderer({ value }: CellRendererProps): React.ReactEleme
 export function NumberCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
   if (value == null) return <span className="text-muted-foreground">-</span>;
   
+  const safe = coerceToSafeValue(value);
   const numField = field as any;
   const precision = numField.precision ?? 0;
-  const formatted = typeof value === 'number'
-    ? new Intl.NumberFormat('en-US', { minimumFractionDigits: precision, maximumFractionDigits: precision }).format(value)
-    : value;
+  const num = Number(safe);
+  const formatted = !isNaN(num)
+    ? new Intl.NumberFormat('en-US', { minimumFractionDigits: precision, maximumFractionDigits: precision }).format(num)
+    : String(safe);
   
   return <span className="tabular-nums">{formatted}</span>;
 }
@@ -216,9 +252,11 @@ export function NumberCellRenderer({ value, field }: CellRendererProps): React.R
 export function CurrencyCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
   if (value == null) return <span className="text-muted-foreground">-</span>;
   
+  const safe = coerceToSafeValue(value);
   const currencyField = field as any;
   const currency = currencyField.currency || 'USD';
-  const formatted = formatCurrency(Number(value), currency);
+  const num = Number(safe);
+  const formatted = !isNaN(num) ? formatCurrency(num, currency) : String(safe);
   
   return <span className="tabular-nums font-medium whitespace-nowrap">{formatted}</span>;
 }
@@ -232,9 +270,13 @@ const WHOLE_PERCENT_FIELD_PATTERN = /progress|completion/;
 export function PercentCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
   if (value == null) return <span className="text-muted-foreground">-</span>;
   
+  const safe = coerceToSafeValue(value);
   const percentField = field as any;
   const precision = percentField.precision ?? 0;
-  const numValue = Number(value);
+  const numValue = Number(safe);
+  if (isNaN(numValue)) {
+    return <span className="tabular-nums whitespace-nowrap">{String(safe)}</span>;
+  }
   // Use field name to disambiguate 0-1 fraction vs 0-100 whole number:
   // Fields like "progress" or "completion" store values as 0-100, not 0-1
   const isWholePercentField = WHOLE_PERCENT_FIELD_PATTERN.test(field?.name?.toLowerCase() || '');
@@ -319,17 +361,18 @@ export function BooleanCellRenderer({ value, field }: CellRendererProps): React.
  */
 export function DateCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
   if (!value) return <span className="text-muted-foreground">-</span>;
+  const safe = coerceToSafeValue(value);
   const dateField = field as any;
   const style = dateField.format || 'relative';
-  const formatted = formatDate(value, style);
+  const formatted = formatDate(safe as string | Date, style);
   
   // Determine if date is overdue (in the past)
-  const date = typeof value === 'string' ? new Date(value) : value;
+  const date = typeof safe === 'string' ? new Date(safe) : safe;
   const isValidDate = date instanceof Date && !isNaN(date.getTime());
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   const isOverdue = isValidDate && date < startOfToday;
-  const isoString = isValidDate ? date.toISOString() : String(value);
+  const isoString = isValidDate ? date.toISOString() : String(safe);
   
   return (
     <span
@@ -346,8 +389,9 @@ export function DateCellRenderer({ value, field }: CellRendererProps): React.Rea
  */
 export function DateTimeCellRenderer({ value }: CellRendererProps): React.ReactElement {
   if (!value) return <span className="text-muted-foreground">-</span>;
-  const date = typeof value === 'string' ? new Date(value) : value;
-  if (isNaN(date.getTime())) return <span className="text-muted-foreground">-</span>;
+  const safe = coerceToSafeValue(value);
+  const date = typeof safe === 'string' ? new Date(safe) : safe;
+  if (!(date instanceof Date) || isNaN(date.getTime())) return <span className="text-muted-foreground">-</span>;
 
   const datePart = date.toLocaleDateString(undefined, {
     month: 'numeric',
@@ -478,12 +522,13 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
 export function EmailCellRenderer({ value }: CellRendererProps): React.ReactElement {
   if (!value) return <span>-</span>;
   
+  const safe = String(coerceToSafeValue(value) ?? '');
   const [copied, setCopied] = React.useState(false);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    navigator.clipboard.writeText(String(value)).then(() => {
+    navigator.clipboard.writeText(safe).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }).catch(() => { /* clipboard not available */ });
@@ -497,10 +542,10 @@ export function EmailCellRenderer({ value }: CellRendererProps): React.ReactElem
         asChild
       >
         <a
-          href={`mailto:${value}`}
+          href={`mailto:${safe}`}
           onClick={(e) => e.stopPropagation()}
         >
-          {value}
+          {safe}
         </a>
       </Button>
       <button
@@ -525,6 +570,7 @@ export function EmailCellRenderer({ value }: CellRendererProps): React.ReactElem
 export function UrlCellRenderer({ value }: CellRendererProps): React.ReactElement {
   if (!value) return <span>-</span>;
   
+  const safe = String(coerceToSafeValue(value) ?? '');
   return (
     <Button
       variant="link"
@@ -532,12 +578,12 @@ export function UrlCellRenderer({ value }: CellRendererProps): React.ReactElemen
       asChild
     >
       <a
-        href={value}
+        href={safe}
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
       >
-        {value}
+        {safe}
       </a>
     </Button>
   );
@@ -549,12 +595,13 @@ export function UrlCellRenderer({ value }: CellRendererProps): React.ReactElemen
 export function PhoneCellRenderer({ value }: CellRendererProps): React.ReactElement {
   if (!value) return <span>-</span>;
   
+  const safe = String(coerceToSafeValue(value) ?? '');
   const [copied, setCopied] = React.useState(false);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    navigator.clipboard.writeText(String(value)).then(() => {
+    navigator.clipboard.writeText(safe).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }).catch(() => { /* clipboard not available */ });
@@ -563,12 +610,12 @@ export function PhoneCellRenderer({ value }: CellRendererProps): React.ReactElem
   return (
     <span className="inline-flex items-center gap-1 group/phone">
       <a
-        href={`tel:${value}`}
+        href={`tel:${safe}`}
         className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
         onClick={(e) => e.stopPropagation()}
       >
         <PhoneIcon className="h-3 w-3" />
-        {value}
+        {safe}
       </a>
       <button
         type="button"
@@ -697,9 +744,10 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
  * Formula field cell renderer (read-only)
  */
 export function FormulaCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  const safe = coerceToSafeValue(value);
   return (
     <span className="text-gray-700 font-mono text-sm">
-      {value != null ? String(value) : '-'}
+      {safe != null ? String(safe) : '-'}
     </span>
   );
 }
