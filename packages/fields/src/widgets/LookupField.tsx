@@ -80,18 +80,24 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   const listRef = useRef<HTMLDivElement>(null);
 
   const lookupField = (field || (props as any).schema) as any;
-  const staticOptions: LookupOption[] = lookupField?.options || [];
-  const multiple = lookupField.multiple || false;
-  const displayField = lookupField.display_field || lookupField.reference_field || 'name';
-  const descriptionField: string | undefined = lookupField.description_field;
-  const idField = lookupField.id_field || '_id';
-  const referenceTo: string | undefined = lookupField?.reference_to;
 
-  // Resolve DataSource: explicit prop > field-level > SchemaRendererContext > none
+  // When rendered via createFieldRenderer wrapper the actual objectSchema field
+  // metadata (reference_to, display_field, etc.) lives at lookupField.field.
+  // Unwrap it so lookup-specific properties resolve correctly.
+  const fieldMeta = lookupField?.field?.reference_to ? lookupField.field : lookupField;
+
+  const staticOptions: LookupOption[] = fieldMeta?.options || lookupField?.options || [];
+  const multiple = fieldMeta?.multiple || lookupField?.multiple || false;
+  const displayField = fieldMeta?.display_field || fieldMeta?.reference_field || 'name';
+  const descriptionField: string | undefined = fieldMeta?.description_field;
+  const idField = fieldMeta?.id_field || '_id';
+  const referenceTo: string | undefined = fieldMeta?.reference_to;
+
+  // Resolve DataSource: explicit prop > field-level > wrapper field > SchemaRendererContext > none
   const ctx = useContext(SchemaRendererContext);
   const contextDataSource = ctx?.dataSource ?? null;
   const dataSource: DataSource | null =
-    (props as any).dataSource ?? lookupField?.dataSource ?? contextDataSource;
+    (props as any).dataSource ?? lookupField?.dataSource ?? fieldMeta?.dataSource ?? contextDataSource;
 
   const hasDataSource = dataSource != null && typeof dataSource.find === 'function' && !!referenceTo;
 

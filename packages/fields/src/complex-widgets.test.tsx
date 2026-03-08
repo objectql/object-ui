@@ -350,6 +350,55 @@ describe('Complex & Relationship Widgets', () => {
 
             expect(onChange).toHaveBeenCalledWith('2');
         });
+
+        it('resolves reference_to from nested field.field (createFieldRenderer wrapper)', async () => {
+            // Simulates how createFieldRenderer wraps the field: the real metadata
+            // (reference_to, reference_field, etc.) is nested inside field.field.
+            const onChange = vi.fn();
+            mockDataSource.find.mockResolvedValue({
+                data: [
+                    { _id: 'o1', name: 'Order 001' },
+                    { _id: 'o2', name: 'Order 002' },
+                ],
+                total: 2,
+            });
+
+            const wrappedField = {
+                name: 'order',
+                label: 'Order',
+                // In the wrapper, the actual objectSchema metadata is nested
+                field: {
+                    name: 'order',
+                    type: 'lookup',
+                    reference_to: 'orders',
+                    reference_field: 'name',
+                },
+                // dataSource lands at the wrapper level
+                dataSource: mockDataSource,
+            } as any;
+
+            render(
+                <LookupField
+                    value={null}
+                    onChange={onChange}
+                    field={wrappedField}
+                    readonly={false}
+                />
+            );
+
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', { name: /Select/i }));
+            });
+
+            await waitFor(() => {
+                expect(mockDataSource.find).toHaveBeenCalledWith('orders', { $top: 50 });
+            });
+
+            await waitFor(() => {
+                expect(screen.getByText('Order 001')).toBeInTheDocument();
+                expect(screen.getByText('Order 002')).toBeInTheDocument();
+            });
+        });
     });
 
     describe('MasterDetailField', () => {
