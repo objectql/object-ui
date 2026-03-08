@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "homepage": "https://www.objectui.org",
-  "packageManager": "pnpm@10.28.2",
+  "packageManager": "pnpm@10.31.0",
   "engines": {
     "node": ">=20",
     "pnpm": ">=9"
