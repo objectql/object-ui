@@ -449,7 +449,7 @@ function NavigationItemRenderer({
         </SidebarMenuButton>
         {enablePinning && onPinToggle && (
           <SidebarMenuAction
-            showOnHover={!item.pinned}
+            showOnHover
             onClick={() => onPinToggle(item.id, !item.pinned)}
             aria-label={item.pinned ? `Unpin ${resolveLabel(item.label, tProp)}` : `Pin ${resolveLabel(item.label, tProp)}`}
           >
@@ -502,7 +502,7 @@ function NavigationItemRenderer({
       </SidebarMenuButton>
       {enablePinning && onPinToggle && (
         <SidebarMenuAction
-          showOnHover={!item.pinned}
+          showOnHover
           onClick={() => onPinToggle(item.id, !item.pinned)}
           aria-label={item.pinned ? `Unpin ${itemLabel}` : `Pin ${itemLabel}`}
         >

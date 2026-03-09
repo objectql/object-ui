@@ -1112,7 +1112,7 @@ The `FlowDesigner` is a canvas-based flow editor that bridges the gap between th
 > Platform-level sidebar, navigation, and grid/table UX improvements (Issue #XX).
 
 **Sidebar Navigation:**
-- [x] Pin icons show-on-hover: `SidebarMenuAction` in `NavigationRenderer` now uses `showOnHover={!item.pinned}` — unpinned items show pin icon only on hover; pinned items always show unpin icon. Applied to both `action` and leaf navigation item types.
+- [x] Pin icons show-on-hover: `SidebarMenuAction` in `NavigationRenderer` now uses `showOnHover` (always true) — all pin/unpin icons only appear on hover for a cleaner sidebar. Applied to both `action` and leaf navigation item types.
 - [x] Search placeholder contrast: Search icon in AppSidebar improved from `opacity-50` → `opacity-70` for better readability.
 - [x] Recent section position: Recent items section moved above Record Favorites in AppSidebar for quicker access to recently visited items.
 - [x] Favorites section: Already hides automatically when no pinned items exist (verified).
