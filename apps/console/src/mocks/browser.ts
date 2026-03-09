@@ -10,6 +10,7 @@
  */
 
 import { http, HttpResponse } from 'msw';
+import { setupWorker } from 'msw/browser';
 import { ObjectKernel } from '@objectstack/runtime';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import type { MSWPlugin } from '@objectstack/plugin-msw';
@@ -20,6 +21,7 @@ import { createAuthHandlers } from './authHandlers';
 let kernel: ObjectKernel | null = null;
 let driver: InMemoryDriver | null = null;
 let mswPlugin: MSWPlugin | null = null;
+let worker: ReturnType<typeof setupWorker> | null = null;
 
 /**
  * Load application-specific locale bundles for the i18n API endpoint.
@@ -57,7 +59,7 @@ export async function startMockServer() {
   const result = await createKernel({
     appConfig,
     mswOptions: {
-      enableBrowser: true,
+      enableBrowser: false,
       baseUrl: '/api/v1',
       logRequests: import.meta.env.DEV,
       customHandlers: [
@@ -76,18 +78,33 @@ export async function startMockServer() {
   driver = result.driver;
   mswPlugin = result.mswPlugin ?? null;
 
+  // Manually start the MSW browser worker so we can set the service worker
+  // URL to respect Vite's base path (e.g. '/console/'). Without this, MSW
+  // defaults to '/mockServiceWorker.js' which 404s when base !== '/'.
+  const handlers = mswPlugin?.getHandlers() ?? [];
+  if (handlers.length === 0 && import.meta.env.DEV) {
+    console.warn('[MSW] No handlers registered — mock API calls will not be intercepted');
+  }
+  worker = setupWorker(...handlers);
+  await worker.start({
+    serviceWorker: {
+      url: `${import.meta.env.BASE_URL}mockServiceWorker.js`,
+    },
+    onUnhandledRequest: 'bypass',
+  });
+
   if (import.meta.env.DEV) console.log('[MSW] ObjectStack Runtime ready');
   return kernel;
 }
 
 export function stopMockServer() {
-  if (mswPlugin) {
-    const worker = mswPlugin.getWorker();
-    if (worker) worker.stop();
-    mswPlugin = null;
+  if (worker) {
+    worker.stop();
+    worker = null;
   }
-  kernel = null;
+  mswPlugin = null;
   driver = null;
+  kernel = null;
 }
 
 export function getKernel(): ObjectKernel | null {
