@@ -1305,7 +1305,7 @@ Plugin architecture refactoring to support true modular development, plugin isol
 **Fix:**
 1. Added `AuthPlugin` from `@objectstack/plugin-auth` to `objectstack.config.ts` for server mode (`pnpm dev:server`).
 2. Created `authHandlers.ts` with in-memory mock implementations of better-auth endpoints for MSW mode (`pnpm dev`). Mock handlers are added to `customHandlers` in both `browser.ts` and `server.ts`.
-3. Mock handlers support: sign-up/email, sign-in/email, get-session, sign-out, forgot-password, reset-password, update-user.
+3. Mock handlers support: sign-up/email, sign-in/email, get-session, sign-out, forget-password (better-auth convention), reset-password, update-user.
 
 **Tests:** 11 new auth handler tests, all existing MSW (7) and auth (24) tests pass.
 

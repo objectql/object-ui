@@ -143,8 +143,8 @@ describe('Mock Auth Handlers', () => {
     expect(sessionRes.status).toBe(401);
   });
 
-  it('should handle forgot-password', async () => {
-    const res = await fetch(`${BASE_URL}/forgot-password`, {
+  it('should handle forget-password', async () => {
+    const res = await fetch(`${BASE_URL}/forget-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'alice@example.com' }),

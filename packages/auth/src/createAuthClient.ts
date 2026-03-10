@@ -23,14 +23,21 @@ function resolveAuthURL(baseURL: string): { origin: string; basePath: string } {
     return { origin: url.origin, basePath: url.pathname.replace(/\/$/, '') };
   } catch {
     // Relative URL – resolve against the current origin when available
-    const origin =
-      typeof globalThis !== 'undefined' &&
-      typeof (globalThis as Record<string, unknown>).window !== 'undefined' &&
-      (globalThis as Record<string, unknown> & { window: { location?: { origin?: string } } }).window?.location?.origin
-        ? String((globalThis as Record<string, unknown> & { window: { location: { origin: string } } }).window.location.origin)
-        : 'http://localhost';
+    const origin = getWindowOrigin() ?? 'http://localhost';
     return { origin, basePath: baseURL.replace(/\/$/, '') };
   }
+}
+
+/** Safely read window.location.origin when available (browser environments). */
+function getWindowOrigin(): string | undefined {
+  try {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return window.location.origin;
+    }
+  } catch {
+    // window may be defined but accessing location can throw in some SSR environments
+  }
+  return undefined;
 }
 
 /**
@@ -104,8 +111,11 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
     },
 
     async forgotPassword(email: string) {
-      // better-auth spells this "forgetPassword"; cast to access it
-      const forgetPw = (betterAuth as unknown as Record<string, (opts: unknown) => Promise<{ error: { message?: string; status: number } | null }>>).forgetPassword;
+      // better-auth uses "forgetPassword" (without the "o"); the method
+      // exists at runtime but is not present in the default TS types.
+      type ForgetPasswordFn = (opts: { email: string; redirectTo: string }) =>
+        Promise<{ error: { message?: string; status: number } | null }>;
+      const forgetPw = (betterAuth as unknown as { forgetPassword: ForgetPasswordFn }).forgetPassword;
       const { error } = await forgetPw({ email, redirectTo: '/' });
       if (error) {
         throw new Error(error.message ?? `Auth request failed with status ${error.status}`);
@@ -124,10 +134,12 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       if (error) {
         throw new Error(error.message ?? `Auth request failed with status ${error.status}`);
       }
+      if (!data) {
+        throw new Error('Update user returned no data');
+      }
       // The server response may wrap the user in a `user` key or return it directly
       const raw = data as unknown as Record<string, unknown>;
-      const user = (raw && typeof raw === 'object' && 'user' in raw ? raw.user : raw) as AuthUser;
-      return user ?? ({} as AuthUser);
+      return (raw && typeof raw === 'object' && 'user' in raw ? raw.user : raw) as AuthUser;
     },
   };
 }

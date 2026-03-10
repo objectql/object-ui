@@ -8,7 +8,7 @@ Authentication system for Object UI — AuthProvider, guards, login/register for
 - 🛡️ **AuthGuard** - Protect routes and components from unauthenticated access
 - 📝 **Pre-built Forms** - LoginForm, RegisterForm, and ForgotPasswordForm ready to use
 - 👤 **UserMenu** - Display authenticated user info with sign-out support
-- 🔑 **Auth Client Factory** - `createAuthClient` for pluggable backend integration
+- 🔑 **Auth Client Factory** - `createAuthClient` powered by official [better-auth](https://better-auth.com) client
 - 🌐 **Authenticated Fetch** - `createAuthenticatedFetch` for automatic token injection
 - 👀 **Preview Mode** - Auto-login with simulated identity for marketplace demos and app showcases
 - 🎯 **Type-Safe** - Full TypeScript support with exported types
@@ -30,8 +30,7 @@ import { AuthProvider, useAuth, AuthGuard } from '@object-ui/auth';
 import { createAuthClient } from '@object-ui/auth';
 
 const authClient = createAuthClient({
-  provider: 'custom',
-  apiUrl: 'https://api.example.com/auth',
+  baseURL: 'https://api.example.com/auth',
 });
 
 function App() {

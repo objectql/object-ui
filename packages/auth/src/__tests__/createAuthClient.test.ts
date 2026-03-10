@@ -13,7 +13,14 @@ import type { AuthClient } from '../types';
 function createMockFetch(handlers: Record<string, { status?: number; body: unknown }>) {
   const calls: Array<{ url: string; method: string; body: string | null }> = [];
   const mockFn = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    let url: string;
+    if (typeof input === 'string') {
+      url = input;
+    } else if (input instanceof URL) {
+      url = input.toString();
+    } else {
+      url = input.url;
+    }
     calls.push({ url, method: init?.method ?? 'GET', body: init?.body as string | null });
     for (const [pattern, handler] of Object.entries(handlers)) {
       if (url.includes(pattern)) {
