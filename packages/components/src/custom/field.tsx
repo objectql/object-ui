@@ -7,7 +7,7 @@
  */
 
 import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
+import { Slot as SlotPrimitive } from "radix-ui"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "../lib/utils"
@@ -43,7 +43,7 @@ const Field = React.forwardRef<HTMLDivElement, FieldProps>(
           </Label>
         )}
         
-        <Slot 
+        <SlotPrimitive.Slot 
           id={fieldId}
           aria-describedby={
             [description && descriptionId, error && errorId]
@@ -53,7 +53,7 @@ const Field = React.forwardRef<HTMLDivElement, FieldProps>(
           aria-invalid={!!error}
         >
           {children}
-        </Slot>
+        </SlotPrimitive.Slot>
 
         {description && !error && (
           <p

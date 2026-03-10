@@ -17,7 +17,9 @@
   "components": {
     "accordion": {
       "source": "https://ui.shadcn.com/r/styles/default/accordion.json",
-      "dependencies": ["@radix-ui/react-accordion"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "alert": {
@@ -27,17 +29,25 @@
     },
     "alert-dialog": {
       "source": "https://ui.shadcn.com/r/styles/default/alert-dialog.json",
-      "dependencies": ["@radix-ui/react-alert-dialog"],
-      "registryDependencies": ["button"]
+      "dependencies": [
+        "radix-ui"
+      ],
+      "registryDependencies": [
+        "button"
+      ]
     },
     "aspect-ratio": {
       "source": "https://ui.shadcn.com/r/styles/default/aspect-ratio.json",
-      "dependencies": ["@radix-ui/react-aspect-ratio"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "avatar": {
       "source": "https://ui.shadcn.com/r/styles/default/avatar.json",
-      "dependencies": ["@radix-ui/react-avatar"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "badge": {
@@ -52,13 +62,20 @@
     },
     "button": {
       "source": "https://ui.shadcn.com/r/styles/default/button.json",
-      "dependencies": ["@radix-ui/react-slot"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "calendar": {
       "source": "https://ui.shadcn.com/r/styles/default/calendar.json",
-      "dependencies": ["react-day-picker", "date-fns"],
-      "registryDependencies": ["button"]
+      "dependencies": [
+        "react-day-picker",
+        "date-fns"
+      ],
+      "registryDependencies": [
+        "button"
+      ]
     },
     "card": {
       "source": "https://ui.shadcn.com/r/styles/default/card.json",
@@ -67,57 +84,89 @@
     },
     "carousel": {
       "source": "https://ui.shadcn.com/r/styles/default/carousel.json",
-      "dependencies": ["embla-carousel-react"],
-      "registryDependencies": ["button"]
+      "dependencies": [
+        "embla-carousel-react"
+      ],
+      "registryDependencies": [
+        "button"
+      ]
     },
     "chart": {
       "source": "https://ui.shadcn.com/r/styles/default/chart.json",
-      "dependencies": ["recharts", "lucide-react"],
+      "dependencies": [
+        "recharts",
+        "lucide-react"
+      ],
       "registryDependencies": []
     },
     "checkbox": {
       "source": "https://ui.shadcn.com/r/styles/default/checkbox.json",
-      "dependencies": ["@radix-ui/react-checkbox"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "collapsible": {
       "source": "https://ui.shadcn.com/r/styles/default/collapsible.json",
-      "dependencies": ["@radix-ui/react-collapsible"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "command": {
       "source": "https://ui.shadcn.com/r/styles/default/command.json",
-      "dependencies": ["cmdk"],
-      "registryDependencies": ["dialog"]
+      "dependencies": [
+        "cmdk"
+      ],
+      "registryDependencies": [
+        "dialog"
+      ]
     },
     "context-menu": {
       "source": "https://ui.shadcn.com/r/styles/default/context-menu.json",
-      "dependencies": ["@radix-ui/react-context-menu"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "dialog": {
       "source": "https://ui.shadcn.com/r/styles/default/dialog.json",
-      "dependencies": ["@radix-ui/react-dialog"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "drawer": {
       "source": "https://ui.shadcn.com/r/styles/default/drawer.json",
-      "dependencies": ["vaul"],
+      "dependencies": [
+        "vaul"
+      ],
       "registryDependencies": []
     },
     "dropdown-menu": {
       "source": "https://ui.shadcn.com/r/styles/default/dropdown-menu.json",
-      "dependencies": ["@radix-ui/react-dropdown-menu"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "form": {
       "source": "https://ui.shadcn.com/r/styles/default/form.json",
-      "dependencies": ["@radix-ui/react-label", "react-hook-form", "@hookform/resolvers"],
-      "registryDependencies": ["button", "label"]
+      "dependencies": [
+        "radix-ui",
+        "react-hook-form",
+        "@hookform/resolvers"
+      ],
+      "registryDependencies": [
+        "button",
+        "label"
+      ]
     },
     "hover-card": {
       "source": "https://ui.shadcn.com/r/styles/default/hover-card.json",
-      "dependencies": ["@radix-ui/react-hover-card"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "input": {
@@ -127,73 +176,107 @@
     },
     "input-otp": {
       "source": "https://ui.shadcn.com/r/styles/default/input-otp.json",
-      "dependencies": ["input-otp"],
+      "dependencies": [
+        "input-otp"
+      ],
       "registryDependencies": []
     },
     "label": {
       "source": "https://ui.shadcn.com/r/styles/default/label.json",
-      "dependencies": ["@radix-ui/react-label"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "menubar": {
       "source": "https://ui.shadcn.com/r/styles/default/menubar.json",
-      "dependencies": ["@radix-ui/react-menubar"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "navigation-menu": {
       "source": "https://ui.shadcn.com/r/styles/default/navigation-menu.json",
-      "dependencies": ["@radix-ui/react-navigation-menu"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "pagination": {
       "source": "https://ui.shadcn.com/r/styles/default/pagination.json",
       "dependencies": [],
-      "registryDependencies": ["button"]
+      "registryDependencies": [
+        "button"
+      ]
     },
     "popover": {
       "source": "https://ui.shadcn.com/r/styles/default/popover.json",
-      "dependencies": ["@radix-ui/react-popover"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "progress": {
       "source": "https://ui.shadcn.com/r/styles/default/progress.json",
-      "dependencies": ["@radix-ui/react-progress"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "radio-group": {
       "source": "https://ui.shadcn.com/r/styles/default/radio-group.json",
-      "dependencies": ["@radix-ui/react-radio-group"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "resizable": {
       "source": "https://ui.shadcn.com/r/styles/default/resizable.json",
-      "dependencies": ["react-resizable-panels"],
+      "dependencies": [
+        "react-resizable-panels"
+      ],
       "registryDependencies": []
     },
     "scroll-area": {
       "source": "https://ui.shadcn.com/r/styles/default/scroll-area.json",
-      "dependencies": ["@radix-ui/react-scroll-area"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "select": {
       "source": "https://ui.shadcn.com/r/styles/default/select.json",
-      "dependencies": ["@radix-ui/react-select"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "separator": {
       "source": "https://ui.shadcn.com/r/styles/default/separator.json",
-      "dependencies": ["@radix-ui/react-separator"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "sheet": {
       "source": "https://ui.shadcn.com/r/styles/default/sheet.json",
-      "dependencies": ["@radix-ui/react-dialog"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "sidebar": {
       "source": "https://ui.shadcn.com/r/styles/default/sidebar.json",
-      "dependencies": ["@radix-ui/react-separator", "@radix-ui/react-slot"],
-      "registryDependencies": ["button", "separator", "sheet", "skeleton", "tooltip"]
+      "dependencies": [
+        "radix-ui"
+      ],
+      "registryDependencies": [
+        "button",
+        "separator",
+        "sheet",
+        "skeleton",
+        "tooltip"
+      ]
     },
     "skeleton": {
       "source": "https://ui.shadcn.com/r/styles/default/skeleton.json",
@@ -202,17 +285,24 @@
     },
     "slider": {
       "source": "https://ui.shadcn.com/r/styles/default/slider.json",
-      "dependencies": ["@radix-ui/react-slider"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "sonner": {
       "source": "https://ui.shadcn.com/r/styles/default/sonner.json",
-      "dependencies": ["sonner", "next-themes"],
+      "dependencies": [
+        "sonner",
+        "next-themes"
+      ],
       "registryDependencies": []
     },
     "switch": {
       "source": "https://ui.shadcn.com/r/styles/default/switch.json",
-      "dependencies": ["@radix-ui/react-switch"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "table": {
@@ -222,7 +312,9 @@
     },
     "tabs": {
       "source": "https://ui.shadcn.com/r/styles/default/tabs.json",
-      "dependencies": ["@radix-ui/react-tabs"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "textarea": {
@@ -232,47 +324,70 @@
     },
     "toast": {
       "source": "https://ui.shadcn.com/r/styles/default/toast.json",
-      "dependencies": ["@radix-ui/react-toast"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "toggle": {
       "source": "https://ui.shadcn.com/r/styles/default/toggle.json",
-      "dependencies": ["@radix-ui/react-toggle"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "toggle-group": {
       "source": "https://ui.shadcn.com/r/styles/default/toggle-group.json",
-      "dependencies": ["@radix-ui/react-toggle-group"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     },
     "tooltip": {
       "source": "https://ui.shadcn.com/r/styles/default/tooltip.json",
-      "dependencies": ["@radix-ui/react-tooltip"],
+      "dependencies": [
+        "radix-ui"
+      ],
       "registryDependencies": []
     }
   },
   "customComponents": {
     "button-group": {
       "description": "Custom ObjectUI component - Button group wrapper",
-      "dependencies": ["button"]
+      "dependencies": [
+        "button"
+      ]
     },
     "calendar-view": {
       "description": "Custom ObjectUI component - Full calendar view (moved to @object-ui/plugin-calendar-view)",
-      "dependencies": ["calendar"],
+      "dependencies": [
+        "calendar"
+      ],
       "movedToPlugin": "@object-ui/plugin-calendar-view"
     },
     "chatbot": {
       "description": "Custom ObjectUI component - Chatbot interface (moved to @object-ui/plugin-chatbot)",
-      "dependencies": ["card", "input", "button"],
+      "dependencies": [
+        "card",
+        "input",
+        "button"
+      ],
       "movedToPlugin": "@object-ui/plugin-chatbot"
     },
     "combobox": {
       "description": "Custom ObjectUI component - Combo box (select + input)",
-      "dependencies": ["popover", "command"]
+      "dependencies": [
+        "popover",
+        "command"
+      ]
     },
     "date-picker": {
       "description": "Custom ObjectUI component - Date picker wrapper",
-      "dependencies": ["calendar", "popover", "button"]
+      "dependencies": [
+        "calendar",
+        "popover",
+        "button"
+      ]
     },
     "empty": {
       "description": "Custom ObjectUI component - Empty state",
@@ -280,15 +395,23 @@
     },
     "field": {
       "description": "Custom ObjectUI component - Form field wrapper",
-      "dependencies": ["label"]
+      "dependencies": [
+        "label"
+      ]
     },
     "filter-builder": {
       "description": "Custom ObjectUI component - Query filter builder",
-      "dependencies": ["select", "input", "button"]
+      "dependencies": [
+        "select",
+        "input",
+        "button"
+      ]
     },
     "input-group": {
       "description": "Custom ObjectUI component - Input group with addons",
-      "dependencies": ["input"]
+      "dependencies": [
+        "input"
+      ]
     },
     "item": {
       "description": "Custom ObjectUI component - Generic item component",
@@ -309,7 +432,9 @@
     },
     "toaster": {
       "description": "Custom ObjectUI component - Toast container",
-      "dependencies": ["toast"]
+      "dependencies": [
+        "toast"
+      ]
     }
   }
 }
