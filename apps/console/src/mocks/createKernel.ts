@@ -117,31 +117,26 @@ async function installBrokerShim(kernel: ObjectKernel): Promise<void> {
 }
 
 /**
- * Sync `_id` with `id` on all records in the InMemoryDriver.
+ * Sync `_id` ↔ `id` on all records in the InMemoryDriver.
  *
- * The ObjectQL protocol uses `_id` for record identity lookups
- * (e.g. `filter: { _id: id }`), but InMemoryDriver stores the
- * generated identity as `id`. Seed data may also carry its own
- * `_id` that differs from the driver-assigned `id`.
+ * The canonical primary key is `id` (per objectstack-ai/spec).
+ * For backward compatibility with Mongo/Mingo storage layers, we
+ * keep `_id` in sync as an alias.
  *
- * When seed data provides an explicit `_id`, that value is promoted
- * to `id` so that record identifiers remain stable across page
- * refreshes (the driver would otherwise generate a new timestamp-based
- * `id` every time the in-memory kernel reboots).
- *
- * When no explicit `_id` exists, `_id` is derived from the
- * driver-assigned `id` so protocol lookups still work.
+ * When seed data provides an explicit `id`, `_id` is derived from it.
+ * When legacy seed data only provides `_id`, that value is promoted
+ * to `id` so lookups work correctly.
  */
 function syncDriverIds(driver: InMemoryDriver): void {
   const db = (driver as any).db as Record<string, any[]>;
   for (const records of Object.values(db)) {
     for (const record of records) {
-      if (record._id != null && record._id !== record.id) {
-        // Seed data carries an explicit _id → promote it to canonical id
-        record.id = record._id;
-      } else if (record.id) {
-        // No explicit seed _id → derive _id from driver-assigned id
+      if (record.id != null && record.id !== record._id) {
+        // Canonical id present → derive _id for backward compat
         record._id = record.id;
+      } else if (record._id != null && !record.id) {
+        // Legacy seed data with only _id → promote to canonical id
+        record.id = record._id;
       }
     }
   }

@@ -3,7 +3,7 @@ export const ContactData = {
   mode: 'upsert' as const,
   records: [
     { 
-      _id: "1", 
+      id: "1", 
       name: "Alice Johnson", 
       email: "alice@objectstack.com", 
       phone: "415-555-1001", 
@@ -20,7 +20,7 @@ export const ContactData = {
       address: "San Francisco, CA"
     },
     { 
-      _id: "2", 
+      id: "2", 
       name: "Bob Smith", 
       email: "bob@salesforce.com", 
       phone: "415-555-1002", 
@@ -37,7 +37,7 @@ export const ContactData = {
       address: "San Francisco, CA"
     },
     { 
-      _id: "3", 
+      id: "3", 
       name: "Charlie Brown", 
       email: "charlie@globalfin.com", 
       phone: "212-555-1003", 
@@ -53,7 +53,7 @@ export const ContactData = {
       address: "New York, NY"
     },
     { 
-      _id: "4", 
+      id: "4", 
       name: "Diana Prince", 
       email: "diana@lcg.co.uk", 
       phone: "+44-555-1004", 
@@ -70,7 +70,7 @@ export const ContactData = {
       do_not_call: true
     },
     { 
-      _id: "5", 
+      id: "5", 
       name: "Evan Wright", 
       email: "evan@berlinauto.de", 
       phone: "+49-555-1005", 
@@ -86,7 +86,7 @@ export const ContactData = {
       address: "Berlin, DE"
     },
     { 
-      _id: "6", 
+      id: "6", 
       name: "Fiona Gallagher", 
       email: "fiona@mode.fr", 
       phone: "+33-555-1006", 
@@ -102,7 +102,7 @@ export const ContactData = {
       address: "Paris, FR"
     },
     { 
-      _id: "7", 
+      id: "7", 
       name: "George Martin", 
       email: "george@salesforce.com", 
       phone: "415-555-1007", 

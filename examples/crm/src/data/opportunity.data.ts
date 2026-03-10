@@ -3,7 +3,7 @@ export const OpportunityData = {
   mode: 'upsert' as const,
   records: [
     { 
-        _id: "101", 
+        id: "101", 
         name: "ObjectStack Enterprise License", 
         amount: 150000, 
         expected_revenue: 150000,
@@ -19,7 +19,7 @@ export const OpportunityData = {
         description: "Enterprise software license for 500 users. Includes premium support and training." 
     },
     { 
-        _id: "102", 
+        id: "102", 
         name: "Global Fin Q1 Upsell", 
         amount: 45000,
         expected_revenue: 36000,
@@ -35,7 +35,7 @@ export const OpportunityData = {
         description: "Adding 50 more seats to the existing contract." 
     },
     { 
-        _id: "103", 
+        id: "103", 
         name: "London Annual Renewal", 
         amount: 85000,
         expected_revenue: 51000,
@@ -51,7 +51,7 @@ export const OpportunityData = {
         description: "Annual renewal for continuous integration services." 
     },
     { 
-        _id: "104", 
+        id: "104", 
         name: "Berlin Automation Project", 
         amount: 250000,
         expected_revenue: 50000,
@@ -68,7 +68,7 @@ export const OpportunityData = {
         description: "Full factory automation software suite." 
     },
     { 
-        _id: "105", 
+        id: "105", 
         name: "Paris Store POS System", 
         amount: 35000,
         expected_revenue: 14000,
@@ -84,7 +84,7 @@ export const OpportunityData = {
         description: "POS system for the flagship store on Champs-Élysées." 
     },
     { 
-        _id: "106", 
+        id: "106", 
         name: "Tokyo E-Com Integration", 
         amount: 12000,
         expected_revenue: 0,
@@ -100,7 +100,7 @@ export const OpportunityData = {
         description: "Client chose a competitor." 
     },
     { 
-        _id: "107", 
+        id: "107", 
         name: "SF Tower Expansion", 
         amount: 75000,
         expected_revenue: 75000,

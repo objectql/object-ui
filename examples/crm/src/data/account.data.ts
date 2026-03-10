@@ -3,7 +3,7 @@ export const AccountData = {
   mode: 'upsert' as const,
   records: [
     { 
-      _id: "1", 
+      id: "1", 
       name: "ObjectStack HQ", 
       industry: "Technology", 
       type: "Partner", 
@@ -22,7 +22,7 @@ export const AccountData = {
       created_at: new Date("2023-01-15")
     },
     { 
-      _id: "2", 
+      id: "2", 
       name: "Salesforce Tower", 
       industry: "Technology", 
       type: "Customer", 
@@ -40,7 +40,7 @@ export const AccountData = {
       created_at: new Date("2023-02-20")
     },
     { 
-      _id: "3", 
+      id: "3", 
       name: "Global Financial Services", 
       industry: "Finance", 
       type: "Customer", 
@@ -57,7 +57,7 @@ export const AccountData = {
       created_at: new Date("2023-03-10")
     },
     { 
-      _id: "4",
+      id: "4",
       name: "London Consulting Grp", 
       industry: "Services", 
       type: "Partner", 
@@ -73,7 +73,7 @@ export const AccountData = {
       created_at: new Date("2023-04-05")
     },
      { 
-      _id: "5",
+      id: "5",
       name: "Tokyo E-Commerce", 
       industry: "Retail", 
       type: "Vendor", 
@@ -89,7 +89,7 @@ export const AccountData = {
       created_at: new Date("2023-05-20")
     },
     { 
-      _id: "6",
+      id: "6",
       name: "Berlin AutoWorks", 
       industry: "Manufacturing", 
       type: "Customer", 
@@ -107,7 +107,7 @@ export const AccountData = {
       created_at: new Date("2023-06-15")
     },
     { 
-      _id: "7",
+      id: "7",
       name: "Paris Fashion House", 
       industry: "Retail", 
       type: "Customer", 
