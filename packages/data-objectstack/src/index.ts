@@ -278,14 +278,14 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   async findOne(resource: string, id: string | number, params?: QueryParams): Promise<T | null> {
     await this.connect();
 
-    // When $expand is requested, use a raw GET request with a filter by _id
+    // When $expand is requested, use a raw GET request with a filter by id
     // and populate. The installed server v3.0.10's getData() does not support
     // expand/populate, so we route through findData which does.
     if (params?.$expand && params.$expand.length > 0) {
       try {
         const findParams: QueryParams = {
           ...params,
-          $filter: { _id: String(id) },
+          $filter: { id: String(id) },
           $top: 1,
         };
         const result = await this.rawFindWithPopulate(resource, findParams);

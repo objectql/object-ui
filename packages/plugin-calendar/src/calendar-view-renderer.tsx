@@ -31,7 +31,7 @@ ComponentRegistry.register('calendar-view',
         const allDayField = schema.allDayField || 'allDay';
         
         return {
-          id: record._id || record.id || index,
+          id: record.id || record._id || index,
           title: record[titleField] || 'Untitled Event',
           start: new Date(record[startField]),
           end: record[endField] ? new Date(record[endField]) : undefined,

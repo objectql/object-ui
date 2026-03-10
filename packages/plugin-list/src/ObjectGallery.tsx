@@ -193,7 +193,7 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
     if (!items.length) return <div className="p-4 text-sm text-muted-foreground">No items to display</div>;
 
     const renderCard = (item: Record<string, unknown>, i: number) => {
-        const id = (item._id ?? item.id ?? i) as string | number;
+        const id = (item.id ?? item._id ?? i) as string | number;
         const title = String(item[titleField] ?? 'Untitled');
         const imageUrl = item[coverField] as string | undefined;
 

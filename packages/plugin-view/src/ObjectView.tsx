@@ -384,7 +384,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       return;
     }
     if (layout === 'page' && schema.onNavigate) {
-      const recordId = record._id || record.id;
+      const recordId = record.id || record._id;
       schema.onNavigate(recordId as string | number, 'edit');
     } else {
       setFormMode('edit');
@@ -396,7 +396,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // Handle view action (read a record)
   const handleView = useCallback((record: Record<string, unknown>) => {
     if (layout === 'page' && schema.onNavigate) {
-      const recordId = record._id || record.id;
+      const recordId = record.id || record._id;
       schema.onNavigate(recordId as string | number, 'view');
     } else {
       setFormMode('view');
@@ -418,7 +418,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         return; // Do nothing
       }
       if (navigationConfig.mode === 'new_window' || navigationConfig.openNewTab) {
-        const recordId = record._id || record.id;
+        const recordId = record.id || record._id;
         const url = `/${schema.objectName}/${encodeURIComponent(String(recordId))}`;
         window.open(url, '_blank');
         return;
@@ -436,7 +436,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         return;
       }
       if (navigationConfig.mode === 'page') {
-        const recordId = record._id || record.id;
+        const recordId = record.id || record._id;
         if (schema.onNavigate) {
           schema.onNavigate(recordId as string | number, 'view');
         }
@@ -727,7 +727,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // Build form schema
   const buildFormSchema = (): ObjectFormSchema => {
     const recordId = selectedRecord
-      ? ((selectedRecord._id || selectedRecord.id) as string | number | undefined)
+      ? ((selectedRecord.id || selectedRecord._id) as string | number | undefined)
       : undefined;
 
     return {

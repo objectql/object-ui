@@ -43,8 +43,8 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
   const [childRelatedData, setChildRelatedData] = useState<Record<string, any[]>>({});
   const objectDef = objects.find((o: any) => o.name === objectName);
 
-  // Use the URL recordId as-is — it contains the actual record _id.
-  // Navigation code passes `record._id || record.id` directly into the URL
+  // Use the URL recordId as-is — it contains the actual record id.
+  // Navigation code passes `record.id || record._id` directly into the URL
   // without adding any prefix, so no stripping is needed.
   const pureRecordId = recordId;
 
@@ -470,7 +470,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
               schema={detailSchema}
               dataSource={dataSource}
               onEdit={() => {
-                onEdit({ _id: pureRecordId, id: pureRecordId });
+                onEdit({ id: pureRecordId });
               }}
             />
           </ActionProvider>

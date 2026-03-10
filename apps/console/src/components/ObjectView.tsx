@@ -208,7 +208,7 @@ function DrawerDetailContent({ objectDef, recordId, dataSource, onEdit }: {
                     ]
                 }}
                 dataSource={dataSource}
-                onEdit={() => onEdit({ _id: recordId, id: recordId })}
+                onEdit={() => onEdit({ id: recordId })}
             />
             {/* Discussion panel — collapsible in drawer/overlay mode */}
             <div className="mt-6 border-t pt-6">
@@ -466,7 +466,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
     // Sync URL-based recordId to overlay state
     useEffect(() => {
         if (drawerRecordId && !navOverlay.isOpen) {
-            navOverlay.open({ _id: drawerRecordId, id: drawerRecordId });
+            navOverlay.open({ id: drawerRecordId });
         } else if (!drawerRecordId && navOverlay.isOpen) {
             navOverlay.close();
         }
@@ -666,7 +666,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
         ] : [],
         onNavigate: (recordId: string | number, mode: 'view' | 'edit') => {
             if (mode === 'edit') {
-                onEdit?.({ _id: recordId, id: recordId });
+                onEdit?.({ id: recordId });
             } else if (mode === 'view') {
                 if (viewId) {
                     navigate(`../../record/${encodeURIComponent(String(recordId))}`, { relative: 'path' });
@@ -799,7 +799,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                         }
                     >
                         {(record: Record<string, unknown>) => {
-                            const recordId = (record._id || record.id) as string;
+                            const recordId = (record.id || record._id) as string;
                             return (
                                 <DrawerDetailContent
                                     objectDef={objectDef}
@@ -869,7 +869,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
                  className={navOverlay.mode === 'drawer' ? 'w-[90vw] sm:max-w-2xl p-0 overflow-hidden' : undefined}
              >
                  {(record: Record<string, unknown>) => {
-                     const recordId = (record._id || record.id) as string;
+                     const recordId = (record.id || record._id) as string;
                      return (
                          <DrawerDetailContent
                              objectDef={objectDef}

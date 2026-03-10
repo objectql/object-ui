@@ -24,7 +24,7 @@ import type {
 export interface ValueDataSourceConfig<T = any> {
   /** The static data array */
   items: T[];
-  /** Optional ID field name for findOne/update/delete (defaults to '_id' then 'id') */
+  /** Optional ID field name for findOne/update/delete (defaults to 'id' then '_id') */
   idField?: string;
 }
 
@@ -35,7 +35,7 @@ export interface ValueDataSourceConfig<T = any> {
 /** Resolve the ID of a record given possible field names */
 function getRecordId(record: any, idField?: string): string | number | undefined {
   if (idField) return record[idField];
-  return record._id ?? record.id;
+  return record.id ?? record._id;
 }
 
 /**
@@ -304,7 +304,7 @@ export class ValueDataSource<T = any> implements DataSource<T> {
     const record = { ...data } as T;
     // Auto-generate an ID if missing
     if (!getRecordId(record, this.idField)) {
-      const field = this.idField ?? '_id';
+      const field = this.idField ?? 'id';
       (record as any)[field] = `auto_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     }
     this.items.push(record);

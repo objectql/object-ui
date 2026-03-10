@@ -127,7 +127,7 @@ export function useNavigationOverlay(
 
       // No navigation config — default to page navigation
       if (!navigation) {
-        const recordId = record._id || record.id;
+        const recordId = record.id || record._id;
         if (onNavigate && recordId != null) {
           onNavigate(recordId as string | number, view ?? 'view');
         }
@@ -141,7 +141,7 @@ export function useNavigationOverlay(
 
       // new_window / openNewTab — delegate to onNavigate when available, else open directly
       if (mode === 'new_window' || navigation.openNewTab) {
-        const recordId = record._id || record.id;
+        const recordId = record.id || record._id;
         if (onNavigate && recordId != null) {
           onNavigate(recordId as string | number, 'new_window');
           return;
@@ -155,7 +155,7 @@ export function useNavigationOverlay(
 
       // page — delegate to onNavigate callback
       if (mode === 'page') {
-        const recordId = record._id || record.id;
+        const recordId = record.id || record._id;
         if (onNavigate && recordId != null) {
           onNavigate(recordId as string | number, view ?? 'view');
         }

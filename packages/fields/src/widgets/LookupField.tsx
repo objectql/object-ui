@@ -49,7 +49,7 @@ function recordToOption(
   idField: string,
   descriptionField?: string,
 ): LookupOption {
-  const val = record[idField] ?? record._id ?? record.id;
+  const val = record[idField] ?? record.id ?? record._id;
   const label = record[displayField] ?? record.label ?? record.name ?? String(val);
   const description = descriptionField ? record[descriptionField] : undefined;
   return { value: val, label: String(label), description, ...record };
@@ -95,7 +95,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   const multiple = fieldMeta?.multiple || false;
   const displayField = fieldMeta?.display_field || fieldMeta?.reference_field || 'name';
   const descriptionField: string | undefined = fieldMeta?.description_field;
-  const idField = fieldMeta?.id_field || '_id';
+  const idField = fieldMeta?.id_field || 'id';
   // ObjectStack convention uses `reference`; types define `reference_to` — support both
   const referenceTo: string | undefined = fieldMeta?.reference_to || fieldMeta?.reference;
 

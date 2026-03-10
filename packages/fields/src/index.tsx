@@ -74,7 +74,7 @@ export function coerceToSafeValue(value: unknown): string | number | boolean | n
     return value.map((v) => {
       if (v != null && typeof v === 'object') {
         const obj = v as Record<string, unknown>;
-        return String(obj.name || obj.label || obj._id || '[Object]');
+        return String(obj.name || obj.label || obj.id || obj._id || '[Object]');
       }
       return String(v);
     }).join(', ');
@@ -87,8 +87,8 @@ export function coerceToSafeValue(value: unknown): string | number | boolean | n
     if ('$oid' in obj) return String(obj.$oid);
     // MongoDB date wrapper: { $date: "2024-01-01T00:00:00Z" }
     if ('$date' in obj) return String(obj.$date);
-    // Expanded reference / general object: extract name/label/_id
-    return String(obj.name || obj.label || obj._id || '[Object]');
+    // Expanded reference / general object: extract name/label/id
+    return String(obj.name || obj.label || obj.id || obj._id || '[Object]');
   }
   return String(value);
 }
@@ -714,7 +714,7 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
         {value.map((item, idx) => {
           let label: string;
           if (item != null && typeof item === 'object') {
-            label = item.name || item.label || item._id || String(item);
+            label = item.name || item.label || item.id || item._id || String(item);
           } else {
             label = resolveLabel(item);
           }
@@ -732,7 +732,7 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
   }
   
   if (typeof value === 'object' && value !== null) {
-    const label = value.name || value.label || value._id || '[Object]';
+    const label = value.name || value.label || value.id || value._id || '[Object]';
     return <span className="truncate">{label}</span>;
   }
   
