@@ -10,11 +10,11 @@ import { describe, it, expect } from 'vitest';
 import { ValueDataSource } from '../ValueDataSource';
 
 const sampleData = [
-  { _id: '1', name: 'Alice', age: 30, role: 'admin' },
-  { _id: '2', name: 'Bob', age: 25, role: 'user' },
-  { _id: '3', name: 'Charlie', age: 35, role: 'admin' },
-  { _id: '4', name: 'Diana', age: 28, role: 'user' },
-  { _id: '5', name: 'Eve', age: 22, role: 'guest' },
+  { id: '1', name: 'Alice', age: 30, role: 'admin' },
+  { id: '2', name: 'Bob', age: 25, role: 'user' },
+  { id: '3', name: 'Charlie', age: 35, role: 'admin' },
+  { id: '4', name: 'Diana', age: 28, role: 'user' },
+  { id: '5', name: 'Eve', age: 22, role: 'guest' },
 ];
 
 function createDS() {
@@ -132,7 +132,7 @@ describe('ValueDataSource — find', () => {
     const first = result.data[0] as any;
     expect(first.name).toBeDefined();
     expect(first.age).toBeDefined();
-    expect(first._id).toBeUndefined();
+    expect(first.id).toBeUndefined();
     expect(first.role).toBeUndefined();
   });
 
@@ -252,7 +252,7 @@ describe('ValueDataSource — AST filter', () => {
 // ---------------------------------------------------------------------------
 
 describe('ValueDataSource — findOne', () => {
-  it('should find a record by _id', async () => {
+  it('should find a record by id', async () => {
     const ds = createDS();
     const record = await ds.findOne('users', '3');
     expect(record).not.toBeNull();
@@ -299,14 +299,14 @@ describe('ValueDataSource — create', () => {
   it('should auto-generate an ID if missing', async () => {
     const ds = createDS();
     const created = await ds.create('users', { name: 'Grace' });
-    expect((created as any)._id).toBeDefined();
-    expect(String((created as any)._id).startsWith('auto_')).toBe(true);
+    expect((created as any).id).toBeDefined();
+    expect(String((created as any).id).startsWith('auto_')).toBe(true);
   });
 
   it('should preserve existing ID', async () => {
     const ds = createDS();
-    const created = await ds.create('users', { _id: 'custom-id', name: 'Heidi' });
-    expect((created as any)._id).toBe('custom-id');
+    const created = await ds.create('users', { id: 'custom-id', name: 'Heidi' });
+    expect((created as any).id).toBe('custom-id');
   });
 });
 
@@ -374,7 +374,7 @@ describe('ValueDataSource — bulk', () => {
 
   it('should bulk delete records', async () => {
     const ds = createDS();
-    await ds.bulk!('users', 'delete', [{ _id: '1' }, { _id: '2' }]);
+    await ds.bulk!('users', 'delete', [{ id: '1' }, { id: '2' }]);
     expect(ds.count).toBe(3);
   });
 });
@@ -388,7 +388,7 @@ describe('ValueDataSource — getObjectSchema', () => {
     const ds = createDS();
     const schema = await ds.getObjectSchema('users');
     expect(schema.name).toBe('users');
-    expect(schema.fields._id).toBeDefined();
+    expect(schema.fields.id).toBeDefined();
     expect(schema.fields.name.type).toBe('string');
     expect(schema.fields.age.type).toBe('number');
   });
@@ -406,7 +406,7 @@ describe('ValueDataSource — getObjectSchema', () => {
 
 describe('ValueDataSource — isolation', () => {
   it('should not mutate the original items array', async () => {
-    const original = [{ _id: '1', name: 'Test' }];
+    const original = [{ id: '1', name: 'Test' }];
     const ds = new ValueDataSource({ items: original });
     await ds.create('x', { name: 'New' });
     expect(original).toHaveLength(1); // original untouched
@@ -420,11 +420,11 @@ describe('ValueDataSource — isolation', () => {
 
 describe('ValueDataSource — aggregate', () => {
   const aggData = [
-    { _id: '1', category: 'A', amount: 10 },
-    { _id: '2', category: 'A', amount: 20 },
-    { _id: '3', category: 'B', amount: 30 },
-    { _id: '4', category: 'B', amount: 40 },
-    { _id: '5', category: 'B', amount: 50 },
+    { id: '1', category: 'A', amount: 10 },
+    { id: '2', category: 'A', amount: 20 },
+    { id: '3', category: 'B', amount: 30 },
+    { id: '4', category: 'B', amount: 40 },
+    { id: '5', category: 'B', amount: 50 },
   ];
 
   function createAggDS() {

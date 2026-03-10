@@ -788,7 +788,7 @@ describe('LookupCellRenderer', () => {
   it('should render object name when value is an object', () => {
     render(
       <LookupCellRenderer
-        value={{ name: 'Acme Corp', _id: '123' }}
+        value={{ name: 'Acme Corp', id: '123' }}
         field={{ name: 'account', type: 'lookup' } as any}
       />
     );
@@ -798,17 +798,17 @@ describe('LookupCellRenderer', () => {
   it('should render object label when name is missing', () => {
     render(
       <LookupCellRenderer
-        value={{ label: 'Widget Co', _id: '456' }}
+        value={{ label: 'Widget Co', id: '456' }}
         field={{ name: 'account', type: 'lookup' } as any}
       />
     );
     expect(screen.getByText('Widget Co')).toBeInTheDocument();
   });
 
-  it('should render object _id as fallback', () => {
+  it('should render object id as fallback', () => {
     render(
       <LookupCellRenderer
-        value={{ _id: '789' }}
+        value={{ id: '789' }}
         field={{ name: 'account', type: 'lookup' } as any}
       />
     );
@@ -1074,15 +1074,15 @@ describe('coerceToSafeValue', () => {
   });
 
   it('should extract name from expanded reference object', () => {
-    expect(coerceToSafeValue({ _id: 'x', name: 'Acme Corp' })).toBe('Acme Corp');
+    expect(coerceToSafeValue({ id: 'x', name: 'Acme Corp' })).toBe('Acme Corp');
   });
 
   it('should extract label when name is not present', () => {
-    expect(coerceToSafeValue({ _id: 'x', label: 'Active' })).toBe('Active');
+    expect(coerceToSafeValue({ id: 'x', label: 'Active' })).toBe('Active');
   });
 
-  it('should fall back to _id when no name/label', () => {
-    expect(coerceToSafeValue({ _id: 'abc123' })).toBe('abc123');
+  it('should fall back to id when no name/label', () => {
+    expect(coerceToSafeValue({ id: 'abc123' })).toBe('abc123');
   });
 
   it('should handle arrays of primitives', () => {
@@ -1114,7 +1114,7 @@ describe('NumberCellRenderer object safety', () => {
   it('should handle expanded reference object without crashing', () => {
     const { container } = render(
       <NumberCellRenderer
-        value={{ _id: 'abc', name: 'Not a number' }}
+        value={{ id: 'abc', name: 'Not a number' }}
         field={{ name: 'amount', type: 'number' } as any}
       />
     );
@@ -1141,7 +1141,7 @@ describe('TextCellRenderer object safety', () => {
   it('should extract name from object instead of [object Object]', () => {
     render(
       <TextCellRenderer
-        value={{ _id: 'abc', name: 'Acme Corp' }}
+        value={{ id: 'abc', name: 'Acme Corp' }}
         field={{ name: 'company', type: 'text' } as any}
       />
     );

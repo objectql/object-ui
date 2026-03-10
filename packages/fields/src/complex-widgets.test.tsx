@@ -89,8 +89,8 @@ describe('Complex & Relationship Widgets', () => {
         it('fetches data from DataSource when dialog opens', async () => {
             mockDataSource.find.mockResolvedValue({
                 data: [
-                    { _id: '1', name: 'Acme Corp' },
-                    { _id: '2', name: 'Beta Inc' },
+                    { id: '1', name: 'Acme Corp' },
+                    { id: '2', name: 'Beta Inc' },
                 ],
                 total: 2,
             });
@@ -147,7 +147,7 @@ describe('Complex & Relationship Widgets', () => {
 
             // Click retry
             mockDataSource.find.mockResolvedValue({
-                data: [{ _id: '1', name: 'Acme Corp' }],
+                data: [{ id: '1', name: 'Acme Corp' }],
                 total: 1,
             });
 
@@ -208,8 +208,8 @@ describe('Complex & Relationship Widgets', () => {
             const onChange = vi.fn();
             mockDataSource.find.mockResolvedValue({
                 data: [
-                    { _id: '1', name: 'Acme Corp' },
-                    { _id: '2', name: 'Beta Inc' },
+                    { id: '1', name: 'Acme Corp' },
+                    { id: '2', name: 'Beta Inc' },
                 ],
                 total: 2,
             });
@@ -246,7 +246,7 @@ describe('Complex & Relationship Widgets', () => {
         it('shows total count hint when more results available', async () => {
             mockDataSource.find.mockResolvedValue({
                 data: Array.from({ length: 50 }, (_, i) => ({
-                    _id: String(i),
+                    id: String(i),
                     name: `Record ${i}`,
                 })),
                 total: 200,
@@ -266,8 +266,8 @@ describe('Complex & Relationship Widgets', () => {
         it('displays description field for options', async () => {
             mockDataSource.find.mockResolvedValue({
                 data: [
-                    { _id: '1', name: 'Acme Corp', industry: 'Technology' },
-                    { _id: '2', name: 'Beta Inc', industry: 'Finance' },
+                    { id: '1', name: 'Acme Corp', industry: 'Technology' },
+                    { id: '2', name: 'Beta Inc', industry: 'Finance' },
                 ],
                 total: 2,
             });
@@ -316,9 +316,9 @@ describe('Complex & Relationship Widgets', () => {
             const onChange = vi.fn();
             mockDataSource.find.mockResolvedValue({
                 data: [
-                    { _id: '1', name: 'Alpha' },
-                    { _id: '2', name: 'Beta' },
-                    { _id: '3', name: 'Gamma' },
+                    { id: '1', name: 'Alpha' },
+                    { id: '2', name: 'Beta' },
+                    { id: '3', name: 'Gamma' },
                 ],
                 total: 3,
             });
@@ -357,8 +357,8 @@ describe('Complex & Relationship Widgets', () => {
             const onChange = vi.fn();
             mockDataSource.find.mockResolvedValue({
                 data: [
-                    { _id: 'o1', name: 'Order 001' },
-                    { _id: 'o2', name: 'Order 002' },
+                    { id: 'o1', name: 'Order 001' },
+                    { id: 'o2', name: 'Order 002' },
                 ],
                 total: 2,
             });
@@ -405,8 +405,8 @@ describe('Complex & Relationship Widgets', () => {
             const onChange = vi.fn();
             mockDataSource.find.mockResolvedValue({
                 data: [
-                    { _id: 'a1', name: 'Acme Corp' },
-                    { _id: 'a2', name: 'Beta Inc' },
+                    { id: 'a1', name: 'Acme Corp' },
+                    { id: 'a2', name: 'Beta Inc' },
                 ],
                 total: 2,
             });
@@ -450,7 +450,7 @@ describe('Complex & Relationship Widgets', () => {
             const onChange = vi.fn();
             mockDataSource.find.mockResolvedValue({
                 data: [
-                    { _id: 'p1', name: 'Product A' },
+                    { id: 'p1', name: 'Product A' },
                 ],
                 total: 1,
             });

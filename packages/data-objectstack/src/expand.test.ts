@@ -16,7 +16,7 @@ import { ObjectStackAdapter } from './index';
 // The key scenarios:
 //   1. find() with $expand → raw GET /api/v1/data/:object?populate=...
 //   2. find() without $expand → client.data.find() (GET) as before
-//   3. findOne() with $expand → raw GET /api/v1/data/:object?filter={_id:...}&populate=...
+//   3. findOne() with $expand → raw GET /api/v1/data/:object?filter={id:...}&populate=...
 //   4. findOne() without $expand → client.data.get() as before
 
 describe('ObjectStackAdapter $expand support', () => {
@@ -139,7 +139,7 @@ describe('ObjectStackAdapter $expand support', () => {
       expect(fetchUrl).toContain('populate=customer%2Caccount');
       expect(fetchUrl).toContain('top=1');
       expect(fetchUrl).toContain('filter=');
-      // Verify the filter contains _id
+      // Verify the filter contains id
       const filterParam = new URL(fetchUrl).searchParams.get('filter');
       expect(filterParam).toBeTruthy();
       const parsedFilter = JSON.parse(filterParam!);

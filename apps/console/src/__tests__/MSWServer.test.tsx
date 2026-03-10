@@ -97,26 +97,24 @@ describe('MSW Server Integration', () => {
   });
 
   // ── Stable seed-data IDs ──────────────────────────────────────────────
-  // Seed records carry an explicit `_id`. After kernel bootstrap and
-  // syncDriverIds(), `id` should equal the seed `_id`, NOT a random
-  // driver-generated value. This ensures URLs with record IDs remain
-  // valid across page refreshes.
+  // Seed records carry an explicit `id`. After kernel bootstrap the
+  // canonical field is `id`; `_id` is kept only as a legacy alias.
+  // This ensures URLs with record IDs remain valid across page refreshes.
 
-  it('should preserve seed _id as canonical id (stable across refreshes)', async () => {
+  it('should preserve seed id as canonical id (stable across refreshes)', async () => {
     const driver = getDriver();
     const opportunities = await driver!.find('opportunity', { object: 'opportunity' });
     expect(opportunities.length).toBeGreaterThan(0);
 
-    // Seed data defines _id "101" for the first opportunity.
-    // After syncDriverIds, id must equal _id (both "101").
-    const targetOpportunity = opportunities.find((r: any) => r._id === '101');
+    // Seed data defines id "101" for the first opportunity.
+    // The canonical primary key field is `id`.
+    const targetOpportunity = opportunities.find((r: any) => r.id === '101');
     expect(targetOpportunity).toBeDefined();
     expect(targetOpportunity.id).toBe('101');
-    expect(targetOpportunity._id).toBe('101');
   });
 
-  it('should fetch a seed record by _id via HTTP', async () => {
-    // GET /data/opportunity/101 — uses the stable seed _id.
+  it('should fetch a seed record by id via HTTP', async () => {
+    // GET /data/opportunity/101 — uses the stable seed id.
     // Response may be wrapped in { success, data: { record } } (HttpDispatcher)
     // or returned as { record } (direct protocol).
     const res = await fetch('http://localhost/api/v1/data/opportunity/101');
