@@ -473,8 +473,11 @@ const SidebarFooter = React.forwardRef<
 SidebarFooter.displayName = "SidebarFooter"
 
 const SidebarSeparator = React.forwardRef<
-  React.ElementRef<typeof Separator>,
-  React.ComponentProps<typeof Separator>
+  HTMLDivElement,
+  React.ComponentPropsWithoutRef<"div"> & {
+    orientation?: "horizontal" | "vertical"
+    decorative?: boolean
+  }
 >(({ className, ...props }, ref) => {
   return (
     <Separator
