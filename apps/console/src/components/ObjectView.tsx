@@ -68,7 +68,7 @@ function DrawerDetailContent({ objectDef, recordId, dataSource, onEdit }: {
     useEffect(() => {
         if (!dataSource || !objectDef?.name || !recordId) return;
         const threadId = `${objectDef.name}:${recordId}`;
-        dataSource.find('sys_comment', { $filter: `threadId eq '${threadId}'`, $orderby: 'createdAt asc' })
+        dataSource.find('sys_comment', { $filter: { threadId }, $orderby: { createdAt: 'asc' } })
             .then((res: any) => {
                 if (res.data?.length) {
                     setFeedItems(res.data.map((c: any) => ({

@@ -178,12 +178,12 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
     const threadId = `${objectName}:${pureRecordId}`;
 
     // Fetch record viewers
-    dataSource.find('sys_presence', { $filter: `recordId eq '${pureRecordId}'` })
+    dataSource.find('sys_presence', { $filter: { recordId: pureRecordId } })
       .then((res: any) => { if (res.data?.length) setRecordViewers(res.data); })
       .catch(() => {});
 
     // Fetch persisted comments and map to FeedItem[]
-    dataSource.find('sys_comment', { $filter: `threadId eq '${threadId}'`, $orderby: 'createdAt asc' })
+    dataSource.find('sys_comment', { $filter: { threadId }, $orderby: { createdAt: 'asc' } })
       .then((res: any) => {
         if (res.data?.length) {
           setFeedItems(res.data.map((c: any) => ({
