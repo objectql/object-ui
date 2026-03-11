@@ -115,9 +115,14 @@ async function installBrokerShim(kernel: ObjectKernel): Promise<void> {
       // i18n service calls (e.g. i18n.getTranslations)
       if (service === 'i18n') {
         let i18nSvc: any;
-        try { i18nSvc = await kernel.getService('i18n'); } catch { /* noop */ }
+        // Service may not be registered yet during early bootstrap — fall through to the
+        // "unhandled action" error which customHandlers will intercept instead.
+        try { i18nSvc = await kernel.getService('i18n'); } catch { /* not registered */ }
         if (i18nSvc) {
-          if (method === 'getTranslations') return i18nSvc.getTranslations(params?.lang ?? params);
+          if (method === 'getTranslations') {
+            const lang = typeof params === 'string' ? params : params?.lang;
+            return i18nSvc.getTranslations(lang);
+          }
         }
       }
 

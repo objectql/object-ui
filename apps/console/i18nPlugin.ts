@@ -58,7 +58,7 @@ export class I18nPlugin {
   readonly version = '1.0.0';
   readonly description = 'Registers i18n translation service on the ObjectStack kernel';
 
-  private loadLocale: (lang: string) => Promise<Record<string, unknown>>;
+  private readonly loadLocale: (lang: string) => Promise<Record<string, unknown>>;
 
   constructor(options: I18nPluginOptions = {}) {
     this.loadLocale = options.loadLocale ?? defaultLoadLocale;
