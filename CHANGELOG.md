@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **@objectstack v3.2.6 Upgrade**: Upgraded all `@objectstack/*` packages from `^3.2.5` to `^3.2.6` across 13 package.json files (43 references)
 - **@objectstack v3.0.4 Upgrade**: Upgraded all `@objectstack/*` packages from `^3.0.2` to `^3.0.4` across 42 references
 - **@objectstack v3.0.0 Upgrade**: Upgraded all `@objectstack/*` packages from `^2.0.7` to `^3.0.0` across 13 package.json files
 - **Breaking change migrations**:
