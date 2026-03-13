@@ -1,5 +1,16 @@
 # @object-ui/plugin-grid
 
+## 3.1.3
+
+### Patch Changes
+
+- @object-ui/types@3.1.3
+- @object-ui/core@3.1.3
+- @object-ui/react@3.1.3
+- @object-ui/components@3.1.3
+- @object-ui/fields@3.1.3
+- @object-ui/mobile@3.1.3
+
 ## 3.1.2
 
 ### Patch Changes
