@@ -1,6 +1,6 @@
 import { ObjectSchema, Field } from '@objectstack/spec/data';
 
-export const ProjectObject = ObjectSchema.create({
+const _ProjectObject = ObjectSchema.create({
   name: 'project_task',
   label: 'Project Task',
   icon: 'kanban-square',
@@ -31,3 +31,35 @@ export const ProjectObject = ObjectSchema.create({
     dependencies: Field.text({ label: 'Dependencies' }),
   }
 });
+
+// Enterprise lookup metadata — injected post-create because ObjectSchema.create()
+// Zod-strips non-spec properties. Preserved at runtime via defineStack({ strict: false }).
+Object.assign(_ProjectObject.fields.manager, {
+  description_field: 'email',
+  lookup_columns: [
+    { field: 'name', label: 'Name' },
+    { field: 'email', label: 'Email' },
+    { field: 'role', label: 'Role', type: 'select' },
+    { field: 'department', label: 'Department' },
+    { field: 'active', label: 'Active', type: 'boolean', width: '80px' },
+  ],
+  lookup_filters: [
+    { field: 'active', operator: 'eq', value: true },
+  ],
+});
+
+Object.assign(_ProjectObject.fields.assignee, {
+  description_field: 'email',
+  lookup_columns: [
+    { field: 'name', label: 'Name' },
+    { field: 'email', label: 'Email' },
+    { field: 'role', label: 'Role', type: 'select' },
+    { field: 'department', label: 'Department' },
+    { field: 'active', label: 'Active', type: 'boolean', width: '80px' },
+  ],
+  lookup_filters: [
+    { field: 'active', operator: 'eq', value: true },
+  ],
+});
+
+export const ProjectObject = _ProjectObject;

@@ -402,6 +402,165 @@ describe('CRM Metadata Spec Compliance', () => {
       }
     });
   });
+
+  // ------------------------------------------------------------------
+  // Enterprise Lookup Field Configuration
+  // ------------------------------------------------------------------
+
+  describe('Enterprise Lookup Metadata', () => {
+    /** Extract all lookup fields from an object definition */
+    function getLookupFields(obj: Record<string, any>): Array<[string, Record<string, any>]> {
+      return Object.entries(obj.fields).filter(
+        ([, f]: [string, any]) => f.type === 'lookup' || f.type === 'master_detail',
+      ) as Array<[string, Record<string, any>]>;
+    }
+
+    it('every CRM lookup field has lookup_columns configured', () => {
+      for (const obj of allObjects) {
+        const lookups = getLookupFields(obj);
+        for (const [fieldName, field] of lookups) {
+          expect(field.lookup_columns, `${obj.name}.${fieldName} missing lookup_columns`).toBeDefined();
+          expect(Array.isArray(field.lookup_columns)).toBe(true);
+          expect(field.lookup_columns.length).toBeGreaterThanOrEqual(2);
+        }
+      }
+    });
+
+    it('every CRM lookup field has lookup_filters configured', () => {
+      for (const obj of allObjects) {
+        const lookups = getLookupFields(obj);
+        for (const [fieldName, field] of lookups) {
+          expect(field.lookup_filters, `${obj.name}.${fieldName} missing lookup_filters`).toBeDefined();
+          expect(Array.isArray(field.lookup_filters)).toBe(true);
+          expect(field.lookup_filters.length).toBeGreaterThanOrEqual(1);
+        }
+      }
+    });
+
+    it('every CRM lookup field has description_field configured', () => {
+      for (const obj of allObjects) {
+        const lookups = getLookupFields(obj);
+        for (const [fieldName, field] of lookups) {
+          expect(field.description_field, `${obj.name}.${fieldName} missing description_field`).toBeDefined();
+          expect(typeof field.description_field).toBe('string');
+        }
+      }
+    });
+
+    it('lookup_columns include at least one column with a type hint for cell rendering', () => {
+      for (const obj of allObjects) {
+        const lookups = getLookupFields(obj);
+        for (const [fieldName, field] of lookups) {
+          const cols = field.lookup_columns as Array<string | Record<string, any>>;
+          const typedCols = cols.filter(
+            (c) => typeof c === 'object' && c.type,
+          );
+          expect(
+            typedCols.length,
+            `${obj.name}.${fieldName} has no typed columns for cell rendering`,
+          ).toBeGreaterThanOrEqual(1);
+        }
+      }
+    });
+
+    it('lookup_columns cover diverse cell types (select, currency, boolean, date)', () => {
+      const allTypedColumns: string[] = [];
+      for (const obj of allObjects) {
+        const lookups = getLookupFields(obj);
+        for (const [, field] of lookups) {
+          const cols = field.lookup_columns as Array<string | Record<string, any>>;
+          for (const c of cols) {
+            if (typeof c === 'object' && c.type) {
+              allTypedColumns.push(c.type);
+            }
+          }
+        }
+      }
+      const uniqueTypes = new Set(allTypedColumns);
+      expect(uniqueTypes.has('select')).toBe(true);
+      expect(uniqueTypes.has('currency')).toBe(true);
+      expect(uniqueTypes.has('boolean')).toBe(true);
+      expect(uniqueTypes.has('date')).toBe(true);
+    });
+
+    it('lookup_filters have valid operator values', () => {
+      const validOperators = ['eq', 'ne', 'gt', 'lt', 'gte', 'lte', 'contains', 'in', 'notIn'];
+      for (const obj of allObjects) {
+        const lookups = getLookupFields(obj);
+        for (const [fieldName, field] of lookups) {
+          for (const filter of field.lookup_filters) {
+            expect(filter).toHaveProperty('field');
+            expect(filter).toHaveProperty('operator');
+            expect(filter).toHaveProperty('value');
+            expect(
+              validOperators,
+              `${obj.name}.${fieldName} filter operator "${filter.operator}" invalid`,
+            ).toContain(filter.operator);
+          }
+        }
+      }
+    });
+
+    it('lookup_filters cover diverse operators (eq, ne, in, notIn)', () => {
+      const allOperators: string[] = [];
+      for (const obj of allObjects) {
+        const lookups = getLookupFields(obj);
+        for (const [, field] of lookups) {
+          for (const filter of field.lookup_filters) {
+            allOperators.push(filter.operator);
+          }
+        }
+      }
+      const uniqueOps = new Set(allOperators);
+      expect(uniqueOps.has('eq')).toBe(true);
+      expect(uniqueOps.has('in')).toBe(true);
+      expect(uniqueOps.has('notIn')).toBe(true);
+      expect(uniqueOps.has('ne')).toBe(true);
+    });
+
+    it('account.owner references user with active-only filter', () => {
+      const owner = (AccountObject.fields as any).owner;
+      expect(owner.reference).toBe('user');
+      expect(owner.description_field).toBe('email');
+      expect(owner.lookup_filters).toEqual([{ field: 'active', operator: 'eq', value: true }]);
+    });
+
+    it('opportunity.account references account with type filter', () => {
+      const account = (OpportunityObject.fields as any).account;
+      expect(account.reference).toBe('account');
+      expect(account.description_field).toBe('industry');
+      const typeFilter = account.lookup_filters.find((f: any) => f.field === 'type');
+      expect(typeFilter).toBeDefined();
+      expect(typeFilter.operator).toBe('in');
+      expect(typeFilter.value).toContain('Customer');
+    });
+
+    it('order_item.product filters active products only', () => {
+      const product = (OrderItemObject.fields as any).product;
+      expect(product.reference).toBe('product');
+      expect(product.description_field).toBe('sku');
+      expect(product.lookup_filters).toEqual([{ field: 'is_active', operator: 'eq', value: true }]);
+      const cols = product.lookup_columns as Array<Record<string, any>>;
+      expect(cols.find((c) => c.field === 'price')?.type).toBe('currency');
+      expect(cols.find((c) => c.field === 'stock')?.type).toBe('number');
+      expect(cols.find((c) => c.field === 'is_active')?.type).toBe('boolean');
+    });
+
+    it('opportunity_contact.opportunity filters out closed stages', () => {
+      const opp = (OpportunityContactObject.fields as any).opportunity;
+      expect(opp.reference).toBe('opportunity');
+      const stageFilter = opp.lookup_filters.find((f: any) => f.field === 'stage');
+      expect(stageFilter).toBeDefined();
+      expect(stageFilter.operator).toBe('notIn');
+      expect(stageFilter.value).toContain('closed_won');
+      expect(stageFilter.value).toContain('closed_lost');
+    });
+
+    it('opportunity.contacts has lookup_page_size for multi-select', () => {
+      const contacts = (OpportunityObject.fields as any).contacts;
+      expect(contacts.lookup_page_size).toBe(15);
+    });
+  });
 });
 
 // ====================================================================

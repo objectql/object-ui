@@ -1,6 +1,6 @@
 import { ObjectSchema, Field } from '@objectstack/spec/data';
 
-export const ContactObject = ObjectSchema.create({
+const _ContactObject = ObjectSchema.create({
   name: 'contact',
   label: 'Contact',
   icon: 'user',
@@ -35,3 +35,21 @@ export const ContactObject = ObjectSchema.create({
     notes: Field.richtext({ label: 'Notes' })
   }
 });
+
+// Enterprise lookup metadata — injected post-create because ObjectSchema.create()
+// Zod-strips non-spec properties. Preserved at runtime via defineStack({ strict: false }).
+Object.assign(_ContactObject.fields.account, {
+  description_field: 'industry',
+  lookup_columns: [
+    { field: 'name', label: 'Account Name' },
+    { field: 'industry', label: 'Industry', type: 'select' },
+    { field: 'rating', label: 'Rating', type: 'select' },
+    { field: 'type', label: 'Type', type: 'select' },
+    { field: 'annual_revenue', label: 'Revenue', type: 'currency', width: '120px' },
+  ],
+  lookup_filters: [
+    { field: 'type', operator: 'in', value: ['Customer', 'Partner'] },
+  ],
+});
+
+export const ContactObject = _ContactObject;
