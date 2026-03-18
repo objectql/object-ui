@@ -626,3 +626,522 @@ describe('RecordPickerDialog — Keyboard Navigation', () => {
     });
   });
 });
+
+// ------------- RecordPickerDialog — lookup_filters consumption -------------
+
+describe('RecordPickerDialog — lookup_filters', () => {
+  const basePickerProps = {
+    open: true,
+    onOpenChange: vi.fn(),
+    dataSource: mockDataSource as any,
+    objectName: 'customers',
+    onSelect: vi.fn(),
+  };
+
+  it('injects lookup_filters into $filter on every query', async () => {
+    mockDataSource.find.mockResolvedValue({
+      data: [{ id: '1', name: 'Active Customer' }],
+      total: 1,
+    });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        lookupFilters={[
+          { field: 'status', operator: 'eq', value: 'active' },
+        ]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockDataSource.find).toHaveBeenCalledWith('customers', {
+        $top: 10,
+        $skip: 0,
+        $filter: { status: 'active' },
+      });
+    });
+  });
+
+  it('supports multiple lookup_filters with different operators', async () => {
+    mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        lookupFilters={[
+          { field: 'status', operator: 'eq', value: 'active' },
+          { field: 'category', operator: 'in', value: ['A', 'B'] },
+          { field: 'amount', operator: 'gte', value: 100 },
+        ]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockDataSource.find).toHaveBeenCalledWith('customers', {
+        $top: 10,
+        $skip: 0,
+        $filter: {
+          status: 'active',
+          category: { $in: ['A', 'B'] },
+          amount: { $gte: 100 },
+        },
+      });
+    });
+  });
+
+  it('preserves lookup_filters when search query is added', async () => {
+    mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        lookupFilters={[
+          { field: 'status', operator: 'eq', value: 'active' },
+        ]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockDataSource.find).toHaveBeenCalledTimes(1);
+    });
+
+    // Type in search
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('record-picker-search'), {
+        target: { value: 'acme' },
+      });
+    });
+
+    // Wait for debounce
+    await waitFor(
+      () => {
+        expect(mockDataSource.find).toHaveBeenCalledWith('customers', {
+          $top: 10,
+          $skip: 0,
+          $search: 'acme',
+          $filter: { status: 'active' },
+        });
+      },
+      { timeout: 500 },
+    );
+  });
+});
+
+// ------------- RecordPickerDialog — Cell Type Formatter -------------
+
+describe('RecordPickerDialog — Cell Type Formatter', () => {
+  const basePickerProps = {
+    open: true,
+    onOpenChange: vi.fn(),
+    dataSource: mockDataSource as any,
+    objectName: 'items',
+    onSelect: vi.fn(),
+  };
+
+  it('uses cellRenderer for columns with type defined', async () => {
+    const mockCellRenderer = vi.fn().mockReturnValue(
+      ({ value }: { value: any }) => <span data-testid="custom-rendered">{`FORMATTED:${value}`}</span>,
+    );
+
+    mockDataSource.find.mockResolvedValue({
+      data: [{ id: '1', name: 'Widget', amount: 99.5 }],
+      total: 1,
+    });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        columns={[
+          { field: 'name', label: 'Name' },
+          { field: 'amount', label: 'Amount', type: 'currency' },
+        ]}
+        cellRenderer={mockCellRenderer}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Widget')).toBeInTheDocument();
+    });
+
+    // cellRenderer should have been called for the 'currency' type
+    expect(mockCellRenderer).toHaveBeenCalledWith('currency');
+
+    // The formatted cell should be in the document
+    expect(screen.getByTestId('custom-rendered')).toBeInTheDocument();
+    expect(screen.getByText('FORMATTED:99.5')).toBeInTheDocument();
+  });
+
+  it('falls back to plain text when no cellRenderer is provided', async () => {
+    mockDataSource.find.mockResolvedValue({
+      data: [{ id: '1', name: 'Widget', active: true }],
+      total: 1,
+    });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        columns={[
+          { field: 'name' },
+          { field: 'active', type: 'boolean' },
+        ]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Widget')).toBeInTheDocument();
+      // Without cellRenderer, boolean should render as 'Yes'
+      expect(screen.getByText('Yes')).toBeInTheDocument();
+    });
+  });
+
+  it('falls back to plain text when column has no type', async () => {
+    const mockCellRenderer = vi.fn();
+
+    mockDataSource.find.mockResolvedValue({
+      data: [{ id: '1', name: 'Widget' }],
+      total: 1,
+    });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        columns={[{ field: 'name' }]}
+        cellRenderer={mockCellRenderer}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Widget')).toBeInTheDocument();
+    });
+
+    // cellRenderer should NOT be called for columns without type
+    expect(mockCellRenderer).not.toHaveBeenCalled();
+  });
+});
+
+// ------------- RecordPickerDialog — FilterUI bar integration -------------
+
+describe('RecordPickerDialog — Filter Bar', () => {
+  const basePickerProps = {
+    open: true,
+    onOpenChange: vi.fn(),
+    dataSource: mockDataSource as any,
+    objectName: 'customers',
+    onSelect: vi.fn(),
+  };
+
+  it('renders filter bar toggle when filterColumns are provided', async () => {
+    mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        filterColumns={[
+          { field: 'status', label: 'Status', type: 'text' },
+        ]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('record-picker-filter-bar')).toBeInTheDocument();
+      expect(screen.getByText('Filters')).toBeInTheDocument();
+    });
+  });
+
+  it('does not render filter bar when no filterColumns', async () => {
+    mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+
+    render(<RecordPickerDialog {...basePickerProps} />);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('record-picker-filter-bar')).not.toBeInTheDocument();
+    });
+  });
+
+  it('opens filter panel on toggle click', async () => {
+    mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        filterColumns={[
+          { field: 'name', label: 'Name', type: 'text' },
+        ]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('record-picker-filter-bar')).toBeInTheDocument();
+    });
+
+    // Filter panel should not be visible yet
+    expect(screen.queryByTestId('record-picker-filter-panel')).not.toBeInTheDocument();
+
+    // Click Filters button
+    await act(async () => {
+      fireEvent.click(screen.getByText('Filters'));
+    });
+
+    expect(screen.getByTestId('record-picker-filter-panel')).toBeInTheDocument();
+  });
+});
+
+// ------------- RecordPickerDialog — Column Resize Handles -------------
+
+describe('RecordPickerDialog — Column Resize', () => {
+  const basePickerProps = {
+    open: true,
+    onOpenChange: vi.fn(),
+    dataSource: mockDataSource as any,
+    objectName: 'customers',
+    onSelect: vi.fn(),
+  };
+
+  it('renders resize handles on column headers', async () => {
+    mockDataSource.find.mockResolvedValue({
+      data: [{ id: '1', name: 'Test', email: 'test@test.com' }],
+      total: 1,
+    });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        columns={['name', 'email']}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Test')).toBeInTheDocument();
+    });
+
+    // Resize handles should be present
+    expect(screen.getByTestId('resize-handle-name')).toBeInTheDocument();
+    expect(screen.getByTestId('resize-handle-email')).toBeInTheDocument();
+  });
+
+  it('resize handles have col-resize cursor and separator role', async () => {
+    mockDataSource.find.mockResolvedValue({
+      data: [{ id: '1', name: 'Test' }],
+      total: 1,
+    });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        columns={['name']}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Test')).toBeInTheDocument();
+    });
+
+    const handle = screen.getByTestId('resize-handle-name');
+    expect(handle).toHaveAttribute('role', 'separator');
+    expect(handle.className).toContain('cursor-col-resize');
+  });
+});
+
+// ------------- RecordPickerDialog — renderFilterBar slot (FilterUI integration) ---
+
+describe('RecordPickerDialog — renderFilterBar slot', () => {
+  const basePickerProps = {
+    open: true,
+    onOpenChange: vi.fn(),
+    dataSource: mockDataSource as any,
+    objectName: 'customers',
+    onSelect: vi.fn(),
+  };
+
+  it('calls renderFilterBar with correct props when provided', async () => {
+    mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+
+    const renderFilterBar = vi.fn().mockReturnValue(
+      <div data-testid="custom-filter-bar">Custom FilterUI</div>,
+    );
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        filterColumns={[
+          { field: 'status', label: 'Status', type: 'select', options: [{ label: 'Active', value: 'active' }] },
+        ]}
+        renderFilterBar={renderFilterBar}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('custom-filter-bar')).toBeInTheDocument();
+    });
+
+    // renderFilterBar should have been called with FilterBarProps
+    expect(renderFilterBar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterColumns: expect.arrayContaining([
+          expect.objectContaining({ field: 'status', type: 'select' }),
+        ]),
+        values: {},
+        onChange: expect.any(Function),
+        onClear: expect.any(Function),
+        activeCount: 0,
+      }),
+    );
+  });
+
+  it('hides built-in filter bar when renderFilterBar is provided', async () => {
+    mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        filterColumns={[{ field: 'name', label: 'Name', type: 'text' }]}
+        renderFilterBar={() => <div data-testid="external-filter">External</div>}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('external-filter')).toBeInTheDocument();
+    });
+
+    // Built-in filter panel toggle button should NOT be present
+    expect(screen.queryByTestId('record-picker-filter-panel')).not.toBeInTheDocument();
+  });
+});
+
+// ------------- RecordPickerDialog — renderGrid slot (ObjectGrid reuse) ---
+
+describe('RecordPickerDialog — renderGrid slot', () => {
+  const basePickerProps = {
+    open: true,
+    onOpenChange: vi.fn(),
+    dataSource: mockDataSource as any,
+    objectName: 'customers',
+    onSelect: vi.fn(),
+  };
+
+  it('renders external grid component via renderGrid slot', async () => {
+    mockDataSource.find.mockResolvedValue({
+      data: [{ id: '1', name: 'Acme Corp' }],
+      total: 1,
+    });
+
+    const renderGrid = vi.fn().mockReturnValue(
+      <div data-testid="custom-grid">Custom ObjectGrid</div>,
+    );
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        columns={['name']}
+        renderGrid={renderGrid}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('record-picker-grid-slot')).toBeInTheDocument();
+      expect(screen.getByTestId('custom-grid')).toBeInTheDocument();
+    });
+
+    // renderGrid should have been called with grid slot props
+    expect(renderGrid).toHaveBeenCalledWith(
+      expect.objectContaining({
+        columns: expect.arrayContaining([
+          expect.objectContaining({ field: 'name' }),
+        ]),
+        records: expect.arrayContaining([
+          expect.objectContaining({ id: '1', name: 'Acme Corp' }),
+        ]),
+        loading: false,
+        totalCount: 1,
+        currentPage: 1,
+        pageSize: 10,
+        sortField: null,
+        sortDirection: 'asc',
+        onSort: expect.any(Function),
+        onPageChange: expect.any(Function),
+        onRowClick: expect.any(Function),
+        isSelected: expect.any(Function),
+        multiple: false,
+        idField: 'id',
+      }),
+    );
+  });
+
+  it('hides built-in table when renderGrid is provided', async () => {
+    mockDataSource.find.mockResolvedValue({
+      data: [{ id: '1', name: 'Acme Corp' }],
+      total: 1,
+    });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        columns={['name']}
+        renderGrid={() => <div>Custom Grid</div>}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Custom Grid')).toBeInTheDocument();
+    });
+
+    // Built-in table should NOT be present
+    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+    // Built-in pagination should NOT be present
+    expect(screen.queryByTestId('record-picker-pagination')).not.toBeInTheDocument();
+  });
+});
+
+// ------------- RecordPickerDialog — Auto-generated filterColumns from lookupFilters ---
+
+describe('RecordPickerDialog — Auto-generated filter bar from lookupFilters', () => {
+  const basePickerProps = {
+    open: true,
+    onOpenChange: vi.fn(),
+    dataSource: mockDataSource as any,
+    objectName: 'customers',
+    onSelect: vi.fn(),
+  };
+
+  it('auto-generates filter bar from lookupFilters when no filterColumns given', async () => {
+    mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        lookupFilters={[
+          { field: 'status', operator: 'eq', value: 'active' },
+          { field: 'amount', operator: 'gte', value: 100 },
+        ]}
+      />,
+    );
+
+    await waitFor(() => {
+      // Filter bar should appear because lookupFilters auto-generate filterColumns
+      expect(screen.getByTestId('record-picker-filter-bar')).toBeInTheDocument();
+    });
+  });
+
+  it('prefers explicit filterColumns over auto-generated ones', async () => {
+    mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+
+    const renderFilterBar = vi.fn().mockReturnValue(<div>Filters</div>);
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        lookupFilters={[{ field: 'status', operator: 'eq', value: 'active' }]}
+        filterColumns={[{ field: 'custom_field', label: 'Custom', type: 'text' }]}
+        renderFilterBar={renderFilterBar}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(renderFilterBar).toHaveBeenCalled();
+    });
+
+    // Should use the explicit filterColumns, not auto-generated ones
+    const calledProps = renderFilterBar.mock.calls[0][0];
+    expect(calledProps.filterColumns[0].field).toBe('custom_field');
+  });
+});
