@@ -358,23 +358,32 @@ export function RecordPickerDialog({
     // Auto-derive from lookupFilters: each filter entry becomes a filterable field
     if (lookupFilters && lookupFilters.length > 0) {
       return lookupFilters.map(f => {
+        // Infer filter input type from value type first, then fall back to operator
         let type: RecordPickerFilterColumn['type'] = 'text';
-        if (f.operator === 'gt' || f.operator === 'lt' || f.operator === 'gte' || f.operator === 'lte') {
+        if (typeof f.value === 'boolean') {
+          type = 'boolean';
+        } else if (Array.isArray(f.value)) {
+          type = 'select';
+        } else if (typeof f.value === 'number') {
+          type = 'number';
+        } else if (f.operator === 'gt' || f.operator === 'lt' || f.operator === 'gte' || f.operator === 'lte') {
           type = 'number';
         } else if (f.operator === 'in' || f.operator === 'notIn') {
           type = 'select';
-        } else if (typeof f.value === 'boolean') {
-          type = 'boolean';
-        } else if (typeof f.value === 'number') {
-          type = 'number';
         }
         return {
           field: f.field,
           label: fieldToLabel(f.field),
           type,
-          // For 'in' filters, derive options from the value array
+          // For array values (in/notIn), derive selectable options
           ...(Array.isArray(f.value) ? {
-            options: (f.value as any[]).map(v => ({ label: String(v), value: v })),
+            options: (f.value as any[]).map(v => {
+              if (v != null && typeof v === 'object') {
+                const obj = v as Record<string, unknown>;
+                return { label: String(obj.name || obj.label || obj.title || v), value: v };
+              }
+              return { label: String(v), value: v };
+            }),
           } : {}),
         };
       });
