@@ -11,6 +11,8 @@ import { Search, X, Loader2, AlertCircle, Plus, TableProperties } from 'lucide-r
 import { FieldWidgetProps } from './types';
 import type { DataSource, QueryParams, LookupColumnDef } from '@object-ui/types';
 import { RecordPickerDialog } from './RecordPickerDialog';
+import type { RecordPickerFilterColumn } from './RecordPickerDialog';
+import { getCellRendererResolver } from './_cell-renderer-bridge';
 
 export interface LookupOption {
   value: string | number;
@@ -101,6 +103,27 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   // Enterprise Record Picker configuration
   const lookupColumns: Array<string | LookupColumnDef> | undefined = fieldMeta?.lookup_columns;
   const lookupPageSize: number | undefined = fieldMeta?.lookup_page_size;
+  const lookupFilters: import('@object-ui/types').LookupFilterDef[] | undefined = fieldMeta?.lookup_filters;
+
+  // Derive filter columns from lookup_columns that have type info
+  const filterColumns = useMemo<RecordPickerFilterColumn[] | undefined>(() => {
+    if (!lookupColumns) return undefined;
+    const cols: RecordPickerFilterColumn[] = [];
+    for (const c of lookupColumns) {
+      if (typeof c === 'object' && c.type) {
+        const filterType = (['text', 'number', 'select', 'date', 'boolean'] as const)
+          .find(t => t === c.type || (c.type === 'currency' && t === 'number') || (c.type === 'percent' && t === 'number'));
+        if (filterType) {
+          cols.push({
+            field: c.field,
+            label: c.label,
+            type: filterType,
+          });
+        }
+      }
+    }
+    return cols.length > 0 ? cols : undefined;
+  }, [lookupColumns]);
 
   // Resolve DataSource: explicit prop > field-level > wrapper field > SchemaRendererContext > none
   const ctx = useContext(SchemaRendererContext);
@@ -513,6 +536,9 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           pageSize={lookupPageSize}
           value={value}
           onSelect={onChange}
+          lookupFilters={lookupFilters}
+          cellRenderer={getCellRendererResolver()}
+          filterColumns={filterColumns}
         />
       )}
     </div>

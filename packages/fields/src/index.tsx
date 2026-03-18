@@ -888,6 +888,11 @@ registerFieldRenderer('status', SelectCellRenderer);
 registerFieldRenderer('user', UserCellRenderer);
 registerFieldRenderer('owner', UserCellRenderer);
 
+// Register getCellRenderer in the bridge so RecordPickerDialog can access it
+// via LookupField without circular imports.
+import { setCellRendererResolver } from './widgets/_cell-renderer-bridge';
+setCellRendererResolver(getCellRenderer);
+
 
 
 /**

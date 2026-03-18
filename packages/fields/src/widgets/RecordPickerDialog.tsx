@@ -8,6 +8,13 @@ import {
   DialogTitle,
   DialogFooter,
   Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Checkbox,
   Table,
   TableHeader,
   TableBody,
@@ -26,11 +33,34 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  SlidersHorizontal,
+  X,
+  GripVertical,
 } from 'lucide-react';
-import type { DataSource, QueryParams, LookupColumnDef } from '@object-ui/types';
+import type { DataSource, QueryParams, LookupColumnDef, LookupFilterDef } from '@object-ui/types';
 
 /** Default page size for the Record Picker dialog */
 const DEFAULT_PAGE_SIZE = 10;
+
+/** Minimum column width when resizing (px) */
+const MIN_COL_WIDTH = 60;
+
+/**
+ * Cell renderer function signature — matches getCellRenderer from @object-ui/fields.
+ * Accepts a field type and returns a React component that renders a formatted cell.
+ */
+export type CellRendererResolver = (fieldType: string) => React.FC<{ value: any; field: any }>;
+
+/**
+ * Filter column definition used by the inline filter bar.
+ * A subset of LookupColumnDef enriched with filter-specific metadata.
+ */
+export interface RecordPickerFilterColumn {
+  field: string;
+  label?: string;
+  type: 'text' | 'number' | 'select' | 'date' | 'boolean';
+  options?: Array<{ label: string; value: any }>;
+}
 
 /**
  * Normalise a lookup_columns entry (string | LookupColumnDef) into a
@@ -49,6 +79,73 @@ function fieldToLabel(field: string): string {
     .replace(/_/g, ' ')
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/**
+ * Convert LookupFilterDef[] to a Record<string, any> compatible with
+ * QueryParams.$filter.  Supports operator mapping for eq/ne/gt/lt/gte/lte/
+ * contains/in/notIn.
+ */
+function lookupFiltersToRecord(
+  filters: LookupFilterDef[],
+): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const f of filters) {
+    switch (f.operator) {
+      case 'eq':
+        result[f.field] = f.value;
+        break;
+      case 'ne':
+        result[f.field] = { $ne: f.value };
+        break;
+      case 'gt':
+        result[f.field] = { $gt: f.value };
+        break;
+      case 'lt':
+        result[f.field] = { $lt: f.value };
+        break;
+      case 'gte':
+        result[f.field] = { $gte: f.value };
+        break;
+      case 'lte':
+        result[f.field] = { $lte: f.value };
+        break;
+      case 'contains':
+        result[f.field] = { $contains: f.value };
+        break;
+      case 'in':
+        result[f.field] = { $in: f.value };
+        break;
+      case 'notIn':
+        result[f.field] = { $nin: f.value };
+        break;
+    }
+  }
+  return result;
+}
+
+/**
+ * Convert user-entered filter bar values into a $filter Record.
+ * Each key is a field name, each value the user-entered value.
+ * Empty/null values are ignored.
+ */
+function filterValuesToRecord(
+  values: Record<string, any>,
+  filterColumns: RecordPickerFilterColumn[],
+): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const col of filterColumns) {
+    const v = values[col.field];
+    if (v === undefined || v === null || v === '') continue;
+    if (col.type === 'boolean') {
+      result[col.field] = Boolean(v);
+    } else if (col.type === 'text') {
+      result[col.field] = { $contains: v };
+    } else {
+      result[col.field] = v;
+    }
+  }
+  return result;
 }
 
 export interface RecordPickerDialogProps {
@@ -81,6 +178,28 @@ export interface RecordPickerDialogProps {
   value?: any;
   /** Called when selection changes */
   onSelect: (value: any) => void;
+
+  /**
+   * Base filters applied to every query.
+   * Converted from LookupFieldMetadata.lookup_filters.
+   * Restricts which records are selectable (e.g. only active records).
+   */
+  lookupFilters?: LookupFilterDef[];
+
+  /**
+   * Cell renderer resolver function.
+   * When provided, columns with a `type` property will be rendered using the
+   * resolved cell renderer (e.g. badges for select, formatted currency, etc.).
+   * Typically pass `getCellRenderer` from @object-ui/fields.
+   */
+  cellRenderer?: CellRendererResolver;
+
+  /**
+   * Filter bar column definitions.
+   * When provided, shows an inline filter bar below the search input.
+   * Columns can include type-specific inputs (text, number, select, date, boolean).
+   */
+  filterColumns?: RecordPickerFilterColumn[];
 }
 
 /**
@@ -104,6 +223,9 @@ export function RecordPickerDialog({
   pageSize = DEFAULT_PAGE_SIZE,
   value,
   onSelect,
+  lookupFilters,
+  cellRenderer,
+  filterColumns,
 }: RecordPickerDialogProps) {
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -124,6 +246,14 @@ export function RecordPickerDialog({
   const [focusedRow, setFocusedRow] = useState(-1);
   const tableBodyRef = useRef<HTMLTableSectionElement>(null);
 
+  // Filter bar state
+  const [filterBarOpen, setFilterBarOpen] = useState(false);
+  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+
+  // Column resize state: widths keyed by field name
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const resizeRef = useRef<{ field: string; startX: number; startWidth: number } | null>(null);
+
   // Resolved columns
   const resolvedColumns = useMemo<LookupColumnDef[]>(() => {
     if (columnsProp && columnsProp.length > 0) {
@@ -133,11 +263,23 @@ export function RecordPickerDialog({
     return [{ field: displayField, label: fieldToLabel(displayField) }];
   }, [columnsProp, displayField]);
 
+  // Merge base lookup_filters with user filter bar values
+  const mergedFilter = useMemo<Record<string, any> | undefined>(() => {
+    const baseFilter = lookupFilters?.length
+      ? lookupFiltersToRecord(lookupFilters)
+      : {};
+    const userFilter = filterColumns?.length
+      ? filterValuesToRecord(filterValues, filterColumns)
+      : {};
+    const combined = { ...baseFilter, ...userFilter };
+    return Object.keys(combined).length > 0 ? combined : undefined;
+  }, [lookupFilters, filterColumns, filterValues]);
+
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   // Fetch records
   const fetchRecords = useCallback(
-    async (search?: string, page = 1, sort?: { field: string; direction: 'asc' | 'desc' } | null) => {
+    async (search?: string, page = 1, sort?: { field: string; direction: 'asc' | 'desc' } | null, filterOverride?: Record<string, any>) => {
       if (!dataSource || !objectName) return;
 
       setLoading(true);
@@ -154,6 +296,11 @@ export function RecordPickerDialog({
         if (sort) {
           params.$orderby = { [sort.field]: sort.direction };
         }
+        // Inject filters (lookup_filters + filter bar values)
+        const activeFilter = filterOverride !== undefined ? filterOverride : mergedFilter;
+        if (activeFilter && Object.keys(activeFilter).length > 0) {
+          params.$filter = activeFilter;
+        }
 
         const result = await dataSource.find(objectName, params);
         const data: any[] = result?.data ?? result ?? [];
@@ -169,7 +316,7 @@ export function RecordPickerDialog({
         setLoading(false);
       }
     },
-    [dataSource, objectName, pageSize],
+    [dataSource, objectName, pageSize, mergedFilter],
   );
 
   // Build current sort object for passing to fetchRecords
@@ -178,7 +325,7 @@ export function RecordPickerDialog({
     [sortField, sortDirection],
   );
 
-  // Fetch when dialog opens, page changes, or sort changes
+  // Fetch when dialog opens, page changes, sort changes, or filters change
   useEffect(() => {
     if (open) {
       fetchRecords(searchQuery || undefined, currentPage, currentSort);
@@ -192,13 +339,16 @@ export function RecordPickerDialog({
       setSortField(null);
       setSortDirection('asc');
       setFocusedRow(-1);
+      setFilterBarOpen(false);
+      setFilterValues({});
+      setColumnWidths({});
       // Reset pending selection to match current value
       setPendingSelection(new Set(
         multiple ? (Array.isArray(value) ? value : []) : [],
       ));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, currentPage, currentSort]);
+  }, [open, currentPage, currentSort, mergedFilter]);
 
   // Initialize pending selection when dialog opens
   useEffect(() => {
@@ -334,9 +484,19 @@ export function RecordPickerDialog({
     }
   }, [focusedRow]);
 
-  // Get display value for a cell
-  const getCellValue = useCallback((record: any, field: string): string => {
-    const val = record[field];
+  // Get display value for a cell — type-aware rendering when cellRenderer is provided
+  const renderCellContent = useCallback((record: any, col: LookupColumnDef): React.ReactNode => {
+    const val = record[col.field];
+
+    // Use type-aware renderer when column type and resolver are available
+    if (col.type && cellRenderer) {
+      const Renderer = cellRenderer(col.type);
+      if (Renderer) {
+        return <Renderer value={val} field={{ name: col.field, type: col.type } as any} />;
+      }
+    }
+
+    // Fallback: plain text formatting
     if (val === null || val === undefined) return '';
     if (typeof val === 'object') {
       // Handle MongoDB types / expanded references
@@ -348,7 +508,7 @@ export function RecordPickerDialog({
     }
     if (typeof val === 'boolean') return val ? 'Yes' : 'No';
     return String(val);
-  }, []);
+  }, [cellRenderer]);
 
   // Render sort indicator for a column
   const renderSortIcon = useCallback((field: string) => {
@@ -359,6 +519,140 @@ export function RecordPickerDialog({
       ? <ArrowUp className="ml-1 size-3" />
       : <ArrowDown className="ml-1 size-3" />;
   }, [sortField, sortDirection]);
+
+  // Column resize: mouse-down on drag handle
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent, field: string, currentWidth: number) => {
+      e.preventDefault();
+      e.stopPropagation();
+      resizeRef.current = { field, startX: e.clientX, startWidth: currentWidth };
+
+      const handleMouseMove = (moveEvt: MouseEvent) => {
+        if (!resizeRef.current) return;
+        const delta = moveEvt.clientX - resizeRef.current.startX;
+        const newWidth = Math.max(MIN_COL_WIDTH, resizeRef.current.startWidth + delta);
+        setColumnWidths(prev => ({ ...prev, [resizeRef.current!.field]: newWidth }));
+      };
+
+      const handleMouseUp = () => {
+        resizeRef.current = null;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    },
+    [],
+  );
+
+  // Filter bar: update a single field value
+  const handleFilterChange = useCallback(
+    (field: string, val: any) => {
+      setFilterValues(prev => ({ ...prev, [field]: val }));
+      setCurrentPage(1);
+    },
+    [],
+  );
+
+  // Filter bar: clear all filter values
+  const handleFilterClear = useCallback(() => {
+    setFilterValues({});
+    setCurrentPage(1);
+  }, []);
+
+  // Active filter count for badge
+  const activeFilterCount = useMemo(
+    () => Object.values(filterValues).filter(v => v !== undefined && v !== null && v !== '').length,
+    [filterValues],
+  );
+
+  // Render a single filter bar input
+  const renderFilterInput = useCallback(
+    (col: RecordPickerFilterColumn) => {
+      const val = filterValues[col.field];
+      const label = col.label || fieldToLabel(col.field);
+
+      switch (col.type) {
+        case 'select':
+          return (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{label}</Label>
+              <Select
+                value={val !== undefined && val !== null ? String(val) : ''}
+                onValueChange={v => handleFilterChange(col.field, v)}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder={`Filter ${label}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {col.options?.map(opt => (
+                    <SelectItem key={String(opt.value)} value={String(opt.value)}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          );
+        case 'number':
+          return (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{label}</Label>
+              <Input
+                type="number"
+                className="h-8 text-xs"
+                value={val ?? ''}
+                placeholder={`Filter ${label}`}
+                onChange={e => {
+                  const raw = e.target.value;
+                  handleFilterChange(col.field, raw === '' ? '' : Number(raw));
+                }}
+              />
+            </div>
+          );
+        case 'date':
+          return (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{label}</Label>
+              <Input
+                type="date"
+                className="h-8 text-xs"
+                value={val ?? ''}
+                onChange={e => handleFilterChange(col.field, e.target.value)}
+              />
+            </div>
+          );
+        case 'boolean':
+          return (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{label}</Label>
+              <div className="flex items-center gap-2 h-8">
+                <Checkbox
+                  checked={Boolean(val)}
+                  onCheckedChange={checked => handleFilterChange(col.field, Boolean(checked))}
+                />
+                <span className="text-xs text-muted-foreground">Yes</span>
+              </div>
+            </div>
+          );
+        case 'text':
+        default:
+          return (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{label}</Label>
+              <Input
+                className="h-8 text-xs"
+                value={val ?? ''}
+                placeholder={`Filter ${label}`}
+                onChange={e => handleFilterChange(col.field, e.target.value)}
+              />
+            </div>
+          );
+      }
+    },
+    [filterValues, handleFilterChange],
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -392,6 +686,49 @@ export function RecordPickerDialog({
         </div>
 
         <Separator />
+
+        {/* Filter bar (inline) */}
+        {filterColumns && filterColumns.length > 0 && (
+          <>
+            <div className="flex items-center gap-2" data-testid="record-picker-filter-bar">
+              <Button
+                type="button"
+                variant={activeFilterCount > 0 ? 'secondary' : 'outline'}
+                size="sm"
+                className="gap-1.5 shrink-0"
+                onClick={() => setFilterBarOpen(prev => !prev)}
+              >
+                <SlidersHorizontal className="size-3.5" />
+                Filters
+                {activeFilterCount > 0 && (
+                  <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary/10 px-1 text-xs font-medium text-primary">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
+              {activeFilterCount > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1 text-xs"
+                  onClick={handleFilterClear}
+                >
+                  <X className="size-3" />
+                  Clear
+                </Button>
+              )}
+            </div>
+            {filterBarOpen && (
+              <div className="grid gap-3 sm:grid-cols-2 border rounded-md p-3 bg-muted/30" data-testid="record-picker-filter-panel">
+                {filterColumns.map(col => (
+                  <div key={col.field}>{renderFilterInput(col)}</div>
+                ))}
+              </div>
+            )}
+            <Separator />
+          </>
+        )}
 
         {/* Error state */}
         {error && (
@@ -433,26 +770,43 @@ export function RecordPickerDialog({
             role="grid"
             aria-label="Records"
           >
-            <Table>
+            <Table style={Object.keys(columnWidths).length > 0 ? { tableLayout: 'fixed' } : undefined}>
               <TableHeader>
                 <TableRow>
                   {multiple && (
                     <TableHead className="w-10" />
                   )}
-                  {resolvedColumns.map(col => (
-                    <TableHead
-                      key={col.field}
-                      style={col.width ? { width: col.width } : undefined}
-                      className="cursor-pointer select-none"
-                      onClick={() => handleSort(col.field)}
-                      aria-sort={sortField === col.field ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    >
-                      <span className="inline-flex items-center">
-                        {col.label || fieldToLabel(col.field)}
-                        {renderSortIcon(col.field)}
-                      </span>
-                    </TableHead>
-                  ))}
+                  {resolvedColumns.map(col => {
+                    const w = columnWidths[col.field];
+                    const styleWidth = w ? { width: `${w}px`, minWidth: `${w}px` } : col.width ? { width: col.width } : undefined;
+                    return (
+                      <TableHead
+                        key={col.field}
+                        style={styleWidth}
+                        className="cursor-pointer select-none relative group"
+                        onClick={() => handleSort(col.field)}
+                        aria-sort={sortField === col.field ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+                      >
+                        <span className="inline-flex items-center">
+                          {col.label || fieldToLabel(col.field)}
+                          {renderSortIcon(col.field)}
+                        </span>
+                        {/* Column resize handle */}
+                        <span
+                          role="separator"
+                          aria-orientation="vertical"
+                          className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize opacity-0 group-hover:opacity-100 bg-border hover:bg-primary/50 transition-opacity"
+                          onMouseDown={e => {
+                            const th = e.currentTarget.parentElement;
+                            const rect = th?.getBoundingClientRect();
+                            handleResizeStart(e, col.field, rect?.width ?? 100);
+                          }}
+                          onClick={e => e.stopPropagation()}
+                          data-testid={`resize-handle-${col.field}`}
+                        />
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
               </TableHeader>
               <TableBody ref={tableBodyRef}>
@@ -481,7 +835,7 @@ export function RecordPickerDialog({
                       )}
                       {resolvedColumns.map(col => (
                         <TableCell key={col.field}>
-                          {getCellValue(record, col.field)}
+                          {renderCellContent(record, col)}
                         </TableCell>
                       ))}
                     </TableRow>
