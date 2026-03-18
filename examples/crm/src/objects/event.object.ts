@@ -1,6 +1,6 @@
 import { ObjectSchema, Field } from '@objectstack/spec/data';
 
-export const EventObject = ObjectSchema.create({
+const _EventObject = ObjectSchema.create({
   name: 'event',
   label: 'Event',
   icon: 'calendar',
@@ -36,3 +36,35 @@ export const EventObject = ObjectSchema.create({
     ], { label: 'Reminder', defaultValue: 'min_15' })
   }
 });
+
+// Enterprise lookup metadata — injected post-create because ObjectSchema.create()
+// Zod-strips non-spec properties. Preserved at runtime via defineStack({ strict: false }).
+Object.assign(_EventObject.fields.participants, {
+  description_field: 'email',
+  lookup_columns: [
+    { field: 'name', label: 'Name' },
+    { field: 'email', label: 'Email' },
+    { field: 'company', label: 'Company' },
+    { field: 'status', label: 'Status', type: 'select' },
+    { field: 'is_active', label: 'Active', type: 'boolean', width: '80px' },
+  ],
+  lookup_filters: [
+    { field: 'is_active', operator: 'eq', value: true },
+  ],
+});
+
+Object.assign(_EventObject.fields.organizer, {
+  description_field: 'email',
+  lookup_columns: [
+    { field: 'name', label: 'Name' },
+    { field: 'email', label: 'Email' },
+    { field: 'role', label: 'Role', type: 'select' },
+    { field: 'department', label: 'Department' },
+    { field: 'active', label: 'Active', type: 'boolean', width: '80px' },
+  ],
+  lookup_filters: [
+    { field: 'active', operator: 'eq', value: true },
+  ],
+});
+
+export const EventObject = _EventObject;

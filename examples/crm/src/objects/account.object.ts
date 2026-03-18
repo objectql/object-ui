@@ -1,6 +1,6 @@
 import { ObjectSchema, Field } from '@objectstack/spec/data';
 
-export const AccountObject = ObjectSchema.create({
+const _AccountObject = ObjectSchema.create({
   name: 'account',
   label: 'Account',
   icon: 'building-2',
@@ -40,3 +40,21 @@ export const AccountObject = ObjectSchema.create({
     created_at: Field.datetime({ label: 'Created Date', readonly: true })
   }
 });
+
+// Enterprise lookup metadata — injected post-create because ObjectSchema.create()
+// Zod-strips non-spec properties. Preserved at runtime via defineStack({ strict: false }).
+Object.assign(_AccountObject.fields.owner, {
+  description_field: 'email',
+  lookup_columns: [
+    { field: 'name', label: 'Name' },
+    { field: 'email', label: 'Email' },
+    { field: 'role', label: 'Role', type: 'select' },
+    { field: 'department', label: 'Department' },
+    { field: 'active', label: 'Active', type: 'boolean', width: '80px' },
+  ],
+  lookup_filters: [
+    { field: 'active', operator: 'eq', value: true },
+  ],
+});
+
+export const AccountObject = _AccountObject;

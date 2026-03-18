@@ -1,6 +1,6 @@
 import { ObjectSchema, Field } from '@objectstack/spec/data';
 
-export const OpportunityObject = ObjectSchema.create({
+const _OpportunityObject = ObjectSchema.create({
   name: 'opportunity',
   label: 'Opportunity',
   icon: 'trending-up',
@@ -34,3 +34,36 @@ export const OpportunityObject = ObjectSchema.create({
     description: Field.richtext({ label: 'Description' })
   }
 });
+
+// Enterprise lookup metadata — injected post-create because ObjectSchema.create()
+// Zod-strips non-spec properties. Preserved at runtime via defineStack({ strict: false }).
+Object.assign(_OpportunityObject.fields.account, {
+  description_field: 'industry',
+  lookup_columns: [
+    { field: 'name', label: 'Account Name' },
+    { field: 'industry', label: 'Industry', type: 'select' },
+    { field: 'rating', label: 'Rating', type: 'select' },
+    { field: 'type', label: 'Type', type: 'select' },
+    { field: 'annual_revenue', label: 'Revenue', type: 'currency', width: '120px' },
+  ],
+  lookup_filters: [
+    { field: 'type', operator: 'in', value: ['Customer', 'Partner'] },
+  ],
+});
+
+Object.assign(_OpportunityObject.fields.contacts, {
+  description_field: 'email',
+  lookup_columns: [
+    { field: 'name', label: 'Name' },
+    { field: 'email', label: 'Email' },
+    { field: 'company', label: 'Company' },
+    { field: 'status', label: 'Status', type: 'select' },
+    { field: 'is_active', label: 'Active', type: 'boolean', width: '80px' },
+  ],
+  lookup_filters: [
+    { field: 'is_active', operator: 'eq', value: true },
+  ],
+  lookup_page_size: 15,
+});
+
+export const OpportunityObject = _OpportunityObject;
