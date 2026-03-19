@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Lookup Field Selection Display Fix** (`@object-ui/fields`): Fixed a bug where selecting a record from the RecordPickerDialog (Level 2 popup) produced no visible feedback in the LookupField. The root cause: `findOption` only searched static and popover-fetched options, which did not include records loaded by the dialog. Added `onSelectRecords` callback to `RecordPickerDialogProps` that returns full record objects alongside IDs. LookupField now caches selected records from the dialog and displays their labels/badges correctly. Both single-select and multi-select modes are supported. Includes a `selectedRecordsMap` ref in RecordPickerDialog that persists selected record data across page navigation for multi-select scenarios.
+
 - **RecordPickerDialog UI/UX Overhaul** (`@object-ui/fields`): Major enterprise-grade improvements referencing mainstream low-code platforms:
   - **Skeleton Loading Screen**: Replaced simple spinner with a table-shaped skeleton screen during initial data load, matching the column layout for a polished loading experience.
   - **Sticky Table Header**: Table header now sticks to the top during vertical scroll, keeping column labels visible at all times.

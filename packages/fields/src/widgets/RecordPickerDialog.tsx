@@ -238,6 +238,13 @@ export interface RecordPickerDialogProps {
   onSelect: (value: any) => void;
 
   /**
+   * Called with the full record objects corresponding to the selected value(s).
+   * Useful for parent components (e.g. LookupField) that need display data
+   * (labels, descriptions) for the selected records beyond just their IDs.
+   */
+  onSelectRecords?: (records: any[]) => void;
+
+  /**
    * Base filters applied to every query.
    * Converted from LookupFieldMetadata.lookup_filters.
    * Restricts which records are selectable (e.g. only active records).
@@ -313,6 +320,7 @@ export function RecordPickerDialog({
   pageSize = DEFAULT_PAGE_SIZE,
   value,
   onSelect,
+  onSelectRecords,
   lookupFilters,
   cellRenderer,
   filterColumns,
@@ -333,6 +341,11 @@ export function RecordPickerDialog({
 
   // For multi-select, track pending selections before confirming
   const [pendingSelection, setPendingSelection] = useState<Set<any>>(new Set());
+
+  // Cache selected record objects across page navigations (multi-select).
+  // When the user toggles a row the full record is stored here so that
+  // onSelectRecords can return complete objects even after paging away.
+  const selectedRecordsMap = useRef<Map<any, any>>(new Map());
 
   // Keyboard navigation: focused row index
   const [focusedRow, setFocusedRow] = useState(-1);
@@ -479,6 +492,7 @@ export function RecordPickerDialog({
       setPendingSelection(new Set(
         multiple ? (Array.isArray(value) ? value : []) : [],
       ));
+      selectedRecordsMap.current.clear();
     }
     // Intentionally depends only on `open` — `multiple` and `value` are
     // captured at close-time and don't need to trigger resets while closed.
@@ -570,25 +584,34 @@ export function RecordPickerDialog({
           const next = new Set(prev);
           if (next.has(rid)) {
             next.delete(rid);
+            selectedRecordsMap.current.delete(rid);
           } else {
             next.add(rid);
+            selectedRecordsMap.current.set(rid, record);
           }
           return next;
         });
       } else {
         // Single select — immediately close
         onSelect(rid);
+        onSelectRecords?.([record]);
         onOpenChange(false);
       }
     },
-    [multiple, getRecordId, onSelect, onOpenChange],
+    [multiple, getRecordId, onSelect, onSelectRecords, onOpenChange],
   );
 
   // Confirm multi-select
   const handleConfirm = useCallback(() => {
-    onSelect(Array.from(pendingSelection));
+    const ids = Array.from(pendingSelection);
+    onSelect(ids);
+    // Build the full record array from the cache for the caller
+    const selectedRecords = ids
+      .map(id => selectedRecordsMap.current.get(id))
+      .filter(Boolean);
+    onSelectRecords?.(selectedRecords);
     onOpenChange(false);
-  }, [pendingSelection, onSelect, onOpenChange]);
+  }, [pendingSelection, onSelect, onSelectRecords, onOpenChange]);
 
   // Page navigation
   const handlePrevPage = useCallback(() => {
