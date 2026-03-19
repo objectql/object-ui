@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **RecordPickerDialog UI/UX Overhaul** (`@object-ui/fields`): Major enterprise-grade improvements referencing mainstream low-code platforms (宜搭, 简道云):
+- **RecordPickerDialog UI/UX Overhaul** (`@object-ui/fields`): Major enterprise-grade improvements referencing mainstream low-code platforms:
   - **Skeleton Loading Screen**: Replaced simple spinner with a table-shaped skeleton screen during initial data load, matching the column layout for a polished loading experience.
   - **Sticky Table Header**: Table header now sticks to the top during vertical scroll, keeping column labels visible at all times.
   - **Loading Overlay**: Subsequent data fetches (page navigation, sorting, filtering) show a semi-transparent overlay with spinner over the existing data, preventing layout jank.

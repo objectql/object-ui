@@ -48,6 +48,12 @@ const MIN_COL_WIDTH = 60;
 /** Number of skeleton rows displayed during initial loading */
 const SKELETON_ROW_COUNT = 5;
 
+/** z-index for sticky table header (above row hover, below loading overlay) */
+const Z_STICKY_HEADER = 5;
+
+/** z-index for loading overlay (above sticky header and all table content) */
+const Z_LOADING_OVERLAY = 10;
+
 /**
  * Cell renderer function signature — matches getCellRenderer from @object-ui/fields.
  * Accepts a field type and returns a React component that renders a formatted cell.
@@ -803,13 +809,20 @@ export function RecordPickerDialog({
     [filterValues, handleFilterChange],
   );
 
+  // Row background class logic: selected > odd-striped > default
+  const getRowBgClass = useCallback((selected: boolean, idx: number) => {
+    if (selected) return 'bg-primary/5 hover:bg-primary/10';
+    if (idx % 2 === 1) return 'bg-muted/20 hover:bg-accent/30';
+    return 'hover:bg-accent/30';
+  }, []);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="max-w-3xl w-[95vw] sm:w-full max-h-[85vh] sm:max-h-[80vh] flex flex-col gap-0"
         data-testid="record-picker-dialog"
       >
-        <DialogHeader className="pb-3">
+        <DialogHeader>
           <DialogTitle>
             {title}
             {multiple && <span className="sr-only"> (multiple selection)</span>}
@@ -986,14 +999,15 @@ export function RecordPickerDialog({
                 {/* Loading overlay for subsequent fetches (page/sort/filter) */}
                 {loading && (
                   <div
-                    className="absolute inset-0 z-10 flex items-center justify-center bg-background/60"
+                    className="absolute inset-0 flex items-center justify-center bg-background/60"
+                    style={{ zIndex: Z_LOADING_OVERLAY }}
                     data-testid="record-picker-loading-overlay"
                   >
                     <Loader2 className="size-6 animate-spin text-muted-foreground" />
                   </div>
                 )}
                 <Table style={Object.keys(columnWidths).length > 0 ? { tableLayout: 'fixed' } : undefined}>
-                  <TableHeader className="sticky top-0 z-[5] bg-muted/50 [&_tr]:border-b" data-testid="record-picker-sticky-header">
+                  <TableHeader className="sticky top-0 bg-muted/50 [&_tr]:border-b" style={{ zIndex: Z_STICKY_HEADER }} data-testid="record-picker-sticky-header">
                     <TableRow>
                       {multiple && (
                         <TableHead className="w-10" />
@@ -1043,9 +1057,7 @@ export function RecordPickerDialog({
                           data-row-index={idx}
                           className={cn(
                             'cursor-pointer transition-colors',
-                            selected
-                              ? 'bg-primary/5 hover:bg-primary/10'
-                              : idx % 2 === 1 ? 'bg-muted/20 hover:bg-accent/30' : 'hover:bg-accent/30',
+                            getRowBgClass(selected, idx),
                             focused && 'ring-2 ring-primary ring-inset',
                           )}
                           onClick={() => handleRowClick(record)}
