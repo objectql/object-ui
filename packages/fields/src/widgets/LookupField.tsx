@@ -97,6 +97,11 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   const [totalCount, setTotalCount] = useState(0);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Records selected via RecordPickerDialog (Level 2).
+  // Stored as LookupOption so that findOption can resolve display labels
+  // even when the record wasn't part of the Level 1 popover fetch.
+  const [pickerResolvedRecords, setPickerResolvedRecords] = useState<LookupOption[]>([]);
+
   // Arrow-key active index (-1 = none)
   const [activeIndex, setActiveIndex] = useState(-1);
   const listRef = useRef<HTMLDivElement>(null);
@@ -255,15 +260,16 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
     };
   }, []);
 
-  // Get selected option(s) — check both static and fetched options
+  // Get selected option(s) — check static, fetched, and picker-resolved options
   const findOption = useCallback(
     (v: any): LookupOption | undefined => {
       return (
         staticOptions.find(opt => opt.value === v) ??
-        fetchedOptions.find(opt => opt.value === v)
+        fetchedOptions.find(opt => opt.value === v) ??
+        pickerResolvedRecords.find(opt => opt.value === v)
       );
     },
-    [staticOptions, fetchedOptions],
+    [staticOptions, fetchedOptions, pickerResolvedRecords],
   );
 
   const selectedOptions = multiple
@@ -297,6 +303,16 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
       onChange(null);
     }
   };
+
+  // Callback from RecordPickerDialog — caches selected records so that
+  // findOption can resolve display labels after the dialog closes.
+  const handlePickerSelectRecords = useCallback(
+    (records: any[]) => {
+      const mapped = records.map(r => recordToOption(r, displayField, idField, descriptionField));
+      setPickerResolvedRecords(mapped);
+    },
+    [displayField, idField, descriptionField],
+  );
 
   // Keyboard handler for the search input — arrow keys + Enter
   const handleSearchKeyDown = useCallback(
@@ -574,6 +590,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           pageSize={lookupPageSize}
           value={value}
           onSelect={onChange}
+          onSelectRecords={handlePickerSelectRecords}
           lookupFilters={lookupFilters}
           cellRenderer={getCellRendererResolver()}
           filterColumns={filterColumns}

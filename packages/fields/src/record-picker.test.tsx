@@ -1451,3 +1451,246 @@ describe('RecordPickerDialog — Loading Overlay', () => {
     });
   });
 });
+
+// ------------- RecordPickerDialog — onSelectRecords callback -------------
+
+describe('RecordPickerDialog — onSelectRecords callback', () => {
+  const basePickerProps = {
+    open: true,
+    onOpenChange: vi.fn(),
+    dataSource: mockDataSource as any,
+    objectName: 'customers',
+    onSelect: vi.fn(),
+  };
+
+  it('calls onSelectRecords with the full record on single-select', async () => {
+    const onSelect = vi.fn();
+    const onSelectRecords = vi.fn();
+    const onOpenChange = vi.fn();
+
+    mockDataSource.find.mockResolvedValue({
+      data: [
+        { id: '1', name: 'Acme Corp', email: 'acme@test.com' },
+        { id: '2', name: 'Beta Inc', email: 'beta@test.com' },
+      ],
+      total: 2,
+    });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        onSelect={onSelect}
+        onSelectRecords={onSelectRecords}
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('record-row-1'));
+    });
+
+    expect(onSelect).toHaveBeenCalledWith('1');
+    expect(onSelectRecords).toHaveBeenCalledWith([
+      expect.objectContaining({ id: '1', name: 'Acme Corp' }),
+    ]);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('calls onSelectRecords with full records on multi-select confirm', async () => {
+    const onSelect = vi.fn();
+    const onSelectRecords = vi.fn();
+    const onOpenChange = vi.fn();
+
+    mockDataSource.find.mockResolvedValue({
+      data: [
+        { id: '1', name: 'Alpha' },
+        { id: '2', name: 'Beta' },
+        { id: '3', name: 'Gamma' },
+      ],
+      total: 3,
+    });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        multiple
+        onSelect={onSelect}
+        onSelectRecords={onSelectRecords}
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
+    });
+
+    // Select two records
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('record-row-1'));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('record-row-3'));
+    });
+
+    // Click confirm
+    await act(async () => {
+      fireEvent.click(screen.getByText('Confirm'));
+    });
+
+    expect(onSelect).toHaveBeenCalledWith(expect.arrayContaining(['1', '3']));
+    expect(onSelectRecords).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ id: '1', name: 'Alpha' }),
+        expect.objectContaining({ id: '3', name: 'Gamma' }),
+      ]),
+    );
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+// ------------- LookupField — Selection Display After RecordPickerDialog -------------
+
+describe('LookupField — Selection Display After RecordPickerDialog', () => {
+  const mockField = {
+    name: 'customer',
+    label: 'Customer',
+    reference_to: 'customers',
+    reference_field: 'name',
+  } as any;
+
+  it('displays selected record label after single-select in RecordPickerDialog', async () => {
+    const onChange = vi.fn();
+    let currentValue: any = undefined;
+
+    mockDataSource.find.mockResolvedValue({
+      data: Array.from({ length: 50 }, (_, i) => ({
+        id: String(i + 1),
+        name: `Customer ${i + 1}`,
+      })),
+      total: 200,
+    });
+
+    const { rerender } = render(
+      <LookupField
+        field={mockField}
+        value={currentValue}
+        onChange={onChange}
+        readonly={false}
+        dataSource={mockDataSource as any}
+      />,
+    );
+
+    // Open RecordPickerDialog via "Browse All" button
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('browse-all-records'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('record-picker-dialog')).toBeInTheDocument();
+    });
+
+    // Wait for records to load
+    await waitFor(() => {
+      expect(screen.getByText('Customer 1')).toBeInTheDocument();
+    });
+
+    // Select a record (single-select — should immediately close)
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('record-row-1'));
+    });
+
+    expect(onChange).toHaveBeenCalledWith('1');
+
+    // Simulate parent re-rendering with the new value
+    currentValue = '1';
+    rerender(
+      <LookupField
+        field={mockField}
+        value={currentValue}
+        onChange={onChange}
+        readonly={false}
+        dataSource={mockDataSource as any}
+      />,
+    );
+
+    // The selected record's name should be visible as a badge
+    await waitFor(() => {
+      expect(screen.getByText('Customer 1')).toBeInTheDocument();
+    });
+  });
+
+  it('displays selected record badges after multi-select in RecordPickerDialog', async () => {
+    const multiField = { ...mockField, multiple: true } as any;
+    const onChange = vi.fn();
+    let currentValue: any = [];
+
+    mockDataSource.find.mockResolvedValue({
+      data: Array.from({ length: 50 }, (_, i) => ({
+        id: String(i + 1),
+        name: `Customer ${i + 1}`,
+      })),
+      total: 200,
+    });
+
+    const { rerender } = render(
+      <LookupField
+        field={multiField}
+        value={currentValue}
+        onChange={onChange}
+        readonly={false}
+        dataSource={mockDataSource as any}
+      />,
+    );
+
+    // Open RecordPickerDialog via "Browse All" button
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('browse-all-records'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('record-picker-dialog')).toBeInTheDocument();
+    });
+
+    // Wait for records to load
+    await waitFor(() => {
+      expect(screen.getByText('Customer 1')).toBeInTheDocument();
+    });
+
+    // Select two records (multi-select — needs confirm)
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('record-row-1'));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('record-row-3'));
+    });
+
+    // Click confirm
+    await act(async () => {
+      fireEvent.click(screen.getByText('Confirm'));
+    });
+
+    expect(onChange).toHaveBeenCalledWith(expect.arrayContaining(['1', '3']));
+
+    // Simulate parent re-rendering with the new value
+    currentValue = ['1', '3'];
+    rerender(
+      <LookupField
+        field={multiField}
+        value={currentValue}
+        onChange={onChange}
+        readonly={false}
+        dataSource={mockDataSource as any}
+      />,
+    );
+
+    // Both selected records should be visible as badges
+    await waitFor(() => {
+      expect(screen.getByText('Customer 1')).toBeInTheDocument();
+      expect(screen.getByText('Customer 3')).toBeInTheDocument();
+    });
+  });
+});
