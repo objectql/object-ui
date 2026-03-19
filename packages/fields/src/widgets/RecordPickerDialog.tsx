@@ -460,13 +460,11 @@ export function RecordPickerDialog({
     [sortField, sortDirection],
   );
 
-  // Fetch when dialog opens, page changes, sort changes, or filters change
+  // Reset state when dialog closes — separate from the fetch effect so that
+  // resetting currentPage / sortField (which are fetch-effect deps) does not
+  // re-trigger the fetch effect and cause cascading re-renders (React #185).
   useEffect(() => {
-    if (open) {
-      fetchRecords(searchQuery || undefined, currentPage, currentSort);
-    }
     if (!open) {
-      // Reset state on close
       setSearchQuery('');
       setCurrentPage(1);
       setError(null);
@@ -478,11 +476,23 @@ export function RecordPickerDialog({
       setFilterValues({});
       setColumnWidths({});
       setPageJumpValue('');
-      // Reset pending selection to match current value
       setPendingSelection(new Set(
         multiple ? (Array.isArray(value) ? value : []) : [],
       ));
     }
+    // Intentionally depends only on `open` — `multiple` and `value` are
+    // captured at close-time and don't need to trigger resets while closed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Fetch when dialog is open and pagination / sort / filter deps change
+  useEffect(() => {
+    if (open) {
+      fetchRecords(searchQuery || undefined, currentPage, currentSort);
+    }
+    // `fetchRecords` and `searchQuery` are intentionally excluded:
+    // fetchRecords is stable (useCallback), searchQuery triggers its own
+    // debounced fetch in handleSearchChange.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentPage, currentSort, mergedFilter]);
 
@@ -813,7 +823,7 @@ export function RecordPickerDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-3xl w-[95vw] sm:w-full max-h-[85vh] sm:max-h-[80vh] flex flex-col gap-0"
+        className="w-[95vw] sm:max-w-3xl lg:max-w-5xl max-h-[85vh] sm:max-h-[80vh] flex flex-col gap-0"
         data-testid="record-picker-dialog"
       >
         <DialogHeader>
