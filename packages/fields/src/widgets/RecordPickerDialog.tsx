@@ -22,6 +22,7 @@ import {
   TableRow,
   TableCell,
   Separator,
+  Skeleton,
 } from '@object-ui/components';
 import {
   Search,
@@ -43,6 +44,9 @@ const DEFAULT_PAGE_SIZE = 10;
 
 /** Minimum column width when resizing (px) */
 const MIN_COL_WIDTH = 60;
+
+/** Number of skeleton rows displayed during initial loading */
+const SKELETON_ROW_COUNT = 5;
 
 /**
  * Cell renderer function signature — matches getCellRenderer from @object-ui/fields.
@@ -342,6 +346,9 @@ export function RecordPickerDialog({
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const resizeRef = useRef<{ field: string; startX: number; startWidth: number } | null>(null);
 
+  // Page jump input state
+  const [pageJumpValue, setPageJumpValue] = useState('');
+
   // Resolved columns
   const resolvedColumns = useMemo<LookupColumnDef[]>(() => {
     if (columnsProp && columnsProp.length > 0) {
@@ -470,6 +477,7 @@ export function RecordPickerDialog({
       setFilterBarOpen(false);
       setFilterValues({});
       setColumnWidths({});
+      setPageJumpValue('');
       // Reset pending selection to match current value
       setPendingSelection(new Set(
         multiple ? (Array.isArray(value) ? value : []) : [],
@@ -580,6 +588,19 @@ export function RecordPickerDialog({
   const handleNextPage = useCallback(() => {
     setCurrentPage(p => Math.min(totalPages, p + 1));
   }, [totalPages]);
+
+  // Page jump handler
+  const handlePageJump = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key !== 'Enter') return;
+      const page = parseInt(pageJumpValue, 10);
+      if (!isNaN(page) && page >= 1 && page <= totalPages) {
+        setCurrentPage(page);
+      }
+      setPageJumpValue('');
+    },
+    [pageJumpValue, totalPages],
+  );
 
   // Keyboard navigation for the table
   const handleTableKeyDown = useCallback(
@@ -785,10 +806,10 @@ export function RecordPickerDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-2xl w-[95vw] sm:w-full max-h-[85vh] sm:max-h-[80vh] flex flex-col"
+        className="max-w-3xl w-[95vw] sm:w-full max-h-[85vh] sm:max-h-[80vh] flex flex-col gap-0"
         data-testid="record-picker-dialog"
       >
-        <DialogHeader>
+        <DialogHeader className="pb-3">
           <DialogTitle>
             {title}
             {multiple && <span className="sr-only"> (multiple selection)</span>}
@@ -796,13 +817,13 @@ export function RecordPickerDialog({
         </DialogHeader>
 
         {/* Search bar */}
-        <div className="relative">
+        <div className="relative rounded-md border bg-muted/30 mb-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             placeholder="Search..."
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="pl-9"
+            className="pl-9 border-0 bg-transparent shadow-none focus-visible:ring-0"
             data-testid="record-picker-search"
           />
           {loading && (
@@ -813,11 +834,9 @@ export function RecordPickerDialog({
           )}
         </div>
 
-        <Separator />
-
         {/* Filter bar (inline) — supports external FilterUI via renderFilterBar slot */}
         {effectiveFilterColumns && effectiveFilterColumns.length > 0 && (
-          <>
+          <div className="py-2">
             {renderFilterBar ? (
               /* External filter bar (e.g. FilterUI from plugin-view) */
               <div data-testid="record-picker-filter-bar">
@@ -862,7 +881,7 @@ export function RecordPickerDialog({
                   )}
                 </div>
                 {filterBarOpen && (
-                  <div className="grid gap-3 sm:grid-cols-2 border rounded-md p-3 bg-muted/30" data-testid="record-picker-filter-panel">
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 border rounded-md p-3 bg-muted/30" data-testid="record-picker-filter-panel">
                     {effectiveFilterColumns.map(col => (
                       <div key={col.field}>{renderFilterInput(col)}</div>
                     ))}
@@ -870,8 +889,7 @@ export function RecordPickerDialog({
                 )}
               </>
             )}
-            <Separator />
-          </>
+          </div>
         )}
 
         {/* Error state */}
@@ -915,11 +933,37 @@ export function RecordPickerDialog({
         ) : (
           /* Built-in table (default) */
           <>
-            {/* Loading state (initial) */}
+            {/* Skeleton loading state (initial) */}
             {loading && records.length === 0 && !error && (
-              <div className="flex flex-col items-center gap-2 py-8" role="status" aria-live="polite">
-                <Loader2 className="size-6 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Loading…</p>
+              <div className="flex-1 overflow-hidden min-h-0 border rounded-md" role="status" aria-live="polite" data-testid="record-picker-skeleton">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40">
+                      {multiple && <TableHead className="w-10" />}
+                      {resolvedColumns.map(col => (
+                        <TableHead key={col.field}>
+                          <Skeleton className="h-4 w-20" />
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from({ length: SKELETON_ROW_COUNT }, (_, i) => (
+                      <TableRow key={i}>
+                        {multiple && (
+                          <TableCell className="w-10">
+                            <Skeleton className="size-4 rounded" />
+                          </TableCell>
+                        )}
+                        {resolvedColumns.map(col => (
+                          <TableCell key={col.field}>
+                            <Skeleton className="h-4 w-full" />
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             )}
 
@@ -933,14 +977,23 @@ export function RecordPickerDialog({
             {/* Table */}
             {!error && records.length > 0 && (
               <div
-                className="flex-1 overflow-auto min-h-0"
+                className="relative flex-1 overflow-auto min-h-0 border rounded-md"
                 tabIndex={0}
                 onKeyDown={handleTableKeyDown}
                 role="grid"
                 aria-label="Records"
               >
+                {/* Loading overlay for subsequent fetches (page/sort/filter) */}
+                {loading && (
+                  <div
+                    className="absolute inset-0 z-10 flex items-center justify-center bg-background/60"
+                    data-testid="record-picker-loading-overlay"
+                  >
+                    <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                  </div>
+                )}
                 <Table style={Object.keys(columnWidths).length > 0 ? { tableLayout: 'fixed' } : undefined}>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 z-[5] bg-muted/50 [&_tr]:border-b" data-testid="record-picker-sticky-header">
                     <TableRow>
                       {multiple && (
                         <TableHead className="w-10" />
@@ -952,7 +1005,7 @@ export function RecordPickerDialog({
                           <TableHead
                             key={col.field}
                             style={styleWidth}
-                            className="cursor-pointer select-none relative group"
+                            className="cursor-pointer select-none relative group text-xs font-semibold uppercase tracking-wider"
                             onClick={() => handleSort(col.field)}
                             aria-sort={sortField === col.field ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
                           >
@@ -989,8 +1042,10 @@ export function RecordPickerDialog({
                           key={rid ?? idx}
                           data-row-index={idx}
                           className={cn(
-                            'cursor-pointer',
-                            selected ? 'bg-accent/50' : 'hover:bg-accent/30',
+                            'cursor-pointer transition-colors',
+                            selected
+                              ? 'bg-primary/5 hover:bg-primary/10'
+                              : idx % 2 === 1 ? 'bg-muted/20 hover:bg-accent/30' : 'hover:bg-accent/30',
                             focused && 'ring-2 ring-primary ring-inset',
                           )}
                           onClick={() => handleRowClick(record)}
@@ -1003,7 +1058,7 @@ export function RecordPickerDialog({
                             </TableCell>
                           )}
                           {resolvedColumns.map(col => (
-                            <TableCell key={col.field}>
+                            <TableCell key={col.field} className="py-2.5">
                               {renderCellContent(record, col)}
                             </TableCell>
                           ))}
@@ -1015,43 +1070,52 @@ export function RecordPickerDialog({
               </div>
             )}
 
-            {/* Pagination */}
+            {/* Pagination — fixed bottom bar */}
             {!error && totalCount > 0 && (
-              <>
-                <Separator />
-                <div className="flex items-center justify-between text-sm text-muted-foreground px-1" data-testid="record-picker-pagination">
-                  <span>
-                    {totalCount} {totalCount === 1 ? 'record' : 'records'}
-                    {totalPages > 1 && ` · Page ${currentPage} of ${totalPages}`}
-                  </span>
-                  {totalPages > 1 && (
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="size-7"
-                        onClick={handlePrevPage}
-                        disabled={currentPage <= 1}
-                        type="button"
-                        aria-label="Previous page"
-                      >
-                        <ChevronLeft className="size-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="size-7"
-                        onClick={handleNextPage}
-                        disabled={currentPage >= totalPages}
-                        type="button"
-                        aria-label="Next page"
-                      >
-                        <ChevronRight className="size-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </>
+              <div
+                className="flex items-center justify-between text-sm text-muted-foreground border-t pt-3 mt-2 px-1"
+                data-testid="record-picker-pagination"
+              >
+                <span>
+                  {totalCount} {totalCount === 1 ? 'record' : 'records'}
+                  {totalPages > 1 && ` · Page ${currentPage} of ${totalPages}`}
+                </span>
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="size-7"
+                      onClick={handlePrevPage}
+                      disabled={currentPage <= 1}
+                      type="button"
+                      aria-label="Previous page"
+                    >
+                      <ChevronLeft className="size-4" />
+                    </Button>
+                    <Input
+                      className="h-7 w-12 text-center text-xs px-1"
+                      placeholder={String(currentPage)}
+                      value={pageJumpValue}
+                      onChange={e => setPageJumpValue(e.target.value)}
+                      onKeyDown={handlePageJump}
+                      aria-label="Jump to page"
+                      data-testid="record-picker-page-jump"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="size-7"
+                      onClick={handleNextPage}
+                      disabled={currentPage >= totalPages}
+                      type="button"
+                      aria-label="Next page"
+                    >
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
           </>
         )}

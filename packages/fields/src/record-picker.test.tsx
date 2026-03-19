@@ -75,7 +75,7 @@ describe('RecordPickerDialog', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('status')).toBeInTheDocument();
-      expect(screen.getByText('Loading…')).toBeInTheDocument();
+      expect(screen.getByTestId('record-picker-skeleton')).toBeInTheDocument();
     });
   });
 
@@ -1214,5 +1214,240 @@ describe('RecordPickerDialog — Auto-generated filter bar from lookupFilters', 
     // Should use the explicit filterColumns, not auto-generated ones
     const calledProps = renderFilterBar.mock.calls[0][0];
     expect(calledProps.filterColumns[0].field).toBe('custom_field');
+  });
+});
+
+// ------------- RecordPickerDialog — Skeleton Loading Screen -------------
+
+describe('RecordPickerDialog — Skeleton Loading', () => {
+  const basePickerProps = {
+    open: true,
+    onOpenChange: vi.fn(),
+    dataSource: mockDataSource as any,
+    objectName: 'customers',
+    onSelect: vi.fn(),
+  };
+
+  it('renders skeleton table with correct number of rows during initial load', async () => {
+    mockDataSource.find.mockReturnValue(new Promise(() => {}));
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        columns={['name', 'email']}
+      />,
+    );
+
+    await waitFor(() => {
+      const skeleton = screen.getByTestId('record-picker-skeleton');
+      expect(skeleton).toBeInTheDocument();
+      expect(skeleton).toHaveAttribute('role', 'status');
+      // Should contain skeleton placeholders (animated pulse divs)
+      const pulses = skeleton.querySelectorAll('.animate-pulse');
+      // 2 header skeletons + 5 rows × 2 columns = 12 total skeleton elements
+      expect(pulses.length).toBe(12);
+    });
+  });
+
+  it('shows skeleton columns matching the provided column count', async () => {
+    mockDataSource.find.mockReturnValue(new Promise(() => {}));
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        columns={['name', 'email', 'status']}
+      />,
+    );
+
+    await waitFor(() => {
+      const skeleton = screen.getByTestId('record-picker-skeleton');
+      expect(skeleton).toBeInTheDocument();
+      // 3 header skeletons + 5 rows × 3 columns = 18 total skeleton elements
+      const pulses = skeleton.querySelectorAll('.animate-pulse');
+      expect(pulses.length).toBe(18);
+    });
+  });
+});
+
+// ------------- RecordPickerDialog — Sticky Table Header -------------
+
+describe('RecordPickerDialog — Sticky Header', () => {
+  const basePickerProps = {
+    open: true,
+    onOpenChange: vi.fn(),
+    dataSource: mockDataSource as any,
+    objectName: 'customers',
+    onSelect: vi.fn(),
+  };
+
+  it('renders table header with sticky positioning', async () => {
+    mockDataSource.find.mockResolvedValue({
+      data: [
+        { id: '1', name: 'Acme Corp', email: 'acme@test.com' },
+      ],
+      total: 1,
+    });
+
+    render(
+      <RecordPickerDialog
+        {...basePickerProps}
+        columns={['name', 'email']}
+      />,
+    );
+
+    await waitFor(() => {
+      const stickyHeader = screen.getByTestId('record-picker-sticky-header');
+      expect(stickyHeader).toBeInTheDocument();
+      expect(stickyHeader.className).toContain('sticky');
+      expect(stickyHeader.className).toContain('top-0');
+    });
+  });
+});
+
+// ------------- RecordPickerDialog — Page Jump Input -------------
+
+describe('RecordPickerDialog — Page Jump', () => {
+  const basePickerProps = {
+    open: true,
+    onOpenChange: vi.fn(),
+    dataSource: mockDataSource as any,
+    objectName: 'customers',
+    onSelect: vi.fn(),
+  };
+
+  it('renders page jump input when multiple pages exist', async () => {
+    mockDataSource.find.mockResolvedValue({
+      data: Array.from({ length: 10 }, (_, i) => ({
+        id: String(i + 1),
+        name: `Record ${i + 1}`,
+      })),
+      total: 50,
+    });
+
+    render(<RecordPickerDialog {...basePickerProps} pageSize={10} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('record-picker-page-jump')).toBeInTheDocument();
+    });
+  });
+
+  it('navigates to specified page on Enter key', async () => {
+    mockDataSource.find.mockResolvedValue({
+      data: Array.from({ length: 10 }, (_, i) => ({
+        id: String(i + 1),
+        name: `Record ${i + 1}`,
+      })),
+      total: 50,
+    });
+
+    render(<RecordPickerDialog {...basePickerProps} pageSize={10} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('record-picker-page-jump')).toBeInTheDocument();
+    });
+
+    const pageInput = screen.getByTestId('record-picker-page-jump');
+
+    // Type page number and press Enter
+    await act(async () => {
+      fireEvent.change(pageInput, { target: { value: '3' } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(pageInput, { key: 'Enter' });
+    });
+
+    await waitFor(() => {
+      expect(mockDataSource.find).toHaveBeenCalledWith('customers', {
+        $top: 10,
+        $skip: 20,
+      });
+    });
+  });
+
+  it('ignores invalid page numbers', async () => {
+    mockDataSource.find.mockResolvedValue({
+      data: Array.from({ length: 10 }, (_, i) => ({
+        id: String(i + 1),
+        name: `Record ${i + 1}`,
+      })),
+      total: 50,
+    });
+
+    render(<RecordPickerDialog {...basePickerProps} pageSize={10} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('record-picker-page-jump')).toBeInTheDocument();
+    });
+
+    const callCount = mockDataSource.find.mock.calls.length;
+
+    // Type invalid page number and press Enter
+    const pageInput = screen.getByTestId('record-picker-page-jump');
+    await act(async () => {
+      fireEvent.change(pageInput, { target: { value: '99' } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(pageInput, { key: 'Enter' });
+    });
+
+    // Should not trigger a new fetch since page 99 > totalPages (5)
+    expect(mockDataSource.find).toHaveBeenCalledTimes(callCount);
+  });
+
+  it('does not render page jump when only one page', async () => {
+    mockDataSource.find.mockResolvedValue({
+      data: [{ id: '1', name: 'Record 1' }],
+      total: 1,
+    });
+
+    render(<RecordPickerDialog {...basePickerProps} pageSize={10} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Record 1')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId('record-picker-page-jump')).not.toBeInTheDocument();
+  });
+});
+
+// ------------- RecordPickerDialog — Loading Overlay for Subsequent Fetches -------------
+
+describe('RecordPickerDialog — Loading Overlay', () => {
+  const basePickerProps = {
+    open: true,
+    onOpenChange: vi.fn(),
+    dataSource: mockDataSource as any,
+    objectName: 'customers',
+    onSelect: vi.fn(),
+  };
+
+  it('shows loading overlay when fetching next page while records are visible', async () => {
+    // First load: resolves immediately
+    mockDataSource.find.mockResolvedValueOnce({
+      data: Array.from({ length: 10 }, (_, i) => ({
+        id: String(i + 1),
+        name: `Record ${i + 1}`,
+      })),
+      total: 25,
+    });
+
+    render(<RecordPickerDialog {...basePickerProps} pageSize={10} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Record 1')).toBeInTheDocument();
+    });
+
+    // Set up next page to hang (never resolves)
+    mockDataSource.find.mockReturnValue(new Promise(() => {}));
+
+    // Navigate to next page
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Next page'));
+    });
+
+    // Loading overlay should appear over existing records
+    await waitFor(() => {
+      expect(screen.getByTestId('record-picker-loading-overlay')).toBeInTheDocument();
+    });
   });
 });

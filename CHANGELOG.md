@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **RecordPickerDialog UI/UX Overhaul** (`@object-ui/fields`): Major enterprise-grade improvements referencing mainstream low-code platforms (宜搭, 简道云):
+  - **Skeleton Loading Screen**: Replaced simple spinner with a table-shaped skeleton screen during initial data load, matching the column layout for a polished loading experience.
+  - **Sticky Table Header**: Table header now sticks to the top during vertical scroll, keeping column labels visible at all times.
+  - **Loading Overlay**: Subsequent data fetches (page navigation, sorting, filtering) show a semi-transparent overlay with spinner over the existing data, preventing layout jank.
+  - **Page Jump Input**: New input field in pagination bar allows users to type a page number and press Enter to jump directly to any page.
+  - **Enhanced Search Bar**: Redesigned with a subtle background container and borderless input for a cleaner, more modern appearance.
+  - **Improved Table Styling**: Even/odd row striping (`bg-muted/20`), refined selected-row highlighting (`bg-primary/5`), uppercase column headers with tighter tracking, rounded table border, and improved cell padding.
+  - **Responsive Dialog**: Widened dialog from `max-w-2xl` to `max-w-3xl` for better data density on larger screens; filter panel supports 3-column layout on wide viewports (`lg:grid-cols-3`).
+  - **8 New Unit Tests**: Comprehensive test coverage for skeleton loading (column count validation), sticky header classes, page jump navigation (valid/invalid/single-page), and loading overlay behavior.
+
 - **"Browse All" Button for Lookup Fields** (`@object-ui/fields`): Added an always-visible "Browse All" (table icon) button next to the Lookup quick-select trigger. Opens the full RecordPickerDialog directly, regardless of record count — making enterprise features (multi-column table, sort/filter bar, cell renderers) discoverable at all times. Previously, the dialog was only accessible via the "Show All Results" in-popover button, which only appeared when total records exceeded the page size. The button uses accessible `aria-label`, `title`, and Lucide `TableProperties` icon. Keyboard and screen reader accessible.
 - **CRM Enterprise Lookup Metadata** (`examples/crm`): All 14 lookup fields across 8 CRM objects now have enterprise-grade RecordPicker configuration — `lookup_columns` (with type hints for cell rendering: select, currency, boolean, date, number, percent), `lookup_filters` (base business filters using eq/ne/in/notIn operators), and `description_field`. Uses post-create `Object.assign` injection pattern to bypass `ObjectSchema.create()` Zod stripping (analogous to the listViews passthrough approach).
 - **Enterprise Lookup Tests** (`examples/crm`): 12 new test cases validating lookup_columns presence & type diversity, lookup_filters operator validity, description_field coverage, and specific business logic (e.g., active-only users, non-cancelled orders, open opportunities).
