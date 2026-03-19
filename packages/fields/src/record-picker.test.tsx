@@ -439,6 +439,77 @@ describe('LookupField — Show All Results', () => {
   });
 });
 
+// ------------- LookupField — Browse All Button (Always Visible) -------------
+
+describe('LookupField — Browse All Button', () => {
+  const mockField = {
+    name: 'customer',
+    label: 'Customer',
+    reference_to: 'customers',
+    reference_field: 'name',
+  } as any;
+
+  const baseProps: FieldWidgetProps<any> = {
+    field: mockField,
+    value: undefined,
+    onChange: vi.fn(),
+    readonly: false,
+    dataSource: mockDataSource as any,
+  };
+
+  it('renders "Browse All" button when dataSource is available, even with <5 records', async () => {
+    mockDataSource.find.mockResolvedValue({
+      data: [
+        { id: '1', name: 'Alpha' },
+        { id: '2', name: 'Beta' },
+        { id: '3', name: 'Gamma' },
+      ],
+      total: 3,
+    });
+
+    render(<LookupField {...baseProps} />);
+
+    // "Browse All" button should always be visible (not inside popover)
+    expect(screen.getByTestId('browse-all-records')).toBeInTheDocument();
+    expect(screen.getByLabelText('Browse all records')).toBeInTheDocument();
+  });
+
+  it('opens RecordPickerDialog when "Browse All" is clicked with small dataset', async () => {
+    mockDataSource.find.mockResolvedValue({
+      data: [
+        { id: '1', name: 'Alpha' },
+        { id: '2', name: 'Beta' },
+      ],
+      total: 2,
+    });
+
+    render(<LookupField {...baseProps} />);
+
+    // Click "Browse All" button directly (no need to open popover first)
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('browse-all-records'));
+    });
+
+    // RecordPickerDialog should now be open
+    await waitFor(() => {
+      expect(screen.getByTestId('record-picker-dialog')).toBeInTheDocument();
+    });
+  });
+
+  it('does not render "Browse All" button when no dataSource is available', () => {
+    const propsWithoutDS: FieldWidgetProps<any> = {
+      field: { ...mockField, options: [{ value: '1', label: 'Opt 1' }] } as any,
+      value: undefined,
+      onChange: vi.fn(),
+      readonly: false,
+    };
+
+    render(<LookupField {...propsWithoutDS} />);
+
+    expect(screen.queryByTestId('browse-all-records')).not.toBeInTheDocument();
+  });
+});
+
 // ------------- RecordPickerDialog — Column Sorting -------------
 
 describe('RecordPickerDialog — Column Sorting', () => {

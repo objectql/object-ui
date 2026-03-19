@@ -377,11 +377,12 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
       )}
 
       {/* Level 1: Quick-select Popover (inline typeahead) */}
+      <div className="flex items-center gap-1.5">
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button 
             variant="outline" 
-            className="w-full justify-start text-left font-normal"
+            className="min-w-0 flex-1 justify-start text-left font-normal"
             type="button"
           >
             <Search className="mr-2 size-4" />
@@ -540,6 +541,23 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           )}
         </PopoverContent>
       </Popover>
+
+      {/* "Browse All" button — always visible when DataSource is available */}
+      {hasDataSource && (
+        <Button
+          variant="outline"
+          size="icon"
+          className="shrink-0"
+          type="button"
+          onClick={() => setIsPickerOpen(true)}
+          aria-label="Browse all records"
+          title="Browse all records"
+          data-testid="browse-all-records"
+        >
+          <TableProperties className="size-4" />
+        </Button>
+      )}
+      </div>
 
       {/* Level 2: Full Record Picker Dialog */}
       {hasDataSource && dataSource && referenceTo && (

@@ -116,11 +116,21 @@ The popup will:
 2. Send `$search` queries with 300ms debounce as the user types
 3. Show loading spinner, error state with retry, and empty state
 4. Display "Showing X of Y" when more records exist than the page size
-5. Show a **"Show All Results"** button to open the full Record Picker dialog
+5. Show a **"Show All Results"** button (inside the popover) to open the full Record Picker dialog when total exceeds page size
+
+## Browse All Button
+
+Every Lookup field with a `dataSource` always renders a **"Browse All"** button (table icon) next to the quick-select trigger. This button opens the full **RecordPickerDialog** directly, regardless of dataset size — ensuring enterprise features like multi-column tables, sort/filter bar, and cell renderers are always discoverable.
+
+- Always visible when `dataSource` is configured
+- Opens the Record Picker dialog without needing to open the popover first
+- Keyboard accessible and screen-reader friendly (`aria-label="Browse all records"`)
 
 ## Record Picker Dialog (Enterprise)
 
-When more results are available than displayed in the quick-select popup, a **"Show All Results"** button opens the full **RecordPickerDialog** — an enterprise-grade record selection experience.
+The full **RecordPickerDialog** can be opened in two ways:
+1. **"Browse All" button** (table icon) — always visible next to the quick-select trigger
+2. **"Show All Results"** link inside the popover — shown when total records exceed the page size
 
 ```plaintext
 // Configure the Record Picker with lookup_columns
