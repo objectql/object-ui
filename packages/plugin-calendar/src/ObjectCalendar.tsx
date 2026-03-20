@@ -47,6 +47,10 @@ export interface ObjectCalendarProps {
   schema: ObjectGridSchema | CalendarSchema;
   dataSource?: DataSource;
   className?: string;
+  /** Pre-fetched records passed by a parent (e.g. ObjectView). When provided, skips internal data fetching. */
+  data?: any[];
+  /** Loading state propagated from a parent. Respected only when `data` is also provided. */
+  loading?: boolean;
   onEventClick?: (record: any) => void;
   onRowClick?: (record: any) => void;
   onDateClick?: (date: Date) => void;
@@ -142,6 +146,8 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
   schema,
   dataSource,
   className,
+  data: externalData,
+  loading: externalLoading,
   onEventClick,
   onRowClick,
   onDateClick,
@@ -151,8 +157,12 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
   locale,
   ...rest
 }) => {
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  // When the parent (e.g. ObjectView) pre-fetches data and passes it via the `data` prop,
+  // we must not trigger a second fetch. Detect external data by checking for an array.
+  const hasExternalData = Array.isArray(externalData);
+
+  const [data, setData] = useState<any[]>(hasExternalData ? externalData! : []);
+  const [loading, setLoading] = useState(hasExternalData ? (externalLoading ?? false) : true);
   const [error, setError] = useState<Error | null>(null);
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -187,8 +197,24 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
   const objectSchemaRef = useRef<any>(null);
   objectSchemaRef.current = objectSchema;
 
+  // Sync external data/loading changes from parent (e.g. ObjectView re-fetches after filter change)
+  useEffect(() => {
+    if (hasExternalData) {
+      setData(externalData!);
+    }
+  }, [externalData, hasExternalData]);
+
+  useEffect(() => {
+    if (hasExternalData && externalLoading !== undefined) {
+      setLoading(externalLoading);
+    }
+  }, [externalLoading, hasExternalData]);
+
   // Fetch data based on provider
   useEffect(() => {
+    // Skip internal fetch when data is managed by a parent component
+    if (hasExternalData) return;
+
     let isMounted = true;
     const fetchData = async () => {
       try {
@@ -201,16 +227,6 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
             setLoading(false);
           }
           return;
-        }
-
-        // Prioritize data passed from parent (ListView)
-        if ((schema as any).data || (rest as any).data) {
-            const passedData = (schema as any).data || (rest as any).data;
-            if (Array.isArray(passedData)) {
-                setData(passedData);
-                setLoading(false);
-                return;
-            }
         }
 
         if (!dataSource || typeof dataSource.find !== 'function') {
@@ -249,7 +265,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
 
     fetchData();
     return () => { isMounted = false; };
-  }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, refreshKey]);
+  }, [hasExternalData, dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, refreshKey]);
 
   // Fetch object schema for field metadata
   useEffect(() => {
