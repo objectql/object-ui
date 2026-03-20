@@ -22,7 +22,7 @@
  * - ViewSwitcher for toggling between view types
  */
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import type {
   ObjectViewSchema,
   ObjectGridSchema,
@@ -219,6 +219,11 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   onViewAction,
 }) => {
   const [objectSchema, setObjectSchema] = useState<Record<string, unknown> | null>(null);
+  // Assigned in the render body (not in an effect) so the fetchData effect always
+  // reads the latest objectSchema without needing it as a dependency. This matches
+  // the same pattern used in ObjectCalendar's objectSchemaRef.
+  const objectSchemaRef = useRef<Record<string, unknown> | null>(null);
+  objectSchemaRef.current = objectSchema;
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>('create');
   const [selectedRecord, setSelectedRecord] = useState<Record<string, unknown> | null>(null);
@@ -322,8 +327,11 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           ? sortConfig.map(s => ({ field: s.field, order: s.direction }))
           : (currentNamedViewConfig?.sort || activeView?.sort || schema.table?.defaultSort || undefined);
 
-        // Auto-inject $expand for lookup/master_detail fields
-        const expand = buildExpandFields((objectSchema as any)?.fields);
+        // Auto-inject $expand for lookup/master_detail fields.
+        // Use a ref instead of the state variable to avoid re-running this effect
+        // every time the object schema loads — that would cause a double-fetch and
+        // duplicate events in child views like the calendar.
+        const expand = buildExpandFields((objectSchemaRef.current as any)?.fields);
         const results = await dataSource.find(schema.objectName, {
           $filter: finalFilter.length > 0 ? finalFilter : undefined,
           $orderby: sort,
@@ -339,6 +347,8 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
             items = (results as any).data;
           } else if (Array.isArray((results as any).records)) {
             items = (results as any).records;
+          } else if (Array.isArray((results as any).value)) {
+            items = (results as any).value;
           }
         }
 
@@ -352,8 +362,9 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
 
     fetchData();
     return () => { isMounted = false; };
+    // objectSchema intentionally omitted from deps — read via ref to prevent double-fetch
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema.objectName, dataSource, currentViewType, filterValues, sortConfig, refreshKey, currentNamedViewConfig, activeView, renderListView, objectSchema]);
+  }, [schema.objectName, dataSource, currentViewType, filterValues, sortConfig, refreshKey, currentNamedViewConfig, activeView, renderListView]);
 
   // Determine layout mode
   const layout = schema.layout || 'drawer';
