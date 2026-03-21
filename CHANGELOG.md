@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **ObjectDataTable: columns now support `string[]` shorthand** (`@object-ui/plugin-dashboard`): `ObjectDataTable` now normalizes `columns` entries so that both `string[]` (e.g. `['name', 'close_date']`) and `object[]` formats are accepted. String entries are automatically converted to `{ header, accessorKey }` objects with title-cased headers derived from snake_case and camelCase field names. Previously, passing a `string[]` caused the downstream `data-table` renderer to crash when accessing `col.accessorKey` on a plain string. Mixed arrays (some strings, some objects) are also handled correctly. Includes 8 new unit tests.
+
 ### Fixed
 
 - **i18n loadLanguage Not Compatible with Spec REST API Response Format** (`apps/console`): Fixed `loadLanguage` in `apps/console/src/main.tsx` to correctly unwrap the `@objectstack/spec` REST API envelope `{ data: { locale, translations } }`. Previously, the function returned the raw JSON response, which meant `useObjectLabel` and `useObjectTranslation` hooks received a wrapped object instead of the flat translation map, causing business object and field labels (e.g., CRM contact/account) to fall back to English. The fix extracts `data.translations` when the spec envelope is detected, while preserving backward compatibility with mock/dev environments that return flat translation objects. Includes 6 unit tests covering spec envelope unwrapping, flat fallback, HTTP errors, network failures, and edge cases.

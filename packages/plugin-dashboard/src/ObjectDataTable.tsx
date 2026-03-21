@@ -29,6 +29,39 @@ export interface ObjectDataTableProps {
   className?: string;
 }
 
+/** A column definition after normalization, with header and accessor key. */
+interface NormalizedColumn {
+  header: string;
+  accessorKey: string;
+  [key: string]: any;
+}
+
+/**
+ * Normalize columns to support both string[] shorthand and object[] formats.
+ *
+ * - `string[]` entries are converted to `{ header, accessorKey }` objects,
+ *   handling both snake_case and camelCase for header generation.
+ * - Object entries are returned as-is.
+ */
+export function normalizeColumns(columns: (string | Record<string, any>)[]): NormalizedColumn[] {
+  return columns.map((col) => {
+    if (typeof col === 'string') {
+      return {
+        header: col
+          // snake_case → spaces
+          .replace(/_/g, ' ')
+          // camelCase → spaces before uppercase letters
+          .replace(/([A-Z])/g, ' $1')
+          .trim()
+          // Title Case each word
+          .replace(/\b\w/g, (c: string) => c.toUpperCase()),
+        accessorKey: col,
+      };
+    }
+    return col;
+  });
+}
+
 /**
  * ObjectDataTable — Async-aware wrapper for data-table.
  *
@@ -101,7 +134,9 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
 
   // Auto-derive columns from data keys when none are provided
   const derivedColumns = useMemo(() => {
-    if (schema.columns && schema.columns.length > 0) return schema.columns;
+    if (schema.columns && schema.columns.length > 0) {
+      return normalizeColumns(schema.columns);
+    }
     if (finalData.length === 0) return [];
     // Exclude internal/private fields (prefixed with '_') from auto-derived columns
     const keys = Object.keys(finalData[0]).filter(k => !k.startsWith('_'));
