@@ -48,7 +48,6 @@ vi.mock('@object-ui/plugin-list', () => ({
 }));
 
 vi.mock('@object-ui/components', async (importOriginal) => {
-    const React = await import('react');
     const actual = await importOriginal<any>();
     return {
         ...actual,

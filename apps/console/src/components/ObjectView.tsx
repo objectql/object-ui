@@ -431,7 +431,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
             // Generic list-level API handler: update/execute via dataSource
             if (typeof dataSource.execute === 'function') {
                 await dataSource.execute(objectDef.name, target, params);
-            } else if (Object.keys(params).length > 0 && typeof dataSource.update === 'function') {
+            } else if (params.recordId && Object.keys(params).length > 1 && typeof dataSource.update === 'function') {
                 await dataSource.update(objectDef.name, params.recordId, params);
             }
 
