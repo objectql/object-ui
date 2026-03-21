@@ -10,6 +10,7 @@ import './index.css';
 import { App } from './App';
 import { I18nProvider } from '@object-ui/i18n';
 import { MobileProvider } from '@object-ui/mobile';
+import { loadLanguage } from './loadLanguage';
 
 // Register plugins (side-effect imports for ComponentRegistry)
 import '@object-ui/plugin-grid';
@@ -26,24 +27,6 @@ import '@object-ui/plugin-form';
 import '@object-ui/plugin-dashboard';
 import '@object-ui/plugin-report';
 import '@object-ui/plugin-markdown';
-
-/**
- * Load application-specific translations for a given language from the API.
- * Falls back gracefully when translations are unavailable.
- */
-async function loadLanguage(lang: string): Promise<Record<string, unknown>> {
-  try {
-    const res = await fetch(`/api/v1/i18n/translations/${lang}`);
-    if (!res.ok) {
-      console.warn(`[i18n] Failed to load translations for '${lang}': HTTP ${res.status}`);
-      return {};
-    }
-    return await res.json();
-  } catch (err) {
-    console.warn(`[i18n] Failed to load translations for '${lang}':`, err);
-    return {};
-  }
-}
 
 // Start MSW before rendering the app
 async function bootstrap() {
