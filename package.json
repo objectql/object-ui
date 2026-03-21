@@ -98,7 +98,7 @@
     "eslint-plugin-storybook": "^10.2.19",
     "globals": "^17.4.0",
     "happy-dom": "^20.8.4",
-    "jsdom": "^28.1.0",
+    "jsdom": "^29.0.1",
     "msw": "^2.12.11",
     "msw-storybook-addon": "^2.0.6",
     "playwright": "^1.58.2",
