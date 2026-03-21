@@ -114,7 +114,7 @@ describe('ListView Data Fetch', () => {
   });
 
   // =========================================================================
-  // OData { value: [] } response format (duplicate data fix)
+  // OData { value: [] } response format handling
   // =========================================================================
   describe('OData value response format', () => {
     it('should extract records from { value: [] } OData response', async () => {

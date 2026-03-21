@@ -146,7 +146,7 @@ describe('Duplicate Data Prevention', () => {
         });
 
         it('should not show duplicate events with wrapped response format', async () => {
-            // ObjectStack adapter returns { data: [...], total, page, pageSize }
+            // Test with ObjectStack response format: { data: [...], total, page, pageSize }
             mockDataSource.find.mockResolvedValue({
                 data: records,
                 total: records.length,
