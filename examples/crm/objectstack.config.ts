@@ -9,6 +9,7 @@ import { UserObject } from './src/objects/user.object';
 import { ProjectObject } from './src/objects/project.object';
 import { EventObject } from './src/objects/event.object';
 import { OpportunityContactObject } from './src/objects/opportunity_contact.object';
+import { crmLocales } from './src/i18n';
 import { AccountView } from './src/views/account.view';
 import { ContactView } from './src/views/contact.view';
 import { OpportunityView } from './src/views/opportunity.view';
@@ -118,5 +119,11 @@ export default defineStack({
       OpportunityContactData,
     ]
   },
+  i18n: {
+    defaultLocale: 'en',
+    supportedLocales: ['en', 'zh', 'ja', 'ko', 'de', 'fr', 'es', 'pt', 'ru', 'ar'],
+    namespace: 'crm',
+    translations: crmLocales,
+  } as any,
   plugins: [],
 }, { strict: false }); // Defer validation to `objectstack compile` CLI

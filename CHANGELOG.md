@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Unified i18n Plugin Loading & Translation Injection** (`examples/crm`, `apps/console`): Unified the i18n loading mechanism so that both server and MSW/mock environments use the same translation pipeline. CRM's `objectstack.config.ts` now declares its translations via `i18n: { namespace: 'crm', translations: crmLocales }`. The shared config (`objectstack.shared.ts`) merges i18n bundles from all composed stacks. `createKernel` registers an i18n kernel service from the config bundles and auto-generates the `/api/v1/i18n/translations/:lang` MSW handler, returning translations in the standard `{ data: { locale, translations } }` spec envelope. Removed all manually-maintained i18n custom handlers and duplicate `loadAppLocale` functions from `browser.ts` and `server.ts`. The broker shim now supports `i18n.getTranslations` for server-side dispatch.
+
 - **ObjectDataTable: columns now support `string[]` shorthand** (`@object-ui/plugin-dashboard`): `ObjectDataTable` now normalizes `columns` entries so that both `string[]` (e.g. `['name', 'close_date']`) and `object[]` formats are accepted. String entries are automatically converted to `{ header, accessorKey }` objects with title-cased headers derived from snake_case and camelCase field names. Previously, passing a `string[]` caused the downstream `data-table` renderer to crash when accessing `col.accessorKey` on a plain string. Mixed arrays (some strings, some objects) are also handled correctly. Includes 8 new unit tests.
 
 ### Fixed

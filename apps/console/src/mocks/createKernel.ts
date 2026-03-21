@@ -18,6 +18,7 @@ import { InMemoryDriver, MemoryAnalyticsService } from '@objectstack/driver-memo
 import { MSWPlugin } from '@objectstack/plugin-msw';
 import type { MSWPluginOptions } from '@objectstack/plugin-msw';
 import type { Cube } from '@objectstack/spec/data';
+import { http, HttpResponse } from 'msw';
 
 export interface KernelOptions {
   /** Application configuration (defineStack output) */
@@ -108,6 +109,15 @@ async function installBrokerShim(kernel: ObjectKernel): Promise<void> {
           if (method === 'query') return analytics.query(params);
           if (method === 'meta') return analytics.getMeta(params?.cubeName);
           if (method === 'sql') return analytics.generateSql(params);
+        }
+      }
+
+      // i18n service calls (e.g. i18n.getTranslations)
+      if (service === 'i18n') {
+        let i18nService: any;
+        try { i18nService = await kernel.getService('i18n'); } catch { /* noop */ }
+        if (i18nService) {
+          if (method === 'getTranslations') return i18nService.getTranslations(params?.lang);
         }
       }
 
@@ -247,6 +257,38 @@ function buildCubesFromConfig(appConfig: any): Cube[] {
   return cubes;
 }
 
+/** Per-language translation map: language code → translation tree. */
+type TranslationMap = Record<string, Record<string, unknown>>;
+
+/** A named translation bundle as declared in a stack's i18n config. */
+interface I18nBundle {
+  namespace: string;
+  translations: TranslationMap;
+}
+
+/**
+ * Resolve translations for a given language from the i18n bundles
+ * declared in the application configuration.
+ *
+ * Each bundle carries a `namespace` (e.g. "crm") and a `translations`
+ * map keyed by language code.  The resolved output nests each bundle's
+ * translations under its namespace so that i18next sees keys like
+ * `crm.objects.account.label`.
+ */
+function resolveI18nTranslations(
+  bundles: I18nBundle[],
+  lang: string,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = {};
+  for (const bundle of bundles) {
+    const langTranslations = bundle.translations[lang];
+    if (langTranslations) {
+      merged[bundle.namespace] = langTranslations;
+    }
+  }
+  return merged;
+}
+
 /**
  * Create and bootstrap an ObjectStack kernel with in-memory driver.
  *
@@ -282,6 +324,22 @@ export async function createKernel(options: KernelOptions): Promise<KernelResult
     generateSql: (query: any) => memoryAnalytics.generateSql(query),
   });
 
+  // ── i18n service registration ──────────────────────────────────────
+  // Read translation bundles from the app config (populated by each stack's
+  // `i18n: { namespace, translations }` field and merged via sharedConfig).
+  // This ensures both MSW/mock and server modes share the same translation
+  // resolution pipeline — no manual per-environment i18n handlers required.
+  const i18nBundles: I18nBundle[] = appConfig.i18n?.bundles ?? [];
+
+  if (i18nBundles.length > 0) {
+    kernel.registerService('i18n', {
+      getTranslations: (lang: string) => ({
+        locale: lang,
+        translations: resolveI18nTranslations(i18nBundles, lang),
+      }),
+    });
+  }
+
   let mswPlugin: MSWPlugin | undefined;
   if (mswOptions) {
     // Install a protocol-based broker shim BEFORE MSWPlugin's start phase
@@ -289,7 +347,29 @@ export async function createKernel(options: KernelOptions): Promise<KernelResult
     // calls without requiring a full Moleculer broker.
     await installBrokerShim(kernel);
 
-    mswPlugin = new MSWPlugin(mswOptions);
+    // Auto-inject the i18n REST handler when translations are declared in
+    // the app config, so callers (browser.ts / server.ts) no longer need
+    // to manually construct a custom i18n MSW route.
+    const effectiveOptions = { ...mswOptions };
+    if (i18nBundles.length > 0) {
+      const baseUrl = mswOptions.baseUrl ?? '';
+      const i18nHandler = http.get(
+        `${baseUrl}/i18n/translations/:lang`,
+        ({ params }) => {
+          const lang = params.lang as string;
+          const translations = resolveI18nTranslations(i18nBundles, lang);
+          return HttpResponse.json({
+            data: { locale: lang, translations },
+          });
+        },
+      );
+      effectiveOptions.customHandlers = [
+        i18nHandler,
+        ...(mswOptions.customHandlers ?? []),
+      ];
+    }
+
+    mswPlugin = new MSWPlugin(effectiveOptions);
     await kernel.use(mswPlugin);
   }
 

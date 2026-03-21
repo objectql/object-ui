@@ -24,6 +24,12 @@ const allConfigs = [crmConfig, todoConfig, kitchenSinkConfig];
 // so we collect data from all stacks before composing).
 const allData = allConfigs.flatMap((c: any) => c.manifest?.data || c.data || []);
 
+// Aggregate i18n bundles from all stacks that declare an i18n section.
+// Each bundle carries a namespace (e.g. 'crm') and per-language translations.
+const i18nBundles = allConfigs
+  .map((c: any) => c.i18n)
+  .filter((i: any) => i?.namespace && i?.translations);
+
 // Protocol-level composition via @objectstack/spec: handles object dedup,
 // array concatenation, actions→objects mapping, and manifest selection.
 const composed = composeStacks(allConfigs as any[], { objectConflict: 'override' }) as any;
@@ -88,6 +94,9 @@ export const sharedConfig = {
     type: 'app',
     name: '@object-ui/console',
     data: allData,
+  },
+  i18n: {
+    bundles: i18nBundles,
   },
   plugins: [],
   datasources: [
