@@ -30,7 +30,11 @@ import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 import { useAuth } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
-import { useNavigationOverlay, SchemaRenderer } from '@object-ui/react';
+import { ActionProvider, useNavigationOverlay, SchemaRenderer } from '@object-ui/react';
+import { toast } from 'sonner';
+import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog';
+import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog';
+import type { ActionDef, ActionParamDef } from '@object-ui/core';
 
 /** Map view types to Lucide icons (Airtable-style) */
 const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
@@ -386,6 +390,61 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
         onRefresh: () => setRefreshKey(k => k + 1),
     });
 
+    // ─── ActionProvider handlers for schema-driven toolbar actions ──────
+    const currentUser = user
+        ? { id: user.id, name: user.name, avatar: user.image }
+        : FALLBACK_USER;
+
+    const [confirmState, setConfirmState] = useState<ConfirmDialogState>({ open: false, message: '' });
+    const [paramState, setParamState] = useState<ParamDialogState>({ open: false, params: [] });
+
+    const confirmHandler = useCallback((message: string, options?: { title?: string; confirmText?: string; cancelText?: string }) => {
+        return new Promise<boolean>((resolve) => {
+            setConfirmState({ open: true, message, options, resolve });
+        });
+    }, []);
+
+    const paramCollectionHandler = useCallback((params: ActionParamDef[]) => {
+        return new Promise<Record<string, any> | null>((resolve) => {
+            setParamState({ open: true, params, resolve });
+        });
+    }, []);
+
+    const toastHandler = useCallback((message: string, options?: { type?: string }) => {
+        if (options?.type === 'error') toast.error(message);
+        else toast.success(message);
+    }, []);
+
+    const navigateHandler = useCallback((url: string, options?: { external?: boolean; newTab?: boolean }) => {
+        if (options?.external || options?.newTab) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        } else {
+            navigate(url);
+        }
+    }, [navigate]);
+
+    const apiHandler = useCallback(async (action: ActionDef) => {
+        try {
+            const target = action.target || action.name;
+            const params = action.params || {};
+
+            // Generic list-level API handler: update/execute via dataSource
+            if (typeof dataSource.execute === 'function') {
+                await dataSource.execute(objectDef.name, target, params);
+            } else if (params.recordId && Object.keys(params).length > 1 && typeof dataSource.update === 'function') {
+                await dataSource.update(objectDef.name, params.recordId, params);
+            }
+
+            const shouldRefresh = action.refreshAfter !== false;
+            if (shouldRefresh) {
+                setRefreshKey(k => k + 1);
+            }
+            return { success: true, reload: shouldRefresh };
+        } catch (error) {
+            return { success: false, error: (error as Error).message };
+        }
+    }, [dataSource, objectDef.name]);
+
     // Real-time: auto-refresh when server reports data changes
     const { lastMessage: realtimeMessage } = useRealtimeSubscription({
         channel: `object:${objectDef.name}`,
@@ -678,6 +737,14 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
     }), [objectDef.name, onEdit, activeView?.showSearch, activeView?.showFilters, activeView?.showSort, navigate, viewId, isAdmin]);
 
     return (
+        <ActionProvider
+            context={{ objectName: objectDef.name, user: currentUser }}
+            onConfirm={confirmHandler}
+            onToast={toastHandler}
+            onNavigate={navigateHandler}
+            onParamCollection={paramCollectionHandler}
+            handlers={{ api: apiHandler }}
+        >
         <div className="h-full flex flex-col bg-background min-w-0 overflow-hidden">
              {/* 1. Header with breadcrumb + description */}
              <div className="flex justify-between items-center py-2.5 sm:py-3 px-3 sm:px-4 border-b shrink-0 bg-background z-10">
@@ -882,5 +949,12 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
              </NavigationOverlay>
              )}
         </div>
+        <ActionConfirmDialog state={confirmState} onOpenChange={(open) => {
+            if (!open) setConfirmState({ open: false, message: '' });
+        }} />
+        <ActionParamDialog state={paramState} onOpenChange={(open) => {
+            if (!open) setParamState({ open: false, params: [] });
+        }} />
+        </ActionProvider>
     );
 }
