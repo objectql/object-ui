@@ -15,7 +15,7 @@ export async function loadLanguage(lang: string): Promise<Record<string, unknown
     }
     const json = await res.json();
     // Unwrap the spec REST API envelope when present
-    if (json && typeof json === 'object' && json.data && json.data.translations && typeof json.data.translations === 'object') {
+    if (json?.data?.translations && typeof json.data.translations === 'object') {
       return json.data.translations as Record<string, unknown>;
     }
     // Fallback: mock server / local dev returns flat translation objects

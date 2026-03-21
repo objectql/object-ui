@@ -13,7 +13,7 @@ import { loadLanguage } from '../loadLanguage';
 // Tests
 // ---------------------------------------------------------------------------
 describe('loadLanguage', () => {
-  const fetchSpy = vi.fn<(...args: any[]) => Promise<Response>>();
+  const fetchSpy = vi.fn<(...args: Parameters<typeof fetch>) => Promise<Response>>();
 
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchSpy);
