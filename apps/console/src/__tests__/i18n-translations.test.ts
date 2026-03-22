@@ -111,4 +111,42 @@ describe('i18n translations pipeline', () => {
 
     expect(json?.data?.translations?.crm?.objects?.account?.label).toBe(EXPECTED_EN_ACCOUNT_LABEL);
   });
+
+  // ── Server-mode compatibility (AppPlugin.loadTranslations) ────────
+
+  it('kernel i18n service supports loadTranslations (AppPlugin compat)', () => {
+    const i18nService = result.kernel.getService('i18n');
+
+    // AppPlugin.loadTranslations calls these methods; they must exist
+    expect(typeof i18nService.loadTranslations).toBe('function');
+    expect(typeof i18nService.getLocales).toBe('function');
+    expect(typeof i18nService.getDefaultLocale).toBe('function');
+    expect(typeof i18nService.setDefaultLocale).toBe('function');
+  });
+
+  it('kernel i18n service getLocales returns all CRM locales', () => {
+    const i18nService = result.kernel.getService('i18n');
+    const locales = i18nService.getLocales();
+
+    // CRM declares 10 locales: en, zh, ja, ko, de, fr, es, pt, ru, ar
+    expect(locales).toContain('en');
+    expect(locales).toContain('zh');
+    expect(locales.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it('appConfig.translations is spec-format array for AppPlugin', () => {
+    const translations = (appConfig as any).translations;
+
+    expect(Array.isArray(translations)).toBe(true);
+    expect(translations.length).toBeGreaterThan(0);
+
+    // Each entry maps locale → namespace-scoped data
+    const first = translations[0];
+    expect(first).toHaveProperty('zh');
+    expect(first).toHaveProperty('en');
+    // Data must be nested under namespace (e.g. 'crm')
+    expect(first.zh).toHaveProperty('crm');
+    expect(first.zh.crm.objects.account.label).toBe(EXPECTED_ZH_ACCOUNT_LABEL);
+    expect(first.en.crm.objects.account.label).toBe(EXPECTED_EN_ACCOUNT_LABEL);
+  });
 });
