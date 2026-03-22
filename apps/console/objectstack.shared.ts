@@ -30,6 +30,19 @@ const i18nBundles = allConfigs
   .map((c: any) => c.i18n)
   .filter((i: any) => i?.namespace && i?.translations);
 
+// Build the spec `translations` array for the runtime's AppPlugin.
+// AppPlugin.loadTranslations expects `translations: Array<{ [locale]: data }>`.
+// Each locale's data is nested under the bundle's namespace so that
+// both the server-mode (AppPlugin → memory i18n) and MSW-mode (createKernel)
+// produce the same structure: `{ crm: { objects: { ... } } }`.
+const specTranslations: Record<string, any>[] = i18nBundles.map((bundle: any) => {
+  const result: Record<string, any> = {};
+  for (const [locale, data] of Object.entries(bundle.translations)) {
+    result[locale] = { [bundle.namespace]: data };
+  }
+  return result;
+});
+
 // Protocol-level composition via @objectstack/spec: handles object dedup,
 // array concatenation, actions→objects mapping, and manifest selection.
 const composed = composeStacks(allConfigs as any[], { objectConflict: 'override' }) as any;
@@ -97,7 +110,13 @@ export const sharedConfig = {
   },
   i18n: {
     bundles: i18nBundles,
+    defaultLocale: 'en',
   },
+  // Spec-format translations array consumed by AppPlugin.loadTranslations()
+  // in real-server mode (pnpm start). Each entry maps locale → namespace-scoped
+  // translation data so the runtime's memory i18n fallback serves the same
+  // structure as the MSW mock handler.
+  translations: specTranslations,
   plugins: [],
   datasources: [
     {

@@ -332,11 +332,43 @@ export async function createKernel(options: KernelOptions): Promise<KernelResult
   const i18nBundles: I18nBundle[] = appConfig.i18n?.bundles ?? [];
 
   if (i18nBundles.length > 0) {
+    // Build a complete i18n service that satisfies both:
+    //  - HttpDispatcher.handleI18n (calls getTranslations, getLocales)
+    //  - AppPlugin.loadTranslations (calls loadTranslations, setDefaultLocale)
+    // In MSW mode the custom handler serves translations directly, but the
+    // kernel service is still needed for the broker shim and dispatcher paths.
+    const appPluginTranslations = new Map<string, Record<string, unknown>>();
+    let defaultLocale = 'en';
+
     kernel.registerService('i18n', {
-      getTranslations: (lang: string) => ({
-        locale: lang,
-        translations: resolveI18nTranslations(i18nBundles, lang),
-      }),
+      getTranslations: (lang: string) => {
+        const resolved = resolveI18nTranslations(i18nBundles, lang);
+        const extra = appPluginTranslations.get(lang);
+        if (extra) {
+          // Shallow merge: AppPlugin-loaded translations override bundle translations
+          return { ...resolved, ...extra };
+        }
+        return resolved;
+      },
+      loadTranslations: (locale: string, data: Record<string, unknown>) => {
+        const existing = appPluginTranslations.get(locale) ?? {};
+        appPluginTranslations.set(locale, { ...existing, ...data });
+      },
+      getLocales: () => {
+        // Collect all available locales from bundles + any loaded via loadTranslations
+        const locales = new Set<string>();
+        for (const bundle of i18nBundles) {
+          for (const lang of Object.keys(bundle.translations)) {
+            locales.add(lang);
+          }
+        }
+        for (const lang of appPluginTranslations.keys()) {
+          locales.add(lang);
+        }
+        return [...locales];
+      },
+      getDefaultLocale: () => defaultLocale,
+      setDefaultLocale: (locale: string) => { defaultLocale = locale; },
     });
   }
 
