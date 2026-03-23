@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Upgrade @objectstack packages from v3.2.9 to v3.3.0**: Upgraded all `@objectstack/*` dependencies across the entire monorepo (root, `apps/console`, `examples/crm`, `examples/todo`, `examples/msw-todo`, `examples/kitchen-sink`, `packages/core`, `packages/types`, `packages/react`, `packages/data-objectstack`, `packages/plugin-map`, `packages/plugin-gantt`, `packages/plugin-timeline`) from `^3.2.9` to `^3.3.0`. All 42 build tasks pass and all 7,224 tests pass with no breaking changes.
+
 ### Added
 
 - **Unified i18n Plugin Loading & Translation Injection** (`examples/crm`, `apps/console`): Unified the i18n loading mechanism so that both server and MSW/mock environments use the same translation pipeline. CRM's `objectstack.config.ts` now declares its translations via `i18n: { namespace: 'crm', translations: crmLocales }`. The shared config (`objectstack.shared.ts`) merges i18n bundles from all composed stacks. `createKernel` registers an i18n kernel service from the config bundles and auto-generates the `/api/v1/i18n/translations/:lang` MSW handler, returning translations in the standard `{ data: { locale, translations } }` spec envelope. Removed all manually-maintained i18n custom handlers and duplicate `loadAppLocale` functions from `browser.ts` and `server.ts`. The broker shim now supports `i18n.getTranslations` for server-side dispatch.
