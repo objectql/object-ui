@@ -1,5 +1,11 @@
 # @object-ui/console
 
+## 3.1.4
+
+### Patch Changes
+
+- 7129017: fix
+
 ## 3.1.3
 
 ## 3.1.2
