@@ -20,16 +20,22 @@ export default defineConfig({
     }),
   ],
   resolve: {
-    alias: {
-      '@': resolve(__dirname, './src'),
-      '@object-ui/core': resolve(__dirname, '../core/src'),
-      '@object-ui/types': resolve(__dirname, '../types/src'),
-      '@object-ui/react': resolve(__dirname, '../react/src'),
-      '@object-ui/components': resolve(__dirname, './src'), // Self-reference for vitest.setup.tsx
-      '@object-ui/fields': resolve(__dirname, '../fields/src'),
-      '@object-ui/plugin-dashboard': resolve(__dirname, '../plugin-dashboard/src'),
-      '@object-ui/plugin-grid': resolve(__dirname, '../plugin-grid/src'),
-    },
+    alias: [
+      { find: '@', replacement: resolve(__dirname, './src') },
+      { find: '@object-ui/core', replacement: resolve(__dirname, '../core/src') },
+      { find: '@object-ui/types', replacement: resolve(__dirname, '../types/src') },
+      { find: '@object-ui/react', replacement: resolve(__dirname, '../react/src') },
+      { find: '@object-ui/components', replacement: resolve(__dirname, './src') }, // Self-reference for vitest.setup.tsx
+      { find: '@object-ui/fields', replacement: resolve(__dirname, '../fields/src') },
+      { find: '@object-ui/plugin-dashboard', replacement: resolve(__dirname, '../plugin-dashboard/src') },
+      { find: '@object-ui/plugin-grid', replacement: resolve(__dirname, '../plugin-grid/src') },
+      // The CJS shims use require("react") which produces a Rolldown
+      // require polyfill incompatible with Next.js Turbopack SSR.
+      // Alias to ESM modules that re-export from React 18+ directly.
+      { find: /^use-sync-external-store\/shim\/with-selector(\.js)?$/, replacement: resolve(__dirname, 'src/lib/use-sync-external-store-with-selector-shim.ts') },
+      { find: /^use-sync-external-store\/shim(\.js)?$/, replacement: resolve(__dirname, 'src/lib/use-sync-external-store-shim.ts') },
+      { find: /^use-sync-external-store\/with-selector(\.js)?$/, replacement: resolve(__dirname, 'src/lib/use-sync-external-store-with-selector-shim.ts') },
+    ],
   },
   build: {
     lib: {
@@ -38,7 +44,9 @@ export default defineConfig({
       fileName: 'index',
     },
     rollupOptions: {
-      external: ['react', 'react-dom', '@object-ui/core', '@object-ui/react', '@object-ui/types'],
+      // Use a function to match subpath imports (e.g. react/jsx-runtime)
+      // so Rolldown does not bundle CJS wrappers that use require().
+      external: (id) => /^(react|react-dom|@object-ui\/(core|react|types))(\/|$)/.test(id),
       output: {
         globals: {
           react: 'React',

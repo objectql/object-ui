@@ -987,6 +987,9 @@ importers:
       '@object-ui/core':
         specifier: workspace:*
         version: link:../core
+      '@object-ui/react':
+        specifier: workspace:*
+        version: link:../react
       '@object-ui/types':
         specifier: workspace:*
         version: link:../types

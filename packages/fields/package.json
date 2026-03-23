@@ -31,6 +31,7 @@
   "dependencies": {
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
+    "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "clsx": "^2.1.1",
     "lucide-react": "^0.577.0",

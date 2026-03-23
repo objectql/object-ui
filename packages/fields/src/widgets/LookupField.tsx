@@ -13,6 +13,7 @@ import type { DataSource, QueryParams, LookupColumnDef } from '@object-ui/types'
 import { RecordPickerDialog } from './RecordPickerDialog';
 import type { RecordPickerFilterColumn } from './RecordPickerDialog';
 import { getCellRendererResolver } from './_cell-renderer-bridge';
+import { SchemaRendererContext as ImportedSchemaRendererContext } from '@object-ui/react';
 
 export interface LookupOption {
   value: string | number;
@@ -25,21 +26,10 @@ export interface LookupOption {
 const LOOKUP_PAGE_SIZE = 50;
 
 /**
- * Resolve SchemaRendererContext from @object-ui/react at runtime.
- * Uses the same dynamic-require fallback that plugin-view uses to avoid
- * a hard dependency on @object-ui/react (which would create a cycle).
+ * SchemaRendererContext is created by @object-ui/react.
+ * Using a static import to be compatible with Next.js Turbopack SSR.
  */
-const FallbackContext = React.createContext<any>(null);
-let SchemaRendererContext: React.Context<any> = FallbackContext;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const mod = require('@object-ui/react');
-  if (mod.SchemaRendererContext) {
-    SchemaRendererContext = mod.SchemaRendererContext;
-  }
-} catch {
-  // @object-ui/react not available — dataSource must be passed via props
-}
+const SchemaRendererContext: React.Context<any> = ImportedSchemaRendererContext;
 
 /**
  * Map a raw record to a LookupOption using a display field and an id field.
