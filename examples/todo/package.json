@@ -13,8 +13,8 @@
     "build": "objectstack compile objectstack.config.ts"
   },
   "dependencies": {
-    "@objectstack/client": "^3.2.8",
-    "@objectstack/spec": "^3.2.8"
+    "@objectstack/client": "^3.2.9",
+    "@objectstack/spec": "^3.2.9"
   },
   "devDependencies": {
     "@objectstack/cli": "^3.2.8",
