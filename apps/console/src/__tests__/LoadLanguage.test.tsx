@@ -81,4 +81,73 @@ describe('loadLanguage', () => {
     const result = await loadLanguage('en');
     expect(result).toEqual(flat);
   });
+
+  it('auto-transforms TranslationData format (objects with nested fields)', async () => {
+    // Simulate @objectstack/spec TranslationData format returned by I18nServicePlugin
+    const specData = {
+      objects: {
+        account: {
+          label: 'Account',
+          pluralLabel: 'Accounts',
+          fields: {
+            name: { label: 'Account Name' },
+            industry: { label: 'Industry', options: { Technology: 'Technology', Finance: 'Finance' } },
+          },
+        },
+        contact: {
+          label: 'Contact',
+          fields: {
+            email: { label: 'Email' },
+          },
+        },
+      },
+      apps: { crm: { label: 'CRM' } },
+      messages: { 'common.save': 'Save' },
+    };
+
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { locale: 'en', translations: specData } }),
+    } as Response);
+
+    const result = await loadLanguage('en');
+
+    // Should be wrapped under 'app' namespace with flat fields
+    expect(result).toEqual({
+      app: {
+        objects: {
+          account: { label: 'Account', pluralLabel: 'Accounts' },
+          contact: { label: 'Contact' },
+        },
+        fields: {
+          account: { name: 'Account Name', industry: 'Industry' },
+          contact: { email: 'Email' },
+        },
+        fieldOptions: {
+          account: { industry: { Technology: 'Technology', Finance: 'Finance' } },
+        },
+        apps: { crm: { label: 'CRM' } },
+        messages: { 'common.save': 'Save' },
+      },
+    });
+  });
+
+  it('does NOT transform data that is already in namespace-wrapped format', async () => {
+    // Already-transformed data (from objectstack.shared.ts or CRM example)
+    const alreadyFlat = {
+      crm: {
+        objects: { account: { label: 'Account' } },
+        fields: { account: { name: 'Account Name' } },
+      },
+    };
+
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { locale: 'en', translations: alreadyFlat } }),
+    } as Response);
+
+    const result = await loadLanguage('en');
+    // Should pass through unchanged
+    expect(result).toEqual(alreadyFlat);
+  });
 });
