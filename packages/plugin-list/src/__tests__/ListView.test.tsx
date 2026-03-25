@@ -50,8 +50,10 @@ describe('ListView', () => {
     expect(ListView).toBeDefined();
   });
 
-  it('should be a function', () => {
-    expect(typeof ListView).toBe('function');
+  it('should be a forwardRef component', () => {
+    // React.forwardRef wraps the component — typeof is 'object' with a render function
+    expect(typeof ListView).toBe('object');
+    expect(typeof (ListView as any).render).toBe('function');
   });
 
   it('should render with basic schema', () => {

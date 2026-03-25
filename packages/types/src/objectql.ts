@@ -1755,6 +1755,14 @@ export interface ListViewSchema extends BaseSchema {
    * @default false
    */
   allowPrinting?: boolean;
+
+  /**
+   * External refresh trigger.
+   * Increment this value to force the ListView to re-fetch data.
+   * Used by parent components (e.g., ObjectView) to signal that a mutation
+   * (create/update/delete) has occurred and the list should refresh.
+   */
+  refreshTrigger?: number;
 }
 export interface ObjectMapSchema extends BaseSchema {
   type: 'object-map';

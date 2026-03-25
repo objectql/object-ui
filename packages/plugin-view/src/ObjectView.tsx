@@ -128,6 +128,8 @@ export interface ObjectViewProps {
     onEdit?: (record: Record<string, unknown>) => void;
     onRowClick?: (record: Record<string, unknown>) => void;
     className?: string;
+    /** Current refresh counter — increment signals that a mutation occurred */
+    refreshKey?: number;
   }) => React.ReactNode;
 
   /**
@@ -897,11 +899,14 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           emptyState: activeView?.emptyState ?? (schema as any).emptyState,
           aria: activeView?.aria ?? (schema as any).aria,
           tabs: (schema as any).tabs,
+          // Propagate refresh signal so ListView re-fetches after mutations
+          refreshTrigger: refreshKey,
         },
         dataSource,
         onEdit: handleEdit,
         onRowClick: handleRowClick,
         className: 'h-full',
+        refreshKey,
       });
     }
 
