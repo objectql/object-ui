@@ -224,6 +224,20 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   const [selectedRecord, setSelectedRecord] = useState<Record<string, unknown> | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // P2: Auto-subscribe to DataSource mutation events for non-grid views.
+  // When a DataSource implements onMutation(), ObjectView auto-refreshes
+  // its own data fetch (for non-grid view types like kanban, calendar, etc.)
+  // whenever a create/update/delete occurs on the same objectName.
+  useEffect(() => {
+    if (!dataSource?.onMutation || !schema.objectName) return;
+    const unsub = dataSource.onMutation((event: any) => {
+      if (event.resource === schema.objectName) {
+        setRefreshKey(prev => prev + 1);
+      }
+    });
+    return unsub;
+  }, [dataSource, schema.objectName]);
+
   // Data fetching state for non-grid views
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
