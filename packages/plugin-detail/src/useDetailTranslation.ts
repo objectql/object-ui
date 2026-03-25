@@ -102,6 +102,68 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.sortBy': 'Sort by',
   'detail.filterPlaceholder': 'Filter...',
   'detail.highlightFields': 'Key Fields',
+  // Comments
+  'detail.comments': 'Comments',
+  'detail.searchComments': 'Search comments…',
+  'detail.addCommentPlaceholder': 'Add a comment… (Ctrl+Enter to submit)',
+  'detail.noMatchingComments': 'No matching comments',
+  'detail.noCommentsYet': 'No comments yet',
+  'detail.pinned': 'Pinned',
+  'detail.pin': 'Pin',
+  'detail.unpin': 'Unpin',
+  'detail.justNow': 'just now',
+  'detail.minutesAgo': '{{count}}m ago',
+  'detail.hoursAgo': '{{count}}h ago',
+  'detail.daysAgo': '{{count}}d ago',
+  // Attachments
+  'detail.dropFilesToUpload': 'Drop files here or click to upload',
+  'detail.attachmentCount': '{{count}} attachment',
+  'detail.attachmentCountPlural': '{{count}} attachments',
+  'detail.removeAttachment': 'Remove attachment',
+  // Diff
+  'detail.unifiedDiff': 'Unified diff',
+  'detail.sideBySideDiff': 'Side-by-side diff',
+  'detail.noChanges': 'No changes',
+  'detail.previousVersion': 'Previous',
+  'detail.currentVersion': 'Current',
+  // Discussion
+  'detail.discussion': 'Discussion',
+  'detail.showDiscussion': 'Show Discussion ({{count}})',
+  'detail.hideDiscussion': 'Hide discussion',
+  // Rich text editor
+  'detail.bold': 'Bold (Ctrl+B)',
+  'detail.italic': 'Italic (Ctrl+I)',
+  'detail.listFormat': 'List',
+  'detail.inlineCode': 'Inline code',
+  'detail.mentionSomeone': 'Mention someone',
+  'detail.preview': 'Preview',
+  'detail.submitComment': 'Submit (Ctrl+Enter)',
+  'detail.writeComment': 'Write a comment…',
+  // Subscription
+  'detail.subscribedTooltip': 'Subscribed — click to unsubscribe',
+  'detail.unsubscribedTooltip': 'Subscribe to notifications',
+  // Navigation
+  'detail.firstRecord': 'First record (Home)',
+  'detail.previousRecordKey': 'Previous record (←)',
+  'detail.nextRecordKey': 'Next record (→)',
+  'detail.lastRecord': 'Last record (End)',
+  'detail.noRecords': 'No records',
+  'detail.searchWhileNavigating': 'Search while navigating',
+  'detail.searchRecords': 'Search records…',
+  // Activity timeline
+  'detail.allActivity': 'All Activity',
+  'detail.commentsOnly': 'Comments Only',
+  'detail.fieldChangesFilter': 'Field Changes',
+  'detail.tasksOnly': 'Tasks Only',
+  'detail.leaveCommentPlaceholder': 'Leave a comment… (Ctrl+Enter to submit)',
+  'detail.noActivity': 'No activity recorded',
+  'detail.loadMore': 'Load more',
+  'detail.edited': '(edited)',
+  'detail.via': 'via {{source}}',
+  // Replies
+  'detail.replyCount': '{{count}} reply',
+  'detail.replyCountPlural': '{{count}} replies',
+  'detail.replyPlaceholder': 'Reply…',
 };
 
 /**
