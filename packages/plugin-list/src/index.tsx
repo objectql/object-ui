@@ -17,7 +17,7 @@ export type { TabBarProps, ViewTab } from './components/TabBar';
 export { UserFilters } from './UserFilters';
 export type { UserFiltersProps } from './UserFilters';
 export { evaluateConditionalFormatting, normalizeFilterCondition, normalizeFilters } from './ListView';
-export type { ListViewProps } from './ListView';
+export type { ListViewProps, ListViewHandle } from './ListView';
 export type { ObjectGalleryProps } from './ObjectGallery';
 export type { ViewSwitcherProps, ViewType } from './ViewSwitcher';
 

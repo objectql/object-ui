@@ -532,8 +532,10 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
     }, [drawerRecordId]);
 
     // Render multi-view content via ListView plugin (for kanban, calendar, etc.)
-    const renderListView = useCallback(({ schema: listSchema, dataSource: ds, onEdit: editHandler, className }: any) => {
-        const key = `${objectName}-${activeView.id}-${refreshKey}`;
+    const renderListView = useCallback(({ schema: listSchema, dataSource: ds, onEdit: editHandler, className, refreshKey: pluginRefreshKey }: any) => {
+        // Combine local refreshKey with the plugin ObjectView's refreshKey for full propagation
+        const combinedRefreshKey = refreshKey + (pluginRefreshKey || 0);
+        const key = `${objectName}-${activeView.id}-${combinedRefreshKey}`;
         const viewDef = activeView;
 
         // Warn in dev mode if flat properties are used instead of nested spec format

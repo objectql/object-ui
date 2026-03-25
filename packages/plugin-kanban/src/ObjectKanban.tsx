@@ -46,9 +46,23 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
   // loading state
   const [loading, setLoading] = useState(hasExternalData ? (externalLoading ?? false) : false);
   const [error, setError] = useState<Error | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Resolve bound data if 'bind' property exists
   const boundData = useDataScope(schema.bind);
+
+  // P2: Auto-subscribe to DataSource mutation events (standalone mode only).
+  // When rendered as a child of ListView, data is managed externally and this is skipped.
+  useEffect(() => {
+    if (hasExternalData) return; // Parent handles refresh
+    if (!dataSource?.onMutation || !schema.objectName) return;
+    const unsub = dataSource.onMutation((event: any) => {
+      if (event.resource === schema.objectName) {
+        setRefreshKey(k => k + 1);
+      }
+    });
+    return unsub;
+  }, [dataSource, schema.objectName, hasExternalData]);
 
   // Sync external data changes from parent (e.g. ListView re-fetches after filter change)
   useEffect(() => {
@@ -109,7 +123,7 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
         fetchData();
     }
     return () => { isMounted = false; };
-  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, hasExternalData, objectDef]);
+  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, hasExternalData, objectDef, refreshKey]);
 
   // Determine which data to use: external -> bound -> inline -> fetched
   const rawData = (hasExternalData ? externalData : undefined) || boundData || schema.data || fetchedData;

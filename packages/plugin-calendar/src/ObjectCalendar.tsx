@@ -168,6 +168,19 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // P2: Auto-subscribe to DataSource mutation events (standalone mode only).
+  // When rendered as a child of ObjectView with external data, parent handles refresh.
+  useEffect(() => {
+    if (hasExternalData) return; // Parent handles refresh
+    if (!dataSource?.onMutation || !schema.objectName) return;
+    const unsub = dataSource.onMutation((event: any) => {
+      if (event.resource === schema.objectName) {
+        setRefreshKey(k => k + 1);
+      }
+    });
+    return unsub;
+  }, [dataSource, schema.objectName, hasExternalData]);
+
   const handlePullRefresh = useCallback(async () => {
     setRefreshKey(k => k + 1);
   }, []);

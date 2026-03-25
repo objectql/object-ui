@@ -128,6 +128,8 @@ export interface ObjectViewProps {
     onEdit?: (record: Record<string, unknown>) => void;
     onRowClick?: (record: Record<string, unknown>) => void;
     className?: string;
+    /** Current refresh counter — increment signals that a mutation occurred */
+    refreshKey?: number;
   }) => React.ReactNode;
 
   /**
@@ -221,6 +223,25 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   const [formMode, setFormMode] = useState<FormMode>('create');
   const [selectedRecord, setSelectedRecord] = useState<Record<string, unknown> | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // P2: Auto-subscribe to DataSource mutation events for non-grid views.
+  // When a DataSource implements onMutation(), ObjectView auto-refreshes
+  // its own data fetch (for non-grid view types like kanban, calendar, etc.)
+  // whenever a create/update/delete occurs on the same objectName.
+  //
+  // ListView-driven configurations already manage refreshKey via
+  // form success / delete handlers. To avoid double refreshes and
+  // duplicate find() calls, skip auto-subscription when renderListView is provided.
+  useEffect(() => {
+    if (!dataSource?.onMutation || !schema.objectName) return;
+    if (renderListView) return;
+    const unsub = dataSource.onMutation((event: any) => {
+      if (event.resource === schema.objectName) {
+        setRefreshKey(prev => prev + 1);
+      }
+    });
+    return unsub;
+  }, [dataSource, schema.objectName, renderListView]);
 
   // Data fetching state for non-grid views
   const [data, setData] = useState<any[]>([]);
@@ -897,11 +918,14 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           emptyState: activeView?.emptyState ?? (schema as any).emptyState,
           aria: activeView?.aria ?? (schema as any).aria,
           tabs: (schema as any).tabs,
+          // Propagate refresh signal so ListView re-fetches after mutations
+          refreshTrigger: refreshKey,
         },
         dataSource,
         onEdit: handleEdit,
         onRowClick: handleRowClick,
         className: 'h-full',
+        refreshKey,
       });
     }
 

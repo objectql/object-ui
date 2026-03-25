@@ -273,7 +273,24 @@ function useListFieldLabel() {
   }
 }
 
-export const ListView: React.FC<ListViewProps> = ({
+/**
+ * Imperative handle exposed by ListView via React.forwardRef.
+ * Allows parent components to trigger a data refresh programmatically.
+ *
+ * @example
+ * ```tsx
+ * const listRef = React.useRef<ListViewHandle>(null);
+ * <ListView ref={listRef} schema={schema} />
+ * // After a mutation:
+ * listRef.current?.refresh();
+ * ```
+ */
+export interface ListViewHandle {
+  /** Force the ListView to re-fetch data from the DataSource */
+  refresh(): void;
+}
+
+export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   schema: propSchema,
   className,
   onViewChange,
@@ -283,7 +300,7 @@ export const ListView: React.FC<ListViewProps> = ({
   onRowClick,
   showViewSwitcher = false,
   ...props
-}) => {
+}, ref) => {
   // i18n support for record count and other labels
   const { t } = useListViewTranslation();
   const { fieldLabel: resolveFieldLabel } = useListFieldLabel();
@@ -392,6 +409,24 @@ export const ListView: React.FC<ListViewProps> = ({
   const [objectDefLoaded, setObjectDefLoaded] = React.useState(false);
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [dataLimitReached, setDataLimitReached] = React.useState(false);
+
+  // --- P1: Imperative refresh API ---
+  React.useImperativeHandle(ref, () => ({
+    refresh: () => setRefreshKey(k => k + 1),
+  }), []);
+
+  // --- P2: Auto-subscribe to DataSource mutation events ---
+  // When an external refreshTrigger is provided, rely on that instead of
+  // subscribing to dataSource mutations to avoid double refreshes.
+  React.useEffect(() => {
+    if (!dataSource?.onMutation || !schema.objectName || schema.refreshTrigger) return;
+    const unsub = dataSource.onMutation((event) => {
+      if (event.resource === schema.objectName) {
+        setRefreshKey(k => k + 1);
+      }
+    });
+    return unsub;
+  }, [dataSource, schema.objectName, schema.refreshTrigger]);
 
   // Dynamic page size state (wired from pageSizeOptions selector)
   const [dynamicPageSize, setDynamicPageSize] = React.useState<number | undefined>(undefined);
@@ -683,7 +718,7 @@ export const ListView: React.FC<ListViewProps> = ({
     fetchData();
     
     return () => { isMounted = false; };
-  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, activeQuickFilters, normalizedQuickFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded]); // Re-fetch on filter/sort/search change
+  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, activeQuickFilters, normalizedQuickFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded, schema.refreshTrigger]); // Re-fetch on filter/sort/search/refreshTrigger change
 
   // Available view types based on schema configuration
   const availableViews = React.useMemo(() => {
@@ -1685,4 +1720,6 @@ export const ListView: React.FC<ListViewProps> = ({
       )}
     </div>
   );
-};
+});
+
+ListView.displayName = 'ListView';

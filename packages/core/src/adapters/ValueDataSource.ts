@@ -11,6 +11,7 @@
 
 import type {
   DataSource,
+  MutationEvent,
   QueryParams,
   QueryResult,
   AggregateParams,
@@ -228,11 +229,19 @@ function selectFields<T>(record: T, fields?: string[]): T {
 export class ValueDataSource<T = any> implements DataSource<T> {
   private items: T[];
   private idField: string | undefined;
+  private mutationListeners = new Set<(event: MutationEvent<T>) => void>();
 
   constructor(config: ValueDataSourceConfig<T>) {
     // Deep clone to prevent external mutation
     this.items = JSON.parse(JSON.stringify(config.items));
     this.idField = config.idField;
+  }
+
+  /** Notify all mutation subscribers */
+  private emitMutation(event: MutationEvent<T>): void {
+    for (const listener of this.mutationListeners) {
+      try { listener(event); } catch (err) { console.warn('ValueDataSource: mutation listener error', err); }
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -308,6 +317,7 @@ export class ValueDataSource<T = any> implements DataSource<T> {
       (record as any)[field] = `auto_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     }
     this.items.push(record);
+    this.emitMutation({ type: 'create', resource: _resource, record: { ...record } });
     return { ...record };
   }
 
@@ -323,6 +333,7 @@ export class ValueDataSource<T = any> implements DataSource<T> {
       throw new Error(`ValueDataSource: Record with id "${id}" not found`);
     }
     this.items[index] = { ...this.items[index], ...data };
+    this.emitMutation({ type: 'update', resource: _resource, id, record: { ...this.items[index] } });
     return { ...this.items[index] };
   }
 
@@ -332,6 +343,7 @@ export class ValueDataSource<T = any> implements DataSource<T> {
     );
     if (index === -1) return false;
     this.items.splice(index, 1);
+    this.emitMutation({ type: 'delete', resource: _resource, id });
     return true;
   }
 
@@ -420,6 +432,15 @@ export class ValueDataSource<T = any> implements DataSource<T> {
 
       return { [groupBy]: key, [field]: result };
     });
+  }
+
+  // -----------------------------------------------------------------------
+  // Mutation subscription (P2 — Event Bus)
+  // -----------------------------------------------------------------------
+
+  onMutation(callback: (event: MutationEvent<T>) => void): () => void {
+    this.mutationListeners.add(callback);
+    return () => { this.mutationListeners.delete(callback); };
   }
 
   // -----------------------------------------------------------------------

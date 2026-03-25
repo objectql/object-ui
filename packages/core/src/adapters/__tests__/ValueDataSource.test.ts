@@ -470,3 +470,102 @@ describe('ValueDataSource — aggregate', () => {
     expect(result.find((r: any) => r.category === 'B')?.amount).toBe(50);
   });
 });
+
+// ---------------------------------------------------------------------------
+// onMutation (P2 — Event Bus)
+// ---------------------------------------------------------------------------
+
+describe('ValueDataSource — onMutation', () => {
+  it('should emit "create" event when a record is created', async () => {
+    const ds = createDS();
+    const events: any[] = [];
+    ds.onMutation((e) => events.push(e));
+
+    await ds.create('users', { name: 'Zara', age: 40 });
+
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe('create');
+    expect(events[0].resource).toBe('users');
+    expect(events[0].record.name).toBe('Zara');
+  });
+
+  it('should emit "update" event when a record is updated', async () => {
+    const ds = createDS();
+    const events: any[] = [];
+    ds.onMutation((e) => events.push(e));
+
+    await ds.update('users', '1', { age: 31 });
+
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe('update');
+    expect(events[0].resource).toBe('users');
+    expect(events[0].id).toBe('1');
+    expect(events[0].record.age).toBe(31);
+  });
+
+  it('should emit "delete" event when a record is deleted', async () => {
+    const ds = createDS();
+    const events: any[] = [];
+    ds.onMutation((e) => events.push(e));
+
+    await ds.delete('users', '2');
+
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe('delete');
+    expect(events[0].resource).toBe('users');
+    expect(events[0].id).toBe('2');
+    expect(events[0].record).toBeUndefined();
+  });
+
+  it('should not emit "delete" for non-existent record', async () => {
+    const ds = createDS();
+    const events: any[] = [];
+    ds.onMutation((e) => events.push(e));
+
+    await ds.delete('users', '999');
+
+    expect(events).toHaveLength(0);
+  });
+
+  it('should support multiple subscribers', async () => {
+    const ds = createDS();
+    const eventsA: any[] = [];
+    const eventsB: any[] = [];
+    ds.onMutation((e) => eventsA.push(e));
+    ds.onMutation((e) => eventsB.push(e));
+
+    await ds.create('users', { name: 'Multi' });
+
+    expect(eventsA).toHaveLength(1);
+    expect(eventsB).toHaveLength(1);
+  });
+
+  it('should unsubscribe correctly', async () => {
+    const ds = createDS();
+    const events: any[] = [];
+    const unsub = ds.onMutation((e) => events.push(e));
+
+    await ds.create('users', { name: 'Before' });
+    expect(events).toHaveLength(1);
+
+    unsub();
+
+    await ds.create('users', { name: 'After' });
+    expect(events).toHaveLength(1); // No new event
+  });
+
+  it('should emit events for bulk operations', async () => {
+    const ds = createDS();
+    const events: any[] = [];
+    ds.onMutation((e) => events.push(e));
+
+    await ds.bulk!('users', 'create', [
+      { name: 'Bulk1' },
+      { name: 'Bulk2' },
+    ]);
+
+    // Bulk create calls create() for each item
+    expect(events).toHaveLength(2);
+    expect(events.every((e: any) => e.type === 'create')).toBe(true);
+  });
+});

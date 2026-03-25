@@ -322,6 +322,42 @@ export interface DataSource<T = any> {
    * @returns Promise resolving to aggregated results
    */
   aggregate?(resource: string, params: AggregateParams): Promise<AggregateResult[]>;
+
+  /**
+   * Subscribe to mutation events.
+   * When implemented, data-bound views (ListView, ObjectView) can auto-refresh
+   * after any create/update/delete operation on relevant resources.
+   *
+   * @param callback - Invoked after each successful mutation
+   * @returns Unsubscribe function to remove the listener
+   *
+   * @example
+   * ```typescript
+   * const unsub = dataSource.onMutation?.((event) => {
+   *   if (event.resource === 'contacts') {
+   *     refreshList();
+   *   }
+   * });
+   * // later…
+   * unsub?.();
+   * ```
+   */
+  onMutation?(callback: (event: MutationEvent<T>) => void): () => void;
+}
+
+/**
+ * Describes a mutation that occurred on a DataSource.
+ * Emitted by `DataSource.onMutation` subscribers after create/update/delete.
+ */
+export interface MutationEvent<T = any> {
+  /** The type of mutation that occurred */
+  type: 'create' | 'update' | 'delete';
+  /** The resource (object) name that was mutated */
+  resource: string;
+  /** The affected record (present for create/update) */
+  record?: T;
+  /** The ID of the affected record (present for update/delete) */
+  id?: string | number;
 }
 
 /**

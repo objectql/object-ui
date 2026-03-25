@@ -268,6 +268,7 @@ export type {
   FileUploadResult,
   AggregateParams,
   AggregateResult,
+  MutationEvent,
 } from './data';
 
 // ============================================================================
