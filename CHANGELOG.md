@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Chinese language pack (zh.ts) untranslated key** (`@object-ui/i18n`): Fixed `console.objectView.toolbarEnabledCount` which was still in English (`'{{count}} of {{total}} enabled'`) — now properly translated to `'已启用 {{count}}/{{total}} 项'`. Also fixed the same untranslated key in all other 8 non-English locales (ja, ko, de, fr, es, pt, ru, ar).
+
+- **Hardcoded English strings in platform UI** (`apps/console`, `@object-ui/fields`, `@object-ui/react`, `@object-ui/components`): Replaced hardcoded English strings with i18n `t()` calls:
+  - Console `App.tsx`: Modal dialog title (`"Create/Edit Contact"`), description (`"Add a new ... to your database."`), submitText (`"Save Record"`), and cancelText (`"Cancel"`) now use i18n keys.
+  - `SelectField`: Default placeholder `"Select an option"` now uses `t('common.selectOption')`.
+  - `LookupField`: Default placeholder `"Select..."` and search placeholder `"Search..."` now use i18n keys.
+  - `FieldFactory`: Default select option placeholder now uses `t('common.selectOption')`.
+  - Form renderer: Default select placeholder now uses `t('common.selectOption')`.
+
+### Added
+
+- **New i18n keys for select/form components** (`@object-ui/i18n`): Added new translation keys across all 10 locale packs:
+  - `common.selectOption` — Default select field placeholder (e.g., '请选择' in Chinese)
+  - `common.select` — Short select placeholder (e.g., '选择...' in Chinese)
+  - `form.createTitle` — Form dialog create title with interpolation (e.g., '新建{{object}}' in Chinese)
+  - `form.editTitle` — Form dialog edit title with interpolation
+  - `form.createDescription` — Form dialog create description with interpolation
+  - `form.editDescription` — Form dialog edit description with interpolation
+  - `form.saveRecord` — Save record button text
+
+- **Safe translation hook for field widgets** (`@object-ui/fields`): Added `useFieldTranslation` hook that provides fallback to English defaults when no `I18nProvider` is available, following the same pattern as `useDetailTranslation` in `@object-ui/plugin-detail`.
+
+### Fixed
+
 - **ObjectView ChatterPanel test assertion mismatch** (`apps/console`): Fixed the failing CI test in `ObjectView.test.tsx` where the RecordChatterPanel drawer test used `getByLabelText('Show discussion')` but the actual aria-label rendered by the component is `'Show Discussion (0)'` (from the i18n default translation `detail.showDiscussion` with count parameter). Updated the test assertion to match the correct aria-label.
 
 ### Changed

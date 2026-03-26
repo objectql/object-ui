@@ -28,34 +28,12 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import React from 'react';
 import { SchemaRendererContext } from '@object-ui/react';
-import { useObjectTranslation } from '@object-ui/i18n';
+import { createSafeTranslation } from '@object-ui/i18n';
 
-/**
- * Safe translation helper that falls back to English defaults when
- * no I18nProvider is available.
- */
-function useSafeFormTranslation() {
-  try {
-    const result = useObjectTranslation();
-    const testValue = result.t('common.selectOption');
-    if (testValue === 'common.selectOption') {
-      return { t: (key: string) => {
-        const defaults: Record<string, string> = {
-          'common.selectOption': 'Select an option',
-        };
-        return defaults[key] || key;
-      }};
-    }
-    return { t: result.t };
-  } catch {
-    return { t: (key: string) => {
-      const defaults: Record<string, string> = {
-        'common.selectOption': 'Select an option',
-      };
-      return defaults[key] || key;
-    }};
-  }
-}
+const useSafeFormTranslation = createSafeTranslation(
+  { 'common.selectOption': 'Select an option' },
+  'common.selectOption',
+);
 
 // Form renderer component - Airtable-style feature-complete form
 ComponentRegistry.register('form',
@@ -543,7 +521,7 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       return (
         <Select value={selectValue} onValueChange={selectOnChange} {...selectProps}>
           <SelectTrigger className="min-h-[44px] sm:min-h-0">
-            <SelectValue placeholder={placeholder} />
+            <SelectValue placeholder={placeholder || 'Select an option'} />
           </SelectTrigger>
           <SelectContent>
             {options.map((opt: SelectOption) => (

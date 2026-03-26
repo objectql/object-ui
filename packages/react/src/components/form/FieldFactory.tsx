@@ -10,34 +10,12 @@ import React from 'react';
 import { UseFormReturn } from 'react-hook-form';
 import type { FormField } from '@objectstack/spec/ui';
 import { resolveI18nLabel } from '../../utils/i18n';
-import { useObjectTranslation } from '@object-ui/i18n';
+import { createSafeTranslation } from '@object-ui/i18n';
 
-/**
- * Safe translation helper that falls back to English defaults when
- * no I18nProvider is available.
- */
-function useSafeTranslation() {
-  try {
-    const result = useObjectTranslation();
-    const testValue = result.t('common.selectOption');
-    if (testValue === 'common.selectOption') {
-      return { t: (key: string) => {
-        const defaults: Record<string, string> = {
-          'common.selectOption': 'Select an option',
-        };
-        return defaults[key] || key;
-      }};
-    }
-    return { t: result.t };
-  } catch {
-    return { t: (key: string) => {
-      const defaults: Record<string, string> = {
-        'common.selectOption': 'Select an option',
-      };
-      return defaults[key] || key;
-    }};
-  }
-}
+const useSafeTranslation = createSafeTranslation(
+  { 'common.selectOption': 'Select an option' },
+  'common.selectOption',
+);
 
 /**
  * Extended form field with additional properties for complex widgets
