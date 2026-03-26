@@ -918,7 +918,7 @@ describe('ObjectView Component', () => {
 
         // The drawer should render a "Show Discussion" button (ChatterPanel is defaultCollapsed)
         await vi.waitFor(() => {
-            const showBtn = screen.getByLabelText('Show discussion');
+            const showBtn = screen.getByLabelText('Show Discussion (0)');
             expect(showBtn).toBeInTheDocument();
             // Verify items count shows (0) since items are initially empty
             expect(showBtn).toHaveTextContent('Show Discussion (0)');
