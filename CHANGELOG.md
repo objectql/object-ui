@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **ObjectView ChatterPanel test assertion mismatch** (`apps/console`): Fixed the failing CI test in `ObjectView.test.tsx` where the RecordChatterPanel drawer test used `getByLabelText('Show discussion')` but the actual aria-label rendered by the component is `'Show Discussion (0)'` (from the i18n default translation `detail.showDiscussion` with count parameter). Updated the test assertion to match the correct aria-label.
+
 ### Changed
 
 - **Upgrade @objectstack packages from v3.2.9 to v3.3.0**: Upgraded all `@objectstack/*` dependencies across the entire monorepo (root, `apps/console`, `examples/crm`, `examples/todo`, `examples/msw-todo`, `examples/kitchen-sink`, `packages/core`, `packages/types`, `packages/react`, `packages/data-objectstack`, `packages/plugin-map`, `packages/plugin-gantt`, `packages/plugin-timeline`) from `^3.2.9` to `^3.3.0`. All 42 build tasks pass and all 7,224 tests pass with no breaking changes.
