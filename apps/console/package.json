@@ -83,7 +83,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/ui": "^4.1.0",
     "autoprefixer": "^10.4.27",
-    "happy-dom": "^20.8.8",
+    "happy-dom": "^20.8.9",
     "lucide-react": "^0.577.0",
     "msw": "^2.12.14",
     "postcss": "^8.5.8",
