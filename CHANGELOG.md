@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **System settings pages refactored to ObjectView** (`apps/console`): All five system management pages (Users, Organizations, Roles, Permissions, Audit Log) now use the metadata-driven `ObjectView` from `@object-ui/plugin-view` instead of hand-written HTML tables. Each page's UI is driven by the object definitions in `systemObjects.ts`, providing automatic search, sort, filter, and CRUD capabilities. A shared `SystemObjectViewPage` component eliminates code duplication across all system pages.
+
 ### Fixed
 
 - **Chinese language pack (zh.ts) untranslated key** (`@object-ui/i18n`): Fixed `console.objectView.toolbarEnabledCount` which was still in English (`'{{count}} of {{total}} enabled'`) — now properly translated to `'已启用 {{count}}/{{total}} 项'`. Also fixed the same untranslated key in all other 8 non-English locales (ja, ko, de, fr, es, pt, ru, ar).

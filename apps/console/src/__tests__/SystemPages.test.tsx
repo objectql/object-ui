@@ -1,8 +1,9 @@
 /**
  * System Admin Pages Integration Tests
  *
- * Tests that system pages (User, Org, Role, AuditLog) fetch data
- * via useAdapter() and render records from the API.
+ * Tests that system pages render the correct page header and delegate
+ * data rendering to the ObjectView component from @object-ui/plugin-view,
+ * configured with the appropriate object metadata from systemObjects.ts.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -10,19 +11,38 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
 
+// --- Capture ObjectView props for assertion ---
+let lastObjectViewProps: any = null;
+
+vi.mock('@object-ui/plugin-view', () => ({
+  ObjectView: (props: any) => {
+    lastObjectViewProps = props;
+    return (
+      <div
+        data-testid="plugin-object-view"
+        data-objectname={props.schema?.objectName}
+        data-operations={JSON.stringify(props.schema?.operations)}
+      />
+    );
+  },
+}));
+
 // --- Shared mock adapter ---
 const mockFind = vi.fn().mockResolvedValue({ data: [], total: 0 });
 const mockCreate = vi.fn().mockResolvedValue({ id: 'new-1' });
 const mockDelete = vi.fn().mockResolvedValue({});
 
+const mockAdapter = {
+  find: mockFind,
+  create: mockCreate,
+  delete: mockDelete,
+  update: vi.fn(),
+  findOne: vi.fn(),
+  getObjectSchema: vi.fn().mockResolvedValue({ name: 'test', fields: {} }),
+};
+
 vi.mock('../context/AdapterProvider', () => ({
-  useAdapter: () => ({
-    find: mockFind,
-    create: mockCreate,
-    delete: mockDelete,
-    update: vi.fn(),
-    findOne: vi.fn(),
-  }),
+  useAdapter: () => mockAdapter,
 }));
 
 vi.mock('@object-ui/auth', () => ({
@@ -75,110 +95,88 @@ function wrap(ui: React.ReactElement) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  lastObjectViewProps = null;
 });
 
 describe('UserManagementPage', () => {
-  it('should call dataSource.find("sys_user") on mount', async () => {
-    mockFind.mockResolvedValueOnce({
-      data: [{ id: '1', name: 'Alice', email: 'alice@test.com', role: 'admin', status: 'active', lastLoginAt: '' }],
-    });
+  it('should render ObjectView with sys_user object and page header', () => {
     wrap(<UserManagementPage />);
-    await waitFor(() => {
-      expect(mockFind).toHaveBeenCalledWith('sys_user');
-    });
-    await waitFor(() => {
-      expect(screen.getByText('Alice')).toBeInTheDocument();
-    });
+    expect(screen.getByText('User Management')).toBeInTheDocument();
+    expect(screen.getByText('Manage system users and their roles')).toBeInTheDocument();
+    expect(screen.getByTestId('plugin-object-view')).toBeInTheDocument();
+    expect(screen.getByTestId('plugin-object-view').dataset.objectname).toBe('sys_user');
   });
 
-  it('should show empty state when no users', async () => {
-    mockFind.mockResolvedValueOnce({ data: [] });
+  it('should pass the adapter as dataSource to ObjectView', () => {
     wrap(<UserManagementPage />);
-    await waitFor(() => {
-      expect(screen.getByText('No users found.')).toBeInTheDocument();
-    });
+    expect(lastObjectViewProps.dataSource).toBe(mockAdapter);
   });
 
-  it('should call create when Add User is clicked', async () => {
-    mockFind.mockResolvedValue({ data: [] });
-    mockCreate.mockResolvedValueOnce({ id: 'new-user' });
+  it('should enable CRUD operations for admin users', () => {
     wrap(<UserManagementPage />);
-    await waitFor(() => {
-      expect(screen.getByText('No users found.')).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText('Add User'));
-    await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalledWith('sys_user', expect.objectContaining({ name: 'New User' }));
-    });
+    const ops = lastObjectViewProps.schema.operations;
+    expect(ops).toEqual({ create: true, update: true, delete: true });
+  });
+
+  it('should configure table columns from systemObjects metadata', () => {
+    wrap(<UserManagementPage />);
+    expect(lastObjectViewProps.schema.table.columns).toEqual(
+      ['name', 'email', 'role', 'status', 'lastLoginAt']
+    );
   });
 });
 
 describe('OrgManagementPage', () => {
-  it('should call dataSource.find("sys_org") on mount', async () => {
-    mockFind.mockResolvedValueOnce({
-      data: [{ id: '1', name: 'Acme', slug: 'acme', plan: 'pro', status: 'active', memberCount: 5 }],
-    });
+  it('should render ObjectView with sys_org object and page header', () => {
     wrap(<OrgManagementPage />);
-    await waitFor(() => {
-      expect(mockFind).toHaveBeenCalledWith('sys_org');
-    });
-    await waitFor(() => {
-      expect(screen.getByText('Acme')).toBeInTheDocument();
-    });
+    expect(screen.getByText('Organization Management')).toBeInTheDocument();
+    expect(screen.getByText('Manage organizations and their members')).toBeInTheDocument();
+    expect(screen.getByTestId('plugin-object-view').dataset.objectname).toBe('sys_org');
   });
 
-  it('should show empty state when no organizations', async () => {
-    mockFind.mockResolvedValueOnce({ data: [] });
+  it('should configure table columns from systemObjects metadata', () => {
     wrap(<OrgManagementPage />);
-    await waitFor(() => {
-      expect(screen.getByText('No organizations found.')).toBeInTheDocument();
-    });
+    expect(lastObjectViewProps.schema.table.columns).toEqual(
+      ['name', 'slug', 'plan', 'status', 'memberCount']
+    );
   });
 });
 
 describe('RoleManagementPage', () => {
-  it('should call dataSource.find("sys_role") on mount', async () => {
-    mockFind.mockResolvedValueOnce({
-      data: [{ id: '1', name: 'Admin', description: 'Full access', isSystem: true, userCount: 3 }],
-    });
+  it('should render ObjectView with sys_role object and page header', () => {
     wrap(<RoleManagementPage />);
-    await waitFor(() => {
-      expect(mockFind).toHaveBeenCalledWith('sys_role');
-    });
-    await waitFor(() => {
-      expect(screen.getByText('Admin')).toBeInTheDocument();
-    });
+    expect(screen.getByText('Role Management')).toBeInTheDocument();
+    expect(screen.getByText('Define roles and assign permissions')).toBeInTheDocument();
+    expect(screen.getByTestId('plugin-object-view').dataset.objectname).toBe('sys_role');
   });
 
-  it('should show empty state when no roles', async () => {
-    mockFind.mockResolvedValueOnce({ data: [] });
+  it('should configure table columns from systemObjects metadata', () => {
     wrap(<RoleManagementPage />);
-    await waitFor(() => {
-      expect(screen.getByText('No roles found.')).toBeInTheDocument();
-    });
+    expect(lastObjectViewProps.schema.table.columns).toEqual(
+      ['name', 'description', 'isSystem', 'userCount']
+    );
   });
 });
 
 describe('AuditLogPage', () => {
-  it('should call dataSource.find("sys_audit_log") on mount', async () => {
-    mockFind.mockResolvedValueOnce({
-      data: [{ id: '1', action: 'create', resource: 'user', userName: 'Admin', ipAddress: '127.0.0.1', createdAt: '2026-01-01' }],
-    });
+  it('should render ObjectView with sys_audit_log object and page header', () => {
     wrap(<AuditLogPage />);
-    await waitFor(() => {
-      expect(mockFind).toHaveBeenCalledWith('sys_audit_log', expect.objectContaining({ $orderby: { createdAt: 'desc' } }));
-    });
-    await waitFor(() => {
-      expect(screen.getByText('create')).toBeInTheDocument();
-    });
+    expect(screen.getByText('Audit Log')).toBeInTheDocument();
+    expect(screen.getByText('View system activity and user actions')).toBeInTheDocument();
+    expect(screen.getByTestId('plugin-object-view').dataset.objectname).toBe('sys_audit_log');
   });
 
-  it('should show empty state when no logs', async () => {
-    mockFind.mockResolvedValueOnce({ data: [] });
+  it('should disable all mutation operations (read-only)', () => {
     wrap(<AuditLogPage />);
-    await waitFor(() => {
-      expect(screen.getByText('No audit logs found.')).toBeInTheDocument();
-    });
+    const ops = lastObjectViewProps.schema.operations;
+    expect(ops).toEqual({ create: false, update: false, delete: false });
+  });
+
+  it('should configure table columns from systemObjects metadata', () => {
+    wrap(<AuditLogPage />);
+    expect(lastObjectViewProps.schema.table.columns).toEqual(
+      ['action', 'resource', 'userName', 'ipAddress', 'createdAt']
+    );
   });
 });
 
@@ -250,56 +248,29 @@ describe('AppManagementPage', () => {
 });
 
 describe('PermissionManagementPage', () => {
-  it('should call dataSource.find("sys_permission") on mount', async () => {
-    mockFind.mockResolvedValueOnce({
-      data: [{ id: '1', name: 'manage_users', resource: 'user', action: 'manage', description: 'Full user access' }],
-    });
+  it('should render ObjectView with sys_permission object and page header', () => {
     wrap(<PermissionManagementPage />);
-    await waitFor(() => {
-      expect(mockFind).toHaveBeenCalledWith('sys_permission');
-    });
-    await waitFor(() => {
-      expect(screen.getByText('manage_users')).toBeInTheDocument();
-    });
+    expect(screen.getByText('Permissions')).toBeInTheDocument();
+    expect(screen.getByText('Manage permission rules and assignments')).toBeInTheDocument();
+    expect(screen.getByTestId('plugin-object-view').dataset.objectname).toBe('sys_permission');
   });
 
-  it('should show empty state when no permissions', async () => {
-    mockFind.mockResolvedValueOnce({ data: [] });
+  it('should enable CRUD operations for admin users', () => {
     wrap(<PermissionManagementPage />);
-    await waitFor(() => {
-      expect(screen.getByText('No permissions found.')).toBeInTheDocument();
-    });
+    const ops = lastObjectViewProps.schema.operations;
+    expect(ops).toEqual({ create: true, update: true, delete: true });
   });
 
-  it('should call create when Add Permission is clicked', async () => {
-    mockFind.mockResolvedValue({ data: [] });
-    mockCreate.mockResolvedValueOnce({ id: 'new-perm' });
+  it('should configure table columns from systemObjects metadata', () => {
     wrap(<PermissionManagementPage />);
-    await waitFor(() => {
-      expect(screen.getByText('No permissions found.')).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText('Add Permission'));
-    await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalledWith('sys_permission', expect.objectContaining({ name: 'New Permission' }));
-    });
+    expect(lastObjectViewProps.schema.table.columns).toEqual(
+      ['name', 'resource', 'action', 'description']
+    );
   });
 
-  it('should filter permissions by search query', async () => {
-    mockFind.mockResolvedValue({
-      data: [
-        { id: '1', name: 'manage_users', resource: 'user', action: 'manage', description: '' },
-        { id: '2', name: 'read_reports', resource: 'report', action: 'read', description: '' },
-      ],
-    });
+  it('should enable search and filters', () => {
     wrap(<PermissionManagementPage />);
-    await waitFor(() => {
-      expect(screen.getByText('manage_users')).toBeInTheDocument();
-      expect(screen.getByText('read_reports')).toBeInTheDocument();
-    });
-    fireEvent.change(screen.getByTestId('permission-search-input'), { target: { value: 'report' } });
-    await waitFor(() => {
-      expect(screen.queryByText('manage_users')).not.toBeInTheDocument();
-      expect(screen.getByText('read_reports')).toBeInTheDocument();
-    });
+    expect(lastObjectViewProps.schema.showSearch).toBe(true);
+    expect(lastObjectViewProps.schema.showFilters).toBe(true);
   });
 });
