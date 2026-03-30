@@ -17,16 +17,62 @@ import type { ObjectDefinition, DesignerFieldDefinition } from '@object-ui/types
 import { toast } from 'sonner';
 import { useMetadata } from '../../context/MetadataProvider';
 
+/** Loose shape of a metadata object definition from the ObjectStack API. */
+interface MetadataObject {
+  name?: string;
+  label?: string | { defaultValue?: string; key?: string };
+  pluralLabel?: string;
+  plural_label?: string;
+  description?: string | { defaultValue?: string };
+  icon?: string;
+  enabled?: boolean;
+  fields?: MetadataField[] | Record<string, MetadataField>;
+  relationships?: Array<{
+    object?: string;
+    relatedObject?: string;
+    type?: string;
+    label?: string;
+    name?: string;
+    foreign_key?: string;
+    foreignKey?: string;
+  }>;
+}
+
+/** Loose shape of a metadata field definition from the ObjectStack API. */
+interface MetadataField {
+  name?: string;
+  label?: string | { defaultValue?: string; key?: string };
+  type?: string;
+  group?: string;
+  description?: string;
+  help?: string;
+  required?: boolean;
+  unique?: boolean;
+  readonly?: boolean;
+  hidden?: boolean;
+  defaultValue?: string;
+  default_value?: string;
+  placeholder?: string;
+  options?: Array<string | { label?: string; value: string; color?: string }>;
+  externalId?: boolean;
+  trackHistory?: boolean;
+  track_history?: boolean;
+  indexed?: boolean;
+  reference_to?: string;
+  referenceTo?: string;
+  formula?: string;
+}
+
 /**
  * Convert a metadata object definition (from the API/spec) to the ObjectDefinition
  * type used by the ObjectManager component.
  */
-function toObjectDefinition(obj: any, index: number): ObjectDefinition {
+function toObjectDefinition(obj: MetadataObject, index: number): ObjectDefinition {
   const fields = Array.isArray(obj.fields) ? obj.fields : Object.values(obj.fields || {});
   return {
     id: obj.name || `obj_${index}`,
     name: obj.name || '',
-    label: typeof obj.label === 'object' ? obj.label.defaultValue || obj.label.key : (obj.label || obj.name || ''),
+    label: typeof obj.label === 'object' ? obj.label.defaultValue || obj.label.key || '' : (obj.label || obj.name || ''),
     pluralLabel: obj.pluralLabel || obj.plural_label || undefined,
     description: typeof obj.description === 'object' ? obj.description.defaultValue : (obj.description || undefined),
     icon: obj.icon || undefined,
@@ -50,11 +96,11 @@ function toObjectDefinition(obj: any, index: number): ObjectDefinition {
  * Convert a metadata field definition to the DesignerFieldDefinition
  * type used by the FieldDesigner component.
  */
-function toFieldDefinition(field: any, index: number): DesignerFieldDefinition {
+function toFieldDefinition(field: MetadataField, index: number): DesignerFieldDefinition {
   return {
     id: field.name || `fld_${index}`,
     name: field.name || '',
-    label: typeof field.label === 'object' ? field.label.defaultValue || field.label.key : (field.label || field.name || ''),
+    label: typeof field.label === 'object' ? field.label.defaultValue || field.label.key || '' : (field.label || field.name || ''),
     type: field.type || 'text',
     group: field.group || undefined,
     sortOrder: index,
@@ -66,7 +112,7 @@ function toFieldDefinition(field: any, index: number): DesignerFieldDefinition {
     defaultValue: field.defaultValue || field.default_value || undefined,
     placeholder: field.placeholder || undefined,
     options: Array.isArray(field.options)
-      ? field.options.map((opt: any) =>
+      ? field.options.map((opt) =>
           typeof opt === 'string'
             ? { label: opt, value: opt }
             : { label: opt.label || opt.value, value: opt.value, color: opt.color }
@@ -103,7 +149,7 @@ export function ObjectManagerPage() {
   // Get fields for the selected object from metadata
   const selectedObjectFields = useMemo<DesignerFieldDefinition[]>(() => {
     if (!selectedObject) return [];
-    const metaObj = (metadataObjects || []).find((o: any) => o.name === selectedObject.name);
+    const metaObj = (metadataObjects || []).find((o: MetadataObject) => o.name === selectedObject.name);
     if (!metaObj) return [];
     const rawFields = Array.isArray(metaObj.fields) ? metaObj.fields : Object.values(metaObj.fields || {});
     return rawFields.map(toFieldDefinition);
