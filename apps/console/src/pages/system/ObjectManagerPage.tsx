@@ -216,7 +216,7 @@ function ObjectDetailView({ object, metadataObject, onBack }: ObjectDetailViewPr
           </div>
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">Fields</span>
-            <Badge variant="outline">{object.fieldCount ?? displayFields.length}</Badge>
+            <Badge variant="outline">{object.fieldCount ?? fields.length}</Badge>
           </div>
           {object.isSystem && (
             <div>
