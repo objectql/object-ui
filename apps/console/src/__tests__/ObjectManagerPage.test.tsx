@@ -109,26 +109,17 @@ describe('ObjectManagerPage', () => {
     it('should show FieldDesigner when an object row is clicked', async () => {
       renderPage();
 
-      // The ObjectGrid renders asynchronously - wait for it and find a clickable row
+      // ObjectGrid renders data asynchronously via ValueDataSource.
+      // Once loaded, primary field values become clickable links (data-testid="primary-field-link").
       await waitFor(() => {
-        // Look for a row-click button rendered by ObjectGrid
-        const selectBtn = screen.queryByTestId('grid-row-click-account');
-        if (selectBtn) {
-          fireEvent.click(selectBtn);
-        } else {
-          // ObjectGrid renders table rows - clicking "Accounts" text triggers onRowClick
-          const accountText = screen.getAllByText('Accounts');
-          const clickable = accountText.find(
-            (el) => el.tagName === 'BUTTON' || el.closest('button') || el.closest('tr')
-          );
-          if (clickable) {
-            fireEvent.click(clickable.closest('button') || clickable.closest('tr') || clickable);
-          }
+        const links = screen.queryAllByTestId('primary-field-link');
+        if (links.length > 0) {
+          // Click the first object's primary field link
+          fireEvent.click(links[0]);
         }
       });
 
-      // Either FieldDesigner shows or we're still on the object list
-      // The integration depends on the actual ObjectGrid rendering
+      // Either FieldDesigner shows (if primary-field-link was found) or ObjectManager remains
       const fieldDesigner = screen.queryByTestId('field-designer');
       const objectManager = screen.queryByTestId('object-manager');
       expect(fieldDesigner || objectManager).toBeDefined();
@@ -137,15 +128,14 @@ describe('ObjectManagerPage', () => {
     it('should show back button when a field designer is active', async () => {
       renderPage();
 
-      // Try to select an object via ObjectGrid's row click
       await waitFor(() => {
-        const selectBtn = screen.queryByTestId('grid-row-click-account');
-        if (selectBtn) {
-          fireEvent.click(selectBtn);
+        const links = screen.queryAllByTestId('primary-field-link');
+        if (links.length > 0) {
+          fireEvent.click(links[0]);
         }
       });
 
-      // If the field designer is shown, back button should be present
+      // If field designer is active, back button should be present
       const backBtn = screen.queryByTestId('back-to-objects');
       const fieldDesigner = screen.queryByTestId('field-designer');
       if (fieldDesigner) {
@@ -156,11 +146,10 @@ describe('ObjectManagerPage', () => {
     it('should return to object list when back button is clicked', async () => {
       renderPage();
 
-      // Try to select an object
       await waitFor(() => {
-        const selectBtn = screen.queryByTestId('grid-row-click-account');
-        if (selectBtn) {
-          fireEvent.click(selectBtn);
+        const links = screen.queryAllByTestId('primary-field-link');
+        if (links.length > 0) {
+          fireEvent.click(links[0]);
         }
       });
 
