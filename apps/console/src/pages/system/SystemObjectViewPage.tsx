@@ -40,8 +40,18 @@ export function SystemObjectViewPage({
 }: SystemObjectViewPageProps) {
   const dataSource = useAdapter();
   const objDef = systemObjects.find((o) => o.name === objectName);
-  const viewDef = objDef?.views?.[0];
 
+  if (!objDef) {
+    return (
+      <div className="flex flex-col gap-4 sm:gap-6 p-4 sm:p-6" data-testid={`system-page-${objectName}`}>
+        <p className="text-sm text-destructive">
+          System object &quot;{objectName}&quot; not found in metadata definitions.
+        </p>
+      </div>
+    );
+  }
+
+  const viewDef = objDef.views?.[0];
   const canMutate = !readOnly && isAdmin;
 
   const schema: ObjectViewSchema = {
