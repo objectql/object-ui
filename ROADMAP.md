@@ -757,6 +757,17 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Search/filter permissions
 - [x] Admin-only create/delete controls
 
+**ObjectView-Driven System Pages (P1.12.2):**
+- [x] Shared `SystemObjectViewPage` component using `ObjectView` from `@object-ui/plugin-view`
+- [x] User Management (`/system/users`) driven by `sys_user` metadata via ObjectView
+- [x] Organization Management (`/system/organizations`) driven by `sys_org` metadata via ObjectView
+- [x] Role Management (`/system/roles`) driven by `sys_role` metadata via ObjectView
+- [x] Permission Management (`/system/permissions`) driven by `sys_permission` metadata via ObjectView
+- [x] Audit Log (`/system/audit-log`) driven by `sys_audit_log` metadata via ObjectView (read-only)
+- [x] Admin-only CRUD operations controlled via ObjectView `operations` config
+- [x] Automatic search, sort, filter, pagination from ObjectView capabilities
+- [x] 22 system page tests passing
+
 **Sidebar & Navigation Updates:**
 - [x] Settings button → `/system/` hub (was `/system/profile`)
 - [x] App switcher "Manage All Apps" link → `/system/apps`

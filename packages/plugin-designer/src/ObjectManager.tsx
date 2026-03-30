@@ -104,11 +104,11 @@ export function ObjectManager({
 
   // Grid schema
   const gridColumns: ListColumn[] = useMemo(() => [
-    { name: 'name', label: t('appDesigner.objectManager.objectName'), width: 160 },
-    { name: 'label', label: t('appDesigner.objectManager.objectLabel'), width: 160 },
-    { name: 'group', label: t('appDesigner.objectManager.group'), width: 130 },
-    { name: 'fieldCount', label: 'Fields', width: 80 },
-    { name: 'enabled', label: t('appDesigner.objectManager.enabled'), width: 80 },
+    { field: 'name', label: t('appDesigner.objectManager.objectName'), width: 160 },
+    { field: 'label', label: t('appDesigner.objectManager.objectLabel'), width: 160 },
+    { field: 'group', label: t('appDesigner.objectManager.group'), width: 130 },
+    { field: 'fieldCount', label: 'Fields', width: 80 },
+    { field: 'enabled', label: t('appDesigner.objectManager.enabled'), width: 80 },
   ], [t]);
 
   const gridSchema = useMemo<ObjectGridSchema>(() => ({

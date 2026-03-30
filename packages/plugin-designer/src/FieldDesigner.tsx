@@ -548,12 +548,12 @@ export function FieldDesigner({
 
   // Grid schema
   const gridColumns: ListColumn[] = useMemo(() => [
-    { name: 'name', label: t('appDesigner.fieldDesigner.fieldName'), width: 140 },
-    { name: 'label', label: t('appDesigner.fieldDesigner.fieldLabel'), width: 160 },
-    { name: 'type', label: t('appDesigner.fieldDesigner.fieldType'), width: 100 },
-    { name: 'required', label: t('appDesigner.fieldDesigner.required'), width: 80 },
-    { name: 'unique', label: t('appDesigner.fieldDesigner.unique'), width: 80 },
-    { name: 'group', label: t('appDesigner.fieldDesigner.fieldGroup'), width: 120 },
+    { field: 'name', label: t('appDesigner.fieldDesigner.fieldName'), width: 140 },
+    { field: 'label', label: t('appDesigner.fieldDesigner.fieldLabel'), width: 160 },
+    { field: 'type', label: t('appDesigner.fieldDesigner.fieldType'), width: 100 },
+    { field: 'required', label: t('appDesigner.fieldDesigner.required'), width: 80 },
+    { field: 'unique', label: t('appDesigner.fieldDesigner.unique'), width: 80 },
+    { field: 'group', label: t('appDesigner.fieldDesigner.fieldGroup'), width: 120 },
   ], [t]);
 
   const gridSchema = useMemo<ObjectGridSchema>(() => ({

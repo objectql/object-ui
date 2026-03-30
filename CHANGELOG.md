@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Console integration** (`@object-ui/console`): Object Manager and Field Designer are now accessible in the console application at `/system/objects`. Added ObjectManagerPage to system admin routes, SystemHubPage card, and sidebar navigation. Selecting an object drills into its FieldDesigner for field configuration. 7 unit tests.
 
+### Changed
+
+- **System settings pages refactored to ObjectView** (`apps/console`): All five system management pages (Users, Organizations, Roles, Permissions, Audit Log) now use the metadata-driven `ObjectView` from `@object-ui/plugin-view` instead of hand-written HTML tables. Each page's UI is driven by the object definitions in `systemObjects.ts`, providing automatic search, sort, filter, and CRUD capabilities. A shared `SystemObjectViewPage` component eliminates code duplication across all system pages.
+
 ### Fixed
 
 - **Plugin designer test infrastructure** (`@object-ui/plugin-designer`): Created missing `vitest.setup.ts` with ResizeObserver polyfill and jest-dom matchers. Added `@object-ui/i18n` alias to vite config. These fixes resolved 9 pre-existing test suite failures, bringing total passing tests from 45 to 246.
