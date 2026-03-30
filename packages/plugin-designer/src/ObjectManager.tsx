@@ -120,13 +120,15 @@ export function ObjectManager({
   }), [gridColumns]);
 
   // Handlers
+  // Note: ObjectGrid applies $select using column fields, which strips `id`.
+  // Use `name` (always in columns) as the lookup key instead of `id`.
   const handleRowClick = useCallback((record: Record<string, unknown>) => {
-    const obj = objects.find((o) => o.id === record.id);
+    const obj = objects.find((o) => o.name === record.name);
     if (obj) onSelectObject?.(obj);
   }, [objects, onSelectObject]);
 
   const handleEdit = useCallback((record: Record<string, unknown>) => {
-    const obj = objects.find((o) => o.id === record.id);
+    const obj = objects.find((o) => o.name === record.name);
     if (obj) {
       setEditingObject(obj);
       setFormOpen(true);
@@ -134,7 +136,7 @@ export function ObjectManager({
   }, [objects]);
 
   const handleDelete = useCallback(async (record: Record<string, unknown>) => {
-    const obj = objects.find((o) => o.id === record.id);
+    const obj = objects.find((o) => o.name === record.name);
     if (!obj || obj.isSystem) return;
     const confirmed = await confirmDialog.confirm(
       t('appDesigner.objectManager.deleteConfirmTitle'),

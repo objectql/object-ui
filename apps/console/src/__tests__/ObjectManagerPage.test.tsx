@@ -155,18 +155,21 @@ describe('ObjectManagerPage', () => {
     it('should navigate to detail when primary field link is clicked', async () => {
       renderPage();
 
-      // ObjectGrid renders data asynchronously. Primary field links are auto-generated.
+      // ObjectGrid renders data asynchronously via ValueDataSource.
+      // Wait for primary-field-link buttons to appear.
       await waitFor(() => {
         const links = screen.queryAllByTestId('primary-field-link');
-        if (links.length > 0) {
-          fireEvent.click(links[0]);
-        }
-      });
+        expect(links.length).toBeGreaterThan(0);
+      }, { timeout: 5000 });
 
-      // Either detail view shows (if link was found) or list remains
-      const detailView = screen.queryByTestId('object-detail-view');
-      const objectManager = screen.queryByTestId('object-manager');
-      expect(detailView || objectManager).toBeDefined();
+      // Click the first primary field link (should be 'account')
+      const links = screen.getAllByTestId('primary-field-link');
+      fireEvent.click(links[0]);
+
+      // Should navigate to the object detail view
+      await waitFor(() => {
+        expect(screen.getByTestId('object-detail-view')).toBeDefined();
+      });
     });
   });
 });

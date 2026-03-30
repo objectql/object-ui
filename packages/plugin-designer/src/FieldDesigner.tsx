@@ -565,13 +565,15 @@ export function FieldDesigner({
   }), [gridColumns]);
 
   // Handlers
+  // Note: ObjectGrid applies $select using column fields, which strips `id`.
+  // Use `name` (always in columns) as the lookup key instead of `id`.
   const handleEdit = useCallback((record: Record<string, unknown>) => {
-    const field = fields.find((f) => f.id === record.id);
+    const field = fields.find((f) => f.name === record.name);
     if (field) setEditingField(field);
   }, [fields]);
 
   const handleDelete = useCallback(async (record: Record<string, unknown>) => {
-    const field = fields.find((f) => f.id === record.id);
+    const field = fields.find((f) => f.name === record.name);
     if (!field || field.isSystem) return;
     const confirmed = await confirmDialog.confirm(
       t('appDesigner.fieldDesigner.deleteConfirmTitle'),
