@@ -11,12 +11,12 @@
   },
   "dependencies": {
     "@object-ui/example-todo": "workspace:*",
-    "@objectstack/client": "^3.3.0",
-    "@objectstack/driver-memory": "^3.3.0",
-    "@objectstack/objectql": "^3.3.0",
-    "@objectstack/plugin-msw": "^3.3.0",
-    "@objectstack/runtime": "^3.3.0",
-    "@objectstack/spec": "^3.3.0",
+    "@objectstack/client": "^3.3.1",
+    "@objectstack/driver-memory": "^3.3.1",
+    "@objectstack/objectql": "^3.3.1",
+    "@objectstack/plugin-msw": "^3.3.1",
+    "@objectstack/runtime": "^3.3.1",
+    "@objectstack/spec": "^3.3.1",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
@@ -30,7 +30,7 @@
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
-    "vite": "^8.0.1"
+    "vite": "^8.0.3"
   },
   "msw": {
     "workerDirectory": [
