@@ -19,6 +19,8 @@ import { DashboardEditor } from './DashboardEditor';
 import { PageCanvasEditor } from './PageCanvasEditor';
 import { ObjectViewConfigurator } from './ObjectViewConfigurator';
 import { BrandingEditor } from './BrandingEditor';
+import { ObjectManager } from './ObjectManager';
+import { FieldDesigner } from './FieldDesigner';
 
 export {
   PageDesigner,
@@ -34,6 +36,8 @@ export {
   PageCanvasEditor,
   ObjectViewConfigurator,
   BrandingEditor,
+  ObjectManager,
+  FieldDesigner,
 };
 
 export type { AppCreationWizardProps } from './AppCreationWizard';
@@ -43,6 +47,8 @@ export type { DashboardEditorProps } from './DashboardEditor';
 export type { PageCanvasEditorProps, CanvasComponent } from './PageCanvasEditor';
 export type { ObjectViewConfiguratorProps, ViewConfig, ViewColumn, ViewType } from './ObjectViewConfigurator';
 export type { BrandingEditorProps } from './BrandingEditor';
+export type { ObjectManagerProps } from './ObjectManager';
+export type { FieldDesignerProps } from './FieldDesigner';
 
 // Shared hooks
 export { useUndoRedo } from './hooks/useUndoRedo';
@@ -209,6 +215,36 @@ ComponentRegistry.register(
     inputs: [
       { name: 'branding', type: 'code', label: 'Branding Config' },
       { name: 'appTitle', type: 'string', label: 'App Title' },
+      { name: 'readOnly', type: 'boolean', label: 'Read Only', defaultValue: false },
+    ],
+  }
+);
+
+// Register object manager component
+ComponentRegistry.register(
+  'object-manager',
+  ObjectManager,
+  {
+    label: 'Object Manager',
+    category: 'Designer',
+    inputs: [
+      { name: 'objects', type: 'code', label: 'Object Definitions' },
+      { name: 'showSystemObjects', type: 'boolean', label: 'Show System Objects', defaultValue: true },
+      { name: 'readOnly', type: 'boolean', label: 'Read Only', defaultValue: false },
+    ],
+  }
+);
+
+// Register field designer component
+ComponentRegistry.register(
+  'field-designer',
+  FieldDesigner,
+  {
+    label: 'Field Designer',
+    category: 'Designer',
+    inputs: [
+      { name: 'objectName', type: 'string', label: 'Object Name' },
+      { name: 'fields', type: 'code', label: 'Field Definitions' },
       { name: 'readOnly', type: 'boolean', label: 'Read Only', defaultValue: false },
     ],
   }
