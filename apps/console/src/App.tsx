@@ -506,6 +506,8 @@ function SystemRoutes() {
       <Routes>
         <Route path="/" element={<SystemHubPage />} />
         <Route path="apps" element={<AppManagementPage />} />
+        <Route path="objects" element={<ObjectManagerPage />} />
+        <Route path="objects/:objectName" element={<ObjectManagerPage />} />
         <Route path="users" element={<UserManagementPage />} />
         <Route path="organizations" element={<OrgManagementPage />} />
         <Route path="roles" element={<RoleManagementPage />} />
