@@ -66,7 +66,7 @@
     "@object-ui/plugin-view": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/cli": "^3.3.0",
+    "@objectstack/cli": "^3.3.1",
     "@objectstack/client": "^3.3.1",
     "@objectstack/driver-memory": "^3.3.1",
     "@objectstack/objectql": "^3.3.1",
@@ -81,7 +81,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
-    "@vitest/ui": "^4.1.0",
+    "@vitest/ui": "^4.1.2",
     "autoprefixer": "^10.4.27",
     "happy-dom": "^20.8.9",
     "lucide-react": "^0.577.0",
@@ -89,12 +89,12 @@
     "postcss": "^8.5.8",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "react-router-dom": "^7.13.1",
+    "react-router-dom": "^7.13.2",
     "sonner": "^2.0.7",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
     "vite": "^8.0.3",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.2"
   },
   "msw": {
     "workerDirectory": [
