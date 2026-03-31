@@ -167,6 +167,9 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       }
     }
 
+    const isInputDisabled = disabled || isLoading
+    const isSendDisabled = isInputDisabled || (!inputValue.trim() && selectedFiles.length === 0)
+
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault()
@@ -386,7 +389,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                 variant="ghost"
                 size="icon"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={disabled || isLoading}
+                disabled={isInputDisabled}
                 aria-label="Attach file"
               >
                 <Paperclip className="h-4 w-4" />
@@ -400,13 +403,13 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            disabled={disabled || isLoading}
+            disabled={isInputDisabled}
             className="flex-1"
           />
           
           <Button
             onClick={handleSend}
-            disabled={disabled || isLoading || (!inputValue.trim() && selectedFiles.length === 0)}
+            disabled={isSendDisabled}
             size="icon"
             aria-label="Send message"
           >

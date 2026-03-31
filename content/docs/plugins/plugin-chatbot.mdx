@@ -300,6 +300,27 @@ System messages appear centered with muted styling:
 }
 ```
 
+### Tool Messages (AI Mode)
+
+Tool messages represent results from tool invocations during AI streaming. They are generated automatically by the vercel/ai SDK when the backend performs tool calls (e.g., fetching weather, querying a database). Tool messages are not displayed directly — their results are embedded in the assistant message's `toolInvocations` array:
+
+```tsx
+{
+  id: '4',
+  role: 'assistant',
+  content: 'The weather in SF is 68°F.',
+  toolInvocations: [
+    {
+      toolCallId: 'tc-1',
+      toolName: 'getWeather',
+      args: { city: 'San Francisco' },
+      result: { temp: 68, condition: 'Sunny' },
+      state: 'result',
+    }
+  ]
+}
+```
+
 ## Examples
 
 ### Simple AI Chat
