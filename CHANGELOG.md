@@ -15,8 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **New Storybook stories for AI chatbot** (`@object-ui/components`): Added `AIStreamingMode`, `AIWithSystemPrompt`, and `AIWithToolCalls` stories demonstrating the new AI SDUI chat modes alongside existing local/demo stories.
 
-### Added
-
 - **Object Manager visual designer** (`@object-ui/plugin-designer`): Enterprise-grade object management interface for creating, editing, deleting, and configuring meta-object definitions. Uses standard ObjectGrid for the list view and ModalForm for create/edit operations. Features include property editing (name, label, plural label, description, icon, group, sort order, enabled toggle), object relationship display, search/filter, system object protection, confirm dialogs for destructive actions, and read-only mode. 18 unit tests.
 
 - **Field Designer visual designer** (`@object-ui/plugin-designer`): Enterprise-grade field configuration wizard supporting 27 field types with full CRUD operations. Uses standard ObjectGrid for the list view with a specialized FieldEditor panel for advanced type-specific properties. Features include uniqueness constraints, default values, picklist/option set management, read-only, hidden, validation rules (min/max/length/pattern/custom), external ID, history tracking, and database indexing. Type-specific editors for lookup references, formula expressions, and select options. Field type filtering, search, system field protection, and read-only mode. 22 unit tests.

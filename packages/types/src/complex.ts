@@ -504,7 +504,8 @@ export interface ChatbotSchema extends BaseSchema {
    */
   api?: string;
   /**
-   * Conversation ID for multi-turn context. Sent as a header or body param to the backend.
+   * Conversation ID for multi-turn context.
+   * Sent to the backend as an `x-conversation-id` HTTP header.
    */
   conversationId?: string;
   /**

@@ -9,6 +9,23 @@
 import '@testing-library/jest-dom';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+
+// Mock @ai-sdk/react so the static import in useObjectChat doesn't break tests
+vi.mock('@ai-sdk/react', () => ({
+  useChat: vi.fn(() => ({
+    messages: [],
+    isLoading: false,
+    error: undefined,
+    input: '',
+    setInput: vi.fn(),
+    handleInputChange: vi.fn(),
+    append: vi.fn(),
+    stop: vi.fn(),
+    reload: vi.fn(),
+    setMessages: vi.fn(),
+  })),
+}));
+
 import { useObjectChat } from '../useObjectChat';
 
 describe('useObjectChat', () => {
@@ -294,6 +311,37 @@ describe('useObjectChat', () => {
     it('should report isApiMode as false when api is empty string', () => {
       const { result } = renderHook(() => useObjectChat({ api: '' }));
       expect(result.current.isApiMode).toBe(false);
+    });
+
+    it('should cancel pending auto-response timer when clear is called', () => {
+      const { result } = renderHook(() =>
+        useObjectChat({
+          autoResponse: true,
+          autoResponseText: 'Auto reply!',
+          autoResponseDelay: 1000,
+        })
+      );
+
+      act(() => {
+        result.current.sendMessage('Hello');
+      });
+
+      expect(result.current.messages).toHaveLength(1);
+      expect(result.current.isLoading).toBe(true);
+
+      act(() => {
+        result.current.clear();
+      });
+
+      expect(result.current.messages).toHaveLength(0);
+      expect(result.current.isLoading).toBe(false);
+
+      // Advance time - no auto-response should appear after clear
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+
+      expect(result.current.messages).toHaveLength(0);
     });
   });
 });

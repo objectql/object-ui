@@ -191,9 +191,8 @@ const schema = {
   id: string,
   role: 'user' | 'assistant' | 'system' | 'tool',
   content: string,
-  timestamp?: string,
-  avatar?: string,
-  avatarFallback?: string,
+  timestamp?: string | Date,
+  metadata?: any,
   streaming?: boolean,
   toolInvocations?: ChatToolInvocation[],
 }
@@ -302,7 +301,7 @@ System messages appear centered with muted styling:
 
 ### Tool Messages (AI Mode)
 
-Tool messages represent results from tool invocations during AI streaming. They are generated automatically by the vercel/ai SDK when the backend performs tool calls (e.g., fetching weather, querying a database). Tool messages are not displayed directly — their results are embedded in the assistant message's `toolInvocations` array:
+Tool messages represent results from tool invocations during AI streaming. They are generated automatically by the vercel/ai SDK when the backend performs tool calls (e.g., fetching weather, querying a database). The SDK may emit `role: 'tool'` messages as well as populate the assistant message's `toolInvocations` array. In the current chat UI, any non-`user` role (including `tool`) is rendered as an assistant bubble, so if you do not want raw tool messages to appear you should filter them out before rendering and instead rely on the assistant message's `toolInvocations`:
 
 ```tsx
 {

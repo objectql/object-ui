@@ -315,7 +315,7 @@ export const AIWithSystemPrompt: Story = {
 };
 
 /**
- * AI Chat with tool invocations display.
+ * AI Chat including tool invocation metadata in messages.
  */
 export const AIWithToolCalls: Story = {
   render: renderStory,
