@@ -830,7 +830,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
 
     try {
       const payload: Record<string, unknown> = {
-        object: resource,
+        cube: resource,
         measures: [{ field: params.field, function: params.function }],
         dimensions: [params.groupBy],
       };
