@@ -9,6 +9,7 @@ const config = {
     '@object-ui/core',
     '@object-ui/components',
     '@object-ui/fields',
+    '@object-ui/i18n',
     '@object-ui/layout',
     '@object-ui/react',
     '@object-ui/types',

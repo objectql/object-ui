@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Console build** (`@object-ui/console`): Added missing `@object-ui/plugin-chatbot` devDependency that caused `TS2307: Cannot find module '@object-ui/plugin-chatbot'` during build.
+- **Site SSR build** (`@object-ui/site`): Added `@object-ui/i18n` to `transpilePackages` in `next.config.mjs` to fix "dynamic usage of require is not supported" error when prerendering the tooltip docs page. The i18n package is a transitive dependency of `@object-ui/react` and its `react-i18next` dependency requires transpilation for Turbopack SSR compatibility.
+
 ### Added
 
 - **Floating Chatbot FAB Widget** (`@object-ui/plugin-chatbot`): Airtable-style floating action button (FAB) that opens a chatbot panel overlay. New components: `FloatingChatbot`, `FloatingChatbotPanel`, `FloatingChatbotTrigger`, `FloatingChatbotProvider`. Features include configurable position (bottom-right/left), fullscreen toggle, close, portal rendering to avoid z-index conflicts, and `useFloatingChatbot` hook for programmatic control. Registered as `chatbot-floating` in ComponentRegistry. 21 new unit tests.
