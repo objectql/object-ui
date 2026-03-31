@@ -18,7 +18,7 @@
     "start": "tsx server.ts"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.11",
+    "@hono/node-server": "^1.19.12",
     "@objectstack/core": "^3.3.1",
     "@objectstack/driver-memory": "^3.3.1",
     "@objectstack/objectql": "^3.3.1",
