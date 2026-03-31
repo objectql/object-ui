@@ -124,6 +124,38 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
             // Handle Shorthand Registry Mappings
             const widgetType = widget.type;
             const options = (widget.options || {}) as Record<string, any>;
+
+            // Metric widgets with object binding — delegate to ObjectMetricWidget
+            // for async data loading with proper error/loading states.
+            // Static metric options (label, value, trend, icon) are passed as
+            // fallback values that render only when no dataSource is available.
+            if (widgetType === 'metric' && widget.object) {
+                const widgetData = options.data;
+                const aggregate = isObjectProvider(widgetData) && widgetData.aggregate
+                    ? {
+                        field: widget.valueField || widgetData.aggregate.field,
+                        function: widget.aggregate || widgetData.aggregate.function,
+                        groupBy: widget.categoryField || widgetData.aggregate.groupBy,
+                    }
+                    : widget.aggregate ? {
+                        field: widget.valueField || 'value',
+                        function: widget.aggregate,
+                        groupBy: widget.categoryField || 'name',
+                    } : undefined;
+
+                return {
+                    type: 'object-metric',
+                    objectName: widget.object || (isObjectProvider(widgetData) ? widgetData.object : undefined),
+                    aggregate,
+                    filter: (isObjectProvider(widgetData) ? widgetData.filter : undefined) || widget.filter,
+                    label: options.label || resolveLabel(widget.title) || '',
+                    fallbackValue: options.value,
+                    trend: options.trend,
+                    icon: options.icon,
+                    description: options.description,
+                };
+            }
+
             if (widgetType === 'bar' || widgetType === 'line' || widgetType === 'area' || widgetType === 'pie' || widgetType === 'donut' || widgetType === 'scatter') {
                 // Support data at widget level or nested inside options
                 const widgetData = (widget as any).data || options.data;

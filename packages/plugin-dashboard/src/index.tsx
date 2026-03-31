@@ -11,6 +11,7 @@ import { DashboardRenderer } from './DashboardRenderer';
 import { DashboardGridLayout } from './DashboardGridLayout';
 import { MetricWidget } from './MetricWidget';
 import { MetricCard } from './MetricCard';
+import { ObjectMetricWidget } from './ObjectMetricWidget';
 import { PivotTable } from './PivotTable';
 import { ObjectPivotTable } from './ObjectPivotTable';
 import { ObjectDataTable } from './ObjectDataTable';
@@ -18,7 +19,7 @@ import { DashboardConfigPanel } from './DashboardConfigPanel';
 import { WidgetConfigPanel } from './WidgetConfigPanel';
 import { DashboardWithConfig } from './DashboardWithConfig';
 
-export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, PivotTable, ObjectPivotTable, ObjectDataTable, DashboardConfigPanel, WidgetConfigPanel, DashboardWithConfig };
+export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, ObjectMetricWidget, PivotTable, ObjectPivotTable, ObjectDataTable, DashboardConfigPanel, WidgetConfigPanel, DashboardWithConfig };
 
 // Register dashboard component
 ComponentRegistry.register(
@@ -79,6 +80,26 @@ ComponentRegistry.register(
     defaultProps: {
       title: 'Metric',
       value: '0'
+    }
+  }
+);
+
+// Register object-aware metric widget (async data loading with error states)
+ComponentRegistry.register(
+  'object-metric',
+  ObjectMetricWidget,
+  {
+    namespace: 'plugin-dashboard',
+    label: 'Object Metric',
+    category: 'Dashboard',
+    inputs: [
+        { name: 'objectName', type: 'string', label: 'Object Name', required: true },
+        { name: 'label', type: 'string', label: 'Label' },
+        { name: 'aggregate', type: 'object', label: 'Aggregate', description: 'Aggregation config: { field, function, groupBy }' },
+        { name: 'icon', type: 'string', label: 'Icon (Lucide name)' },
+    ],
+    defaultProps: {
+      label: 'Metric',
     }
   }
 );
@@ -205,6 +226,7 @@ export const dashboardComponents = {
   DashboardGridLayout,
   MetricWidget,
   MetricCard,
+  ObjectMetricWidget,
   PivotTable,
   ObjectPivotTable,
   ObjectDataTable,

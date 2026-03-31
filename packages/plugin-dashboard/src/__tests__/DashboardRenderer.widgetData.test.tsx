@@ -1280,4 +1280,95 @@ describe('DashboardRenderer widget data extraction', () => {
       expect((card as HTMLElement).style.gridColumn).toBe('span 3');
     }
   });
+
+  // --- Metric widget with object binding → object-metric ---
+
+  it('should route metric widgets with object binding to object-metric type', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'metric',
+          object: 'opportunity',
+          layout: { x: 0, y: 0, w: 1, h: 1 },
+          options: {
+            label: 'Total Revenue',
+            value: '$652,000',
+            icon: 'DollarSign',
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const metricSchema = schemas.find(s => s.type === 'object-metric');
+
+    expect(metricSchema).toBeDefined();
+    expect(metricSchema.objectName).toBe('opportunity');
+    expect(metricSchema.label).toBe('Total Revenue');
+    expect(metricSchema.fallbackValue).toBe('$652,000');
+    expect(metricSchema.icon).toBe('DollarSign');
+  });
+
+  it('should keep static metric widgets as-is when no object binding', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'metric',
+          layout: { x: 0, y: 0, w: 1, h: 1 },
+          options: {
+            label: 'Static Metric',
+            value: '42',
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+
+    // Static metrics without object binding should render the value directly
+    expect(container.textContent).toContain('Static Metric');
+    expect(container.textContent).toContain('42');
+  });
+
+  it('should pass aggregate config from widget data provider to object-metric', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'metric',
+          object: 'opportunity',
+          layout: { x: 0, y: 0, w: 1, h: 1 },
+          options: {
+            label: 'Revenue Sum',
+            value: '$0',
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+              aggregate: { field: 'amount', function: 'sum', groupBy: '_all' },
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+    const schemas = getRenderedSchemas(container);
+    const metricSchema = schemas.find(s => s.type === 'object-metric');
+
+    expect(metricSchema).toBeDefined();
+    expect(metricSchema.aggregate).toEqual({
+      field: 'amount',
+      function: 'sum',
+      groupBy: '_all',
+    });
+  });
 });

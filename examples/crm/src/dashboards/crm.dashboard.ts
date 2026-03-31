@@ -4,6 +4,10 @@ export const CrmDashboard = {
   description: 'Revenue metrics, pipeline analytics, and deal insights',
   widgets: [
     // --- KPI Row ---
+    // NOTE: `options.value` is a fallback displayed only when no dataSource is
+    // available (e.g. demo/storybook mode). In production, the DashboardRenderer
+    // routes these to ObjectMetricWidget which fetches live data from the server.
+    // If the server request fails, an explicit error state is shown.
     {
       id: 'total_revenue',
       title: { key: 'crm.dashboard.widgets.totalRevenue', defaultValue: 'Total Revenue' },
