@@ -528,7 +528,7 @@ export interface ChatbotSchema extends BaseSchema {
   /**
    * Additional body parameters to include with each API request.
    */
-  body?: Record<string, unknown>;
+  requestBody?: Record<string, unknown>;
   /**
    * Maximum number of tool-calling round-trips per user message.
    * @default 5

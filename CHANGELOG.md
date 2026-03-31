@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **AI SDUI Chatbot integration** (`@object-ui/plugin-chatbot`): Refactored chatbot plugin to support full AI streaming via `service-ai` backend and `vercel/ai` SDK (`@ai-sdk/react`). New `useObjectChat` composable hook wraps `@ai-sdk/react`'s `useChat` for SSE streaming, tool-calling, and production-grade chat. Auto-detects API mode (when `api` schema field is set) vs legacy local auto-response mode. ChatbotEnhanced component now supports stop, reload, error display, and streaming state indicators. 44 unit tests (19 new hook tests, 10 new streaming tests).
 
-- **New ChatbotSchema fields** (`@object-ui/types`): Extended `ChatbotSchema` with `api`, `conversationId`, `systemPrompt`, `model`, `streamingEnabled`, `headers`, `body`, `maxToolRoundtrips`, and `onError` fields for service-ai integration. Extended `ChatMessage` with `streaming`, `toolInvocations` fields and added `ChatToolInvocation` interface for tool-calling flows.
+- **New ChatbotSchema fields** (`@object-ui/types`): Extended `ChatbotSchema` with `api`, `conversationId`, `systemPrompt`, `model`, `streamingEnabled`, `headers`, `requestBody`, `maxToolRoundtrips`, and `onError` fields for service-ai integration. Extended `ChatMessage` with `streaming`, `toolInvocations` fields and added `ChatToolInvocation` interface for tool-calling flows.
 
 - **New Storybook stories for AI chatbot** (`@object-ui/components`): Added `AIStreamingMode`, `AIWithSystemPrompt`, and `AIWithToolCalls` stories demonstrating the new AI SDUI chat modes alongside existing local/demo stories.
 
@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **System settings pages refactored to ObjectView** (`apps/console`): All five system management pages (Users, Organizations, Roles, Permissions, Audit Log) now use the metadata-driven `ObjectView` from `@object-ui/plugin-view` instead of hand-written HTML tables. Each page's UI is driven by the object definitions in `systemObjects.ts`, providing automatic search, sort, filter, and CRUD capabilities. A shared `SystemObjectViewPage` component eliminates code duplication across all system pages.
 
 ### Fixed
+
+- **TypeScript build error in ObjectManagerPage** (`apps/console`): Fixed `TS2322: Type 'string' is not assignable to type 'DesignerFieldType'` by adding proper type assertion and missing import for `DesignerFieldType`.
+
+- **ChatbotSchema `body` property conflict with BaseSchema** (`@object-ui/types`): Renamed `ChatbotSchema.body` to `requestBody` to resolve `TS2430: Interface 'ChatbotSchema' incorrectly extends interface 'BaseSchema'` — the chatbot's HTTP request body parameter conflicted with `BaseSchema.body` (child schema nodes). Updated all references in `@object-ui/plugin-chatbot` renderer accordingly.
+
+- **Fields package SSR compatibility for Next.js docs site** (`@object-ui/fields`): Added `react/jsx-runtime` to the Vite build externals configuration to prevent it from being bundled. This fixes the `Error: dynamic usage of require is not supported` failure during Next.js static page prerendering of the `/docs/components/overlay/tooltip` page.
 
 - **Dashboard widgets now surface API errors instead of showing hardcoded data** (`@object-ui/plugin-dashboard`, `@object-ui/plugin-charts`):
   - **ObjectChart**: Added error state tracking. When `dataSource.aggregate()` or `dataSource.find()` fails, the chart now shows a prominent error message with a red alert icon instead of silently swallowing errors and rendering an empty chart.

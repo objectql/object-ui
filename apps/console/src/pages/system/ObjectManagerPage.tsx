@@ -15,7 +15,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Badge } from '@object-ui/components';
 import { ArrowLeft, Database, Settings2, Link2 } from 'lucide-react';
 import { ObjectManager, FieldDesigner } from '@object-ui/plugin-designer';
-import type { ObjectDefinition, DesignerFieldDefinition } from '@object-ui/types';
+import type { ObjectDefinition, DesignerFieldDefinition, DesignerFieldType } from '@object-ui/types';
 import { toast } from 'sonner';
 import { useMetadata } from '../../context/MetadataProvider';
 
@@ -103,7 +103,7 @@ function toFieldDefinition(field: MetadataField, index: number): DesignerFieldDe
     id: field.name || `fld_${index}`,
     name: field.name || '',
     label: typeof field.label === 'object' ? field.label.defaultValue || field.label.key || '' : (field.label || field.name || ''),
-    type: field.type || 'text',
+    type: (field.type || 'text') as DesignerFieldType,
     group: field.group || undefined,
     sortOrder: index,
     description: field.description || field.help || undefined,

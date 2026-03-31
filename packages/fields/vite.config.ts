@@ -33,6 +33,7 @@ export default defineConfig({
       external: [
         'react',
         'react-dom',
+        'react/jsx-runtime',
         '@object-ui/components',
         '@object-ui/core',
         '@object-ui/react',
@@ -43,6 +44,7 @@ export default defineConfig({
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
+          'react/jsx-runtime': 'jsxRuntime',
           '@object-ui/components': 'ObjectUIComponents',
         },
       },

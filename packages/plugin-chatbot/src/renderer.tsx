@@ -22,7 +22,7 @@ import { useObjectChat } from './useObjectChat';
  * - Uses @ai-sdk/react for SSE streaming, tool-calling, and production-grade chat
  * - Connects to service-ai backend (e.g., /api/v1/ai/chat)
  * - Supports streaming, stop, reload, clear actions
- * - Schema fields: api, conversationId, systemPrompt, model, streamingEnabled, headers, body, maxToolRoundtrips
+ * - Schema fields: api, conversationId, systemPrompt, model, streamingEnabled, headers, requestBody, maxToolRoundtrips
  * 
  * **Legacy Mode** (when `api` is not set):
  * - Local auto-response for demo/playground use
@@ -57,7 +57,7 @@ ComponentRegistry.register('chatbot',
       model: schema.model,
       streamingEnabled: schema.streamingEnabled,
       headers: schema.headers,
-      body: schema.body,
+      body: schema.requestBody,
       maxToolRoundtrips: schema.maxToolRoundtrips,
       onError: schema.onError,
       showTimestamp: schema.showTimestamp,
@@ -260,7 +260,7 @@ ComponentRegistry.register('chatbot-enhanced',
       model: schema.model,
       streamingEnabled: schema.streamingEnabled,
       headers: schema.headers,
-      body: schema.body,
+      body: schema.requestBody,
       maxToolRoundtrips: schema.maxToolRoundtrips,
       onError: schema.onError,
       showTimestamp: schema.showTimestamp,
