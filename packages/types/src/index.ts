@@ -568,6 +568,14 @@ export type {
   DashboardWidgetType,
   DashboardWidgetConfig,
   DashboardConfig,
+  ObjectDefinition,
+  ObjectDefinitionRelationship,
+  ObjectManagerSchema,
+  DesignerFieldType,
+  DesignerFieldOption,
+  DesignerValidationRule,
+  DesignerFieldDefinition,
+  FieldDesignerSchema,
 } from './designer';
 
 export {

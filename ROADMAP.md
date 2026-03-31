@@ -5,7 +5,7 @@
 > **Spec Version:** @objectstack/spec v3.3.0
 > **Client Version:** @objectstack/client v3.3.0
 > **Target UX Benchmark:** 🎯 Airtable parity
-> **Current Priority:** AppShell Navigation · Designer Interaction · **View Config Live Preview Sync ✅** · Dashboard Config Panel · Airtable UX Polish · **Flow Designer ✅** · **App Creation & Editing Flow ✅** · **System Settings & App Management ✅** · **Right-Side Visual Editor Drawer ✅**
+> **Current Priority:** AppShell Navigation · Designer Interaction · **View Config Live Preview Sync ✅** · Dashboard Config Panel · Airtable UX Polish · **Flow Designer ✅** · **App Creation & Editing Flow ✅** · **System Settings & App Management ✅** · **Right-Side Visual Editor Drawer ✅** · **Object Manager & Field Designer ✅**
 
 ---
 
@@ -875,6 +875,45 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] `I18nProvider` loads app-specific translations on mount (fixes initial language loading)
 - [x] 10 unit tests for `useObjectLabel` hook
 - [x] Zero changes to object metadata files or translation files
+
+### P1.16 Object Manager & Field Designer ✅
+
+> **Status:** Complete — `ObjectManager` and `FieldDesigner` components shipped in `@object-ui/plugin-designer`.
+
+Enterprise-grade visual designers for managing object definitions and configuring fields. Supports the full metadata platform workflow: define objects, configure fields with advanced properties, and maintain relationships.
+
+**Object Manager (`ObjectManager`):**
+- [x] CRUD operations on object definitions (custom and system objects)
+- [x] Visual configuration of object properties (name, label, plural label, description, icon, group, sort order, enabled)
+- [x] Object relationship display and maintenance
+- [x] Inline property editor with collapsible sections
+- [x] Search/filter functionality
+- [x] Grouped object display with badges
+- [x] System object protection (non-deletable, name-locked)
+- [x] Read-only mode support
+- [x] Confirm dialog for destructive actions
+- [x] 18 unit tests
+
+**Field Designer (`FieldDesigner`):**
+- [x] CRUD operations on field definitions with 27 supported field types
+- [x] Advanced field properties: uniqueness, default values, options/picklists, read-only, hidden, validation rules, external ID, history tracking, indexed
+- [x] Field grouping, sorting, and layout management
+- [x] System reserved field protection
+- [x] Type-specific property editors (lookup reference, formula expression, select options)
+- [x] Validation rule builder (min, max, minLength, maxLength, pattern, custom)
+- [x] Search and type-based filtering
+- [x] Read-only mode support
+- [x] 22 unit tests
+
+**Type Definitions (`@object-ui/types`):**
+- [x] `ObjectDefinition`, `ObjectDefinitionRelationship`, `ObjectManagerSchema`
+- [x] `DesignerFieldType` (27 types), `DesignerFieldOption`, `DesignerValidationRule`
+- [x] `DesignerFieldDefinition`, `FieldDesignerSchema`
+
+**i18n Support:**
+- [x] Full translations for all 10 locales (en, zh, ja, ko, de, fr, es, pt, ru, ar)
+- [x] 50 new translation keys per locale (objectManager + fieldDesigner sections)
+- [x] Fallback translations in `useDesignerTranslation` for standalone usage
 
 ---
 

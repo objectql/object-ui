@@ -25,6 +25,7 @@ import {
   ScrollText,
   User,
   Loader2,
+  Database,
 } from 'lucide-react';
 import { useAdapter } from '../../context/AdapterProvider';
 import { useMetadata } from '../../context/MetadataProvider';
@@ -43,10 +44,11 @@ export function SystemHubPage() {
   const { appName } = useParams();
   const basePath = appName ? `/apps/${appName}` : '';
   const dataSource = useAdapter();
-  const { apps } = useMetadata();
+  const { apps, objects: metadataObjects } = useMetadata();
 
   const [counts, setCounts] = useState<Record<string, number | null>>({
     apps: null,
+    objects: null,
     users: null,
     orgs: null,
     roles: null,
@@ -69,6 +71,7 @@ export function SystemHubPage() {
       ]);
       setCounts({
         apps: apps?.length ?? 0,
+        objects: metadataObjects?.length ?? 0,
         users: usersRes.data?.length ?? 0,
         orgs: orgsRes.data?.length ?? 0,
         roles: rolesRes.data?.length ?? 0,
@@ -80,7 +83,7 @@ export function SystemHubPage() {
     } finally {
       setLoading(false);
     }
-  }, [dataSource, apps]);
+  }, [dataSource, apps, metadataObjects]);
 
   useEffect(() => { fetchCounts(); }, [fetchCounts]);
 
@@ -92,6 +95,14 @@ export function SystemHubPage() {
       href: `${basePath}/system/apps`,
       countLabel: 'apps',
       count: counts.apps,
+    },
+    {
+      title: 'Object Manager',
+      description: 'Manage object definitions and field configurations',
+      icon: Database,
+      href: `${basePath}/system/objects`,
+      countLabel: 'objects',
+      count: counts.objects ?? null,
     },
     {
       title: 'Users',

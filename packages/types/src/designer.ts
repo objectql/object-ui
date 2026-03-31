@@ -633,6 +633,172 @@ export interface DashboardConfig {
 }
 
 // ============================================================================
+// Object Manager (Enterprise Metadata Management)
+// ============================================================================
+
+/** Object definition for the Object Manager */
+export interface ObjectDefinition {
+  /** Unique object identifier */
+  id: string;
+  /** API name (snake_case) */
+  name: string;
+  /** Display label */
+  label: string;
+  /** Plural display label */
+  pluralLabel?: string;
+  /** Object description */
+  description?: string;
+  /** Icon name (Lucide icon) */
+  icon?: string;
+  /** Grouping/category */
+  group?: string;
+  /** Sort order within group */
+  sortOrder?: number;
+  /** Whether this is a system object (non-deletable) */
+  isSystem?: boolean;
+  /** Whether this object is enabled/active */
+  enabled?: boolean;
+  /** Field count (read-only, for display) */
+  fieldCount?: number;
+  /** Relationships to other objects */
+  relationships?: ObjectDefinitionRelationship[];
+}
+
+/** Relationship reference for Object Manager */
+export interface ObjectDefinitionRelationship {
+  /** Related object name */
+  relatedObject: string;
+  /** Relationship type */
+  type: 'one-to-one' | 'one-to-many' | 'many-to-one' | 'many-to-many';
+  /** Relationship label */
+  label?: string;
+  /** Foreign key field */
+  foreignKey?: string;
+}
+
+/** Object Manager component schema */
+export interface ObjectManagerSchema extends BaseSchema {
+  type: 'object-manager';
+  /** List of object definitions */
+  objects: ObjectDefinition[];
+  /** Read-only mode */
+  readOnly?: boolean;
+  /** Show system objects */
+  showSystemObjects?: boolean;
+}
+
+// ============================================================================
+// Field Designer (Field Configuration Wizard)
+// ============================================================================
+
+/** Supported field types in the Field Designer */
+export type DesignerFieldType =
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'boolean'
+  | 'date'
+  | 'datetime'
+  | 'time'
+  | 'select'
+  | 'email'
+  | 'phone'
+  | 'url'
+  | 'password'
+  | 'currency'
+  | 'percent'
+  | 'lookup'
+  | 'formula'
+  | 'autonumber'
+  | 'file'
+  | 'image'
+  | 'markdown'
+  | 'html'
+  | 'color'
+  | 'code'
+  | 'location'
+  | 'address'
+  | 'rating'
+  | 'slider';
+
+/** Select option for field designer */
+export interface DesignerFieldOption {
+  /** Option label */
+  label: string;
+  /** Option value */
+  value: string;
+  /** Option color (for badge display) */
+  color?: string;
+}
+
+/** Validation rule for field designer */
+export interface DesignerValidationRule {
+  /** Rule type */
+  type: 'min' | 'max' | 'minLength' | 'maxLength' | 'pattern' | 'custom';
+  /** Rule value */
+  value: string | number;
+  /** Error message */
+  message?: string;
+}
+
+/** Field definition for the Field Designer */
+export interface DesignerFieldDefinition {
+  /** Unique field identifier */
+  id: string;
+  /** API name (snake_case) */
+  name: string;
+  /** Display label */
+  label: string;
+  /** Field type */
+  type: DesignerFieldType;
+  /** Field group/section */
+  group?: string;
+  /** Sort order within group */
+  sortOrder?: number;
+  /** Field description / help text */
+  description?: string;
+  /** Whether field is required */
+  required?: boolean;
+  /** Whether field is unique */
+  unique?: boolean;
+  /** Whether field is read-only */
+  readonly?: boolean;
+  /** Whether field is hidden */
+  hidden?: boolean;
+  /** Default value */
+  defaultValue?: unknown;
+  /** Placeholder text */
+  placeholder?: string;
+  /** Select options (for select type) */
+  options?: DesignerFieldOption[];
+  /** Validation rules */
+  validationRules?: DesignerValidationRule[];
+  /** Whether this is a system field */
+  isSystem?: boolean;
+  /** External ID flag */
+  externalId?: boolean;
+  /** Track field history */
+  trackHistory?: boolean;
+  /** Whether field is indexed */
+  indexed?: boolean;
+  /** Lookup reference object (for lookup type) */
+  referenceTo?: string;
+  /** Formula expression (for formula type) */
+  formula?: string;
+}
+
+/** Field Designer component schema */
+export interface FieldDesignerSchema extends BaseSchema {
+  type: 'field-designer';
+  /** Object name this field designer belongs to */
+  objectName: string;
+  /** List of field definitions */
+  fields: DesignerFieldDefinition[];
+  /** Read-only mode */
+  readOnly?: boolean;
+}
+
+// ============================================================================
 // Multi-User Collaborative Editing
 // ============================================================================
 
