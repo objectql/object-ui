@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Dashboard widgets now surface API errors instead of showing hardcoded data** (`@object-ui/plugin-dashboard`, `@object-ui/plugin-charts`):
+  - **ObjectChart**: Added error state tracking. When `dataSource.aggregate()` or `dataSource.find()` fails, the chart now shows a prominent error message with a red alert icon instead of silently swallowing errors and rendering an empty chart.
+  - **MetricWidget / MetricCard**: Added `loading` and `error` props. When provided, the widget shows a loading spinner or a destructive-colored error message instead of the metric value, making API failures immediately visible.
+  - **ObjectMetricWidget** (new component): Data-bound metric widget that fetches live values from the server via `dataSource.aggregate()` or `dataSource.find()`. Shows explicit loading/error states. Falls back to static `fallbackValue` only when no `dataSource` is available (demo mode).
+  - **DashboardRenderer**: Metric widgets with `widget.object` binding are now routed to `ObjectMetricWidget` (`object-metric` type) for async data loading, instead of always rendering static hardcoded values. Static-only metric widgets (no `object` binding) continue to work as before.
+  - **CRM dashboard example**: Documented that `options.value` fields are demo/fallback values that only display when no dataSource is connected.
+  - 13 new tests covering error states, loading states, fallback behavior, and routing logic.
+
 - **Plugin designer test infrastructure** (`@object-ui/plugin-designer`): Created missing `vitest.setup.ts` with ResizeObserver polyfill and jest-dom matchers. Added `@object-ui/i18n` alias to vite config. These fixes resolved 9 pre-existing test suite failures, bringing total passing tests from 45 to 246.
 
 - **Chinese language pack (zh.ts) untranslated key** (`@object-ui/i18n`): Fixed `console.objectView.toolbarEnabledCount` which was still in English (`'{{count}} of {{total}} enabled'`) — now properly translated to `'已启用 {{count}}/{{total}} 项'`. Also fixed the same untranslated key in all other 8 non-English locales (ja, ko, de, fr, es, pt, ru, ar).

@@ -6,8 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, waitFor } from '@testing-library/react';
+import { SchemaRendererProvider } from '@object-ui/react';
 import { DashboardRenderer } from '../DashboardRenderer';
 
 /**
@@ -1279,5 +1280,132 @@ describe('DashboardRenderer widget data extraction', () => {
     if (card) {
       expect((card as HTMLElement).style.gridColumn).toBe('span 3');
     }
+  });
+
+  // --- Metric widget with object binding → object-metric ---
+  // When widget.type === 'metric' AND widget.object is set, DashboardRenderer
+  // routes to the registered 'object-metric' component (ObjectMetricWidget).
+  // Without a dataSource in context, it renders the static fallbackValue.
+
+  it('should route metric widgets with object binding to object-metric (renders fallback without dataSource)', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'metric',
+          object: 'opportunity',
+          layout: { x: 0, y: 0, w: 1, h: 1 },
+          options: {
+            label: 'Total Revenue',
+            value: '$652,000',
+            icon: 'DollarSign',
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+
+    // ObjectMetricWidget renders fallbackValue when no dataSource is present
+    expect(container.textContent).toContain('Total Revenue');
+    expect(container.textContent).toContain('$652,000');
+  });
+
+  it('should keep static metric widgets as-is when no object binding', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'metric',
+          layout: { x: 0, y: 0, w: 1, h: 1 },
+          options: {
+            label: 'Static Metric',
+            value: '42',
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+
+    // Static metrics without object binding should render the value directly
+    expect(container.textContent).toContain('Static Metric');
+    expect(container.textContent).toContain('42');
+  });
+
+  it('should route metric with data.provider object to object-metric (renders fallback without dataSource)', () => {
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'metric',
+          object: 'opportunity',
+          layout: { x: 0, y: 0, w: 1, h: 1 },
+          options: {
+            label: 'Revenue Sum',
+            value: '$0',
+            data: {
+              provider: 'object',
+              object: 'opportunity',
+              aggregate: { field: 'amount', function: 'sum', groupBy: '_all' },
+            },
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(<DashboardRenderer schema={schema} />);
+
+    // ObjectMetricWidget renders fallbackValue when no dataSource is present
+    expect(container.textContent).toContain('Revenue Sum');
+    expect(container.textContent).toContain('$0');
+  });
+
+  it('should show error state when object-metric dataSource fails', async () => {
+    const dataSource = {
+      aggregate: vi.fn().mockRejectedValue(new Error('Cube name is required')),
+      find: vi.fn(),
+    };
+
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'metric',
+          object: 'opportunity',
+          aggregate: 'sum',
+          valueField: 'amount',
+          layout: { x: 0, y: 0, w: 1, h: 1 },
+          options: {
+            label: 'Revenue',
+            value: '$999',
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(
+      <SchemaRendererProvider dataSource={dataSource}>
+        <DashboardRenderer schema={schema} />
+      </SchemaRendererProvider>,
+    );
+
+    // Should display the error from the failing aggregate, not the fallback value
+    await waitFor(() => {
+      const errorEl = container.querySelector('[data-testid="metric-error"]');
+      expect(errorEl).toBeTruthy();
+    });
+
+    expect(container.textContent).toContain('Revenue');
+    expect(container.textContent).toContain('Cube name is required');
+    expect(container.textContent).not.toContain('$999');
   });
 });

@@ -79,4 +79,29 @@ describe('MetricCard', () => {
     
     expect(screen.getByText('vs last month')).toBeInTheDocument();
   });
+
+  it('should show loading state when loading prop is true', () => {
+    const { container } = render(
+      <MetricCard title="Revenue" value="$45,231" loading={true} />
+    );
+
+    const loadingEl = container.querySelector('[data-testid="metric-card-loading"]');
+    expect(loadingEl).toBeTruthy();
+    // Value should not be rendered during loading
+    expect(container.textContent).not.toContain('$45,231');
+  });
+
+  it('should show error state when error prop is set', () => {
+    const { container } = render(
+      <MetricCard title="Revenue" value="$45,231" error="Connection refused" />
+    );
+
+    const errorEl = container.querySelector('[data-testid="metric-card-error"]');
+    expect(errorEl).toBeTruthy();
+    expect(screen.getByText('Connection refused')).toBeInTheDocument();
+    // Value should not be rendered during error
+    expect(container.textContent).not.toContain('$45,231');
+    // Title should still be visible
+    expect(screen.getByText('Revenue')).toBeInTheDocument();
+  });
 });

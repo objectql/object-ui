@@ -124,6 +124,40 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
             // Handle Shorthand Registry Mappings
             const widgetType = widget.type;
             const options = (widget.options || {}) as Record<string, any>;
+
+            // Metric widgets with object binding — delegate to ObjectMetricWidget
+            // for async data loading with proper error/loading states.
+            // Static metric options (label, value, trend, icon) are passed as
+            // fallback values that render only when no dataSource is available.
+            if (widgetType === 'metric' && widget.object) {
+                const widgetData = options.data;
+                const aggregate = isObjectProvider(widgetData) && widgetData.aggregate
+                    ? {
+                        field: widget.valueField || widgetData.aggregate.field,
+                        function: widget.aggregate || widgetData.aggregate.function,
+                        // Prefer explicit categoryField or aggregate.groupBy; otherwise, default to a single bucket.
+                        groupBy: widget.categoryField ?? widgetData.aggregate.groupBy ?? '_all',
+                    }
+                    : widget.aggregate ? {
+                        field: widget.valueField || 'value',
+                        function: widget.aggregate,
+                        // Default to a single group unless the user explicitly configures a categoryField.
+                        groupBy: widget.categoryField || '_all',
+                    } : undefined;
+
+                return {
+                    type: 'object-metric',
+                    objectName: widget.object || (isObjectProvider(widgetData) ? widgetData.object : undefined),
+                    aggregate,
+                    filter: (isObjectProvider(widgetData) ? widgetData.filter : undefined) || widget.filter,
+                    label: options.label || resolveLabel(widget.title) || '',
+                    fallbackValue: options.value,
+                    trend: options.trend,
+                    icon: options.icon,
+                    description: options.description,
+                };
+            }
+
             if (widgetType === 'bar' || widgetType === 'line' || widgetType === 'area' || widgetType === 'pie' || widgetType === 'donut' || widgetType === 'scatter') {
                 // Support data at widget level or nested inside options
                 const widgetData = (widget as any).data || options.data;
