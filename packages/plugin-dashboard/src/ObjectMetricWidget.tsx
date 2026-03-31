@@ -127,6 +127,11 @@ export const ObjectMetricWidget: React.FC<ObjectMetricWidgetProps> = ({
 
     if (dataSource && objectName) {
       fetchMetric(dataSource, mounted);
+    } else {
+      // Reset state when dataSource becomes unavailable so we fall back
+      // to the static fallbackValue instead of showing stale server data.
+      setFetchedValue(null);
+      setError(null);
     }
 
     return () => { mounted.current = false; };

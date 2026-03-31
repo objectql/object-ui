@@ -6,8 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, waitFor } from '@testing-library/react';
+import { SchemaRendererProvider } from '@object-ui/react';
 import { DashboardRenderer } from '../DashboardRenderer';
 
 /**
@@ -1364,5 +1365,47 @@ describe('DashboardRenderer widget data extraction', () => {
     // ObjectMetricWidget renders fallbackValue when no dataSource is present
     expect(container.textContent).toContain('Revenue Sum');
     expect(container.textContent).toContain('$0');
+  });
+
+  it('should show error state when object-metric dataSource fails', async () => {
+    const dataSource = {
+      aggregate: vi.fn().mockRejectedValue(new Error('Cube name is required')),
+      find: vi.fn(),
+    };
+
+    const schema = {
+      type: 'dashboard' as const,
+      name: 'test',
+      title: 'Test',
+      widgets: [
+        {
+          type: 'metric',
+          object: 'opportunity',
+          aggregate: 'sum',
+          valueField: 'amount',
+          layout: { x: 0, y: 0, w: 1, h: 1 },
+          options: {
+            label: 'Revenue',
+            value: '$999',
+          },
+        },
+      ],
+    } as any;
+
+    const { container } = render(
+      <SchemaRendererProvider dataSource={dataSource}>
+        <DashboardRenderer schema={schema} />
+      </SchemaRendererProvider>,
+    );
+
+    // Should display the error from the failing aggregate, not the fallback value
+    await waitFor(() => {
+      const errorEl = container.querySelector('[data-testid="metric-error"]');
+      expect(errorEl).toBeTruthy();
+    });
+
+    expect(container.textContent).toContain('Revenue');
+    expect(container.textContent).toContain('Cube name is required');
+    expect(container.textContent).not.toContain('$999');
   });
 });

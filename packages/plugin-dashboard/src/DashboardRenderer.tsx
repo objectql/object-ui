@@ -135,12 +135,14 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                     ? {
                         field: widget.valueField || widgetData.aggregate.field,
                         function: widget.aggregate || widgetData.aggregate.function,
-                        groupBy: widget.categoryField || widgetData.aggregate.groupBy,
+                        // Prefer explicit categoryField or aggregate.groupBy; otherwise, default to a single bucket.
+                        groupBy: widget.categoryField ?? widgetData.aggregate.groupBy ?? '_all',
                     }
                     : widget.aggregate ? {
                         field: widget.valueField || 'value',
                         function: widget.aggregate,
-                        groupBy: widget.categoryField || 'name',
+                        // Default to a single group unless the user explicitly configures a categoryField.
+                        groupBy: widget.categoryField || '_all',
                     } : undefined;
 
                 return {
