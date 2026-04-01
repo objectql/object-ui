@@ -19,6 +19,7 @@ import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { HonoServerPlugin } from '@objectstack/plugin-hono-server';
 import { AuthPlugin } from '@objectstack/plugin-auth';
+import { SetupPlugin } from '@objectstack/plugin-setup';
 import { ConsolePlugin } from '@object-ui/console';
 import { composeStacks } from '@objectstack/spec';
 import { mergeViewsIntoObjects } from '@object-ui/core';
@@ -115,6 +116,7 @@ export default {
       secret: process.env.AUTH_SECRET || 'objectui-dev-secret',
       baseUrl: 'http://localhost:3000',
     }),
+    new SetupPlugin(),
     new HonoServerPlugin({ port: 3000 }),
     new ConsolePlugin(),
   ],

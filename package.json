@@ -133,6 +133,7 @@
     "@hono/node-server": "^1.19.12",
     "@objectstack/plugin-auth": "^4.0.1",
     "@objectstack/plugin-hono-server": "^4.0.1",
+    "@objectstack/plugin-setup": "^4.0.1",
     "@objectstack/studio": "^4.0.1",
     "coverage-v8": "0.0.1-security",
     "hono": "^4.12.9",
