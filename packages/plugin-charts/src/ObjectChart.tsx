@@ -131,18 +131,23 @@ export async function resolveGroupByLabels(
     const ids = [...new Set(data.map(row => row[groupByField]).filter(v => v != null))];
     if (ids.length === 0) return data;
 
+    // Derive the ID field from metadata (fallback to 'id')
+    const idField: string = fieldDef.id_field || 'id';
+
     try {
       const results = await dataSource.find(referenceTo, {
-        $filter: { id: { $in: ids } },
+        $filter: { [idField]: { $in: ids } },
         $top: ids.length,
       });
       const records = extractRecords(results);
 
-      // Build id→name map using common display fields
+      // Build id→label map using display field from metadata with sensible fallbacks
+      const displayField: string =
+        fieldDef.reference_field || fieldDef.display_field || 'name';
       const idToName: Record<string, string> = {};
       for (const rec of records) {
-        const id = String(rec.id ?? rec._id ?? '');
-        const name = rec.name || rec.label || rec.title || id;
+        const id = String(rec[idField] ?? rec.id ?? rec._id ?? '');
+        const name = rec[displayField] || rec.name || rec.label || rec.title || id;
         if (id) idToName[id] = String(name);
       }
 

@@ -162,6 +162,58 @@ describe('resolveGroupByLabels', () => {
     });
   });
 
+  it('should use display_field from metadata for lookup label', async () => {
+    const data = [
+      { project: 'p1', hours: 40 },
+    ];
+
+    const objectSchema = {
+      fields: {
+        project: {
+          type: 'lookup',
+          reference_to: 'projects',
+          display_field: 'title',
+        },
+      },
+    };
+
+    const mockFind = vi.fn().mockResolvedValue([
+      { id: 'p1', title: 'Website Redesign', name: 'PRJ-001' },
+    ]);
+
+    const result = await resolveGroupByLabels(data, 'project', objectSchema, { find: mockFind });
+
+    expect(result[0].project).toBe('Website Redesign');
+  });
+
+  it('should use id_field from metadata for lookup query', async () => {
+    const data = [
+      { owner: 'uid_42', count: 5 },
+    ];
+
+    const objectSchema = {
+      fields: {
+        owner: {
+          type: 'lookup',
+          reference_to: 'users',
+          id_field: 'uid',
+        },
+      },
+    };
+
+    const mockFind = vi.fn().mockResolvedValue([
+      { uid: 'uid_42', name: 'Jane Doe' },
+    ]);
+
+    const result = await resolveGroupByLabels(data, 'owner', objectSchema, { find: mockFind });
+
+    expect(result[0].owner).toBe('Jane Doe');
+    expect(mockFind).toHaveBeenCalledWith('users', {
+      $filter: { uid: { $in: ['uid_42'] } },
+      $top: 1,
+    });
+  });
+
   it('should handle lookup with reference property (ObjectStack convention)', async () => {
     const data = [
       { customer: '10', total: 100 },

@@ -110,8 +110,6 @@ export default function AdvancedChartImpl({
     combo: BarChart,
   }[chartType] || BarChart;
 
-  console.log('📈 Rendering Chart:', { chartType, dataLength: data.length, config, series, xAxisKey });
-
   // Memoize whether any X-axis label is long enough to warrant angle rotation
   const hasLongLabels = React.useMemo(
     () => data.some((d: any) => String(d[xAxisKey] || '').length > 5),
