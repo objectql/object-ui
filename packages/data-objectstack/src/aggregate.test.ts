@@ -199,6 +199,58 @@ describe('ObjectStackAdapter aggregate()', () => {
     ]);
   });
 
+  it('should extract rows from { rows: [...] } envelope (SDK unwraps outer success/data)', async () => {
+    mockAnalyticsQuery.mockResolvedValue({
+      rows: [
+        { stage: 'closed_won', expected_revenue_sum: 225000 },
+        { stage: 'negotiation', expected_revenue_sum: 36000 },
+      ],
+      fields: [
+        { name: 'stage', type: 'string' },
+        { name: 'expected_revenue_sum', type: 'number' },
+      ],
+    });
+
+    const result = await adapter.aggregate('opportunity', {
+      field: 'expected_revenue',
+      function: 'sum',
+      groupBy: 'stage',
+    });
+
+    expect(result).toEqual([
+      { stage: 'closed_won', expected_revenue: 225000 },
+      { stage: 'negotiation', expected_revenue: 36000 },
+    ]);
+  });
+
+  it('should extract rows from { data: { rows: [...] } } envelope (SDK does not unwrap)', async () => {
+    mockAnalyticsQuery.mockResolvedValue({
+      success: true,
+      data: {
+        rows: [
+          { stage: 'closed_won', expected_revenue_sum: 225000 },
+          { stage: 'negotiation', expected_revenue_sum: 36000 },
+        ],
+        fields: [
+          { name: 'stage', type: 'string' },
+          { name: 'expected_revenue_sum', type: 'number' },
+        ],
+        sql: '-- MongoDB Aggregation Pipeline',
+      },
+    });
+
+    const result = await adapter.aggregate('opportunity', {
+      field: 'expected_revenue',
+      function: 'sum',
+      groupBy: 'stage',
+    });
+
+    expect(result).toEqual([
+      { stage: 'closed_won', expected_revenue: 225000 },
+      { stage: 'negotiation', expected_revenue: 36000 },
+    ]);
+  });
+
   it('should fall back to client-side aggregation when analytics endpoint fails', async () => {
     mockAnalyticsQuery.mockRejectedValue(new Error('Analytics not available'));
 

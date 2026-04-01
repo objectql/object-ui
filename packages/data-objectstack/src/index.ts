@@ -849,7 +849,9 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
 
       const data = await this.client.analytics.query(payload);
       const rawRows: any[] = Array.isArray(data) ? data
+        : data?.rows && Array.isArray(data.rows) ? data.rows
         : data?.data && Array.isArray(data.data) ? data.data
+        : data?.data?.rows && Array.isArray(data.data.rows) ? data.data.rows
         : data?.results && Array.isArray(data.results) ? data.results
         : [];
 
