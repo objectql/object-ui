@@ -55,6 +55,9 @@ const PermissionManagementPage = lazy(() => import('./pages/system/PermissionMan
 const AuditLogPage = lazy(() => import('./pages/system/AuditLogPage').then(m => ({ default: m.AuditLogPage })));
 const ProfilePage = lazy(() => import('./pages/system/ProfilePage').then(m => ({ default: m.ProfilePage })));
 
+// Home Page (lazy — landing page)
+const HomePage = lazy(() => import('./pages/home/HomePage').then(m => ({ default: m.HomePage })));
+
 import { useParams } from 'react-router-dom';
 import { ThemeProvider } from './components/theme-provider';
 import { ConsoleToaster } from './components/ConsoleToaster';
@@ -456,44 +459,14 @@ function findFirstRoute(items: any[]): string {
     return '';
 }
 
-// Redirect root to default app
+// Redirect root to home page
 function RootRedirect() {
-    const { apps, loading, error } = useMetadata();
-    const navigate = useNavigate();
-    const activeApps = apps.filter((a: any) => a.active !== false);
-    const defaultApp = activeApps.find((a: any) => a.isDefault === true) || activeApps[0];
-    
+    const { loading } = useMetadata();
+
     if (loading) return <LoadingScreen />;
-    if (defaultApp) {
-        return <Navigate to={`/apps/${defaultApp.name}`} replace />;
-    }
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <Empty>
-          <EmptyTitle>{error ? 'Failed to Load Configuration' : 'No Apps Configured'}</EmptyTitle>
-          <EmptyDescription>
-            {error
-              ? 'There was an error loading the configuration. You can still create an app or access System Settings.'
-              : 'No applications have been registered. Create your first app or configure your system.'}
-          </EmptyDescription>
-          <div className="mt-4 flex flex-col sm:flex-row items-center gap-3">
-            <Button
-              onClick={() => navigate('/create-app')}
-              data-testid="create-first-app-btn"
-            >
-              Create Your First App
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => navigate('/system')}
-              data-testid="go-to-settings-btn"
-            >
-              System Settings
-            </Button>
-          </div>
-        </Empty>
-      </div>
-    );
+
+    // Always redirect to home page
+    return <Navigate to="/home" replace />;
 }
 
 /**
@@ -531,6 +504,16 @@ export function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                {/* Home Dashboard — unified workspace landing page */}
+                <Route path="/home" element={
+                  <AuthGuard fallback={<Navigate to="/login" />} loadingFallback={<LoadingScreen />}>
+                    <ConnectedShell>
+                      <Suspense fallback={<LoadingScreen />}>
+                        <HomePage />
+                      </Suspense>
+                    </ConnectedShell>
+                  </AuthGuard>
+                } />
                 {/* Top-level system routes — accessible without any app */}
                 <Route path="/system/*" element={
                   <AuthGuard fallback={<Navigate to="/login" />} loadingFallback={<LoadingScreen />}>

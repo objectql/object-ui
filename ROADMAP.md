@@ -1,11 +1,11 @@
 # ObjectUI Development Roadmap
 
-> **Last Updated:** March 23, 2026
+> **Last Updated:** April 1, 2026
 > **Current Version:** v0.5.x
 > **Spec Version:** @objectstack/spec v3.3.0
 > **Client Version:** @objectstack/client v3.3.0
 > **Target UX Benchmark:** 🎯 Airtable parity
-> **Current Priority:** AppShell Navigation · Designer Interaction · **View Config Live Preview Sync ✅** · Dashboard Config Panel · Airtable UX Polish · **Flow Designer ✅** · **App Creation & Editing Flow ✅** · **System Settings & App Management ✅** · **Right-Side Visual Editor Drawer ✅** · **Object Manager & Field Designer ✅** · **AI SDUI Chatbot (service-ai + vercel/ai) ✅**
+> **Current Priority:** AppShell Navigation · Designer Interaction · **View Config Live Preview Sync ✅** · Dashboard Config Panel · Airtable UX Polish · **Flow Designer ✅** · **App Creation & Editing Flow ✅** · **System Settings & App Management ✅** · **Right-Side Visual Editor Drawer ✅** · **Object Manager & Field Designer ✅** · **AI SDUI Chatbot (service-ai + vercel/ai) ✅** · **Unified Home Dashboard ✅**
 
 ---
 
@@ -13,7 +13,7 @@
 
 ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn. It renders JSON metadata from the @objectstack/spec protocol into pixel-perfect, accessible, and interactive enterprise interfaces.
 
-**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 6,700+ tests, 80 Storybook stories, 43/43 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), **Feed/Chatter UI** (P1.5), **App Creation & Editing Flow** (P1.11), **System Settings & App Management** (P1.12), **Page/Dashboard Editor Console Integration** (P1.11), **Right-Side Visual Editor Drawer** (P1.11), and **Console Engine Schema Integration** (P1.14) — all ✅ complete. **ViewDesigner** has been removed — its capabilities (drag-to-reorder, undo/redo) are now provided by the ViewConfigPanel (right-side config panel).
+**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 6,700+ tests, 80 Storybook stories, 43/43 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), **Feed/Chatter UI** (P1.5), **App Creation & Editing Flow** (P1.11), **System Settings & App Management** (P1.12), **Page/Dashboard Editor Console Integration** (P1.11), **Right-Side Visual Editor Drawer** (P1.11), **Console Engine Schema Integration** (P1.14), and **Unified Home Dashboard** (P1.7.1) — all ✅ complete. **ViewDesigner** has been removed — its capabilities (drag-to-reorder, undo/redo) are now provided by the ViewConfigPanel (right-side config panel).
 
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete
@@ -221,6 +221,22 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
   - ✅ `popover` mode falls back to compact dialog when no `popoverTrigger` is provided
   - ✅ `useNavigationOverlay` hook delegates `new_window` to `onNavigate` when available for app-specific URL control
   - ✅ plugin-view `handleRowClick` supports `split` and `popover` branches
+
+### P1.7.1 Console — Unified Home Dashboard (Workspace) ✅
+
+- [x] **HomePage component** — Unified landing page displaying all available applications
+- [x] **Route integration** — `/home` route added with proper authentication guards
+- [x] **App cards grid** — Responsive grid layout showing all active apps with icons, descriptions, and branding colors
+- [x] **QuickActions section** — Quick access cards for creating apps, managing objects, and system settings
+- [x] **Recent items** — Display recently accessed objects, dashboards, and pages using `useRecentItems` hook
+- [x] **Starred items** — Display user-favorited items using `useFavorites` hook with star/unstar toggle
+- [x] **Empty state** — Helpful guidance for new users with "Create First App" and "System Settings" CTAs
+- [x] **i18n support** — All labels support internationalization via `useObjectTranslation`
+- [x] **RootRedirect update** — Root path (`/`) now redirects to `/home` instead of first app
+- [x] **Responsive design** — Mobile-friendly grid layouts that adapt to screen size
+- [x] **Airtable/Notion UX pattern** — Inspired by industry-leading workspace home pages
+
+**Impact:** Users now have a unified workspace dashboard that provides overview of all applications, quick actions, and recent activity. This eliminates the previous behavior of auto-redirecting to the first app, giving users better control and visibility.
 
 ### P1.8 Console — View Config Panel (Phase 20)
 
