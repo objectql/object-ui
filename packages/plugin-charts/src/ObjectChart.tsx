@@ -6,6 +6,14 @@ import { ComponentRegistry, extractRecords } from '@object-ui/core';
 import { AlertCircle } from 'lucide-react';
 
 /**
+ * Humanize a snake_case or kebab-case string into Title Case.
+ * Local implementation to avoid a dependency on @object-ui/fields.
+ */
+export function humanizeLabel(value: string): string {
+  return value.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/**
  * Client-side aggregation for fetched records.
  * Groups records by `groupBy` field and applies the aggregation function
  * to the `field` values in each group.
@@ -48,6 +56,119 @@ export function aggregateRecords(
 
     return { [groupBy]: key, [field]: result };
   });
+}
+
+/**
+ * Resolve groupBy field values to human-readable labels using field metadata.
+ *
+ * - **select/picklist** fields: maps value→label via `field.options`.
+ * - **lookup/master_detail** fields: batch-fetches referenced records
+ *   via `dataSource.find()` and maps id→name.
+ * - **fallback**: applies `humanizeLabel()` to convert snake_case/kebab-case
+ *   values into Title Case.
+ *
+ * The resolved data is a new array with the groupBy key replaced by its label.
+ * This function is pure data-layer logic — the rendering layer does not need
+ * to perform any value→label conversion.
+ */
+export async function resolveGroupByLabels(
+  data: any[],
+  groupByField: string,
+  objectSchema: any,
+  dataSource?: any,
+): Promise<any[]> {
+  if (!data.length || !groupByField) return data;
+
+  const fieldDef = objectSchema?.fields?.[groupByField];
+  if (!fieldDef) {
+    // No metadata available — apply humanizeLabel as fallback
+    return data.map(row => ({
+      ...row,
+      [groupByField]: humanizeLabel(String(row[groupByField] ?? '')),
+    }));
+  }
+
+  const fieldType = fieldDef.type;
+
+  // --- select / picklist / dropdown fields ---
+  if (fieldType === 'select' || fieldType === 'picklist' || fieldType === 'dropdown') {
+    const options: Array<{ value: string; label: string } | string> = fieldDef.options || [];
+    if (options.length === 0) {
+      return data.map(row => ({
+        ...row,
+        [groupByField]: humanizeLabel(String(row[groupByField] ?? '')),
+      }));
+    }
+
+    // Build value→label map (options can be {value,label} objects or plain strings)
+    const labelMap: Record<string, string> = {};
+    for (const opt of options) {
+      if (typeof opt === 'string') {
+        labelMap[opt] = opt;
+      } else if (opt && typeof opt === 'object') {
+        labelMap[String(opt.value)] = opt.label || String(opt.value);
+      }
+    }
+
+    return data.map(row => {
+      const rawValue = String(row[groupByField] ?? '');
+      return {
+        ...row,
+        [groupByField]: labelMap[rawValue] || humanizeLabel(rawValue),
+      };
+    });
+  }
+
+  // --- lookup / master_detail fields ---
+  if (fieldType === 'lookup' || fieldType === 'master_detail') {
+    const referenceTo = fieldDef.reference_to || fieldDef.reference;
+    if (!referenceTo || !dataSource || typeof dataSource.find !== 'function') {
+      // Cannot resolve — return as-is
+      return data;
+    }
+
+    // Collect unique IDs to fetch
+    const ids = [...new Set(data.map(row => row[groupByField]).filter(v => v != null))];
+    if (ids.length === 0) return data;
+
+    // Derive the ID field from metadata (fallback to 'id')
+    const idField: string = fieldDef.id_field || 'id';
+
+    try {
+      const results = await dataSource.find(referenceTo, {
+        $filter: { [idField]: { $in: ids } },
+        $top: ids.length,
+      });
+      const records = extractRecords(results);
+
+      // Build id→label map using display field from metadata with sensible fallbacks
+      const displayField: string =
+        fieldDef.reference_field || fieldDef.display_field || 'name';
+      const idToName: Record<string, string> = {};
+      for (const rec of records) {
+        const id = String(rec[idField] ?? rec.id ?? rec._id ?? '');
+        const name = rec[displayField] || rec.name || rec.label || rec.title || id;
+        if (id) idToName[id] = String(name);
+      }
+
+      return data.map(row => {
+        const rawValue = String(row[groupByField] ?? '');
+        return {
+          ...row,
+          [groupByField]: idToName[rawValue] || rawValue,
+        };
+      });
+    } catch (e) {
+      console.warn('[ObjectChart] Failed to resolve lookup labels:', e);
+      return data;
+    }
+  }
+
+  // --- fallback for other field types ---
+  return data.map(row => ({
+    ...row,
+    [groupByField]: humanizeLabel(String(row[groupByField] ?? '')),
+  }));
 }
 
 // Re-export extractRecords from @object-ui/core for backward compatibility
@@ -98,6 +219,18 @@ export const ObjectChart = (props: any) => {
               return;
           }
 
+          // Resolve groupBy value→label using field metadata.
+          // The groupBy field is determined from aggregate config or xAxisKey.
+          const groupByField = schema.aggregate?.groupBy || schema.xAxisKey;
+          if (groupByField && typeof ds.getObjectSchema === 'function') {
+              try {
+                  const objectSchema = await ds.getObjectSchema(schema.objectName);
+                  data = await resolveGroupByLabels(data, groupByField, objectSchema, ds);
+              } catch {
+                  // Schema fetch failed — continue with raw values
+              }
+          }
+
           if (mounted.current) {
               setFetchedData(data);
           }
@@ -109,7 +242,7 @@ export const ObjectChart = (props: any) => {
       } finally {
           if (mounted.current) setLoading(false);
       }
-  }, [schema.objectName, schema.aggregate, schema.filter]);
+  }, [schema.objectName, schema.aggregate, schema.filter, schema.xAxisKey]);
 
   useEffect(() => {
     const mounted = { current: true };
