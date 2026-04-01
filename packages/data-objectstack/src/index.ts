@@ -829,20 +829,40 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     await this.connect();
 
     try {
+      // Build measure name in the format expected by the backend analytics
+      // service (memory-analytics / cube).  For 'count' the measure key is
+      // simply 'count'; for other aggregation functions it follows the
+      // convention `${field}_${function}` (e.g. 'amount_sum').
+      const measureName = params.function === 'count'
+        ? 'count'
+        : `${params.field}_${params.function}`;
+
       const payload: Record<string, unknown> = {
         cube: resource,
-        measures: [{ field: params.field, function: params.function }],
-        dimensions: [params.groupBy],
+        measures: [measureName],
+        // When groupBy is '_all' no dimensions are needed (single-bucket).
+        dimensions: params.groupBy && params.groupBy !== '_all' ? [params.groupBy] : [],
       };
       if (params.filter) {
         payload.filters = params.filter;
       }
 
       const data = await this.client.analytics.query(payload);
-      if (Array.isArray(data)) return data;
-      if (data?.data && Array.isArray(data.data)) return data.data;
-      if (data?.results && Array.isArray(data.results)) return data.results;
-      return [];
+      const rawRows: any[] = Array.isArray(data) ? data
+        : data?.data && Array.isArray(data.data) ? data.data
+        : data?.results && Array.isArray(data.results) ? data.results
+        : [];
+
+      // Map measure keys back to the original field name so that consumers
+      // (ObjectChart, DashboardRenderer, etc.) can access values by field name.
+      return rawRows.map((row: any) => {
+        const mapped = { ...row };
+        if (measureName !== params.field && measureName in mapped) {
+          mapped[params.field] = mapped[measureName];
+          delete mapped[measureName];
+        }
+        return mapped;
+      });
     } catch {
       // If the analytics endpoint is not available, fall back to
       // find() + client-side aggregation
