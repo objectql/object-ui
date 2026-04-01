@@ -21,7 +21,6 @@ import { useMetadata } from '../../context/MetadataProvider';
 import { useRecentItems } from '../../hooks/useRecentItems';
 import { useFavorites } from '../../hooks/useFavorites';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { resolveI18nLabel } from '../../utils';
 import { QuickActions } from './QuickActions';
 import { AppCard } from './AppCard';
 import { RecentApps } from './RecentApps';

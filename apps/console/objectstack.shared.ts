@@ -51,6 +51,26 @@ export const setupAppConfig = {
   manifest: { id: 'setup', name: 'setup' },
 };
 
+// Custom reports not part of any individual app config but needed by tests/aggregated config
+export const customReportsConfig = {
+  reports: [
+    {
+      name: 'sales_performance_q1',
+      label: 'Q1 Sales Performance',
+      description: 'Quarterly analysis of sales revenue by region and product line',
+      objectName: 'opportunity',
+      type: 'summary',
+      columns: [
+        { field: 'name', label: 'Deal Name' },
+        { field: 'amount', label: 'Amount', aggregate: 'sum' },
+        { field: 'stage', label: 'Stage' },
+        { field: 'close_date', label: 'Close Date' }
+      ]
+    }
+  ],
+  manifest: { id: 'custom-reports', name: 'custom-reports' },
+};
+
 // Patch CRM App Navigation to include Report using a supported navigation type
 const apps = [
   ...JSON.parse(JSON.stringify(appConfigs.flatMap((c: any) => c.apps || []))),
@@ -92,19 +112,7 @@ export const sharedConfig = {
   dashboards: appConfigs.flatMap((c: any) => c.dashboards || []),
   reports: [
     ...appConfigs.flatMap((c: any) => c.reports || []),
-    {
-      name: 'sales_performance_q1',
-      label: 'Q1 Sales Performance',
-      description: 'Quarterly analysis of sales revenue by region and product line',
-      objectName: 'opportunity',
-      type: 'summary',
-      columns: [
-        { field: 'name', label: 'Deal Name' },
-        { field: 'amount', label: 'Amount', aggregate: 'sum' },
-        { field: 'stage', label: 'Stage' },
-        { field: 'close_date', label: 'Close Date' }
-      ]
-    }
+    ...customReportsConfig.reports,
   ],
   pages: appConfigs.flatMap((c: any) => c.pages || []),
   manifest: {

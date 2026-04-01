@@ -10,7 +10,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Card, CardContent } from '@object-ui/components';
-import { Plus, Upload, Settings, Database, FileText } from 'lucide-react';
+import { Plus, Settings, Database } from 'lucide-react';
 import { cn } from '@object-ui/components';
 
 interface QuickAction {

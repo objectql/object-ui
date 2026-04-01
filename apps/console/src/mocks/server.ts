@@ -16,7 +16,7 @@ import { ObjectKernel } from '@objectstack/runtime';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { setupServer } from 'msw/node';
 import type { MSWPlugin } from '@objectstack/plugin-msw';
-import { appConfigs, setupAppConfig } from '../../objectstack.shared';
+import { appConfigs, setupAppConfig, customReportsConfig } from '../../objectstack.shared';
 import { createKernel } from './createKernel';
 import { createAuthHandlers } from './authHandlers';
 
@@ -34,7 +34,7 @@ export async function startMockServer() {
   console.log('[MSW] Starting ObjectStack Runtime (Test Mode)...');
 
   const result = await createKernel({
-    appConfigs: [...appConfigs, setupAppConfig],
+    appConfigs: [...appConfigs, setupAppConfig, customReportsConfig],
     persistence: false,
     mswOptions: {
       enableBrowser: false,

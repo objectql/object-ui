@@ -135,7 +135,7 @@ describe('i18n translations pipeline', () => {
   });
 
   it('appConfig.translations is spec-format array for AppPlugin', () => {
-    const translations = (appConfig as any).translations;
+    const translations = (appConfigs[0] as any).translations;
 
     expect(Array.isArray(translations)).toBe(true);
     expect(translations.length).toBeGreaterThan(0);
@@ -162,7 +162,7 @@ describe('i18n translations pipeline', () => {
     const svc = createMemoryI18n();
 
     // Simulate AppPlugin.loadTranslations() iterating the spec-format translations array
-    const translations = (appConfig as any).translations;
+    const translations = (appConfigs[0] as any).translations;
     for (const bundle of translations) {
       for (const [locale, data] of Object.entries(bundle)) {
         if (data && typeof data === 'object') {
