@@ -1,6 +1,7 @@
 import type { ObjectStackDefinition } from '@objectstack/spec';
 import { composeStacks } from '@objectstack/spec';
 import { mergeViewsIntoObjects } from '@object-ui/core';
+import { SETUP_APP_DEFAULTS } from '@objectstack/plugin-setup';
 import crmConfigImport from '@object-ui/example-crm/objectstack.config';
 import todoConfigImport from '@object-ui/example-todo/objectstack.config';
 import kitchenSinkConfigImport from '@object-ui/example-kitchen-sink/objectstack.config';
@@ -54,7 +55,7 @@ if (composed.objects && composed.views) {
 
 // Patch CRM App Navigation to include Report using a supported navigation type
 // (type: 'url' passes schema validation while still routing correctly via React Router)
-const apps = JSON.parse(JSON.stringify(composed.apps || []));
+const apps = [...JSON.parse(JSON.stringify(composed.apps || [])), SETUP_APP_DEFAULTS];
 const crmApp = apps.find((a: any) => a.name === 'crm_app');
 if (crmApp?.navigation) {
     const dashboardIdx = crmApp.navigation.findIndex((n: any) => n.id === 'nav_dashboard');

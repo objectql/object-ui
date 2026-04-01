@@ -17,6 +17,7 @@ import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver, MemoryAnalyticsService } from '@objectstack/driver-memory';
 import { MSWPlugin } from '@objectstack/plugin-msw';
 import type { MSWPluginOptions } from '@objectstack/plugin-msw';
+import { SetupPlugin } from '@objectstack/plugin-setup';
 import type { Cube } from '@objectstack/spec/data';
 import { http, HttpResponse } from 'msw';
 
@@ -309,6 +310,7 @@ export async function createKernel(options: KernelOptions): Promise<KernelResult
   await kernel.use(new ObjectQLPlugin());
   await kernel.use(new DriverPlugin(driver, 'memory'));
   await kernel.use(new AppPlugin(appConfig));
+  await kernel.use(new SetupPlugin());
 
   // Register MemoryAnalyticsService so that HttpDispatcher can serve
   // /api/v1/analytics/* endpoints in demo/MSW/dev environments.

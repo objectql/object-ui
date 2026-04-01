@@ -19,7 +19,7 @@ import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { HonoServerPlugin } from '@objectstack/plugin-hono-server';
 import { AuthPlugin } from '@objectstack/plugin-auth';
-import { SetupPlugin } from '@objectstack/plugin-setup';
+import { SetupPlugin, SETUP_APP_DEFAULTS } from '@objectstack/plugin-setup';
 import { ConsolePlugin } from '@object-ui/console';
 import { composeStacks } from '@objectstack/spec';
 import { mergeViewsIntoObjects } from '@object-ui/core';
@@ -70,6 +70,7 @@ if (composed.objects && composed.views) {
 
 const mergedApp = {
   ...composed,
+  apps: [...(composed.apps || []), SETUP_APP_DEFAULTS],
   manifest: {
     id: 'dev-workspace',
     name: 'dev_workspace',

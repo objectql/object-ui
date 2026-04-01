@@ -72,6 +72,7 @@
     "@objectstack/driver-memory": "^4.0.1",
     "@objectstack/objectql": "^4.0.1",
     "@objectstack/plugin-msw": "^4.0.1",
+    "@objectstack/plugin-setup": "^4.0.1",
     "@objectstack/runtime": "^4.0.1",
     "@objectstack/spec": "^4.0.1",
     "@tailwindcss/postcss": "^4.2.2",
