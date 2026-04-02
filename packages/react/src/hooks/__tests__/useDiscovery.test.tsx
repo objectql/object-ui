@@ -122,6 +122,104 @@ describe('useDiscovery', () => {
     expect(result.current.isAuthEnabled).toBe(false);
   });
 
+  it('isAiEnabled defaults to false when no discovery', async () => {
+    const { result } = renderHook(() => useDiscovery());
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.isAiEnabled).toBe(false);
+  });
+
+  it('isAiEnabled is true when ai service is enabled and available', async () => {
+    const discoveryData = {
+      services: {
+        ai: { enabled: true, status: 'available' as const, route: '/api/v1/ai' },
+      },
+    };
+
+    const dataSource = {
+      getDiscovery: vi.fn().mockResolvedValue(discoveryData),
+    };
+
+    const { result } = renderHook(() => useDiscovery(), {
+      wrapper: createWrapper(dataSource),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.isAiEnabled).toBe(true);
+  });
+
+  it('isAiEnabled is false when ai service is enabled but unavailable', async () => {
+    const discoveryData = {
+      services: {
+        ai: { enabled: true, status: 'unavailable' as const },
+      },
+    };
+
+    const dataSource = {
+      getDiscovery: vi.fn().mockResolvedValue(discoveryData),
+    };
+
+    const { result } = renderHook(() => useDiscovery(), {
+      wrapper: createWrapper(dataSource),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.isAiEnabled).toBe(false);
+  });
+
+  it('isAiEnabled is false when ai service is disabled', async () => {
+    const discoveryData = {
+      services: {
+        ai: { enabled: false, status: 'available' as const },
+      },
+    };
+
+    const dataSource = {
+      getDiscovery: vi.fn().mockResolvedValue(discoveryData),
+    };
+
+    const { result } = renderHook(() => useDiscovery(), {
+      wrapper: createWrapper(dataSource),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.isAiEnabled).toBe(false);
+  });
+
+  it('isAiEnabled is false when ai service has no status', async () => {
+    const discoveryData = {
+      services: {
+        ai: { enabled: true },
+      },
+    };
+
+    const dataSource = {
+      getDiscovery: vi.fn().mockResolvedValue(discoveryData),
+    };
+
+    const { result } = renderHook(() => useDiscovery(), {
+      wrapper: createWrapper(dataSource),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.isAiEnabled).toBe(false);
+  });
+
   it('cleans up on unmount (cancelled flag)', async () => {
     let resolveDiscovery: (value: any) => void;
     const discoveryPromise = new Promise((resolve) => {

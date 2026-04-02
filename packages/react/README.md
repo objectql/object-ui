@@ -120,11 +120,16 @@ Access server discovery information including preview mode detection:
 import { useDiscovery } from '@object-ui/react'
 
 function MyComponent() {
-  const { discovery, isLoading, isAuthEnabled } = useDiscovery()
+  const { discovery, isLoading, isAuthEnabled, isAiEnabled } = useDiscovery()
   
   // Check if the server is in preview mode
   if (discovery?.mode === 'preview') {
     console.log('Preview mode active:', discovery.previewMode)
+  }
+
+  // Check if AI service is available
+  if (isAiEnabled) {
+    console.log('AI service route:', discovery?.services?.ai?.route)
   }
 
   return <div>Server: {discovery?.name}</div>
@@ -139,7 +144,7 @@ function MyComponent() {
 | `version` | `string` | Server version |
 | `mode` | `string` | Runtime mode (e.g. `'development'`, `'production'`, `'preview'`) |
 | `previewMode` | `object` | Preview mode configuration (present when mode is `'preview'`) |
-| `services` | `object` | Service availability status (auth, data, metadata) |
+| `services` | `object` | Service availability status (auth, data, metadata, ai) |
 | `capabilities` | `string[]` | API capabilities |
 
 The `previewMode` object contains:

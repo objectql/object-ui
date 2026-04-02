@@ -49,6 +49,13 @@ export interface DiscoveryInfo {
       enabled: boolean;
       status?: 'available' | 'unavailable';
     };
+    /** AI service configuration */
+    ai?: {
+      enabled: boolean;
+      status?: 'available' | 'unavailable';
+      /** AI service endpoint route (e.g. '/api/v1/ai') */
+      route?: string;
+    };
     [key: string]: any;
   };
   
@@ -149,6 +156,13 @@ export function useDiscovery() {
      * Defaults to true if discovery data is not available.
      */
     isAuthEnabled: discovery?.services?.auth?.enabled ?? true,
+    /**
+     * Check if AI service is enabled and available on the server.
+     * Defaults to false if discovery data is not available.
+     */
+    isAiEnabled:
+      discovery?.services?.ai?.enabled === true &&
+      discovery?.services?.ai?.status === 'available',
   };
 }
 
