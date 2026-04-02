@@ -562,7 +562,8 @@ export function FieldDesigner({
     columns: gridColumns,
     searchableFields: ['name', 'label', 'description'],
     showSearch: true,
-  }), [gridColumns]);
+    operations: readOnly ? undefined : { create: true, update: true, delete: true },
+  }), [gridColumns, readOnly]);
 
   // Handlers
   // Note: ObjectGrid applies $select using column fields, which strips `id`.
