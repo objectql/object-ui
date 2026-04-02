@@ -10,6 +10,7 @@
 import React from 'react';
 import { AppShell } from '@object-ui/layout';
 import { FloatingChatbot, useObjectChat, type ChatMessage } from '@object-ui/plugin-chatbot';
+import { useDiscovery } from '@object-ui/react';
 import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
 import { useResponsiveSidebar } from '../hooks/useResponsiveSidebar';
@@ -96,6 +97,7 @@ export function ConsoleLayout({
   connectionState
 }: ConsoleLayoutProps) {
   const appLabel = resolveI18nLabel(activeApp?.label) || activeAppName;
+  const { isAiEnabled } = useDiscovery();
 
   return (
     <AppShell
@@ -131,8 +133,8 @@ export function ConsoleLayout({
         {children}
       </ConsoleLayoutInner>
 
-      {/* Global floating chatbot — available on every page */}
-      <ConsoleFloatingChatbot appLabel={appLabel} objects={objects} />
+      {/* Global floating chatbot — rendered only when AI service is available */}
+      {isAiEnabled && <ConsoleFloatingChatbot appLabel={appLabel} objects={objects} />}
     </AppShell>
   );
 }

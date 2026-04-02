@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **AI service discovery** (`@object-ui/react`): Added `ai` service type to `DiscoveryInfo.services` interface with `enabled`, `status`, and `route` fields. Added `isAiEnabled` convenience property to `useDiscovery()` hook return value — returns `true` only when `services.ai.enabled === true` and `services.ai.status === 'available'`, defaults to `false` otherwise.
+
+- **Conditional chatbot rendering** (`@object-ui/console`): Console floating chatbot (FAB) now only renders when the AI service is detected as available via `useDiscovery().isAiEnabled`. Previously the chatbot was always visible; now it is hidden when the server has no AI plugin installed.
+
 - **Home page user menu** (`@object-ui/console`): Added complete user menu dropdown (Profile, Settings, Sign Out) to the Home Dashboard via new `HomeLayout` shell component. Users can now access account actions directly from the `/home` page without navigating elsewhere.
 
 - **"Return to Home" navigation** (`@object-ui/console`): Added a "Home" entry in the AppSidebar app switcher dropdown, allowing users to navigate back to `/home` from any application context. Previously, the only way to return to the Home Dashboard was to manually edit the URL.
