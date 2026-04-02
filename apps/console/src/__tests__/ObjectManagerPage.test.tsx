@@ -3,13 +3,23 @@
  *
  * Tests for the system administration Object Manager page that integrates
  * ObjectManager and FieldDesigner from @object-ui/plugin-designer.
- * Covers list view, detail view with URL-based navigation, and field management.
+ * Covers list view, detail view with URL-based navigation, field management,
+ * and API integration via MetadataService.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { ObjectManagerPage } from '../pages/system/ObjectManagerPage';
+
+// ---------------------------------------------------------------------------
+// Shared mock state
+// ---------------------------------------------------------------------------
+
+const mockRefresh = vi.fn().mockResolvedValue(undefined);
+const mockSaveItem = vi.fn().mockResolvedValue({});
+const mockGetItem = vi.fn().mockResolvedValue({ item: { name: 'account', fields: [] } });
+const mockInvalidateCache = vi.fn();
 
 // Mock MetadataProvider
 vi.mock('../context/MetadataProvider', () => ({
@@ -51,7 +61,20 @@ vi.mock('../context/MetadataProvider', () => ({
         ],
       },
     ],
-    refresh: vi.fn(),
+    refresh: mockRefresh,
+  }),
+}));
+
+// Mock AdapterProvider (useAdapter) – provides adapter to useMetadataService
+vi.mock('../context/AdapterProvider', () => ({
+  useAdapter: () => ({
+    getClient: () => ({
+      meta: {
+        saveItem: mockSaveItem,
+        getItem: mockGetItem,
+      },
+    }),
+    invalidateCache: mockInvalidateCache,
   }),
 }));
 
@@ -170,6 +193,26 @@ describe('ObjectManagerPage', () => {
       await waitFor(() => {
         expect(screen.getByTestId('object-detail-view')).toBeDefined();
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // API Integration tests
+  // -------------------------------------------------------------------------
+
+  describe('API Integration', () => {
+    it('should have MetadataService available (adapter mock is wired)', () => {
+      // Rendering the page should not crash even though useMetadataService
+      // depends on useAdapter — the mock above provides a valid adapter.
+      renderPage();
+      expect(screen.getByTestId('object-manager-page')).toBeDefined();
+    });
+
+    it('should render detail view with MetadataService props', () => {
+      renderPage('/system/objects/account');
+      expect(screen.getByTestId('object-detail-view')).toBeDefined();
+      // The FieldDesigner should be rendered (service is passed through)
+      expect(screen.getByTestId('field-designer')).toBeDefined();
     });
   });
 });

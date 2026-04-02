@@ -5,19 +5,24 @@
  * Integrates both ObjectManager (object list/CRUD) and FieldDesigner (field
  * configuration wizard) from @object-ui/plugin-designer.
  *
+ * All object and field mutations are persisted to the backend via the
+ * MetadataService (optimistic update → API call → rollback on failure).
+ *
  * Routes:
  *   /system/objects           → Object list (ObjectManager)
  *   /system/objects/:objectName → Object detail with field management (FieldDesigner)
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Badge } from '@object-ui/components';
-import { ArrowLeft, Database, Settings2, Link2 } from 'lucide-react';
+import { ArrowLeft, Database, Settings2, Link2, Loader2 } from 'lucide-react';
 import { ObjectManager, FieldDesigner } from '@object-ui/plugin-designer';
 import type { ObjectDefinition, DesignerFieldDefinition, DesignerFieldType } from '@object-ui/types';
 import { toast } from 'sonner';
 import { useMetadata } from '../../context/MetadataProvider';
+import { useMetadataService } from '../../hooks/useMetadataService';
+import { MetadataService } from '../../services/MetadataService';
 
 /** Loose shape of a metadata object definition from the ObjectStack API. */
 interface MetadataObject {
@@ -137,20 +142,53 @@ interface ObjectDetailViewProps {
   object: ObjectDefinition;
   metadataObject: MetadataObject | undefined;
   onBack: () => void;
+  metadataService: MetadataService | null;
+  onRefresh: () => Promise<void>;
 }
 
-function ObjectDetailView({ object, metadataObject, onBack }: ObjectDetailViewProps) {
+function ObjectDetailView({ object, metadataObject, onBack, metadataService, onRefresh }: ObjectDetailViewProps) {
   const rawFields = metadataObject
     ? (Array.isArray(metadataObject.fields) ? metadataObject.fields : Object.values(metadataObject.fields || {}))
     : [];
   const fields = useMemo(() => rawFields.map(toFieldDefinition), [rawFields]);
   const [localFields, setLocalFields] = useState<DesignerFieldDefinition[] | null>(null);
+  const [saving, setSaving] = useState(false);
   const displayFields = localFields ?? fields;
+  const prevFieldsRef = useRef<DesignerFieldDefinition[]>(displayFields);
 
-  const handleFieldsChange = useCallback((updated: DesignerFieldDefinition[]) => {
+  const handleFieldsChange = useCallback(async (updated: DesignerFieldDefinition[]) => {
+    const previous = prevFieldsRef.current;
+
+    // Optimistic update
     setLocalFields(updated);
-    toast.success('Field configuration updated');
-  }, []);
+    prevFieldsRef.current = updated;
+
+    if (!metadataService) {
+      toast.error('Service unavailable — changes saved locally only');
+      return;
+    }
+
+    const diff = MetadataService.diffFields(previous, updated);
+    const actionLabel = diff
+      ? diff.type === 'create' ? `Field "${diff.field.label}" created`
+        : diff.type === 'update' ? `Field "${diff.field.label}" updated`
+        : `Field "${diff.field.label}" deleted`
+      : 'Field configuration updated';
+
+    setSaving(true);
+    try {
+      await metadataService.saveFields(object.name, updated);
+      await onRefresh();
+      toast.success(actionLabel);
+    } catch (err: any) {
+      // Rollback on failure
+      setLocalFields(previous);
+      prevFieldsRef.current = previous;
+      toast.error(err?.message || 'Failed to save field changes');
+    } finally {
+      setSaving(false);
+    }
+  }, [metadataService, object.name, onRefresh]);
 
   return (
     <div className="flex flex-col gap-6" data-testid="object-detail-view">
@@ -247,6 +285,12 @@ function ObjectDetailView({ object, metadataObject, onBack }: ObjectDetailViewPr
 
       {/* Field Management Section */}
       <div className="space-y-3" data-testid="field-management-section">
+        {saving && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="field-saving-indicator">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Saving field changes…
+          </div>
+        )}
         <FieldDesigner
           objectName={object.name}
           fields={displayFields}
@@ -265,7 +309,8 @@ export function ObjectManagerPage() {
   const navigate = useNavigate();
   const { appName, objectName: routeObjectName } = useParams();
   const basePath = appName ? `/apps/${appName}/system/objects` : '/system/objects';
-  const { objects: metadataObjects } = useMetadata();
+  const { objects: metadataObjects, refresh } = useMetadata();
+  const metadataService = useMetadataService();
 
   // Convert metadata objects to ObjectDefinition[]
   const objects = useMemo<ObjectDefinition[]>(
@@ -273,9 +318,11 @@ export function ObjectManagerPage() {
     [metadataObjects]
   );
 
-  // State for local object edits
+  // State for local object edits and saving indicator
   const [localObjects, setLocalObjects] = useState<ObjectDefinition[] | null>(null);
+  const [saving, setSaving] = useState(false);
   const displayObjects = localObjects ?? objects;
+  const prevObjectsRef = useRef<ObjectDefinition[]>(displayObjects);
 
   // Find selected object from URL param
   const selectedObject = useMemo(() => {
@@ -299,10 +346,53 @@ export function ObjectManagerPage() {
     navigate(basePath);
   }, [navigate, basePath]);
 
-  const handleObjectsChange = useCallback((updated: ObjectDefinition[]) => {
+  const handleObjectsChange = useCallback(async (updated: ObjectDefinition[]) => {
+    const previous = prevObjectsRef.current;
+
+    // Optimistic update
     setLocalObjects(updated);
-    toast.success('Object definitions updated');
-  }, []);
+    prevObjectsRef.current = updated;
+
+    if (!metadataService) {
+      toast.error('Service unavailable — changes saved locally only');
+      return;
+    }
+
+    const diff = MetadataService.diffObjects(previous, updated);
+
+    setSaving(true);
+    try {
+      if (diff) {
+        if (diff.type === 'delete') {
+          await metadataService.deleteObject(diff.object.name);
+        } else {
+          // create or update — saveItem is an upsert
+          await metadataService.saveObject(diff.object);
+        }
+      } else {
+        // Multiple changes or reorder — save all objects
+        for (const obj of updated) {
+          await metadataService.saveObject(obj);
+        }
+      }
+
+      await refresh();
+
+      const actionLabel = diff
+        ? diff.type === 'create' ? `Object "${diff.object.label}" created`
+          : diff.type === 'update' ? `Object "${diff.object.label}" updated`
+          : `Object "${diff.object.label}" deleted`
+        : 'Object definitions updated';
+      toast.success(actionLabel);
+    } catch (err: any) {
+      // Rollback on failure
+      setLocalObjects(previous);
+      prevObjectsRef.current = previous;
+      toast.error(err?.message || 'Failed to save object changes');
+    } finally {
+      setSaving(false);
+    }
+  }, [metadataService, refresh]);
 
   // Detail view mode: show object detail + FieldDesigner
   if (selectedObject) {
@@ -312,6 +402,8 @@ export function ObjectManagerPage() {
           object={selectedObject}
           metadataObject={selectedMetadataObject}
           onBack={handleBackToList}
+          metadataService={metadataService}
+          onRefresh={refresh}
         />
       </div>
     );
@@ -336,6 +428,14 @@ export function ObjectManagerPage() {
           </div>
         </div>
       </div>
+
+      {/* Saving indicator */}
+      {saving && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="object-saving-indicator">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Saving object changes…
+        </div>
+      )}
 
       {/* Content */}
       <ObjectManager

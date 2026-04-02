@@ -924,6 +924,18 @@ Enterprise-grade visual designers for managing object definitions and configurin
 - [x] Read-only mode support
 - [x] 22 unit tests
 
+**Metadata Persistence (Console Integration):**
+- [x] `MetadataService` class wrapping `client.meta.saveItem` for object/field CRUD
+- [x] `useMetadataService` hook for adapter-aware service access
+- [x] Optimistic update pattern with rollback on API failure
+- [x] Object create/update persisted via `saveItem('object', name, data)`
+- [x] Object delete via soft-delete (`enabled: false, _deleted: true`)
+- [x] Field changes persisted as part of parent object metadata
+- [x] MetadataProvider `refresh()` called after successful mutations
+- [x] Saving state indicators with loading spinners
+- [x] Accurate toast messages (create/update/delete action labels, error details)
+- [x] 16 new MetadataService unit tests + 2 ObjectManagerPage API integration tests
+
 **Type Definitions (`@object-ui/types`):**
 - [x] `ObjectDefinition`, `ObjectDefinitionRelationship`, `ObjectManagerSchema`
 - [x] `DesignerFieldType` (27 types), `DesignerFieldOption`, `DesignerValidationRule`

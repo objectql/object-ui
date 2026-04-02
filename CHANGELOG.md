@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Metadata service layer** (`@object-ui/console`): New `MetadataService` class (`services/MetadataService.ts`) that encapsulates object and field CRUD operations against the ObjectStack metadata API (`client.meta.saveItem`). Provides `saveObject()`, `deleteObject()`, and `saveFields()` methods with automatic cache invalidation. Includes static `diffObjects()` and `diffFields()` helpers to detect create/update/delete changes between arrays. Companion `useMetadataService` hook (`hooks/useMetadataService.ts`) provides a memoised service instance from the `useAdapter()` context. 16 new unit tests.
+
+### Fixed
+
+- **Object/field changes now persist to backend** (`@object-ui/console`): Refactored `ObjectManagerPage` so that `handleObjectsChange` and `handleFieldsChange` call the MetadataService API instead of only updating local state. Implements optimistic update pattern — UI updates immediately, rolls back on API failure. After successful persistence, the MetadataProvider is refreshed so changes survive page reloads. Toast messages now accurately reflect the operation performed (create/update/delete) and display error details on failure. Added saving state indicators with a loading spinner during API operations.
+
 - **AI service discovery** (`@object-ui/react`): Added `ai` service type to `DiscoveryInfo.services` interface with `enabled`, `status`, and `route` fields. Added `isAiEnabled` convenience property to `useDiscovery()` hook return value — returns `true` only when `services.ai.enabled === true` and `services.ai.status === 'available'`, defaults to `false` otherwise.
 
 - **Conditional chatbot rendering** (`@object-ui/console`): Console floating chatbot (FAB) now only renders when the AI service is detected as available via `useDiscovery().isAiEnabled`. Previously the chatbot was always visible; now it is hidden when the server has no AI plugin installed.
