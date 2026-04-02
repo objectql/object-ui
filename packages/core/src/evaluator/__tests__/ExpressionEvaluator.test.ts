@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { ExpressionEvaluator, evaluateExpression, evaluateCondition, evaluatePlainCondition } from '../ExpressionEvaluator';
 import { ExpressionContext } from '../ExpressionContext';
+import { SafeExpressionParser } from '../SafeExpressionParser';
 
 describe('ExpressionContext', () => {
   it('should create context with initial data', () => {
@@ -127,5 +128,431 @@ describe('evaluatePlainCondition', () => {
 
   it('should return false for non-boolean results', () => {
     expect(evaluatePlainCondition('status', { status: 'active' })).toBe(false);
+  });
+});
+
+// ─── CSP Safety Tests ──────────────────────────────────────────────────────
+//
+// These tests verify that expression evaluation does NOT rely on eval() or
+// new Function() and therefore works under strict Content Security Policy
+// headers that forbid 'unsafe-eval'.
+//
+// The SafeExpressionParser is the CSP-safe backend used by ExpressionCache.
+// All tests below exercise it directly as well as through ExpressionEvaluator.
+
+describe('SafeExpressionParser — CSP-safe evaluation', () => {
+  const parser = new SafeExpressionParser();
+
+  describe('does not use eval() or new Function()', () => {
+    it('evaluates comparison operators without dynamic code execution', () => {
+      // This is the exact expression from the bug report.
+      expect(
+        parser.evaluate(
+          "stage !== 'closed_won' && stage !== 'closed_lost'",
+          { stage: 'open' }
+        )
+      ).toBe(true);
+
+      expect(
+        parser.evaluate(
+          "stage !== 'closed_won' && stage !== 'closed_lost'",
+          { stage: 'closed_won' }
+        )
+      ).toBe(false);
+
+      expect(
+        parser.evaluate(
+          "stage !== 'closed_won' && stage !== 'closed_lost'",
+          { stage: 'closed_lost' }
+        )
+      ).toBe(false);
+    });
+
+    it('evaluates strict equality operators (===, !==)', () => {
+      expect(parser.evaluate("status === 'active'", { status: 'active' })).toBe(true);
+      expect(parser.evaluate("status === 'active'", { status: 'inactive' })).toBe(false);
+      expect(parser.evaluate("status !== 'active'", { status: 'inactive' })).toBe(true);
+    });
+
+    it('evaluates loose equality operators (==, !=)', () => {
+      expect(parser.evaluate('count == 0', { count: 0 })).toBe(true);
+      expect(parser.evaluate('count != 0', { count: 1 })).toBe(true);
+    });
+
+    it('evaluates relational operators (>, <, >=, <=)', () => {
+      expect(parser.evaluate('score >= 90', { score: 95 })).toBe(true);
+      expect(parser.evaluate('score >= 90', { score: 85 })).toBe(false);
+      expect(parser.evaluate('score <= 90', { score: 85 })).toBe(true);
+      expect(parser.evaluate('score > 50 && score < 100', { score: 75 })).toBe(true);
+    });
+
+    it('evaluates logical operators (&&, ||, !)', () => {
+      expect(parser.evaluate('isAdmin && isActive', { isAdmin: true, isActive: true })).toBe(true);
+      expect(parser.evaluate('isAdmin && isActive', { isAdmin: true, isActive: false })).toBe(false);
+      expect(parser.evaluate('isAdmin || isGuest', { isAdmin: false, isGuest: true })).toBe(true);
+      expect(parser.evaluate('!isSuspended', { isSuspended: false })).toBe(true);
+      expect(parser.evaluate('!isSuspended', { isSuspended: true })).toBe(false);
+    });
+
+    it('evaluates ternary expressions', () => {
+      expect(parser.evaluate("score >= 90 ? 'A' : 'B'", { score: 95 })).toBe('A');
+      expect(parser.evaluate("score >= 90 ? 'A' : 'B'", { score: 75 })).toBe('B');
+    });
+
+    it('evaluates nested ternary expressions', () => {
+      const expr = "status === 'active' ? 'success' : status === 'pending' ? 'warning' : 'default'";
+      expect(parser.evaluate(expr, { status: 'active' })).toBe('success');
+      expect(parser.evaluate(expr, { status: 'pending' })).toBe('warning');
+      expect(parser.evaluate(expr, { status: 'closed' })).toBe('default');
+    });
+
+    it('evaluates arithmetic operators', () => {
+      expect(parser.evaluate('price * quantity', { price: 10, quantity: 5 })).toBe(50);
+      expect(parser.evaluate('total - discount', { total: 100, discount: 15 })).toBe(85);
+      expect(parser.evaluate('total / count', { total: 60, count: 3 })).toBe(20);
+      expect(parser.evaluate('value % 3', { value: 10 })).toBe(1);
+    });
+
+    it('evaluates parenthesized expressions', () => {
+      expect(parser.evaluate('(a + b) * c', { a: 2, b: 3, c: 4 })).toBe(20);
+    });
+
+    it('evaluates unary operators', () => {
+      expect(parser.evaluate('-amount', { amount: 5 })).toBe(-5);
+      expect(parser.evaluate('+amount', { amount: '42' })).toBe(42);
+      expect(parser.evaluate('!flag', { flag: false })).toBe(true);
+    });
+
+    it('evaluates typeof operator', () => {
+      expect(parser.evaluate('typeof name', { name: 'Alice' })).toBe('string');
+      expect(parser.evaluate('typeof count', { count: 42 })).toBe('number');
+    });
+  });
+
+  describe('property and method access', () => {
+    it('evaluates dot notation property access', () => {
+      expect(parser.evaluate('user.name', { user: { name: 'Alice' } })).toBe('Alice');
+      expect(parser.evaluate('user.address.city', {
+        user: { address: { city: 'London' } }
+      })).toBe('London');
+    });
+
+    it('evaluates bracket notation property access', () => {
+      expect(parser.evaluate("record['status']", { record: { status: 'active' } })).toBe('active');
+      expect(parser.evaluate('arr[0]', { arr: ['first', 'second'] })).toBe('first');
+    });
+
+    it('evaluates optional chaining (?.) gracefully', () => {
+      expect(parser.evaluate('user?.address?.city', { user: null })).toBeUndefined();
+      expect(parser.evaluate('user?.address?.city', { user: { address: { city: 'NYC' } } })).toBe('NYC');
+    });
+
+    it('evaluates string method calls', () => {
+      expect(parser.evaluate('name.toUpperCase()', { name: 'hello' })).toBe('HELLO');
+      expect(parser.evaluate('name.toLowerCase()', { name: 'WORLD' })).toBe('world');
+      expect(parser.evaluate('name.trim()', { name: '  hi  ' })).toBe('hi');
+      expect(parser.evaluate("name.includes('ell')", { name: 'hello' })).toBe(true);
+    });
+
+    it('evaluates array methods with arrow functions', () => {
+      const items = [
+        { name: 'apple', price: 1.5, active: true },
+        { name: 'banana', price: 0.75, active: false },
+        { name: 'cherry', price: 3.0, active: true },
+      ];
+      expect(
+        parser.evaluate('items.filter(i => i.active).length', { items })
+      ).toBe(2);
+      expect(
+        parser.evaluate('items.map(i => i.name).join(", ")', { items })
+      ).toBe('apple, banana, cherry');
+      expect(
+        parser.evaluate('items.filter(i => i.price > 1).length', { items })
+      ).toBe(2);
+    });
+
+    it('evaluates chained array method calls', () => {
+      const users = [
+        { name: 'Alice', isActive: true },
+        { name: 'Bob', isActive: false },
+        { name: 'Carol', isActive: true },
+      ];
+      expect(
+        parser.evaluate('users.filter(u => u.isActive).map(u => u.name).join(", ")', { users })
+      ).toBe('Alice, Carol');
+    });
+
+    it('evaluates array .length property', () => {
+      expect(parser.evaluate('items.length === 0', { items: [] })).toBe(true);
+      expect(parser.evaluate('items.length', { items: [1, 2, 3] })).toBe(3);
+    });
+
+    it('evaluates number method calls', () => {
+      expect(parser.evaluate('price.toFixed(2)', { price: 3.14159 })).toBe('3.14');
+    });
+
+    it('evaluates Math global functions', () => {
+      expect(parser.evaluate('Math.round(value)', { value: 3.7 })).toBe(4);
+      expect(parser.evaluate('Math.floor(value)', { value: 3.9 })).toBe(3);
+      expect(parser.evaluate('Math.abs(value)', { value: -5 })).toBe(5);
+      expect(parser.evaluate('Math.max(a, b)', { a: 10, b: 7 })).toBe(10);
+    });
+  });
+
+  describe('literals', () => {
+    it('evaluates boolean literals', () => {
+      expect(parser.evaluate('true', {})).toBe(true);
+      expect(parser.evaluate('false', {})).toBe(false);
+    });
+
+    it('evaluates null and undefined literals', () => {
+      expect(parser.evaluate('null', {})).toBeNull();
+      expect(parser.evaluate('undefined', {})).toBeUndefined();
+    });
+
+    it('evaluates numeric literals', () => {
+      expect(parser.evaluate('42', {})).toBe(42);
+      expect(parser.evaluate('3.14', {})).toBeCloseTo(3.14);
+      expect(parser.evaluate('1e3', {})).toBe(1000);
+    });
+
+    it('evaluates string literals with single and double quotes', () => {
+      expect(parser.evaluate("'hello'", {})).toBe('hello');
+      expect(parser.evaluate('"world"', {})).toBe('world');
+    });
+
+    it('evaluates string escape sequences', () => {
+      expect(parser.evaluate("'line1\\nline2'", {})).toBe('line1\nline2');
+      expect(parser.evaluate("'tab\\there'", {})).toBe('tab\there');
+    });
+
+    it('evaluates array literals', () => {
+      expect(parser.evaluate('[1, 2, 3]', {})).toEqual([1, 2, 3]);
+      expect(parser.evaluate("['a', 'b']", {})).toEqual(['a', 'b']);
+    });
+
+    it('evaluates NaN and Infinity literals', () => {
+      expect(parser.evaluate('Infinity', {})).toBe(Infinity);
+      expect(Number.isNaN(parser.evaluate('NaN', {}) as number)).toBe(true);
+    });
+  });
+
+  describe('nullish coalescing', () => {
+    it('evaluates ?? operator', () => {
+      expect(parser.evaluate('value ?? "default"', { value: null })).toBe('default');
+      expect(parser.evaluate('value ?? "default"', { value: undefined })).toBe('default');
+      expect(parser.evaluate('value ?? "default"', { value: 0 })).toBe(0);
+      expect(parser.evaluate('value ?? "default"', { value: '' })).toBe('');
+    });
+  });
+
+  describe('short-circuit evaluation', () => {
+    it('|| does not evaluate RHS when LHS is truthy', () => {
+      // 'missingVar' is not in context — would throw ReferenceError without short-circuit.
+      expect(parser.evaluate('true || missingVar', {})).toBe(true);
+    });
+
+    it('&& does not evaluate RHS when LHS is falsy', () => {
+      expect(parser.evaluate('false && missingVar', {})).toBe(false);
+    });
+
+    it('?? does not evaluate RHS when LHS is not nullish', () => {
+      expect(parser.evaluate('"present" ?? missingVar', {})).toBe('present');
+      expect(parser.evaluate('0 ?? missingVar', {})).toBe(0);
+      expect(parser.evaluate('"" ?? missingVar', {})).toBe('');
+    });
+
+    it('?? DOES evaluate RHS when LHS is null/undefined', () => {
+      expect(parser.evaluate('null ?? "fallback"', {})).toBe('fallback');
+      expect(parser.evaluate('undefined ?? "fallback"', {})).toBe('fallback');
+    });
+
+    it('ternary true branch: does not evaluate false branch', () => {
+      expect(parser.evaluate("true ? 'yes' : missingVar", {})).toBe('yes');
+    });
+
+    it('ternary false branch: does not evaluate true branch', () => {
+      expect(parser.evaluate("false ? missingVar : 'no'", {})).toBe('no');
+    });
+
+    it('nested ternary short-circuits correctly', () => {
+      const expr = "status === 'a' ? 'alpha' : status === 'b' ? 'beta' : 'other'";
+      expect(parser.evaluate(expr, { status: 'a' })).toBe('alpha');
+      expect(parser.evaluate(expr, { status: 'b' })).toBe('beta');
+      expect(parser.evaluate(expr, { status: 'c' })).toBe('other');
+    });
+  });
+
+  describe('sandbox security', () => {
+    it('blocks constructor property access via dot notation', () => {
+      expect(() =>
+        parser.evaluate('name.constructor', { name: 'hello' })
+      ).toThrow(TypeError);
+    });
+
+    it('blocks constructor property access via bracket notation', () => {
+      expect(() =>
+        parser.evaluate("name['constructor']", { name: 'hello' })
+      ).toThrow(TypeError);
+    });
+
+    it('blocks __proto__ access', () => {
+      expect(() =>
+        parser.evaluate('obj.__proto__', { obj: {} })
+      ).toThrow(TypeError);
+    });
+
+    it('blocks prototype access', () => {
+      expect(() =>
+        parser.evaluate('fn.prototype', { fn: () => {} })
+      ).toThrow(TypeError);
+    });
+
+    it('blocks constructor method calls', () => {
+      expect(() =>
+        parser.evaluate("name['constructor']('return 1')()", { name: 'hello' })
+      ).toThrow(TypeError);
+    });
+
+    it('does not expose String/Number/Boolean/Array globals (removed to prevent .constructor escape)', () => {
+      expect(() => parser.evaluate('String', {})).toThrow(ReferenceError);
+      expect(() => parser.evaluate('Number', {})).toThrow(ReferenceError);
+      expect(() => parser.evaluate('Boolean', {})).toThrow(ReferenceError);
+      expect(() => parser.evaluate('Array', {})).toThrow(ReferenceError);
+    });
+  });
+
+  describe('error handling', () => {
+    it('throws ReferenceError for undefined identifiers', () => {
+      expect(() => parser.evaluate('nonExistentVar', {})).toThrow(ReferenceError);
+    });
+
+    it('returns undefined gracefully for missing property access (no throw)', () => {
+      expect(parser.evaluate('user.missingProp', { user: {} })).toBeUndefined();
+      expect(parser.evaluate('user.address.city', { user: {} })).toBeUndefined();
+    });
+
+    it('throws SyntaxError for unclosed parentheses', () => {
+      // Use a valid inner expression so the error is about the missing ')' not the content.
+      expect(() => parser.evaluate('(1 + 2', {})).toThrow(SyntaxError);
+    });
+
+    it('throws SyntaxError for unclosed array literal', () => {
+      expect(() => parser.evaluate('[1, 2', {})).toThrow(SyntaxError);
+    });
+
+    it('throws SyntaxError for malformed numeric exponent (e.g. 1e)', () => {
+      // '1e' has no exponent digits — the stricter parser rejects it.
+      expect(() => parser.evaluate('1e', {})).toThrow(SyntaxError);
+    });
+  });
+});
+
+describe('ExpressionEvaluator — CSP safety integration', () => {
+  it('evaluates the bug-report expression without CSP violation', () => {
+    // Exact expression from the bug report that was blocked by CSP in production.
+    const evaluator = new ExpressionEvaluator({ stage: 'open' });
+    expect(
+      evaluator.evaluate("${stage !== 'closed_won' && stage !== 'closed_lost'}")
+    ).toBe(true);
+
+    const evaluator2 = new ExpressionEvaluator({ stage: 'closed_won' });
+    expect(
+      evaluator2.evaluate("${stage !== 'closed_won' && stage !== 'closed_lost'}")
+    ).toBe(false);
+  });
+
+  it('supports all comparison operators via the safe parser', () => {
+    const e = new ExpressionEvaluator({ a: 10, b: 10, c: 5 });
+    expect(e.evaluateExpression('a === b')).toBe(true);
+    expect(e.evaluateExpression('a !== c')).toBe(true);
+    expect(e.evaluateExpression('a > c')).toBe(true);
+    expect(e.evaluateExpression('c < a')).toBe(true);
+    expect(e.evaluateExpression('a >= b')).toBe(true);
+    expect(e.evaluateExpression('c <= a')).toBe(true);
+  });
+
+  it('supports logical operators via the safe parser', () => {
+    const e = new ExpressionEvaluator({ x: true, y: false });
+    expect(e.evaluateExpression('x && !y')).toBe(true);
+    expect(e.evaluateExpression('x || y')).toBe(true);
+    expect(e.evaluateExpression('!x || !y')).toBe(true);
+  });
+
+  it('supports ternary expressions via the safe parser', () => {
+    const e = new ExpressionEvaluator({ score: 95 });
+    expect(e.evaluateExpression("score >= 90 ? 'A' : 'B'")).toBe('A');
+  });
+
+  it('supports property access via the safe parser', () => {
+    const e = new ExpressionEvaluator({ user: { role: 'admin', isActive: true } });
+    expect(e.evaluateExpression("user.role === 'admin'")).toBe(true);
+    expect(e.evaluateExpression('user.isActive')).toBe(true);
+  });
+
+  it('supports arithmetic via the safe parser', () => {
+    const e = new ExpressionEvaluator({ price: 10, qty: 5 });
+    expect(e.evaluateExpression('price * qty')).toBe(50);
+  });
+
+  it('supports arrow-function array methods via the safe parser', () => {
+    const e = new ExpressionEvaluator({
+      items: [{ price: 50 }, { price: 150 }, { price: 200 }],
+    });
+    expect(e.evaluateExpression('items.filter(item => item.price > 100).length')).toBe(2);
+  });
+
+  it('supports formula functions via the safe parser', () => {
+    const e = new ExpressionEvaluator({ values: [10, 20, 30] });
+    expect(e.evaluateExpression('SUM(values)')).toBe(60);
+    expect(e.evaluateExpression('AVG(values)')).toBe(20);
+  });
+
+  it('supports Math global via the safe parser', () => {
+    const e = new ExpressionEvaluator({ value: 3.7 });
+    expect(e.evaluateExpression('Math.round(value)')).toBe(4);
+  });
+
+  it('does not use eval() or new Function() during evaluation', () => {
+    // Spy on both to ensure they are NEVER called (via construct OR apply).
+    const originalEval = globalThis.eval;
+    const originalFunction = Function;
+    const evalCalls: string[] = [];
+    const functionCalls: string[] = [];
+
+    globalThis.eval = (...args: Parameters<typeof eval>) => {
+      evalCalls.push(String(args[0]));
+      return originalEval(...args);
+    };
+
+    const FunctionProxy = new Proxy(Function, {
+      construct(target, args) {
+        functionCalls.push(`new Function(${String(args)})`);
+        return Reflect.construct(target, args);
+      },
+      apply(target, thisArg, args) {
+        // Catches indirect calls like: Function('return 1')() or String['constructor']('...')
+        functionCalls.push(`Function(${String(args)})`);
+        return Reflect.apply(target, thisArg, args);
+      },
+    });
+    (globalThis as any).Function = FunctionProxy;
+
+    try {
+      const e = new ExpressionEvaluator({
+        stage: 'open',
+        data: { amount: 1500 },
+        items: [{ active: true }, { active: false }],
+      });
+      e.evaluate("${stage !== 'closed_won' && stage !== 'closed_lost'}");
+      e.evaluateExpression('data.amount > 1000');
+      e.evaluateExpression('items.filter(i => i.active).length');
+
+      expect(evalCalls).toHaveLength(0);
+      expect(functionCalls).toHaveLength(0);
+    } finally {
+      globalThis.eval = originalEval;
+      (globalThis as any).Function = originalFunction;
+    }
   });
 });
