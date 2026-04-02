@@ -1262,7 +1262,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 {/* Title row - Name as bold prominent title */}
                 {titleCol && (
                   <div className="font-semibold text-sm truncate mb-1">
-                    {row[titleCol.accessorKey] ?? '—'}
+                    {row[titleCol.accessorKey] != null && typeof row[titleCol.accessorKey] === 'object' ? String(row[titleCol.accessorKey]) : (row[titleCol.accessorKey] ?? '—')}
                   </div>
                 )}
 
@@ -1273,7 +1273,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                       <span className="text-sm tabular-nums font-medium">
                         {typeof row[amountCol.accessorKey] === 'number'
                           ? formatCompactCurrency(row[amountCol.accessorKey])
-                          : row[amountCol.accessorKey] ?? '—'}
+                          : (row[amountCol.accessorKey] != null && typeof row[amountCol.accessorKey] === 'object' ? String(row[amountCol.accessorKey]) : (row[amountCol.accessorKey] ?? '—'))}
                       </span>
                     )}
                     {stageCol && row[stageCol.accessorKey] && (
@@ -1281,7 +1281,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                         variant="outline"
                         className={`text-xs shrink-0 max-w-[140px] truncate ${stageBadgeColor(String(row[stageCol.accessorKey]))}`}
                       >
-                        {row[stageCol.accessorKey]}
+                        {String(row[stageCol.accessorKey])}
                       </Badge>
                     )}
                   </div>

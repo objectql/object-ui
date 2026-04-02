@@ -12,7 +12,7 @@
  * see https://github.com/objectstack-ai/spec
  */
 
-import { ObjectKernel, DriverPlugin, AppPlugin } from '@objectstack/runtime';
+import { ObjectKernel, DriverPlugin, AppPlugin, type Plugin } from '@objectstack/runtime';
 import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver, MemoryAnalyticsService } from '@objectstack/driver-memory';
 import { MSWPlugin } from '@objectstack/plugin-msw';
@@ -312,12 +312,12 @@ export async function createKernel(options: KernelOptions): Promise<KernelResult
     skipSystemValidation
   });
 
-  await kernel.use(new ObjectQLPlugin());
+  await kernel.use(new ObjectQLPlugin() as unknown as Plugin);
   await kernel.use(new DriverPlugin(driver, 'memory'));
   for (const config of configs) {
     await kernel.use(new AppPlugin(config));
   }
-  await kernel.use(new SetupPlugin());
+  await kernel.use(new SetupPlugin() as unknown as Plugin);
 
   // Register MemoryAnalyticsService so that HttpDispatcher can serve
   // /api/v1/analytics/* endpoints in demo/MSW/dev environments.

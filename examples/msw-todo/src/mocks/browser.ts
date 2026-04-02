@@ -5,7 +5,7 @@
  * and the MSW Plugin which automatically exposes the API.
  */
 
-import { ObjectKernel, DriverPlugin, AppPlugin } from '@objectstack/runtime';
+import { ObjectKernel, DriverPlugin, AppPlugin, type Plugin } from '@objectstack/runtime';
 import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { MSWPlugin } from '@objectstack/plugin-msw';
@@ -27,20 +27,20 @@ export async function startMockServer() {
   });
 
   // Register ObjectQL engine
-  await kernel.use(new ObjectQLPlugin())
-    
+  await kernel.use(new ObjectQLPlugin() as unknown as Plugin)
+
   // Register the driver
-  await kernel.use(new DriverPlugin(driver, 'memory'))
-    
+  await kernel.use(new DriverPlugin(driver, 'memory') as unknown as Plugin)
+
   // Load todo app config as a plugin
-  await kernel.use(new AppPlugin(todoConfig))
-    
+  await kernel.use(new AppPlugin(todoConfig) as unknown as Plugin)
+
   // MSW Plugin (intercepts network requests)
   await kernel.use(new MSWPlugin({
     enableBrowser: true,
     baseUrl: '/api/v1',
     logRequests: true
-  }));
+  }) as unknown as Plugin);
   
   await kernel.bootstrap();
 

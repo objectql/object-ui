@@ -974,7 +974,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                             ) : typeof col.cell === 'function' ? (
                               col.cell(cellValue, row)
                             ) : (
-                              cellValue
+                              cellValue != null && typeof cellValue === 'object' ? String(cellValue) : cellValue
                             )}
                           </TableCell>
                         );

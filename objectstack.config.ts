@@ -9,7 +9,7 @@ import { ObjectQLPlugin } from '@objectstack/objectql';
 import { InMemoryDriver } from '@objectstack/driver-memory';
 import { HonoServerPlugin } from '@objectstack/plugin-hono-server';
 import { AuthPlugin } from '@objectstack/plugin-auth';
-import { SetupPlugin, SETUP_APP_DEFAULTS } from '@objectstack/plugin-setup';
+import { SetupPlugin } from '@objectstack/plugin-setup';
 import { ConsolePlugin } from '@object-ui/console';
 import { createMemoryI18n } from '@objectstack/core';
 import { mergeViewsIntoObjects } from '@object-ui/core';
@@ -58,20 +58,20 @@ class MemoryI18nPlugin {
 export default {
   plugins: [
     new MemoryI18nPlugin(),
+    // SetupPlugin first: registers setupNav during init for contributing plugins,
+    // and registers the merged Setup app during start before ObjectQL scans.
+    new SetupPlugin(),
     new ObjectQLPlugin(),
     new DriverPlugin(new InMemoryDriver()),
     // Each example stack loaded as an independent AppPlugin
     new AppPlugin(prepareConfig(crmConfig)),
     new AppPlugin(prepareConfig(todoConfig)),
     new AppPlugin(prepareConfig(kitchenSinkConfig)),
-    // Setup App registered via AppPlugin so ObjectQLPlugin discovers it.
-    // SetupPlugin also registers setupNav service for future navigation contributions.
-    new AppPlugin({ apps: [SETUP_APP_DEFAULTS], manifest: { id: 'setup', name: 'setup' } }),
+    // AuthPlugin after ObjectQL (needs 'data' service) and after SetupPlugin (uses setupNav)
     new AuthPlugin({
       secret: process.env.AUTH_SECRET || 'objectui-dev-secret',
       baseUrl: 'http://localhost:3000',
     }),
-    new SetupPlugin(),
     new HonoServerPlugin({ port: 3000 }),
     new ConsolePlugin(),
   ],
