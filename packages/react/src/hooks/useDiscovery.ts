@@ -49,7 +49,7 @@ export interface DiscoveryInfo {
       enabled: boolean;
       status?: 'available' | 'unavailable';
     };
-    /** AI service status */
+    /** AI service configuration */
     ai?: {
       enabled: boolean;
       status?: 'available' | 'unavailable';
