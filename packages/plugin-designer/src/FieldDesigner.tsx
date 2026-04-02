@@ -10,24 +10,19 @@
  * FieldDesigner Component
  *
  * Enterprise-grade visual designer for configuring object fields.
- * Uses standard ObjectGrid for the list view and a specialized
- * FieldEditor panel for advanced property editing (type picker,
- * options editor, validation rules, conditional fields).
+ * Uses standard ObjectGrid for the list view and ModalForm for
+ * create/edit dialogs with type-specific field properties.
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
-import type { DesignerFieldDefinition, DesignerFieldType, DesignerFieldOption, DesignerValidationRule } from '@object-ui/types';
+import type { DesignerFieldDefinition, DesignerFieldType } from '@object-ui/types';
 import type { ObjectGridSchema, ListColumn } from '@object-ui/types';
 import { ObjectGrid } from '@object-ui/plugin-grid';
+import { ModalForm } from '@object-ui/plugin-form';
+import type { ModalFormSchema } from '@object-ui/plugin-form';
 import { ValueDataSource } from '@object-ui/core';
 import {
-  Plus,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
   Columns3,
-  Settings2,
-  Lock,
   Hash,
   Type,
   Calendar,
@@ -44,7 +39,7 @@ import {
   MapPin,
   Star,
   SlidersHorizontal,
-  X,
+  Lock,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -109,413 +104,10 @@ const FIELD_TYPE_META: Record<DesignerFieldType, { label: string; Icon: React.FC
 
 const ALL_FIELD_TYPES = Object.keys(FIELD_TYPE_META) as DesignerFieldType[];
 
-// ============================================================================
-// Field Property Editor (specialized panel)
-// ============================================================================
-
-interface FieldEditorProps {
-  field: DesignerFieldDefinition;
-  onChange: (updated: DesignerFieldDefinition) => void;
-  onClose: () => void;
-  readOnly: boolean;
-  t: (key: string, options?: Record<string, unknown>) => string;
-}
-
-function FieldEditor({ field, onChange, onClose, readOnly, t }: FieldEditorProps) {
-  const update = useCallback(
-    (partial: Partial<DesignerFieldDefinition>) => {
-      onChange({ ...field, ...partial });
-    },
-    [field, onChange]
-  );
-
-  const addOption = useCallback(() => {
-    const options = field.options || [];
-    const newOption: DesignerFieldOption = {
-      label: `Option ${options.length + 1}`,
-      value: `option_${options.length + 1}`,
-    };
-    update({ options: [...options, newOption] });
-  }, [field.options, update]);
-
-  const removeOption = useCallback(
-    (idx: number) => {
-      const options = [...(field.options || [])];
-      options.splice(idx, 1);
-      update({ options });
-    },
-    [field.options, update]
-  );
-
-  const updateOption = useCallback(
-    (idx: number, partial: Partial<DesignerFieldOption>) => {
-      const options = [...(field.options || [])];
-      options[idx] = { ...options[idx], ...partial };
-      update({ options });
-    },
-    [field.options, update]
-  );
-
-  const addValidationRule = useCallback(() => {
-    const rules = field.validationRules || [];
-    const newRule: DesignerValidationRule = {
-      type: 'minLength',
-      value: 0,
-      message: '',
-    };
-    update({ validationRules: [...rules, newRule] });
-  }, [field.validationRules, update]);
-
-  const removeValidationRule = useCallback(
-    (idx: number) => {
-      const rules = [...(field.validationRules || [])];
-      rules.splice(idx, 1);
-      update({ validationRules: rules });
-    },
-    [field.validationRules, update]
-  );
-
-  return (
-    <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3" data-testid="field-editor">
-      {/* Editor header with close button */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-700">
-          {t('common.edit')} — {field.label}
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
-          aria-label="Close editor"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      {/* Name */}
-      <div className="space-y-1">
-        <label className="text-[10px] font-medium text-gray-500">{t('appDesigner.fieldDesigner.fieldName')}</label>
-        <input
-          type="text"
-          value={field.name}
-          onChange={(e) => update({ name: e.target.value })}
-          disabled={readOnly || field.isSystem}
-          data-testid="field-editor-name"
-          className="block w-full rounded-md border border-gray-300 px-2 py-1 text-xs shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
-          placeholder="api_name"
-        />
-      </div>
-
-      {/* Label */}
-      <div className="space-y-1">
-        <label className="text-[10px] font-medium text-gray-500">{t('appDesigner.fieldDesigner.fieldLabel')}</label>
-        <input
-          type="text"
-          value={field.label}
-          onChange={(e) => update({ label: e.target.value })}
-          disabled={readOnly}
-          data-testid="field-editor-label"
-          className="block w-full rounded-md border border-gray-300 px-2 py-1 text-xs shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
-          placeholder="Display Label"
-        />
-      </div>
-
-      {/* Type */}
-      <div className="space-y-1">
-        <label className="text-[10px] font-medium text-gray-500">{t('appDesigner.fieldDesigner.fieldType')}</label>
-        <select
-          value={field.type}
-          onChange={(e) => update({ type: e.target.value as DesignerFieldType })}
-          disabled={readOnly || field.isSystem}
-          data-testid="field-editor-type"
-          className="block w-full rounded-md border border-gray-300 px-2 py-1 text-xs shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
-        >
-          {ALL_FIELD_TYPES.map((ft) => (
-            <option key={ft} value={ft}>{FIELD_TYPE_META[ft].label}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Group */}
-      <div className="space-y-1">
-        <label className="text-[10px] font-medium text-gray-500">{t('appDesigner.fieldDesigner.fieldGroup')}</label>
-        <input
-          type="text"
-          value={field.group || ''}
-          onChange={(e) => update({ group: e.target.value })}
-          disabled={readOnly}
-          data-testid="field-editor-group"
-          className="block w-full rounded-md border border-gray-300 px-2 py-1 text-xs shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
-          placeholder="Field Group"
-        />
-      </div>
-
-      {/* Description */}
-      <div className="space-y-1">
-        <label className="text-[10px] font-medium text-gray-500">{t('appDesigner.fieldDesigner.description')}</label>
-        <textarea
-          value={field.description || ''}
-          onChange={(e) => update({ description: e.target.value })}
-          disabled={readOnly}
-          data-testid="field-editor-description"
-          rows={2}
-          className="block w-full rounded-md border border-gray-300 px-2 py-1 text-xs shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
-          placeholder="Help text"
-        />
-      </div>
-
-      {/* Boolean toggles */}
-      <div className="space-y-2">
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={field.required || false}
-            onChange={(e) => update({ required: e.target.checked })}
-            disabled={readOnly}
-            data-testid="field-editor-required"
-            className="h-3.5 w-3.5 rounded border-gray-300"
-          />
-          <span className="text-xs text-gray-700">{t('appDesigner.fieldDesigner.required')}</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={field.unique || false}
-            onChange={(e) => update({ unique: e.target.checked })}
-            disabled={readOnly}
-            data-testid="field-editor-unique"
-            className="h-3.5 w-3.5 rounded border-gray-300"
-          />
-          <span className="text-xs text-gray-700">{t('appDesigner.fieldDesigner.unique')}</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={field.readonly || false}
-            onChange={(e) => update({ readonly: e.target.checked })}
-            disabled={readOnly}
-            data-testid="field-editor-readonly"
-            className="h-3.5 w-3.5 rounded border-gray-300"
-          />
-          <span className="text-xs text-gray-700">{t('appDesigner.fieldDesigner.readOnly')}</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={field.hidden || false}
-            onChange={(e) => update({ hidden: e.target.checked })}
-            disabled={readOnly}
-            data-testid="field-editor-hidden"
-            className="h-3.5 w-3.5 rounded border-gray-300"
-          />
-          <span className="text-xs text-gray-700">{t('appDesigner.fieldDesigner.hidden')}</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={field.indexed || false}
-            onChange={(e) => update({ indexed: e.target.checked })}
-            disabled={readOnly}
-            data-testid="field-editor-indexed"
-            className="h-3.5 w-3.5 rounded border-gray-300"
-          />
-          <span className="text-xs text-gray-700">{t('appDesigner.fieldDesigner.indexed')}</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={field.externalId || false}
-            onChange={(e) => update({ externalId: e.target.checked })}
-            disabled={readOnly}
-            data-testid="field-editor-external-id"
-            className="h-3.5 w-3.5 rounded border-gray-300"
-          />
-          <span className="text-xs text-gray-700">{t('appDesigner.fieldDesigner.externalId')}</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={field.trackHistory || false}
-            onChange={(e) => update({ trackHistory: e.target.checked })}
-            disabled={readOnly}
-            data-testid="field-editor-track-history"
-            className="h-3.5 w-3.5 rounded border-gray-300"
-          />
-          <span className="text-xs text-gray-700">{t('appDesigner.fieldDesigner.trackHistory')}</span>
-        </label>
-      </div>
-
-      {/* Default Value */}
-      <div className="space-y-1">
-        <label className="text-[10px] font-medium text-gray-500">{t('appDesigner.fieldDesigner.defaultValue')}</label>
-        <input
-          type="text"
-          value={field.defaultValue != null ? String(field.defaultValue) : ''}
-          onChange={(e) => update({ defaultValue: e.target.value || undefined })}
-          disabled={readOnly}
-          data-testid="field-editor-default"
-          className="block w-full rounded-md border border-gray-300 px-2 py-1 text-xs shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
-          placeholder="Default value"
-        />
-      </div>
-
-      {/* Placeholder */}
-      <div className="space-y-1">
-        <label className="text-[10px] font-medium text-gray-500">{t('appDesigner.fieldDesigner.placeholder')}</label>
-        <input
-          type="text"
-          value={field.placeholder || ''}
-          onChange={(e) => update({ placeholder: e.target.value })}
-          disabled={readOnly}
-          data-testid="field-editor-placeholder"
-          className="block w-full rounded-md border border-gray-300 px-2 py-1 text-xs shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
-          placeholder="Placeholder text"
-        />
-      </div>
-
-      {/* Lookup Reference (for lookup type) */}
-      {field.type === 'lookup' && (
-        <div className="space-y-1">
-          <label className="text-[10px] font-medium text-gray-500">{t('appDesigner.fieldDesigner.referenceTo')}</label>
-          <input
-            type="text"
-            value={field.referenceTo || ''}
-            onChange={(e) => update({ referenceTo: e.target.value })}
-            disabled={readOnly}
-            data-testid="field-editor-reference"
-            className="block w-full rounded-md border border-gray-300 px-2 py-1 text-xs shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
-            placeholder="Object name"
-          />
-        </div>
-      )}
-
-      {/* Formula (for formula type) */}
-      {field.type === 'formula' && (
-        <div className="space-y-1">
-          <label className="text-[10px] font-medium text-gray-500">{t('appDesigner.fieldDesigner.formula')}</label>
-          <textarea
-            value={field.formula || ''}
-            onChange={(e) => update({ formula: e.target.value })}
-            disabled={readOnly}
-            data-testid="field-editor-formula"
-            rows={2}
-            className="block w-full rounded-md border border-gray-300 px-2 py-1 text-xs font-mono shadow-sm outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
-            placeholder="e.g. price * quantity"
-          />
-        </div>
-      )}
-
-      {/* Options (for select type) */}
-      {field.type === 'select' && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-[10px] font-medium text-gray-500">{t('appDesigner.fieldDesigner.options')}</label>
-            {!readOnly && (
-              <button
-                type="button"
-                onClick={addOption}
-                data-testid="field-editor-add-option"
-                className="text-[10px] font-medium text-blue-600 hover:text-blue-700"
-              >
-                + {t('appDesigner.fieldDesigner.addOption')}
-              </button>
-            )}
-          </div>
-          {(field.options || []).map((opt, idx) => (
-            <div key={idx} className="flex items-center gap-1" data-testid={`field-option-${idx}`}>
-              <input
-                type="text"
-                value={opt.label}
-                onChange={(e) => updateOption(idx, { label: e.target.value })}
-                disabled={readOnly}
-                className="flex-1 rounded-md border border-gray-300 px-2 py-0.5 text-xs"
-                placeholder="Label"
-              />
-              <input
-                type="text"
-                value={opt.value}
-                onChange={(e) => updateOption(idx, { value: e.target.value })}
-                disabled={readOnly}
-                className="flex-1 rounded-md border border-gray-300 px-2 py-0.5 text-xs"
-                placeholder="Value"
-              />
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={() => removeOption(idx)}
-                  className="rounded p-0.5 text-gray-400 hover:text-red-500"
-                  aria-label="Remove option"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Validation Rules */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-[10px] font-medium text-gray-500">{t('appDesigner.fieldDesigner.validationRules')}</label>
-          {!readOnly && (
-            <button
-              type="button"
-              onClick={addValidationRule}
-              data-testid="field-editor-add-validation"
-              className="text-[10px] font-medium text-blue-600 hover:text-blue-700"
-            >
-              + {t('appDesigner.fieldDesigner.addRule')}
-            </button>
-          )}
-        </div>
-        {(field.validationRules || []).map((rule, idx) => (
-          <div key={idx} className="flex items-center gap-1" data-testid={`field-validation-${idx}`}>
-            <select
-              value={rule.type}
-              onChange={(e) => {
-                const rules = [...(field.validationRules || [])];
-                rules[idx] = { ...rules[idx], type: e.target.value as DesignerValidationRule['type'] };
-                update({ validationRules: rules });
-              }}
-              disabled={readOnly}
-              className="rounded-md border border-gray-300 px-1 py-0.5 text-xs"
-            >
-              <option value="min">Min</option>
-              <option value="max">Max</option>
-              <option value="minLength">Min Length</option>
-              <option value="maxLength">Max Length</option>
-              <option value="pattern">Pattern</option>
-              <option value="custom">Custom</option>
-            </select>
-            <input
-              type="text"
-              value={String(rule.value)}
-              onChange={(e) => {
-                const rules = [...(field.validationRules || [])];
-                rules[idx] = { ...rules[idx], value: e.target.value };
-                update({ validationRules: rules });
-              }}
-              disabled={readOnly}
-              className="flex-1 rounded-md border border-gray-300 px-2 py-0.5 text-xs"
-              placeholder="Value"
-            />
-            {!readOnly && (
-              <button
-                type="button"
-                onClick={() => removeValidationRule(idx)}
-                className="rounded p-0.5 text-gray-400 hover:text-red-500"
-                aria-label="Remove rule"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+const FIELD_TYPE_OPTIONS = ALL_FIELD_TYPES.map((ft) => ({
+  label: FIELD_TYPE_META[ft].label,
+  value: ft,
+}));
 
 // ============================================================================
 // Main Component
@@ -531,6 +123,7 @@ export function FieldDesigner({
   const { t } = useDesignerTranslation();
   const confirmDialog = useConfirmDialog();
 
+  const [formOpen, setFormOpen] = useState(false);
   const [editingField, setEditingField] = useState<DesignerFieldDefinition | null>(null);
   const [typeFilter, setTypeFilter] = useState<DesignerFieldType | ''>('');
 
@@ -570,7 +163,10 @@ export function FieldDesigner({
   // Use `name` (always in columns) as the lookup key instead of `id`.
   const handleEdit = useCallback((record: Record<string, unknown>) => {
     const field = fields.find((f) => f.name === record.name);
-    if (field) setEditingField(field);
+    if (field) {
+      setEditingField(field);
+      setFormOpen(true);
+    }
   }, [fields]);
 
   const handleDelete = useCallback(async (record: Record<string, unknown>) => {
@@ -582,32 +178,126 @@ export function FieldDesigner({
     );
     if (confirmed) {
       onFieldsChange?.(fields.filter((f) => f.id !== field.id));
-      if (editingField?.id === field.id) setEditingField(null);
     }
-  }, [fields, onFieldsChange, editingField, confirmDialog, t]);
+  }, [fields, onFieldsChange, confirmDialog, t]);
 
   const handleAddField = useCallback(() => {
-    const id = `fld_${Date.now()}`;
-    const newField: DesignerFieldDefinition = {
-      id,
-      name: `new_field_${fields.length + 1}`,
-      label: `New Field ${fields.length + 1}`,
-      type: 'text',
-      isSystem: false,
-    };
-    const updated = [...fields, newField];
-    onFieldsChange?.(updated);
-    setEditingField(newField);
-  }, [fields, onFieldsChange]);
-
-  const handleFieldUpdate = useCallback((updated: DesignerFieldDefinition) => {
-    onFieldsChange?.(fields.map((f) => (f.id === updated.id ? updated : f)));
-    setEditingField(updated);
-  }, [fields, onFieldsChange]);
-
-  const handleEditorClose = useCallback(() => {
     setEditingField(null);
+    setFormOpen(true);
   }, []);
+
+  const handleFormSuccess = useCallback((data: Record<string, unknown>) => {
+    if (editingField) {
+      // Update existing field
+      const updated: DesignerFieldDefinition = {
+        ...editingField,
+        name: String(data.name || editingField.name),
+        label: String(data.label || editingField.label),
+        type: (data.type as DesignerFieldType) || editingField.type,
+        group: data.group ? String(data.group) : undefined,
+        description: data.description ? String(data.description) : undefined,
+        required: data.required === true,
+        unique: data.unique === true,
+        readonly: data.readonly === true,
+        hidden: data.hidden === true,
+        indexed: data.indexed === true,
+        externalId: data.externalId === true,
+        trackHistory: data.trackHistory === true,
+        defaultValue: data.defaultValue ? String(data.defaultValue) : undefined,
+        placeholder: data.placeholder ? String(data.placeholder) : undefined,
+        referenceTo: data.referenceTo ? String(data.referenceTo) : undefined,
+        formula: data.formula ? String(data.formula) : undefined,
+      };
+      onFieldsChange?.(fields.map((f) => (f.id === editingField.id ? updated : f)));
+    } else {
+      // Create new field
+      const newField: DesignerFieldDefinition = {
+        id: `fld_${Date.now()}`,
+        name: String(data.name || `new_field_${fields.length + 1}`),
+        label: String(data.label || `New Field ${fields.length + 1}`),
+        type: (data.type as DesignerFieldType) || 'text',
+        group: data.group ? String(data.group) : undefined,
+        description: data.description ? String(data.description) : undefined,
+        required: data.required === true,
+        unique: data.unique === true,
+        readonly: data.readonly === true,
+        hidden: data.hidden === true,
+        indexed: data.indexed === true,
+        externalId: data.externalId === true,
+        trackHistory: data.trackHistory === true,
+        defaultValue: data.defaultValue ? String(data.defaultValue) : undefined,
+        placeholder: data.placeholder ? String(data.placeholder) : undefined,
+        referenceTo: data.referenceTo ? String(data.referenceTo) : undefined,
+        formula: data.formula ? String(data.formula) : undefined,
+        isSystem: false,
+      };
+      onFieldsChange?.([...fields, newField]);
+    }
+    setFormOpen(false);
+    setEditingField(null);
+  }, [editingField, fields, onFieldsChange]);
+
+  const handleFormClose = useCallback((open: boolean) => {
+    if (!open) {
+      setFormOpen(false);
+      setEditingField(null);
+    }
+  }, []);
+
+  // ModalForm schema — mirrors ObjectManager pattern
+  const formSchema = useMemo<ModalFormSchema>(() => ({
+    type: 'object-form',
+    formType: 'modal',
+    objectName: 'field_definition',
+    mode: editingField ? 'edit' : 'create',
+    title: editingField
+      ? `${t('common.edit')} — ${editingField.label}`
+      : t('appDesigner.fieldDesigner.addField'),
+    open: formOpen,
+    onOpenChange: handleFormClose,
+    modalSize: 'lg',
+    customFields: [
+      { name: 'name', label: t('appDesigner.fieldDesigner.fieldName'), type: 'text', required: true, placeholder: 'api_name', disabled: readOnly || (editingField?.isSystem ?? false) },
+      { name: 'label', label: t('appDesigner.fieldDesigner.fieldLabel'), type: 'text', required: true, placeholder: 'Display Label', disabled: readOnly },
+      { name: 'type', label: t('appDesigner.fieldDesigner.fieldType'), type: 'select', required: true, options: FIELD_TYPE_OPTIONS, disabled: readOnly || (editingField?.isSystem ?? false) },
+      { name: 'group', label: t('appDesigner.fieldDesigner.fieldGroup'), type: 'text', placeholder: 'Field Group', disabled: readOnly },
+      { name: 'description', label: t('appDesigner.fieldDesigner.description'), type: 'textarea', disabled: readOnly },
+      { name: 'required', label: t('appDesigner.fieldDesigner.required'), type: 'boolean', disabled: readOnly },
+      { name: 'unique', label: t('appDesigner.fieldDesigner.unique'), type: 'boolean', disabled: readOnly },
+      { name: 'readonly', label: t('appDesigner.fieldDesigner.readOnly'), type: 'boolean', disabled: readOnly },
+      { name: 'hidden', label: t('appDesigner.fieldDesigner.hidden'), type: 'boolean', disabled: readOnly },
+      { name: 'indexed', label: t('appDesigner.fieldDesigner.indexed'), type: 'boolean', disabled: readOnly },
+      { name: 'externalId', label: t('appDesigner.fieldDesigner.externalId'), type: 'boolean', disabled: readOnly },
+      { name: 'trackHistory', label: t('appDesigner.fieldDesigner.trackHistory'), type: 'boolean', disabled: readOnly },
+      { name: 'defaultValue', label: t('appDesigner.fieldDesigner.defaultValue'), type: 'text', placeholder: 'Default value', disabled: readOnly },
+      { name: 'placeholder', label: t('appDesigner.fieldDesigner.placeholder'), type: 'text', placeholder: 'Placeholder text', disabled: readOnly },
+      { name: 'referenceTo', label: t('appDesigner.fieldDesigner.referenceTo'), type: 'text', placeholder: 'Referenced object', disabled: readOnly },
+      { name: 'formula', label: t('appDesigner.fieldDesigner.formula'), type: 'textarea', placeholder: 'e.g. price * quantity', disabled: readOnly },
+    ],
+    initialValues: editingField
+      ? {
+          name: editingField.name,
+          label: editingField.label,
+          type: editingField.type,
+          group: editingField.group || '',
+          description: editingField.description || '',
+          required: editingField.required || false,
+          unique: editingField.unique || false,
+          readonly: editingField.readonly || false,
+          hidden: editingField.hidden || false,
+          indexed: editingField.indexed || false,
+          externalId: editingField.externalId || false,
+          trackHistory: editingField.trackHistory || false,
+          defaultValue: editingField.defaultValue != null ? String(editingField.defaultValue) : '',
+          placeholder: editingField.placeholder || '',
+          referenceTo: editingField.referenceTo || '',
+          formula: editingField.formula || '',
+        }
+      : { type: 'text', required: false, unique: false },
+    onSuccess: handleFormSuccess,
+    onCancel: () => handleFormClose(false),
+    readOnly,
+  }), [editingField, formOpen, handleFormClose, handleFormSuccess, readOnly, t]);
 
   return (
     <div
@@ -652,16 +342,8 @@ export function FieldDesigner({
         onAddRecord={readOnly ? undefined : handleAddField}
       />
 
-      {/* Specialized Field Editor panel */}
-      {editingField && (
-        <FieldEditor
-          field={editingField}
-          onChange={handleFieldUpdate}
-          onClose={handleEditorClose}
-          readOnly={readOnly}
-          t={t}
-        />
-      )}
+      {/* ModalForm for create / edit */}
+      {formOpen && <ModalForm schema={formSchema} />}
 
       {/* Confirm Dialog */}
       <ConfirmDialog

@@ -13,6 +13,7 @@ import type { DesignerFieldDefinition } from '@object-ui/types';
 
 // Mock standard components — tested separately in their own packages
 vi.mock('@object-ui/plugin-grid', () => import('./__mocks__/plugin-grid'));
+vi.mock('@object-ui/plugin-form', () => import('./__mocks__/plugin-form'));
 
 const MOCK_FIELDS: DesignerFieldDefinition[] = [
   {
@@ -126,7 +127,19 @@ describe('FieldDesigner', () => {
       });
     });
 
-    it('should add a new field and open editor when add is clicked', async () => {
+    it('should open modal form when add is clicked', async () => {
+      render(
+        <FieldDesigner objectName="accounts" fields={MOCK_FIELDS} onFieldsChange={vi.fn()} />
+      );
+      await waitFor(() => {
+        fireEvent.click(screen.getByTestId('grid-add-btn'));
+      });
+      // ModalForm should be shown in create mode
+      expect(screen.getByTestId('mock-modal-form')).toBeDefined();
+      expect(screen.getByTestId('modal-mode').textContent).toBe('create');
+    });
+
+    it('should add a new field when modal form is submitted', async () => {
       const onFieldsChange = vi.fn();
       render(
         <FieldDesigner objectName="accounts" fields={MOCK_FIELDS} onFieldsChange={onFieldsChange} />
@@ -134,14 +147,14 @@ describe('FieldDesigner', () => {
       await waitFor(() => {
         fireEvent.click(screen.getByTestId('grid-add-btn'));
       });
+      // Submit the modal form
+      fireEvent.click(screen.getByTestId('modal-submit'));
       expect(onFieldsChange).toHaveBeenCalledWith(
         expect.arrayContaining([
           ...MOCK_FIELDS,
-          expect.objectContaining({ type: 'text', label: expect.stringContaining('New Field') }),
+          expect.objectContaining({ type: 'text' }),
         ])
       );
-      // Editor should be shown for the new field
-      expect(screen.getByTestId('field-editor')).toBeDefined();
     });
   });
 
@@ -181,37 +194,24 @@ describe('FieldDesigner', () => {
   // Editing Fields
   // ============================
   describe('Editing Fields', () => {
-    it('should open field editor panel when edit button is clicked', async () => {
+    it('should open modal form when edit button is clicked', async () => {
       render(<FieldDesigner objectName="accounts" fields={MOCK_FIELDS} />);
       await waitFor(() => {
         fireEvent.click(screen.getByTestId('grid-edit-fld-1'));
       });
-      expect(screen.getByTestId('field-editor')).toBeDefined();
+      expect(screen.getByTestId('mock-modal-form')).toBeDefined();
+      expect(screen.getByTestId('modal-mode').textContent).toBe('edit');
     });
 
-    it('should show field type selector in editor', async () => {
+    it('should show field name in modal title when editing', async () => {
       render(<FieldDesigner objectName="accounts" fields={MOCK_FIELDS} />);
       await waitFor(() => {
         fireEvent.click(screen.getByTestId('grid-edit-fld-1'));
       });
-      expect(screen.getByTestId('field-editor-type')).toBeDefined();
+      expect(screen.getByTestId('modal-title').textContent).toContain('Name');
     });
 
-    it('should show boolean toggles in editor', async () => {
-      render(<FieldDesigner objectName="accounts" fields={MOCK_FIELDS} />);
-      await waitFor(() => {
-        fireEvent.click(screen.getByTestId('grid-edit-fld-1'));
-      });
-      expect(screen.getByTestId('field-editor-required')).toBeDefined();
-      expect(screen.getByTestId('field-editor-unique')).toBeDefined();
-      expect(screen.getByTestId('field-editor-readonly')).toBeDefined();
-      expect(screen.getByTestId('field-editor-hidden')).toBeDefined();
-      expect(screen.getByTestId('field-editor-indexed')).toBeDefined();
-      expect(screen.getByTestId('field-editor-external-id')).toBeDefined();
-      expect(screen.getByTestId('field-editor-track-history')).toBeDefined();
-    });
-
-    it('should call onFieldsChange when field is edited', async () => {
+    it('should call onFieldsChange when field edit is submitted', async () => {
       const onFieldsChange = vi.fn();
       render(
         <FieldDesigner objectName="accounts" fields={MOCK_FIELDS} onFieldsChange={onFieldsChange} />
@@ -219,15 +219,23 @@ describe('FieldDesigner', () => {
       await waitFor(() => {
         fireEvent.click(screen.getByTestId('grid-edit-fld-1'));
       });
-      // Change the name input
-      fireEvent.change(screen.getByTestId('field-editor-name'), {
-        target: { value: 'full_name' },
-      });
+      // Submit the modal form (mock returns initialValues)
+      fireEvent.click(screen.getByTestId('modal-submit'));
       expect(onFieldsChange).toHaveBeenCalledWith(
         expect.arrayContaining([
-          expect.objectContaining({ id: 'fld-1', name: 'full_name' }),
+          expect.objectContaining({ id: 'fld-1', name: 'name' }),
         ])
       );
+    });
+
+    it('should close modal when cancel is clicked', async () => {
+      render(<FieldDesigner objectName="accounts" fields={MOCK_FIELDS} />);
+      await waitFor(() => {
+        fireEvent.click(screen.getByTestId('grid-edit-fld-1'));
+      });
+      expect(screen.getByTestId('mock-modal-form')).toBeDefined();
+      fireEvent.click(screen.getByTestId('modal-cancel'));
+      expect(screen.queryByTestId('mock-modal-form')).toBeNull();
     });
   });
 
@@ -250,28 +258,6 @@ describe('FieldDesigner', () => {
       });
       expect(screen.queryByTestId('grid-edit-fld-1')).toBeNull();
       expect(screen.queryByTestId('grid-delete-fld-1')).toBeNull();
-    });
-  });
-
-  // ============================
-  // Select Field Options
-  // ============================
-  describe('Select Field Options', () => {
-    it('should show options editor for select fields', async () => {
-      render(<FieldDesigner objectName="accounts" fields={MOCK_FIELDS} />);
-      await waitFor(() => {
-        fireEvent.click(screen.getByTestId('grid-edit-fld-3'));
-      });
-      expect(screen.getByTestId('field-option-0')).toBeDefined();
-      expect(screen.getByTestId('field-option-1')).toBeDefined();
-    });
-
-    it('should show add option button for select fields', async () => {
-      render(<FieldDesigner objectName="accounts" fields={MOCK_FIELDS} />);
-      await waitFor(() => {
-        fireEvent.click(screen.getByTestId('grid-edit-fld-3'));
-      });
-      expect(screen.getByTestId('field-editor-add-option')).toBeDefined();
     });
   });
 
