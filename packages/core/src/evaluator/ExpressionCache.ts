@@ -8,13 +8,15 @@
 
 /**
  * @object-ui/core - Expression Cache
- * 
+ *
  * Caches compiled expressions to avoid re-parsing on every render.
  * Provides significant performance improvement for frequently evaluated expressions.
- * 
+ *
  * @module evaluator
  * @packageDocumentation
  */
+
+import { SafeExpressionParser } from './SafeExpressionParser.js';
 
 /**
  * A compiled expression function that can be executed with context values
@@ -112,16 +114,25 @@ export class ExpressionCache {
   }
   
   /**
-   * Compile an expression into a function
+   * Compile an expression into a CSP-safe callable function.
+   *
+   * Uses `SafeExpressionParser` — a recursive-descent interpreter — instead of
+   * `new Function()` so that the expression engine works under strict
+   * Content Security Policy headers that forbid `'unsafe-eval'`.
+   *
+   * The returned function re-creates the evaluation context on every call by
+   * zipping `varNames` with the positional `args`, matching the contract that
+   * `ExpressionEvaluator` depends on.
    */
   private compileExpression(expression: string, varNames: string[]): CompiledExpression {
-    // SECURITY NOTE: Using Function constructor for expression evaluation.
-    // This is a controlled use case with:
-    // 1. Sanitization check (isDangerous) performed by caller
-    // 2. Strict mode enabled ("use strict")
-    // 3. Limited scope (only varNames variables available)
-    // 4. No access to global objects (process, window, etc.)
-    return new Function(...varNames, `"use strict"; return (${expression});`) as CompiledExpression;
+    return (...args: unknown[]) => {
+      // Reconstruct the named variable context from positional arguments.
+      const context: Record<string, unknown> = {};
+      for (let i = 0; i < varNames.length; i++) {
+        context[varNames[i]] = args[i];
+      }
+      return new SafeExpressionParser().evaluate(expression, context);
+    };
   }
   
   /**
