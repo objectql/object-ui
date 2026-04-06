@@ -52,7 +52,7 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@vitejs/plugin-react": "^6.0.1",
     "typescript": "^5.9.3",
-    "vite": "^8.0.4",
+    "vite": "^8.0.5",
     "vite-plugin-dts": "^4.5.4"
   }
 }
