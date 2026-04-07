@@ -38,6 +38,7 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@object-ui/auth';
 import { useMetadataService } from '../../hooks/useMetadataService';
 import { useMetadata } from '../../context/MetadataProvider';
 import { getMetadataTypeConfig, type MetadataTypeConfig } from '../../config/metadataTypeRegistry';
@@ -69,6 +70,10 @@ export function MetadataManagerPage() {
   const basePath = appName ? `/apps/${appName}` : '';
   const metadataService = useMetadataService();
   const { refresh } = useMetadata();
+  const { user } = useAuth();
+
+  // Permission: only admin users can mutate metadata
+  const isAdmin = user?.role === 'admin';
 
   // Resolve registry config
   const config: MetadataTypeConfig | undefined = metadataType
@@ -199,7 +204,9 @@ export function MetadataManagerPage() {
   }
 
   const Icon = resolveIcon(config.icon);
-  const isEditable = config.editable !== false;
+  const isEditable = config.editable !== false && isAdmin;
+  const pageActions = (config.actions ?? []).filter((a) => a.scope === 'page');
+  const rowActions = (config.actions ?? []).filter((a) => a.scope === 'row');
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-6" data-testid="metadata-manager-page">
@@ -232,6 +239,20 @@ export function MetadataManagerPage() {
             <Plus className="mr-2 h-4 w-4" />
             New {config.label}
           </Button>
+        )}
+        {pageActions.length > 0 && (
+          <div className="flex items-center gap-2">
+            {pageActions.map((action) => (
+              <Button
+                key={action.key}
+                variant={action.variant ?? 'outline'}
+                onClick={() => action.handler?.()}
+                data-testid={`page-action-${action.key}`}
+              >
+                {action.label}
+              </Button>
+            ))}
+          </div>
         )}
       </div>
 
@@ -300,6 +321,21 @@ export function MetadataManagerPage() {
                   </div>
                   {isEditable && (
                     <div className="flex items-center gap-1 shrink-0 ml-2">
+                      {rowActions.map((action) => (
+                        <Button
+                          key={action.key}
+                          variant={(action.variant as 'ghost') ?? 'ghost'}
+                          size="icon"
+                          title={action.label}
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            action.handler?.(item);
+                          }}
+                          data-testid={`row-action-${action.key}-${name}`}
+                        >
+                          <span className="text-xs">{action.label.charAt(0)}</span>
+                        </Button>
+                      ))}
                       <Button
                         variant="ghost"
                         size="icon"

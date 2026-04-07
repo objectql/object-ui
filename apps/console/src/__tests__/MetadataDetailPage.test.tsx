@@ -39,6 +39,10 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock('@object-ui/auth', () => ({
+  useAuth: () => ({ user: { id: 'u1', name: 'Admin', role: 'admin' } }),
+}));
+
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');

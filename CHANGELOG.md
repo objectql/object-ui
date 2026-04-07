@@ -15,7 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **MetadataDetailPage** (`@object-ui/console`): New detail page component (`pages/system/MetadataDetailPage.tsx`) for viewing a single metadata item at `/system/metadata/:metadataType/:itemName`. Displays item fields from the registry's `formFields` config, supports editing via MetadataFormDialog, and allows custom detail renderers via the registry's `detailComponent` property.
 
-- **Registry extensions** (`@object-ui/console`): Extended `MetadataTypeConfig` interface with `formFields` (standardized create/edit form structure), `detailComponent` (custom detail renderers), and `MetadataFormFieldDef` type. Added `formFields` entries for dashboard, page, and report types. Added `DEFAULT_FORM_FIELDS` constant for types without explicit form configuration.
+- **Registry extensions** (`@object-ui/console`): Extended `MetadataTypeConfig` interface with `formFields` (standardized create/edit form structure), `detailComponent` (custom detail renderers), `actions` (custom page-level and row-level action buttons via `MetadataActionDef`), and `MetadataFormFieldDef` type. Added `formFields` entries for dashboard, page, and report types. Added `DEFAULT_FORM_FIELDS` constant for types without explicit form configuration.
+
+- **Permission integration** (`@object-ui/console`): MetadataManagerPage and MetadataDetailPage now check the current user's role via `useAuth()`. Create, edit, and delete buttons are only shown for admin users (`user.role === 'admin'`), matching the pattern used by UserManagementPage, RoleManagementPage, and other system pages.
+
+- **Custom actions support** (`@object-ui/console`): MetadataManagerPage renders page-level and row-level custom action buttons from the registry's `actions` configuration. Page-level actions appear in the header alongside the create button; row-level actions appear on each item card alongside edit/delete.
 
 - **Unified metadata management architecture** (`@object-ui/console`): New centralized metadata type registry (`config/metadataTypeRegistry.ts`) that defines all manageable metadata categories (app, object, dashboard, page, report) as configuration entries. Registry-driven approach eliminates code duplication — adding a new metadata type requires only a single config entry. Includes `getMetadataTypeConfig()`, `getGenericMetadataTypes()`, and `getHubMetadataTypes()` helpers.
 

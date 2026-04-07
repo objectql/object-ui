@@ -31,6 +31,7 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@object-ui/auth';
 import { useMetadataService } from '../../hooks/useMetadataService';
 import { useMetadata } from '../../context/MetadataProvider';
 import { getMetadataTypeConfig, DEFAULT_FORM_FIELDS, type MetadataTypeConfig } from '../../config/metadataTypeRegistry';
@@ -66,6 +67,10 @@ export function MetadataDetailPage() {
   const basePath = appName ? `/apps/${appName}` : '';
   const metadataService = useMetadataService();
   const { refresh } = useMetadata();
+  const { user } = useAuth();
+
+  // Permission: only admin users can mutate metadata
+  const isAdmin = user?.role === 'admin';
 
   const config: MetadataTypeConfig | undefined = metadataType
     ? getMetadataTypeConfig(metadataType)
@@ -135,7 +140,7 @@ export function MetadataDetailPage() {
   }
 
   const Icon = resolveIcon(config.icon);
-  const isEditable = config.editable !== false;
+  const isEditable = config.editable !== false && isAdmin;
   const fields = config.formFields ?? DEFAULT_FORM_FIELDS;
   const CustomDetail = config.detailComponent;
 

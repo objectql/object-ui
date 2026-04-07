@@ -55,6 +55,26 @@ export interface MetadataFormFieldDef {
   options?: { label: string; value: string }[];
 }
 
+/** Action definition for custom page-level or row-level buttons. */
+export interface MetadataActionDef {
+  /** Unique key for the action. */
+  key: string;
+  /** Human-readable label shown on the button. */
+  label: string;
+  /** Lucide icon name (lowercase, hyphenated). */
+  icon?: string;
+  /** Whether this action appears on each row (`'row'`) or at the page level (`'page'`). */
+  scope: 'page' | 'row';
+  /** Action variant for styling (e.g. `'default'`, `'destructive'`, `'outline'`). */
+  variant?: 'default' | 'destructive' | 'outline' | 'ghost' | 'secondary';
+  /**
+   * Handler called when the action is triggered.
+   * - For `scope: 'page'`: called with no arguments.
+   * - For `scope: 'row'`: called with the metadata item.
+   */
+  handler?: (item?: Record<string, unknown>) => void;
+}
+
 /** Full configuration for a single metadata type. */
 export interface MetadataTypeConfig {
   /**
@@ -126,6 +146,13 @@ export interface MetadataTypeConfig {
    * generic layout.
    */
   detailComponent?: React.ComponentType<{ item: Record<string, unknown> }>;
+
+  /**
+   * Custom action definitions for page-level and row-level buttons.
+   * Page-level actions are rendered in the header area; row-level actions
+   * appear alongside each item's edit/delete buttons.
+   */
+  actions?: MetadataActionDef[];
 }
 
 // ---------------------------------------------------------------------------

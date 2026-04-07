@@ -41,6 +41,10 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock('@object-ui/auth', () => ({
+  useAuth: () => ({ user: { id: 'u1', name: 'Admin', role: 'admin' } }),
+}));
+
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
@@ -326,6 +330,20 @@ describe('MetadataManagerPage', () => {
       });
       fireEvent.click(screen.getByTestId('metadata-item-sales_dash'));
       expect(mockNavigate).toHaveBeenCalledWith('/system/metadata/dashboard/sales_dash');
+    });
+  });
+
+  describe('permission integration', () => {
+    it('should show create/edit/delete buttons for admin users (mocked as admin)', async () => {
+      mockGetItems.mockResolvedValue([
+        { name: 'test_dash', label: 'Test Dashboard' },
+      ]);
+      renderWithRoute('dashboard');
+      await waitFor(() => {
+        expect(screen.getByTestId('create-metadata-btn')).toBeInTheDocument();
+        expect(screen.getByTestId('edit-test_dash-btn')).toBeInTheDocument();
+        expect(screen.getByTestId('delete-test_dash-btn')).toBeInTheDocument();
+      });
     });
   });
 });

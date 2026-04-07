@@ -10,7 +10,10 @@ import {
   getMetadataTypeConfig,
   getGenericMetadataTypes,
   getHubMetadataTypes,
+  DEFAULT_FORM_FIELDS,
   type MetadataTypeConfig,
+  type MetadataFormFieldDef,
+  type MetadataActionDef,
 } from '../config/metadataTypeRegistry';
 
 describe('metadataTypeRegistry', () => {
@@ -92,6 +95,75 @@ describe('metadataTypeRegistry', () => {
     it('should return all metadata types', () => {
       const hub = getHubMetadataTypes();
       expect(hub.length).toBe(METADATA_TYPES.length);
+    });
+  });
+
+  describe('formFields', () => {
+    it('should have formFields on generic metadata types', () => {
+      const generic = getGenericMetadataTypes();
+      for (const entry of generic) {
+        expect(entry.formFields).toBeDefined();
+        expect(entry.formFields!.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('should include name, label, and description fields', () => {
+      const dashboard = getMetadataTypeConfig('dashboard')!;
+      const keys = dashboard.formFields!.map((f) => f.key);
+      expect(keys).toContain('name');
+      expect(keys).toContain('label');
+      expect(keys).toContain('description');
+    });
+
+    it('should mark name as disabledOnEdit', () => {
+      const dashboard = getMetadataTypeConfig('dashboard')!;
+      const nameField = dashboard.formFields!.find((f) => f.key === 'name')!;
+      expect(nameField.disabledOnEdit).toBe(true);
+    });
+  });
+
+  describe('DEFAULT_FORM_FIELDS', () => {
+    it('should contain name, label, and description', () => {
+      const keys = DEFAULT_FORM_FIELDS.map((f) => f.key);
+      expect(keys).toEqual(['name', 'label', 'description']);
+    });
+
+    it('should mark name and label as required', () => {
+      const name = DEFAULT_FORM_FIELDS.find((f) => f.key === 'name')!;
+      const label = DEFAULT_FORM_FIELDS.find((f) => f.key === 'label')!;
+      expect(name.required).toBe(true);
+      expect(label.required).toBe(true);
+    });
+  });
+
+  describe('MetadataTypeConfig type support', () => {
+    it('should accept actions field in MetadataTypeConfig', () => {
+      const config: MetadataTypeConfig = {
+        type: 'test',
+        label: 'Test',
+        pluralLabel: 'Tests',
+        description: 'Test type',
+        icon: 'database',
+        actions: [
+          { key: 'export', label: 'Export', scope: 'page' },
+          { key: 'view', label: 'View', scope: 'row' },
+        ],
+      };
+      expect(config.actions).toHaveLength(2);
+      expect(config.actions![0].scope).toBe('page');
+      expect(config.actions![1].scope).toBe('row');
+    });
+
+    it('should accept detailComponent field in MetadataTypeConfig', () => {
+      const config: MetadataTypeConfig = {
+        type: 'test',
+        label: 'Test',
+        pluralLabel: 'Tests',
+        description: 'Test type',
+        icon: 'database',
+        detailComponent: () => null,
+      };
+      expect(config.detailComponent).toBeDefined();
     });
   });
 });
