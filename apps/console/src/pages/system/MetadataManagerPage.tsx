@@ -186,6 +186,53 @@ export function MetadataManagerPage() {
 
   const Icon = getIcon(config.icon);
   const isEditable = config.editable !== false && isAdmin;
+
+  // -------------------------------------------------------------------------
+  // Custom list component rendering
+  // -------------------------------------------------------------------------
+  const ListComponent = config.listComponent;
+  if (ListComponent) {
+    return (
+      <div className="flex flex-col gap-4 p-4 sm:p-6" data-testid="metadata-manager-page">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(`${basePath}/system`)}
+              data-testid="back-to-hub-btn"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="bg-primary/10 p-2 rounded-md shrink-0">
+              <Icon className="h-5 w-5 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+                {config.pluralLabel}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                {config.description}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Custom list component */}
+        <ListComponent
+          config={config}
+          basePath={basePath}
+          metadataType={metadataType!}
+          isAdmin={isAdmin}
+        />
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Default list rendering (cards / grid)
+  // -------------------------------------------------------------------------
   const pageActions = (config.actions ?? []).filter((a) => a.scope === 'page');
   const rowActions = (config.actions ?? []).filter((a) => a.scope === 'row');
   const listMode = config.listMode ?? 'card';

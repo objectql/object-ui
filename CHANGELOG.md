@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Merged ObjectManagerPage into MetadataManagerPage pipeline** (`@object-ui/console`): Removed the standalone `ObjectManagerPage` component. Object management is now fully handled by the generic `MetadataManagerPage` (list view) and `MetadataDetailPage` (detail view) pipeline. The object type config in `metadataTypeRegistry` uses `listComponent: ObjectManagerListAdapter` for the custom list UI and `pageSchemaFactory: buildObjectDetailPageSchema` for the detail page, eliminating redundant page code and centralizing all metadata management through a single architecture.
+
+- **`listComponent` extension point on MetadataTypeConfig** (`@object-ui/console`): New optional `listComponent` field allows metadata types to inject a fully custom list component into `MetadataManagerPage`, replacing the default card/grid rendering. The page shell (header, back button, title) is still rendered by the generic manager. `MetadataListComponentProps` interface provides `config`, `basePath`, `metadataType`, and `isAdmin` to the custom component.
+
+- **Routes unified to `/system/metadata/object`** (`@object-ui/console`): All entry points (sidebar, QuickActions, SystemHubPage hub cards) now point to `/system/metadata/object` instead of `/system/objects`. Legacy `/system/objects` routes redirect to the new path for backward compatibility.
+
+### Removed
+
+- **`ObjectManagerPage`** (`@object-ui/console`): Deleted `pages/system/ObjectManagerPage.tsx`. All object management functionality is now delivered through the `ObjectManagerListAdapter` + `MetadataManagerPage`/`MetadataDetailPage` pipeline.
+
+- **`customRoute` on object type config** (`@object-ui/console`): The object metadata type no longer uses `customRoute: '/system/objects'`. It now routes through the standard metadata pipeline at `/system/metadata/object`.
+
 ### Fixed
 
 - **Protocol bridges** (`@object-ui/core`): Updated `DndProtocol`, `KeyboardProtocol`, and `NotificationProtocol` to align with `@objectstack/spec` v4 type changes where `ariaLabel`, `label`, `title`, and `message` fields are now plain strings instead of i18n translation objects (`{ key, defaultValue }`).

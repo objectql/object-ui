@@ -247,7 +247,7 @@ describe('MetadataDetailPage', () => {
         </MemoryRouter>,
       );
       fireEvent.click(screen.getByTestId('back-to-list-btn'));
-      expect(mockNavigate).toHaveBeenCalledWith('/system/objects');
+      expect(mockNavigate).toHaveBeenCalledWith('/system/metadata/object');
     });
   });
 });

@@ -40,7 +40,7 @@ export function QuickActions() {
       label: t('home.quickActions.manageObjects', { defaultValue: 'Manage Objects' }),
       description: t('home.quickActions.manageObjectsDesc', { defaultValue: 'Configure data models' }),
       icon: Database,
-      href: '/system/objects',
+      href: '/system/metadata/object',
       color: 'text-purple-600 dark:text-purple-400',
     },
     {

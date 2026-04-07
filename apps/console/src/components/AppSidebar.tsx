@@ -258,7 +258,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const systemFallbackNavigation: NavigationItem[] = React.useMemo(() => [
     { id: 'sys-settings', label: 'System Settings', type: 'url' as const, url: '/system', icon: 'settings' },
     { id: 'sys-apps', label: 'Applications', type: 'url' as const, url: '/system/apps', icon: 'layout-grid' },
-    { id: 'sys-objects', label: 'Object Manager', type: 'url' as const, url: '/system/objects', icon: 'database' },
+    { id: 'sys-objects', label: 'Object Manager', type: 'url' as const, url: '/system/metadata/object', icon: 'database' },
     { id: 'sys-users', label: 'Users', type: 'url' as const, url: '/system/users', icon: 'users' },
     { id: 'sys-orgs', label: 'Organizations', type: 'url' as const, url: '/system/organizations', icon: 'building-2' },
     { id: 'sys-roles', label: 'Roles', type: 'url' as const, url: '/system/roles', icon: 'shield' },

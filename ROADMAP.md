@@ -943,8 +943,11 @@ Enterprise-grade visual designers for managing object definitions and configurin
 - [x] `boolean` field type — renders Shadcn Switch toggle with Yes/No label
 
 **MetadataDetailPage & Provider Enhancements:**
-- [x] Auto-redirect for custom page types (object → `/system/objects/:name`)
+- [x] Auto-redirect for custom page types (object → `/system/objects/:name`) — removed; object now uses metadata pipeline
 - [x] `getItemsByType(type)` method on MetadataProvider for dynamic registry access
+- [x] Object type merged into MetadataManagerPage pipeline — `ObjectManagerPage` removed, replaced by `ObjectManagerListAdapter` via `listComponent` extension point
+- [x] `listComponent` extension point on MetadataTypeConfig for injecting custom list UIs
+- [x] All entry points (sidebar, QuickActions, hub cards) unified to `/system/metadata/object`
 
 **Technical Debt Cleanup:**
 - [x] Unified icon resolver — consolidated 3 duplicated ICON_MAP/resolveIcon into shared `getIcon` utility

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useState, useEffect, useCallback, lazy, Suspense, useMemo, type ReactNode } from 'react';
 import { ModalForm } from '@object-ui/plugin-form';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
@@ -47,7 +47,6 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then(
 // System Admin Pages (lazy — rarely accessed)
 const SystemHubPage = lazy(() => import('./pages/system/SystemHubPage').then(m => ({ default: m.SystemHubPage })));
 const AppManagementPage = lazy(() => import('./pages/system/AppManagementPage').then(m => ({ default: m.AppManagementPage })));
-const ObjectManagerPage = lazy(() => import('./pages/system/ObjectManagerPage').then(m => ({ default: m.ObjectManagerPage })));
 const MetadataManagerPage = lazy(() => import('./pages/system/MetadataManagerPage').then(m => ({ default: m.MetadataManagerPage })));
 const MetadataDetailPage = lazy(() => import('./pages/system/MetadataDetailPage').then(m => ({ default: m.MetadataDetailPage })));
 const UserManagementPage = lazy(() => import('./pages/system/UserManagementPage').then(m => ({ default: m.UserManagementPage })));
@@ -61,7 +60,6 @@ const ProfilePage = lazy(() => import('./pages/system/ProfilePage').then(m => ({
 const HomePage = lazy(() => import('./pages/home/HomePage').then(m => ({ default: m.HomePage })));
 const HomeLayout = lazy(() => import('./pages/home/HomeLayout').then(m => ({ default: m.HomeLayout })));
 
-import { useParams } from 'react-router-dom';
 import { ThemeProvider } from './components/theme-provider';
 import { ConsoleToaster } from './components/ConsoleToaster';
 
@@ -294,8 +292,8 @@ export function AppContent() {
           <Route path="create-app" element={<CreateAppPage />} />
           <Route path="system" element={<SystemHubPage />} />
           <Route path="system/apps" element={<AppManagementPage />} />
-          <Route path="system/objects" element={<ObjectManagerPage />} />
-          <Route path="system/objects/:objectName" element={<ObjectManagerPage />} />
+          <Route path="system/objects" element={<Navigate to="/system/metadata/object" replace />} />
+          <Route path="system/objects/:objectName" element={<ObjectRedirect />} />
           <Route path="system/users" element={<UserManagementPage />} />
           <Route path="system/organizations" element={<OrgManagementPage />} />
           <Route path="system/roles" element={<RoleManagementPage />} />
@@ -390,8 +388,8 @@ export function AppContent() {
         {/* System Administration Routes */}
         <Route path="system" element={<SystemHubPage />} />
         <Route path="system/apps" element={<AppManagementPage />} />
-        <Route path="system/objects" element={<ObjectManagerPage />} />
-        <Route path="system/objects/:objectName" element={<ObjectManagerPage />} />
+        <Route path="system/objects" element={<Navigate to="/system/metadata/object" replace />} />
+        <Route path="system/objects/:objectName" element={<ObjectRedirect />} />
         <Route path="system/users" element={<UserManagementPage />} />
         <Route path="system/organizations" element={<OrgManagementPage />} />
         <Route path="system/roles" element={<RoleManagementPage />} />
@@ -477,6 +475,19 @@ function RootRedirect() {
 }
 
 /**
+ * Redirect helper for legacy `/system/objects/:objectName` routes.
+ * Preserves the `objectName` URL param so that
+ * `/system/objects/account` → `/system/metadata/object/account`.
+ */
+function ObjectRedirect() {
+  const { objectName } = useParams<{ objectName?: string }>();
+  const target = objectName
+    ? `/system/metadata/object/${objectName}`
+    : '/system/metadata/object';
+  return <Navigate to={target} replace />;
+}
+
+/**
  * SystemRoutes — Top-level system admin routes accessible without any app context.
  * Provides a minimal layout with system navigation sidebar.
  */
@@ -486,8 +497,8 @@ function SystemRoutes() {
       <Routes>
         <Route path="/" element={<SystemHubPage />} />
         <Route path="apps" element={<AppManagementPage />} />
-        <Route path="objects" element={<ObjectManagerPage />} />
-        <Route path="objects/:objectName" element={<ObjectManagerPage />} />
+        <Route path="objects" element={<Navigate to="/system/metadata/object" replace />} />
+        <Route path="objects/:objectName" element={<ObjectRedirect />} />
         <Route path="users" element={<UserManagementPage />} />
         <Route path="organizations" element={<OrgManagementPage />} />
         <Route path="roles" element={<RoleManagementPage />} />

@@ -35,17 +35,26 @@ describe('metadataTypeRegistry', () => {
       }
     });
 
-    it('should configure app and object with custom routes', () => {
+    it('should configure app with custom route', () => {
       const app = METADATA_TYPES.find((m) => m.type === 'app')!;
-      const obj = METADATA_TYPES.find((m) => m.type === 'object')!;
       expect(app.customRoute).toBe('/system/apps');
-      expect(obj.customRoute).toBe('/system/objects');
+    });
+
+    it('should configure object without custom route (uses metadata pipeline)', () => {
+      const obj = METADATA_TYPES.find((m) => m.type === 'object')!;
+      expect(obj.customRoute).toBeUndefined();
     });
 
     it('should configure object with pageSchemaFactory', () => {
       const obj = METADATA_TYPES.find((m) => m.type === 'object')!;
       expect(obj.pageSchemaFactory).toBeDefined();
       expect(typeof obj.pageSchemaFactory).toBe('function');
+    });
+
+    it('should configure object with listComponent', () => {
+      const obj = METADATA_TYPES.find((m) => m.type === 'object')!;
+      expect(obj.listComponent).toBeDefined();
+      expect(typeof obj.listComponent).toBe('function');
     });
 
     it('should not configure generic types with custom routes', () => {
@@ -77,11 +86,16 @@ describe('metadataTypeRegistry', () => {
   });
 
   describe('getGenericMetadataTypes', () => {
-    it('should exclude types with custom pages', () => {
+    it('should exclude types with customRoute', () => {
       const generic = getGenericMetadataTypes();
       const types = generic.map((m) => m.type);
       expect(types).not.toContain('app');
-      expect(types).not.toContain('object');
+    });
+
+    it('should include object type (no customRoute, uses listComponent)', () => {
+      const generic = getGenericMetadataTypes();
+      const types = generic.map((m) => m.type);
+      expect(types).toContain('object');
     });
 
     it('should include generic types', () => {
@@ -101,8 +115,8 @@ describe('metadataTypeRegistry', () => {
   });
 
   describe('formFields', () => {
-    it('should have formFields on generic metadata types', () => {
-      const generic = getGenericMetadataTypes();
+    it('should have formFields on generic metadata types that use default list rendering', () => {
+      const generic = getGenericMetadataTypes().filter((m) => !m.listComponent);
       for (const entry of generic) {
         expect(entry.formFields).toBeDefined();
         expect(entry.formFields!.length).toBeGreaterThan(0);

@@ -12,8 +12,9 @@
  *   2. That's it — routes, hub cards, and CRUD pages are auto-generated.
  *
  * Types that require a fully custom detail view (e.g. `object`) can specify
- * `customRoute` to point at their existing dedicated page and are excluded
- * from the generic manager's route generation.
+ * `pageSchemaFactory` for schema-driven detail rendering. Types that need
+ * a custom list view can specify `listComponent` to replace the default
+ * card/grid list — the generic manager handles the page shell.
  *
  * @module config/metadataTypeRegistry
  */
@@ -21,6 +22,7 @@
 import type React from 'react';
 import type { PageSchema } from '@object-ui/types';
 import { buildObjectDetailPageSchema } from '../schemas/objectDetailPageSchema';
+import { ObjectManagerListAdapter } from '../components/ObjectManagerListAdapter';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -167,6 +169,25 @@ export interface MetadataTypeConfig {
    * - `'table'`: Alias for `'grid'` (same rendering).
    */
   listMode?: 'card' | 'grid' | 'table';
+
+  /**
+   * Custom list component for the manager page.
+   * When provided, replaces the default card/grid list rendering entirely.
+   * The component is responsible for its own data fetching and interaction.
+   */
+  listComponent?: React.ComponentType<MetadataListComponentProps>;
+}
+
+/** Props passed to a custom `listComponent` by MetadataManagerPage. */
+export interface MetadataListComponentProps {
+  /** The resolved registry configuration for the current metadata type. */
+  config: MetadataTypeConfig;
+  /** Base URL path (e.g. `''` or `'/apps/my_app'`). */
+  basePath: string;
+  /** The metadata type string (e.g. `'object'`). */
+  metadataType: string;
+  /** Whether the current user has admin privileges. */
+  isAdmin: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -198,9 +219,9 @@ export const METADATA_TYPES: MetadataTypeConfig[] = [
     pluralLabel: 'Object Manager',
     description: 'Manage object definitions and field configurations',
     icon: 'database',
-    customRoute: '/system/objects',
     countSource: 'metadata',
     pageSchemaFactory: (itemName, item) => buildObjectDetailPageSchema(itemName, item),
+    listComponent: ObjectManagerListAdapter,
   },
 
   // -- Generic metadata types (managed by MetadataManagerPage) --
