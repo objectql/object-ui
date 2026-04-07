@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Relationships section**: Displays all relationships with type badges (one-to-many, many-to-one), related object names, and foreign key info. Shows empty state message when no relationships are defined.
   - **Keys section**: Automatically extracts and displays primary keys, unique keys, and external ID fields from the object's field metadata.
   - **Data Experience section**: Placeholder cards for Forms, Views, and Dashboards design capabilities — preparing the UI structure for future implementation.
+  - **Inline data preview placeholder**: Dedicated "Data Preview" section with placeholder UI for sample data grid (Power Apps parity).
+  - **System field hints**: Visual indicator warning that system fields (id, createdAt, updatedAt) are read-only and cannot be edited.
+
+- **Reusable MetadataGrid component** (`@object-ui/console`): Extracted the grid/table rendering logic from MetadataManagerPage into a standalone `MetadataGrid` component (`components/MetadataGrid.tsx`). Supports configurable columns, action buttons, row click handlers, and delete confirmation state. Can be reused by any metadata type list page.
+
+- **MetadataDetailPage redirect for custom types** (`@object-ui/console`): MetadataDetailPage now automatically redirects to the dedicated detail page for metadata types with `hasCustomPage: true`. For example, navigating to `/system/metadata/object/account` redirects to `/system/objects/account`.
+
+- **MetadataProvider dynamic type access** (`@object-ui/console`): Added `getItemsByType(type)` method to `MetadataContextValue`, allowing pages to access cached metadata items for any known type without hardcoding property names.
 
 - **Number and boolean field types in MetadataFormDialog** (`@object-ui/console`): Extended `MetadataFormFieldDef.type` to support `'number'` (renders HTML number input) and `'boolean'` (renders a Shadcn Switch toggle with Yes/No label). All existing field types (`text`, `textarea`, `select`) continue to work unchanged.
 

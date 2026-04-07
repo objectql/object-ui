@@ -10,7 +10,7 @@
  * @module pages/system/MetadataDetailPage
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Button,
@@ -55,6 +55,15 @@ export function MetadataDetailPage() {
   const config: MetadataTypeConfig | undefined = metadataType
     ? getMetadataTypeConfig(metadataType)
     : undefined;
+
+  // Redirect to dedicated detail page for types with custom pages (e.g. object → /system/objects/:name)
+  const redirected = useRef(false);
+  useEffect(() => {
+    if (config?.hasCustomPage && config.customRoute && itemName && !redirected.current) {
+      redirected.current = true;
+      navigate(`${basePath}${config.customRoute}/${itemName}`, { replace: true });
+    }
+  }, [config, basePath, itemName, navigate]);
 
   const [item, setItem] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);

@@ -26,6 +26,8 @@ import {
   LayoutList,
   PanelTop,
   BarChart3,
+  Table,
+  AlertCircle,
 } from 'lucide-react';
 import { ObjectManager, FieldDesigner } from '@object-ui/plugin-designer';
 import type { ObjectDefinition, DesignerFieldDefinition } from '@object-ui/types';
@@ -256,12 +258,34 @@ function ObjectDetailView({ object, metadataObject, onBack, metadataService, onR
         </div>
       </div>
 
+      {/* Inline Data Preview (placeholder) */}
+      <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="data-preview-section">
+        <h2 className="text-sm font-semibold flex items-center gap-2">
+          <Table className="h-4 w-4" />
+          Data Preview
+        </h2>
+        <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
+          <Table className="h-8 w-8 mx-auto mb-3 opacity-40" />
+          <p className="text-sm font-medium">Sample Data</p>
+          <p className="text-xs mt-1">
+            Live data preview for &ldquo;{object.label}&rdquo; will be available here
+          </p>
+        </div>
+      </div>
+
       {/* Field Management Section */}
       <div className="space-y-3" data-testid="field-management-section">
         {saving && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="field-saving-indicator">
             <Loader2 className="h-4 w-4 animate-spin" />
             Saving field changes…
+          </div>
+        )}
+        {/* System field hint */}
+        {displayFields.some((f) => f.isSystem) && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2" data-testid="system-field-hint">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            System fields (e.g. id, createdAt, updatedAt) are read-only and cannot be edited or deleted.
           </div>
         )}
         <FieldDesigner

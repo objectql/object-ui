@@ -38,6 +38,7 @@ import { useMetadataService } from '../../hooks/useMetadataService';
 import { useMetadata } from '../../context/MetadataProvider';
 import { getMetadataTypeConfig, type MetadataTypeConfig } from '../../config/metadataTypeRegistry';
 import { MetadataFormDialog } from '../../components/MetadataFormDialog';
+import { MetadataGrid } from '../../components/MetadataGrid';
 import { getIcon } from '../../utils/getIcon';
 
 // ---------------------------------------------------------------------------
@@ -359,98 +360,20 @@ export function MetadataManagerPage() {
 
       {/* Grid / Table mode */}
       {!loading && filteredItems.length > 0 && isGridMode && (
-        <div className="rounded-lg border bg-card" data-testid="metadata-grid">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  {columns.map((col) => (
-                    <th
-                      key={col.key}
-                      className="px-4 py-3 text-left font-medium text-muted-foreground"
-                      style={col.width ? { width: col.width } : undefined}
-                    >
-                      {col.label}
-                    </th>
-                  ))}
-                  {isEditable && (
-                    <th className="px-4 py-3 text-right font-medium text-muted-foreground w-24">
-                      Actions
-                    </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredItems.map((item) => {
-                  const name = String(item.name ?? '');
-                  return (
-                    <tr
-                      key={name}
-                      className="border-b last:border-0 hover:bg-accent/50 cursor-pointer transition-colors"
-                      data-testid={`metadata-item-${name}`}
-                      onClick={() =>
-                        navigate(`${basePath}/system/metadata/${metadataType}/${name}`)
-                      }
-                    >
-                      {columns.map((col) => (
-                        <td key={col.key} className="px-4 py-3 truncate max-w-[200px]">
-                          {String(item[col.key] ?? '—')}
-                        </td>
-                      ))}
-                      {isEditable && (
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {rowActions.map((action) => (
-                              <Button
-                                key={action.key}
-                                variant={action.variant ?? 'ghost'}
-                                size="icon"
-                                title={action.label}
-                                onClick={(e: React.MouseEvent) => {
-                                  e.stopPropagation();
-                                  action.handler?.(item);
-                                }}
-                                data-testid={`row-action-${action.key}-${name}`}
-                              >
-                                <span className="text-xs">{action.label.charAt(0)}</span>
-                              </Button>
-                            ))}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title={`Edit ${config.label.toLowerCase()}`}
-                              onClick={(e: React.MouseEvent) => {
-                                e.stopPropagation();
-                                handleEdit(item);
-                              }}
-                              disabled={saving}
-                              data-testid={`edit-${name}-btn`}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title={deletingName === name ? 'Click again to confirm' : `Delete ${config.label.toLowerCase()}`}
-                              onClick={(e: React.MouseEvent) => {
-                                e.stopPropagation();
-                                handleDelete(name);
-                              }}
-                              disabled={saving}
-                              data-testid={`delete-${name}-btn`}
-                            >
-                              <Trash2 className={`h-4 w-4 ${deletingName === name ? 'text-destructive' : ''}`} />
-                            </Button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <MetadataGrid
+          items={filteredItems}
+          columns={columns}
+          editable={isEditable}
+          saving={saving}
+          deletingName={deletingName}
+          typeLabel={config.label.toLowerCase()}
+          rowActions={rowActions}
+          onItemClick={(name) =>
+            navigate(`${basePath}/system/metadata/${metadataType}/${name}`)
+          }
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
       )}
 
       {/* Create/Edit dialog */}

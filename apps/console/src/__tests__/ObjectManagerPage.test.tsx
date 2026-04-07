@@ -195,6 +195,20 @@ describe('ObjectManagerPage', () => {
       expect(screen.getByTestId('relationships-section')).toBeDefined();
       expect(screen.getByText('No relationships defined for this object.')).toBeDefined();
     });
+
+    it('should show inline data preview placeholder', () => {
+      renderPage('/system/objects/account');
+      expect(screen.getByTestId('data-preview-section')).toBeDefined();
+      expect(screen.getByText('Data Preview')).toBeDefined();
+      expect(screen.getByText('Sample Data')).toBeDefined();
+    });
+
+    it('should show system field non-editable hint when system fields exist', () => {
+      renderPage('/system/objects/account');
+      // account has id field with readonly=true, which becomes isSystem
+      expect(screen.getByTestId('system-field-hint')).toBeDefined();
+      expect(screen.getByText(/System fields.*read-only/)).toBeDefined();
+    });
   });
 
   describe('Object Selection via ObjectGrid', () => {
@@ -236,6 +250,34 @@ describe('ObjectManagerPage', () => {
       expect(screen.getByTestId('object-detail-view')).toBeDefined();
       // The FieldDesigner should be rendered (service is passed through)
       expect(screen.getByTestId('field-designer')).toBeDefined();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Route compatibility regression tests
+  // -------------------------------------------------------------------------
+
+  describe('Route compatibility', () => {
+    it('should render list view at /system/objects', () => {
+      renderPage('/system/objects');
+      expect(screen.getByTestId('object-manager-page')).toBeDefined();
+      expect(screen.getByTestId('object-manager')).toBeDefined();
+    });
+
+    it('should render detail view at /system/objects/:objectName', () => {
+      renderPage('/system/objects/account');
+      expect(screen.getByTestId('object-detail-view')).toBeDefined();
+    });
+
+    it('should render detail view at /apps/:appName/system/objects/:objectName', () => {
+      renderPage('/apps/my_app/system/objects/account');
+      expect(screen.getByTestId('object-detail-view')).toBeDefined();
+    });
+
+    it('should render list view at /apps/:appName/system/objects', () => {
+      renderPage('/apps/my_app/system/objects');
+      expect(screen.getByTestId('object-manager-page')).toBeDefined();
+      expect(screen.getByTestId('object-manager')).toBeDefined();
     });
   });
 });

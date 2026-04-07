@@ -155,4 +155,11 @@ describe('MetadataDetailPage', () => {
       expect(screen.getByTestId('detail-loading')).toBeInTheDocument();
     });
   });
+
+  describe('redirect for custom page types', () => {
+    it('should redirect object type to /system/objects/:name', () => {
+      renderWithRoute('object', 'account');
+      expect(mockNavigate).toHaveBeenCalledWith('/system/objects/account', { replace: true });
+    });
+  });
 });
