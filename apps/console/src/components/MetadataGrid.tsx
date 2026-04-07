@@ -101,6 +101,7 @@ export function MetadataGrid({
                             variant={action.variant ?? 'ghost'}
                             size="icon"
                             title={action.label}
+                            aria-label={action.label}
                             onClick={(e: React.MouseEvent) => {
                               e.stopPropagation();
                               action.handler?.(item);

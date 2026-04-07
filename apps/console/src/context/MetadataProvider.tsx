@@ -29,8 +29,9 @@ export interface MetadataContextValue extends MetadataState {
   refresh: () => Promise<void>;
   /**
    * Fetch items for any metadata type dynamically (registry-driven).
-   * Returns cached items for known types (app, object, dashboard, report, page)
-   * or fetches from the API for any other registered type.
+   * Returns cached items for known types (app, object, dashboard, report, page).
+   * Uses `any[]` to match the MetadataState field types — consumers should
+   * cast to their expected item shape as needed.
    */
   getItemsByType: (type: string) => any[];
 }

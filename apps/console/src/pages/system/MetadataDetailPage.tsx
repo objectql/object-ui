@@ -10,8 +10,8 @@
  * @module pages/system/MetadataDetailPage
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useState, useCallback, useEffect } from 'react';
+import { useNavigate, useParams, Navigate } from 'react-router-dom';
 import {
   Button,
   Card,
@@ -57,13 +57,7 @@ export function MetadataDetailPage() {
     : undefined;
 
   // Redirect to dedicated detail page for types with custom pages (e.g. object → /system/objects/:name)
-  const redirected = useRef(false);
-  useEffect(() => {
-    if (config?.hasCustomPage && config.customRoute && itemName && !redirected.current) {
-      redirected.current = true;
-      navigate(`${basePath}${config.customRoute}/${itemName}`, { replace: true });
-    }
-  }, [config, basePath, itemName, navigate]);
+  const shouldRedirect = config?.hasCustomPage && config.customRoute && itemName;
 
   const [item, setItem] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -126,6 +120,11 @@ export function MetadataDetailPage() {
         </div>
       </div>
     );
+  }
+
+  // Declarative redirect for types with custom pages (e.g. object → /system/objects/:name)
+  if (shouldRedirect) {
+    return <Navigate to={`${basePath}${config.customRoute}/${itemName}`} replace />;
   }
 
   const Icon = getIcon(config.icon);

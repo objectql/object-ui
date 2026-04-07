@@ -158,8 +158,23 @@ describe('MetadataDetailPage', () => {
 
   describe('redirect for custom page types', () => {
     it('should redirect object type to /system/objects/:name', () => {
-      renderWithRoute('object', 'account');
-      expect(mockNavigate).toHaveBeenCalledWith('/system/objects/account', { replace: true });
+      const { container } = render(
+        <MemoryRouter initialEntries={['/system/metadata/object/account']}>
+          <Routes>
+            <Route
+              path="/system/metadata/:metadataType/:itemName"
+              element={<MetadataDetailPage />}
+            />
+            <Route
+              path="/system/objects/:objectName"
+              element={<div data-testid="object-detail-redirect-target">Redirected</div>}
+            />
+          </Routes>
+        </MemoryRouter>,
+      );
+      // The Navigate component should redirect to the object detail route
+      expect(screen.getByTestId('object-detail-redirect-target')).toBeInTheDocument();
+      expect(screen.getByText('Redirected')).toBeInTheDocument();
     });
   });
 });
