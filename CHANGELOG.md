@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Grid list mode for MetadataManagerPage** (`@object-ui/console`): MetadataManagerPage now supports `listMode: 'grid' | 'table'` configuration via the metadata type registry. When set, items are rendered in a professional table layout with column headers, sortable rows, and inline action buttons — matching the Power Apps table listing UX. The `report` type is configured to use grid mode by default.
+
+- **Enhanced Object Detail View (Power Apps alignment)** (`@object-ui/console`): ObjectDetailView now includes dedicated sections beyond the existing Object Properties and Fields:
+  - **Relationships section**: Displays all relationships with type badges (one-to-many, many-to-one), related object names, and foreign key info. Shows empty state message when no relationships are defined.
+  - **Keys section**: Automatically extracts and displays primary keys, unique keys, and external ID fields from the object's field metadata.
+  - **Data Experience section**: Placeholder cards for Forms, Views, and Dashboards design capabilities — preparing the UI structure for future implementation.
+
+- **Number and boolean field types in MetadataFormDialog** (`@object-ui/console`): Extended `MetadataFormFieldDef.type` to support `'number'` (renders HTML number input) and `'boolean'` (renders a Shadcn Switch toggle with Yes/No label). All existing field types (`text`, `textarea`, `select`) continue to work unchanged.
+
+- **Shared metadata converters utility** (`@object-ui/console`): Extracted `toObjectDefinition()` and `toFieldDefinition()` from ObjectManagerPage into a shared `utils/metadataConverters.ts` module. These functions convert raw ObjectStack API metadata shapes to the UI types (`ObjectDefinition`, `DesignerFieldDefinition`), and can now be reused across pages.
+
+- **Unified icon resolver** (`@object-ui/console`): Consolidated three duplicated `ICON_MAP` + `resolveIcon()` implementations (in MetadataManagerPage, MetadataDetailPage, SystemHubPage) into a single `getIcon()` utility from `utils/getIcon.ts`, which dynamically resolves any Lucide icon by kebab-case or PascalCase name.
+
 - **Metadata Create & Edit via MetadataFormDialog** (`@object-ui/console`): New generic `MetadataFormDialog` component (`components/MetadataFormDialog.tsx`) provides a registry-driven create/edit dialog for any metadata type. Form fields are determined by the `formFields` configuration in the metadata type registry, with fallback defaults (`name`, `label`, `description`). Supports required validation, `disabledOnEdit` for immutable keys (e.g. `name`), textarea and select field types, and loading state during submission.
 
 - **MetadataManagerPage CRUD enhancements** (`@object-ui/console`): Extended the generic MetadataManagerPage with "New" button in the header (opens create dialog), per-item edit buttons (opens pre-filled edit dialog), and click-to-navigate to the detail page. All mutations use `MetadataService.saveMetadataItem()` with toast feedback, loading state, and automatic list refresh.
