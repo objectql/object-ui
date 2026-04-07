@@ -110,7 +110,7 @@ export function MetadataDetailPage() {
         toast.success(`${config?.label ?? 'Item'} "${itemName}" updated`);
       } catch {
         toast.error(`Failed to update "${itemName}"`);
-        throw new Error('save failed');
+        throw new Error(`Failed to save ${config?.label ?? 'item'} "${itemName}"`);
       } finally {
         setSaving(false);
       }

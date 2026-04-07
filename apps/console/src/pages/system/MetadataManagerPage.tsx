@@ -174,7 +174,7 @@ export function MetadataManagerPage() {
           ? `Failed to update "${name}"`
           : `Failed to create "${name}"`,
       );
-      throw new Error('save failed');
+      throw new Error(`Failed to save ${config?.label ?? 'item'} "${name}"`);
     } finally {
       setSaving(false);
     }

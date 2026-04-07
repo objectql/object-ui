@@ -175,7 +175,7 @@ export const METADATA_TYPES: MetadataTypeConfig[] = [
       { key: 'description', label: 'Description' },
     ],
     formFields: [
-      { key: 'name', label: 'Name', required: true, placeholder: 'my_dashboard', disabledOnEdit: true },
+      { key: 'name', label: 'Name', required: true, placeholder: 'dashboard_name', disabledOnEdit: true },
       { key: 'label', label: 'Label', required: true, placeholder: 'My Dashboard' },
       { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Brief description' },
     ],
@@ -192,7 +192,7 @@ export const METADATA_TYPES: MetadataTypeConfig[] = [
       { key: 'description', label: 'Description' },
     ],
     formFields: [
-      { key: 'name', label: 'Name', required: true, placeholder: 'my_page', disabledOnEdit: true },
+      { key: 'name', label: 'Name', required: true, placeholder: 'page_name', disabledOnEdit: true },
       { key: 'label', label: 'Label', required: true, placeholder: 'My Page' },
       { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Brief description' },
     ],
@@ -209,7 +209,7 @@ export const METADATA_TYPES: MetadataTypeConfig[] = [
       { key: 'description', label: 'Description' },
     ],
     formFields: [
-      { key: 'name', label: 'Name', required: true, placeholder: 'my_report', disabledOnEdit: true },
+      { key: 'name', label: 'Name', required: true, placeholder: 'report_name', disabledOnEdit: true },
       { key: 'label', label: 'Label', required: true, placeholder: 'My Report' },
       { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Brief description' },
     ],
