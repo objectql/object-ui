@@ -66,7 +66,8 @@ export function MetadataFormDialog({
   const fields = formFields ?? DEFAULT_FORM_FIELDS;
   const isEdit = mode === 'edit';
 
-  // Form state
+  // Form state — values are stored as strings because the form is a generic
+  // key-value store. Boolean fields use 'true'/'false' string representations.
   const [values, setValues] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 

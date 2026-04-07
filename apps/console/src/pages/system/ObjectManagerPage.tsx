@@ -183,7 +183,9 @@ function ObjectDetailView({ object, metadataObject, onBack, metadataService, onR
                 </Badge>
                 <div className="min-w-0 flex-1 text-sm">
                   <span className="font-medium">{rel.label || rel.relatedObject}</span>
-                  <span className="text-muted-foreground ml-1">→ {rel.relatedObject}</span>
+                  {rel.label && rel.label !== rel.relatedObject && (
+                    <span className="text-muted-foreground ml-1">→ {rel.relatedObject}</span>
+                  )}
                   {rel.foreignKey && (
                     <span className="text-muted-foreground text-xs ml-2">(FK: {rel.foreignKey})</span>
                   )}

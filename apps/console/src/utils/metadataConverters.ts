@@ -85,7 +85,7 @@ export function toObjectDefinition(obj: MetadataObject, index: number): ObjectDe
     enabled: obj.enabled !== false,
     fieldCount: fields.length,
     relationships: Array.isArray(obj.relationships)
-      ? obj.relationships.map((r: any) => ({
+      ? obj.relationships.map((r) => ({
           relatedObject: r.object || r.relatedObject || '',
           type: r.type || 'one-to-many',
           label: r.label || r.name || undefined,
