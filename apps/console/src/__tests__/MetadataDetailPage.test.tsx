@@ -2,13 +2,17 @@
  * MetadataDetailPage Tests
  *
  * Tests for the generic, registry-driven metadata detail page that shows
- * a single metadata item and supports editing via the MetadataFormDialog.
+ * a single metadata item. Supports three rendering modes:
+ *   1. PageSchema-driven (via pageSchemaFactory + SchemaRenderer)
+ *   2. Custom component (via detailComponent)
+ *   3. Default card layout
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { ComponentRegistry } from '@object-ui/core';
 
 // --- Mock MetadataService ---
 const mockGetItems = vi.fn().mockResolvedValue([]);
@@ -25,7 +29,20 @@ const mockRefresh = vi.fn().mockResolvedValue(undefined);
 vi.mock('../context/MetadataProvider', () => ({
   useMetadata: () => ({
     apps: [],
-    objects: [],
+    objects: [
+      {
+        name: 'account',
+        label: 'Accounts',
+        icon: 'Building',
+        description: 'Customer accounts',
+        enabled: true,
+        fields: [
+          { name: 'id', type: 'text', label: 'ID', readonly: true },
+          { name: 'name', type: 'text', label: 'Account Name', required: true },
+        ],
+        relationships: [],
+      },
+    ],
     dashboards: [],
     reports: [],
     pages: [],
@@ -50,6 +67,22 @@ vi.mock('react-router-dom', async () => {
     ...actual,
     useNavigate: () => mockNavigate,
   };
+});
+
+// Register mock widget components for PageSchema rendering in tests
+beforeEach(() => {
+  const mockWidget = (name: string) => (props: any) => (
+    <div data-testid={`mock-${name}`} data-object-name={props?.schema?.objectName || props?.objectName}>
+      {name}
+    </div>
+  );
+
+  ComponentRegistry.register('object-properties', mockWidget('object-properties'));
+  ComponentRegistry.register('object-relationships', mockWidget('object-relationships'));
+  ComponentRegistry.register('object-keys', mockWidget('object-keys'));
+  ComponentRegistry.register('object-data-experience', mockWidget('object-data-experience'));
+  ComponentRegistry.register('object-data-preview', mockWidget('object-data-preview'));
+  ComponentRegistry.register('object-field-designer', mockWidget('object-field-designer'));
 });
 
 // Import after mocks
@@ -155,25 +188,66 @@ describe('MetadataDetailPage', () => {
     });
   });
 
-  describe('redirect for custom page types', () => {
-    it('should redirect object type to /system/objects/:name', () => {
-      const { container } = render(
+  describe('PageSchema rendering for object type', () => {
+    it('should render object detail via PageSchema instead of redirecting', () => {
+      mockGetItems.mockResolvedValue([
+        { name: 'account', label: 'Accounts', description: 'Customer accounts' },
+      ]);
+      render(
         <MemoryRouter initialEntries={['/system/metadata/object/account']}>
           <Routes>
             <Route
               path="/system/metadata/:metadataType/:itemName"
               element={<MetadataDetailPage />}
             />
+          </Routes>
+        </MemoryRouter>,
+      );
+      // Should render the metadata detail page (not redirect)
+      expect(screen.getByTestId('metadata-detail-page')).toBeInTheDocument();
+      // Should render schema-driven content via mock widgets
+      expect(screen.getByTestId('schema-detail-content')).toBeInTheDocument();
+    });
+
+    it('should render all object detail widget sections', () => {
+      mockGetItems.mockResolvedValue([
+        { name: 'account', label: 'Accounts', description: 'Customer accounts' },
+      ]);
+      render(
+        <MemoryRouter initialEntries={['/system/metadata/object/account']}>
+          <Routes>
             <Route
-              path="/system/objects/:objectName"
-              element={<div data-testid="object-detail-redirect-target">Redirected</div>}
+              path="/system/metadata/:metadataType/:itemName"
+              element={<MetadataDetailPage />}
             />
           </Routes>
         </MemoryRouter>,
       );
-      // The Navigate component should redirect to the object detail route
-      expect(screen.getByTestId('object-detail-redirect-target')).toBeInTheDocument();
-      expect(screen.getByText('Redirected')).toBeInTheDocument();
+      // All widget sections should be rendered via SchemaRenderer
+      expect(screen.getByTestId('mock-object-properties')).toBeInTheDocument();
+      expect(screen.getByTestId('mock-object-relationships')).toBeInTheDocument();
+      expect(screen.getByTestId('mock-object-keys')).toBeInTheDocument();
+      expect(screen.getByTestId('mock-object-data-experience')).toBeInTheDocument();
+      expect(screen.getByTestId('mock-object-data-preview')).toBeInTheDocument();
+      expect(screen.getByTestId('mock-object-field-designer')).toBeInTheDocument();
+    });
+
+    it('should navigate back to object list route when back button is clicked', () => {
+      mockGetItems.mockResolvedValue([
+        { name: 'account', label: 'Accounts', description: 'Customer accounts' },
+      ]);
+      render(
+        <MemoryRouter initialEntries={['/system/metadata/object/account']}>
+          <Routes>
+            <Route
+              path="/system/metadata/:metadataType/:itemName"
+              element={<MetadataDetailPage />}
+            />
+          </Routes>
+        </MemoryRouter>,
+      );
+      fireEvent.click(screen.getByTestId('back-to-list-btn'));
+      expect(mockNavigate).toHaveBeenCalledWith('/system/objects');
     });
   });
 });
