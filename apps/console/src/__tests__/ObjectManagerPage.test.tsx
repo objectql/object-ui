@@ -174,6 +174,27 @@ describe('ObjectManagerPage', () => {
       expect(screen.getByText('one-to-many')).toBeDefined();
       expect(screen.getByText(/contacts/)).toBeDefined();
     });
+
+    it('should show keys section', () => {
+      renderPage('/system/objects/account');
+      expect(screen.getByTestId('keys-section')).toBeDefined();
+      expect(screen.getByText('Keys')).toBeDefined();
+    });
+
+    it('should show data experience section with placeholders', () => {
+      renderPage('/system/objects/account');
+      expect(screen.getByTestId('data-experience-section')).toBeDefined();
+      expect(screen.getByText('Data Experience')).toBeDefined();
+      expect(screen.getByTestId('data-experience-forms')).toBeDefined();
+      expect(screen.getByTestId('data-experience-views')).toBeDefined();
+      expect(screen.getByTestId('data-experience-dashboards')).toBeDefined();
+    });
+
+    it('should show empty relationships message for objects without them', () => {
+      renderPage('/system/objects/contact');
+      expect(screen.getByTestId('relationships-section')).toBeDefined();
+      expect(screen.getByText('No relationships defined for this object.')).toBeDefined();
+    });
   });
 
   describe('Object Selection via ObjectGrid', () => {

@@ -333,6 +333,66 @@ describe('MetadataManagerPage', () => {
     });
   });
 
+  describe('grid list mode (report type)', () => {
+    it('should render grid/table layout for types with listMode grid', async () => {
+      mockGetItems.mockResolvedValue([
+        { name: 'sales_report', label: 'Sales Report', description: 'Q1 Sales' },
+        { name: 'ops_report', label: 'Ops Report', description: 'Ops data' },
+      ]);
+      renderWithRoute('report');
+      await waitFor(() => {
+        expect(screen.getByTestId('metadata-grid')).toBeInTheDocument();
+      });
+      // Should render items in the grid
+      expect(screen.getByTestId('metadata-item-sales_report')).toBeInTheDocument();
+      expect(screen.getByTestId('metadata-item-ops_report')).toBeInTheDocument();
+    });
+
+    it('should render column headers in grid mode', async () => {
+      mockGetItems.mockResolvedValue([
+        { name: 'test_report', label: 'Test Report', description: 'Test desc' },
+      ]);
+      renderWithRoute('report');
+      await waitFor(() => {
+        expect(screen.getByTestId('metadata-grid')).toBeInTheDocument();
+      });
+      expect(screen.getByText('Name')).toBeInTheDocument();
+      expect(screen.getByText('Label')).toBeInTheDocument();
+      expect(screen.getByText('Description')).toBeInTheDocument();
+    });
+
+    it('should render edit/delete buttons in grid rows', async () => {
+      mockGetItems.mockResolvedValue([
+        { name: 'test_report', label: 'Test Report' },
+      ]);
+      renderWithRoute('report');
+      await waitFor(() => {
+        expect(screen.getByTestId('edit-test_report-btn')).toBeInTheDocument();
+        expect(screen.getByTestId('delete-test_report-btn')).toBeInTheDocument();
+      });
+    });
+
+    it('should navigate to detail page when grid row is clicked', async () => {
+      mockGetItems.mockResolvedValue([
+        { name: 'sales_report', label: 'Sales Report' },
+      ]);
+      renderWithRoute('report');
+      await waitFor(() => {
+        expect(screen.getByTestId('metadata-item-sales_report')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('metadata-item-sales_report'));
+      expect(mockNavigate).toHaveBeenCalledWith('/system/metadata/report/sales_report');
+    });
+
+    it('should show empty state in grid mode when no items', async () => {
+      mockGetItems.mockResolvedValue([]);
+      renderWithRoute('report');
+      await waitFor(() => {
+        expect(screen.getByTestId('metadata-empty')).toBeInTheDocument();
+      });
+    });
+  });
+
   describe('permission integration', () => {
     it('should show create/edit/delete buttons for admin users (mocked as admin)', async () => {
       mockGetItems.mockResolvedValue([
