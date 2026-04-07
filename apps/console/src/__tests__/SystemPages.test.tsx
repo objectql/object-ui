@@ -217,7 +217,7 @@ describe('SystemHubPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/apps/test-app/system/metadata/dashboard');
   });
 
-  it('should navigate to custom route for types with custom pages', async () => {
+  it('should navigate to custom route for types with dedicated list pages', async () => {
     mockFind.mockResolvedValue({ data: [] });
     wrap(<SystemHubPage />);
     await waitFor(() => {

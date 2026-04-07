@@ -15,7 +15,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Console app** (`@object-ui/console`): Fixed unused import warnings (`MetadataFormFieldDef`, `MetadataActionDef`, `toast`) and a `defaultValue` type mismatch (`unknown` → `string | undefined`) in `MetadataService.ts`.
 
+### Changed
+
+- **Object detail page migrated to PageSchema-driven rendering** (`@object-ui/console`): The object detail page (both at `/system/objects/:objectName` and `/system/metadata/object/:objectName`) is now rendered via `SchemaRenderer` using a `PageSchema` built by `buildObjectDetailPageSchema()`. Each section (properties, relationships, keys, data experience, data preview, field designer) is a self-contained SchemaNode widget registered in the ComponentRegistry. This replaces the monolithic `ObjectDetailView` component with a composable, metadata-driven architecture.
+
+- **MetadataDetailPage unified PageSchema support** (`@object-ui/console`): `MetadataDetailPage` now supports three rendering modes in priority order: (1) PageSchema-driven via `pageSchemaFactory` in the registry config, (2) custom `detailComponent`, (3) default card layout. The `hasCustomPage` + `<Navigate>` redirect hack has been removed — all metadata detail pages are rendered directly by `MetadataDetailPage`.
+
+- **MetadataTypeConfig refactored** (`@object-ui/console`): Replaced `hasCustomPage` boolean flag with the more expressive `pageSchemaFactory` function and kept `customRoute` for hub card linking. The `getGenericMetadataTypes()` helper now filters by `customRoute` instead of `hasCustomPage`.
+
+- **SchemaErrorBoundary for detail pages** (`@object-ui/console`): Added `SchemaErrorBoundary` class component to both `MetadataDetailPage` and `ObjectManagerPage` to gracefully catch and display rendering errors when a PageSchema or its widgets fail to render.
+
 ### Added
+
+- **Object detail schema widgets** (`@object-ui/console`): Six self-contained SchemaNode widget components for the object detail page, registered in ComponentRegistry: `object-properties`, `object-relationships`, `object-keys`, `object-data-experience`, `object-data-preview`, `object-field-designer`. Each widget resolves its data from React context (`useMetadata`, `useMetadataService`) making them fully composable via PageSchema.
+
+- **Object detail PageSchema factory** (`@object-ui/console`): `buildObjectDetailPageSchema(objectName, item?)` generates a `PageSchema` for object detail pages. The schema defines the page structure as an array of widget nodes, enabling server-driven UI customization of the object detail page layout.
+
+- **`pageSchemaFactory` on MetadataTypeConfig** (`@object-ui/console`): New optional factory function on the registry config that generates a `PageSchema` for detail page rendering via `SchemaRenderer`. When defined, `MetadataDetailPage` uses schema rendering instead of the default card layout.
 
 - **Grid list mode for MetadataManagerPage** (`@object-ui/console`): MetadataManagerPage now supports `listMode: 'grid' | 'table'` configuration via the metadata type registry. When set, items are rendered in a professional table layout with column headers, sortable rows, and inline action buttons — matching the Power Apps table listing UX. The `report` type is configured to use grid mode by default.
 
@@ -28,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Reusable MetadataGrid component** (`@object-ui/console`): Extracted the grid/table rendering logic from MetadataManagerPage into a standalone `MetadataGrid` component (`components/MetadataGrid.tsx`). Supports configurable columns, action buttons, row click handlers, and delete confirmation state. Can be reused by any metadata type list page.
 
-- **MetadataDetailPage redirect for custom types** (`@object-ui/console`): MetadataDetailPage now automatically redirects to the dedicated detail page for metadata types with `hasCustomPage: true`. For example, navigating to `/system/metadata/object/account` redirects to `/system/objects/account`.
+- **MetadataDetailPage unified schema rendering** (`@object-ui/console`): MetadataDetailPage now renders object detail pages via PageSchema (using `pageSchemaFactory`) instead of redirecting to `/system/objects/:name`. The redirect-based approach (`hasCustomPage` + `<Navigate>`) has been replaced with direct schema rendering.
 
 - **MetadataProvider dynamic type access** (`@object-ui/console`): Added `getItemsByType(type)` method to `MetadataContextValue`, allowing pages to access cached metadata items for any known type without hardcoding property names.
 

@@ -35,22 +35,26 @@ describe('metadataTypeRegistry', () => {
       }
     });
 
-    it('should mark app and object as having custom pages', () => {
+    it('should configure app and object with custom routes', () => {
       const app = METADATA_TYPES.find((m) => m.type === 'app')!;
       const obj = METADATA_TYPES.find((m) => m.type === 'object')!;
-      expect(app.hasCustomPage).toBe(true);
       expect(app.customRoute).toBe('/system/apps');
-      expect(obj.hasCustomPage).toBe(true);
       expect(obj.customRoute).toBe('/system/objects');
     });
 
-    it('should not mark generic types as having custom pages', () => {
+    it('should configure object with pageSchemaFactory', () => {
+      const obj = METADATA_TYPES.find((m) => m.type === 'object')!;
+      expect(obj.pageSchemaFactory).toBeDefined();
+      expect(typeof obj.pageSchemaFactory).toBe('function');
+    });
+
+    it('should not configure generic types with custom routes', () => {
       const dashboard = METADATA_TYPES.find((m) => m.type === 'dashboard')!;
       const page = METADATA_TYPES.find((m) => m.type === 'page')!;
       const report = METADATA_TYPES.find((m) => m.type === 'report')!;
-      expect(dashboard.hasCustomPage).toBeFalsy();
-      expect(page.hasCustomPage).toBeFalsy();
-      expect(report.hasCustomPage).toBeFalsy();
+      expect(dashboard.customRoute).toBeFalsy();
+      expect(page.customRoute).toBeFalsy();
+      expect(report.customRoute).toBeFalsy();
     });
 
     it('should have unique type strings', () => {

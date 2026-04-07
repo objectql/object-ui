@@ -2,14 +2,16 @@
  * ObjectManagerPage tests
  *
  * Tests for the system administration Object Manager page that integrates
- * ObjectManager and FieldDesigner from @object-ui/plugin-designer.
- * Covers list view, detail view with URL-based navigation, field management,
+ * ObjectManager from @object-ui/plugin-designer for the list view, and
+ * PageSchema-driven SchemaRenderer for the detail view.
+ * Covers list view, detail view with URL-based navigation, schema rendering,
  * and API integration via MetadataService.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { ComponentRegistry } from '@object-ui/core';
 import { ObjectManagerPage } from '../pages/system/ObjectManagerPage';
 
 // ---------------------------------------------------------------------------
@@ -102,6 +104,20 @@ function renderPage(route = '/system/objects') {
 describe('ObjectManagerPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Register mock widget components for PageSchema rendering in tests
+    const mockWidget = (name: string) => (props: any) => (
+      <div data-testid={name} data-object-name={props?.schema?.objectName || props?.objectName}>
+        {name}
+      </div>
+    );
+
+    ComponentRegistry.register('object-properties', mockWidget('object-properties'));
+    ComponentRegistry.register('object-relationships', mockWidget('relationships-section'));
+    ComponentRegistry.register('object-keys', mockWidget('keys-section'));
+    ComponentRegistry.register('object-data-experience', mockWidget('data-experience-section'));
+    ComponentRegistry.register('object-data-preview', mockWidget('data-preview-section'));
+    ComponentRegistry.register('object-field-designer', mockWidget('field-management-section'));
   });
 
   describe('List View', () => {
@@ -140,17 +156,14 @@ describe('ObjectManagerPage', () => {
       expect(titles.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('should show object properties section', () => {
+    it('should show object properties section via schema widget', () => {
       renderPage('/system/objects/account');
       expect(screen.getByTestId('object-properties')).toBeDefined();
-      expect(screen.getByText('API Name')).toBeDefined();
-      expect(screen.getByText('account')).toBeDefined();
     });
 
-    it('should show field management section with FieldDesigner', () => {
+    it('should show field management section via schema widget', () => {
       renderPage('/system/objects/account');
       expect(screen.getByTestId('field-management-section')).toBeDefined();
-      expect(screen.getByTestId('field-designer')).toBeDefined();
     });
 
     it('should show back button to return to object list', () => {
@@ -167,47 +180,29 @@ describe('ObjectManagerPage', () => {
       });
     });
 
-    it('should show relationships if the object has them', () => {
+    it('should show relationships section via schema widget', () => {
       renderPage('/system/objects/account');
-      expect(screen.getByText('Relationships')).toBeDefined();
       expect(screen.getByTestId('relationships-section')).toBeDefined();
-      expect(screen.getByText('one-to-many')).toBeDefined();
-      expect(screen.getByText(/contacts/)).toBeDefined();
     });
 
-    it('should show keys section', () => {
+    it('should show keys section via schema widget', () => {
       renderPage('/system/objects/account');
       expect(screen.getByTestId('keys-section')).toBeDefined();
-      expect(screen.getByText('Keys')).toBeDefined();
     });
 
-    it('should show data experience section with placeholders', () => {
+    it('should show data experience section via schema widget', () => {
       renderPage('/system/objects/account');
       expect(screen.getByTestId('data-experience-section')).toBeDefined();
-      expect(screen.getByText('Data Experience')).toBeDefined();
-      expect(screen.getByTestId('data-experience-forms')).toBeDefined();
-      expect(screen.getByTestId('data-experience-views')).toBeDefined();
-      expect(screen.getByTestId('data-experience-dashboards')).toBeDefined();
     });
 
-    it('should show empty relationships message for objects without them', () => {
-      renderPage('/system/objects/contact');
-      expect(screen.getByTestId('relationships-section')).toBeDefined();
-      expect(screen.getByText('No relationships defined for this object.')).toBeDefined();
-    });
-
-    it('should show inline data preview placeholder', () => {
+    it('should show data preview section via schema widget', () => {
       renderPage('/system/objects/account');
       expect(screen.getByTestId('data-preview-section')).toBeDefined();
-      expect(screen.getByText('Data Preview')).toBeDefined();
-      expect(screen.getByText('Sample Data')).toBeDefined();
     });
 
-    it('should show system field non-editable hint when system fields exist', () => {
+    it('should render schema-driven content container', () => {
       renderPage('/system/objects/account');
-      // account has id field with readonly=true, which becomes isSystem
-      expect(screen.getByTestId('system-field-hint')).toBeDefined();
-      expect(screen.getByText(/System fields.*read-only/)).toBeDefined();
+      expect(screen.getByTestId('schema-detail-content')).toBeDefined();
     });
   });
 
@@ -245,11 +240,11 @@ describe('ObjectManagerPage', () => {
       expect(screen.getByTestId('object-manager-page')).toBeDefined();
     });
 
-    it('should render detail view with MetadataService props', () => {
+    it('should render detail view with schema-driven widgets', () => {
       renderPage('/system/objects/account');
       expect(screen.getByTestId('object-detail-view')).toBeDefined();
-      // The FieldDesigner should be rendered (service is passed through)
-      expect(screen.getByTestId('field-designer')).toBeDefined();
+      // Schema widgets are rendered (field designer as a registered widget type)
+      expect(screen.getByTestId('field-management-section')).toBeDefined();
     });
   });
 

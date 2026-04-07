@@ -28,6 +28,9 @@ import '@object-ui/plugin-dashboard';
 import '@object-ui/plugin-report';
 import '@object-ui/plugin-markdown';
 
+// Register console-specific schema widgets (object detail page sections)
+import './components/schema/registerObjectDetailWidgets';
+
 // Start MSW before rendering the app
 async function bootstrap() {
   // Initialize Mock Service Worker if enabled (lazy-loaded to keep production bundle lean)

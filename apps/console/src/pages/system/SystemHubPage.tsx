@@ -100,7 +100,7 @@ export function SystemHubPage() {
 
   // Build metadata-type cards dynamically from registry
   const metadataTypeCards: HubCard[] = getHubMetadataTypes().map((cfg) => {
-    const href = cfg.hasCustomPage && cfg.customRoute
+    const href = cfg.customRoute
       ? `${basePath}${cfg.customRoute}`
       : `${basePath}/system/metadata/${cfg.type}`;
     const Icon = getIcon(cfg.icon);
