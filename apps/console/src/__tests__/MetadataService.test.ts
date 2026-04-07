@@ -18,6 +18,7 @@ function createMockAdapter() {
     meta: {
       saveItem: vi.fn().mockResolvedValue({}),
       getItem: vi.fn().mockResolvedValue({ item: { name: 'account', fields: [] } }),
+      getItems: vi.fn().mockResolvedValue({ items: [] }),
     },
   };
 
@@ -242,6 +243,65 @@ describe('MetadataService', () => {
     it('should return null when arrays are identical', () => {
       const fields = [makeField()];
       expect(MetadataService.diffFields(fields, fields)).toBeNull();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Tests: Generic metadata operations
+  // -------------------------------------------------------------------------
+
+  describe('getItems', () => {
+    it('should fetch items for a given category', async () => {
+      mockClient.meta.getItems = vi.fn().mockResolvedValue({
+        items: [{ name: 'dash1' }, { name: 'dash2' }],
+      });
+      const items = await service.getItems('dashboard');
+      expect(mockClient.meta.getItems).toHaveBeenCalledWith('dashboard');
+      expect(items).toEqual([{ name: 'dash1' }, { name: 'dash2' }]);
+    });
+
+    it('should return empty array when response has no items', async () => {
+      mockClient.meta.getItems = vi.fn().mockResolvedValue({});
+      const items = await service.getItems('dashboard');
+      expect(items).toEqual([]);
+    });
+
+    it('should return empty array when response is null', async () => {
+      mockClient.meta.getItems = vi.fn().mockResolvedValue(null);
+      const items = await service.getItems('dashboard');
+      expect(items).toEqual([]);
+    });
+  });
+
+  describe('saveMetadataItem', () => {
+    it('should call saveItem with category, name, and data', async () => {
+      await service.saveMetadataItem('dashboard', 'my_dash', { name: 'my_dash', label: 'My Dash' });
+      expect(mockClient.meta.saveItem).toHaveBeenCalledWith(
+        'dashboard',
+        'my_dash',
+        { name: 'my_dash', label: 'My Dash' },
+      );
+    });
+
+    it('should invalidate cache after save', async () => {
+      await service.saveMetadataItem('report', 'q1_report', { name: 'q1_report' });
+      expect(adapter.invalidateCache).toHaveBeenCalledWith('report:q1_report');
+    });
+  });
+
+  describe('deleteMetadataItem', () => {
+    it('should soft-delete with enabled=false and _deleted=true', async () => {
+      await service.deleteMetadataItem('page', 'landing');
+      expect(mockClient.meta.saveItem).toHaveBeenCalledWith(
+        'page',
+        'landing',
+        { name: 'landing', enabled: false, _deleted: true },
+      );
+    });
+
+    it('should invalidate cache after delete', async () => {
+      await service.deleteMetadataItem('page', 'landing');
+      expect(adapter.invalidateCache).toHaveBeenCalledWith('page:landing');
     });
   });
 });

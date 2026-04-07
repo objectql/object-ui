@@ -196,6 +196,37 @@ describe('SystemHubPage', () => {
     });
   });
 
+  it('should render metadata type cards from registry', async () => {
+    mockFind.mockResolvedValue({ data: [] });
+    wrap(<SystemHubPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('hub-card-object-manager')).toBeInTheDocument();
+      expect(screen.getByTestId('hub-card-dashboards')).toBeInTheDocument();
+      expect(screen.getByTestId('hub-card-pages')).toBeInTheDocument();
+      expect(screen.getByTestId('hub-card-reports')).toBeInTheDocument();
+    });
+  });
+
+  it('should navigate to generic metadata manager for non-custom types', async () => {
+    mockFind.mockResolvedValue({ data: [] });
+    wrap(<SystemHubPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('hub-card-dashboards')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('hub-card-dashboards'));
+    expect(mockNavigate).toHaveBeenCalledWith('/apps/test-app/system/metadata/dashboard');
+  });
+
+  it('should navigate to custom route for types with custom pages', async () => {
+    mockFind.mockResolvedValue({ data: [] });
+    wrap(<SystemHubPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('hub-card-applications')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('hub-card-applications'));
+    expect(mockNavigate).toHaveBeenCalledWith('/apps/test-app/system/apps');
+  });
+
   it('should fetch counts from dataSource on mount', async () => {
     mockFind.mockResolvedValue({ data: [{ id: '1' }] });
     wrap(<SystemHubPage />);

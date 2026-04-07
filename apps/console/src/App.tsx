@@ -48,6 +48,7 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then(
 const SystemHubPage = lazy(() => import('./pages/system/SystemHubPage').then(m => ({ default: m.SystemHubPage })));
 const AppManagementPage = lazy(() => import('./pages/system/AppManagementPage').then(m => ({ default: m.AppManagementPage })));
 const ObjectManagerPage = lazy(() => import('./pages/system/ObjectManagerPage').then(m => ({ default: m.ObjectManagerPage })));
+const MetadataManagerPage = lazy(() => import('./pages/system/MetadataManagerPage').then(m => ({ default: m.MetadataManagerPage })));
 const UserManagementPage = lazy(() => import('./pages/system/UserManagementPage').then(m => ({ default: m.UserManagementPage })));
 const OrgManagementPage = lazy(() => import('./pages/system/OrgManagementPage').then(m => ({ default: m.OrgManagementPage })));
 const RoleManagementPage = lazy(() => import('./pages/system/RoleManagementPage').then(m => ({ default: m.RoleManagementPage })));
@@ -300,6 +301,7 @@ export function AppContent() {
           <Route path="system/permissions" element={<PermissionManagementPage />} />
           <Route path="system/audit-log" element={<AuditLogPage />} />
           <Route path="system/profile" element={<ProfilePage />} />
+          <Route path="system/metadata/:metadataType" element={<MetadataManagerPage />} />
         </Routes>
       </Suspense>
     );
@@ -394,6 +396,7 @@ export function AppContent() {
         <Route path="system/permissions" element={<PermissionManagementPage />} />
         <Route path="system/audit-log" element={<AuditLogPage />} />
         <Route path="system/profile" element={<ProfilePage />} />
+        <Route path="system/metadata/:metadataType" element={<MetadataManagerPage />} />
       </Routes>
       </Suspense>
       </ErrorBoundary>
@@ -488,6 +491,7 @@ function SystemRoutes() {
         <Route path="permissions" element={<PermissionManagementPage />} />
         <Route path="audit-log" element={<AuditLogPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="metadata/:metadataType" element={<MetadataManagerPage />} />
       </Routes>
     </Suspense>
   );

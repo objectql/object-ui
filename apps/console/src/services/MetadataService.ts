@@ -116,6 +116,42 @@ export class MetadataService {
   constructor(private adapter: ObjectStackAdapter) {}
 
   // -----------------------------------------------------------------------
+  // Generic metadata operations (any type)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Fetch all items for a given metadata category.
+   * Returns the items array from the API response, defaulting to `[]`.
+   */
+  async getItems(category: string): Promise<Record<string, unknown>[]> {
+    const client = this.adapter.getClient();
+    const res: unknown = await client.meta.getItems(category);
+    if (res && typeof res === 'object' && 'items' in res && Array.isArray((res as { items: unknown[] }).items)) {
+      return (res as { items: Record<string, unknown>[] }).items;
+    }
+    return [];
+  }
+
+  /**
+   * Persist a metadata item (upsert) for any category.
+   */
+  async saveMetadataItem(category: string, name: string, data: Record<string, unknown>): Promise<void> {
+    const client = this.adapter.getClient();
+    await client.meta.saveItem(category, name, data);
+    this.adapter.invalidateCache(`${category}:${name}`);
+  }
+
+  /**
+   * Soft-delete a metadata item by persisting it with `enabled: false` and
+   * `_deleted: true`. Works for any metadata category.
+   */
+  async deleteMetadataItem(category: string, name: string): Promise<void> {
+    const client = this.adapter.getClient();
+    await client.meta.saveItem(category, name, { name, enabled: false, _deleted: true });
+    this.adapter.invalidateCache(`${category}:${name}`);
+  }
+
+  // -----------------------------------------------------------------------
   // Object operations
   // -----------------------------------------------------------------------
 

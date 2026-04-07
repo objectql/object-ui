@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Unified metadata management architecture** (`@object-ui/console`): New centralized metadata type registry (`config/metadataTypeRegistry.ts`) that defines all manageable metadata categories (app, object, dashboard, page, report) as configuration entries. Registry-driven approach eliminates code duplication — adding a new metadata type requires only a single config entry. Includes `getMetadataTypeConfig()`, `getGenericMetadataTypes()`, and `getHubMetadataTypes()` helpers.
+
+- **Generic MetadataManagerPage** (`@object-ui/console`): New reusable page component (`pages/system/MetadataManagerPage.tsx`) for listing and managing metadata items of any registered type. Driven by the `:metadataType` URL parameter, it fetches items via `MetadataService.getItems()`, supports search filtering, soft-delete with confirm pattern, and displays items in a responsive card grid. Routes: `/system/metadata/:metadataType`.
+
+- **Generic MetadataService methods** (`@object-ui/console`): Extended `MetadataService` with `getItems(category)`, `saveMetadataItem(category, name, data)`, and `deleteMetadataItem(category, name)` methods that work for any metadata type, complementing the existing object/field-specific methods.
+
+- **SystemHubPage registry integration** (`@object-ui/console`): Refactored `SystemHubPage` to auto-generate metadata type cards from the registry instead of hardcoded arrays. New cards (Dashboards, Pages, Reports) appear automatically. Types with custom pages (app, object) link to their existing routes; generic types link to the unified MetadataManagerPage. No breaking changes — all existing hub cards (Users, Orgs, Roles, etc.) remain unchanged.
+
+- **Dynamic routing for metadata types** (`@object-ui/console`): Added `/system/metadata/:metadataType` routes across all three route blocks (SystemRoutes, AppContent minimal, AppContent full) so the generic manager is accessible from both top-level `/system/*` and app-scoped `/apps/:appName/system/*` contexts.
+
 - **Metadata service layer** (`@object-ui/console`): New `MetadataService` class (`services/MetadataService.ts`) that encapsulates object and field CRUD operations against the ObjectStack metadata API (`client.meta.saveItem`). Provides `saveObject()`, `deleteObject()`, and `saveFields()` methods with automatic cache invalidation. Includes static `diffObjects()` and `diffFields()` helpers to detect create/update/delete changes between arrays. Companion `useMetadataService` hook (`hooks/useMetadataService.ts`) provides a memoised service instance from the `useAdapter()` context. 16 new unit tests.
 
 ### Fixed

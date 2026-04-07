@@ -804,6 +804,17 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] `/system/` → SystemHubPage
 - [x] `/system/apps` → AppManagementPage
 - [x] `/system/permissions` → PermissionManagementPage
+- [x] `/system/metadata/:metadataType` → MetadataManagerPage (generic, registry-driven)
+
+**Unified Metadata Management (P1.12.3):**
+- [x] Metadata type registry (`config/metadataTypeRegistry.ts`) — centralized config for all metadata types
+- [x] Generic `MetadataManagerPage` for listing/managing items of any registered type
+- [x] SystemHubPage auto-generates metadata type cards from registry (dashboard, page, report)
+- [x] Dynamic `/system/metadata/:metadataType` routes in all route contexts
+- [x] Generic `MetadataService` methods: `getItems()`, `saveMetadataItem()`, `deleteMetadataItem()`
+- [x] Types with custom pages (`app`, `object`) link to existing dedicated routes
+- [x] Legacy routes preserved — no breaking changes
+- [x] 40+ new tests (registry, MetadataManagerPage, MetadataService generic, SystemHubPage registry)
 
 **Tests:**
 - [x] 11 new tests (SystemHubPage, AppManagementPage, PermissionManagementPage)

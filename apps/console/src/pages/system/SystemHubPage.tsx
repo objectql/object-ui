@@ -3,7 +3,8 @@
  *
  * Unified entry point for all system administration functions.
  * Displays card-based overview linking to Apps, Users, Organizations,
- * Roles, Permissions, Audit Log, and Profile management pages.
+ * Roles, Permissions, Audit Log, Profile management pages, and
+ * dynamically generated metadata type cards from the registry.
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -26,9 +27,13 @@ import {
   User,
   Loader2,
   Database,
+  LayoutDashboard,
+  FileText,
+  BarChart3,
 } from 'lucide-react';
 import { useAdapter } from '../../context/AdapterProvider';
 import { useMetadata } from '../../context/MetadataProvider';
+import { getHubMetadataTypes, type MetadataTypeConfig } from '../../config/metadataTypeRegistry';
 
 interface HubCard {
   title: string;
@@ -39,12 +44,29 @@ interface HubCard {
   count: number | null;
 }
 
+// ---------------------------------------------------------------------------
+// Icon resolver for registry-driven cards
+// ---------------------------------------------------------------------------
+
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  'layout-grid': LayoutGrid,
+  'database': Database,
+  'layout-dashboard': LayoutDashboard,
+  'file-text': FileText,
+  'bar-chart-3': BarChart3,
+};
+
+function resolveIcon(iconName: string): React.ComponentType<{ className?: string }> {
+  return ICON_MAP[iconName] ?? Database;
+}
+
 export function SystemHubPage() {
   const navigate = useNavigate();
   const { appName } = useParams();
   const basePath = appName ? `/apps/${appName}` : '';
   const dataSource = useAdapter();
-  const { apps, objects: metadataObjects } = useMetadata();
+  const metadata = useMetadata();
+  const { apps, objects: metadataObjects, dashboards, reports, pages } = metadata;
 
   const [counts, setCounts] = useState<Record<string, number | null>>({
     apps: null,
@@ -54,6 +76,10 @@ export function SystemHubPage() {
     roles: null,
     permissions: null,
     auditLogs: null,
+    // Metadata type counts
+    dashboard: null,
+    page: null,
+    report: null,
   });
   const [loading, setLoading] = useState(true);
 
@@ -77,33 +103,45 @@ export function SystemHubPage() {
         roles: rolesRes.data?.length ?? 0,
         permissions: permsRes.data?.length ?? 0,
         auditLogs: logsRes.data?.length ?? 0,
+        // Metadata type counts from MetadataProvider
+        dashboard: dashboards?.length ?? 0,
+        page: pages?.length ?? 0,
+        report: reports?.length ?? 0,
       });
     } catch {
       // Keep nulls on failure
     } finally {
       setLoading(false);
     }
-  }, [dataSource, apps, metadataObjects]);
+  }, [dataSource, apps, metadataObjects, dashboards, reports, pages]);
 
   useEffect(() => { fetchCounts(); }, [fetchCounts]);
 
-  const cards: HubCard[] = [
-    {
-      title: 'Applications',
-      description: 'Manage all configured applications',
-      icon: LayoutGrid,
-      href: `${basePath}/system/apps`,
-      countLabel: 'apps',
-      count: counts.apps,
-    },
-    {
-      title: 'Object Manager',
-      description: 'Manage object definitions and field configurations',
-      icon: Database,
-      href: `${basePath}/system/objects`,
-      countLabel: 'objects',
-      count: counts.objects ?? null,
-    },
+  // Build metadata-type cards dynamically from registry
+  const metadataTypeCards: HubCard[] = getHubMetadataTypes().map((cfg: MetadataTypeConfig) => {
+    const href = cfg.hasCustomPage && cfg.customRoute
+      ? `${basePath}${cfg.customRoute}`
+      : `${basePath}/system/metadata/${cfg.type}`;
+    const Icon = resolveIcon(cfg.icon);
+
+    // Resolve count from metadata context or data source counts
+    let count: number | null = null;
+    if (cfg.type === 'app') count = counts.apps;
+    else if (cfg.type === 'object') count = counts.objects;
+    else count = counts[cfg.type] ?? null;
+
+    return {
+      title: cfg.pluralLabel,
+      description: cfg.description,
+      icon: Icon,
+      href,
+      countLabel: cfg.pluralLabel.toLowerCase(),
+      count,
+    };
+  });
+
+  // System admin cards (non-metadata, always present)
+  const systemCards: HubCard[] = [
     {
       title: 'Users',
       description: 'Manage system users and accounts',
@@ -153,6 +191,8 @@ export function SystemHubPage() {
       count: null,
     },
   ];
+
+  const cards: HubCard[] = [...metadataTypeCards, ...systemCards];
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-6">
