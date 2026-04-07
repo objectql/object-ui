@@ -51,7 +51,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "ag-grid-react": "^35.2.0",
     "ag-grid-community": "^35.2.0",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.2",
     "vite": "^8.0.5",
     "vite-plugin-dts": "^4.5.4"
   }
