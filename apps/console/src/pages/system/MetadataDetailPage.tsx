@@ -42,7 +42,7 @@ import { useMetadata } from '../../context/MetadataProvider';
 import { getMetadataTypeConfig, DEFAULT_FORM_FIELDS, type MetadataTypeConfig } from '../../config/metadataTypeRegistry';
 import { MetadataFormDialog } from '../../components/MetadataFormDialog';
 import { getIcon } from '../../utils/getIcon';
-import type { PageSchema } from '@object-ui/types';
+import type { PageSchema, SchemaNode, BaseSchema } from '@object-ui/types';
 
 // ---------------------------------------------------------------------------
 // Schema rendering error boundary (class component for React error boundary)
@@ -105,8 +105,8 @@ function SchemaDetailContent({ schema }: { schema: PageSchema }) {
 
   return (
     <div className="flex flex-col gap-6" data-testid="schema-detail-content">
-      {bodyNodes.map((node: any, idx: number) => (
-        <SchemaRenderer key={node?.id || idx} schema={node} />
+      {bodyNodes.map((node: SchemaNode, idx: number) => (
+        <SchemaRenderer key={(node as BaseSchema)?.id || idx} schema={node} />
       ))}
     </div>
   );

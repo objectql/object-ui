@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { ObjectManager } from '@object-ui/plugin-designer';
 import { SchemaRenderer } from '@object-ui/react';
-import type { ObjectDefinition } from '@object-ui/types';
+import type { ObjectDefinition, SchemaNode, BaseSchema } from '@object-ui/types';
 import { toast } from 'sonner';
 import { useMetadata } from '../../context/MetadataProvider';
 import { useMetadataService } from '../../hooks/useMetadataService';
@@ -101,8 +101,8 @@ function ObjectSchemaDetailContent({ objectName, metadataObject }: {
 
   return (
     <div className="flex flex-col gap-6" data-testid="schema-detail-content">
-      {bodyNodes.map((node: any, idx: number) => (
-        <SchemaRenderer key={node?.id || idx} schema={node} />
+      {bodyNodes.map((node: SchemaNode, idx: number) => (
+        <SchemaRenderer key={(node as BaseSchema)?.id || idx} schema={node} />
       ))}
     </div>
   );

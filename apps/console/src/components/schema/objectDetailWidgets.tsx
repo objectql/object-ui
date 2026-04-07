@@ -27,6 +27,15 @@ import { useMetadata } from '../../context/MetadataProvider';
 import { toObjectDefinition, toFieldDefinition, type MetadataObject } from '../../utils/metadataConverters';
 
 // ---------------------------------------------------------------------------
+// Widget schema interface
+// ---------------------------------------------------------------------------
+
+/** Schema props for object detail widgets. All widgets receive `objectName`. */
+interface ObjectWidgetSchema extends SchemaNode {
+  objectName: string;
+}
+
+// ---------------------------------------------------------------------------
 // Shared hook: resolve object definition + fields from metadata context
 // ---------------------------------------------------------------------------
 
@@ -59,8 +68,8 @@ function useObjectData(objectName: string) {
 // Schema: { type: 'object-properties', objectName: 'account' }
 // ---------------------------------------------------------------------------
 
-export function ObjectPropertiesWidget({ schema }: { schema: SchemaNode }) {
-  const objectName = (schema as any).objectName as string;
+export function ObjectPropertiesWidget({ schema }: { schema: ObjectWidgetSchema }) {
+  const objectName = schema.objectName;
   const { object, fields } = useObjectData(objectName);
 
   if (!object) return null;
@@ -122,8 +131,8 @@ export function ObjectPropertiesWidget({ schema }: { schema: SchemaNode }) {
 // Schema: { type: 'object-relationships', objectName: 'account' }
 // ---------------------------------------------------------------------------
 
-export function ObjectRelationshipsWidget({ schema }: { schema: SchemaNode }) {
-  const objectName = (schema as any).objectName as string;
+export function ObjectRelationshipsWidget({ schema }: { schema: ObjectWidgetSchema }) {
+  const objectName = schema.objectName;
   const { object } = useObjectData(objectName);
 
   if (!object) return null;
@@ -165,8 +174,8 @@ export function ObjectRelationshipsWidget({ schema }: { schema: SchemaNode }) {
 // Schema: { type: 'object-keys', objectName: 'account' }
 // ---------------------------------------------------------------------------
 
-export function ObjectKeysWidget({ schema }: { schema: SchemaNode }) {
-  const objectName = (schema as any).objectName as string;
+export function ObjectKeysWidget({ schema }: { schema: ObjectWidgetSchema }) {
+  const objectName = schema.objectName;
   const { fields } = useObjectData(objectName);
 
   const keyFields = useMemo(
@@ -206,7 +215,7 @@ export function ObjectKeysWidget({ schema }: { schema: SchemaNode }) {
 // Schema: { type: 'object-data-experience', objectName: 'account' }
 // ---------------------------------------------------------------------------
 
-export function ObjectDataExperienceWidget(_props: { schema: SchemaNode }) {
+export function ObjectDataExperienceWidget(_props: { schema: ObjectWidgetSchema }) {
   return (
     <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="data-experience-section">
       <h2 className="text-sm font-semibold flex items-center gap-2">
@@ -239,8 +248,8 @@ export function ObjectDataExperienceWidget(_props: { schema: SchemaNode }) {
 // Schema: { type: 'object-data-preview', objectName: 'account' }
 // ---------------------------------------------------------------------------
 
-export function ObjectDataPreviewWidget({ schema }: { schema: SchemaNode }) {
-  const objectName = (schema as any).objectName as string;
+export function ObjectDataPreviewWidget({ schema }: { schema: ObjectWidgetSchema }) {
+  const objectName = schema.objectName;
   const { object } = useObjectData(objectName);
 
   return (

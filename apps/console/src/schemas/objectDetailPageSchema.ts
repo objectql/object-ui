@@ -13,7 +13,12 @@
  * @module schemas/objectDetailPageSchema
  */
 
-import type { PageSchema } from '@object-ui/types';
+import type { PageSchema, BaseSchema } from '@object-ui/types';
+
+/** Widget schema node with `objectName` property. */
+interface ObjectWidgetNode extends BaseSchema {
+  objectName: string;
+}
 
 /**
  * Build a PageSchema for an object detail page.
@@ -29,6 +34,15 @@ export function buildObjectDetailPageSchema(
   const label = (item?.label as string) || objectName;
   const description = (item?.description as string) || objectName;
 
+  const widgets: ObjectWidgetNode[] = [
+    { type: 'object-properties', id: `${objectName}-properties`, objectName },
+    { type: 'object-relationships', id: `${objectName}-relationships`, objectName },
+    { type: 'object-keys', id: `${objectName}-keys`, objectName },
+    { type: 'object-data-experience', id: `${objectName}-data-experience`, objectName },
+    { type: 'object-data-preview', id: `${objectName}-data-preview`, objectName },
+    { type: 'object-field-designer', id: `${objectName}-field-designer`, objectName },
+  ];
+
   return {
     type: 'page',
     name: `object-detail-${objectName}`,
@@ -37,13 +51,6 @@ export function buildObjectDetailPageSchema(
     icon: 'database',
     pageType: 'record_detail',
     object: objectName,
-    body: [
-      { type: 'object-properties', id: `${objectName}-properties`, objectName } as any,
-      { type: 'object-relationships', id: `${objectName}-relationships`, objectName } as any,
-      { type: 'object-keys', id: `${objectName}-keys`, objectName } as any,
-      { type: 'object-data-experience', id: `${objectName}-data-experience`, objectName } as any,
-      { type: 'object-data-preview', id: `${objectName}-data-preview`, objectName } as any,
-      { type: 'object-field-designer', id: `${objectName}-field-designer`, objectName } as any,
-    ],
+    body: widgets,
   };
 }

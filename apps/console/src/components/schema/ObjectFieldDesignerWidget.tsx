@@ -21,8 +21,13 @@ import { useMetadataService } from '../../hooks/useMetadataService';
 import { MetadataService } from '../../services/MetadataService';
 import { toFieldDefinition, type MetadataObject } from '../../utils/metadataConverters';
 
-export function ObjectFieldDesignerWidget({ schema }: { schema: SchemaNode }) {
-  const objectName = (schema as any).objectName as string;
+/** Schema props for the field designer widget. */
+interface ObjectFieldDesignerSchema extends SchemaNode {
+  objectName: string;
+}
+
+export function ObjectFieldDesignerWidget({ schema }: { schema: ObjectFieldDesignerSchema }) {
+  const objectName = schema.objectName;
   const { objects: metadataObjects, refresh } = useMetadata();
   const metadataService = useMetadataService();
 
