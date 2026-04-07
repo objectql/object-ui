@@ -153,6 +153,14 @@ export interface MetadataTypeConfig {
    * appear alongside each item's edit/delete buttons.
    */
   actions?: MetadataActionDef[];
+
+  /**
+   * Display mode for the list view.
+   * - `'card'` (default): Responsive card grid layout.
+   * - `'grid'`: Professional table/grid layout with column headers.
+   * - `'table'`: Alias for `'grid'` (same rendering).
+   */
+  listMode?: 'card' | 'grid' | 'table';
 }
 
 // ---------------------------------------------------------------------------

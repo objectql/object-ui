@@ -187,6 +187,12 @@ export function MetadataManagerPage() {
   const isEditable = config.editable !== false && isAdmin;
   const pageActions = (config.actions ?? []).filter((a) => a.scope === 'page');
   const rowActions = (config.actions ?? []).filter((a) => a.scope === 'row');
+  const listMode = config.listMode ?? 'card';
+  const isGridMode = listMode === 'grid' || listMode === 'table';
+  const columns = config.columns ?? [
+    { key: 'name', label: 'Name' },
+    { key: 'label', label: 'Label' },
+  ];
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-6" data-testid="metadata-manager-page">
@@ -276,7 +282,7 @@ export function MetadataManagerPage() {
         </div>
       )}
 
-      {!loading && filteredItems.length > 0 && (
+      {!loading && filteredItems.length > 0 && !isGridMode && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filteredItems.map((item) => {
             const name = String(item.name ?? '');
@@ -348,6 +354,102 @@ export function MetadataManagerPage() {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {/* Grid / Table mode */}
+      {!loading && filteredItems.length > 0 && isGridMode && (
+        <div className="rounded-lg border bg-card" data-testid="metadata-grid">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  {columns.map((col) => (
+                    <th
+                      key={col.key}
+                      className="px-4 py-3 text-left font-medium text-muted-foreground"
+                      style={col.width ? { width: col.width } : undefined}
+                    >
+                      {col.label}
+                    </th>
+                  ))}
+                  {isEditable && (
+                    <th className="px-4 py-3 text-right font-medium text-muted-foreground w-24">
+                      Actions
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((item) => {
+                  const name = String(item.name ?? '');
+                  return (
+                    <tr
+                      key={name}
+                      className="border-b last:border-0 hover:bg-accent/50 cursor-pointer transition-colors"
+                      data-testid={`metadata-item-${name}`}
+                      onClick={() =>
+                        navigate(`${basePath}/system/metadata/${metadataType}/${name}`)
+                      }
+                    >
+                      {columns.map((col) => (
+                        <td key={col.key} className="px-4 py-3 truncate max-w-[200px]">
+                          {String(item[col.key] ?? '—')}
+                        </td>
+                      ))}
+                      {isEditable && (
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {rowActions.map((action) => (
+                              <Button
+                                key={action.key}
+                                variant={action.variant ?? 'ghost'}
+                                size="icon"
+                                title={action.label}
+                                onClick={(e: React.MouseEvent) => {
+                                  e.stopPropagation();
+                                  action.handler?.(item);
+                                }}
+                                data-testid={`row-action-${action.key}-${name}`}
+                              >
+                                <span className="text-xs">{action.label.charAt(0)}</span>
+                              </Button>
+                            ))}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={`Edit ${config.label.toLowerCase()}`}
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                handleEdit(item);
+                              }}
+                              disabled={saving}
+                              data-testid={`edit-${name}-btn`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={deletingName === name ? 'Click again to confirm' : `Delete ${config.label.toLowerCase()}`}
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                handleDelete(name);
+                              }}
+                              disabled={saving}
+                              data-testid={`delete-${name}-btn`}
+                            >
+                              <Trash2 className={`h-4 w-4 ${deletingName === name ? 'text-destructive' : ''}`} />
+                            </Button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

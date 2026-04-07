@@ -16,7 +16,17 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Badge } from '@object-ui/components';
-import { ArrowLeft, Database, Settings2, Link2, Loader2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  Database,
+  Settings2,
+  Link2,
+  Loader2,
+  KeyRound,
+  LayoutList,
+  PanelTop,
+  BarChart3,
+} from 'lucide-react';
 import { ObjectManager, FieldDesigner } from '@object-ui/plugin-designer';
 import type { ObjectDefinition, DesignerFieldDefinition } from '@object-ui/types';
 import { toast } from 'sonner';
@@ -156,22 +166,92 @@ function ObjectDetailView({ object, metadataObject, onBack, metadataService, onR
             </div>
           )}
         </div>
-        {/* Relationships */}
-        {object.relationships && object.relationships.length > 0 && (
-          <div className="pt-2 border-t">
-            <span className="text-sm text-muted-foreground flex items-center gap-2 mb-2">
-              <Link2 className="h-3.5 w-3.5" />
-              Relationships
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {object.relationships.map((rel, i) => (
-                <Badge key={i} variant="outline" className="text-xs">
-                  {rel.label || rel.relatedObject} ({rel.type})
+      </div>
+
+      {/* Relationships Section */}
+      <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="relationships-section">
+        <h2 className="text-sm font-semibold flex items-center gap-2">
+          <Link2 className="h-4 w-4" />
+          Relationships
+        </h2>
+        {object.relationships && object.relationships.length > 0 ? (
+          <div className="space-y-2">
+            {object.relationships.map((rel, i) => (
+              <div key={i} className="flex items-center gap-3 p-2 rounded-md bg-muted/40">
+                <Badge variant="outline" className="text-xs shrink-0">
+                  {rel.type}
                 </Badge>
-              ))}
-            </div>
+                <div className="min-w-0 flex-1 text-sm">
+                  <span className="font-medium">{rel.label || rel.relatedObject}</span>
+                  <span className="text-muted-foreground ml-1">→ {rel.relatedObject}</span>
+                  {rel.foreignKey && (
+                    <span className="text-muted-foreground text-xs ml-2">(FK: {rel.foreignKey})</span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No relationships defined for this object.</p>
         )}
+      </div>
+
+      {/* Keys Section */}
+      <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="keys-section">
+        <h2 className="text-sm font-semibold flex items-center gap-2">
+          <KeyRound className="h-4 w-4" />
+          Keys
+        </h2>
+        {(() => {
+          const keyFields = displayFields.filter(
+            (f) => f.unique || f.name === 'id' || f.externalId
+          );
+          if (keyFields.length > 0) {
+            return (
+              <div className="space-y-2">
+                {keyFields.map((kf) => (
+                  <div key={kf.name} className="flex items-center gap-3 p-2 rounded-md bg-muted/40">
+                    <Badge variant={kf.name === 'id' ? 'default' : 'outline'} className="text-xs shrink-0">
+                      {kf.name === 'id' ? 'Primary Key' : kf.externalId ? 'External ID' : 'Unique'}
+                    </Badge>
+                    <div className="min-w-0 flex-1 text-sm">
+                      <span className="font-medium">{kf.label || kf.name}</span>
+                      <span className="text-muted-foreground text-xs ml-2">({kf.type})</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          }
+          return (
+            <p className="text-sm text-muted-foreground">No unique keys or primary keys found.</p>
+          );
+        })()}
+      </div>
+
+      {/* Data Experience Section */}
+      <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="data-experience-section">
+        <h2 className="text-sm font-semibold flex items-center gap-2">
+          <LayoutList className="h-4 w-4" />
+          Data Experience
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-md border border-dashed p-4 text-center" data-testid="data-experience-forms">
+            <PanelTop className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-sm font-medium">Forms</p>
+            <p className="text-xs text-muted-foreground mt-1">Design forms for data entry</p>
+          </div>
+          <div className="rounded-md border border-dashed p-4 text-center" data-testid="data-experience-views">
+            <LayoutList className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-sm font-medium">Views</p>
+            <p className="text-xs text-muted-foreground mt-1">Configure list and detail views</p>
+          </div>
+          <div className="rounded-md border border-dashed p-4 text-center" data-testid="data-experience-dashboards">
+            <BarChart3 className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-sm font-medium">Dashboards</p>
+            <p className="text-xs text-muted-foreground mt-1">Build visual dashboards</p>
+          </div>
+        </div>
       </div>
 
       {/* Field Management Section */}

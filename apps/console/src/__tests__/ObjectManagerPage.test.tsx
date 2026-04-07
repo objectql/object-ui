@@ -170,7 +170,9 @@ describe('ObjectManagerPage', () => {
     it('should show relationships if the object has them', () => {
       renderPage('/system/objects/account');
       expect(screen.getByText('Relationships')).toBeDefined();
-      expect(screen.getByText(/contact.*one-to-many/)).toBeDefined();
+      expect(screen.getByTestId('relationships-section')).toBeDefined();
+      expect(screen.getByText('one-to-many')).toBeDefined();
+      expect(screen.getByText(/contacts/)).toBeDefined();
     });
   });
 
