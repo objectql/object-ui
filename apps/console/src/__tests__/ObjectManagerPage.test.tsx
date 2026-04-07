@@ -170,7 +170,44 @@ describe('ObjectManagerPage', () => {
     it('should show relationships if the object has them', () => {
       renderPage('/system/objects/account');
       expect(screen.getByText('Relationships')).toBeDefined();
-      expect(screen.getByText(/contact.*one-to-many/)).toBeDefined();
+      expect(screen.getByTestId('relationships-section')).toBeDefined();
+      expect(screen.getByText('one-to-many')).toBeDefined();
+      expect(screen.getByText(/contacts/)).toBeDefined();
+    });
+
+    it('should show keys section', () => {
+      renderPage('/system/objects/account');
+      expect(screen.getByTestId('keys-section')).toBeDefined();
+      expect(screen.getByText('Keys')).toBeDefined();
+    });
+
+    it('should show data experience section with placeholders', () => {
+      renderPage('/system/objects/account');
+      expect(screen.getByTestId('data-experience-section')).toBeDefined();
+      expect(screen.getByText('Data Experience')).toBeDefined();
+      expect(screen.getByTestId('data-experience-forms')).toBeDefined();
+      expect(screen.getByTestId('data-experience-views')).toBeDefined();
+      expect(screen.getByTestId('data-experience-dashboards')).toBeDefined();
+    });
+
+    it('should show empty relationships message for objects without them', () => {
+      renderPage('/system/objects/contact');
+      expect(screen.getByTestId('relationships-section')).toBeDefined();
+      expect(screen.getByText('No relationships defined for this object.')).toBeDefined();
+    });
+
+    it('should show inline data preview placeholder', () => {
+      renderPage('/system/objects/account');
+      expect(screen.getByTestId('data-preview-section')).toBeDefined();
+      expect(screen.getByText('Data Preview')).toBeDefined();
+      expect(screen.getByText('Sample Data')).toBeDefined();
+    });
+
+    it('should show system field non-editable hint when system fields exist', () => {
+      renderPage('/system/objects/account');
+      // account has id field with readonly=true, which becomes isSystem
+      expect(screen.getByTestId('system-field-hint')).toBeDefined();
+      expect(screen.getByText(/System fields.*read-only/)).toBeDefined();
     });
   });
 
@@ -213,6 +250,34 @@ describe('ObjectManagerPage', () => {
       expect(screen.getByTestId('object-detail-view')).toBeDefined();
       // The FieldDesigner should be rendered (service is passed through)
       expect(screen.getByTestId('field-designer')).toBeDefined();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Route compatibility regression tests
+  // -------------------------------------------------------------------------
+
+  describe('Route compatibility', () => {
+    it('should render list view at /system/objects', () => {
+      renderPage('/system/objects');
+      expect(screen.getByTestId('object-manager-page')).toBeDefined();
+      expect(screen.getByTestId('object-manager')).toBeDefined();
+    });
+
+    it('should render detail view at /system/objects/:objectName', () => {
+      renderPage('/system/objects/account');
+      expect(screen.getByTestId('object-detail-view')).toBeDefined();
+    });
+
+    it('should render detail view at /apps/:appName/system/objects/:objectName', () => {
+      renderPage('/apps/my_app/system/objects/account');
+      expect(screen.getByTestId('object-detail-view')).toBeDefined();
+    });
+
+    it('should render list view at /apps/:appName/system/objects', () => {
+      renderPage('/apps/my_app/system/objects');
+      expect(screen.getByTestId('object-manager-page')).toBeDefined();
+      expect(screen.getByTestId('object-manager')).toBeDefined();
     });
   });
 });

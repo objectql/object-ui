@@ -177,6 +177,74 @@ describe('MetadataFormDialog', () => {
     });
   });
 
+  describe('number fields', () => {
+    it('should render number input for fields with type number', () => {
+      const formFields = [
+        { key: 'name', label: 'Name', required: true },
+        { key: 'priority', label: 'Priority', type: 'number' as const },
+      ];
+      render(<MetadataFormDialog {...defaultProps} formFields={formFields} />);
+      const priorityField = screen.getByTestId('metadata-field-priority');
+      expect(priorityField).toBeInTheDocument();
+      expect(priorityField).toHaveAttribute('type', 'number');
+    });
+
+    it('should accept numeric values', () => {
+      const formFields = [
+        { key: 'name', label: 'Name', required: true },
+        { key: 'count', label: 'Count', type: 'number' as const },
+      ];
+      render(<MetadataFormDialog {...defaultProps} formFields={formFields} />);
+      fireEvent.change(screen.getByTestId('metadata-field-count'), {
+        target: { value: '42' },
+      });
+      expect(screen.getByTestId('metadata-field-count')).toHaveValue(42);
+    });
+  });
+
+  describe('boolean fields', () => {
+    it('should render switch for fields with type boolean', () => {
+      const formFields = [
+        { key: 'name', label: 'Name', required: true },
+        { key: 'enabled', label: 'Enabled', type: 'boolean' as const },
+      ];
+      render(<MetadataFormDialog {...defaultProps} formFields={formFields} />);
+      const enabledField = screen.getByTestId('metadata-field-enabled');
+      expect(enabledField).toBeInTheDocument();
+      expect(enabledField).toHaveAttribute('role', 'switch');
+    });
+
+    it('should toggle boolean value when clicked', () => {
+      const formFields = [
+        { key: 'name', label: 'Name', required: true },
+        { key: 'active', label: 'Active', type: 'boolean' as const },
+      ];
+      render(<MetadataFormDialog {...defaultProps} formFields={formFields} />);
+      const switchEl = screen.getByTestId('metadata-field-active');
+      // Initially false ("No")
+      expect(screen.getByText('No')).toBeInTheDocument();
+      // Toggle
+      fireEvent.click(switchEl);
+      expect(screen.getByText('Yes')).toBeInTheDocument();
+    });
+
+    it('should pre-fill boolean true value in edit mode', () => {
+      const formFields = [
+        { key: 'name', label: 'Name', required: true },
+        { key: 'enabled', label: 'Enabled', type: 'boolean' as const },
+      ];
+      render(
+        <MetadataFormDialog
+          {...defaultProps}
+          mode="edit"
+          formFields={formFields}
+          initialValues={{ name: 'test', enabled: true }}
+        />,
+      );
+      expect(screen.getByText('Yes')).toBeInTheDocument();
+    });
+  });
+
   describe('when dialog is closed', () => {
     it('should not render dialog content when open is false', () => {
       render(<MetadataFormDialog {...defaultProps} open={false} />);

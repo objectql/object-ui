@@ -21,6 +21,7 @@ import {
   Input,
   Label,
   Textarea,
+  Switch,
 } from '@object-ui/components';
 import { Loader2 } from 'lucide-react';
 import {
@@ -65,7 +66,8 @@ export function MetadataFormDialog({
   const fields = formFields ?? DEFAULT_FORM_FIELDS;
   const isEdit = mode === 'edit';
 
-  // Form state
+  // Form state — values are stored as strings because the form is a generic
+  // key-value store. Boolean fields use 'true'/'false' string representations.
   const [values, setValues] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -157,6 +159,33 @@ export function MetadataFormDialog({
                       </option>
                     ))}
                   </select>
+                ) : field.type === 'number' ? (
+                  <Input
+                    id={inputId}
+                    type="number"
+                    value={value}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      handleChange(field.key, e.target.value)
+                    }
+                    placeholder={field.placeholder}
+                    disabled={disabled}
+                    data-testid={`metadata-field-${field.key}`}
+                  />
+                ) : field.type === 'boolean' ? (
+                  <div className="flex items-center gap-2 pt-1">
+                    <Switch
+                      id={inputId}
+                      checked={value === 'true'}
+                      onCheckedChange={(checked: boolean) =>
+                        handleChange(field.key, String(checked))
+                      }
+                      disabled={disabled}
+                      data-testid={`metadata-field-${field.key}`}
+                    />
+                    <Label htmlFor={inputId} className="text-sm text-muted-foreground cursor-pointer">
+                      {value === 'true' ? 'Yes' : 'No'}
+                    </Label>
+                  </div>
                 ) : (
                   <Input
                     id={inputId}

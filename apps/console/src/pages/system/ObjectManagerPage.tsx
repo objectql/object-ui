@@ -16,123 +16,26 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Badge } from '@object-ui/components';
-import { ArrowLeft, Database, Settings2, Link2, Loader2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  Database,
+  Settings2,
+  Link2,
+  Loader2,
+  KeyRound,
+  LayoutList,
+  PanelTop,
+  BarChart3,
+  Table,
+  AlertCircle,
+} from 'lucide-react';
 import { ObjectManager, FieldDesigner } from '@object-ui/plugin-designer';
-import type { ObjectDefinition, DesignerFieldDefinition, DesignerFieldType } from '@object-ui/types';
+import type { ObjectDefinition, DesignerFieldDefinition } from '@object-ui/types';
 import { toast } from 'sonner';
 import { useMetadata } from '../../context/MetadataProvider';
 import { useMetadataService } from '../../hooks/useMetadataService';
 import { MetadataService } from '../../services/MetadataService';
-
-/** Loose shape of a metadata object definition from the ObjectStack API. */
-interface MetadataObject {
-  name?: string;
-  label?: string | { defaultValue?: string; key?: string };
-  pluralLabel?: string;
-  plural_label?: string;
-  description?: string | { defaultValue?: string };
-  icon?: string;
-  enabled?: boolean;
-  fields?: MetadataField[] | Record<string, MetadataField>;
-  relationships?: Array<{
-    object?: string;
-    relatedObject?: string;
-    type?: string;
-    label?: string;
-    name?: string;
-    foreign_key?: string;
-    foreignKey?: string;
-  }>;
-}
-
-/** Loose shape of a metadata field definition from the ObjectStack API. */
-interface MetadataField {
-  name?: string;
-  label?: string | { defaultValue?: string; key?: string };
-  type?: string;
-  group?: string;
-  description?: string;
-  help?: string;
-  required?: boolean;
-  unique?: boolean;
-  readonly?: boolean;
-  hidden?: boolean;
-  defaultValue?: string;
-  default_value?: string;
-  placeholder?: string;
-  options?: Array<string | { label?: string; value: string; color?: string }>;
-  externalId?: boolean;
-  trackHistory?: boolean;
-  track_history?: boolean;
-  indexed?: boolean;
-  reference_to?: string;
-  referenceTo?: string;
-  formula?: string;
-}
-
-/**
- * Convert a metadata object definition (from the API/spec) to the ObjectDefinition
- * type used by the ObjectManager component.
- */
-function toObjectDefinition(obj: MetadataObject, index: number): ObjectDefinition {
-  const fields = Array.isArray(obj.fields) ? obj.fields : Object.values(obj.fields || {});
-  return {
-    id: obj.name || `obj_${index}`,
-    name: obj.name || '',
-    label: typeof obj.label === 'object' ? obj.label.defaultValue || obj.label.key || '' : (obj.label || obj.name || ''),
-    pluralLabel: obj.pluralLabel || obj.plural_label || undefined,
-    description: typeof obj.description === 'object' ? obj.description.defaultValue : (obj.description || undefined),
-    icon: obj.icon || undefined,
-    group: obj.name?.startsWith('sys_') ? 'System Objects' : 'Custom Objects',
-    sortOrder: index,
-    isSystem: obj.name?.startsWith('sys_') || false,
-    enabled: obj.enabled !== false,
-    fieldCount: fields.length,
-    relationships: Array.isArray(obj.relationships)
-      ? obj.relationships.map((r: any) => ({
-          relatedObject: r.object || r.relatedObject || '',
-          type: r.type || 'one-to-many',
-          label: r.label || r.name || undefined,
-          foreignKey: r.foreign_key || r.foreignKey || undefined,
-        }))
-      : undefined,
-  };
-}
-
-/**
- * Convert a metadata field definition to the DesignerFieldDefinition
- * type used by the FieldDesigner component.
- */
-function toFieldDefinition(field: MetadataField, index: number): DesignerFieldDefinition {
-  return {
-    id: field.name || `fld_${index}`,
-    name: field.name || '',
-    label: typeof field.label === 'object' ? field.label.defaultValue || field.label.key || '' : (field.label || field.name || ''),
-    type: (field.type || 'text') as DesignerFieldType,
-    group: field.group || undefined,
-    sortOrder: index,
-    description: field.description || field.help || undefined,
-    required: field.required || false,
-    unique: field.unique || false,
-    readonly: field.readonly || false,
-    hidden: field.hidden || false,
-    defaultValue: field.defaultValue || field.default_value || undefined,
-    placeholder: field.placeholder || undefined,
-    options: Array.isArray(field.options)
-      ? field.options.map((opt) =>
-          typeof opt === 'string'
-            ? { label: opt, value: opt }
-            : { label: opt.label || opt.value, value: opt.value, color: opt.color }
-        )
-      : undefined,
-    isSystem: field.readonly === true && (field.name === 'id' || field.name === 'createdAt' || field.name === 'updatedAt'),
-    externalId: field.externalId || false,
-    trackHistory: field.trackHistory || field.track_history || false,
-    indexed: field.indexed || false,
-    referenceTo: field.reference_to || field.referenceTo || undefined,
-    formula: field.formula || undefined,
-  };
-}
+import { toObjectDefinition, toFieldDefinition, type MetadataObject } from '../../utils/metadataConverters';
 
 // ============================================================================
 // Object Detail View
@@ -265,22 +168,109 @@ function ObjectDetailView({ object, metadataObject, onBack, metadataService, onR
             </div>
           )}
         </div>
-        {/* Relationships */}
-        {object.relationships && object.relationships.length > 0 && (
-          <div className="pt-2 border-t">
-            <span className="text-sm text-muted-foreground flex items-center gap-2 mb-2">
-              <Link2 className="h-3.5 w-3.5" />
-              Relationships
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {object.relationships.map((rel, i) => (
-                <Badge key={i} variant="outline" className="text-xs">
-                  {rel.label || rel.relatedObject} ({rel.type})
+      </div>
+
+      {/* Relationships Section */}
+      <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="relationships-section">
+        <h2 className="text-sm font-semibold flex items-center gap-2">
+          <Link2 className="h-4 w-4" />
+          Relationships
+        </h2>
+        {object.relationships && object.relationships.length > 0 ? (
+          <div className="space-y-2">
+            {object.relationships.map((rel, i) => (
+              <div key={i} className="flex items-center gap-3 p-2 rounded-md bg-muted/40">
+                <Badge variant="outline" className="text-xs shrink-0">
+                  {rel.type}
                 </Badge>
-              ))}
-            </div>
+                <div className="min-w-0 flex-1 text-sm">
+                  <span className="font-medium">{rel.label || rel.relatedObject}</span>
+                  {rel.label && rel.label !== rel.relatedObject && (
+                    <span className="text-muted-foreground ml-1">→ {rel.relatedObject}</span>
+                  )}
+                  {rel.foreignKey && (
+                    <span className="text-muted-foreground text-xs ml-2">(FK: {rel.foreignKey})</span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No relationships defined for this object.</p>
         )}
+      </div>
+
+      {/* Keys Section */}
+      <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="keys-section">
+        <h2 className="text-sm font-semibold flex items-center gap-2">
+          <KeyRound className="h-4 w-4" />
+          Keys
+        </h2>
+        {(() => {
+          const keyFields = displayFields.filter(
+            (f) => f.unique || f.name === 'id' || f.externalId
+          );
+          if (keyFields.length > 0) {
+            return (
+              <div className="space-y-2">
+                {keyFields.map((kf) => (
+                  <div key={kf.name} className="flex items-center gap-3 p-2 rounded-md bg-muted/40">
+                    <Badge variant={kf.name === 'id' ? 'default' : 'outline'} className="text-xs shrink-0">
+                      {kf.name === 'id' ? 'Primary Key' : kf.externalId ? 'External ID' : 'Unique'}
+                    </Badge>
+                    <div className="min-w-0 flex-1 text-sm">
+                      <span className="font-medium">{kf.label || kf.name}</span>
+                      <span className="text-muted-foreground text-xs ml-2">({kf.type})</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          }
+          return (
+            <p className="text-sm text-muted-foreground">No unique keys or primary keys found.</p>
+          );
+        })()}
+      </div>
+
+      {/* Data Experience Section */}
+      <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="data-experience-section">
+        <h2 className="text-sm font-semibold flex items-center gap-2">
+          <LayoutList className="h-4 w-4" />
+          Data Experience
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-md border border-dashed p-4 text-center" data-testid="data-experience-forms">
+            <PanelTop className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-sm font-medium">Forms</p>
+            <p className="text-xs text-muted-foreground mt-1">Design forms for data entry</p>
+          </div>
+          <div className="rounded-md border border-dashed p-4 text-center" data-testid="data-experience-views">
+            <LayoutList className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-sm font-medium">Views</p>
+            <p className="text-xs text-muted-foreground mt-1">Configure list and detail views</p>
+          </div>
+          <div className="rounded-md border border-dashed p-4 text-center" data-testid="data-experience-dashboards">
+            <BarChart3 className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-sm font-medium">Dashboards</p>
+            <p className="text-xs text-muted-foreground mt-1">Build visual dashboards</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Inline Data Preview (placeholder) */}
+      <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="data-preview-section">
+        <h2 className="text-sm font-semibold flex items-center gap-2">
+          <Table className="h-4 w-4" />
+          Data Preview
+        </h2>
+        <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
+          <Table className="h-8 w-8 mx-auto mb-3 opacity-40" />
+          <p className="text-sm font-medium">Sample Data</p>
+          <p className="text-xs mt-1">
+            Live data preview for &ldquo;{object.label}&rdquo; will be available here
+          </p>
+        </div>
       </div>
 
       {/* Field Management Section */}
@@ -289,6 +279,13 @@ function ObjectDetailView({ object, metadataObject, onBack, metadataService, onR
           <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="field-saving-indicator">
             <Loader2 className="h-4 w-4 animate-spin" />
             Saving field changes…
+          </div>
+        )}
+        {/* System field hint */}
+        {displayFields.some((f) => f.isSystem) && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2" data-testid="system-field-hint">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            System fields (e.g. id, createdAt, updatedAt) are read-only and cannot be edited or deleted.
           </div>
         )}
         <FieldDesigner

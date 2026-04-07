@@ -11,7 +11,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Navigate } from 'react-router-dom';
 import {
   Button,
   Card,
@@ -24,11 +24,6 @@ import {
   ArrowLeft,
   Pencil,
   Loader2,
-  LayoutDashboard,
-  FileText,
-  BarChart3,
-  Database,
-  LayoutGrid,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@object-ui/auth';
@@ -36,22 +31,7 @@ import { useMetadataService } from '../../hooks/useMetadataService';
 import { useMetadata } from '../../context/MetadataProvider';
 import { getMetadataTypeConfig, DEFAULT_FORM_FIELDS, type MetadataTypeConfig } from '../../config/metadataTypeRegistry';
 import { MetadataFormDialog } from '../../components/MetadataFormDialog';
-
-// ---------------------------------------------------------------------------
-// Icon resolver (same as MetadataManagerPage)
-// ---------------------------------------------------------------------------
-
-const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  'layout-dashboard': LayoutDashboard,
-  'file-text': FileText,
-  'bar-chart-3': BarChart3,
-  'database': Database,
-  'layout-grid': LayoutGrid,
-};
-
-function resolveIcon(iconName: string): React.ComponentType<{ className?: string }> {
-  return ICON_MAP[iconName] ?? Database;
-}
+import { getIcon } from '../../utils/getIcon';
 
 // ---------------------------------------------------------------------------
 // Component
@@ -75,6 +55,9 @@ export function MetadataDetailPage() {
   const config: MetadataTypeConfig | undefined = metadataType
     ? getMetadataTypeConfig(metadataType)
     : undefined;
+
+  // Redirect to dedicated detail page for types with custom pages (e.g. object → /system/objects/:name)
+  const shouldRedirect = config?.hasCustomPage && config.customRoute && itemName;
 
   const [item, setItem] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,7 +122,12 @@ export function MetadataDetailPage() {
     );
   }
 
-  const Icon = resolveIcon(config.icon);
+  // Declarative redirect for types with custom pages (e.g. object → /system/objects/:name)
+  if (shouldRedirect) {
+    return <Navigate to={`${basePath}${config.customRoute}/${itemName}`} replace />;
+  }
+
+  const Icon = getIcon(config.icon);
   const isEditable = config.editable !== false && isAdmin;
   const fields = config.formFields ?? DEFAULT_FORM_FIELDS;
   const CustomDetail = config.detailComponent;

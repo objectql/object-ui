@@ -27,6 +27,13 @@ export interface MetadataState {
 export interface MetadataContextValue extends MetadataState {
   /** Re-fetch all metadata from the API (cache invalidation). */
   refresh: () => Promise<void>;
+  /**
+   * Fetch items for any metadata type dynamically (registry-driven).
+   * Returns cached items for known types (app, object, dashboard, report, page).
+   * Uses `any[]` to match the MetadataState field types — consumers should
+   * cast to their expected item shape as needed.
+   */
+  getItemsByType: (type: string) => any[];
 }
 
 const MetadataCtx = createContext<MetadataContextValue | null>(null);
@@ -116,7 +123,18 @@ export function MetadataProvider({ children, adapter }: MetadataProviderProps) {
     };
   }, [adapter]);
 
-  const value: MetadataContextValue = { ...state, refresh };
+  const getItemsByType = useCallback((type: string): any[] => {
+    const typeMap: Record<string, any[]> = {
+      app: state.apps,
+      object: state.objects,
+      dashboard: state.dashboards,
+      report: state.reports,
+      page: state.pages,
+    };
+    return typeMap[type] ?? [];
+  }, [state.apps, state.objects, state.dashboards, state.reports, state.pages]);
+
+  const value: MetadataContextValue = { ...state, refresh, getItemsByType };
 
   return <MetadataCtx.Provider value={value}>{children}</MetadataCtx.Provider>;
 }

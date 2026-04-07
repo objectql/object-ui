@@ -908,7 +908,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 
 ### P1.16 Object Manager & Field Designer ✅
 
-> **Status:** Complete — `ObjectManager` and `FieldDesigner` components shipped in `@object-ui/plugin-designer`.
+> **Status:** Complete — `ObjectManager` and `FieldDesigner` components shipped in `@object-ui/plugin-designer`. Object Detail View enhanced with Power Apps-style sections.
 
 Enterprise-grade visual designers for managing object definitions and configuring fields. Supports the full metadata platform workflow: define objects, configure fields with advanced properties, and maintain relationships.
 
@@ -923,6 +923,32 @@ Enterprise-grade visual designers for managing object definitions and configurin
 - [x] Read-only mode support
 - [x] Confirm dialog for destructive actions
 - [x] 18 unit tests
+
+**Object Detail View (Power Apps alignment):**
+- [x] Dedicated Relationships section with type badges, foreign key info, and empty state
+- [x] Keys section auto-extracting primary keys, unique keys, and external IDs from field metadata
+- [x] Data Experience placeholder section (Forms, Views, Dashboards) — UI structure ready for future implementation
+- [x] Inline data preview placeholder section (Power Apps sample data grid parity)
+- [x] System field non-editable visual hints
+- [x] Enhanced object properties card with separated concern sections
+
+**Metadata Manager Grid Mode:**
+- [x] `listMode: 'grid' | 'table' | 'card'` configuration on MetadataTypeConfig
+- [x] Professional table rendering with column headers and action buttons in grid mode
+- [x] Report type configured with grid mode by default
+- [x] Reusable `MetadataGrid` component extracted for cross-page reuse
+
+**MetadataFormDialog Enhancements:**
+- [x] `number` field type — renders HTML number input
+- [x] `boolean` field type — renders Shadcn Switch toggle with Yes/No label
+
+**MetadataDetailPage & Provider Enhancements:**
+- [x] Auto-redirect for custom page types (object → `/system/objects/:name`)
+- [x] `getItemsByType(type)` method on MetadataProvider for dynamic registry access
+
+**Technical Debt Cleanup:**
+- [x] Unified icon resolver — consolidated 3 duplicated ICON_MAP/resolveIcon into shared `getIcon` utility
+- [x] Extracted `toObjectDefinition`/`toFieldDefinition` to shared `utils/metadataConverters.ts`
 
 **Field Designer (`FieldDesigner`):**
 - [x] CRUD operations on field definitions with 27 supported field types

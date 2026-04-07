@@ -41,7 +41,7 @@ export interface MetadataFormFieldDef {
   /** Human-readable label shown next to the input. */
   label: string;
   /** Input type. Defaults to `'text'`. */
-  type?: 'text' | 'textarea' | 'select';
+  type?: 'text' | 'textarea' | 'select' | 'number' | 'boolean';
   /** Placeholder text for the input. */
   placeholder?: string;
   /** Whether the field is required. Defaults to `false`. */
@@ -153,6 +153,14 @@ export interface MetadataTypeConfig {
    * appear alongside each item's edit/delete buttons.
    */
   actions?: MetadataActionDef[];
+
+  /**
+   * Display mode for the list view.
+   * - `'card'` (default): Responsive card grid layout.
+   * - `'grid'`: Professional table/grid layout with column headers.
+   * - `'table'`: Alias for `'grid'` (same rendering).
+   */
+  listMode?: 'card' | 'grid' | 'table';
 }
 
 // ---------------------------------------------------------------------------
@@ -230,6 +238,7 @@ export const METADATA_TYPES: MetadataTypeConfig[] = [
     pluralLabel: 'Reports',
     description: 'Manage report configurations and templates',
     icon: 'bar-chart-3',
+    listMode: 'grid',
     columns: [
       { key: 'name', label: 'Name' },
       { key: 'label', label: 'Label' },

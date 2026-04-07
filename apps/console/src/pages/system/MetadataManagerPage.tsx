@@ -31,11 +31,6 @@ import {
   Trash2,
   Search,
   Loader2,
-  LayoutDashboard,
-  FileText,
-  BarChart3,
-  Database,
-  LayoutGrid,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@object-ui/auth';
@@ -43,22 +38,8 @@ import { useMetadataService } from '../../hooks/useMetadataService';
 import { useMetadata } from '../../context/MetadataProvider';
 import { getMetadataTypeConfig, type MetadataTypeConfig } from '../../config/metadataTypeRegistry';
 import { MetadataFormDialog } from '../../components/MetadataFormDialog';
-
-// ---------------------------------------------------------------------------
-// Icon resolver
-// ---------------------------------------------------------------------------
-
-const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  'layout-dashboard': LayoutDashboard,
-  'file-text': FileText,
-  'bar-chart-3': BarChart3,
-  'database': Database,
-  'layout-grid': LayoutGrid,
-};
-
-function resolveIcon(iconName: string): React.ComponentType<{ className?: string }> {
-  return ICON_MAP[iconName] ?? Database;
-}
+import { MetadataGrid } from '../../components/MetadataGrid';
+import { getIcon } from '../../utils/getIcon';
 
 // ---------------------------------------------------------------------------
 // Component
@@ -203,10 +184,16 @@ export function MetadataManagerPage() {
     );
   }
 
-  const Icon = resolveIcon(config.icon);
+  const Icon = getIcon(config.icon);
   const isEditable = config.editable !== false && isAdmin;
   const pageActions = (config.actions ?? []).filter((a) => a.scope === 'page');
   const rowActions = (config.actions ?? []).filter((a) => a.scope === 'row');
+  const listMode = config.listMode ?? 'card';
+  const isGridMode = listMode === 'grid' || listMode === 'table';
+  const columns = config.columns ?? [
+    { key: 'name', label: 'Name' },
+    { key: 'label', label: 'Label' },
+  ];
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-6" data-testid="metadata-manager-page">
@@ -296,7 +283,7 @@ export function MetadataManagerPage() {
         </div>
       )}
 
-      {!loading && filteredItems.length > 0 && (
+      {!loading && filteredItems.length > 0 && !isGridMode && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filteredItems.map((item) => {
             const name = String(item.name ?? '');
@@ -369,6 +356,24 @@ export function MetadataManagerPage() {
             );
           })}
         </div>
+      )}
+
+      {/* Grid / Table mode */}
+      {!loading && filteredItems.length > 0 && isGridMode && (
+        <MetadataGrid
+          items={filteredItems}
+          columns={columns}
+          editable={isEditable}
+          saving={saving}
+          deletingName={deletingName}
+          typeLabel={config.label.toLowerCase()}
+          rowActions={rowActions}
+          onItemClick={(name) =>
+            navigate(`${basePath}/system/metadata/${metadataType}/${name}`)
+          }
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
       )}
 
       {/* Create/Edit dialog */}
