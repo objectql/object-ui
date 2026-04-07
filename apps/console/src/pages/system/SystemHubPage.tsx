@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { useAdapter } from '../../context/AdapterProvider';
 import { useMetadata } from '../../context/MetadataProvider';
-import { getHubMetadataTypes, type MetadataTypeConfig } from '../../config/metadataTypeRegistry';
+import { getHubMetadataTypes } from '../../config/metadataTypeRegistry';
 
 interface HubCard {
   title: string;
@@ -118,7 +118,7 @@ export function SystemHubPage() {
   useEffect(() => { fetchCounts(); }, [fetchCounts]);
 
   // Build metadata-type cards dynamically from registry
-  const metadataTypeCards: HubCard[] = getHubMetadataTypes().map((cfg: MetadataTypeConfig) => {
+  const metadataTypeCards: HubCard[] = getHubMetadataTypes().map((cfg) => {
     const href = cfg.hasCustomPage && cfg.customRoute
       ? `${basePath}${cfg.customRoute}`
       : `${basePath}/system/metadata/${cfg.type}`;
