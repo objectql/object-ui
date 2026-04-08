@@ -142,7 +142,7 @@ function resolveTranslatableString(value: string | { key: string; defaultValue?:
  */
 export function specNotificationToToast(notification: SpecNotification): ToastNotification {
   const actions: ToastAction[] = (notification.actions ?? []).map((a: NotificationAction) => ({
-    label: typeof a.label === 'string' ? a.label : a.label?.defaultValue ?? '',
+    label: a.label,
     action: a.action,
     variant: a.variant ?? 'primary',
   }));

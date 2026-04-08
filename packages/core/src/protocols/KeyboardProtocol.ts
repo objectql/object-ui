@@ -83,9 +83,7 @@ export interface KeyboardEventLike {
  * @returns Fully resolved keyboard navigation configuration
  */
 export function resolveKeyboardConfig(config: KeyboardNavigationConfig): ResolvedKeyboardConfig {
-  const ariaLabel = typeof config.ariaLabel === 'string'
-    ? config.ariaLabel
-    : config.ariaLabel?.defaultValue;
+  const ariaLabel = config.ariaLabel;
 
   return {
     shortcuts: config.shortcuts ?? [],

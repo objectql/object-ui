@@ -198,7 +198,7 @@ export function usePerformanceBudget(
 
       setViolations((prev) => [...prev, violation]);
 
-      if (budget.warnOnViolation && process.env.NODE_ENV !== 'production') {
+      if (budget.warnOnViolation && (globalThis as any).process?.env?.NODE_ENV !== 'production') {
         console.warn(
           `[ObjectUI] Performance budget violated: ${metric} = ${violation.actual} (budget: ${budgetValue})`,
         );

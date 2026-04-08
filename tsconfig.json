@@ -20,6 +20,7 @@
     "noFallthroughCasesInSwitch": true,
 
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "paths": {
       "@object-ui/types": ["packages/types/src"],
       "@object-ui/types/*": ["packages/types/src/*"],

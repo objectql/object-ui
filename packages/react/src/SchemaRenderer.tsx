@@ -72,7 +72,7 @@ export class SchemaErrorBoundary extends Component<
   render() {
     if (this.state.hasError && this.state.error) {
       const error = this.state.error;
-      const isDev = process.env.NODE_ENV !== 'production';
+      const isDev = (globalThis as any).process?.env?.NODE_ENV !== 'production';
       const objuiError = isObjectUIError(error) ? error as ObjectUIError : null;
 
       return (
@@ -189,7 +189,7 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     return (
       <div className="p-4 border border-red-500 rounded text-red-500 bg-red-50 my-2" role="alert">
         <p className="font-medium">Unknown component type: <strong>{evaluatedSchema.type}</strong></p>
-        {process.env.NODE_ENV !== 'production' && (
+        {(globalThis as any).process?.env?.NODE_ENV !== 'production' && (
           <p className="text-xs mt-1">💡 {errorInfo.suggestion} (OBJUI-001)</p>
         )}
         <pre className="text-xs mt-2 overflow-auto">{JSON.stringify(evaluatedSchema, null, 2)}</pre>
