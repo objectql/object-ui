@@ -91,11 +91,10 @@ function useGridTranslation() {
   }
 }
 
-/** Resolve an I18nLabel (string | {key, defaultValue}) to a plain string. */
+/** Resolve an I18nLabel (string) to a plain string. */
 function resolveColumnLabel(label: string | I18nLabel | undefined): string | undefined {
   if (label == null) return undefined;
-  if (typeof label === 'string') return label;
-  return label.defaultValue || label.key;
+  return typeof label === 'string' ? label : undefined;
 }
 
 export interface ObjectGridProps {

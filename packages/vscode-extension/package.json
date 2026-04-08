@@ -193,7 +193,7 @@
     "@types/vscode": "^1.110.0",
     "@vscode/vsce": "^3.7.1",
     "tsup": "^8.5.1",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.2",
     "vitest": "^4.1.2"
   },
   "dependencies": {

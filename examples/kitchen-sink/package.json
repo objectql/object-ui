@@ -19,6 +19,6 @@
   },
   "devDependencies": {
     "@objectstack/cli": "^4.0.2",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.2"
   }
 }

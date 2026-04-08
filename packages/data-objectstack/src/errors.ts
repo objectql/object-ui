@@ -28,8 +28,8 @@ export class ObjectStackError extends Error {
     this.name = 'ObjectStackError';
     
     // Maintains proper stack trace for where error was thrown (only in V8)
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, this.constructor);
+    if ((Error as any).captureStackTrace) {
+      (Error as any).captureStackTrace(this, this.constructor);
     }
   }
 

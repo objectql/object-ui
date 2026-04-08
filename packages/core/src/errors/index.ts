@@ -120,8 +120,8 @@ export class ObjectUIError extends Error {
     this.name = 'ObjectUIError';
 
     // Maintains proper stack trace for where error was thrown (only in V8)
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, this.constructor);
+    if ((Error as any).captureStackTrace) {
+      (Error as any).captureStackTrace(this, this.constructor);
     }
   }
 
@@ -203,7 +203,7 @@ function interpolate(
   params: Record<string, string>,
 ): string {
   return template.replace(/\$\{(\w+)\}/g, (_match, key: string) => {
-    if (!(key in params) && typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+    if (!(key in params) && (globalThis as any).process?.env?.NODE_ENV !== 'production') {
       console.warn(`[ObjectUI] Missing interpolation parameter "${key}" in error message template.`);
     }
     return params[key] ?? `\${${key}}`;
@@ -254,8 +254,7 @@ export function createError(
  */
 export function formatErrorMessage(
   error: ObjectUIError,
-  isDev: boolean = typeof process !== 'undefined' &&
-    process.env?.NODE_ENV !== 'production',
+  isDev: boolean = (globalThis as any).process?.env?.NODE_ENV !== 'production',
 ): string {
   const entry = ERROR_CODES[error.code];
 

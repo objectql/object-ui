@@ -93,7 +93,8 @@ export function isDebugEnabled(): boolean {
     if (g === true || g === 'true') return true;
 
     // 3. process.env
-    if (typeof process !== 'undefined' && process.env?.OBJECTUI_DEBUG === 'true') return true;
+    const proc = (globalThis as any).process;
+    if (proc?.env?.OBJECTUI_DEBUG === 'true') return true;
 
     return false;
   } catch {

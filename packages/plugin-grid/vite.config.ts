@@ -9,6 +9,7 @@ export default defineConfig({
     dts({
       insertTypesEntry: true,
       include: ['src'],
+      compilerOptions: { rootDir: resolve(__dirname, '../..') },
     }),
   ],
   resolve: {
