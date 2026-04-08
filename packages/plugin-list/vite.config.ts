@@ -8,6 +8,7 @@ export default defineConfig({
     react(),
     dts({
       insertTypesEntry: true,
+      compilerOptions: { rootDir: resolve(__dirname, '../..') },
       outDir: 'dist',
       tsconfigPath: './tsconfig.json',
     }),

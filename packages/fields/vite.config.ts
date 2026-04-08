@@ -8,6 +8,7 @@ export default defineConfig({
     react(),
     dts({
       insertTypesEntry: true,
+      compilerOptions: { rootDir: path.resolve(__dirname, '../..') },
     }),
   ],
   resolve: {
