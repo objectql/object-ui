@@ -77,6 +77,7 @@ beforeEach(() => {
     </div>
   );
 
+  ComponentRegistry.register('object-detail-tabs', mockWidget('object-detail-tabs'));
   ComponentRegistry.register('object-properties', mockWidget('object-properties'));
   ComponentRegistry.register('object-relationships', mockWidget('object-relationships'));
   ComponentRegistry.register('object-keys', mockWidget('object-keys'));
@@ -209,7 +210,7 @@ describe('MetadataDetailPage', () => {
       expect(screen.getByTestId('schema-detail-content')).toBeInTheDocument();
     });
 
-    it('should render all object detail widget sections', () => {
+    it('should render object detail tabs widget', () => {
       mockGetItems.mockResolvedValue([
         { name: 'account', label: 'Accounts', description: 'Customer accounts' },
       ]);
@@ -223,13 +224,8 @@ describe('MetadataDetailPage', () => {
           </Routes>
         </MemoryRouter>,
       );
-      // All widget sections should be rendered via SchemaRenderer
-      expect(screen.getByTestId('mock-object-properties')).toBeInTheDocument();
-      expect(screen.getByTestId('mock-object-relationships')).toBeInTheDocument();
-      expect(screen.getByTestId('mock-object-keys')).toBeInTheDocument();
-      expect(screen.getByTestId('mock-object-data-experience')).toBeInTheDocument();
-      expect(screen.getByTestId('mock-object-data-preview')).toBeInTheDocument();
-      expect(screen.getByTestId('mock-object-field-designer')).toBeInTheDocument();
+      // The tabbed widget should be rendered
+      expect(screen.getByTestId('mock-object-detail-tabs')).toBeInTheDocument();
     });
 
     it('should navigate back to object list route when back button is clicked', () => {

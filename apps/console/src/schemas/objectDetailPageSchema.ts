@@ -1,10 +1,10 @@
 /**
  * Object Detail Page Schema Factory
  *
- * Generates a PageSchema for the object detail page. The schema uses custom
- * widget types (registered in ComponentRegistry via registerObjectDetailWidgets)
- * that are fully self-contained — each widget resolves its data from React
- * context rather than requiring prop drilling.
+ * Generates a PageSchema for the object detail page with a tabbed layout.
+ * The schema uses custom widget types (registered in ComponentRegistry via
+ * registerObjectDetailWidgets) that are fully self-contained — each widget
+ * resolves its data from React context rather than requiring prop drilling.
  *
  * Usage:
  *   const schema = buildObjectDetailPageSchema('account', metadataItem);
@@ -21,7 +21,13 @@ interface ObjectWidgetNode extends BaseSchema {
 }
 
 /**
- * Build a PageSchema for an object detail page.
+ * Build a PageSchema for an object detail page with tabbed navigation.
+ *
+ * Tabs:
+ * - Details: Object properties and basic information
+ * - Fields: Field designer for managing object fields
+ * - Relationships: Relationships and unique keys
+ * - Data: Data preview and experience placeholders
  *
  * @param objectName - The API name of the object (e.g. 'account')
  * @param item       - The raw metadata item (optional, used for title/description)
@@ -35,12 +41,7 @@ export function buildObjectDetailPageSchema(
   const description = (item?.description as string) || objectName;
 
   const widgets: ObjectWidgetNode[] = [
-    { type: 'object-properties', id: `${objectName}-properties`, objectName },
-    { type: 'object-relationships', id: `${objectName}-relationships`, objectName },
-    { type: 'object-keys', id: `${objectName}-keys`, objectName },
-    { type: 'object-data-experience', id: `${objectName}-data-experience`, objectName },
-    { type: 'object-data-preview', id: `${objectName}-data-preview`, objectName },
-    { type: 'object-field-designer', id: `${objectName}-field-designer`, objectName },
+    { type: 'object-detail-tabs', id: `${objectName}-tabs`, objectName },
   ];
 
   return {

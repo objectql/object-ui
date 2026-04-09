@@ -6,6 +6,7 @@
  * so that SchemaRenderer can resolve these types when rendering PageSchema.
  *
  * Widget types registered:
+ *   - `object-detail-tabs`     — Tabbed layout for object detail page
  *   - `object-properties`      — Object property card
  *   - `object-relationships`   — Relationships card
  *   - `object-keys`            — Keys card
@@ -25,11 +26,18 @@ import {
   ObjectDataPreviewWidget,
 } from './objectDetailWidgets';
 import { ObjectFieldDesignerWidget } from './ObjectFieldDesignerWidget';
+import { ObjectDetailTabsWidget } from './ObjectDetailTabsWidget';
 
 const widgetMeta = {
   namespace: 'console',
   category: 'system',
 };
+
+ComponentRegistry.register('object-detail-tabs', ObjectDetailTabsWidget, {
+  ...widgetMeta,
+  label: 'Object Detail Tabs',
+  icon: 'LayoutDashboard',
+});
 
 ComponentRegistry.register('object-properties', ObjectPropertiesWidget, {
   ...widgetMeta,

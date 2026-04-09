@@ -14,7 +14,6 @@
 import { useMemo } from 'react';
 import { Badge } from '@object-ui/components';
 import {
-  Settings2,
   Link2,
   KeyRound,
   LayoutList,
@@ -75,52 +74,67 @@ export function ObjectPropertiesWidget({ schema }: { schema: ObjectWidgetSchema 
   if (!object) return null;
 
   return (
-    <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="object-properties">
-      <h2 className="text-sm font-semibold flex items-center gap-2">
-        <Settings2 className="h-4 w-4" />
-        Object Properties
-      </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-        <div>
-          <span className="text-muted-foreground">API Name</span>
-          <p className="font-mono text-xs mt-0.5">{object.name}</p>
-        </div>
-        <div>
-          <span className="text-muted-foreground">Label</span>
-          <p className="mt-0.5">{object.label}</p>
-        </div>
-        {object.pluralLabel && (
-          <div>
-            <span className="text-muted-foreground">Plural Label</span>
-            <p className="mt-0.5">{object.pluralLabel}</p>
+    <div className="space-y-6" data-testid="object-properties">
+      {/* Basic Information Section */}
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Basic Information
+        </h3>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <dt className="text-xs font-medium text-muted-foreground">Display Name</dt>
+            <dd className="text-sm font-medium">{object.label}</dd>
           </div>
-        )}
-        {object.group && (
-          <div>
-            <span className="text-muted-foreground">Group</span>
-            <p className="mt-0.5">{object.group}</p>
+          <div className="space-y-1.5">
+            <dt className="text-xs font-medium text-muted-foreground">API Name</dt>
+            <dd className="text-sm font-mono bg-muted/50 rounded px-2 py-1">{object.name}</dd>
           </div>
-        )}
-        <div>
-          <span className="text-muted-foreground">Status</span>
-          <p className="mt-0.5">
-            <Badge variant={object.enabled !== false ? 'default' : 'secondary'}>
-              {object.enabled !== false ? 'Enabled' : 'Disabled'}
-            </Badge>
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground">Fields</span>
-          <Badge variant="outline">{object.fieldCount ?? fields.length}</Badge>
-        </div>
-        {object.isSystem && (
-          <div>
-            <span className="text-muted-foreground">Type</span>
-            <p className="mt-0.5">
-              <Badge variant="secondary">System Object</Badge>
-            </p>
+          {object.pluralLabel && (
+            <div className="space-y-1.5">
+              <dt className="text-xs font-medium text-muted-foreground">Plural Label</dt>
+              <dd className="text-sm font-medium">{object.pluralLabel}</dd>
+            </div>
+          )}
+          {object.group && (
+            <div className="space-y-1.5">
+              <dt className="text-xs font-medium text-muted-foreground">Group</dt>
+              <dd className="text-sm font-medium">{object.group}</dd>
+            </div>
+          )}
+        </dl>
+      </div>
+
+      {/* Configuration Section */}
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Configuration
+        </h3>
+        <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <dt className="text-xs font-medium text-muted-foreground">Status</dt>
+            <dd>
+              <Badge variant={object.enabled !== false ? 'default' : 'secondary'} className="font-normal">
+                {object.enabled !== false ? 'Enabled' : 'Disabled'}
+              </Badge>
+            </dd>
           </div>
-        )}
+          <div className="space-y-1.5">
+            <dt className="text-xs font-medium text-muted-foreground">Field Count</dt>
+            <dd className="text-sm font-medium">
+              {(object.fieldCount ?? fields.length) === 1
+                ? '1 field'
+                : `${object.fieldCount ?? fields.length} fields`}
+            </dd>
+          </div>
+          {object.isSystem && (
+            <div className="space-y-1.5">
+              <dt className="text-xs font-medium text-muted-foreground">Type</dt>
+              <dd>
+                <Badge variant="secondary" className="font-normal">System Object</Badge>
+              </dd>
+            </div>
+          )}
+        </dl>
       </div>
     </div>
   );
@@ -137,34 +151,47 @@ export function ObjectRelationshipsWidget({ schema }: { schema: ObjectWidgetSche
 
   if (!object) return null;
 
+  const hasRelationships = object.relationships && object.relationships.length > 0;
+
   return (
-    <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="relationships-section">
-      <h2 className="text-sm font-semibold flex items-center gap-2">
-        <Link2 className="h-4 w-4" />
-        Relationships
-      </h2>
-      {object.relationships && object.relationships.length > 0 ? (
-        <div className="space-y-2">
-          {object.relationships.map((rel, i) => (
-            <div key={i} className="flex items-center gap-3 p-2 rounded-md bg-muted/40">
-              <Badge variant="outline" className="text-xs shrink-0">
-                {rel.type}
-              </Badge>
-              <div className="min-w-0 flex-1 text-sm">
-                <span className="font-medium">{rel.label || rel.relatedObject}</span>
-                {rel.label && rel.label !== rel.relatedObject && (
-                  <span className="text-muted-foreground ml-1">→ {rel.relatedObject}</span>
-                )}
-                {rel.foreignKey && (
-                  <span className="text-muted-foreground text-xs ml-2">(FK: {rel.foreignKey})</span>
-                )}
+    <div className="space-y-4" data-testid="relationships-section">
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Relationships
+        </h3>
+        {hasRelationships ? (
+          <div className="space-y-3">
+            {object.relationships.map((rel, i) => (
+              <div
+                key={i}
+                className="flex items-start gap-4 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+              >
+                <Badge variant="outline" className="text-xs shrink-0 mt-0.5">
+                  {rel.type}
+                </Badge>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-sm">{rel.label || rel.relatedObject}</p>
+                  {rel.label && rel.label !== rel.relatedObject && (
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Related Object: {rel.relatedObject}
+                    </p>
+                  )}
+                  {rel.foreignKey && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Foreign Key: <span className="font-mono">{rel.foreignKey}</span>
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">No relationships defined for this object.</p>
-      )}
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 px-4 border border-dashed rounded-lg">
+            <Link2 className="h-8 w-8 mx-auto mb-2 text-muted-foreground opacity-40" />
+            <p className="text-sm text-muted-foreground">No relationships defined for this object.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -184,28 +211,40 @@ export function ObjectKeysWidget({ schema }: { schema: ObjectWidgetSchema }) {
   );
 
   return (
-    <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="keys-section">
-      <h2 className="text-sm font-semibold flex items-center gap-2">
-        <KeyRound className="h-4 w-4" />
-        Keys
-      </h2>
-      {keyFields.length > 0 ? (
-        <div className="space-y-2">
-          {keyFields.map((kf) => (
-            <div key={kf.name} className="flex items-center gap-3 p-2 rounded-md bg-muted/40">
-              <Badge variant={kf.name === 'id' ? 'default' : 'outline'} className="text-xs shrink-0">
-                {kf.name === 'id' ? 'Primary Key' : kf.externalId ? 'External ID' : 'Unique'}
-              </Badge>
-              <div className="min-w-0 flex-1 text-sm">
-                <span className="font-medium">{kf.label || kf.name}</span>
-                <span className="text-muted-foreground text-xs ml-2">({kf.type})</span>
+    <div className="space-y-4" data-testid="keys-section">
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Unique Keys
+        </h3>
+        {keyFields.length > 0 ? (
+          <div className="space-y-3">
+            {keyFields.map((kf) => (
+              <div
+                key={kf.name}
+                className="flex items-start gap-4 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+              >
+                <Badge
+                  variant={kf.name === 'id' ? 'default' : 'outline'}
+                  className="text-xs shrink-0 mt-0.5"
+                >
+                  {kf.name === 'id' ? 'Primary Key' : kf.externalId ? 'External ID' : 'Unique'}
+                </Badge>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-sm">{kf.label || kf.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Type: <span className="font-mono">{kf.type}</span>
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">No unique keys or primary keys found.</p>
-      )}
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 px-4 border border-dashed rounded-lg">
+            <KeyRound className="h-8 w-8 mx-auto mb-2 text-muted-foreground opacity-40" />
+            <p className="text-sm text-muted-foreground">No unique keys or primary keys found.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -217,26 +256,30 @@ export function ObjectKeysWidget({ schema }: { schema: ObjectWidgetSchema }) {
 
 export function ObjectDataExperienceWidget(_props: { schema: ObjectWidgetSchema }) {
   return (
-    <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="data-experience-section">
-      <h2 className="text-sm font-semibold flex items-center gap-2">
-        <LayoutList className="h-4 w-4" />
-        Data Experience
-      </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="rounded-md border border-dashed p-4 text-center" data-testid="data-experience-forms">
-          <PanelTop className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-sm font-medium">Forms</p>
-          <p className="text-xs text-muted-foreground mt-1">Design forms for data entry</p>
-        </div>
-        <div className="rounded-md border border-dashed p-4 text-center" data-testid="data-experience-views">
-          <LayoutList className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-sm font-medium">Views</p>
-          <p className="text-xs text-muted-foreground mt-1">Configure list and detail views</p>
-        </div>
-        <div className="rounded-md border border-dashed p-4 text-center" data-testid="data-experience-dashboards">
-          <BarChart3 className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-sm font-medium">Dashboards</p>
-          <p className="text-xs text-muted-foreground mt-1">Build visual dashboards</p>
+    <div className="space-y-4" data-testid="data-experience-section">
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Data Experience
+        </h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Configure how users interact with data in this object
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="rounded-lg border p-6 text-center" data-testid="data-experience-forms">
+            <PanelTop className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
+            <p className="text-sm font-semibold mb-1">Forms</p>
+            <p className="text-xs text-muted-foreground">Design forms for data entry</p>
+          </div>
+          <div className="rounded-lg border p-6 text-center" data-testid="data-experience-views">
+            <LayoutList className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
+            <p className="text-sm font-semibold mb-1">Views</p>
+            <p className="text-xs text-muted-foreground">Configure list and detail views</p>
+          </div>
+          <div className="rounded-lg border p-6 text-center" data-testid="data-experience-dashboards">
+            <BarChart3 className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
+            <p className="text-sm font-semibold mb-1">Dashboards</p>
+            <p className="text-xs text-muted-foreground">Build visual dashboards</p>
+          </div>
         </div>
       </div>
     </div>
@@ -253,17 +296,21 @@ export function ObjectDataPreviewWidget({ schema }: { schema: ObjectWidgetSchema
   const { object } = useObjectData(objectName);
 
   return (
-    <div className="rounded-lg border bg-card p-4 sm:p-6 space-y-4" data-testid="data-preview-section">
-      <h2 className="text-sm font-semibold flex items-center gap-2">
-        <Table className="h-4 w-4" />
-        Data Preview
-      </h2>
-      <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
-        <Table className="h-8 w-8 mx-auto mb-3 opacity-40" />
-        <p className="text-sm font-medium">Sample Data</p>
-        <p className="text-xs mt-1">
-          Live data preview for &ldquo;{object?.label || objectName}&rdquo; will be available here
+    <div className="space-y-4" data-testid="data-preview-section">
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Data Preview
+        </h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          View sample records from this object
         </p>
+        <div className="rounded-lg border border-dashed p-12 text-center">
+          <Table className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-40" />
+          <p className="text-sm font-medium mb-1">Sample Data</p>
+          <p className="text-xs text-muted-foreground">
+            Live data preview for &ldquo;{object?.label || objectName}&rdquo; will be available here
+          </p>
+        </div>
       </div>
     </div>
   );
