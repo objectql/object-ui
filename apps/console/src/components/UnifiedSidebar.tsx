@@ -229,8 +229,6 @@ export function UnifiedSidebar({ activeAppName, onAppChange }: UnifiedSidebarPro
   // Home navigation items
   const homeNavigation: NavigationItem[] = React.useMemo(() => [
     { id: 'home-dashboard', label: 'Home', type: 'url' as const, url: '/home', icon: 'home' },
-    { id: 'home-apps', label: 'All Apps', type: 'url' as const, url: '/home', icon: 'grid-3x3' },
-    { id: 'home-recent', label: 'Recent', type: 'url' as const, url: '/home', icon: 'clock' },
   ], []);
 
   // Determine which navigation to show based on context
@@ -505,6 +503,7 @@ export function UnifiedSidebar({ activeAppName, onAppChange }: UnifiedSidebarPro
            </>
          ) : (
            /* Home Navigation */
+           <>
            <SidebarGroup>
              <SidebarGroupContent>
                <SidebarMenu>
@@ -525,6 +524,40 @@ export function UnifiedSidebar({ activeAppName, onAppChange }: UnifiedSidebarPro
                </SidebarMenu>
              </SidebarGroupContent>
            </SidebarGroup>
+
+           {/* Starred Apps */}
+           {favorites.filter(f => f.type === 'object' || f.type === 'dashboard' || f.type === 'page').length > 0 && (
+             <SidebarGroup>
+               <SidebarGroupLabel className="flex items-center gap-1.5">
+                 <Star className="h-3.5 w-3.5" />
+                 Starred
+               </SidebarGroupLabel>
+               <SidebarGroupContent>
+                 <SidebarMenu>
+                   {favorites.filter(f => f.type === 'object' || f.type === 'dashboard' || f.type === 'page').slice(0, 8).map(item => (
+                     <SidebarMenuItem key={item.id}>
+                       <SidebarMenuButton asChild tooltip={item.label}>
+                         <Link to={item.href}>
+                           <span className="text-muted-foreground">
+                             {item.type === 'dashboard' ? '📊' : item.type === 'page' ? '📄' : '📋'}
+                           </span>
+                           <span className="truncate">{item.label}</span>
+                         </Link>
+                       </SidebarMenuButton>
+                       <SidebarMenuAction
+                         showOnHover
+                         onClick={(e: any) => { e.stopPropagation(); removeFavorite(item.id); }}
+                         aria-label={`Remove ${item.label} from favorites`}
+                       >
+                         <StarOff className="h-3 w-3" />
+                       </SidebarMenuAction>
+                     </SidebarMenuItem>
+                   ))}
+                 </SidebarMenu>
+               </SidebarGroupContent>
+             </SidebarGroup>
+           )}
+           </>
          )}
         </div>
       </SidebarContent>
