@@ -17,14 +17,7 @@ import { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@object-ui/components';
 import { Settings2, Columns, Link2, Table } from 'lucide-react';
 import type { SchemaNode } from '@object-ui/core';
-import {
-  ObjectPropertiesWidget,
-  ObjectRelationshipsWidget,
-  ObjectKeysWidget,
-  ObjectDataExperienceWidget,
-  ObjectDataPreviewWidget,
-} from './objectDetailWidgets';
-import { ObjectFieldDesignerWidget } from './ObjectFieldDesignerWidget';
+import { SchemaRenderer } from '@object-ui/react';
 
 /** Schema props for object detail tabs widget. */
 interface ObjectDetailTabsSchema extends SchemaNode {
@@ -108,27 +101,27 @@ export function ObjectDetailTabsWidget({ schema }: { schema: ObjectDetailTabsSch
 
         <TabsContent value="details" className="mt-6">
           <div className="space-y-6">
-            <ObjectPropertiesWidget schema={detailsSchema} />
+            <SchemaRenderer schema={detailsSchema} />
           </div>
         </TabsContent>
 
         <TabsContent value="fields" className="mt-6">
           <div className="space-y-6">
-            <ObjectFieldDesignerWidget schema={fieldsSchema} />
+            <SchemaRenderer schema={fieldsSchema} />
           </div>
         </TabsContent>
 
         <TabsContent value="relationships" className="mt-6">
           <div className="space-y-6">
-            <ObjectRelationshipsWidget schema={relationshipsSchema} />
-            <ObjectKeysWidget schema={keysSchema} />
+            <SchemaRenderer schema={relationshipsSchema} />
+            <SchemaRenderer schema={keysSchema} />
           </div>
         </TabsContent>
 
         <TabsContent value="data" className="mt-6">
           <div className="space-y-6">
-            <ObjectDataPreviewWidget schema={dataPreviewSchema} />
-            <ObjectDataExperienceWidget schema={dataExperienceSchema} />
+            <SchemaRenderer schema={dataPreviewSchema} />
+            <SchemaRenderer schema={dataExperienceSchema} />
           </div>
         </TabsContent>
       </Tabs>

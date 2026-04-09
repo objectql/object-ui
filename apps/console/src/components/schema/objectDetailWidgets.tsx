@@ -80,28 +80,28 @@ export function ObjectPropertiesWidget({ schema }: { schema: ObjectWidgetSchema 
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
           Basic Information
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Display Name</label>
-            <p className="text-sm font-medium">{object.label}</p>
+            <dt className="text-xs font-medium text-muted-foreground">Display Name</dt>
+            <dd className="text-sm font-medium">{object.label}</dd>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">API Name</label>
-            <p className="text-sm font-mono bg-muted/50 rounded px-2 py-1">{object.name}</p>
+            <dt className="text-xs font-medium text-muted-foreground">API Name</dt>
+            <dd className="text-sm font-mono bg-muted/50 rounded px-2 py-1">{object.name}</dd>
           </div>
           {object.pluralLabel && (
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Plural Label</label>
-              <p className="text-sm font-medium">{object.pluralLabel}</p>
+              <dt className="text-xs font-medium text-muted-foreground">Plural Label</dt>
+              <dd className="text-sm font-medium">{object.pluralLabel}</dd>
             </div>
           )}
           {object.group && (
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Group</label>
-              <p className="text-sm font-medium">{object.group}</p>
+              <dt className="text-xs font-medium text-muted-foreground">Group</dt>
+              <dd className="text-sm font-medium">{object.group}</dd>
             </div>
           )}
-        </div>
+        </dl>
       </div>
 
       {/* Configuration Section */}
@@ -109,28 +109,32 @@ export function ObjectPropertiesWidget({ schema }: { schema: ObjectWidgetSchema 
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
           Configuration
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Status</label>
-            <div>
+            <dt className="text-xs font-medium text-muted-foreground">Status</dt>
+            <dd>
               <Badge variant={object.enabled !== false ? 'default' : 'secondary'} className="font-normal">
                 {object.enabled !== false ? 'Enabled' : 'Disabled'}
               </Badge>
-            </div>
+            </dd>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Field Count</label>
-            <p className="text-sm font-medium">{object.fieldCount ?? fields.length} fields</p>
+            <dt className="text-xs font-medium text-muted-foreground">Field Count</dt>
+            <dd className="text-sm font-medium">
+              {(object.fieldCount ?? fields.length) === 1
+                ? '1 field'
+                : `${object.fieldCount ?? fields.length} fields`}
+            </dd>
           </div>
           {object.isSystem && (
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Type</label>
-              <div>
+              <dt className="text-xs font-medium text-muted-foreground">Type</dt>
+              <dd>
                 <Badge variant="secondary" className="font-normal">System Object</Badge>
-              </div>
+              </dd>
             </div>
           )}
-        </div>
+        </dl>
       </div>
     </div>
   );
@@ -261,17 +265,17 @@ export function ObjectDataExperienceWidget(_props: { schema: ObjectWidgetSchema 
           Configure how users interact with data in this object
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="rounded-lg border p-6 text-center hover:bg-accent/50 transition-colors cursor-pointer" data-testid="data-experience-forms">
+          <div className="rounded-lg border p-6 text-center" data-testid="data-experience-forms">
             <PanelTop className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
             <p className="text-sm font-semibold mb-1">Forms</p>
             <p className="text-xs text-muted-foreground">Design forms for data entry</p>
           </div>
-          <div className="rounded-lg border p-6 text-center hover:bg-accent/50 transition-colors cursor-pointer" data-testid="data-experience-views">
+          <div className="rounded-lg border p-6 text-center" data-testid="data-experience-views">
             <LayoutList className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
             <p className="text-sm font-semibold mb-1">Views</p>
             <p className="text-xs text-muted-foreground">Configure list and detail views</p>
           </div>
-          <div className="rounded-lg border p-6 text-center hover:bg-accent/50 transition-colors cursor-pointer" data-testid="data-experience-dashboards">
+          <div className="rounded-lg border p-6 text-center" data-testid="data-experience-dashboards">
             <BarChart3 className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
             <p className="text-sm font-semibold mb-1">Dashboards</p>
             <p className="text-xs text-muted-foreground">Build visual dashboards</p>
