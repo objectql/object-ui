@@ -90,7 +90,7 @@ export function HomePage() {
   return (
     <div className="bg-background">
       {/* Page Title */}
-      <div className="container mx-auto px-6 pt-8 pb-4">
+      <div className="px-6 pt-6 pb-4">
         <h1 className="text-3xl font-bold tracking-tight">
           {t('home.title', { defaultValue: 'Home' })}
         </h1>
@@ -100,7 +100,7 @@ export function HomePage() {
       </div>
 
       {/* Main Content */}
-      <div className="container mx-auto px-6 py-4 space-y-8">
+      <div className="px-6 py-4 space-y-8">
         {/* Quick Actions */}
         <QuickActions />
 

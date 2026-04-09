@@ -2,18 +2,20 @@
  * ConsoleLayout
  *
  * Root layout shell for the console application. Composes the AppShell
- * with the sidebar, header, and main content area.
+ * with the UnifiedSidebar, header, and main content area.
  * Includes the global floating chatbot (FAB) widget.
+ * Sets navigation context to 'app' for app-specific routes.
  * @module
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AppShell } from '@object-ui/layout';
 import { FloatingChatbot, useObjectChat, type ChatMessage } from '@object-ui/plugin-chatbot';
 import { useDiscovery } from '@object-ui/react';
-import { AppSidebar } from './AppSidebar';
+import { UnifiedSidebar } from './UnifiedSidebar';
 import { AppHeader } from './AppHeader';
 import { useResponsiveSidebar } from '../hooks/useResponsiveSidebar';
+import { useNavigationContext } from '../context/NavigationContext';
 import { resolveI18nLabel } from '../utils';
 import type { ConnectionState } from '../dataSource';
 
@@ -88,9 +90,9 @@ function ConsoleFloatingChatbot({ appLabel, objects }: { appLabel: string; objec
   );
 }
 
-export function ConsoleLayout({ 
-  children, 
-  activeAppName, 
+export function ConsoleLayout({
+  children,
+  activeAppName,
   activeApp,
   onAppChange,
   objects,
@@ -98,18 +100,25 @@ export function ConsoleLayout({
 }: ConsoleLayoutProps) {
   const appLabel = resolveI18nLabel(activeApp?.label) || activeAppName;
   const { isAiEnabled } = useDiscovery();
+  const { setContext, setCurrentAppName } = useNavigationContext();
+
+  // Set navigation context to 'app' when this layout mounts
+  useEffect(() => {
+    setContext('app');
+    setCurrentAppName(activeAppName);
+  }, [setContext, setCurrentAppName, activeAppName]);
 
   return (
     <AppShell
       sidebar={
-         <AppSidebar 
-           activeAppName={activeAppName} 
-           onAppChange={onAppChange} 
+         <UnifiedSidebar
+           activeAppName={activeAppName}
+           onAppChange={onAppChange}
          />
       }
       navbar={
-          <AppHeader 
-            appName={appLabel} 
+          <AppHeader
+            appName={appLabel}
             objects={objects}
             connectionState={connectionState}
           />

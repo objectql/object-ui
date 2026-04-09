@@ -1,12 +1,12 @@
 /**
- * Tests for HomeLayout — lightweight nav shell for /home.
- * Validates: layout rendering, user avatar, navigation links.
+ * Tests for HomeLayout — unified sidebar nav shell for /home.
+ * Validates: layout rendering, sidebar presence, navigation context.
  *
  * Note: Radix DropdownMenu portal rendering is limited in jsdom,
  * so we test the trigger and visible elements rather than dropdown contents.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
 import { HomeLayout } from '../pages/home/HomeLayout';
@@ -40,6 +40,9 @@ vi.mock('@object-ui/i18n', () => ({
     direction: 'ltr',
     i18n: {},
   }),
+  useObjectLabel: () => ({
+    objectLabel: ({ name, label }: any) => label || name,
+  }),
 }));
 
 // Mock @object-ui/components to keep most components
@@ -50,6 +53,77 @@ vi.mock('@object-ui/components', async (importOriginal) => {
     TooltipProvider: ({ children }: any) => <div>{children}</div>,
   };
 });
+
+// Mock @object-ui/layout AppShell
+vi.mock('@object-ui/layout', () => ({
+  AppShell: ({ children, sidebar }: any) => (
+    <div data-testid="app-shell">
+      <div data-testid="sidebar">{sidebar}</div>
+      <div data-testid="content">{children}</div>
+    </div>
+  ),
+  useAppShellBranding: () => {},
+}));
+
+// Mock NavigationContext
+const mockSetContext = vi.fn();
+vi.mock('../context/NavigationContext', () => ({
+  useNavigationContext: () => ({
+    context: 'home',
+    setContext: mockSetContext,
+    currentAppName: undefined,
+    setCurrentAppName: vi.fn(),
+  }),
+}));
+
+// Mock MetadataProvider
+vi.mock('../context/MetadataProvider', () => ({
+  useMetadata: () => ({
+    apps: [],
+    objects: [],
+    loading: false,
+  }),
+}));
+
+// Mock other required contexts
+vi.mock('../context/ExpressionProvider', () => ({
+  useExpressionContext: () => ({
+    evaluator: {},
+  }),
+  evaluateVisibility: () => true,
+}));
+
+vi.mock('@object-ui/permissions', () => ({
+  usePermissions: () => ({
+    can: () => true,
+  }),
+}));
+
+vi.mock('../hooks/useRecentItems', () => ({
+  useRecentItems: () => ({
+    recentItems: [],
+    addRecentItem: vi.fn(),
+  }),
+}));
+
+vi.mock('../hooks/useFavorites', () => ({
+  useFavorites: () => ({
+    favorites: [],
+    addFavorite: vi.fn(),
+    removeFavorite: vi.fn(),
+  }),
+}));
+
+vi.mock('../hooks/useNavPins', () => ({
+  useNavPins: () => ({
+    togglePin: vi.fn(),
+    applyPins: (items: any[]) => items,
+  }),
+}));
+
+vi.mock('../hooks/useResponsiveSidebar', () => ({
+  useResponsiveSidebar: () => {},
+}));
 
 describe('HomeLayout', () => {
   beforeEach(() => {
@@ -64,57 +138,20 @@ describe('HomeLayout', () => {
     );
   };
 
-  it('renders the layout shell with data-testid', () => {
+  it('renders the AppShell with sidebar and content', () => {
     renderLayout();
-    expect(screen.getByTestId('home-layout')).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+    expect(screen.getByTestId('content')).toBeInTheDocument();
   });
 
-  it('renders the Home branding button in the top bar', () => {
+  it('sets navigation context to "home" on mount', () => {
     renderLayout();
-    const brand = screen.getByTestId('home-layout-brand');
-    expect(brand).toBeInTheDocument();
-    expect(brand).toHaveTextContent('Home');
+    expect(mockSetContext).toHaveBeenCalledWith('home');
   });
 
   it('renders children inside the layout', () => {
     renderLayout(<div data-testid="child-content">Hello World</div>);
     expect(screen.getByTestId('child-content')).toBeInTheDocument();
-  });
-
-  it('renders user avatar with initials fallback', () => {
-    renderLayout();
-    // The avatar trigger should show user initials "AD" (Alice Dev)
-    expect(screen.getByTestId('home-layout-user-trigger')).toBeInTheDocument();
-    expect(screen.getByText('AD')).toBeInTheDocument();
-  });
-
-  it('renders Settings button in the top bar', () => {
-    renderLayout();
-    expect(screen.getByTestId('home-layout-settings-btn')).toBeInTheDocument();
-  });
-
-  it('navigates to /system when Settings button is clicked', () => {
-    renderLayout();
-    fireEvent.click(screen.getByTestId('home-layout-settings-btn'));
-    expect(mockNavigate).toHaveBeenCalledWith('/system');
-  });
-
-  it('navigates to /home when brand button is clicked', () => {
-    renderLayout();
-    fireEvent.click(screen.getByTestId('home-layout-brand'));
-    expect(mockNavigate).toHaveBeenCalledWith('/home');
-  });
-
-  it('renders sticky header element', () => {
-    renderLayout();
-    const header = screen.getByTestId('home-layout').querySelector('header');
-    expect(header).toBeInTheDocument();
-    expect(header?.className).toContain('sticky');
-  });
-
-  it('renders user menu trigger as a round button', () => {
-    renderLayout();
-    const trigger = screen.getByTestId('home-layout-user-trigger');
-    expect(trigger.className).toContain('rounded-full');
   });
 });
