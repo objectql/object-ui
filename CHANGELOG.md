@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Home page star/favorite not reactive** (`@object-ui/console`): Migrated `useFavorites` from standalone hook to React Context (`FavoritesProvider`) so all consumers (HomePage, AppCard, AppSidebar, UnifiedSidebar) share a single state instance. Previously, each component calling `useFavorites()` created independent state, so toggling a favorite in AppCard did not trigger re-render in HomePage. localStorage persistence is retained as the storage layer.
+
 ### Changed
 
 - **Merged ObjectManagerPage into MetadataManagerPage pipeline** (`@object-ui/console`): Removed the standalone `ObjectManagerPage` component. Object management is now fully handled by the generic `MetadataManagerPage` (list view) and `MetadataDetailPage` (detail view) pipeline. The object type config in `metadataTypeRegistry` uses `listComponent: ObjectManagerListAdapter` for the custom list UI and `pageSchemaFactory: buildObjectDetailPageSchema` for the detail page, eliminating redundant page code and centralizing all metadata management through a single architecture.
