@@ -70,23 +70,22 @@ vi.mock('react-router-dom', async () => {
 });
 
 // Register mock widget components for PageSchema rendering in tests
-beforeEach(() => {
-  const mockWidget = (name: string) => (props: any) => (
-    <div data-testid={`mock-${name}`} data-object-name={props?.schema?.objectName || props?.objectName}>
-      {name}
-    </div>
-  );
+// IMPORTANT: Register at module level (before import) to ensure components are available
+const mockWidget = (name: string) => (props: any) => (
+  <div data-testid={`mock-${name}`} data-object-name={props?.schema?.objectName || props?.objectName}>
+    {name}
+  </div>
+);
 
-  ComponentRegistry.register('object-detail-tabs', mockWidget('object-detail-tabs'));
-  ComponentRegistry.register('object-properties', mockWidget('object-properties'));
-  ComponentRegistry.register('object-relationships', mockWidget('object-relationships'));
-  ComponentRegistry.register('object-keys', mockWidget('object-keys'));
-  ComponentRegistry.register('object-data-experience', mockWidget('object-data-experience'));
-  ComponentRegistry.register('object-data-preview', mockWidget('object-data-preview'));
-  ComponentRegistry.register('object-field-designer', mockWidget('object-field-designer'));
-});
+ComponentRegistry.register('object-detail-tabs', mockWidget('object-detail-tabs'));
+ComponentRegistry.register('object-properties', mockWidget('object-properties'));
+ComponentRegistry.register('object-relationships', mockWidget('object-relationships'));
+ComponentRegistry.register('object-keys', mockWidget('object-keys'));
+ComponentRegistry.register('object-data-experience', mockWidget('object-data-experience'));
+ComponentRegistry.register('object-data-preview', mockWidget('object-data-preview'));
+ComponentRegistry.register('object-field-designer', mockWidget('object-field-designer'));
 
-// Import after mocks
+// Import after registering mock components
 import { MetadataDetailPage } from '../pages/system/MetadataDetailPage';
 
 function renderWithRoute(metadataType: string, itemName: string) {
