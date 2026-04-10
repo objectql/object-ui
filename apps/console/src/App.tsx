@@ -63,6 +63,7 @@ const HomeLayout = lazy(() => import('./pages/home/HomeLayout').then(m => ({ def
 import { ThemeProvider } from './components/theme-provider';
 import { ConsoleToaster } from './components/ConsoleToaster';
 import { NavigationProvider } from './context/NavigationContext';
+import { FavoritesProvider } from './context/FavoritesProvider';
 
 /**
  * ConnectedShell
@@ -520,6 +521,7 @@ export function App() {
       <ConditionalAuthWrapper authUrl="/api/v1/auth">
         <PreviewBanner />
         <NavigationProvider>
+        <FavoritesProvider>
         <BrowserRouter basename={import.meta.env.BASE_URL?.replace(/\/$/, '') || '/'}>
             <Suspense fallback={<LoadingScreen />}>
             <Routes>
@@ -571,6 +573,7 @@ export function App() {
             </Routes>
             </Suspense>
         </BrowserRouter>
+        </FavoritesProvider>
         </NavigationProvider>
       </ConditionalAuthWrapper>
     </ThemeProvider>

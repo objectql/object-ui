@@ -40,11 +40,9 @@ import {
   AvatarImage,
   AvatarFallback,
   useSidebar,
-  Button,
 } from '@object-ui/components';
 import {
   ChevronsUpDown,
-  Plus,
   Settings,
   LogOut,
   Database,
@@ -55,7 +53,6 @@ import {
   Pencil,
   ChevronRight,
   Home,
-  Grid3x3,
   HelpCircle,
   ArrowLeft,
   Layers,
@@ -135,24 +132,28 @@ function useNavOrder(appName: string) {
 
 /**
  * Resolve a Lucide icon component by name string.
+ * Safely handles both exact names and kebab-case → PascalCase conversion.
+ * The try/catch guards against strict module proxy environments (e.g. vitest mocks).
  */
 function getIcon(name?: string): React.ComponentType<any> {
   if (!name) return LucideIcons.Database;
 
-  if ((LucideIcons as any)[name]) {
-    return (LucideIcons as any)[name];
-  }
+  const lookup = (key: string): React.ComponentType<any> | undefined => {
+    try {
+      const icon = (LucideIcons as Record<string, unknown>)[key];
+      return typeof icon === 'function' ? (icon as React.ComponentType<any>) : undefined;
+    } catch {
+      return undefined;
+    }
+  };
 
+  // Try exact match first, then convert kebab-case / lowercase to PascalCase
   const pascalName = name
-    .split('-')
+    .split(/[-_]/)
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join('');
 
-  if ((LucideIcons as any)[pascalName]) {
-      return (LucideIcons as any)[pascalName];
-  }
-
-  return LucideIcons.Database;
+  return lookup(name) ?? lookup(pascalName) ?? LucideIcons.Database;
 }
 
 interface UnifiedSidebarProps {

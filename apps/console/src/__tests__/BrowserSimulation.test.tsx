@@ -131,15 +131,21 @@ vi.mock('../context/MetadataProvider', async () => {
 
 // --- 2. Import AppContent ---
 import { AppContent } from '../App';
+import { NavigationProvider } from '../context/NavigationContext';
+import { FavoritesProvider } from '../context/FavoritesProvider';
 
 describe('Console Application Simulation', () => {
 
     // Helper to render App at specific route
     const renderApp = (initialRoute: string) => {
         return render(
+            <NavigationProvider>
+            <FavoritesProvider>
             <MemoryRouter initialEntries={[initialRoute]}>
                 <AppContent />
             </MemoryRouter>
+            </FavoritesProvider>
+            </NavigationProvider>
         );
     };
 
@@ -832,9 +838,13 @@ describe('Fields Integration', () => {
 describe('Dashboard Integration', () => {
     const renderApp = (initialRoute: string) => {
         return render(
+            <NavigationProvider>
+            <FavoritesProvider>
             <MemoryRouter initialEntries={[initialRoute]}>
                 <AppContent />
             </MemoryRouter>
+            </FavoritesProvider>
+            </NavigationProvider>
         );
     };
 

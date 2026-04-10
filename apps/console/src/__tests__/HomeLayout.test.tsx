@@ -54,6 +54,13 @@ vi.mock('@object-ui/components', async (importOriginal) => {
   };
 });
 
+// Mock UnifiedSidebar entirely — HomeLayout tests verify layout composition,
+// not the sidebar's internal rendering. This also avoids SidebarProvider
+// dependency when AppShell is mocked as a plain div.
+vi.mock('../components/UnifiedSidebar', () => ({
+  UnifiedSidebar: () => <nav data-testid="unified-sidebar" />,
+}));
+
 // Mock @object-ui/layout AppShell
 vi.mock('@object-ui/layout', () => ({
   AppShell: ({ children, sidebar }: any) => (

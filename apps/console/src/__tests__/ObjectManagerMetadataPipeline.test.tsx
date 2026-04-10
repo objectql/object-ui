@@ -166,6 +166,20 @@ describe('Object Manager (Metadata Pipeline)', () => {
     ComponentRegistry.register('object-data-experience', mockWidget('data-experience-section'));
     ComponentRegistry.register('object-data-preview', mockWidget('data-preview-section'));
     ComponentRegistry.register('object-field-designer', mockWidget('field-management-section'));
+
+    // object-detail-tabs wraps all sub-widgets in the PageSchema-driven detail view.
+    // The mock renders all sections inline so tests can find each by testid without
+    // simulating tab-switching interactions.
+    ComponentRegistry.register('object-detail-tabs', (props: any) => (
+      <div data-testid="mock-object-detail-tabs">
+        <div data-testid="object-properties" data-object-name={props?.schema?.objectName}>object-properties</div>
+        <div data-testid="field-management-section" data-object-name={props?.schema?.objectName}>field-management-section</div>
+        <div data-testid="relationships-section" data-object-name={props?.schema?.objectName}>relationships-section</div>
+        <div data-testid="keys-section" data-object-name={props?.schema?.objectName}>keys-section</div>
+        <div data-testid="data-experience-section" data-object-name={props?.schema?.objectName}>data-experience-section</div>
+        <div data-testid="data-preview-section" data-object-name={props?.schema?.objectName}>data-preview-section</div>
+      </div>
+    ));
   });
 
   // =========================================================================
