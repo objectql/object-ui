@@ -161,7 +161,7 @@ export function ObjectRelationshipsWidget({ schema }: { schema: ObjectWidgetSche
         </h3>
         {hasRelationships ? (
           <div className="space-y-3">
-            {object.relationships.map((rel, i) => (
+            {object.relationships!.map((rel, i) => (
               <div
                 key={i}
                 className="flex items-start gap-4 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"

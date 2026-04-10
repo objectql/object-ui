@@ -3,6 +3,8 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { AppContent } from '../App';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { NavigationProvider } from '../context/NavigationContext';
+import { FavoritesProvider } from '../context/FavoritesProvider';
 
 // --- Mocks ---
 
@@ -181,11 +183,15 @@ describe('Console App Integration', () => {
 
     const renderApp = (initialRoute = '/apps/sales/') => {
         return render(
+            <NavigationProvider>
+            <FavoritesProvider>
             <MemoryRouter initialEntries={[initialRoute]}>
                 <Routes>
                     <Route path="/apps/:appName/*" element={<AppContent />} />
                 </Routes>
             </MemoryRouter>
+            </FavoritesProvider>
+            </NavigationProvider>
         );
     };
 

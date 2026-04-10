@@ -18,6 +18,7 @@ import '@testing-library/jest-dom';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { AppContent } from '../App';
 import { CommandPalette } from '../components/CommandPalette';
+import { NavigationProvider } from '../context/NavigationContext';
 
 // --- Mocks ---
 
@@ -286,11 +287,13 @@ describe('Console App Creation Integration', () => {
 
   const renderApp = (initialRoute = '/apps/sales/') => {
     return render(
+      <NavigationProvider>
       <MemoryRouter initialEntries={[initialRoute]}>
         <Routes>
           <Route path="/apps/:appName/*" element={<AppContent />} />
         </Routes>
-      </MemoryRouter>,
+      </MemoryRouter>
+      </NavigationProvider>,
     );
   };
 
