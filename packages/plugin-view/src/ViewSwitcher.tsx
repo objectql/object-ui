@@ -261,7 +261,7 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
             key={`action-${action.type}-${idx}`}
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             onClick={() => onViewAction?.(action.type, currentView!)}
             title={DEFAULT_VIEW_ACTION_LABELS[action.type] || action.type}
           >
@@ -276,7 +276,7 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
     <Button
       type="button"
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       onClick={() => onCreateView?.()}
       title={createViewLabel}
     >
