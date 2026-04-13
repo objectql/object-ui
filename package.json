@@ -130,7 +130,7 @@
     }
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.13",
+    "@hono/node-server": "^1.19.14",
     "@objectstack/plugin-auth": "^4.0.2",
     "@objectstack/plugin-hono-server": "^4.0.2",
     "@objectstack/plugin-setup": "^4.0.2",
