@@ -21,10 +21,11 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 10.31.0
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Verify pnpm version
+        run: pnpm --version
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -62,10 +63,11 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 10.31.0
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Verify pnpm version
+        run: pnpm --version
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -117,10 +119,11 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 10.31.0
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Verify pnpm version
+        run: pnpm --version
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -204,11 +207,13 @@ jobs:
             fi
           fi
 
-      - name: Setup pnpm
+      - name: Enable Corepack
         if: steps.docs-changes.outputs.should_run == 'true'
-        uses: pnpm/action-setup@v6
-        with:
-          version: 10.31.0
+        run: corepack enable
+
+      - name: Verify pnpm version
+        if: steps.docs-changes.outputs.should_run == 'true'
+        run: pnpm --version
 
       - name: Setup Node.js
         if: steps.docs-changes.outputs.should_run == 'true'
