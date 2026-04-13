@@ -184,6 +184,67 @@ body {
   width: var(--sidebar-width);
 }
 
+/* Labels and actions visibility - only hide when BOTH icon mode AND collapsed */
+.group[data-collapsible="icon"][data-state="collapsed"] .group-data-\[collapsible\=icon\]\:opacity-0 {
+  opacity: 0;
+}
+
+.group[data-collapsible="icon"][data-state="collapsed"] .group-data-\[collapsible\=icon\]\:-mt-8 {
+  margin-top: -2rem;
+}
+
+.group[data-collapsible="icon"][data-state="collapsed"] .group-data-\[collapsible\=icon\]\:hidden {
+  display: none;
+}
+
+.group[data-collapsible="icon"][data-state="collapsed"] .group-data-\[collapsible\=icon\]\:overflow-hidden {
+  overflow: hidden;
+}
+
+/* Menu button size - only constrain size when collapsed */
+.group[data-collapsible="icon"][data-state="collapsed"] .group-data-\[collapsible\=icon\]\:\!size-8 {
+  width: 2rem !important;
+  height: 2rem !important;
+}
+
+.group[data-collapsible="icon"][data-state="collapsed"] .group-data-\[collapsible\=icon\]\:\!p-2 {
+  padding: 0.5rem !important;
+}
+
+.group[data-collapsible="icon"][data-state="collapsed"] .group-data-\[collapsible\=icon\]\:\!p-0 {
+  padding: 0 !important;
+}
+
+/* When expanded, ensure labels are visible and menu buttons are normal size */
+.group[data-collapsible="icon"][data-state="expanded"] .group-data-\[collapsible\=icon\]\:opacity-0 {
+  opacity: 1;
+}
+
+.group[data-collapsible="icon"][data-state="expanded"] .group-data-\[collapsible\=icon\]\:-mt-8 {
+  margin-top: 0;
+}
+
+.group[data-collapsible="icon"][data-state="expanded"] .group-data-\[collapsible\=icon\]\:hidden {
+  display: block;
+}
+
+.group[data-collapsible="icon"][data-state="expanded"] .group-data-\[collapsible\=icon\]\:overflow-hidden {
+  overflow: visible;
+}
+
+.group[data-collapsible="icon"][data-state="expanded"] .group-data-\[collapsible\=icon\]\:\!size-8 {
+  width: auto !important;
+  height: auto !important;
+}
+
+.group[data-collapsible="icon"][data-state="expanded"] .group-data-\[collapsible\=icon\]\:\!p-2 {
+  padding: 0.5rem !important;
+}
+
+.group[data-collapsible="icon"][data-state="expanded"] .group-data-\[collapsible\=icon\]\:\!p-0 {
+  padding: 0 !important;
+}
+
 /* Offcanvas mode: always collapsed = 0 width */
 .group[data-collapsible="offcanvas"] .group-data-\[collapsible\=offcanvas\]\:w-0 {
   width: 0;
