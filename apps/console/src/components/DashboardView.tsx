@@ -391,15 +391,16 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
         <div className="shrink-0 flex items-center gap-1.5">
           {/* Add-widget toolbar — visible only in edit mode */}
           {configPanelOpen && (
-            <div className="flex items-center gap-1 mr-2" data-testid="dashboard-widget-toolbar">
+            <div className="flex items-center gap-1 mr-2" role="toolbar" aria-label="Add widgets" data-testid="dashboard-widget-toolbar">
               {WIDGET_TYPES.map(({ type, label, Icon }) => (
                 <button
                   key={type}
                   type="button"
                   data-testid={`dashboard-add-${type}`}
                   onClick={() => addWidget(type)}
-                  className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   title={`Add ${label}`}
+                  aria-label={`Add ${label} widget`}
                 >
                   <Plus className="h-3 w-3" />
                   <Icon className="h-3 w-3" />
@@ -421,7 +422,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
 
       {/* ── Main area + Config Panel ─────────────────────────────── */}
       <div className="flex-1 overflow-hidden flex flex-col sm:flex-row relative">
-         <div className="flex-1 min-w-0 overflow-auto p-0 sm:p-6">
+         <div className="flex-1 min-w-0 overflow-auto p-2 sm:p-4 md:p-6">
             <DashboardRenderer
               schema={previewSchema}
               dataSource={dataSource}

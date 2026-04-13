@@ -7,7 +7,7 @@
  */
 
 import { Star, StarOff } from 'lucide-react';
-import { Card, CardContent, Button } from '@object-ui/components';
+import { Card, CardContent, Button, Badge } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { resolveI18nLabel } from '../../utils';
 import { useFavorites } from '../../hooks/useFavorites';
@@ -50,8 +50,10 @@ export function AppCard({ app, onClick, isFavorite }: AppCardProps) {
         <Button
           variant="ghost"
           size="sm"
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
           onClick={handleToggleFavorite}
+          aria-label={isFavorite ? `Remove ${label} from favorites` : `Add ${label} to favorites`}
+          aria-pressed={isFavorite}
           data-testid={`favorite-btn-${app.name}`}
         >
           {isFavorite ? (
@@ -88,9 +90,9 @@ export function AppCard({ app, onClick, isFavorite }: AppCardProps) {
         {/* App Badge (if default) */}
         {app.isDefault && (
           <div className="mt-3">
-            <span className="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-950 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-300">
+            <Badge variant="secondary">
               {t('home.appCard.default', { defaultValue: 'Default' })}
-            </span>
+            </Badge>
           </div>
         )}
       </CardContent>

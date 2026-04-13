@@ -106,6 +106,7 @@ export function ProfilePage() {
                 value={name}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                 required
+                aria-required="true"
                 disabled={isLoading}
               />
             </div>

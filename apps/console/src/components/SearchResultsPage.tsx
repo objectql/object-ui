@@ -137,8 +137,10 @@ export function SearchResultsPage() {
 
       {/* Search input */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <label htmlFor="search-results-input" className="sr-only">Search objects, dashboards, pages, reports</label>
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <Input
+          id="search-results-input"
           value={query}
           onChange={(e: any) => handleSearch(e.target.value)}
           placeholder="Search objects, dashboards, pages, reports..."
@@ -180,7 +182,7 @@ export function SearchResultsPage() {
                   {items.map(item => {
                     const ItemIcon = TYPE_ICONS[item.type] || Database;
                     return (
-                    <Link key={item.id} to={item.href}>
+                    <Link key={item.id} to={item.href} className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                       <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
                         <CardContent className="flex items-center gap-3 p-3">
                           <div className={`flex h-8 w-8 items-center justify-center rounded ${TYPE_COLORS[item.type] || ''}`}>

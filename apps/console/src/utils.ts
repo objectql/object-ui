@@ -22,6 +22,15 @@ export function resolveI18nLabel(
 }
 
 /**
+ * Capitalize the first letter of a string.
+ * Preferred over CSS `capitalize` for i18n compatibility.
+ */
+export function capitalizeFirst(str: string): string {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/**
  * Format a record title using the titleFormat pattern
  * @param titleFormat Pattern like "{name} - {email}" or "{firstName} {lastName}"
  * @param record The record data object

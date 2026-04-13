@@ -67,6 +67,15 @@ export function QuickActions() {
               className="cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => navigate(action.href)}
               data-testid={`quick-action-${action.id}`}
+              role="link"
+              tabIndex={0}
+              onKeyDown={(e: React.KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  navigate(action.href);
+                }
+              }}
+              aria-label={action.label}
             >
               <CardContent className="p-6">
                 <div className="flex items-start gap-4">

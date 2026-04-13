@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Improved
+
+- **Console UI design optimization sweep** (`@object-ui/console`): Comprehensive accessibility and design consistency improvements across all major console interfaces:
+  - **Accessibility (WCAG 2.1 AA)**: Added `aria-label`, `aria-pressed`, `aria-required`, `aria-live`, `role="status"`, `role="link"`, `role="toolbar"`, `role="img"` attributes across HomePage, SystemHubPage, MetadataManagerPage, MetadataDetailPage, AppManagementPage, ProfilePage, SearchResultsPage, AuthPageLayout, and DashboardView. Added keyboard navigation (Enter/Space) to all clickable Card components. Added `<title>` element to SVG logo. Added screen-reader-only `<label>` elements for search inputs.
+  - **Design tokens**: Replaced hardcoded `bg-blue-50`/`text-blue-700` badge in AppCard with Shadcn `<Badge variant="secondary">` for consistent theming.
+  - **Shadcn component alignment**: Replaced raw `<input type="checkbox">` elements in AppManagementPage with Shadcn `<Checkbox>` component for consistent styling and accessibility.
+  - **Spacing consistency**: Standardized responsive padding (`px-4 sm:px-6`) on HomePage, unified grid columns across RecentApps/StarredApps (4 columns at xl), standardized `gap-4` in MetadataManagerPage grid, graduated padding (`p-2 sm:p-4 md:p-6`) in DashboardView.
+  - **Focus management**: Added `focus-visible:opacity-100` on AppCard favorite button so keyboard users can discover it, added focus rings to search result card links, added `focus-visible:ring-2` to DashboardView widget toolbar buttons and MetadataFormDialog native select.
+  - **i18n compatibility**: Replaced CSS `capitalize` with programmatic string casing in RecentApps/StarredApps type labels.
+
 ### Fixed
 
 - **Home page star/favorite not reactive** (`@object-ui/console`): Migrated `useFavorites` from standalone hook to React Context (`FavoritesProvider`) so all consumers (HomePage, AppCard, AppSidebar, UnifiedSidebar) share a single state instance. Previously, each component calling `useFavorites()` created independent state, so toggling a favorite in AppCard did not trigger re-render in HomePage. localStorage persistence is retained as the storage layer.

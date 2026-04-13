@@ -13,6 +13,7 @@ import {
   CardContent,
   Badge,
   Input,
+  Checkbox,
 } from '@object-ui/components';
 import {
   Plus,
@@ -145,8 +146,10 @@ export function AppManagementPage() {
       {/* Search & Bulk Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
         <div className="relative flex-1 max-w-sm">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <label htmlFor="app-search" className="sr-only">Search apps</label>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
+            id="app-search"
             placeholder="Search apps..."
             value={searchQuery}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
@@ -170,14 +173,12 @@ export function AppManagementPage() {
       {/* Select All */}
       {filteredApps.length > 0 && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <input
-            type="checkbox"
+          <Checkbox
+            id="select-all-apps"
             checked={selectedIds.size === filteredApps.length && filteredApps.length > 0}
-            onChange={toggleSelectAll}
-            className="rounded border-input"
-            aria-label="Select all apps"
+            onCheckedChange={() => toggleSelectAll()}
           />
-          <span>Select all ({filteredApps.length})</span>
+          <label htmlFor="select-all-apps" className="cursor-pointer">Select all ({filteredApps.length})</label>
         </div>
       )}
 
@@ -197,12 +198,12 @@ export function AppManagementPage() {
             return (
               <Card key={app.name} className={!isActive ? 'opacity-60' : ''} data-testid={`app-card-${app.name}`}>
                 <CardContent className="flex items-center gap-3 py-3 px-4">
-                  <input
-                    type="checkbox"
+                  <Checkbox
+                    id={`select-app-${app.name}`}
                     checked={selectedIds.has(app.name)}
-                    onChange={() => toggleSelect(app.name)}
-                    className="rounded border-input shrink-0"
+                    onCheckedChange={() => toggleSelect(app.name)}
                     aria-label={`Select ${app.label || app.name}`}
+                    className="shrink-0"
                   />
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <LayoutGrid className="h-4 w-4" />
@@ -224,6 +225,7 @@ export function AppManagementPage() {
                       variant="ghost"
                       size="icon"
                       title="Open app"
+                      aria-label={`Open ${app.label || app.name}`}
                       onClick={() => navigate(`/apps/${app.name}`)}
                     >
                       <ExternalLink className="h-4 w-4" />
@@ -232,6 +234,7 @@ export function AppManagementPage() {
                       variant="ghost"
                       size="icon"
                       title="Edit app"
+                      aria-label={`Edit ${app.label || app.name}`}
                       onClick={() => navigate(`${basePath}/edit-app/${app.name}`)}
                     >
                       <Pencil className="h-4 w-4" />
@@ -240,6 +243,7 @@ export function AppManagementPage() {
                       variant="ghost"
                       size="icon"
                       title={isActive ? 'Disable app' : 'Enable app'}
+                      aria-label={isActive ? `Disable ${app.label || app.name}` : `Enable ${app.label || app.name}`}
                       onClick={() => handleToggleActive(app)}
                       disabled={processing}
                     >
@@ -249,6 +253,7 @@ export function AppManagementPage() {
                       variant="ghost"
                       size="icon"
                       title="Set as default"
+                      aria-label={`Set ${app.label || app.name} as default`}
                       onClick={() => handleSetDefault(app)}
                       disabled={processing || isDefault}
                     >
@@ -258,6 +263,7 @@ export function AppManagementPage() {
                       variant="ghost"
                       size="icon"
                       title={isDeleting ? 'Click again to confirm delete' : 'Delete app'}
+                      aria-label={isDeleting ? `Confirm delete ${app.label || app.name}` : `Delete ${app.label || app.name}`}
                       onClick={() => handleDelete(app)}
                       disabled={processing}
                       className={isDeleting ? 'text-destructive' : ''}

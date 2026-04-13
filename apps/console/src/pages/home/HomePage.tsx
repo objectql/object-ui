@@ -90,17 +90,17 @@ export function HomePage() {
   return (
     <div className="bg-background">
       {/* Page Title */}
-      <div className="px-6 pt-6 pb-4">
-        <h1 className="text-3xl font-bold tracking-tight">
+      <div className="px-4 sm:px-6 pt-6 pb-4">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
           {t('home.title', { defaultValue: 'Home' })}
         </h1>
-        <p className="text-muted-foreground mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           {t('home.subtitle', { defaultValue: 'Your workspace dashboard' })}
         </p>
       </div>
 
       {/* Main Content */}
-      <div className="px-6 py-4 space-y-8">
+      <div className="px-4 sm:px-6 py-4 space-y-8">
         {/* Quick Actions */}
         <QuickActions />
 

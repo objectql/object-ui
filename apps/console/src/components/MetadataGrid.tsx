@@ -58,7 +58,7 @@ export function MetadataGrid({
   return (
     <div className="rounded-lg border bg-card" data-testid="metadata-grid">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm" aria-label={`${typeLabel} list`}>
           <thead>
             <tr className="border-b bg-muted/50">
               {columns.map((col) => (
@@ -87,11 +87,14 @@ export function MetadataGrid({
                   data-testid={`metadata-item-${name}`}
                   onClick={() => onItemClick?.(name)}
                 >
-                  {columns.map((col) => (
-                    <td key={col.key} className="px-4 py-3 truncate max-w-[200px]">
-                      {String(item[col.key] ?? '—')}
-                    </td>
-                  ))}
+                  {columns.map((col) => {
+                    const cellValue = String(item[col.key] ?? '—');
+                    return (
+                      <td key={col.key} className="px-4 py-3 truncate max-w-[200px]" title={cellValue}>
+                        {cellValue}
+                      </td>
+                    );
+                  })}
                   {editable && (
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">

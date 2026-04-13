@@ -293,8 +293,12 @@ export function MetadataManagerPage() {
       {/* Search */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
         <div className="relative flex-1 max-w-sm">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <label htmlFor="metadata-search" className="sr-only">
+            Search {config.pluralLabel.toLowerCase()}
+          </label>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
+            id="metadata-search"
             placeholder={`Search ${config.pluralLabel.toLowerCase()}...`}
             value={searchQuery}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
@@ -309,16 +313,16 @@ export function MetadataManagerPage() {
 
       {/* Loading */}
       {loading && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="metadata-loading">
-          <Loader2 className="h-4 w-4 animate-spin" />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status" aria-live="polite" data-testid="metadata-loading">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           Loading {config.pluralLabel.toLowerCase()}...
         </div>
       )}
 
       {/* Saving indicator */}
       {saving && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="metadata-saving">
-          <Loader2 className="h-4 w-4 animate-spin" />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status" aria-live="polite" data-testid="metadata-saving">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           Saving...
         </div>
       )}
@@ -331,7 +335,7 @@ export function MetadataManagerPage() {
       )}
 
       {!loading && filteredItems.length > 0 && !isGridMode && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredItems.map((item) => {
             const name = String(item.name ?? '');
             const label = String(item.label ?? item.name ?? '');

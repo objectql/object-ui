@@ -184,8 +184,8 @@ export function SystemHubPage() {
       </div>
 
       {loading && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status" aria-live="polite">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           Loading statistics...
         </div>
       )}
@@ -199,6 +199,15 @@ export function SystemHubPage() {
               className="cursor-pointer transition-colors hover:bg-accent/50"
               onClick={() => navigate(card.href)}
               data-testid={`hub-card-${card.title.toLowerCase().replace(/\s+/g, '-')}`}
+              role="link"
+              tabIndex={0}
+              aria-label={`${card.title}: ${card.description}`}
+              onKeyDown={(e: React.KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  navigate(card.href);
+                }
+              }}
             >
               <CardHeader className="flex flex-row items-center gap-3 pb-2">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">

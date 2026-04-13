@@ -289,8 +289,8 @@ export function MetadataDetailPage() {
 
       {/* Loading */}
       {loading && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="detail-loading">
-          <Loader2 className="h-4 w-4 animate-spin" />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status" aria-live="polite" data-testid="detail-loading">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           Loading...
         </div>
       )}
