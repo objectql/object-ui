@@ -31,12 +31,12 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@ai-sdk/react": "^3.0.151",
+    "@ai-sdk/react": "^3.0.160",
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "ai": "^6.0.149",
+    "ai": "^6.0.158",
     "lucide-react": "^1.7.0",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.1",
@@ -52,7 +52,7 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@vitejs/plugin-react": "^6.0.1",
     "typescript": "^6.0.2",
-    "vite": "^8.0.5",
+    "vite": "^8.0.8",
     "vite-plugin-dts": "^4.5.4"
   }
 }
