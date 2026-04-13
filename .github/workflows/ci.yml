@@ -87,7 +87,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Core & Console
-        run: pnpm turbo run build --filter='./packages/*' --filter='./apps/console'
+        run: |
+          pnpm turbo run build --filter='./packages/*'
+          pnpm --filter @object-ui/console build:e2e
 
       - name: Check for build artifacts
         run: |

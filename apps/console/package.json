@@ -25,6 +25,7 @@
     "start:mock": "pnpm msw:init && vite preview",
     "build:plugin": "tsc -p tsconfig.plugin.json",
     "build": "pnpm msw:init && tsc && VITE_USE_MOCK_SERVER=false vite build && pnpm build:plugin",
+    "build:e2e": "pnpm msw:init && tsc && VITE_USE_MOCK_SERVER=true vite build && pnpm build:plugin",
     "build:vercel": "pnpm msw:init && tsc && VITE_USE_MOCK_SERVER=true vite build && pnpm build:plugin",
     "build:analyze": "pnpm build && echo 'Bundle analysis available at dist/stats.html'",
     "preview": "vite preview",
