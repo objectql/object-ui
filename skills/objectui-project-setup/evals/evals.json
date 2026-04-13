@@ -1,0 +1,23 @@
+{
+  "skill_name": "objectui-project-setup",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want to start a new project using Object UI with Vite and React. What do I need to install and configure? Give me the full setup.",
+      "expected_output": "Provides complete setup: package.json dependencies, vite.config.ts, index.css with Shadcn theme and @source directives, tsconfig.json, and a minimal App.tsx with SchemaRenderer.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "My Object UI components render but they have no styling at all — just plain text and bare inputs. What's wrong?",
+      "expected_output": "Diagnoses missing CSS setup: explains need for @source directives, @theme color token mapping, and :root CSS variables. Provides the complete index.css template.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "How do I add the grid and kanban plugins to my existing Object UI project and make sure they're available in my schemas?",
+      "expected_output": "Shows how to install plugin packages, import them to trigger ComponentRegistry registration, and update @source paths in CSS for plugin styling.",
+      "files": []
+    }
+  ]
+}

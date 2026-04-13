@@ -1,0 +1,23 @@
+{
+  "skill_name": "objectui-auth-permissions",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Add login authentication to my Object UI app. I need a login page, route protection, and the user's role to control which dashboard cards are visible via schema expressions.",
+      "expected_output": "Provides AuthProvider setup, LoginForm usage, AuthGuard for routes, and pattern for injecting user role into SchemaRendererProvider dataSource for expression-based visibility.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I need RBAC for my CRM: admins can do everything, sales reps can only edit their own contacts, and viewers are read-only. How do I set this up with Object UI permissions?",
+      "expected_output": "Provides PermissionProvider config with three roles, row-level permissions with owner filter, and usePermissions usage for conditional UI rendering.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Set up multi-tenancy so each company sees their own branding (logo, colors) and data in our Object UI app.",
+      "expected_output": "Provides TenantProvider setup with fetchTenant, useTenantBranding for theming, and TenantScopedQuery for data isolation.",
+      "files": []
+    }
+  ]
+}

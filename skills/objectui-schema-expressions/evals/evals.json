@@ -1,0 +1,23 @@
+{
+  "skill_name": "objectui-schema-expressions",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a statistic card in my Object UI schema but the value shows literally as ${data.revenue} instead of the actual number. Here's my schema: { \"type\": \"statistic\", \"value\": \"${data.revenue}\", \"label\": \"Revenue\" }. What's wrong?",
+      "expected_output": "Identifies that top-level 'value' and 'label' are not expression-evaluated, and provides the corrected schema using props.value and props.label.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I need to make a button visible only to admin users AND only when the record status is 'active'. Also, the button should show the record owner's name. Show me the correct schema.",
+      "expected_output": "Produces a schema with combined visible/hidden expression using && operator, and uses props.label with template expression for the owner name.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "What formula functions can I use in Object UI expressions? I need to calculate a sum of order amounts, format a date, and show a conditional label.",
+      "expected_output": "Lists available formula functions (SUM, DATEFORMAT, IF) with correct syntax examples in schema context.",
+      "files": []
+    }
+  ]
+}

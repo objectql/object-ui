@@ -1,0 +1,23 @@
+{
+  "skill_name": "objectui-i18n-mobile",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Add Chinese and Japanese language support to my Object UI app. I need a language switcher in the header and all form labels should change when the user switches language.",
+      "expected_output": "Provides I18nProvider setup with lazy loading, useObjectTranslation for the language switcher, and pattern for localizing schema labels via t() before passing to SchemaRenderer.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "My Object UI dashboard looks broken on mobile phones — cards stack but the sidebar takes up the whole screen. How do I make it responsive?",
+      "expected_output": "Provides responsive grid schema with Tailwind mobile-first classes, useBreakpoint hook usage, and sidebar responsive pattern.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I need my Object UI app to work offline — users should be able to view cached data and queue form submissions when there's no network.",
+      "expected_output": "Provides useOffline hook usage with queue management, sync state UI indicators, and offline-first data flow pattern.",
+      "files": []
+    }
+  ]
+}

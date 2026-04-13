@@ -1,0 +1,23 @@
+{
+  "skill_name": "objectui-console-development",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to add a new 'Workflow' metadata type to the console admin panel. It should show in the system hub, have a list page with name/status/trigger columns, and a create dialog with name and trigger object fields.",
+      "expected_output": "Provides MetadataTypeRegistry configuration with columns, formFields, icon. Shows where to add the registration and how it automatically appears in SystemHubPage and MetadataManagerPage.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I want to create a custom detail page for the 'workflow' metadata type that has tabs for Settings, Steps, and History, similar to how object detail pages work.",
+      "expected_output": "Provides pageSchemaFactory function, custom widget components for each tab, registerWidgets file, and MetadataTypeRegistry wiring with pageSchemaFactory.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The sidebar shows wrong navigation items when I navigate from the home page to an app page. How does the console navigation context work?",
+      "expected_output": "Explains NavigationContext (home vs app), how ConsoleLayout and HomeLayout set context, and how UnifiedSidebar renders different items based on context.",
+      "files": []
+    }
+  ]
+}

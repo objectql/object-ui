@@ -1,0 +1,23 @@
+{
+  "skill_name": "objectui-testing",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Write unit tests for my custom Object UI plugin that registers a 'weather-card' component. I need to test the registration, the rendering with mock data, and expression evaluation.",
+      "expected_output": "Provides Vitest tests: registration test checking ComponentRegistry, rendering test with SchemaRendererProvider and mock dataSource, and expression-based visibility test.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Create Storybook stories for an Object UI form plugin that has create, edit, and view modes.",
+      "expected_output": "Provides .stories.tsx with Meta definition, SchemaRendererProvider decorator, and story variants for each form mode with appropriate args.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I need to write a Playwright E2E test that verifies our console app loads, navigates to the dashboard, and renders the KPI cards.",
+      "expected_output": "Provides Playwright spec with page load, React mount wait, navigation, content verification, and error monitoring.",
+      "files": []
+    }
+  ]
+}
