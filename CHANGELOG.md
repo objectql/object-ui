@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Changesets release bump escalation** (`release`): Added `___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH.onlyUpdatePeerDependentsWhenOutOfRange` in `.changeset/config.json` and moved internal `@object-ui/*` entries in `@object-ui/plugin-designer` from `peerDependencies` to `dependencies` to prevent minor release PRs from incorrectly escalating fixed-group packages to a major version.
+
 - **Home page star/favorite not reactive** (`@object-ui/console`): Migrated `useFavorites` from standalone hook to React Context (`FavoritesProvider`) so all consumers (HomePage, AppCard, AppSidebar, UnifiedSidebar) share a single state instance. Previously, each component calling `useFavorites()` created independent state, so toggling a favorite in AppCard did not trigger re-render in HomePage. localStorage persistence is retained as the storage layer.
 
 ### Changed

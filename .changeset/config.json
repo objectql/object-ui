@@ -51,5 +51,8 @@
   "ignore": [
     "@object-ui/example-*",
     "@object-ui/site"
-  ]
+  ],
+  "___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
+    "onlyUpdatePeerDependentsWhenOutOfRange": true
+  }
 }
