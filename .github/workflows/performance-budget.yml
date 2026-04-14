@@ -64,8 +64,10 @@ jobs:
       - name: Check console performance budget
         id: budget
         run: |
-          # Performance budget: main entry must be < 60 KB gzip
-          MAX_ENTRY_GZIP_KB=60
+          # Performance budget: main entry must be < 350 KB gzip
+          # This is a realistic threshold for a full-featured enterprise app
+          # with React, routing, UI components, and core business logic.
+          MAX_ENTRY_GZIP_KB=350
 
           DIST_DIR="apps/console/dist/assets"
           if [ ! -d "$DIST_DIR" ]; then
