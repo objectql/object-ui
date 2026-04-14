@@ -1,0 +1,29 @@
+# Vercel build artifacts
+node_modules/
+.pnpm-store/
+dist/
+
+# Test files
+*.test.ts
+*.spec.ts
+__tests__/
+test/
+
+# Source files (only need compiled output)
+*.ts
+!api/**/*.js
+!scripts/**/*.mjs
+
+# Config files
+tsconfig.json
+vitest.config.ts
+postcss.config.js
+tailwind.config.js
+
+# Documentation
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
