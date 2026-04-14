@@ -1,5 +1,15 @@
 # @object-ui/fields
 
+## 3.2.0
+
+### Patch Changes
+
+- @object-ui/types@3.2.0
+- @object-ui/core@3.2.0
+- @object-ui/i18n@3.2.0
+- @object-ui/react@3.2.0
+- @object-ui/components@3.2.0
+
 ## 3.1.5
 
 ### Patch Changes

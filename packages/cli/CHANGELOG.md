@@ -1,5 +1,13 @@
 # @object-ui/cli
 
+## 3.2.0
+
+### Patch Changes
+
+- @object-ui/types@3.2.0
+- @object-ui/react@3.2.0
+- @object-ui/components@3.2.0
+
 ## 3.1.5
 
 ### Patch Changes

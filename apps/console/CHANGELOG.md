@@ -1,5 +1,11 @@
 # @object-ui/console
 
+## 3.2.0
+
+### Minor Changes
+
+- 91a9103: upgrade objectstack ai service
+
 ## 3.1.5
 
 ## 3.1.4

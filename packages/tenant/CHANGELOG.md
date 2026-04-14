@@ -1,5 +1,11 @@
 # @object-ui/tenant
 
+## 3.2.0
+
+### Patch Changes
+
+- @object-ui/types@3.2.0
+
 ## 3.1.5
 
 ### Patch Changes
