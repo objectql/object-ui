@@ -135,6 +135,7 @@ export default defineStack({
   datasources: {
     default: {
       driver: 'memory',
+      config: {},
     },
   },
 

@@ -15,12 +15,15 @@ const require = createRequire(import.meta.url);
 // @ts-ignore
 globalThis.require = require;
 
+// @ts-ignore
 import { Kernel } from '@objectstack/runtime';
+// @ts-ignore
 import { createHonoApp } from '@objectstack/hono';
 import { getRequestListener } from '@hono/node-server';
+// @ts-ignore
 import config from '../objectstack.config';
 
-let kernel: Kernel | null = null;
+let kernel: any = null;
 let app: any = null;
 
 /**
