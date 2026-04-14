@@ -8,6 +8,15 @@
 			],
 			"env": {},
 			"type": "stdio"
+		},
+		"shadcn": {
+			"command": "pnpm",
+			"args": [
+				"dlx",
+				"shadcn@latest",
+				"mcp"
+			],
+			"type": "stdio"
 		}
 	},
 	"inputs": []
