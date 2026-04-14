@@ -60,7 +60,7 @@ Since this package is not yet published to NPM, here is how to play with the sou
     cd objectui
     pnpm install
     # Build the core engine
-    pnpm build 
+    pnpm build
     ```
 
 2.  **Run the ObjectStack Console**
@@ -72,7 +72,17 @@ Since this package is not yet published to NPM, here is how to play with the sou
     # Opens http://localhost:5173
     ```
 
-3.  **Edit & Reload**
+3.  **Try the Minimal Console Example** (New!)
+
+    See how to integrate ObjectUI in your own app:
+
+    ```bash
+    cd examples/minimal-console
+    pnpm dev
+    # Opens http://localhost:5174
+    ```
+
+4.  **Edit & Reload**
 
     Edit the JSON schema files and the changes will be instantly reflected in the browser.
 
@@ -84,6 +94,7 @@ ObjectStack examples that demonstrate different features and use cases:
 - **[examples/todo](examples/todo)** - Simple task management app demonstrating basic ObjectStack configuration and field types.
 - **[examples/kitchen-sink](examples/kitchen-sink)** - Comprehensive component catalog showing all available field types, dashboard widgets, and view types.
 - **[examples/msw-todo](examples/msw-todo)** - Frontend-first development example using MSW (Mock Service Worker) to run ObjectStack in the browser.
+- **[examples/minimal-console](examples/minimal-console)** ⭐ **NEW!** - Minimal custom console in ~100 lines showing third-party integration without full console infrastructure. Uses `@object-ui/app-shell` and `@object-ui/providers` with custom routing and mock API.
 
 ### Running Examples as API Servers
 
@@ -107,11 +118,47 @@ Each server provides:
 
 ## 📦 For React Developers
 
-Install the core packages to use `<SchemaRenderer>` inside your Next.js or Vite app.
+### Option 1: Full Console (ObjectStack Backend)
+
+Install the core packages to use `<SchemaRenderer>` inside your Next.js or Vite app with ObjectStack backend:
 
 ```bash
 npm install @object-ui/react @object-ui/components @object-ui/data-objectstack
 ```
+
+### Option 2: Minimal Integration (Any Backend) ⭐ **NEW!**
+
+Use ObjectUI components without the full console infrastructure. Perfect for integrating into existing apps:
+
+```bash
+npm install @object-ui/app-shell @object-ui/providers
+```
+
+Then build your own console in ~100 lines:
+```tsx
+import { AppShell, ObjectRenderer } from '@object-ui/app-shell';
+import { ThemeProvider, DataSourceProvider } from '@object-ui/providers';
+
+function MyConsole() {
+  return (
+    <ThemeProvider>
+      <DataSourceProvider dataSource={myAPI}>
+        <AppShell sidebar={<MySidebar />}>
+          <ObjectRenderer objectName="contact" />
+        </AppShell>
+      </DataSourceProvider>
+    </ThemeProvider>
+  );
+}
+```
+
+**Benefits:**
+- 🎯 **Lightweight**: ~50KB vs 500KB+ full console
+- 🔌 **Any Backend**: REST, GraphQL, custom APIs (not just ObjectStack)
+- 🎨 **Full Control**: Custom routing, auth, layouts
+- 📦 **Cherry-pick**: Use only what you need
+
+See [examples/minimal-console](examples/minimal-console) for a complete working example.
 
 ### 🎨 **Beautiful by Default**
 - Professional designs using **Tailwind CSS** and **Shadcn/UI**

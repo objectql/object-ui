@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **@object-ui/app-shell** - New package providing minimal application rendering engine for third-party integration
+  - `AppShell` - Basic layout container component
+  - `ObjectRenderer` - Renders object views (Grid, Kanban, List, etc.)
+  - `DashboardRenderer` - Renders dashboard layouts from schema
+  - `PageRenderer` - Renders custom page schemas
+  - `FormRenderer` - Renders forms (modal or inline)
+  - Framework-agnostic design (~50KB bundle size)
+
+- **@object-ui/providers** - New package with reusable React context providers
+  - `DataSourceProvider` - Generic data source context (not ObjectStack-specific)
+  - `MetadataProvider` - Schema/metadata management
+  - `ThemeProvider` - Theme management with system theme detection
+  - Zero backend coupling (~10KB bundle size)
+
+- **examples/minimal-console** - Proof-of-concept demonstrating third-party integration
+  - Custom console built in ~100 lines of code
+  - Custom routing with React Router
+  - Mock data source (not ObjectStack)
+  - No console dependencies
+  - Shows how to integrate ObjectUI without full console infrastructure
+
+- **Architecture Documentation** - New `docs/ARCHITECTURE.md` explaining:
+  - Package architecture and boundaries
+  - Migration strategy from monolithic console
+  - Integration examples for third-party systems
+  - Custom data source interface
+
+### Changed
+
+- Console can now be streamlined for third-party use without inheriting full infrastructure
+- Bundle size for core rendering reduced from 500KB+ to ~50KB using new packages
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 

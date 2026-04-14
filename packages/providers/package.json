@@ -1,0 +1,44 @@
+{
+  "name": "@object-ui/providers",
+  "version": "3.3.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Reusable context providers for ObjectUI applications",
+  "homepage": "https://www.objectui.org",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/objectstack-ai/objectui.git",
+    "directory": "packages/providers"
+  },
+  "bugs": {
+    "url": "https://github.com/objectstack-ai/objectui/issues"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@object-ui/types": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "typescript": "^6.0.2"
+  }
+}

@@ -607,6 +607,61 @@ importers:
         specifier: ^6.0.2
         version: 6.0.2
 
+  examples/minimal-console:
+    dependencies:
+      '@object-ui/app-shell':
+        specifier: workspace:*
+        version: link:../../packages/app-shell
+      '@object-ui/components':
+        specifier: workspace:*
+        version: link:../../packages/components
+      '@object-ui/providers':
+        specifier: workspace:*
+        version: link:../../packages/providers
+      '@object-ui/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      '@object-ui/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      react:
+        specifier: 19.2.5
+        version: 19.2.5
+      react-dom:
+        specifier: 19.2.5
+        version: 19.2.5(react@19.2.5)
+      react-router-dom:
+        specifier: ^7.14.1
+        version: 7.14.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4.2.2
+        version: 4.2.2
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      '@vitejs/plugin-react':
+        specifier: ^6.0.1
+        version: 6.0.1(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.3))
+      autoprefixer:
+        specifier: ^10.5.0
+        version: 10.5.0(postcss@8.5.9)
+      postcss:
+        specifier: ^8.5.9
+        version: 8.5.9
+      tailwindcss:
+        specifier: ^4.2.2
+        version: 4.2.2
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+      vite:
+        specifier: ^8.0.8
+        version: 8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.3)
+
   examples/msw-todo:
     dependencies:
       '@object-ui/example-todo':
@@ -680,6 +735,43 @@ importers:
       '@objectstack/cli':
         specifier: ^4.0.3
         version: 4.0.3(@ai-sdk/anthropic@3.0.69(zod@4.3.6))(@ai-sdk/google@3.0.63(zod@4.3.6))(@ai-sdk/openai@3.0.52(zod@4.3.6))(@objectstack/core@4.0.3(pino@8.21.0))(esbuild@0.28.0)(pino@8.21.0)
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+
+  packages/app-shell:
+    dependencies:
+      '@object-ui/components':
+        specifier: workspace:*
+        version: link:../components
+      '@object-ui/core':
+        specifier: workspace:*
+        version: link:../core
+      '@object-ui/fields':
+        specifier: workspace:*
+        version: link:../fields
+      '@object-ui/layout':
+        specifier: workspace:*
+        version: link:../layout
+      '@object-ui/react':
+        specifier: workspace:*
+        version: link:../react
+      '@object-ui/types':
+        specifier: workspace:*
+        version: link:../types
+      react:
+        specifier: 19.2.5
+        version: 19.2.5
+      react-dom:
+        specifier: 19.2.5
+        version: 19.2.5(react@19.2.5)
+    devDependencies:
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.2.3
+        version: 19.2.3(@types/react@19.2.14)
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
@@ -2290,6 +2382,28 @@ importers:
       vitest:
         specifier: ^4.1.4
         version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.4)(@vitest/ui@4.1.4)(happy-dom@20.9.0)(jsdom@29.0.2(@noble/hashes@2.2.0))(msw@2.13.3(@types/node@25.6.0)(typescript@6.0.2))(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/providers:
+    dependencies:
+      '@object-ui/types':
+        specifier: workspace:*
+        version: link:../types
+      react:
+        specifier: 19.2.5
+        version: 19.2.5
+      react-dom:
+        specifier: 19.2.5
+        version: 19.2.5(react@19.2.5)
+    devDependencies:
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
 
   packages/react:
     dependencies:
