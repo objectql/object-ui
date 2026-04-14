@@ -1,0 +1,38 @@
+{
+  "name": "@object-ui/server",
+  "version": "3.3.0",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "description": "ObjectUI Production Server - Backend API server for ObjectStack applications",
+  "scripts": {
+    "dev": "objectstack serve --dev",
+    "start": "objectstack serve",
+    "build": "objectstack compile",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist node_modules api/_handler.js public"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.14",
+    "@object-ui/console": "workspace:*",
+    "@object-ui/example-crm": "workspace:*",
+    "@object-ui/example-kitchen-sink": "workspace:*",
+    "@object-ui/example-todo": "workspace:*",
+    "@objectstack/cli": "^4.0.3",
+    "@objectstack/core": "^4.0.3",
+    "@objectstack/driver-memory": "^4.0.3",
+    "@objectstack/hono": "^4.0.3",
+    "@objectstack/objectql": "^4.0.3",
+    "@objectstack/plugin-auth": "^4.0.3",
+    "@objectstack/plugin-hono-server": "^4.0.3",
+    "@objectstack/plugin-setup": "^4.0.3",
+    "@objectstack/runtime": "^4.0.3",
+    "@objectstack/spec": "^4.0.3",
+    "hono": "^4.12.12"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}
