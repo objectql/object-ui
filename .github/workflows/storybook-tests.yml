@@ -8,7 +8,7 @@ on:
       - "pnpm-lock.yaml"
 
 concurrency:
-  group: storybook-tests-${{ github.event.pull_request.number || github.ref }}
+  group: storybook-tests-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
