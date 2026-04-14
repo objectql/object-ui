@@ -84,7 +84,6 @@ ObjectStack examples that demonstrate different features and use cases:
 - **[examples/todo](examples/todo)** - Simple task management app demonstrating basic ObjectStack configuration and field types.
 - **[examples/kitchen-sink](examples/kitchen-sink)** - Comprehensive component catalog showing all available field types, dashboard widgets, and view types.
 - **[examples/msw-todo](examples/msw-todo)** - Frontend-first development example using MSW (Mock Service Worker) to run ObjectStack in the browser.
-- **[examples/sdui-page-starter](examples/sdui-page-starter)** - Third-party project starter for building schema-driven pages with `SchemaRenderer` and expression-based UI behavior.
 
 ### Running Examples as API Servers
 
