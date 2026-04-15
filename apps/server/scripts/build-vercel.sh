@@ -16,11 +16,13 @@ set -euo pipefail
 
 echo "[build-vercel] Starting server build..."
 
-# 1. Build the project with pnpm (from monorepo root)
-# Build workspace packages (excluding site docs) and console
+# 1. Build workspace dependencies and console
+# With filtered install, we only have server and console dependencies installed
 cd ../..
-echo "[build-vercel] Building workspace packages..."
-pnpm --filter '!@object-ui/site' --filter '@object-ui/*' --filter '@object-ui/console' run build
+echo "[build-vercel] Building workspace dependencies for console..."
+pnpm --filter '@object-ui/*' --filter '!@object-ui/console' --filter '!@object-ui/server' --filter '!@object-ui/site' run build || true
+echo "[build-vercel] Building console..."
+pnpm --filter @object-ui/console run build
 cd apps/server
 
 # 2. Bundle API serverless function
