@@ -15,7 +15,8 @@
  */
 export async function loadLanguage(lang: string): Promise<Record<string, unknown>> {
   try {
-    const res = await fetch(`/api/v1/i18n/translations/${lang}`);
+    const serverUrl = import.meta.env.VITE_SERVER_URL || '';
+    const res = await fetch(`${serverUrl}/api/v1/i18n/translations/${lang}`);
     if (!res.ok) {
       console.warn(`[i18n] Failed to load translations for '${lang}': HTTP ${res.status}`);
       return {};
