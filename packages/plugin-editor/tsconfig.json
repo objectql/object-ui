@@ -5,7 +5,9 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": [
+        "src/*"
+      ]
     },
     "noImplicitAny": true,
     "noEmit": false,
@@ -13,5 +15,21 @@
     "composite": true,
     "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../components"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../react"
+    },
+    {
+      "path": "../types"
+    }
+  ]
 }

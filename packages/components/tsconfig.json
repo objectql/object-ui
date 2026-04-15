@@ -15,5 +15,19 @@
     "skipLibCheck": true
   },
   "include": ["src"],
-  "exclude": ["src/__tests__", "**/*.test.ts", "**/*.test.tsx", "src/stories-json", "**/*.stories.tsx"]
+  "exclude": ["src/__tests__", "**/*.test.ts", "**/*.test.tsx", "src/stories-json", "**/*.stories.tsx"],
+  "references": [
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../i18n"
+    },
+    {
+      "path": "../react"
+    },
+    {
+      "path": "../types"
+    }
+  ]
 }

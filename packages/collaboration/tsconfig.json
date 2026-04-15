@@ -6,7 +6,9 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": [
+        "src/*"
+      ]
     },
     "noEmit": false,
     "declaration": true,
@@ -14,6 +16,18 @@
     "declarationMap": true,
     "skipLibCheck": true
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ],
+  "references": [
+    {
+      "path": "../types"
+    }
+  ]
 }

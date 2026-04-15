@@ -14,5 +14,22 @@
     "skipLibCheck": true
   },
   "include": ["src"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"],
+  "references": [
+    {
+      "path": "../components"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../mobile"
+    },
+    {
+      "path": "../react"
+    },
+    {
+      "path": "../types"
+    }
+  ]
 }

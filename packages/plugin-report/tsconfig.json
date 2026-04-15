@@ -5,6 +5,29 @@
     "jsx": "react-jsx",
     "skipLibCheck": true
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "***.test.tsx"
+  ],
+  "references": [
+    {
+      "path": "../components"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../fields"
+    },
+    {
+      "path": "../react"
+    },
+    {
+      "path": "../types"
+    }
+  ]
 }

@@ -5,5 +5,24 @@
     "rootDir": "..",
     "jsx": "react-jsx"
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../components"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../i18n"
+    },
+    {
+      "path": "../react"
+    },
+    {
+      "path": "../types"
+    }
+  ]
 }
