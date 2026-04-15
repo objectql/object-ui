@@ -5,7 +5,9 @@
     "rootDir": "src",
     "noEmit": false,
     "declaration": true,
-    "composite": true
+    "composite": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2020", "DOM"]
   },
   "include": ["src"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
