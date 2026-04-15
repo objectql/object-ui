@@ -9,6 +9,7 @@
     "dev": "objectstack serve --dev",
     "start": "objectstack serve",
     "build": "objectstack compile",
+    "build:vercel": "bash scripts/build-vercel.sh",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist node_modules api/_handler.js public"
   },
