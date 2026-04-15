@@ -4,6 +4,7 @@
     "outDir": "dist",
     "rootDir": "src",
     "jsx": "react-jsx",
+    "lib": ["ES2020", "DOM"],
     "noEmit": false,
     "declaration": true,
     "composite": true
@@ -12,6 +13,7 @@
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"],
   "references": [
     { "path": "../types" },
-    { "path": "../core" }
+    { "path": "../core" },
+    { "path": "../i18n" }
   ]
 }

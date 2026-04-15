@@ -15,6 +15,8 @@
     { "path": "../types" },
     { "path": "../core" },
     { "path": "../react" },
-    { "path": "../components" }
+    { "path": "../components" },
+    { "path": "../fields" },
+    { "path": "../layout" }
   ]
 }
