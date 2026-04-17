@@ -4,10 +4,10 @@
   "type": "module",
   "license": "MIT",
   "description": "ListView plugin for Object UI - unified view component with view type switching",
-  "homepage": "https://www.objectui.org",
+  "homepage": "https://www.objectui.org/docs/packages/plugin-list",
   "repository": {
     "type": "git",
-    "url": "https://github.com/objectstack-ai/objectui.git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
     "directory": "packages/plugin-list"
   },
   "bugs": {
@@ -51,5 +51,27 @@
     "vite": "^8.0.8",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.1.4"
-  }
+  },
+  "keywords": [
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "objectstack",
+    "plugin",
+    "list-view",
+    "view-switcher"
+  ],
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ]
 }

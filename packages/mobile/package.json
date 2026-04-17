@@ -4,10 +4,10 @@
   "type": "module",
   "license": "MIT",
   "description": "Mobile optimization for Object UI with responsive components, PWA support, and touch gesture handling.",
-  "homepage": "https://www.objectui.org",
+  "homepage": "https://www.objectui.org/docs/packages/mobile",
   "repository": {
     "type": "git",
-    "url": "https://github.com/objectstack-ai/objectui.git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
     "directory": "packages/mobile"
   },
   "main": "./dist/index.js",
@@ -21,7 +21,10 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc",
@@ -41,5 +44,26 @@
     "react": "19.2.5",
     "typescript": "^6.0.2",
     "vitest": "^4.1.4"
+  },
+  "keywords": [
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "objectstack",
+    "mobile",
+    "pwa",
+    "responsive",
+    "touch",
+    "offline"
+  ],
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "bugs": {
+    "url": "https://github.com/objectstack-ai/objectui/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -4,10 +4,10 @@
   "type": "module",
   "license": "MIT",
   "description": "Minimal application shell for ObjectUI - framework-agnostic rendering engine",
-  "homepage": "https://www.objectui.org",
+  "homepage": "https://www.objectui.org/docs/packages/app-shell",
   "repository": {
     "type": "git",
-    "url": "https://github.com/objectstack-ai/objectui.git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
     "directory": "packages/app-shell"
   },
   "bugs": {
@@ -45,5 +45,27 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "typescript": "^6.0.2"
-  }
+  },
+  "keywords": [
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "objectstack",
+    "app-shell",
+    "renderer",
+    "application-shell"
+  ],
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ]
 }

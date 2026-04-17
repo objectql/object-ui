@@ -13,7 +13,10 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "vite build",
@@ -42,5 +45,34 @@
     "vite": "^8.0.8",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.1.4"
+  },
+  "description": "AI-driven UI plugin for Object UI \u2014 schema generation, conversational assistants and Vercel AI SDK integration",
+  "keywords": [
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "objectstack",
+    "plugin",
+    "ai",
+    "llm",
+    "copilot",
+    "vercel-ai"
+  ],
+  "license": "MIT",
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
+    "directory": "packages/plugin-ai"
+  },
+  "bugs": {
+    "url": "https://github.com/objectstack-ai/objectui/issues"
+  },
+  "homepage": "https://www.objectui.org/docs/plugins/plugin-ai",
+  "publishConfig": {
+    "access": "public"
   }
 }

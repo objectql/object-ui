@@ -4,10 +4,10 @@
   "type": "module",
   "license": "MIT",
   "description": "Gantt chart plugin for Object UI",
-  "homepage": "https://www.objectui.org",
+  "homepage": "https://www.objectui.org/docs/plugins/plugin-gantt",
   "repository": {
     "type": "git",
-    "url": "https://github.com/objectstack-ai/objectui.git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
     "directory": "packages/plugin-gantt"
   },
   "bugs": {
@@ -50,5 +50,28 @@
     "typescript": "^6.0.2",
     "vite": "^8.0.8",
     "vite-plugin-dts": "^4.5.4"
-  }
+  },
+  "keywords": [
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "objectstack",
+    "plugin",
+    "gantt",
+    "timeline",
+    "project-management"
+  ],
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ]
 }

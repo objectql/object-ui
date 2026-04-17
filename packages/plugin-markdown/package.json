@@ -4,10 +4,10 @@
   "type": "module",
   "license": "MIT",
   "description": "Markdown rendering plugin for Object UI, powered by react-markdown",
-  "homepage": "https://www.objectui.org",
+  "homepage": "https://www.objectui.org/docs/plugins/plugin-markdown",
   "repository": {
     "type": "git",
-    "url": "https://github.com/objectstack-ai/objectui.git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
     "directory": "packages/plugin-markdown"
   },
   "bugs": {
@@ -50,5 +50,28 @@
     "typescript": "^6.0.2",
     "vite": "^8.0.8",
     "vite-plugin-dts": "^4.5.4"
-  }
+  },
+  "keywords": [
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "objectstack",
+    "plugin",
+    "markdown",
+    "react-markdown",
+    "gfm"
+  ],
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ]
 }
