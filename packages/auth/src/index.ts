@@ -29,7 +29,7 @@ export { RegisterForm, type RegisterFormProps, type RegisterFormLabels } from '.
 export { ForgotPasswordForm, type ForgotPasswordFormProps, type ForgotPasswordFormLabels } from './ForgotPasswordForm';
 export { UserMenu, type UserMenuProps } from './UserMenu';
 export { PreviewBanner, type PreviewBannerProps } from './PreviewBanner';
-export { createAuthClient } from './createAuthClient';
+export { createAuthClient, TokenStorage } from './createAuthClient';
 export { createAuthenticatedFetch, type AuthenticatedAdapterOptions } from './createAuthenticatedFetch';
 export { getUserInitials } from './types';
 

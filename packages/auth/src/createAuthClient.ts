@@ -9,6 +9,43 @@
 import { createAuthClient as createBetterAuthClient } from 'better-auth/client';
 import type { AuthClient, AuthClientConfig, AuthUser, AuthSession, SignInCredentials, SignUpData } from './types';
 
+const TOKEN_STORAGE_KEY = 'auth-session-token';
+
+/**
+ * Simple token storage backed by localStorage.
+ * Falls back to in-memory storage when localStorage is unavailable (SSR, tests).
+ */
+export const TokenStorage = {
+  _memoryToken: null as string | null,
+
+  get(): string | null {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        return localStorage.getItem(TOKEN_STORAGE_KEY);
+      }
+    } catch { /* SSR / test */ }
+    return this._memoryToken;
+  },
+
+  set(token: string): void {
+    this._memoryToken = token;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      }
+    } catch { /* SSR / test */ }
+  },
+
+  clear(): void {
+    this._memoryToken = null;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
+      }
+    } catch { /* SSR / test */ }
+  },
+};
+
 /**
  * Resolve a baseURL (which may be relative or absolute) into the
  * `{ origin, basePath }` pair required by the better-auth client.
@@ -41,12 +78,42 @@ function getWindowOrigin(): string | undefined {
 }
 
 /**
+ * Create a fetch wrapper that injects Bearer token from localStorage
+ * and captures updated tokens from the `set-auth-token` response header
+ * (provided by better-auth's server-side bearer plugin).
+ */
+function createBearerFetch(baseFetch?: typeof fetch): typeof fetch {
+  const fetchImpl = baseFetch || globalThis.fetch.bind(globalThis);
+  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const headers = new Headers(init?.headers);
+    const token = TokenStorage.get();
+    // Only inject Bearer token for API paths to avoid triggering CORS preflight
+    // on public endpoints like /.well-known/objectstack
+    if (token) {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (/\/api\//i.test(url)) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+    }
+    const response = await fetchImpl(input, { ...init, headers });
+    // Capture rotated tokens from the bearer plugin's response header
+    const newToken = response.headers.get('set-auth-token');
+    if (newToken) {
+      TokenStorage.set(newToken);
+    }
+    return response;
+  };
+}
+
+/**
  * Create an auth client instance backed by the official better-auth client.
  *
- * Internally delegates to `createAuthClient` from `better-auth/client`,
- * exposing the same {@link AuthClient} interface so that AuthProvider,
- * createAuthenticatedFetch, and all downstream consumers continue to work
- * without changes.
+ * Uses Bearer token authentication: tokens are stored in localStorage and
+ * sent via `Authorization: Bearer <token>` header on every request. This
+ * works across origins (no cookie dependency) and is compatible with mobile
+ * clients.
+ *
+ * Requires the server to have the better-auth `bearer()` plugin enabled.
  *
  * @example
  * ```ts
@@ -58,11 +125,13 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
   const { baseURL, fetchFn } = config;
   const { origin, basePath } = resolveAuthURL(baseURL);
 
+  const bearerFetch = createBearerFetch(fetchFn);
+
   const betterAuth = createBetterAuthClient({
     baseURL: origin,
     basePath,
     disableDefaultFetchPlugins: true,
-    fetchOptions: fetchFn ? { customFetchImpl: fetchFn } : undefined,
+    fetchOptions: { customFetchImpl: bearerFetch },
   });
 
   // The better-auth client exposes methods whose TS return types are narrower
@@ -80,6 +149,10 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         throw new Error(error.message ?? `Auth request failed with status ${error.status}`);
       }
       const payload = data as unknown as { user: AuthUser; session: AuthSession };
+      // Persist token for cross-origin session persistence
+      if (payload.session?.token) {
+        TokenStorage.set(payload.session.token);
+      }
       return { user: payload.user, session: payload.session };
     },
 
@@ -93,11 +166,15 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         throw new Error(error.message ?? `Auth request failed with status ${error.status}`);
       }
       const payload = data as unknown as { user: AuthUser; session: AuthSession };
+      if (payload.session?.token) {
+        TokenStorage.set(payload.session.token);
+      }
       return { user: payload.user, session: payload.session };
     },
 
     async signOut() {
       const { error } = await betterAuth.signOut();
+      TokenStorage.clear();
       if (error) {
         throw new Error(error.message ?? `Auth request failed with status ${error.status}`);
       }
@@ -107,6 +184,10 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       const { data, error } = await betterAuth.getSession();
       if (error || !data) return null;
       const payload = data as unknown as { user: AuthUser; session: AuthSession };
+      // Keep localStorage in sync if the server returns a fresh token
+      if (payload.session?.token) {
+        TokenStorage.set(payload.session.token);
+      }
       return { user: payload.user, session: payload.session };
     },
 

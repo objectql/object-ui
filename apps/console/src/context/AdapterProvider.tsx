@@ -9,6 +9,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { ObjectStackAdapter } from '../dataSource';
+import { createAuthenticatedFetch } from '@object-ui/auth';
 
 const AdapterCtx = createContext<ObjectStackAdapter | null>(null);
 
@@ -44,6 +45,7 @@ export function AdapterProvider({ children, adapter: externalAdapter }: AdapterP
       try {
         const a = new ObjectStackAdapter({
           baseUrl: import.meta.env.VITE_SERVER_URL || '',
+          fetch: createAuthenticatedFetch(),
           autoReconnect: true,
           maxReconnectAttempts: 5,
           reconnectDelay: 1000,
