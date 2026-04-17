@@ -4,10 +4,10 @@
   "type": "module",
   "license": "MIT",
   "description": "Map visualization plugin for Object UI",
-  "homepage": "https://www.objectui.org",
+  "homepage": "https://www.objectui.org/docs/plugins/plugin-map",
   "repository": {
     "type": "git",
-    "url": "https://github.com/objectstack-ai/objectui.git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
     "directory": "packages/plugin-map"
   },
   "bugs": {
@@ -52,5 +52,28 @@
     "typescript": "^6.0.2",
     "vite": "^8.0.8",
     "vite-plugin-dts": "^4.5.4"
-  }
+  },
+  "keywords": [
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "objectstack",
+    "plugin",
+    "map",
+    "geo",
+    "leaflet"
+  ],
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ]
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm msw:init && NODE_OPTIONS=--max-old-space-size=4096 VITE_BASE_PATH=/ vite build",
+  "buildCommand": "pnpm msw:init && NODE_OPTIONS=--max-old-space-size=4096 VITE_USE_MOCK_SERVER=false VITE_BASE_PATH=/ vite build",
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [

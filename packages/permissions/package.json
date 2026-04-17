@@ -4,10 +4,10 @@
   "type": "module",
   "license": "MIT",
   "description": "RBAC permission system for Object UI with object/field/row-level access control, permission guards, and hooks.",
-  "homepage": "https://www.objectui.org",
+  "homepage": "https://www.objectui.org/docs/packages/permissions",
   "repository": {
     "type": "git",
-    "url": "https://github.com/objectstack-ai/objectui.git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
     "directory": "packages/permissions"
   },
   "main": "./dist/index.js",
@@ -21,7 +21,10 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc",
@@ -41,5 +44,25 @@
     "react": "19.2.5",
     "typescript": "^6.0.2",
     "vitest": "^4.1.4"
+  },
+  "keywords": [
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "objectstack",
+    "permissions",
+    "rbac",
+    "access-control",
+    "authorization"
+  ],
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "bugs": {
+    "url": "https://github.com/objectstack-ai/objectui/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

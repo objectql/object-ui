@@ -4,10 +4,10 @@
   "type": "module",
   "license": "MIT",
   "description": "Reusable context providers for ObjectUI applications",
-  "homepage": "https://www.objectui.org",
+  "homepage": "https://www.objectui.org/docs/packages/providers",
   "repository": {
     "type": "git",
-    "url": "https://github.com/objectstack-ai/objectui.git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
     "directory": "packages/providers"
   },
   "bugs": {
@@ -40,5 +40,28 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "typescript": "^6.0.2"
-  }
+  },
+  "keywords": [
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "objectstack",
+    "providers",
+    "context",
+    "data-source",
+    "theme"
+  ],
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ]
 }

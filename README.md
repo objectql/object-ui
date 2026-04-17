@@ -13,19 +13,29 @@
 [![React](https://img.shields.io/badge/React-18+-61dafb.svg)](https://reactjs.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.0+-38bdf8.svg)](https://tailwindcss.com/)
 
-[**Documentation**](https://www.objectui.org) | [**Quick Start**](#quick-start) | [**Migration Guide**](./MIGRATION_GUIDE.md)
+[**Documentation**](https://www.objectui.org) | [**Quick Start**](#quick-start) | [**Changelog**](./CHANGELOG.md) | [**Roadmap**](./ROADMAP.md)
 
 </div>
 
 ---
 
-## 🎉 What's New in v0.4.0
+## 🎉 What's New in v3.3.0
+
+**v3.3.0 is the first official release** — all 39 packages under `packages/*` are published to npm, aligned with `@objectstack/spec` v3.3.0 and `@objectstack/client` v3.3.0.
+
+### Highlights
+
+- 📦 **39 published packages** with complete release metadata, per-package `LICENSE` and `CHANGELOG.md`
+- 📚 **Refreshed documentation** across every package README and the [objectui.org docs site](https://www.objectui.org)
+- 🏗️ **Thin integration packages** — `@object-ui/app-shell` and `@object-ui/providers` enable third-party integration in ~50KB instead of pulling the full console
+- 🔌 **Spec v4 alignment** — plain-string `label` types across Navigation schemas, Protocol bridges updated
+- 🧠 **Unified Copilot Skills** — consolidated skill tree aligned with shadcn/ui best practices
 
 ### Component Namespaces
 Organize components into namespaces to prevent naming conflicts:
 ```typescript
 ComponentRegistry.register('button', ButtonComponent, {
-  namespace: 'ui'  // ✨ New: Prevent conflicts across plugins
+  namespace: 'ui'  // Prevent conflicts across plugins
 });
 ```
 
@@ -37,7 +47,6 @@ import { registerField } from '@object-ui/fields';
 // Only load what you use
 registerField('text');
 registerField('number');
-// 70% smaller bundle size! 🚀
 ```
 
 ### Build Performance
@@ -45,7 +54,7 @@ registerField('number');
 - **Parallel package builds** with intelligent caching
 - **Instant rebuilds** for unchanged packages
 
-👉 **[Read the Migration Guide](./MIGRATION_GUIDE.md)** for details and examples.
+👉 See [CHANGELOG.md](./CHANGELOG.md) for the full 3.3.0 release notes.
 
 ---
 
@@ -512,7 +521,7 @@ Object UI is perfect for:
 - 🔄 AI-powered schema generation
 - 🔄 Advanced workflow automation
 
-See [PHASE3_IMPLEMENTATION.md](./PHASE3_IMPLEMENTATION.md) for detailed Phase 3 documentation.
+See [ROADMAP.md](./ROADMAP.md) for the complete development roadmap.
 
 ## 🤝 Contributing
 
@@ -520,10 +529,10 @@ We welcome contributions! Please read our [Contributing Guide](./CONTRIBUTING.md
 
 ### For Developers
 
-- 📖 [Contributing Guide](./CONTRIBUTING.md) - How to contribute to the project
-- 🏗️ [Architecture Evaluation](./ARCHITECTURE_EVALUATION.md) - Comprehensive architecture analysis and improvement recommendations ([中文版](./ARCHITECTURE_EVALUATION.zh-CN.md))
-- 🔄 [ObjectStack Spec Alignment](./OBJECTSTACK_SPEC_ALIGNMENT.md) - Alignment analysis with ObjectStack Spec v0.7.1 and development roadmap ([中文版](./OBJECTSTACK_SPEC_ALIGNMENT.zh-CN.md))
-- 🔌 [Console Plugin Evaluation](./CONSOLE_PLUGIN_DOCS_INDEX.md) - Transform console into a reusable plugin for HotCRM integration
+- 📖 [Contributing Guide](./CONTRIBUTING.md) — How to contribute to the project
+- 🏗️ [Architecture Overview](https://www.objectui.org/docs/guide/architecture-overview) — Package topology and boundaries
+- 🔄 [ObjectStack Spec](https://github.com/objectstack-ai/spec) — The underlying protocol this project implements
+- 🗺️ [Roadmap](./ROADMAP.md) — Current status and upcoming milestones
 
 ### Development Setup
 

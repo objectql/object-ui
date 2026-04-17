@@ -58,6 +58,22 @@ The console supports two distinct running modes:
 
 Both modes support the same features and use the same codebase. Choose development mode for fast iteration, and plugin mode to verify deployment behavior.
 
+## Vercel Deployment
+
+The console can be deployed as a standalone static SPA (e.g. to Vercel) that connects to a remote ObjectStack backend. The build configured in `vercel.json` disables the MSW mock worker (`VITE_USE_MOCK_SERVER=false`) so that all `/api/v1/*` requests go to the real backend.
+
+**Required environment variable** (set in the Vercel project's *Environment Variables* panel):
+
+| Variable | Example | Description |
+| --- | --- | --- |
+| `VITE_SERVER_URL` | `https://demo.objectstack.ai` | Absolute URL of the ObjectStack backend. When unset, requests default to the same origin — which will 404 on a static SPA host. |
+
+Additional backend requirements for cross-origin deployments:
+
+1. The backend must allow CORS from the SPA origin (`Access-Control-Allow-Origin: <spa-origin>`, `Access-Control-Allow-Credentials: true`).
+2. Auth cookies must use `SameSite=None; Secure` so they are sent on cross-site requests.
+3. The apps and objects referenced in URLs (e.g. `crm_enterprise`, `lead`) must actually exist in the backend metadata — otherwise the console will render its *object not found* empty state.
+
 ## ObjectStack Spec Compliance
 
 ### AppSchema Support

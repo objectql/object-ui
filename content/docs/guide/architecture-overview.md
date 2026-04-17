@@ -13,7 +13,7 @@ ObjectUI enforces a strict separation across three layers. Each layer has clear 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Layer 1: @objectstack/spec v3.0.0 (The Protocol)                  │
+│  Layer 1: @objectstack/spec v3.3.0 (The Protocol)                  │
 │  Pure TypeScript type definitions — 12 export modules               │
 │  ❌ No runtime code. No React. No dependencies.                    │
 └──────────────────────────────┬──────────────────────────────────────┘

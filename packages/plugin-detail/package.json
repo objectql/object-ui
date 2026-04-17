@@ -4,10 +4,10 @@
   "type": "module",
   "license": "MIT",
   "description": "DetailView plugin for Object UI - comprehensive detail page with sections, tabs, and related lists",
-  "homepage": "https://www.objectui.org",
+  "homepage": "https://www.objectui.org/docs/plugins/plugin-detail",
   "repository": {
     "type": "git",
-    "url": "https://github.com/objectstack-ai/objectui.git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
     "directory": "packages/plugin-detail"
   },
   "bugs": {
@@ -50,5 +50,27 @@
     "vite": "^8.0.8",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.1.4"
-  }
+  },
+  "keywords": [
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "objectstack",
+    "plugin",
+    "detail-view",
+    "record-view"
+  ],
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ]
 }
