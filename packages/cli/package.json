@@ -1,12 +1,12 @@
 {
   "name": "@objectstack/plugin-ui",
   "version": "3.3.0",
-  "description": "ObjectStack CLI plugin for Object UI — oclif-based UI toolchain commands (os ui dev, os ui build, etc.)",
+  "description": "ObjectStack CLI plugin for Object UI \u2014 oclif-based UI toolchain commands (os ui dev, os ui build, etc.)",
   "type": "module",
-  "homepage": "https://www.objectui.org",
+  "homepage": "https://www.objectui.org/docs/utilities/cli",
   "repository": {
     "type": "git",
-    "url": "https://github.com/objectstack-ai/objectui.git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
     "directory": "packages/cli"
   },
   "bugs": {
@@ -24,7 +24,10 @@
   },
   "files": [
     "dist",
-    "templates"
+    "templates",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup",
@@ -39,7 +42,14 @@
     "cli",
     "schema-driven",
     "ui-builder",
-    "json"
+    "json",
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "devtools"
   ],
   "author": "ObjectStack Team",
   "license": "MIT",
@@ -69,5 +79,8 @@
     "tsup": "^8.5.1",
     "typescript": "^6.0.2",
     "vitest": "^4.1.4"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

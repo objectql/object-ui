@@ -79,6 +79,25 @@ This allows the core types and logic to be used in:
 
 See [full documentation](https://objectui.org/api/core) for detailed API reference.
 
+<!-- release-metadata:v3.3.0 -->
+
+## Compatibility
+
+- **Node.js:** ≥ 18
+- **TypeScript:** ≥ 5.0 (strict mode)
+- **`@objectstack/spec`:** ^3.3.0
+- **`@objectstack/client`:** ^3.3.0
+- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
+
+## Links
+
+- 📚 [Documentation](https://www.objectui.org/docs/core)
+- 📦 [npm package](https://www.npmjs.com/package/@object-ui/core)
+- 📝 [Changelog](./CHANGELOG.md)
+- 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)
+- 🤝 [Contributing Guide](https://github.com/objectstack-ai/objectui/blob/main/CONTRIBUTING.md)
+- 🗺️ [Roadmap](https://github.com/objectstack-ai/objectui/blob/main/ROADMAP.md)
+
 ## License
 
-MIT
+MIT — see [LICENSE](./LICENSE).

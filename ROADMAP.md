@@ -1,7 +1,7 @@
 # ObjectUI Development Roadmap
 
-> **Last Updated:** April 14, 2026
-> **Current Version:** v0.5.x
+> **Last Updated:** April 17, 2026
+> **Current Version:** v3.3.0 (first official release — all 39 packages published on npm)
 > **Spec Version:** @objectstack/spec v3.3.0
 > **Client Version:** @objectstack/client v3.3.0
 > **Target UX Benchmark:** 🎯 Airtable parity
@@ -13,7 +13,7 @@
 
 ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind + Shadcn. It renders JSON metadata from the @objectstack/spec protocol into pixel-perfect, accessible, and interactive enterprise interfaces.
 
-**Where We Are:** Foundation is **solid and shipping** — 35 packages, 99+ components, 6,700+ tests, 80 Storybook stories, 43/43 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), **Feed/Chatter UI** (P1.5), **App Creation & Editing Flow** (P1.11), **System Settings & App Management** (P1.12), **Page/Dashboard Editor Console Integration** (P1.11), **Right-Side Visual Editor Drawer** (P1.11), **Console Engine Schema Integration** (P1.14), and **Unified Home Dashboard** (P1.7.1) — all ✅ complete. **ViewDesigner** has been removed — its capabilities (drag-to-reorder, undo/redo) are now provided by the ViewConfigPanel (right-side config panel).
+**Where We Are:** Foundation is **solid and shipping** — 39 packages published on npm, 99+ components, 6,700+ tests, 80 Storybook stories, 43/43 builds passing, ~85% protocol alignment. SpecBridge, Expression Engine, Action Engine, data binding, all view plugins (Grid/Kanban/Calendar/Gantt/Timeline/Map/Gallery), Record components, Report engine, Dashboard BI features, mobile UX, i18n (11 locales), WCAG AA accessibility, Console through Phase 20 (L3), **AppShell Navigation Renderer** (P0.1), **Flow Designer** (P2.4), **Feed/Chatter UI** (P1.5), **App Creation & Editing Flow** (P1.11), **System Settings & App Management** (P1.12), **Page/Dashboard Editor Console Integration** (P1.11), **Right-Side Visual Editor Drawer** (P1.11), **Console Engine Schema Integration** (P1.14), and **Unified Home Dashboard** (P1.7.1) — all ✅ complete. **ViewDesigner** has been removed — its capabilities (drag-to-reorder, undo/redo) are now provided by the ViewConfigPanel (right-side config panel).
 
 **What Remains:** The gap to **Airtable-level UX** is primarily in:
 1. ~~**AppShell** — No dynamic navigation renderer from spec JSON (last P0 blocker)~~ ✅ Complete

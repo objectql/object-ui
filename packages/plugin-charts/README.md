@@ -119,3 +119,27 @@ By using lazy loading, the main application bundle stays lean:
 - With lazy loading: +0.19 KB on initial load, +541 KB only when chart is rendered
 
 This results in significantly faster initial page loads for applications that don't use charts on every page.
+
+<!-- release-metadata:v3.3.0 -->
+
+## Compatibility
+
+- **React:** 18.x or 19.x
+- **Node.js:** ≥ 18
+- **TypeScript:** ≥ 5.0 (strict mode)
+- **`@objectstack/spec`:** ^3.3.0
+- **`@objectstack/client`:** ^3.3.0
+- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
+
+## Links
+
+- 📚 [Documentation](https://www.objectui.org/docs/plugins/plugin-charts)
+- 📦 [npm package](https://www.npmjs.com/package/@object-ui/plugin-charts)
+- 📝 [Changelog](./CHANGELOG.md)
+- 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)
+- 🤝 [Contributing Guide](https://github.com/objectstack-ai/objectui/blob/main/CONTRIBUTING.md)
+- 🗺️ [Roadmap](https://github.com/objectstack-ai/objectui/blob/main/ROADMAP.md)
+
+## License
+
+MIT — see [LICENSE](./LICENSE).

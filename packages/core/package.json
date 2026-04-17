@@ -5,10 +5,10 @@
   "sideEffects": false,
   "license": "MIT",
   "description": "Core logic, types, and validation for Object UI. Zero React dependencies.",
-  "homepage": "https://www.objectui.org",
+  "homepage": "https://www.objectui.org/docs/core",
   "repository": {
     "type": "git",
-    "url": "https://github.com/objectstack-ai/objectui.git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
     "directory": "packages/core"
   },
   "bugs": {
@@ -39,5 +39,29 @@
   "devDependencies": {
     "typescript": "^6.0.2",
     "vitest": "^4.1.4"
-  }
+  },
+  "keywords": [
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "objectstack",
+    "core",
+    "engine",
+    "expression-engine",
+    "action-engine",
+    "registry"
+  ],
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ]
 }

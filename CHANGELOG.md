@@ -2,7 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
 ## [Unreleased]
+
+_No unreleased changes yet. Add new entries here._
+
+## [3.3.0] - 2026-04-17
+
+> First official release of Object UI published for third-party consumption.
+> All 39 packages under `packages/*` are now published to npm at version `3.3.0`
+> and aligned with `@objectstack/spec` v3.3.0 / `@objectstack/client` v3.3.0.
+
+### Release Highlights
+
+- **Package publishing:** All 39 packages now ship with complete `package.json`
+  release metadata (`description`, `keywords`, `repository`, `homepage`, `bugs`,
+  `license`, `author`, `publishConfig`, `files`) and a per-package `LICENSE` +
+  `CHANGELOG.md`.
+- **Documentation:** Every package README follows a standard template with
+  Installation, Quick Start, API, **Compatibility**, **Links**, and **License**
+  sections. The docs site (`content/docs/`) is refreshed for v3.3.0.
+- **Architecture:** Spec v4 alignment (plain-string `label` types across
+  Navigation schemas), unified Copilot Skills architecture, new thin packages
+  (`@object-ui/app-shell`, `@object-ui/providers`) for third-party integration,
+  and a streamlined console rendering pipeline (~50KB core vs. 500KB+ before).
 
 ### Fixed
 
@@ -42,12 +67,7 @@ All notable changes to this project will be documented in this file.
 - Console can now be streamlined for third-party use without inheriting full infrastructure
 - Bundle size for core rendering reduced from 500KB+ to ~50KB using new packages
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
-
-### Changed
+### Changed (additional)
 
 - **Copilot Skills Architecture Unified** (`skills`): Consolidated 10 parallel ObjectUI Copilot skills (`objectui-auth-permissions`, `objectui-console-development`, `objectui-data-integration`, `objectui-i18n`, `objectui-mobile`, `objectui-plugin-development`, `objectui-project-setup`, `objectui-schema-expressions`, `objectui-sdui-page-builder`, `objectui-testing`) into a single tree-based `skills/objectui/` structure aligned with shadcn/ui best practices. The new architecture features:
   - **Single entry point** (`skills/objectui/SKILL.md`): Unified skill manifest with core principles, architecture overview, and indexed references to guides and rules.

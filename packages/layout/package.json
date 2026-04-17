@@ -41,5 +41,40 @@
     "react-router-dom": "^7.14.1",
     "vite": "^8.0.8",
     "vite-plugin-dts": "^4.5.4"
-  }
+  },
+  "description": "Layout components for Object UI \u2014 AppShell, Page, SidebarNav and responsive containers with React Router integration",
+  "keywords": [
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "objectstack",
+    "layout",
+    "app-shell",
+    "sidebar",
+    "page",
+    "navigation"
+  ],
+  "license": "MIT",
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
+    "directory": "packages/layout"
+  },
+  "bugs": {
+    "url": "https://github.com/objectstack-ai/objectui/issues"
+  },
+  "homepage": "https://www.objectui.org/docs/layout",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ]
 }

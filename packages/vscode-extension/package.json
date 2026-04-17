@@ -21,11 +21,20 @@
     "json",
     "ui",
     "react",
-    "tailwind"
+    "tailwind",
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "shadcn",
+    "objectstack",
+    "vscode-extension",
+    "editor",
+    "devtools",
+    "intellisense"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/objectstack-ai/objectui.git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
     "directory": "packages/vscode-extension"
   },
   "license": "MIT",
@@ -199,5 +208,10 @@
   "dependencies": {
     "@object-ui/core": "workspace:*",
     "@object-ui/types": "workspace:*"
-  }
+  },
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "bugs": {
+    "url": "https://github.com/objectstack-ai/objectui/issues"
+  },
+  "homepage": "https://www.objectui.org/docs/utilities/vscode-extension"
 }

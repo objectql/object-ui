@@ -1,203 +1,91 @@
-# Quick Reference Guide | 快速参考指南
+# Quick Reference
 
-## 📍 Where to Find Everything
+A one-page cheat-sheet for working in the `objectui` monorepo.
 
-### Documentation | 文档
+## Common Commands
 
-#### ObjectOS Integration
-**File:** `content/docs/guide/objectos-integration.mdx`  
-**URL:** https://www.objectui.org/docs/guide/objectos-integration  
-**Topics:**
-- Integration architecture
-- Quick start guide
-- Multi-tenancy support
-- RBAC integration
-- 3 deployment strategies
-- Migration from competitors
+### Install & Build
 
-#### Console Rendering
-**File:** `content/docs/guide/console-rendering.mdx`  
-**URL:** https://www.objectui.org/docs/guide/console-rendering  
-**Topics:**
-- Terminal/CLI rendering
-- Ink integration
-- CLI tool examples
-- Server console setup
-- Best practices
-
-#### AG Grid (Chinese)
-**File:** `content/docs/plugins/plugin-aggrid.zh-CN.mdx`  
-**URL:** https://www.objectui.org/docs/plugins/plugin-aggrid.zh-CN  
-**Topics:**
-- 完整的中文文档
-- 交互式示例
-- API 参考
-
----
-
-### Storybook Stories | 故事示例
-
-**File:** `packages/components/src/stories-json/object-aggrid-advanced.stories.tsx`  
-**Run:** `pnpm storybook`  
-**Navigate to:** Plugins > Data Views > Object AgGrid Advanced
-
-**Stories:**
-1. Status Bar & Aggregations - 状态栏和聚合
-2. Context Menu - 右键菜单
-3. Inline Editing + Row Selection - 行内编辑
-4. Full Featured - 完整功能
-5. Alpine Theme (Full Featured)
-6. Balham Theme + Export
-7. Material Theme + Status Bar
-
----
-
-### Development Plans | 开发计划
-
-#### Integration Roadmap
-**File:** `OBJECTOS_INTEGRATION_ROADMAP.md`  
-**Scope:** 12 months (Q1-Q4 2026)  
-**Phases:**
-- Q1: Foundation (Multi-tenant, RBAC, System Objects)
-- Q2: Enterprise Features (Workflows, Collaboration)
-- Q3: Production Readiness (Performance, i18n, Security)
-- Q4: Ecosystem Expansion (Marketplace, Cloud Platform)
-
-#### Complete Summary
-**File:** `UPDATE_SUMMARY.md`  
-**Contents:**
-- Package scan results
-- All documentation updates
-- Storybook enhancements
-- Impact assessment
-- Next steps
-
----
-
-## 🎯 Quick Commands
-
-### View Documentation Locally
 ```bash
-cd /home/runner/work/objectui/objectui
-pnpm site:dev
-# Visit http://localhost:3000
+pnpm install              # Install all workspace dependencies
+pnpm build                # Build every package (turbo, parallel & cached)
+pnpm typecheck            # Run tsc --noEmit across the workspace
+pnpm lint                 # Run eslint across the workspace
 ```
 
-### Run Storybook
+### Run Docs & Storybook
+
 ```bash
-pnpm storybook
-# Visit http://localhost:6006
+pnpm --filter @object-ui/site dev        # Docs site at http://localhost:3000
+pnpm storybook                           # Component playground at http://localhost:6006
 ```
 
-### Build Project
+### Test
+
 ```bash
-pnpm build
+pnpm test                                 # Run every vitest project
+pnpm --filter @object-ui/console test     # Run just the console tests
+pnpm --filter @object-ui/core test        # Run a single package's tests
+pnpm playwright test                      # End-to-end tests
 ```
 
 ### Run Examples
+
 ```bash
-# CRM with console
-pnpm serve:crm
-# Visit http://localhost:3000/console
-
-# Todo example
-pnpm serve:todo
-
-# Kitchen Sink
-pnpm serve:kitchen-sink
+pnpm --filter @object-ui/example-crm dev          # CRM demo
+pnpm --filter @object-ui/example-todo dev         # Todo demo
+pnpm --filter @object-ui/example-kitchen-sink dev # Kitchen-sink showcase
 ```
 
----
+### Release (via changesets)
 
-## 📋 Checklist for Next Developer
+```bash
+pnpm changeset                 # Author a changeset for your PR
+pnpm changeset version         # Apply changesets & bump versions
+pnpm changeset publish         # Publish to npm (CI only)
+```
 
-### Immediate Tasks
-- [ ] Review `UPDATE_SUMMARY.md`
-- [ ] Review `OBJECTOS_INTEGRATION_ROADMAP.md`
-- [ ] Test Storybook stories locally
-- [ ] Verify documentation renders correctly
+## Repository Layout
 
-### Short-term (Next Sprint)
-- [ ] Create console-showcase example
-- [ ] Enhance kitchen-sink with AG Grid features
-- [ ] Add more Chinese translations
-- [ ] Create ObjectOS integration example
+| Path | Purpose |
+| --- | --- |
+| `packages/*` | 39 published packages (`@object-ui/*`, `@objectstack/plugin-ui`) |
+| `apps/console` | Full ObjectUI console app (Vite + React) |
+| `apps/site` | Public docs site at <https://www.objectui.org> (fumadocs) |
+| `apps/server` | Vercel backend for `demo.objectstack.ai` |
+| `examples/*` | Runnable integration examples (CRM, todo, minimal-console, …) |
+| `content/docs/` | MDX source for the docs site |
+| `e2e/` | Playwright end-to-end tests |
+| `.changeset/` | Pending release notes |
 
-### Medium-term (Next Quarter)
-- [ ] Implement Phase 1 of roadmap (Foundation)
-- [ ] Build multi-tenancy support
-- [ ] Implement RBAC system
-- [ ] Integrate system objects
+## Package Tiers
 
----
+| Tier | Location | Role |
+| --- | --- | --- |
+| Protocol | `packages/types` | Pure TypeScript types (no runtime deps) |
+| Engine | `packages/core` | Registry, expression engine, action runner |
+| Atoms | `packages/components` | Shadcn primitives |
+| Fields | `packages/fields` | Form field widgets |
+| Layout | `packages/layout`, `packages/app-shell` | Page skeletons |
+| Plugins | `packages/plugin-*` | Heavy view widgets (grid, kanban, charts, …) |
+| Runtime | `packages/react`, `packages/runner` | React bindings & bootstrap |
+| Adapters | `packages/data-objectstack`, `packages/providers` | Data source integration |
+| Platform | `packages/auth`, `packages/permissions`, `packages/tenant`, `packages/i18n`, `packages/mobile`, `packages/collaboration` | Cross-cutting concerns |
+| Tooling | `packages/cli`, `packages/create-plugin`, `packages/vscode-extension` | Developer experience |
 
-## 🔗 Important Links
+## Key Documents
 
-### Documentation
-- ObjectOS Integration: `/content/docs/guide/objectos-integration.mdx`
-- Console Rendering: `/content/docs/guide/console-rendering.mdx`
-- AG Grid Chinese: `/content/docs/plugins/plugin-aggrid.zh-CN.mdx`
+- [README.md](./README.md) — project overview & quick start
+- [CHANGELOG.md](./CHANGELOG.md) — release notes
+- [ROADMAP.md](./ROADMAP.md) — development plan
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — contribution workflow
+- [`content/docs/`](./content/docs/) — full documentation source
 
-### Storybook
-- Advanced Stories: `/packages/components/src/stories-json/object-aggrid-advanced.stories.tsx`
+## Current Release
 
-### Planning
-- Roadmap: `/OBJECTOS_INTEGRATION_ROADMAP.md`
-- Summary: `/UPDATE_SUMMARY.md`
-
-### Examples
-- CRM: `/examples/crm/`
-- Todo: `/examples/todo/`
-- Kitchen Sink: `/examples/kitchen-sink/`
-
----
-
-## 💡 Key Concepts
-
-### ObjectOS Integration
-1. **Adapter Pattern**: Use `ObjectStackAdapter` for data layer
-2. **Multi-tenancy**: Implement via `TenantProvider`
-3. **RBAC**: Use `PermissionGuard` components
-4. **Workflows**: Define state machines in schemas
-
-### Console Rendering
-1. **Ink Framework**: React for CLI applications
-2. **CLI-Table3**: Terminal table rendering
-3. **Inquirer**: Interactive prompts
-4. **Chalk**: Colored terminal output
-
-### Internationalization
-1. **Pattern**: Create `.zh-CN.mdx` files alongside `.mdx`
-2. **Translation**: Keep schema structure, translate content
-3. **Navigation**: Update `meta.json` for language-specific pages
-
----
-
-## 🎓 Learning Resources
-
-### Created in This PR
-- **ObjectOS Integration Guide** - Learn how to integrate with ObjectOS
-- **Console Rendering Patterns** - Build CLI tools with ObjectUI
-- **Chinese Documentation Example** - See i18n implementation
-- **Development Roadmap** - Understand the 12-month plan
-
-### Existing Resources
-- Main README: `/README.md`
-- Improvement Plan: `/IMPROVEMENT_PLAN.md`
-- Contributing Guide: `/CONTRIBUTING.md`
-- Examples: `/examples/`
-
----
-
-## 📞 Support
-
-For questions about:
-- **Documentation**: Check `UPDATE_SUMMARY.md`
-- **Integration**: See `OBJECTOS_INTEGRATION_ROADMAP.md`
-- **Implementation**: Review examples in `/examples/`
-- **Issues**: GitHub Issues
-
----
-
-**Last Updated:** 2026-02-07  
-**Status:** ✅ Complete and Ready for Review
+- **Version:** v3.3.0 (first official release)
+- **Spec:** `@objectstack/spec` v3.3.0
+- **Client:** `@objectstack/client` v3.3.0
+- **Node.js:** ≥ 18
+- **React:** 18.x or 19.x
+- **TypeScript:** ≥ 5.0 (strict mode)

@@ -109,3 +109,27 @@ pnpm build
 
 # The package will generate proper ESM and UMD builds with lazy loading preserved
 ```
+
+<!-- release-metadata:v3.3.0 -->
+
+## Compatibility
+
+- **React:** 18.x or 19.x
+- **Node.js:** ≥ 18
+- **TypeScript:** ≥ 5.0 (strict mode)
+- **`@objectstack/spec`:** ^3.3.0
+- **`@objectstack/client`:** ^3.3.0
+- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
+
+## Links
+
+- 📚 [Documentation](https://www.objectui.org/docs/plugins/plugin-markdown)
+- 📦 [npm package](https://www.npmjs.com/package/@object-ui/plugin-markdown)
+- 📝 [Changelog](./CHANGELOG.md)
+- 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)
+- 🤝 [Contributing Guide](https://github.com/objectstack-ai/objectui/blob/main/CONTRIBUTING.md)
+- 🗺️ [Roadmap](https://github.com/objectstack-ai/objectui/blob/main/ROADMAP.md)
+
+## License
+
+MIT — see [LICENSE](./LICENSE).

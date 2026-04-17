@@ -29,7 +29,7 @@ pnpm add @object-ui/types
 Object UI follows a strict **"Protocol First"** approach with a clear inheritance hierarchy:
 
 ```
-@objectstack/spec (v2.0.1)          ← The "Highest Law" - Universal protocol
+@objectstack/spec (v3.3.0)          ← The "Highest Law" - Universal protocol
     ↓
 UIComponent                         ← Base interface for all UI components
     ↓
@@ -300,6 +300,25 @@ We follow these constraints for this package:
 2. **No React imports** - Framework agnostic
 3. **Comprehensive JSDoc** - Every property documented
 4. **Protocol first** - Types define the contract
+
+<!-- release-metadata:v3.3.0 -->
+
+## Compatibility
+
+- **Node.js:** ≥ 18
+- **TypeScript:** ≥ 5.0 (strict mode)
+- **`@objectstack/spec`:** ^3.3.0
+- **`@objectstack/client`:** ^3.3.0
+- **Tailwind CSS:** ≥ 3.4 (for packages with UI)
+
+## Links
+
+- 📚 [Documentation](https://www.objectui.org/docs/api/schema-reference)
+- 📦 [npm package](https://www.npmjs.com/package/@object-ui/types)
+- 📝 [Changelog](./CHANGELOG.md)
+- 🐛 [Report an issue](https://github.com/objectstack-ai/objectui/issues)
+- 🤝 [Contributing Guide](https://github.com/objectstack-ai/objectui/blob/main/CONTRIBUTING.md)
+- 🗺️ [Roadmap](https://github.com/objectstack-ai/objectui/blob/main/ROADMAP.md)
 
 ## License
 

@@ -13,7 +13,10 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "vite build",
@@ -43,5 +46,33 @@
     "vite": "^8.0.8",
     "vite-plugin-dts": "^3.9.1",
     "vitest": "^4.1.4"
+  },
+  "description": "Report plugin for Object UI \u2014 schema-driven pivot tables, grouped aggregations and printable report layouts",
+  "keywords": [
+    "objectui",
+    "sdui",
+    "schema-driven-ui",
+    "react",
+    "tailwind",
+    "shadcn",
+    "objectstack",
+    "plugin",
+    "report",
+    "pivot-table",
+    "analytics"
+  ],
+  "license": "MIT",
+  "author": "ObjectStack Team <team@objectstack.ai>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/objectstack-ai/objectui.git",
+    "directory": "packages/plugin-report"
+  },
+  "bugs": {
+    "url": "https://github.com/objectstack-ai/objectui/issues"
+  },
+  "homepage": "https://www.objectui.org/docs/plugins/plugin-report",
+  "publishConfig": {
+    "access": "public"
   }
 }
