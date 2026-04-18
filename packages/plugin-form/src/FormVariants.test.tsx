@@ -180,6 +180,42 @@ describe('ObjectForm with formType', () => {
     expect(screen.getByRole('tab', { name: 'Contact' })).toBeInTheDocument();
   });
 
+  it('renders drawer form with collapsible section collapsed by default', async () => {
+    render(
+      <ObjectForm
+        schema={{
+          type: 'object-form',
+          objectName: 'contacts',
+          mode: 'create',
+          formType: 'drawer',
+          open: true,
+          sections: [
+            {
+              name: 'basic',
+              label: 'Basic',
+              fields: ['firstName', 'lastName'],
+            },
+            {
+              name: 'advanced',
+              label: 'Advanced',
+              fields: ['email', 'phone'],
+              collapsible: true,
+              collapsed: true,
+            } as any,
+          ],
+        }}
+        dataSource={mockDataSource as any}
+      />
+    );
+
+    await screen.findByText('Basic', {}, { timeout: 5000 });
+    expect(screen.getByText('Advanced')).toBeInTheDocument();
+    // Basic section fields are visible
+    expect(screen.getByText(/first name/i)).toBeInTheDocument();
+    // Advanced section fields are hidden (section starts collapsed)
+    expect(screen.queryByText(/email/i)).not.toBeInTheDocument();
+  });
+
   it('renders wizard form with step indicator', async () => {
     render(
       <ObjectForm

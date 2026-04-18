@@ -152,6 +152,8 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
             description: s.description,
             columns: s.columns,
             fields: s.fields,
+            collapsible: (s as any).collapsible,
+            collapsed: (s as any).collapsed,
           })),
           open: schema.open,
           onOpenChange: schema.onOpenChange,

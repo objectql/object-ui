@@ -179,6 +179,19 @@ const DESIGNER_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'appDesigner.fieldDesigner.ungrouped': 'General',
   'appDesigner.fieldDesigner.deleteConfirmTitle': 'Delete Field?',
   'appDesigner.fieldDesigner.deleteConfirmMessage': 'This will permanently delete the field. Existing data in this field will be lost.',
+  // Field Designer — sections (Drawer)
+  'appDesigner.fieldDesigner.basicSection': 'Basic',
+  'appDesigner.fieldDesigner.typeSpecificSection': 'Type Settings',
+  'appDesigner.fieldDesigner.advancedSection': 'Advanced',
+  // Field Designer — type categories (Airtable-style grouping)
+  'appDesigner.fieldDesigner.typeCategory.text': 'Text',
+  'appDesigner.fieldDesigner.typeCategory.number': 'Number',
+  'appDesigner.fieldDesigner.typeCategory.date': 'Date & Time',
+  'appDesigner.fieldDesigner.typeCategory.choice': 'Choice',
+  'appDesigner.fieldDesigner.typeCategory.relation': 'Relation',
+  'appDesigner.fieldDesigner.typeCategory.advanced': 'Advanced',
+  // Common
+  'common.edit': 'Edit',
 };
 
 function createFallbackTranslator(defaults: Record<string, string>) {

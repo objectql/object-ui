@@ -559,6 +559,17 @@ const zh = {
       ungrouped: '通用',
       deleteConfirmTitle: '删除字段？',
       deleteConfirmMessage: '这将永久删除该字段。此字段中的现有数据将丢失。',
+      basicSection: '基础',
+      typeSpecificSection: '类型设置',
+      advancedSection: '高级',
+      typeCategory: {
+        text: '文本',
+        number: '数字',
+        date: '日期时间',
+        choice: '选择',
+        relation: '关联',
+        advanced: '高级',
+      },
     },
   },
   console: {

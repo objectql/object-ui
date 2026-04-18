@@ -559,6 +559,17 @@ const en = {
       ungrouped: 'General',
       deleteConfirmTitle: 'Delete Field?',
       deleteConfirmMessage: 'This will permanently delete the field. Existing data in this field will be lost.',
+      basicSection: 'Basic',
+      typeSpecificSection: 'Type Settings',
+      advancedSection: 'Advanced',
+      typeCategory: {
+        text: 'Text',
+        number: 'Number',
+        date: 'Date & Time',
+        choice: 'Choice',
+        relation: 'Relation',
+        advanced: 'Advanced',
+      },
     },
   },
   console: {

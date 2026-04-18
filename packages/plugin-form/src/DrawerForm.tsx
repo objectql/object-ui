@@ -23,7 +23,7 @@ import {
   SheetDescription,
   cn,
 } from '@object-ui/components';
-import { FormSection } from './FormSection';
+
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 import { applyAutoLayout } from './autoLayout';
@@ -46,6 +46,8 @@ export interface DrawerFormSectionConfig {
   description?: string;
   columns?: 1 | 2 | 3 | 4;
   fields: (string | FormField)[];
+  collapsible?: boolean;
+  collapsed?: boolean;
 }
 
 export interface DrawerFormSchema {
@@ -120,6 +122,15 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
 
   const isOpen = schema.open !== false;
   const side = schema.drawerSide || 'right';
+
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    schema.sections?.forEach((s, i) => {
+      const key = s.name || String(i);
+      if (s.collapsed) init[key] = true;
+    });
+    return init;
+  });
 
   // Fetch object schema
   useEffect(() => {
@@ -337,32 +348,44 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
       );
     }
 
-    // Sections layout
+    // Sections layout — all sections share ONE SchemaRenderer / form instance so
+    // cross-section field conditions (e.g. condition: { field: 'type', equals: 'lookup' })
+    // work via react-hook-form's watch(). A virtual 'section-divider' field is inserted
+    // before each group to render the collapsible section header.
+    // Fields in a collapsed section get hidden: true so they're excluded from the DOM.
     if (schema.sections?.length) {
+      const allFields: FormField[] = [];
+      schema.sections.forEach((section, index) => {
+        const sectionKey = section.name || String(index);
+        const isCollapsed = collapsedSections[sectionKey] ?? (section.collapsed ?? false);
+
+        allFields.push({
+          name: `__section_${sectionKey}`,
+          label: section.label || '',
+          type: 'section-divider',
+          colSpan: 4,
+          collapsible: section.collapsible,
+          collapsed: isCollapsed,
+          onToggle: section.collapsible
+            ? () => setCollapsedSections(prev => ({ ...prev, [sectionKey]: !isCollapsed }))
+            : undefined,
+        } as any);
+
+        const sectionFields = buildSectionFields(section);
+        if (isCollapsed) {
+          allFields.push(...sectionFields.map(f => ({ ...f, hidden: true })));
+        } else {
+          allFields.push(...sectionFields);
+        }
+      });
+
       return (
-        <div className="space-y-6">
-          {schema.sections.map((section, index) => {
-            const sectionCols = section.columns || 1;
-            return (
-              <FormSection
-                key={section.name || section.label || index}
-                label={section.label}
-                description={section.description}
-                columns={sectionCols}
-                gridClassName={CONTAINER_GRID_COLS[sectionCols]}
-              >
-                <SchemaRenderer
-                  schema={{
-                    ...baseFormSchema,
-                    fields: buildSectionFields(section),
-                    showSubmit: index === schema.sections!.length - 1 && baseFormSchema.showSubmit,
-                    showCancel: index === schema.sections!.length - 1 && baseFormSchema.showCancel,
-                  }}
-                />
-              </FormSection>
-            );
-          })}
-        </div>
+        <SchemaRenderer
+          schema={{
+            ...baseFormSchema,
+            fields: allFields,
+          }}
+        />
       );
     }
 

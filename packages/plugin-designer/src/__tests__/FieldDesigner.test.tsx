@@ -127,7 +127,7 @@ describe('FieldDesigner', () => {
       });
     });
 
-    it('should open modal form when add is clicked', async () => {
+    it('should open drawer form when add is clicked', async () => {
       render(
         <FieldDesigner objectName="accounts" fields={MOCK_FIELDS} onFieldsChange={vi.fn()} />
       );
@@ -135,11 +135,11 @@ describe('FieldDesigner', () => {
         fireEvent.click(screen.getByTestId('grid-add-btn'));
       });
       // ModalForm should be shown in create mode
-      expect(screen.getByTestId('mock-modal-form')).toBeDefined();
-      expect(screen.getByTestId('modal-mode').textContent).toBe('create');
+      expect(screen.getByTestId('mock-drawer-form')).toBeDefined();
+      expect(screen.getByTestId('drawer-mode').textContent).toBe('create');
     });
 
-    it('should add a new field when modal form is submitted', async () => {
+    it('should add a new field when drawer form is submitted', async () => {
       const onFieldsChange = vi.fn();
       render(
         <FieldDesigner objectName="accounts" fields={MOCK_FIELDS} onFieldsChange={onFieldsChange} />
@@ -147,8 +147,8 @@ describe('FieldDesigner', () => {
       await waitFor(() => {
         fireEvent.click(screen.getByTestId('grid-add-btn'));
       });
-      // Submit the modal form
-      fireEvent.click(screen.getByTestId('modal-submit'));
+      // Submit the drawer form
+      fireEvent.click(screen.getByTestId('drawer-submit'));
       expect(onFieldsChange).toHaveBeenCalledWith(
         expect.arrayContaining([
           ...MOCK_FIELDS,
@@ -194,21 +194,21 @@ describe('FieldDesigner', () => {
   // Editing Fields
   // ============================
   describe('Editing Fields', () => {
-    it('should open modal form when edit button is clicked', async () => {
+    it('should open drawer form when edit button is clicked', async () => {
       render(<FieldDesigner objectName="accounts" fields={MOCK_FIELDS} />);
       await waitFor(() => {
         fireEvent.click(screen.getByTestId('grid-edit-fld-1'));
       });
-      expect(screen.getByTestId('mock-modal-form')).toBeDefined();
-      expect(screen.getByTestId('modal-mode').textContent).toBe('edit');
+      expect(screen.getByTestId('mock-drawer-form')).toBeDefined();
+      expect(screen.getByTestId('drawer-mode').textContent).toBe('edit');
     });
 
-    it('should show field name in modal title when editing', async () => {
+    it('should show field name in drawer title when editing', async () => {
       render(<FieldDesigner objectName="accounts" fields={MOCK_FIELDS} />);
       await waitFor(() => {
         fireEvent.click(screen.getByTestId('grid-edit-fld-1'));
       });
-      expect(screen.getByTestId('modal-title').textContent).toContain('Name');
+      expect(screen.getByTestId('drawer-title').textContent).toContain('Name');
     });
 
     it('should call onFieldsChange when field edit is submitted', async () => {
@@ -219,8 +219,8 @@ describe('FieldDesigner', () => {
       await waitFor(() => {
         fireEvent.click(screen.getByTestId('grid-edit-fld-1'));
       });
-      // Submit the modal form (mock returns initialValues)
-      fireEvent.click(screen.getByTestId('modal-submit'));
+      // Submit the drawer form (mock returns initialValues)
+      fireEvent.click(screen.getByTestId('drawer-submit'));
       expect(onFieldsChange).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({ id: 'fld-1', name: 'name' }),
@@ -228,14 +228,14 @@ describe('FieldDesigner', () => {
       );
     });
 
-    it('should close modal when cancel is clicked', async () => {
+    it('should close drawer when cancel is clicked', async () => {
       render(<FieldDesigner objectName="accounts" fields={MOCK_FIELDS} />);
       await waitFor(() => {
         fireEvent.click(screen.getByTestId('grid-edit-fld-1'));
       });
-      expect(screen.getByTestId('mock-modal-form')).toBeDefined();
-      fireEvent.click(screen.getByTestId('modal-cancel'));
-      expect(screen.queryByTestId('mock-modal-form')).toBeNull();
+      expect(screen.getByTestId('mock-drawer-form')).toBeDefined();
+      fireEvent.click(screen.getByTestId('drawer-cancel'));
+      expect(screen.queryByTestId('mock-drawer-form')).toBeNull();
     });
   });
 
@@ -281,6 +281,51 @@ describe('FieldDesigner', () => {
         fireEvent.click(screen.getByTestId('grid-delete-fld-1'));
       });
       // Confirm dialog is triggered via useConfirmDialog hook
+    });
+  });
+
+  // ============================
+  // Drawer — sections & conditional fields
+  // ============================
+  describe('Drawer layout', () => {
+    const openDrawer = async () => {
+      render(<FieldDesigner objectName="accounts" fields={MOCK_FIELDS} />);
+      await waitFor(() => {
+        fireEvent.click(screen.getByTestId('grid-edit-fld-1'));
+      });
+    };
+
+    it('opens on the right side', async () => {
+      await openDrawer();
+      expect(screen.getByTestId('drawer-side').textContent).toBe('right');
+    });
+
+    it('renders Basic / Type Settings / Advanced sections', async () => {
+      await openDrawer();
+      expect(screen.getByTestId('drawer-section-basic')).toBeDefined();
+      expect(screen.getByTestId('drawer-section-typeSpecific')).toBeDefined();
+      expect(screen.getByTestId('drawer-section-advanced')).toBeDefined();
+    });
+
+    it('Advanced section is collapsible and starts collapsed', async () => {
+      await openDrawer();
+      const advanced = screen.getByTestId('drawer-section-advanced');
+      expect(advanced.getAttribute('data-collapsible')).toBe('true');
+      expect(advanced.getAttribute('data-collapsed')).toBe('true');
+    });
+
+    it('referenceTo field is conditionally shown only when type=lookup', async () => {
+      await openDrawer();
+      const refField = screen.getByTestId('drawer-field-referenceTo');
+      expect(refField.getAttribute('data-condition-field')).toBe('type');
+      expect(refField.getAttribute('data-condition-equals')).toBe('lookup');
+    });
+
+    it('formula field is conditionally shown only when type=formula', async () => {
+      await openDrawer();
+      const formulaField = screen.getByTestId('drawer-field-formula');
+      expect(formulaField.getAttribute('data-condition-field')).toBe('type');
+      expect(formulaField.getAttribute('data-condition-equals')).toBe('formula');
     });
   });
 });

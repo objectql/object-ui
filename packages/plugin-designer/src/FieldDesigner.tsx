@@ -10,16 +10,16 @@
  * FieldDesigner Component
  *
  * Enterprise-grade visual designer for configuring object fields.
- * Uses standard ObjectGrid for the list view and ModalForm for
- * create/edit dialogs with type-specific field properties.
+ * Uses standard ObjectGrid for the list view and a right-side DrawerForm for
+ * create/edit with basic / type-specific / advanced sections.
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
 import type { DesignerFieldDefinition, DesignerFieldType } from '@object-ui/types';
 import type { ObjectGridSchema, ListColumn } from '@object-ui/types';
 import { ObjectGrid } from '@object-ui/plugin-grid';
-import { ModalForm } from '@object-ui/plugin-form';
-import type { ModalFormSchema } from '@object-ui/plugin-form';
+import { DrawerForm } from '@object-ui/plugin-form';
+import type { DrawerFormSchema } from '@object-ui/plugin-form';
 import { ValueDataSource } from '@object-ui/core';
 import {
   Columns3,
@@ -104,10 +104,19 @@ const FIELD_TYPE_META: Record<DesignerFieldType, { label: string; Icon: React.FC
 
 const ALL_FIELD_TYPES = Object.keys(FIELD_TYPE_META) as DesignerFieldType[];
 
-const FIELD_TYPE_OPTIONS = ALL_FIELD_TYPES.map((ft) => ({
-  label: FIELD_TYPE_META[ft].label,
-  value: ft,
-}));
+type FieldTypeCategory = 'text' | 'number' | 'date' | 'choice' | 'relation' | 'advanced';
+
+const FIELD_TYPE_CATEGORIES: Record<FieldTypeCategory, DesignerFieldType[]> = {
+  text: ['text', 'textarea', 'email', 'phone', 'url', 'password', 'markdown', 'html'],
+  number: ['number', 'currency', 'percent', 'autonumber', 'rating', 'slider'],
+  date: ['date', 'datetime', 'time'],
+  choice: ['boolean', 'select'],
+  relation: ['lookup'],
+  advanced: ['formula', 'file', 'image', 'color', 'code', 'location', 'address'],
+};
+
+const CATEGORY_ORDER: FieldTypeCategory[] = ['text', 'number', 'date', 'choice', 'relation', 'advanced'];
+
 
 // ============================================================================
 // Main Component
@@ -244,10 +253,32 @@ export function FieldDesigner({
     }
   }, []);
 
-  // ModalForm schema — mirrors ObjectManager pattern
-  const formSchema = useMemo<ModalFormSchema>(() => ({
+  // Grouped type options for the <select> used inside the Drawer.
+  // The top-of-page type filter also uses these groupings (see <optgroup> below).
+  const typeOptionsByCategory = useMemo(
+    () => CATEGORY_ORDER.map((cat) => ({
+      category: cat,
+      label: t(`appDesigner.fieldDesigner.typeCategory.${cat}`),
+      options: FIELD_TYPE_CATEGORIES[cat].map((ft) => ({
+        label: FIELD_TYPE_META[ft].label,
+        value: ft,
+      })),
+    })),
+    [t],
+  );
+
+  // Flatten for the <select> widget inside the drawer (which only takes `options`).
+  // Visually grouped via inserting separator-like labels is not supported by shadcn Select.
+  // For now we flatten and rely on the top filter for category-based filtering.
+  const flatTypeOptions = useMemo(
+    () => typeOptionsByCategory.flatMap((g) => g.options),
+    [typeOptionsByCategory],
+  );
+
+  // DrawerForm schema — right-side panel with Basic / Type-specific / Advanced sections
+  const drawerSchema = useMemo<DrawerFormSchema>(() => ({
     type: 'object-form',
-    formType: 'modal',
+    formType: 'drawer',
     objectName: 'field_definition',
     mode: editingField ? 'edit' : 'create',
     title: editingField
@@ -255,24 +286,45 @@ export function FieldDesigner({
       : t('appDesigner.fieldDesigner.addField'),
     open: formOpen,
     onOpenChange: handleFormClose,
-    modalSize: 'lg',
-    customFields: [
-      { name: 'name', label: t('appDesigner.fieldDesigner.fieldName'), type: 'text', required: true, placeholder: 'api_name', disabled: readOnly || (editingField?.isSystem ?? false) },
-      { name: 'label', label: t('appDesigner.fieldDesigner.fieldLabel'), type: 'text', required: true, placeholder: 'Display Label', disabled: readOnly },
-      { name: 'type', label: t('appDesigner.fieldDesigner.fieldType'), type: 'select', required: true, options: FIELD_TYPE_OPTIONS, disabled: readOnly || (editingField?.isSystem ?? false) },
-      { name: 'group', label: t('appDesigner.fieldDesigner.fieldGroup'), type: 'text', placeholder: 'Field Group', disabled: readOnly },
-      { name: 'description', label: t('appDesigner.fieldDesigner.description'), type: 'textarea', disabled: readOnly },
-      { name: 'required', label: t('appDesigner.fieldDesigner.required'), type: 'boolean', disabled: readOnly },
-      { name: 'unique', label: t('appDesigner.fieldDesigner.unique'), type: 'boolean', disabled: readOnly },
-      { name: 'readonly', label: t('appDesigner.fieldDesigner.readOnly'), type: 'boolean', disabled: readOnly },
-      { name: 'hidden', label: t('appDesigner.fieldDesigner.hidden'), type: 'boolean', disabled: readOnly },
-      { name: 'indexed', label: t('appDesigner.fieldDesigner.indexed'), type: 'boolean', disabled: readOnly },
-      { name: 'externalId', label: t('appDesigner.fieldDesigner.externalId'), type: 'boolean', disabled: readOnly },
-      { name: 'trackHistory', label: t('appDesigner.fieldDesigner.trackHistory'), type: 'boolean', disabled: readOnly },
-      { name: 'defaultValue', label: t('appDesigner.fieldDesigner.defaultValue'), type: 'text', placeholder: 'Default value', disabled: readOnly },
-      { name: 'placeholder', label: t('appDesigner.fieldDesigner.placeholder'), type: 'text', placeholder: 'Placeholder text', disabled: readOnly },
-      { name: 'referenceTo', label: t('appDesigner.fieldDesigner.referenceTo'), type: 'text', placeholder: 'Referenced object', disabled: readOnly },
-      { name: 'formula', label: t('appDesigner.fieldDesigner.formula'), type: 'textarea', placeholder: 'e.g. price * quantity', disabled: readOnly },
+    drawerSide: 'right',
+    drawerWidth: '480px',
+    sections: [
+      {
+        name: 'basic',
+        label: t('appDesigner.fieldDesigner.basicSection'),
+        fields: [
+          { name: 'name', label: t('appDesigner.fieldDesigner.fieldName'), type: 'text', required: true, placeholder: 'api_name', disabled: readOnly || (editingField?.isSystem ?? false) },
+          { name: 'label', label: t('appDesigner.fieldDesigner.fieldLabel'), type: 'text', required: true, placeholder: 'Display Label', disabled: readOnly },
+          { name: 'type', label: t('appDesigner.fieldDesigner.fieldType'), type: 'select', required: true, options: flatTypeOptions, disabled: readOnly || (editingField?.isSystem ?? false) },
+          { name: 'required', label: t('appDesigner.fieldDesigner.required'), type: 'boolean', disabled: readOnly },
+          { name: 'unique', label: t('appDesigner.fieldDesigner.unique'), type: 'boolean', disabled: readOnly },
+          { name: 'description', label: t('appDesigner.fieldDesigner.description'), type: 'textarea', disabled: readOnly },
+        ],
+      },
+      {
+        name: 'typeSpecific',
+        label: t('appDesigner.fieldDesigner.typeSpecificSection'),
+        fields: [
+          { name: 'referenceTo', label: t('appDesigner.fieldDesigner.referenceTo'), type: 'text', placeholder: 'Referenced object', disabled: readOnly, condition: { field: 'type', equals: 'lookup' } },
+          { name: 'formula', label: t('appDesigner.fieldDesigner.formula'), type: 'textarea', placeholder: 'e.g. price * quantity', disabled: readOnly, condition: { field: 'type', equals: 'formula' } },
+          { name: 'defaultValue', label: t('appDesigner.fieldDesigner.defaultValue'), type: 'text', placeholder: 'Default value', disabled: readOnly },
+          { name: 'placeholder', label: t('appDesigner.fieldDesigner.placeholder'), type: 'text', placeholder: 'Placeholder text', disabled: readOnly },
+          { name: 'group', label: t('appDesigner.fieldDesigner.fieldGroup'), type: 'text', placeholder: 'Field Group', disabled: readOnly },
+        ],
+      },
+      {
+        name: 'advanced',
+        label: t('appDesigner.fieldDesigner.advancedSection'),
+        collapsible: true,
+        collapsed: true,
+        fields: [
+          { name: 'indexed', label: t('appDesigner.fieldDesigner.indexed'), type: 'boolean', disabled: readOnly },
+          { name: 'externalId', label: t('appDesigner.fieldDesigner.externalId'), type: 'boolean', disabled: readOnly },
+          { name: 'trackHistory', label: t('appDesigner.fieldDesigner.trackHistory'), type: 'boolean', disabled: readOnly },
+          { name: 'readonly', label: t('appDesigner.fieldDesigner.readOnly'), type: 'boolean', disabled: readOnly },
+          { name: 'hidden', label: t('appDesigner.fieldDesigner.hidden'), type: 'boolean', disabled: readOnly },
+        ],
+      },
     ],
     initialValues: editingField
       ? {
@@ -297,7 +349,7 @@ export function FieldDesigner({
     onSuccess: handleFormSuccess,
     onCancel: () => handleFormClose(false),
     readOnly,
-  }), [editingField, formOpen, handleFormClose, handleFormSuccess, readOnly, t]);
+  }), [editingField, formOpen, handleFormClose, handleFormSuccess, flatTypeOptions, readOnly, t]);
 
   return (
     <div
@@ -311,11 +363,14 @@ export function FieldDesigner({
           <h2 className="text-sm font-semibold">
             {t('appDesigner.fieldDesigner.title')}
           </h2>
+          {objectName && (
+            <span className="text-xs text-muted-foreground">— {objectName}</span>
+          )}
           <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
             {filteredFields.length}
           </span>
         </div>
-        {/* Type filter */}
+        {/* Type filter — grouped by 6 categories (Airtable-style) */}
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value as DesignerFieldType | '')}
@@ -323,8 +378,12 @@ export function FieldDesigner({
           className="rounded-md border border-input bg-background px-2 py-1 text-xs outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary"
         >
           <option value="">{t('appDesigner.fieldDesigner.allTypes')}</option>
-          {ALL_FIELD_TYPES.map((ft) => (
-            <option key={ft} value={ft}>{FIELD_TYPE_META[ft].label}</option>
+          {typeOptionsByCategory.map((group) => (
+            <optgroup key={group.category} label={group.label}>
+              {group.options.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </div>
@@ -338,8 +397,8 @@ export function FieldDesigner({
         onAddRecord={readOnly ? undefined : handleAddField}
       />
 
-      {/* ModalForm for create / edit */}
-      {formOpen && <ModalForm schema={formSchema} />}
+      {/* DrawerForm for create / edit — right-side panel keeps the field list visible */}
+      {formOpen && <DrawerForm schema={drawerSchema} />}
 
       {/* Confirm Dialog */}
       <ConfirmDialog

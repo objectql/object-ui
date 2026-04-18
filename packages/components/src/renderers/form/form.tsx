@@ -24,11 +24,42 @@ import {
 } from '../../ui/select';
 import { renderChildren } from '../../lib/utils';
 import { Alert, AlertDescription } from '../../ui/alert';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import React from 'react';
 import { SchemaRendererContext } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
+
+/** Inline section header rendered as a virtual field inside a flat SchemaRenderer field list.
+ *  Collapsibility is controlled externally (collapsed state lives in DrawerForm). */
+function SectionDivider({ label, collapsible, collapsed, onToggle }: {
+  label?: string;
+  collapsible?: boolean;
+  collapsed?: boolean;
+  onToggle?: () => void;
+}) {
+  if (!label) return null;
+  return (
+    <div
+      className={cn(
+        'col-span-full pt-4 pb-1 border-b border-border',
+        collapsible && 'cursor-pointer select-none'
+      )}
+      onClick={collapsible ? onToggle : undefined}
+      role={collapsible ? 'button' : undefined}
+      aria-expanded={collapsible ? !collapsed : undefined}
+    >
+      <div className="flex items-center gap-1.5">
+        {collapsible && (
+          collapsed
+            ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+            : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        )}
+        <span className="text-sm font-semibold text-foreground">{label}</span>
+      </div>
+    </div>
+  );
+}
 
 const useSafeFormTranslation = createSafeTranslation(
   { 'common.selectOption': 'Select an option' },
@@ -271,14 +302,29 @@ ComponentRegistry.register('form',
                   }
                 }
 
+                // Section divider — renders a collapsible FormSection header inline
+                // so all fields share the same form instance (enables cross-section conditions).
+                if (type === 'section-divider') {
+                  const fp = fieldProps as any;
+                  return (
+                    <SectionDivider
+                      key={name}
+                      label={label}
+                      collapsible={fp.collapsible}
+                      collapsed={fp.collapsed}
+                      onToggle={fp.onToggle}
+                    />
+                  );
+                }
+
                 // Build validation rules
                 const rules: any = {
                   ...validation,
                 };
 
                 if (required) {
-                  rules.required = typeof validation.required === 'string' 
-                    ? validation.required 
+                  rules.required = typeof validation.required === 'string'
+                    ? validation.required
                     : `${label || name} is required`;
                 }
 
