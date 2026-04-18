@@ -19,6 +19,7 @@ import { MSWPlugin } from '@objectstack/plugin-msw';
 import type { MSWPluginOptions } from '@objectstack/plugin-msw';
 import { AuthPlugin } from '@objectstack/plugin-auth';
 import { SetupPlugin } from '@objectstack/plugin-setup';
+import { ConsoleSetupNavPlugin } from './ConsoleSetupNavPlugin';
 import type { Cube } from '@objectstack/spec/data';
 import { http, HttpResponse } from 'msw';
 
@@ -326,6 +327,10 @@ export async function createKernel(options: KernelOptions): Promise<KernelResult
     secret: 'objectui-demo-secret',
     baseUrl: 'http://localhost:5173', // Vite dev server default
   }) as unknown as Plugin);
+  // Console-specific setup nav items (Object Manager, Apps, Dashboards, Pages, Reports, Profile).
+  // Must load AFTER SetupPlugin + AuthPlugin so the setupNav service exists and framework
+  // contributions are already in place; this plugin adds the console's rich custom pages.
+  await kernel.use(new ConsoleSetupNavPlugin() as unknown as Plugin);
 
   // Register MemoryAnalyticsService so that HttpDispatcher can serve
   // /api/v1/analytics/* endpoints in demo/MSW/dev environments.

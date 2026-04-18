@@ -277,7 +277,7 @@ export function AppContent() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => navigate('/system')}
+            onClick={() => navigate('/apps/setup')}
             data-testid="go-to-settings-btn"
           >
             System Settings
@@ -295,7 +295,7 @@ export function AppContent() {
           <Route path="create-app" element={<CreateAppPage />} />
           <Route path="system" element={<SystemHubPage />} />
           <Route path="system/apps" element={<AppManagementPage />} />
-          <Route path="system/objects" element={<Navigate to="/system/metadata/object" replace />} />
+          <Route path="system/objects" element={<ObjectRedirect />} />
           <Route path="system/objects/:objectName" element={<ObjectRedirect />} />
           <Route path="system/users" element={<UserManagementPage />} />
           <Route path="system/organizations" element={<OrgManagementPage />} />
@@ -391,7 +391,7 @@ export function AppContent() {
         {/* System Administration Routes */}
         <Route path="system" element={<SystemHubPage />} />
         <Route path="system/apps" element={<AppManagementPage />} />
-        <Route path="system/objects" element={<Navigate to="/system/metadata/object" replace />} />
+        <Route path="system/objects" element={<ObjectRedirect />} />
         <Route path="system/objects/:objectName" element={<ObjectRedirect />} />
         <Route path="system/users" element={<UserManagementPage />} />
         <Route path="system/organizations" element={<OrgManagementPage />} />
@@ -478,41 +478,38 @@ function RootRedirect() {
 }
 
 /**
- * Redirect helper for legacy `/system/objects/:objectName` routes.
- * Preserves the `objectName` URL param so that
- * `/system/objects/account` → `/system/metadata/object/account`.
+ * Redirect helper for legacy `system/objects/:objectName` routes.
+ * Preserves the `objectName` URL param and the app-context prefix so
+ * `/apps/setup/system/objects/account` → `/apps/setup/system/metadata/object/account`
+ * and (pre-redirect) `/system/objects/account` → `/system/metadata/object/account`.
  */
 function ObjectRedirect() {
   const { objectName } = useParams<{ objectName?: string }>();
+  const location = useLocation();
+  // Derive the prefix by stripping the trailing `/objects[/...]` segment.
+  const prefix = location.pathname.replace(/\/objects(\/.*)?$/, '');
   const target = objectName
-    ? `/system/metadata/object/${objectName}`
-    : '/system/metadata/object';
+    ? `${prefix}/metadata/object/${objectName}`
+    : `${prefix}/metadata/object`;
   return <Navigate to={target} replace />;
 }
 
 /**
- * SystemRoutes — Top-level system admin routes accessible without any app context.
- * Provides a minimal layout with system navigation sidebar.
+ * SystemRedirect — Legacy `/system/*` → `/apps/setup/system/*`
+ *
+ * System Settings have been unified into the Setup app. This component
+ * forwards any remaining legacy URL (bookmarks, external links) to the
+ * canonical setup-app location, preserving the sub-path.
  */
-function SystemRoutes() {
-  return (
-    <Suspense fallback={<LoadingScreen />}>
-      <Routes>
-        <Route path="/" element={<SystemHubPage />} />
-        <Route path="apps" element={<AppManagementPage />} />
-        <Route path="objects" element={<Navigate to="/system/metadata/object" replace />} />
-        <Route path="objects/:objectName" element={<ObjectRedirect />} />
-        <Route path="users" element={<UserManagementPage />} />
-        <Route path="organizations" element={<OrgManagementPage />} />
-        <Route path="roles" element={<RoleManagementPage />} />
-        <Route path="permissions" element={<PermissionManagementPage />} />
-        <Route path="audit-log" element={<AuditLogPage />} />
-        <Route path="profile" element={<ProfilePage />} />
-        <Route path="metadata/:metadataType" element={<MetadataManagerPage />} />
-        <Route path="metadata/:metadataType/:itemName" element={<MetadataDetailPage />} />
-      </Routes>
-    </Suspense>
-  );
+function SystemRedirect() {
+  const location = useLocation();
+  // Strip the leading /system prefix, keep the rest.
+  // /system           → /apps/setup
+  // /system/apps      → /apps/setup/system/apps
+  // /system/metadata/object → /apps/setup/system/metadata/object
+  const suffix = location.pathname.replace(/^\/system/, '');
+  const target = suffix ? `/apps/setup/system${suffix}` : '/apps/setup';
+  return <Navigate to={`${target}${location.search}${location.hash}`} replace />;
 }
 
 export function App() {
@@ -541,14 +538,8 @@ export function App() {
                     </ConnectedShell>
                   </AuthGuard>
                 } />
-                {/* Top-level system routes — accessible without any app */}
-                <Route path="/system/*" element={
-                  <AuthGuard fallback={<Navigate to="/login" />} loadingFallback={<LoadingScreen />}>
-                    <ConnectedShell>
-                      <SystemRoutes />
-                    </ConnectedShell>
-                  </AuthGuard>
-                } />
+                {/* Legacy /system/* — redirected to Setup app (/apps/setup/system/*) */}
+                <Route path="/system/*" element={<SystemRedirect />} />
                 {/* Top-level create-app — accessible without any app */}
                 <Route path="/create-app" element={
                   <AuthGuard fallback={<Navigate to="/login" />} loadingFallback={<LoadingScreen />}>

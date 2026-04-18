@@ -75,7 +75,7 @@ export function HomePage() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => navigate('/system')}
+              onClick={() => navigate('/apps/setup')}
               data-testid="go-to-settings-btn"
             >
               <Settings className="mr-2 h-4 w-4" />

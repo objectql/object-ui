@@ -254,14 +254,14 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
 
   const basePath = activeApp ? `/apps/${activeAppName}` : '';
 
-  // Fallback system navigation when no active app exists
+  // Fallback system navigation when no active app exists — routes into the Setup app.
   const systemFallbackNavigation: NavigationItem[] = React.useMemo(() => [
-    { id: 'sys-settings', label: 'System Settings', type: 'url' as const, url: '/system', icon: 'settings' },
-    { id: 'sys-apps', label: 'Applications', type: 'url' as const, url: '/system/apps', icon: 'layout-grid' },
-    { id: 'sys-objects', label: 'Object Manager', type: 'url' as const, url: '/system/metadata/object', icon: 'database' },
-    { id: 'sys-users', label: 'Users', type: 'url' as const, url: '/system/users', icon: 'users' },
-    { id: 'sys-orgs', label: 'Organizations', type: 'url' as const, url: '/system/organizations', icon: 'building-2' },
-    { id: 'sys-roles', label: 'Roles', type: 'url' as const, url: '/system/roles', icon: 'shield' },
+    { id: 'sys-settings', label: 'System Settings', type: 'url' as const, url: '/apps/setup', icon: 'settings' },
+    { id: 'sys-apps', label: 'Applications', type: 'url' as const, url: '/apps/setup/system/apps', icon: 'layout-grid' },
+    { id: 'sys-objects', label: 'Object Manager', type: 'url' as const, url: '/apps/setup/system/metadata/object', icon: 'database' },
+    { id: 'sys-users', label: 'Users', type: 'url' as const, url: '/apps/setup/system/users', icon: 'users' },
+    { id: 'sys-orgs', label: 'Organizations', type: 'url' as const, url: '/apps/setup/system/organizations', icon: 'building-2' },
+    { id: 'sys-roles', label: 'Roles', type: 'url' as const, url: '/apps/setup/system/roles', icon: 'shield' },
     { id: 'sys-create-app', label: 'Create App', type: 'url' as const, url: '/create-app', icon: 'plus' },
   ], []);
 
@@ -339,7 +339,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                   </div>
                   <div className="font-medium text-muted-foreground">Edit App</div>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2 p-2" onClick={() => navigate(`/apps/${activeAppName}/system/apps`)} data-testid="manage-all-apps-btn">
+                <DropdownMenuItem className="gap-2 p-2" onClick={() => navigate('/apps/setup/system/apps')} data-testid="manage-all-apps-btn">
                   <div className="flex size-6 items-center justify-center rounded-md border bg-background">
                     <Settings className="size-4" />
                   </div>
@@ -351,7 +351,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
             /* No-app fallback header */
             <SidebarMenuButton
               size="lg"
-              onClick={() => navigate('/system')}
+              onClick={() => navigate('/apps/setup')}
               data-testid="system-sidebar-header"
             >
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -566,7 +566,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                   <DropdownMenuItem
-                    onClick={() => navigate(activeApp ? `/apps/${activeAppName}/system` : '/system')}
+                    onClick={() => navigate('/apps/setup')}
                   >
                     <Settings className="mr-2 h-4 w-4" />
                     Settings

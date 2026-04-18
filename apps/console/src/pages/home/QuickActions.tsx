@@ -40,7 +40,7 @@ export function QuickActions() {
       label: t('home.quickActions.manageObjects', { defaultValue: 'Manage Objects' }),
       description: t('home.quickActions.manageObjectsDesc', { defaultValue: 'Configure data models' }),
       icon: Database,
-      href: '/system/metadata/object',
+      href: '/apps/setup/system/metadata/object',
       color: 'text-purple-600 dark:text-purple-400',
     },
     {
@@ -48,7 +48,7 @@ export function QuickActions() {
       label: t('home.quickActions.systemSettings', { defaultValue: 'System Settings' }),
       description: t('home.quickActions.systemSettingsDesc', { defaultValue: 'Configure your workspace' }),
       icon: Settings,
-      href: '/system',
+      href: '/apps/setup',
       color: 'text-gray-600 dark:text-gray-400',
     },
   ];

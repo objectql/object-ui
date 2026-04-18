@@ -630,13 +630,13 @@ export function UnifiedSidebar({ activeAppName, onAppChange }: UnifiedSidebarPro
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                   <DropdownMenuItem
-                    onClick={() => navigate('/system/profile')}
+                    onClick={() => navigate('/apps/setup/system/profile')}
                   >
                     <LucideIcons.User className="mr-2 h-4 w-4" />
                     Profile
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => navigate(context === 'app' && activeApp ? `/apps/${activeApp.name}/system` : '/system')}
+                    onClick={() => navigate('/apps/setup')}
                   >
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
