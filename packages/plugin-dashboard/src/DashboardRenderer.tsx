@@ -158,6 +158,25 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 };
             }
 
+            // gauge / solid-gauge with object binding → render as object-metric
+            if ((widgetType === 'gauge' || widgetType === 'solid-gauge') && widget.object) {
+                const aggregate = widget.aggregate ? {
+                    field: widget.valueField || 'value',
+                    function: widget.aggregate,
+                    groupBy: widget.categoryField || '_all',
+                } : undefined;
+                return {
+                    type: 'object-metric',
+                    objectName: widget.object,
+                    aggregate,
+                    filter: widget.filter,
+                    label: options.label || resolveLabel(widget.title) || '',
+                    fallbackValue: options.fallbackValue ?? options.value,
+                    icon: options.icon,
+                    description: options.description,
+                };
+            }
+
             // Normalise widget types that map to supported chart types
             const chartTypeMap: Record<string, string> = { 'funnel': 'bar', 'horizontal-bar': 'bar' };
             const resolvedWidgetType = chartTypeMap[widgetType] || widgetType;
@@ -345,14 +364,14 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                     }: undefined}
                     {...designModeProps}
                 >
-                     <SchemaRenderer schema={componentSchema} className={cn("h-full w-full", designMode && "pointer-events-none")} />
+                     <SchemaRenderer schema={componentSchema} className={cn("h-full w-full", designMode && "pointer-events-none")} dataSource={dataSource} />
                      {designMode && <div className="absolute inset-0 z-10" aria-hidden="true" data-testid="widget-click-overlay" />}
                 </div>
             );
         }
 
         return (
-            <Card 
+            <Card
                 key={widgetKey}
                 className={cn(
                     "overflow-hidden border-border/50 shadow-sm transition-all hover:shadow-md",
@@ -379,7 +398,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 )}
                 <CardContent className="p-0">
                     <div className={cn("h-full w-full", "p-3 sm:p-4 md:p-6", designMode && "pointer-events-none")}>
-                        <SchemaRenderer schema={componentSchema} />
+                        <SchemaRenderer schema={componentSchema} dataSource={dataSource} />
                     </div>
                 </CardContent>
                 {designMode && <div className="absolute inset-0 z-10" aria-hidden="true" data-testid="widget-click-overlay" />}

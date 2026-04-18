@@ -36,7 +36,11 @@ import { HelpPage } from './src/pages/help.page';
 import { SettingsPage } from './src/pages/settings.page';
 import { GettingStartedPage } from './src/pages/getting_started.page';
 import { CrmDashboard } from './src/dashboards/crm.dashboard';
+import { SalesDashboard } from './src/dashboards/sales.dashboard';
+import { ServiceDashboard } from './src/dashboards/service.dashboard';
+import { ExecutiveDashboard } from './src/dashboards/executive.dashboard';
 import { CrmApp } from './src/apps/crm.app';
+import { CaseObject } from './src/objects/case.object';
 import { AccountData } from './src/data/account.data';
 import { ContactData } from './src/data/contact.data';
 import { OpportunityData } from './src/data/opportunity.data';
@@ -47,6 +51,7 @@ import { ProjectTaskData } from './src/data/project_task.data';
 import { EventData } from './src/data/event.data';
 import { OrderItemData } from './src/data/order_item.data';
 import { OpportunityContactData } from './src/data/opportunity_contact.data';
+import { CaseData } from './src/data/case.data';
 
 export default defineStack({
   objects: [
@@ -59,7 +64,8 @@ export default defineStack({
     UserObject,
     ProjectObject,
     EventObject,
-    OpportunityContactObject
+    OpportunityContactObject,
+    CaseObject,
   ],
   views: [
     AccountView,
@@ -99,6 +105,9 @@ export default defineStack({
   ],
   dashboards: [
     CrmDashboard,
+    SalesDashboard,
+    ServiceDashboard,
+    ExecutiveDashboard,
   ] as any,
   manifest: {
     id: 'com.example.crm',
@@ -117,6 +126,7 @@ export default defineStack({
       EventData,
       OrderItemData,
       OpportunityContactData,
+      CaseData,
     ]
   },
   i18n: {

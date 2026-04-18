@@ -1,0 +1,178 @@
+export const ExecutiveDashboard = {
+  name: 'executive_dashboard',
+  label: 'Executive Overview',
+  description: 'High-level revenue, customer, and pipeline KPIs for leadership',
+  columns: 12,
+  gap: 4,
+  refreshInterval: 300,
+  widgets: [
+    // ─── Row 1: Headline KPIs ─────────────────────────────────────────
+    {
+      id: 'total_revenue_ytd',
+      title: 'Total Revenue (YTD)',
+      type: 'metric' as const,
+      object: 'opportunity',
+      filter: { stage: 'closed_won' },
+      valueField: 'amount',
+      aggregate: 'sum' as const,
+      colorVariant: 'success' as const,
+      layout: { x: 0, y: 0, w: 3, h: 2 },
+      options: {
+        icon: 'DollarSign',
+        format: '$0,0',
+        trend: { value: 12.5, direction: 'up' as const, label: 'vs last quarter' },
+      },
+    },
+    {
+      id: 'total_accounts',
+      title: 'Active Accounts',
+      type: 'metric' as const,
+      object: 'account',
+      aggregate: 'count' as const,
+      colorVariant: 'blue' as const,
+      layout: { x: 3, y: 0, w: 3, h: 2 },
+      options: {
+        icon: 'Building2',
+        trend: { value: 3.4, direction: 'up' as const, label: 'vs last quarter' },
+      },
+    },
+    {
+      id: 'total_contacts',
+      title: 'Total Contacts',
+      type: 'metric' as const,
+      object: 'contact',
+      aggregate: 'count' as const,
+      colorVariant: 'purple' as const,
+      layout: { x: 6, y: 0, w: 3, h: 2 },
+      options: {
+        icon: 'Users',
+        trend: { value: 5.8, direction: 'up' as const, label: 'vs last quarter' },
+      },
+    },
+    {
+      id: 'open_pipeline',
+      title: 'Open Pipeline',
+      type: 'metric' as const,
+      object: 'opportunity',
+      filter: { stage: { $nin: ['closed_won', 'closed_lost'] } },
+      valueField: 'amount',
+      aggregate: 'sum' as const,
+      colorVariant: 'orange' as const,
+      layout: { x: 9, y: 0, w: 3, h: 2 },
+      options: {
+        icon: 'TrendingUp',
+        format: '$0,0',
+        trend: { value: 1.2, direction: 'up' as const, label: 'vs last quarter' },
+      },
+    },
+
+    // ─── Row 2: Revenue Analysis ──────────────────────────────────────
+    {
+      id: 'revenue_trend',
+      title: 'Revenue Trend',
+      type: 'area' as const,
+      object: 'opportunity',
+      filter: { stage: 'closed_won' },
+      categoryField: 'close_date',
+      valueField: 'amount',
+      aggregate: 'sum' as const,
+      layout: { x: 0, y: 2, w: 8, h: 4 },
+      options: {
+        xField: 'close_date',
+        yField: 'amount',
+        data: {
+          provider: 'object' as const,
+          object: 'opportunity',
+          filter: { stage: 'closed_won' },
+          aggregate: { field: 'amount', function: 'sum' as const, groupBy: 'close_date' },
+        },
+      },
+    },
+    {
+      id: 'revenue_by_industry',
+      title: 'Revenue by Type',
+      type: 'donut' as const,
+      object: 'opportunity',
+      filter: { stage: 'closed_won' },
+      categoryField: 'type',
+      valueField: 'amount',
+      aggregate: 'sum' as const,
+      layout: { x: 8, y: 2, w: 4, h: 4 },
+      options: {
+        xField: 'type',
+        yField: 'amount',
+        data: {
+          provider: 'object' as const,
+          object: 'opportunity',
+          filter: { stage: 'closed_won' },
+          aggregate: { field: 'amount', function: 'sum' as const, groupBy: 'type' },
+        },
+      },
+    },
+
+    // ─── Row 3: Pipeline & Activity ───────────────────────────────────
+    {
+      id: 'pipeline_by_stage',
+      title: 'Pipeline by Stage',
+      type: 'bar' as const,
+      object: 'opportunity',
+      filter: { stage: { $nin: ['closed_won', 'closed_lost'] } },
+      categoryField: 'stage',
+      valueField: 'amount',
+      aggregate: 'sum' as const,
+      layout: { x: 0, y: 6, w: 6, h: 4 },
+      options: {
+        xField: 'stage',
+        yField: 'amount',
+        data: {
+          provider: 'object' as const,
+          object: 'opportunity',
+          aggregate: { field: 'amount', function: 'sum' as const, groupBy: 'stage' },
+        },
+      },
+    },
+    {
+      id: 'new_accounts_by_month',
+      title: 'Accounts by Type',
+      type: 'bar' as const,
+      object: 'account',
+      categoryField: 'type',
+      aggregate: 'count' as const,
+      layout: { x: 6, y: 6, w: 6, h: 4 },
+      options: {
+        xField: 'type',
+        yField: 'count',
+        data: {
+          provider: 'object' as const,
+          object: 'account',
+          aggregate: { field: 'count', function: 'count' as const, groupBy: 'type' },
+        },
+      },
+    },
+
+    // ─── Row 4: Top Customers ─────────────────────────────────────────
+    {
+      id: 'top_accounts_by_revenue',
+      title: 'Top Accounts by Revenue',
+      type: 'table' as const,
+      object: 'account',
+      layout: { x: 0, y: 10, w: 12, h: 4 },
+      options: {
+        columns: [
+          { header: 'Account', accessorKey: 'name' },
+          { header: 'Industry', accessorKey: 'industry' },
+          { header: 'Annual Revenue', accessorKey: 'annual_revenue' },
+          { header: 'Type', accessorKey: 'type' },
+          { header: 'Employees', accessorKey: 'number_of_employees' },
+        ],
+        sortBy: 'annual_revenue',
+        sortOrder: 'desc',
+        limit: 10,
+        data: {
+          provider: 'object' as const,
+          object: 'account',
+        },
+      },
+    },
+  ],
+};

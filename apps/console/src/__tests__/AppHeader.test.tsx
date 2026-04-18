@@ -5,8 +5,8 @@ import { AppHeader } from '../components/AppHeader';
 
 // Mock react-router-dom
 vi.mock('react-router-dom', () => ({
-  useLocation: () => ({ pathname: '/apps/crm_app/contact/view/all' }),
-  useParams: () => ({ appName: 'crm_app' }),
+  useLocation: () => ({ pathname: '/apps/crm_enterprise/contact/view/all' }),
+  useParams: () => ({ appName: 'crm_enterprise' }),
   Link: ({ to, children, className }: any) => <a href={to} className={className}>{children}</a>,
 }));
 

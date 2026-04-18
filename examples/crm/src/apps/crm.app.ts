@@ -1,7 +1,7 @@
 import { App } from '@objectstack/spec/ui';
 
 export const CrmApp = App.create({
-  name: 'crm_app',
+  name: 'crm_enterprise',
   label: 'CRM',
   icon: 'briefcase',
   description: 'Sales pipeline, accounts, and customer management',
@@ -17,6 +17,27 @@ export const CrmApp = App.create({
       dashboardName: 'crm_dashboard',
       label: 'Dashboard',
       icon: 'layout-dashboard'
+    },
+    {
+      id: 'nav_sales_dashboard',
+      type: 'dashboard',
+      dashboardName: 'sales_dashboard',
+      label: 'Sales Performance',
+      icon: 'trending-up'
+    },
+    {
+      id: 'nav_service_dashboard',
+      type: 'dashboard',
+      dashboardName: 'service_dashboard',
+      label: 'Customer Service',
+      icon: 'life-buoy'
+    },
+    {
+      id: 'nav_executive_dashboard',
+      type: 'dashboard',
+      dashboardName: 'executive_dashboard',
+      label: 'Executive Overview',
+      icon: 'bar-chart-2'
     },
     {
       id: 'nav_contacts',

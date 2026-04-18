@@ -56,7 +56,7 @@ describe('ReportView Data Loading', () => {
 
   it('should load and display report data from objectName', async () => {
     render(
-      <MemoryRouter initialEntries={['/apps/crm_app/report/sales_performance_q1']}>
+      <MemoryRouter initialEntries={['/apps/crm_enterprise/report/sales_performance_q1']}>
         <MetadataProvider adapter={adapter}>
           <Routes>
             <Route
@@ -170,7 +170,7 @@ describe('ReportView Data Loading', () => {
     } as unknown as DataSource;
 
     render(
-      <MemoryRouter initialEntries={['/apps/crm_app/report/sales_performance_q1']}>
+      <MemoryRouter initialEntries={['/apps/crm_enterprise/report/sales_performance_q1']}>
         <MetadataProvider adapter={adapter}>
           <Routes>
             <Route
@@ -201,7 +201,7 @@ describe('ReportView Data Loading', () => {
 
   it('should handle missing report gracefully', async () => {
     render(
-      <MemoryRouter initialEntries={['/apps/crm_app/report/nonexistent_report']}>
+      <MemoryRouter initialEntries={['/apps/crm_enterprise/report/nonexistent_report']}>
         <MetadataProvider adapter={adapter}>
           <Routes>
             <Route

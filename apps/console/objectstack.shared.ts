@@ -81,14 +81,14 @@ const apps = [
   ...JSON.parse(JSON.stringify(appConfigs.flatMap((c: any) => c.apps || []))),
   SETUP_APP_DEFAULTS,
 ];
-const crmApp = apps.find((a: any) => a.name === 'crm_app');
+const crmApp = apps.find((a: any) => a.name === 'crm_enterprise');
 if (crmApp?.navigation) {
     const dashboardIdx = crmApp.navigation.findIndex((n: any) => n.id === 'nav_dashboard');
     const insertIdx = dashboardIdx !== -1 ? dashboardIdx + 1 : 0;
     crmApp.navigation.splice(insertIdx, 0, {
         id: 'nav_sales_report',
         type: 'url',
-        url: '/apps/crm_app/report/sales_performance_q1',
+        url: '/apps/crm_enterprise/report/sales_performance_q1',
         label: 'Sales Report',
         icon: 'file-bar-chart'
     });
