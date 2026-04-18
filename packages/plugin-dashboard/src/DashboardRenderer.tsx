@@ -158,7 +158,11 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 };
             }
 
-            if (widgetType === 'bar' || widgetType === 'line' || widgetType === 'area' || widgetType === 'pie' || widgetType === 'donut' || widgetType === 'scatter') {
+            // Normalise widget types that map to supported chart types
+            const chartTypeMap: Record<string, string> = { 'funnel': 'bar', 'horizontal-bar': 'bar' };
+            const resolvedWidgetType = chartTypeMap[widgetType] || widgetType;
+
+            if (resolvedWidgetType === 'bar' || resolvedWidgetType === 'line' || resolvedWidgetType === 'area' || resolvedWidgetType === 'pie' || resolvedWidgetType === 'donut' || resolvedWidgetType === 'scatter') {
                 // Support data at widget level or nested inside options
                 const widgetData = (widget as any).data || options.data;
                 // Widget-level fields (from config panel) override options-level fields
@@ -179,7 +183,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                     const effectiveYField = effectiveAggregate?.field || yField;
                     return {
                         type: 'object-chart',
-                        chartType: widgetType,
+                        chartType: resolvedWidgetType,
                         objectName: widget.object || widgetData.object,
                         aggregate: effectiveAggregate,
                         xAxisKey: xAxisKey,
@@ -199,7 +203,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                     } : undefined;
                     return {
                         type: 'object-chart',
-                        chartType: widgetType,
+                        chartType: resolvedWidgetType,
                         objectName: widget.object,
                         aggregate,
                         xAxisKey: xAxisKey,
@@ -213,7 +217,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 
                 return {
                     type: 'chart',
-                    chartType: widgetType,
+                    chartType: resolvedWidgetType,
                     data: dataItems,
                     xAxisKey: xAxisKey,
                     series: [{ dataKey: yField }],
@@ -454,16 +458,18 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
       );
     }
 
+    const hasExplicitColumns = schema.columns != null;
+
     return (
       <div
         ref={ref}
         className={cn(
           "grid auto-rows-min",
-          "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+          !hasExplicitColumns && "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
           className
         )}
         style={{
-            ...(columns > 4 && { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }),
+            ...(hasExplicitColumns && { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }),
             gap: `${gap * 0.25}rem`
         }}
         data-user-actions={userActionsAttr}
