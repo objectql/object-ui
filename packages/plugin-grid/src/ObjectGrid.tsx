@@ -900,21 +900,42 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     if (!objectSchema) return [];
 
     const generatedColumns: any[] = [];
-    // When the schema doesn't specify columns, push system-managed fields
-    // (id + audit timestamps) to the end so identity columns like name/email
-    // lead the default list view.
-    const SYSTEM_TRAILING = new Set([
+    // Default columns priority (when schema doesn't specify columns):
+    //   1. Explicit `compactLayout` from the object schema (curated business fields).
+    //   2. Otherwise, all schema fields with system-managed fields pushed to the end.
+    //
+    // Also drop fields that are platform-managed identifiers/audit columns or
+    // marked `hidden: true`/`readonly: true` so default list views show only
+    // the business fields users actually care about. Callers can still opt-in
+    // to system columns by passing an explicit `fields` / `columns` prop.
+    const SYSTEM_FIELDS = new Set([
       'id', 'created_at', 'createdAt', 'updated_at', 'updatedAt',
       'deleted_at', 'deletedAt', 'created_by', 'createdBy',
       'updated_by', 'updatedBy', '_version', '_rev',
     ]);
-    const rawFields = schemaFields || Object.keys(objectSchema.fields || {});
-    const fieldsToShow = schemaFields
-      ? rawFields
-      : [
-          ...rawFields.filter((n) => !SYSTEM_TRAILING.has(n)),
-          ...rawFields.filter((n) => SYSTEM_TRAILING.has(n)),
-        ];
+    const compactLayout: string[] | undefined = (objectSchema as any)?.compactLayout;
+    const allFieldNames = Object.keys(objectSchema.fields || {});
+    let fieldsToShow: string[];
+    if (schemaFields) {
+      fieldsToShow = schemaFields;
+    } else if (compactLayout?.length) {
+      fieldsToShow = compactLayout.filter((n) => objectSchema.fields?.[n]);
+    } else {
+      // Drop hidden + readonly system-managed fields, then push remaining
+      // system identifier/audit fields to the end as a fallback.
+      const visibleFields = allFieldNames.filter((n) => {
+        const f = objectSchema.fields?.[n];
+        if (!f) return false;
+        if (f.hidden) return false;
+        // Drop readonly fields when their name matches a system identifier/audit column.
+        if (f.readonly && SYSTEM_FIELDS.has(n)) return false;
+        return true;
+      });
+      fieldsToShow = [
+        ...visibleFields.filter((n) => !SYSTEM_FIELDS.has(n)),
+        ...visibleFields.filter((n) => SYSTEM_FIELDS.has(n)),
+      ];
+    }
 
     fieldsToShow.forEach((fieldName) => {
       const field = objectSchema.fields?.[fieldName];

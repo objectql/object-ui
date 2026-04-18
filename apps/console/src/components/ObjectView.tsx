@@ -341,13 +341,39 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
             ...value,
             type: value.type || 'grid'
         }));
-        
+
         if (viewList.length === 0) {
-            viewList.push({ 
-                id: 'all', 
-                label: t('console.objectView.allRecords'), 
-                type: 'grid', 
-                columns: objectDef.fields ? Object.keys(objectDef.fields).slice(0, 5) : [] 
+            // Default column resolution priority:
+            //   1. `compactLayout` (curated primary business fields).
+            //   2. Business fields only — exclude system-managed identifiers/audit
+            //      columns (id, created_at, updated_at, …) and fields explicitly
+            //      marked hidden/readonly on the schema. First 5 kept for compactness.
+            const SYSTEM_FIELDS = new Set([
+                'id', 'created_at', 'createdAt', 'updated_at', 'updatedAt',
+                'deleted_at', 'deletedAt', 'created_by', 'createdBy',
+                'updated_by', 'updatedBy', '_version', '_rev',
+            ]);
+            let defaultColumns: string[] = [];
+            if (Array.isArray(objectDef.compactLayout) && objectDef.compactLayout.length > 0) {
+                defaultColumns = objectDef.compactLayout.filter(
+                    (n: string) => objectDef.fields?.[n],
+                );
+            } else if (objectDef.fields) {
+                defaultColumns = Object.entries(objectDef.fields)
+                    .filter(([name, f]: [string, any]) => {
+                        if (!f) return false;
+                        if (f.hidden) return false;
+                        if (SYSTEM_FIELDS.has(name)) return false;
+                        return true;
+                    })
+                    .map(([name]) => name)
+                    .slice(0, 5);
+            }
+            viewList.push({
+                id: 'all',
+                label: t('console.objectView.allRecords'),
+                type: 'grid',
+                columns: defaultColumns,
             });
         }
         return viewList;
