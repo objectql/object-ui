@@ -238,6 +238,60 @@ describe('autoLayout', () => {
       expect(result.columns).toBe(1); // Only 2 fields after filtering → 1 column
     });
 
+    it('filters platform-managed system fields (id, created_at, updated_at) in create mode', () => {
+      const fields: FormField[] = [
+        { name: 'id', label: 'User ID', type: 'field:text' },
+        { name: 'created_at', label: 'Created At', type: 'field:datetime' },
+        { name: 'updated_at', label: 'Updated At', type: 'field:datetime' },
+        { name: 'name', label: 'Name', type: 'field:text' },
+        { name: 'email', label: 'Email', type: 'field:text' },
+      ];
+
+      const objectSchema = {
+        name: 'sys__user',
+        fields: {
+          id: { type: 'text', readonly: true },
+          created_at: { type: 'datetime', readonly: true },
+          updated_at: { type: 'datetime', readonly: true },
+          name: { type: 'text' },
+          email: { type: 'email' },
+        },
+      };
+
+      const result = applyAutoLayout(fields, objectSchema, undefined, 'create');
+      expect(result.fields.map(f => f.name)).toEqual(['name', 'email']);
+    });
+
+    it('filters readonly-flagged schema fields in create mode', () => {
+      const fields: FormField[] = [
+        { name: 'computed_score', label: 'Score', type: 'field:number' },
+        { name: 'title', label: 'Title', type: 'field:text' },
+      ];
+
+      const objectSchema = {
+        name: 'test',
+        fields: {
+          computed_score: { type: 'number', readonly: true },
+          title: { type: 'text' },
+        },
+      };
+
+      const result = applyAutoLayout(fields, objectSchema, undefined, 'create');
+      expect(result.fields.map(f => f.name)).toEqual(['title']);
+    });
+
+    it('filters system fields by name even without schema readonly flag', () => {
+      const fields: FormField[] = [
+        { name: 'id', label: 'ID', type: 'field:text' },
+        { name: 'createdAt', label: 'Created', type: 'field:datetime' },
+        { name: 'updatedAt', label: 'Updated', type: 'field:datetime' },
+        { name: 'name', label: 'Name', type: 'field:text' },
+      ];
+
+      const result = applyAutoLayout(fields, undefined, undefined, 'create');
+      expect(result.fields.map(f => f.name)).toEqual(['name']);
+    });
+
     it('does not filter auto-generated fields in edit mode', () => {
       const fields: FormField[] = [
         { name: 'name', label: 'Name', type: 'field:text' },

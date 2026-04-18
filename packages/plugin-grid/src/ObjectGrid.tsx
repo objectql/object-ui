@@ -900,8 +900,22 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     if (!objectSchema) return [];
 
     const generatedColumns: any[] = [];
-    const fieldsToShow = schemaFields || Object.keys(objectSchema.fields || {});
-    
+    // When the schema doesn't specify columns, push system-managed fields
+    // (id + audit timestamps) to the end so identity columns like name/email
+    // lead the default list view.
+    const SYSTEM_TRAILING = new Set([
+      'id', 'created_at', 'createdAt', 'updated_at', 'updatedAt',
+      'deleted_at', 'deletedAt', 'created_by', 'createdBy',
+      'updated_by', 'updatedBy', '_version', '_rev',
+    ]);
+    const rawFields = schemaFields || Object.keys(objectSchema.fields || {});
+    const fieldsToShow = schemaFields
+      ? rawFields
+      : [
+          ...rawFields.filter((n) => !SYSTEM_TRAILING.has(n)),
+          ...rawFields.filter((n) => SYSTEM_TRAILING.has(n)),
+        ];
+
     fieldsToShow.forEach((fieldName) => {
       const field = objectSchema.fields?.[fieldName];
       if (!field) return;
