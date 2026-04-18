@@ -10,6 +10,7 @@
 
 import React, { useEffect } from 'react';
 import { AppShell } from '@object-ui/layout';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { UnifiedSidebar } from '../../components/UnifiedSidebar';
 import { AppHeader } from '../../components/AppHeader';
 import { useNavigationContext } from '../../context/NavigationContext';
@@ -27,6 +28,7 @@ function HomeLayoutInner({ children }: { children: React.ReactNode }) {
 
 export function HomeLayout({ children }: HomeLayoutProps) {
   const { setContext } = useNavigationContext();
+  const { t } = useObjectTranslation();
 
   // Set navigation context to 'home' when this layout mounts
   useEffect(() => {
@@ -38,7 +40,7 @@ export function HomeLayout({ children }: HomeLayoutProps) {
       sidebar={<UnifiedSidebar />}
       navbar={
         <AppHeader
-          appName="Home"
+          appName={t('home.nav', { defaultValue: 'Home' })}
           objects={[]}
           connectionState="connected"
         />

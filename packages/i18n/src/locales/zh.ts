@@ -846,6 +846,38 @@ const zh = {
     members: '成员',
     settings: '工作区设置',
   },
+  sidebar: {
+    settings: '设置',
+    help: '帮助',
+    helpTooltip: '帮助与文档',
+    activityFeed: '活动动态',
+  },
+  home: {
+    title: '首页',
+    subtitle: '您的工作区仪表盘',
+    nav: '首页',
+    allApps: '全部应用',
+    loading: '正在加载工作区...',
+    recent: '最近使用',
+    starred: '收藏',
+    welcome: '欢迎使用 ObjectUI',
+    welcomeDescription: '从创建您的第一个应用开始，或者先完成系统设置。',
+    createFirstApp: '创建您的第一个应用',
+    systemSettings: '系统设置',
+    quickActions: {
+      title: '快捷操作',
+      createApp: '创建应用',
+      createAppDesc: '从新应用开始',
+      manageObjects: '管理对象',
+      manageObjectsDesc: '配置数据模型',
+      systemSettings: '系统设置',
+      systemSettingsDesc: '配置您的工作区',
+    },
+    appCard: {
+      noDescription: '暂无描述',
+      default: '默认',
+    },
+  },
 } as const;
 
 export default zh;

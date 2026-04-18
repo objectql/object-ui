@@ -846,6 +846,38 @@ const en = {
     members: 'Members',
     settings: 'Workspace settings',
   },
+  sidebar: {
+    settings: 'Settings',
+    help: 'Help',
+    helpTooltip: 'Help & Documentation',
+    activityFeed: 'Activity feed',
+  },
+  home: {
+    title: 'Home',
+    subtitle: 'Your workspace dashboard',
+    nav: 'Home',
+    allApps: 'All Applications',
+    loading: 'Loading workspace...',
+    recent: 'Recent',
+    starred: 'Starred',
+    welcome: 'Welcome to ObjectUI',
+    welcomeDescription: 'Get started by creating your first application or configure your system settings.',
+    createFirstApp: 'Create Your First App',
+    systemSettings: 'System Settings',
+    quickActions: {
+      title: 'Quick Actions',
+      createApp: 'Create App',
+      createAppDesc: 'Start with a new application',
+      manageObjects: 'Manage Objects',
+      manageObjectsDesc: 'Configure data models',
+      systemSettings: 'System Settings',
+      systemSettingsDesc: 'Configure your workspace',
+    },
+    appCard: {
+      noDescription: 'No description',
+      default: 'Default',
+    },
+  },
 } as const;
 
 export default en;

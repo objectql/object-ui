@@ -230,8 +230,8 @@ export function UnifiedSidebar({ activeAppName, onAppChange }: UnifiedSidebarPro
 
   // Home navigation items
   const homeNavigation: NavigationItem[] = React.useMemo(() => [
-    { id: 'home-dashboard', label: 'Home', type: 'url' as const, url: '/home', icon: 'home' },
-  ], []);
+    { id: 'home-dashboard', label: t('home.nav', { defaultValue: 'Home' }), type: 'url' as const, url: '/home', icon: 'home' },
+  ], [t]);
 
   // Determine which navigation to show based on context
   const navigationItems = context === 'home' ? homeNavigation : appNavigation;
@@ -565,20 +565,20 @@ export function UnifiedSidebar({ activeAppName, onAppChange }: UnifiedSidebarPro
         <SidebarMenu>
           {/* Settings */}
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Settings">
+            <SidebarMenuButton asChild tooltip={t('sidebar.settings', { defaultValue: 'Settings' })}>
               <Link to={context === 'app' && activeApp ? `/apps/${activeApp.name}/system` : '/system'}>
                 <Settings className="h-4 w-4" />
-                <span>Settings</span>
+                <span>{t('sidebar.settings', { defaultValue: 'Settings' })}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
 
           {/* Help */}
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Help & Documentation">
+            <SidebarMenuButton asChild tooltip={t('sidebar.helpTooltip', { defaultValue: 'Help & Documentation' })}>
               <a href="https://docs.objectstack.ai" target="_blank" rel="noopener noreferrer">
                 <HelpCircle className="h-4 w-4" />
-                <span>Help</span>
+                <span>{t('sidebar.help', { defaultValue: 'Help' })}</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
