@@ -8,8 +8,10 @@
       ]
     },
     "chrome-devtools": {
-      "command": "chrome-devtools-mcp",
-      "args": []
+      "command": "npx",
+      "args": [
+        "chrome-devtools-mcp@latest"
+      ]
     }
   }
 }
