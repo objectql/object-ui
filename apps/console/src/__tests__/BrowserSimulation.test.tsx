@@ -1,6 +1,6 @@
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import '@object-ui/fields'; // Ensure fields are registered for ObjectForm tests
 import '@object-ui/plugin-dashboard'; // Ensure dashboard component is registered
@@ -176,78 +176,8 @@ describe('Console Application Simulation', () => {
         // Presence of the widget title confirms the DashboardRenderer is active.
     });
 
-    it('Scenario 3: Object List View (Kitchen Sink)', async () => {
-        renderApp('/kitchen_sink');
-
-        // Verify Object Header
-        await waitFor(() => {
-            expect(screen.getByRole('heading', { name: /Kitchen Sink/i })).toBeInTheDocument();
-        }, { timeout: 5000 });
-
-        // Verify "New" Button exists
-        const newButton = screen.getByRole('button', { name: /New/i });
-        expect(newButton).toBeInTheDocument();
-
-        // Verify Grid rendered
-        // We assume Grid renders the rows.
-    });
-
-    it.skip('Scenario 4: Object Create Form (All Field Types)', async () => {
-        // Helper function to check if a label exists in the form
-        const expectLabelToExist = (label: string) => {
-            const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(escaped, 'i');
-            const elements = screen.queryAllByText(regex);
-            expect(elements.length).toBeGreaterThan(0);
-        };
-
-        renderApp('/kitchen_sink');
-
-        // 1. Wait for Object View
-        await waitFor(() => {
-            expect(screen.getByRole('heading', { name: /Kitchen Sink/i })).toBeInTheDocument();
-        });
-
-        // 2. Click "New Kitchen Sink"
-        const newButton = screen.getByRole('button', { name: /New/i });
-        fireEvent.click(newButton);
-
-        // 3. Verify Dialog Opens
-        await waitFor(() => {
-            expect(screen.getByRole('dialog')).toBeInTheDocument();
-            // Verify form field to ensure object definition was found
-            // expect(screen.getByRole('heading', { name: /Create.*Sink/i })).toBeInTheDocument();
-            expect(screen.getByLabelText(/Name/i)).toBeInTheDocument();
-        });
-
-        const dialog = screen.getByRole('dialog');
-
-        // 4. Verify Field Inputs
-        // Wait for form to finish loading and first field to appear
-        await waitFor(() => {
-             expect(within(dialog).getByText(/Text \(Name\)/i)).toBeInTheDocument();
-        }, { timeout: 10000 });
-
-        const fieldLabels = [
-            'Text (Name)',
-            'Text Area',
-            'Date',
-            'Number (Int)',
-            'Lookup (Account)',
-            'Boolean (Switch)',
-        ];
-
-        // Check all labels exist concurrently using Promise.all for faster execution
-        await Promise.all(
-            fieldLabels.map(label =>
-                waitFor(() => expectLabelToExist(label), { timeout: 5000 })
-            )
-        );
-
-        // 5. Test specific interaction (e.g. typing in name)
-        // Note: Shadcn/Form labels might be associated via ID, so getByLabelText is safer usually,
-        // but finding by Text works for verifying presence.
-    });
+    // Scenario 3 removed — duplicated by "Grid Scenario A: Grid Rendering and Actions" below.
+    // Scenario 4 removed — was permanently skipped (drag/drop + dialog form rendering unreliable in JSDOM).
 
     it('Scenario 5: Page Rendering (Task Tracker Help)', async () => {
         renderApp('/page/todo_help');
@@ -694,7 +624,7 @@ describe('Kanban Integration', () => {
     it('Scenario D: Dynamic Behavior (Expression Test)', async () => {
         // Import component
         const { KanbanRenderer } = await import('@object-ui/plugin-kanban');
-        
+
         // Setup: Data with different priority levels
         const dynamicData = [
             { id: 't1', title: 'Low Priority Task', status: 'todo', priority: 'low' },
@@ -724,82 +654,9 @@ describe('Kanban Integration', () => {
         // All tasks should be visible and grouped by status
         expect(screen.getByText('High Priority Task')).toBeInTheDocument();
         expect(screen.getByText('Medium Priority Task')).toBeInTheDocument();
-
-        // Verify the groupBy field worked - tasks are distributed to correct columns
-        // Both Low and High priority tasks should be in "To Do" column (status === 'todo')
-        // Medium priority task should be in "In Progress" column (status === 'in_progress')
-        
-        // Note: In a real implementation with expressions, we would:
-        // 1. Define schema with `hidden: "${record.priority === 'low'}"`
-        // 2. Update the data (e.g., change priority to 'low')
-        // 3. Assert element becomes hidden/visible based on expression
-        // 4. Verify disabled/readonly states based on data
     });
 
-    it('Scenario D.2: Dynamic Visibility Based on Data Changes', async () => {
-        // Import component
-        const { ObjectKanban } = await import('@object-ui/plugin-kanban');
-        
-        // This test demonstrates how kanban reacts to data changes
-        // When data source returns different data, the UI should update
-        
-        const initialData = [
-            { id: 't1', title: 'Open Task', status: 'open', priority: 'high' }
-        ];
-
-        const findSpy = vi.spyOn(mocks.MockDataSource.prototype, 'find').mockResolvedValue({ 
-            data: initialData 
-        } as any);
-
-        const schemaSpy = vi.spyOn(mocks.MockDataSource.prototype, 'getObjectSchema').mockResolvedValue({
-            name: 'project_task',
-            fields: {
-                title: { type: 'text', label: 'Title' },
-                status: { type: 'picklist', label: 'Status' },
-                priority: { type: 'picklist', label: 'Priority' }
-            }
-        } as any);
-
-        const dataSource = new mocks.MockDataSource();
-
-        render(
-            <ObjectKanban
-                schema={{
-                    type: 'kanban',
-                    objectName: 'project_task',
-                    groupBy: 'status',
-                    columns: [
-                        { id: 'open', title: 'Open', cards: [] },
-                        { id: 'closed', title: 'Closed', cards: [] }
-                    ]
-                }}
-                dataSource={dataSource}
-            />
-        );
-
-        // Wait for initial render
-        await waitFor(() => {
-            expect(screen.getByText('Open Task')).toBeInTheDocument();
-        }, { timeout: 10000 });
-
-        // Verify initial state
-        expect(screen.getByText('Open Task')).toBeInTheDocument();
-        expect(findSpy).toHaveBeenCalled();
-
-        // In a real test with live updates:
-        // 1. Update mock to return different data: { status: 'closed' }
-        // 2. Trigger re-render or data refresh
-        // 3. Assert UI reflects the change (card moves to Closed column)
-        // 4. Verify expression evaluation is working correctly
-
-        // For now, we verify the component can handle the initial load
-        // and that data source was called correctly
-        expect(findSpy).toHaveBeenCalledWith('project_task', expect.any(Object));
-
-        // Restore spies to avoid affecting subsequent tests
-        findSpy.mockRestore();
-        schemaSpy.mockRestore();
-    });
+    // Scenario D.2 removed — overlaps with Scenario C (data read via ObjectKanban) and D (groupBy distribution).
 });
 
 
@@ -845,45 +702,19 @@ describe('Fields Integration', () => {
 // -----------------------------------------------------------------------------
 // DASHBOARD INTEGRATION TESTS
 // -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// DASHBOARD INTEGRATION TESTS
+// -----------------------------------------------------------------------------
+// Scenario A (dashboard rendering) is covered by top-level "Scenario 2".
+// Scenario B (help page rendering) is covered by top-level "Scenario 1" / "Scenario 5".
+// Only the component-registry sanity check is kept here.
 describe('Dashboard Integration', () => {
-    const renderApp = (initialRoute: string) => {
-        return render(
-            <NavigationProvider>
-            <FavoritesProvider>
-            <MemoryRouter initialEntries={[initialRoute]}>
-                <AppContent />
-            </MemoryRouter>
-            </FavoritesProvider>
-            </NavigationProvider>
-        );
-    };
-
-    it('Scenario A: Dashboard Page Rendering', async () => {
-        renderApp('/dashboard/crm_dashboard');
-        
-        await waitFor(() => {
-            expect(screen.getByText(/CRM Overview/i)).toBeInTheDocument();
-        }, { timeout: 10000 });
-        
-        expect(screen.getByText(/Revenue Trends/i)).toBeInTheDocument();
-    });
-
-    it('Scenario B: Help Page Rendering', async () => {
-        renderApp('/page/crm_help');
-        
-        await waitFor(() => {
-            expect(screen.getByText(/CRM Help Guide/i)).toBeInTheDocument();
-        }, { timeout: 10000 });
-        
-        expect(screen.getByText(/Keyboard Shortcuts/i)).toBeInTheDocument();
-    });
-
     it('Scenario C: Component Registry Check', async () => {
         const { ComponentRegistry } = await import('@object-ui/core');
-        
+
         const dashboardRenderer = ComponentRegistry.get('dashboard');
         expect(dashboardRenderer).toBeDefined();
-        
+
         const reportRenderer = ComponentRegistry.get('report');
         expect(reportRenderer).toBeDefined();
     });

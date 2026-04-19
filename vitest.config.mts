@@ -13,6 +13,24 @@ export default defineConfig({
     setupFiles: [path.resolve(__dirname, 'vitest.setup.tsx')],
     exclude: ['**/node_modules/**', '**/dist/**', '**/cypress/**', '**/e2e/**', '**/.{idea,git,cache,output,temp}/**'],
     passWithNoTests: true,
+    // Performance: use threads (lighter than forks) and share module graph across
+    // files in the same worker. `isolate: false` means the heavy setup file runs
+    // ONCE per worker rather than once per test file — major speedup for a
+    // monorepo with thousands of tests that all pay the component-registry /
+    // happy-dom boot cost.
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        isolate: false,
+        singleThread: false,
+      },
+    },
+    // Per-file-type environment so pure logic tests (.test.ts) run in node
+    // rather than paying happy-dom startup cost.
+    environmentMatchGlobs: [
+      ['**/*.test.tsx', 'happy-dom'],
+      ['**/*.test.ts', 'node'],
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
