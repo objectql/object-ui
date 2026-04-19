@@ -1,55 +1,40 @@
 /**
  * HomeLayout
  *
- * Unified Home Dashboard layout with persistent sidebar.
- * Uses AppShell + UnifiedSidebar for Airtable-style contextual navigation.
- * The sidebar displays Home-context navigation (workspace-level items).
+ * Unified Home (workspace) landing page layout.
+ *
+ * Unlike the in-app shell at `/apps/:appName/*`, the Home page uses a
+ * **top navigation bar only** (`HomeTopNav`) and deliberately omits the
+ * left sidebar. This clearly separates the workspace landing page from
+ * individual applications that *do* use `AppShell` + `UnifiedSidebar`.
  *
  * @module
  */
 
 import React, { useEffect } from 'react';
-import { AppShell } from '@object-ui/layout';
-import { useObjectTranslation } from '@object-ui/i18n';
-import { UnifiedSidebar } from '../../components/UnifiedSidebar';
-import { AppHeader } from '../../components/AppHeader';
 import { useNavigationContext } from '../../context/NavigationContext';
-import { useResponsiveSidebar } from '../../hooks/useResponsiveSidebar';
+import { HomeTopNav } from './HomeTopNav';
 
 interface HomeLayoutProps {
   children: React.ReactNode;
 }
 
-/** Inner component that can access SidebarProvider context */
-function HomeLayoutInner({ children }: { children: React.ReactNode }) {
-  useResponsiveSidebar();
-  return <>{children}</>;
-}
-
 export function HomeLayout({ children }: HomeLayoutProps) {
   const { setContext } = useNavigationContext();
-  const { t } = useObjectTranslation();
 
-  // Set navigation context to 'home' when this layout mounts
+  // Set navigation context to 'home' when this layout mounts so that
+  // shared services (breadcrumbs, recent items, etc.) know we are on
+  // the workspace landing page.
   useEffect(() => {
     setContext('home');
   }, [setContext]);
 
   return (
-    <AppShell
-      sidebar={<UnifiedSidebar />}
-      navbar={
-        <AppHeader
-          appName={t('home.nav', { defaultValue: 'Home' })}
-          objects={[]}
-          connectionState="connected"
-        />
-      }
-      className="p-0 overflow-hidden bg-muted/5"
-    >
-      <HomeLayoutInner>
+    <div className="flex min-h-svh w-full flex-col bg-background" data-testid="home-layout">
+      <HomeTopNav />
+      <main className="flex-1 min-w-0 overflow-auto">
         {children}
-      </HomeLayoutInner>
-    </AppShell>
+      </main>
+    </div>
   );
 }

@@ -1,6 +1,9 @@
 /**
- * Tests for HomeLayout — unified sidebar nav shell for /home.
- * Validates: layout rendering, sidebar presence, navigation context.
+ * Tests for HomeLayout — top-navigation shell for /home.
+ *
+ * The Home page deliberately uses a top menu (no left sidebar) to visually
+ * separate the workspace landing page from individual applications, which
+ * retain the `UnifiedSidebar` + `AppShell` layout.
  *
  * Note: Radix DropdownMenu portal rendering is limited in jsdom,
  * so we test the trigger and visible elements rather than dropdown contents.
@@ -54,22 +57,10 @@ vi.mock('@object-ui/components', async (importOriginal) => {
   };
 });
 
-// Mock UnifiedSidebar entirely — HomeLayout tests verify layout composition,
-// not the sidebar's internal rendering. This also avoids SidebarProvider
-// dependency when AppShell is mocked as a plain div.
-vi.mock('../components/UnifiedSidebar', () => ({
-  UnifiedSidebar: () => <nav data-testid="unified-sidebar" />,
-}));
-
-// Mock @object-ui/layout AppShell
-vi.mock('@object-ui/layout', () => ({
-  AppShell: ({ children, sidebar }: any) => (
-    <div data-testid="app-shell">
-      <div data-testid="sidebar">{sidebar}</div>
-      <div data-testid="content">{children}</div>
-    </div>
-  ),
-  useAppShellBranding: () => {},
+// Mock HomeTopNav — HomeLayout tests verify layout composition, not the
+// top nav's internal rendering (user menu, workspace switcher, etc.).
+vi.mock('../pages/home/HomeTopNav', () => ({
+  HomeTopNav: () => <nav data-testid="home-top-nav" />,
 }));
 
 // Mock NavigationContext
@@ -145,11 +136,15 @@ describe('HomeLayout', () => {
     );
   };
 
-  it('renders the AppShell with sidebar and content', () => {
+  it('renders the top navigation and content area, without a sidebar', () => {
     renderLayout();
-    expect(screen.getByTestId('app-shell')).toBeInTheDocument();
-    expect(screen.getByTestId('sidebar')).toBeInTheDocument();
-    expect(screen.getByTestId('content')).toBeInTheDocument();
+    expect(screen.getByTestId('home-layout')).toBeInTheDocument();
+    expect(screen.getByTestId('home-top-nav')).toBeInTheDocument();
+    // The home layout must NOT render the app-style left sidebar — that is
+    // reserved for `/apps/:appName/*` to keep the two contexts visually
+    // distinct.
+    expect(screen.queryByTestId('unified-sidebar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument();
   });
 
   it('sets navigation context to "home" on mount', () => {

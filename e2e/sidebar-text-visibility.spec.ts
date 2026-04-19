@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { CONSOLE_BASE } from './helpers';
 import { registerAndLogin } from './helpers/auth';
 
 /** Timeout for sidebar elements to become visible after auth + page render. */
@@ -8,18 +7,40 @@ const SIDEBAR_VISIBLE_TIMEOUT = 15_000;
 /**
  * Sidebar text visibility tests
  *
- * These tests validate that the sidebar displays text correctly
+ * These tests validate that the application sidebar displays text correctly
  * when toggled between collapsed (icon mode) and expanded states.
  *
+ * The Home page (`/home`) deliberately uses a top navigation bar instead
+ * of a left sidebar, so these tests navigate into an application first by
+ * clicking the first app card. Client-side navigation (no full reload) is
+ * used to preserve the MSW-backed mock auth session.
+ *
  * The MSW mock environment requires authentication, so each test
- * registers a fresh user before navigating to the home page.
+ * registers a fresh user before entering the application.
  */
+
+/**
+ * Register, land on /home, then enter the first available application so
+ * that the `UnifiedSidebar` is rendered. Uses client-side navigation via
+ * an app-card click to avoid dropping the MSW auth cookie.
+ */
+async function enterFirstApp(page: import('@playwright/test').Page) {
+  await registerAndLogin(page);
+
+  // Home renders app cards as data-testid="app-card-<name>". Click the first
+  // card via client-side routing — page.goto() would reload and drop the
+  // mock auth session.
+  const firstAppCard = page.locator('[data-testid^="app-card-"]').first();
+  await firstAppCard.waitFor({ state: 'visible', timeout: SIDEBAR_VISIBLE_TIMEOUT });
+  await firstAppCard.click();
+
+  // Wait for the app route to load.
+  await page.waitForURL(/\/console\/apps\//, { timeout: SIDEBAR_VISIBLE_TIMEOUT });
+}
 
 test.describe('Sidebar Text Visibility', () => {
   test('should show all text labels when sidebar is expanded in icon mode', async ({ page }) => {
-    // registerAndLogin navigates to /register, signs up, and waits for the
-    // redirect to /home — the page is already authenticated & on the home route.
-    await registerAndLogin(page);
+    await enterFirstApp(page);
 
     // Wait for sidebar to be visible (page needs time to render after auth redirect)
     const sidebar = page.locator('[data-sidebar="sidebar"]').first();
@@ -100,7 +121,7 @@ test.describe('Sidebar Text Visibility', () => {
   });
 
   test('should hide text labels when sidebar is collapsed in icon mode', async ({ page }) => {
-    await registerAndLogin(page);
+    await enterFirstApp(page);
 
     const sidebar = page.locator('[data-sidebar="sidebar"]').first();
     await expect(sidebar).toBeVisible({ timeout: SIDEBAR_VISIBLE_TIMEOUT });

@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No unreleased changes yet. Add new entries here._
+### Changed
+
+- **Console home page (`/home`)** now uses a top navigation bar (`HomeTopNav`)
+  instead of the left `UnifiedSidebar`. This visually separates the workspace
+  landing page from individual applications (which still use `AppShell` +
+  `UnifiedSidebar` for their rich, contextual left-hand navigation). Fixes
+  confusion when the home page and an application page look visually
+  identical. The top nav keeps the workspace switcher, Home link, search
+  (⌘K), activity feed, help, theme toggle, locale switcher, and user
+  profile menu.
+
 
 ## [3.3.0] - 2026-04-17
 

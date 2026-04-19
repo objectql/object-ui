@@ -10,7 +10,10 @@ const REACT_READY_TIMEOUT = 30_000;
  * MSW auth handlers run in-memory, so each browser context starts
  * without a session.  This helper creates a fresh user via the
  * register form so that subsequent navigation hits authenticated
- * routes (HomeLayout with sidebar, etc.).
+ * routes.
+ *
+ * Note: The home page uses a top navigation bar (no left sidebar); the
+ * `UnifiedSidebar` is only rendered inside `/apps/:appName/*` routes.
  */
 export async function registerAndLogin(page: Page) {
   await page.goto(`${CONSOLE_BASE}/register`);
