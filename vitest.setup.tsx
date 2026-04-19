@@ -411,6 +411,47 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
 };
 
+// Node.js 22+/25 ships a stubbed native `localStorage`/`sessionStorage` global
+// that requires the `--localstorage-file=<path>` flag to be functional. Without
+// that flag, methods such as `clear()` and `removeItem()` are missing, which
+// breaks tests that rely on a working Storage implementation in the
+// happy-dom/jsdom environment. Replace it with a simple in-memory Storage so
+// tests behave consistently across Node versions.
+function createMemoryStorage(): Storage {
+  const store = new Map<string, string>();
+  return {
+    get length() {
+      return store.size;
+    },
+    clear() {
+      store.clear();
+    },
+    getItem(key: string) {
+      return store.has(key) ? (store.get(key) as string) : null;
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      store.delete(key);
+    },
+    setItem(key: string, value: string) {
+      store.set(key, String(value));
+    },
+  } as Storage;
+}
+
+for (const name of ['localStorage', 'sessionStorage'] as const) {
+  const existing = (globalThis as any)[name];
+  if (!existing || typeof existing.clear !== 'function' || typeof existing.removeItem !== 'function') {
+    Object.defineProperty(globalThis, name, {
+      configurable: true,
+      writable: true,
+      value: createMemoryStorage(),
+    });
+  }
+}
+
 // Mock maplibre-gl to avoid "Failed to initialize WebGL" errors
 vi.mock('maplibre-gl', () => {
     const Map = vi.fn(() => ({

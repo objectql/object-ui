@@ -243,7 +243,7 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
     const [searchParams, setSearchParams] = useSearchParams();
     const { showDebug, toggleDebug } = useMetadataInspector();
     const { t } = useObjectTranslation();
-    const { objectLabel, objectDescription: objectDesc, translateOptions } = useObjectLabel();
+    const { objectLabel, objectDescription: objectDesc } = useObjectLabel();
     
     // Inline view config panel state (Airtable-style right sidebar)
     const [showViewConfigPanel, setShowViewConfigPanel] = useState(false);
@@ -297,23 +297,6 @@ export function ObjectView({ dataSource, objects, onEdit }: any) {
     
     // Get Object Definition
     const objectDef = objects.find((o: any) => o.name === objectName);
-
-    // Build a translated version of objectDef with localized option labels for grid badges
-    const translatedObjectDef = useMemo(() => {
-        if (!objectDef?.fields) return objectDef;
-        const translatedFields: Record<string, any> = {};
-        for (const [fieldName, fieldDef] of Object.entries(objectDef.fields as Record<string, any>)) {
-            if (Array.isArray(fieldDef?.options) && fieldDef.options.length > 0) {
-                translatedFields[fieldName] = {
-                    ...fieldDef,
-                    options: translateOptions(objectDef.name, fieldName, fieldDef.options),
-                };
-            } else {
-                translatedFields[fieldName] = fieldDef;
-            }
-        }
-        return { ...objectDef, fields: translatedFields };
-    }, [objectDef, translateOptions]);
 
     if (!objectDef) {
       return (
