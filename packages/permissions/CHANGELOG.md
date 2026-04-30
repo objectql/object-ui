@@ -1,5 +1,11 @@
 # @object-ui/permissions
 
+## 3.3.1
+
+### Patch Changes
+
+- @object-ui/types@3.3.1
+
 ## 3.3.0
 
 ### Patch Changes

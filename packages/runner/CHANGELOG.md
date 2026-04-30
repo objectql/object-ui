@@ -1,5 +1,16 @@
 # @object-ui/runner
 
+## 3.3.1
+
+### Patch Changes
+
+- @object-ui/types@3.3.1
+- @object-ui/core@3.3.1
+- @object-ui/react@3.3.1
+- @object-ui/components@3.3.1
+- @object-ui/plugin-charts@3.3.1
+- @object-ui/plugin-kanban@3.3.1
+
 ## 3.3.0
 
 ### Patch Changes

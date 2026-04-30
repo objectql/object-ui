@@ -1,19 +1,12 @@
-# @object-ui/app-shell — Changelog
+# @object-ui/console-starter
 
-## 3.3.1
+## 0.1.1
 
 ### Patch Changes
 
-- @object-ui/types@3.3.1
-- @object-ui/core@3.3.1
 - @object-ui/i18n@3.3.1
-- @object-ui/react@3.3.1
 - @object-ui/components@3.3.1
-- @object-ui/fields@3.3.1
-- @object-ui/layout@3.3.1
-- @object-ui/data-objectstack@3.3.1
 - @object-ui/auth@3.3.1
-- @object-ui/permissions@3.3.1
 - @object-ui/plugin-calendar@3.3.1
 - @object-ui/plugin-charts@3.3.1
 - @object-ui/plugin-chatbot@3.3.1
@@ -26,7 +19,4 @@
 - @object-ui/plugin-list@3.3.1
 - @object-ui/plugin-report@3.3.1
 - @object-ui/plugin-view@3.3.1
-- @object-ui/collaboration@3.3.1
-
-All notable changes to this package will be documented in this file.
-See the [monorepo CHANGELOG](../../CHANGELOG.md) for cross-package release notes.
+- @object-ui/app-shell@3.3.1

@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/layout",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "type": "module",
   "sideEffects": false,
   "main": "dist/index.umd.cjs",
@@ -42,7 +42,7 @@
     "vite": "^8.0.9",
     "vite-plugin-dts": "^4.5.4"
   },
-  "description": "Layout components for Object UI \u2014 AppShell, Page, SidebarNav and responsive containers with React Router integration",
+  "description": "Layout components for Object UI — AppShell, Page, SidebarNav and responsive containers with React Router integration",
   "keywords": [
     "objectui",
     "sdui",

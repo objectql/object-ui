@@ -1,7 +1,7 @@
 {
   "name": "@objectstack/plugin-ui",
-  "version": "3.3.0",
-  "description": "ObjectStack CLI plugin for Object UI \u2014 oclif-based UI toolchain commands (os ui dev, os ui build, etc.)",
+  "version": "3.3.1",
+  "description": "ObjectStack CLI plugin for Object UI — oclif-based UI toolchain commands (os ui dev, os ui build, etc.)",
   "type": "module",
   "homepage": "https://www.objectui.org/docs/utilities/cli",
   "repository": {
