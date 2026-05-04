@@ -31,12 +31,12 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@ai-sdk/react": "^3.0.170",
+    "@ai-sdk/react": "^3.0.176",
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "ai": "^6.0.168",
+    "ai": "^6.0.174",
     "lucide-react": "^1.8.0",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.1",
