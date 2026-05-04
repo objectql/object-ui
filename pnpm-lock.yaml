@@ -26,7 +26,7 @@ importers:
         version: 9.39.4
       '@objectstack/cli':
         specifier: ^4.0.4
-        version: 4.0.4(@ai-sdk/anthropic@3.0.69(zod@4.3.6))(@ai-sdk/google@3.0.63(zod@4.3.6))(@ai-sdk/openai@3.0.52(zod@4.3.6))(@objectstack/core@4.0.4(pino@8.21.0))(esbuild@0.28.0)(pino@8.21.0)
+        version: 4.0.4(@ai-sdk/anthropic@3.0.69(zod@4.4.3))(@ai-sdk/google@3.0.63(zod@4.4.3))(@ai-sdk/openai@3.0.52(zod@4.4.3))(@objectstack/core@4.0.4(pino@8.21.0))(esbuild@0.28.0)(pino@8.21.0)
       '@objectstack/spec':
         specifier: ^4.0.4
         version: 4.0.4
@@ -1044,8 +1044,8 @@ importers:
         specifier: ^4.18.1
         version: 4.18.1
       zod:
-        specifier: ^4.3.6
-        version: 4.3.6
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       typescript:
         specifier: ^6.0.3
@@ -2050,8 +2050,8 @@ importers:
         specifier: ^8.1.1
         version: 8.1.1(maplibre-gl@5.24.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       zod:
-        specifier: ^4.3.6
-        version: 4.3.6
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/react':
         specifier: 19.2.14
@@ -2206,8 +2206,8 @@ importers:
         specifier: 19.2.5
         version: 19.2.5(react@19.2.5)
       zod:
-        specifier: ^4.3.6
-        version: 4.3.6
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@object-ui/data-objectstack':
         specifier: workspace:*
@@ -2492,8 +2492,8 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       zod:
-        specifier: ^4.3.6
-        version: 4.3.6
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       typescript:
         specifier: ^6.0.3
@@ -11899,11 +11899,11 @@ snapshots:
 
   '@adobe/css-tools@4.4.4': {}
 
-  '@ai-sdk/anthropic@3.0.69(zod@4.3.6)':
+  '@ai-sdk/anthropic@3.0.69(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.6)
-      zod: 4.3.6
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
     optional: true
 
   '@ai-sdk/gateway@3.0.104(zod@4.3.6)':
@@ -11913,12 +11913,12 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 4.3.6
 
-  '@ai-sdk/gateway@3.0.109(zod@4.3.6)':
+  '@ai-sdk/gateway@3.0.104(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.26(zod@4.3.6)
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
       '@vercel/oidc': 3.2.0
-      zod: 4.3.6
+      zod: 4.4.3
 
   '@ai-sdk/gateway@3.0.109(zod@4.4.3)':
     dependencies:
@@ -11927,18 +11927,18 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 4.4.3
 
-  '@ai-sdk/google@3.0.63(zod@4.3.6)':
+  '@ai-sdk/google@3.0.63(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.6)
-      zod: 4.3.6
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
     optional: true
 
-  '@ai-sdk/openai@3.0.52(zod@4.3.6)':
+  '@ai-sdk/openai@3.0.52(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.6)
-      zod: 4.3.6
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.4.3)
+      zod: 4.4.3
     optional: true
 
   '@ai-sdk/provider-utils@4.0.23(zod@4.3.6)':
@@ -11948,12 +11948,12 @@ snapshots:
       eventsource-parser: 3.0.8
       zod: 4.3.6
 
-  '@ai-sdk/provider-utils@4.0.26(zod@4.3.6)':
+  '@ai-sdk/provider-utils@4.0.23(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 3.0.10
+      '@ai-sdk/provider': 3.0.8
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.0.8
-      zod: 4.3.6
+      zod: 4.4.3
 
   '@ai-sdk/provider-utils@4.0.26(zod@4.4.3)':
     dependencies:
@@ -13666,9 +13666,9 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/cli@4.0.4(@ai-sdk/anthropic@3.0.69(zod@4.3.6))(@ai-sdk/google@3.0.63(zod@4.3.6))(@ai-sdk/openai@3.0.52(zod@4.3.6))(@objectstack/core@4.0.4(pino@8.21.0))(esbuild@0.28.0)(pino@8.21.0)':
+  '@objectstack/cli@4.0.4(@ai-sdk/anthropic@3.0.69(zod@4.4.3))(@ai-sdk/google@3.0.63(zod@4.4.3))(@ai-sdk/openai@3.0.52(zod@4.4.3))(@objectstack/core@4.0.4(pino@8.21.0))(esbuild@0.28.0)(pino@8.21.0)':
     dependencies:
-      '@ai-sdk/gateway': 3.0.104(zod@4.3.6)
+      '@ai-sdk/gateway': 3.0.104(zod@4.4.3)
       '@objectstack/client': 4.0.4(pino@8.21.0)
       '@objectstack/core': 4.0.4(pino@8.21.0)
       '@objectstack/driver-memory': 4.0.4(pino@8.21.0)
@@ -13677,7 +13677,7 @@ snapshots:
       '@objectstack/plugin-setup': 4.0.4(pino@8.21.0)
       '@objectstack/rest': 4.0.4(pino@8.21.0)
       '@objectstack/runtime': 4.0.4(pino@8.21.0)
-      '@objectstack/service-ai': 4.0.4(@ai-sdk/anthropic@3.0.69(zod@4.3.6))(@ai-sdk/gateway@3.0.104(zod@4.3.6))(@ai-sdk/google@3.0.63(zod@4.3.6))(@ai-sdk/openai@3.0.52(zod@4.3.6))(pino@8.21.0)(zod@4.3.6)
+      '@objectstack/service-ai': 4.0.4(@ai-sdk/anthropic@3.0.69(zod@4.4.3))(@ai-sdk/gateway@3.0.104(zod@4.4.3))(@ai-sdk/google@3.0.63(zod@4.4.3))(@ai-sdk/openai@3.0.52(zod@4.4.3))(pino@8.21.0)(zod@4.4.3)
       '@objectstack/spec': 4.0.4
       '@oclif/core': 4.11.0
       bundle-require: 5.1.0(esbuild@0.28.0)
@@ -13685,7 +13685,7 @@ snapshots:
       dotenv-flow: 4.1.0
       tsx: 4.21.0
       yaml: 2.8.3
-      zod: 4.3.6
+      zod: 4.4.3
     transitivePeerDependencies:
       - '@ai-sdk/anthropic'
       - '@ai-sdk/google'
@@ -13704,7 +13704,7 @@ snapshots:
     dependencies:
       '@objectstack/spec': 4.0.4
       pino-pretty: 13.1.3
-      zod: 4.3.6
+      zod: 4.4.3
     optionalDependencies:
       pino: 8.21.0
 
@@ -13758,17 +13758,17 @@ snapshots:
     transitivePeerDependencies:
       - pino
 
-  '@objectstack/service-ai@4.0.4(@ai-sdk/anthropic@3.0.69(zod@4.3.6))(@ai-sdk/gateway@3.0.104(zod@4.3.6))(@ai-sdk/google@3.0.63(zod@4.3.6))(@ai-sdk/openai@3.0.52(zod@4.3.6))(pino@8.21.0)(zod@4.3.6)':
+  '@objectstack/service-ai@4.0.4(@ai-sdk/anthropic@3.0.69(zod@4.4.3))(@ai-sdk/gateway@3.0.104(zod@4.4.3))(@ai-sdk/google@3.0.63(zod@4.4.3))(@ai-sdk/openai@3.0.52(zod@4.4.3))(pino@8.21.0)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
       '@objectstack/core': 4.0.4(pino@8.21.0)
       '@objectstack/spec': 4.0.4
-      ai: 6.0.174(zod@4.3.6)
+      ai: 6.0.174(zod@4.4.3)
     optionalDependencies:
-      '@ai-sdk/anthropic': 3.0.69(zod@4.3.6)
-      '@ai-sdk/gateway': 3.0.104(zod@4.3.6)
-      '@ai-sdk/google': 3.0.63(zod@4.3.6)
-      '@ai-sdk/openai': 3.0.52(zod@4.3.6)
+      '@ai-sdk/anthropic': 3.0.69(zod@4.4.3)
+      '@ai-sdk/gateway': 3.0.104(zod@4.4.3)
+      '@ai-sdk/google': 3.0.63(zod@4.4.3)
+      '@ai-sdk/openai': 3.0.52(zod@4.4.3)
     transitivePeerDependencies:
       - pino
       - zod
@@ -16195,14 +16195,6 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       zod: 4.3.6
 
-  ai@6.0.174(zod@4.3.6):
-    dependencies:
-      '@ai-sdk/gateway': 3.0.109(zod@4.3.6)
-      '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.26(zod@4.3.6)
-      '@opentelemetry/api': 1.9.0
-      zod: 4.3.6
-
   ai@6.0.174(zod@4.4.3):
     dependencies:
       '@ai-sdk/gateway': 3.0.109(zod@4.4.3)
@@ -17365,8 +17357,8 @@ snapshots:
       '@babel/parser': 7.29.2
       eslint: 9.39.4(jiti@2.6.1)
       hermes-parser: 0.25.1
-      zod: 4.3.6
-      zod-validation-error: 4.0.2(zod@4.3.6)
+      zod: 4.4.3
+      zod-validation-error: 4.0.2(zod@4.4.3)
     transitivePeerDependencies:
       - supports-color
 
@@ -22531,9 +22523,9 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
-  zod-validation-error@4.0.2(zod@4.3.6):
+  zod-validation-error@4.0.2(zod@4.4.3):
     dependencies:
-      zod: 4.3.6
+      zod: 4.4.3
 
   zod@3.25.76: {}
 

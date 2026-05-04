@@ -39,7 +39,7 @@
     "lucide-react": "^1.8.0",
     "maplibre-gl": "^5.24.0",
     "react-map-gl": "^8.1.1",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
