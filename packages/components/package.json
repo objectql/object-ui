@@ -100,7 +100,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.5.0",
     "postcss": "^8.5.13",
-    "shadcn": "^4.5.0",
+    "shadcn": "^4.6.0",
     "storybook": "^8.6.18",
     "tailwindcss": "^4.2.4",
     "typescript": "^6.0.3",
