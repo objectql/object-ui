@@ -1,5 +1,107 @@
 # @object-ui/components
 
+## 3.4.0
+
+### Minor Changes
+
+- f1ca238: Async streaming export — spec v4 export job lifecycle end-to-end
+
+  For tenants with millions of records the legacy in-memory CSV/JSON export blew
+  past the browser's heap. This change wires the spec v4 streaming-export
+  contract through the renderer end-to-end:
+
+  **`@object-ui/types`** — `DataSource` gains four optional methods:
+  - `createExportJob(resource, request)` → `{ jobId, status, estimatedRecords, createdAt }`
+  - `getExportJobProgress(jobId)` → `{ status, processedRecords, totalRecords, percentComplete, downloadUrl, … }`
+  - `cancelExportJob(jobId)` (optional)
+  - `getExportJobDownloadUrl(jobId)` (optional — for short-lived signed URLs)
+
+  Mirror the spec v4 `CreateExportJobRequest` / `ExportJobProgress` shapes; types
+  remain dependency-free.
+
+  **`@object-ui/components`** — new public API:
+  - `useExportJob({ dataSource, pollIntervalMs, onComplete, onError })` — owns the
+    full polling loop, terminal-state handling, cancel, and download.
+  - `<ExportProgressDialog open onOpenChange job filename closeAfterDownloadMs />` —
+    determinate or indeterminate progress bar, byte/record counts, Cancel while
+    running, Download on completion, error banner on failure.
+
+  **`@object-ui/plugin-grid`** — `ObjectGrid` now auto-detects async export
+  support: when the `DataSource` exposes `createExportJob` + `getExportJobProgress`
+  (and the schema isn't using inline `value` data) the export popover routes
+  through the streaming path with a progress dialog. Otherwise it falls back to
+  the existing client-side blob path. Set `exportOptions.streaming = false` to
+  force the legacy path.
+
+### Patch Changes
+
+- a2d7023: End-user feature batch — forms, designer history, import/export, and PWA offline sync.
+
+  **Forms (`@object-ui/fields`, `@object-ui/providers`)**
+  - `FileField`: native `<input capture="environment">` camera capture for mobile devices, plus a uploading-progress indicator driven by `UploadProvider`.
+  - `ImageField`: per-image inline crop/rotate via the lazy-loaded `ImageCropperDialog` (canvas-based, zero new deps).
+  - New `UploadProvider` in `@object-ui/providers` with pluggable adapters for S3 and Azure Blob (plus the default object-URL adapter for local previews). XHR-based with progress, abort, and retry.
+  - `LookupField`: `lookup.dependsOn: string | string[]` to chain dependent lookups (e.g. State depends on Country); the trigger is gated until parent values are present and the OData `$filter` is built automatically.
+
+  **Container-aware widget widths (`@object-ui/components`)**
+  - New `useResizeObserver(ref)` hook exposing `{ width, height }` of any element. SSR-safe; reads the initial size via `getBoundingClientRect`.
+  - `plugin-gantt` and `plugin-kanban` now react to their container size instead of `window.innerWidth`, so they behave correctly inside split panels and dashboards.
+
+  **Designer history (`@object-ui/plugin-designer`)**
+  - `useUndoRedo` (and therefore `useDesignerHistory`) gains `persistKey` + `storage` options to round-trip the undo/redo stack through `sessionStorage`, plus a `clearPersisted()` cleanup helper. Drafts now survive accidental tab refreshes.
+  - New `<HistoryPanel>` component renders the timeline visually with one-click jump-to-checkpoint via the new `jumpTo(index)` API.
+
+  **Import wizard (`@object-ui/plugin-grid`)**
+  - Saved column-mapping templates: name, save, re-apply, and delete via a new template bar in the mapping step. Persisted under `objectui:import-templates:${objectName}` (override via `templateStorageKey` / `templateStorage`).
+  - Inline validation correction: cells with errors in the preview step are now editable; corrections feed straight into the import without requiring a re-upload, with green-bar status indicators for fixed rows.
+
+  **PWA offline sync (`@object-ui/mobile`)**
+  - New `MemoryOfflineQueue` / `IndexedDbOfflineQueue` (`createOfflineQueue()` picks the best backend) backed by IndexedDB.
+  - `createOfflineDataSource(inner, { queue })` wraps any DataSource so mutations issued while offline (or that fail with a network-style error) are queued and replayed in order on reconnect. Includes `replay()`, `drop()`, `clear()`, `pending()`, an `onChange` notifier, and an opt-in `resolveConflict` hook for stale-write conflicts.
+  - New `useOfflineSync(source)` hook exposes `{ isOnline, pending, isReplaying, replay, drop, clear }` and auto-replays on the browser's `online` event.
+  - `getServiceWorkerSource(opts)` emits a customisable Service Worker that pre-caches the app shell, applies network-first to API requests, and broadcasts `REPLAY_QUEUE` to clients on Background Sync. `requestBackgroundSync(tag)` registers a one-shot sync from the page.
+
+- de881ef: Mobile UX round 3 — Form: sticky save bar, fullscreen long-text editor, and auto-stepper for long forms on small viewports.
+
+  **`@object-ui/types`** — `ObjectFormSchema.mobile` (new) lets a single form opt into all three behaviours:
+
+  ```ts
+  {
+    type: 'object-form',
+    objectName: 'leads',
+    mode: 'create',
+    mobile: {
+      stickyActions: true,        // pin Submit/Cancel to bottom on phones
+      stepper: 'auto',            // long forms render one field per step
+      stepperMinFields: 8,        // …but only past this many fields
+      stepperFieldsPerStep: 1,    // … (default 1)
+      fullscreenLongText: true,   // textarea fields get an "expand" affordance
+    },
+  }
+  ```
+
+  `FormSchema.mobileStickyActions` (new) is the lower-level escape hatch — applied automatically when `mobile.stickyActions` is set on `ObjectFormSchema`.
+
+  **`@object-ui/plugin-form`** — `ObjectForm` now:
+  - propagates `mobile.fullscreenLongText` to every textarea/markdown/html field as `mobile_fullscreen: true`,
+  - sets `mobileStickyActions` on the inner form schema and adds `pb-20` padding so content isn't covered by the fixed bar,
+  - when `mobile.stepper === true` (or `'auto'` + `useIsMobile()` + > `stepperMinFields` fields), routes the flat field list through the existing `WizardForm` with synthetic single-field "steps" — keeping per-step validation and the existing `Next`/`Back`/`Submit` flow.
+
+  **`@object-ui/components`** — the registered `form` renderer adds:
+  - a `mobileStickyActions` opt-in that turns the action row into a `position: sticky; bottom: 0` bar on small viewports, and
+  - an inline `FullscreenTextarea` wrapper used when no field-package widget is registered, providing the same expand-button + edit-dialog UX so the feature works even in lighter setups.
+
+  **`@object-ui/fields`** — `TextAreaField` ships the actual fullscreen UX: a top-right `Maximize2` button opens a near-fullscreen `Dialog` containing a full-height `Textarea` with a draft-then-commit save model (Cancel reverts).
+
+  All three behaviours are off by default — existing forms render unchanged.
+
+- Updated dependencies [f1ca238]
+- Updated dependencies [de881ef]
+  - @object-ui/types@3.4.0
+  - @object-ui/core@3.4.0
+  - @object-ui/react@3.4.0
+  - @object-ui/i18n@3.4.0
+
 ## 3.3.2
 
 ### Patch Changes

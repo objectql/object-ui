@@ -1,5 +1,16 @@
 # @object-ui/react
 
+## 3.4.0
+
+### Patch Changes
+
+- Updated dependencies [f1ca238]
+- Updated dependencies [de881ef]
+  - @object-ui/types@3.4.0
+  - @object-ui/core@3.4.0
+  - @object-ui/data-objectstack@3.4.0
+  - @object-ui/i18n@3.4.0
+
 ## 3.3.2
 
 ### Patch Changes

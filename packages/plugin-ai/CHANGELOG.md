@@ -1,5 +1,17 @@
 # @object-ui/plugin-ai
 
+## 3.4.0
+
+### Patch Changes
+
+- Updated dependencies [a2d7023]
+- Updated dependencies [f1ca238]
+- Updated dependencies [de881ef]
+  - @object-ui/components@3.4.0
+  - @object-ui/types@3.4.0
+  - @object-ui/core@3.4.0
+  - @object-ui/react@3.4.0
+
 ## 3.3.2
 
 ### Patch Changes

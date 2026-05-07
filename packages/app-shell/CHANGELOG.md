@@ -1,5 +1,37 @@
 # @object-ui/app-shell — Changelog
 
+## 4.0.0
+
+### Patch Changes
+
+- Updated dependencies [a2d7023]
+- Updated dependencies [f1ca238]
+- Updated dependencies [de881ef]
+- Updated dependencies [b2be122]
+  - @object-ui/components@3.4.0
+  - @object-ui/fields@3.4.0
+  - @object-ui/plugin-designer@3.4.0
+  - @object-ui/plugin-grid@3.4.0
+  - @object-ui/plugin-kanban@3.4.0
+  - @object-ui/types@3.4.0
+  - @object-ui/plugin-form@3.4.0
+  - @object-ui/plugin-calendar@3.4.0
+  - @object-ui/layout@3.4.0
+  - @object-ui/plugin-charts@3.4.0
+  - @object-ui/plugin-chatbot@3.4.0
+  - @object-ui/plugin-dashboard@3.4.0
+  - @object-ui/plugin-detail@3.4.0
+  - @object-ui/plugin-list@3.4.0
+  - @object-ui/plugin-report@3.4.0
+  - @object-ui/plugin-view@3.4.0
+  - @object-ui/auth@3.4.0
+  - @object-ui/collaboration@3.4.0
+  - @object-ui/core@3.4.0
+  - @object-ui/data-objectstack@3.4.0
+  - @object-ui/permissions@3.4.0
+  - @object-ui/react@3.4.0
+  - @object-ui/i18n@3.4.0
+
 ## 3.3.2
 
 ### Patch Changes
