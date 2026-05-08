@@ -1,5 +1,24 @@
 # @object-ui/plugin-editor
 
+## 4.0.4
+
+### Patch Changes
+
+- d2b6ece: fix: externalize all bare imports in library builds
+
+  Library builds (vite lib mode) now externalize every non-relative import instead of bundling third-party CJS dependencies into the published dist. This avoids inlined `require("react")` / `require("react-dom")` calls that cause `Calling \`require\` for "react" in an environment that doesn't expose the \`require\` function` runtime errors when consumer apps re-bundle the published dist.
+
+  Specifically fixes:
+  - `@object-ui/plugin-dashboard` no longer inlines `react-grid-layout` (and its transitive `react-draggable` / `react-resizable` CJS bundles). `react-grid-layout` is now declared as a peer dependency so consumers install a single ESM-friendly copy.
+  - `@object-ui/components`, `@object-ui/plugin-calendar`, `@object-ui/plugin-charts`, `@object-ui/plugin-designer` no longer inline `react-i18next` / `i18next` / `use-sync-external-store` CJS shims.
+  - All plugin packages now use a unified `external: (id) => !/^[./]/.test(id) && !id.startsWith(__dirname)` rule, ensuring future additions of CJS deps are automatically externalized.
+
+- Updated dependencies [d2b6ece]
+  - @object-ui/components@4.0.4
+  - @object-ui/types@4.0.4
+  - @object-ui/core@4.0.4
+  - @object-ui/react@4.0.4
+
 ## 4.0.3
 
 ### Patch Changes

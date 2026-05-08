@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.4
+
+### Patch Changes
+
+- @object-ui/types@4.0.4
+- @object-ui/core@4.0.4
+
 ## 4.0.3
 
 ### Patch Changes
