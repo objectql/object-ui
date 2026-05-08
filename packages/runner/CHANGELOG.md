@@ -1,5 +1,32 @@
 # @object-ui/runner
 
+## 4.0.6
+
+### Patch Changes
+
+- 1b6dc64: fix: complete Tailwind v3→v4 migration cleanup
+  - Rename deprecated `flex-shrink-0` → `shrink-0` and `flex-grow-N` →
+    `grow-N` (Tailwind v4 dropped the long-form aliases). Affects
+    data-table, fields/index, FileField, ChatbotEnhanced,
+    FloatingChatbotPanel, ProcessDesigner, HistoryPanel, KanbanEnhanced,
+    KanbanImpl, plugin-timeline index, FlowDesigner, LayoutRenderer.
+  - Replace `theme(spacing.4)` inside arbitrary-value `[calc(...)]` with
+    literal `1rem` in sidebar.tsx — `theme()` is deprecated in v4.
+  - Remove obsolete v3-escape CSS overrides from index.css and
+    sidebar-fixes.css. The component source now uses native v4 stacked
+    data variants (`group-data-[state=collapsed]:group-data-[collapsible=icon]:w-(--sidebar-width-icon)`)
+    which Tailwind v4 emits correctly without the manual overrides.
+    Only the bespoke `.sidebar-menu-button-icon-mode*` rules are kept.
+
+- Updated dependencies [925051d]
+- Updated dependencies [1b6dc64]
+  - @object-ui/components@4.0.6
+  - @object-ui/plugin-kanban@4.0.6
+  - @object-ui/plugin-charts@4.0.6
+  - @object-ui/types@4.0.6
+  - @object-ui/core@4.0.6
+  - @object-ui/react@4.0.6
+
 ## 4.0.5
 
 ### Patch Changes

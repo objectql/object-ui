@@ -1,5 +1,31 @@
 # @object-ui/plugin-form
 
+## 4.0.6
+
+### Patch Changes
+
+- 89ae109: Fix click navigation and required-FK form rendering
+  - **plugin-grid**: ObjectGrid's `getSelectFields()` now always includes `id` in
+    the SELECT projection. Previously, when a view configured `columns` without
+    `id`, the SQL driver stripped it from results, and row-click handlers silently
+    no-oped because `record.id` was undefined.
+  - **plugin-form / fields**: Master-detail fields now render as a single-value
+    lookup picker (`LookupField`) in create/edit forms instead of a one-to-many
+    related-list widget. From the child-side, master-detail is the FK to the
+    parent record and is typically NOT NULL — it must appear in forms. Prior
+    behavior dropped it via the auto-layout exclusion list, which caused server
+    errors like "NOT NULL constraint failed: contact.account" when users tried
+    to create child records.
+
+- Updated dependencies [89ae109]
+- Updated dependencies [925051d]
+- Updated dependencies [1b6dc64]
+  - @object-ui/fields@4.0.6
+  - @object-ui/components@4.0.6
+  - @object-ui/types@4.0.6
+  - @object-ui/core@4.0.6
+  - @object-ui/react@4.0.6
+
 ## 4.0.5
 
 ### Patch Changes

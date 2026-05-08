@@ -1,5 +1,50 @@
 # @object-ui/app-shell — Changelog
 
+## 4.0.6
+
+### Patch Changes
+
+- 925051d: fix: convert Tailwind v3 `[--var]` arbitrary value syntax to v4 `(--var)`
+
+  Shadcn `Sidebar`, `Calendar`, `Chart`, `Popover`, `Tooltip`, `HoverCard`,
+  `Menubar`, `Select`, `Dropdown`, `Context-Menu`, and `AppSidebar` used the
+  Tailwind v3 syntax `w-[--sidebar-width]`, `origin-[--radix-...]`, etc.
+  Tailwind v4 no longer interprets the bare `--xxx` inside arbitrary values
+  as `var(--xxx)`, so the rule emits empty CSS — the sidebar collapses to
+  0 width and overlays the main content, dropdown/popover positions fall
+  back to the wrong origin, and the calendar cells lose their fixed size.
+
+  Replaced all such occurrences with the v4 CSS-variable shorthand
+  `w-(--sidebar-width)`, `origin-(--radix-...)`, etc. Existing
+  `[calc(var(--xxx)*-1)]` arbitrary expressions are unaffected.
+
+- Updated dependencies [89ae109]
+- Updated dependencies [925051d]
+- Updated dependencies [1b6dc64]
+  - @object-ui/plugin-grid@4.0.6
+  - @object-ui/plugin-form@4.0.6
+  - @object-ui/fields@4.0.6
+  - @object-ui/components@4.0.6
+  - @object-ui/plugin-chatbot@4.0.6
+  - @object-ui/plugin-designer@4.0.6
+  - @object-ui/plugin-kanban@4.0.6
+  - @object-ui/plugin-view@4.0.6
+  - @object-ui/plugin-calendar@4.0.6
+  - @object-ui/plugin-detail@4.0.6
+  - @object-ui/plugin-report@4.0.6
+  - @object-ui/layout@4.0.6
+  - @object-ui/plugin-charts@4.0.6
+  - @object-ui/plugin-dashboard@4.0.6
+  - @object-ui/plugin-list@4.0.6
+  - @object-ui/types@4.0.6
+  - @object-ui/core@4.0.6
+  - @object-ui/i18n@4.0.6
+  - @object-ui/react@4.0.6
+  - @object-ui/data-objectstack@4.0.6
+  - @object-ui/auth@4.0.6
+  - @object-ui/permissions@4.0.6
+  - @object-ui/collaboration@4.0.6
+
 ## 4.0.5
 
 ### Patch Changes

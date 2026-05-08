@@ -1,5 +1,17 @@
 # @object-ui/plugin-dashboard
 
+## 4.0.6
+
+### Patch Changes
+
+- Updated dependencies [925051d]
+- Updated dependencies [1b6dc64]
+  - @object-ui/components@4.0.6
+  - @object-ui/types@4.0.6
+  - @object-ui/core@4.0.6
+  - @object-ui/i18n@4.0.6
+  - @object-ui/react@4.0.6
+
 ## 4.0.5
 
 ### Patch Changes
