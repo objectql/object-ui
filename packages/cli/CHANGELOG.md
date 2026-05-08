@@ -1,5 +1,14 @@
 # @object-ui/cli
 
+## 4.0.5
+
+### Patch Changes
+
+- Updated dependencies [1dc6061]
+  - @object-ui/components@4.0.5
+  - @object-ui/types@4.0.5
+  - @object-ui/react@4.0.5
+
 ## 4.0.4
 
 ### Patch Changes

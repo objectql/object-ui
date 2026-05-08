@@ -1,5 +1,36 @@
 # @object-ui/plugin-editor
 
+## 4.0.5
+
+### Patch Changes
+
+- 1dc6061: fix(build): inline dynamic imports in library outputs
+
+  Library `vite build --lib` outputs were emitting separate code-split chunks
+  (`rolldown-runtime-*.js`, `LookupField-*.js`, etc.) when source files used
+  `React.lazy()` / dynamic `import()`. When consumer apps re-bundled these
+  multi-file dists, the library's per-chunk rolldown-runtime collided with the
+  consumer's own runtime, causing "TypeError: i is not a function" at runtime
+  when lazy components tried to register themselves (e.g. TextField in
+  `@object-ui/fields` after 4.0.4).
+
+  Adding `output.inlineDynamicImports: true` to all `@object-ui/*` library vite
+  configs forces a single `dist/index.js` per package, which lets consumer
+  bundlers handle the library as an opaque ESM module without identifier
+  mismatches across chunks.
+
+  Affected packages: components, fields, layout, plugin-aggrid, plugin-ai,
+  plugin-calendar, plugin-charts, plugin-chatbot, plugin-dashboard,
+  plugin-designer, plugin-detail, plugin-editor, plugin-form, plugin-gantt,
+  plugin-grid, plugin-kanban, plugin-list, plugin-map, plugin-markdown,
+  plugin-report, plugin-timeline, plugin-view, plugin-workflow.
+
+- Updated dependencies [1dc6061]
+  - @object-ui/components@4.0.5
+  - @object-ui/types@4.0.5
+  - @object-ui/core@4.0.5
+  - @object-ui/react@4.0.5
+
 ## 4.0.4
 
 ### Patch Changes

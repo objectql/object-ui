@@ -1,5 +1,14 @@
 # @object-ui/react
 
+## 4.0.5
+
+### Patch Changes
+
+- @object-ui/types@4.0.5
+- @object-ui/core@4.0.5
+- @object-ui/i18n@4.0.5
+- @object-ui/data-objectstack@4.0.5
+
 ## 4.0.4
 
 ### Patch Changes
