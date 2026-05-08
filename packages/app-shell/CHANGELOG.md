@@ -1,5 +1,94 @@
 # @object-ui/app-shell — Changelog
 
+## 4.0.7
+
+### Patch Changes
+
+- 7c9b85c: Fix compatibility with the framework's normalized Expression envelope format.
+
+  `@objectstack/spec` now emits predicate (`visible` / `enabled`) and template
+  (`titleFormat`) fields as `{ dialect, source }` envelopes instead of bare
+  strings. The previous implementation assumed strings and crashed the record
+  detail view (`TypeError: titleFormat.replace is not a function`) and printed
+  `Failed to evaluate expression: ${[object Object]}` for every action visibility
+  predicate.
+  - `@object-ui/core`: `ExpressionEvaluator.evaluate` / `evaluateCondition` now
+    unwrap Expression envelopes transparently.
+  - `@object-ui/react`: new `toPredicateInput()` helper to safely normalize
+    `boolean | string | Expression` predicate inputs into the `${expr}` form
+    expected by `useCondition`.
+  - `@object-ui/components`: `action-bar`, `action-button`, `action-group`,
+    `action-icon`, `action-menu` renderers use `toPredicateInput()` instead of
+    template-literal interpolation that produced `${[object Object]}`.
+  - `@object-ui/plugin-detail`, `@object-ui/plugin-kanban`,
+    `@object-ui/plugin-calendar`, `@object-ui/app-shell`,
+    `@object-ui/console`: title-format helpers accept both legacy strings and
+    the new `{ source }` envelope.
+
+  All changes are backward-compatible — legacy bare strings continue to work.
+
+- fd15918: Comprehensive i18n refactor + CI test fix.
+
+  **i18n (`@object-ui/i18n`)**
+  - Added ~130 new keys under 12 new top-level namespaces: `layout`, `search`,
+    `empty`, `renderer`, `actionDialog`, `rowAction`, `navigationSync`,
+    `objectActions`, `objectViewActions`, `dashboardActions`, `recordDetail`,
+    `cellRender`, plus `grid.{empty,yes,no,systemFields,openMenu}`.
+  - Mirrored all new top-level namespaces to all 10 built-in locales
+    (en, zh, ja, ko, de, fr, es, pt, ru, ar) to maintain key parity required
+    by the locale-structure test. Non-en/zh locales seed with English values
+    and rely on `fallbackLng: 'en'` until human translation lands.
+
+  **App shell (`@object-ui/app-shell`)** — replaced hardcoded English in 14
+  files with `useObjectTranslation`:
+  - Layout: `AppSidebar`, `ActivityFeed` (locale-aware relative time),
+    `MetadataInspector`.
+  - Views: `SearchResultsPage`, `ActionParamDialog`, `RecordFormPage`,
+    `RecordDetailView`, `PageView`, `DashboardView` (PDF / forecast toasts),
+    `ReportView`, `ObjectView` (rename / delete view toasts).
+  - Console: `AppContent` (no-apps empty state).
+  - Components: `PageRenderer`, `FormRenderer`, `DashboardRenderer`.
+  - Hooks: `useNavigationSync` (16 toasts incl. Undo label),
+    `useObjectActions` (delete confirm + success / failure toasts).
+
+  **Plugin grid (`@object-ui/plugin-grid`)**
+  - `ObjectGrid` record-detail panel now translates Empty / Yes / No / System
+    via the existing `useGridTranslation` safe-fallback wrapper.
+  - `RowActionMenu` adopts a local safe-fallback i18n wrapper for
+    `Open menu` / `Edit` / `Delete`, preserving standalone-usage guarantees.
+
+  **CLI test fix (`@object-ui/cli`)**
+  - `cli-bin.test.ts` auto-builds the package on first run when `dist/cli.js`
+    is missing, instead of throwing. This unbreaks `pnpm test:coverage` in CI
+    (root vitest run does not honor turbo's `^build` deps) and removes the
+    manual `pnpm --filter @object-ui/cli build` requirement for local dev.
+
+- Updated dependencies [7c9b85c]
+- Updated dependencies [fd15918]
+  - @object-ui/core@4.0.7
+  - @object-ui/react@4.0.7
+  - @object-ui/components@4.0.7
+  - @object-ui/plugin-detail@4.0.7
+  - @object-ui/plugin-kanban@4.0.7
+  - @object-ui/plugin-calendar@4.0.7
+  - @object-ui/i18n@4.0.7
+  - @object-ui/plugin-grid@4.0.7
+  - @object-ui/data-objectstack@4.0.7
+  - @object-ui/fields@4.0.7
+  - @object-ui/layout@4.0.7
+  - @object-ui/plugin-charts@4.0.7
+  - @object-ui/plugin-chatbot@4.0.7
+  - @object-ui/plugin-dashboard@4.0.7
+  - @object-ui/plugin-designer@4.0.7
+  - @object-ui/plugin-form@4.0.7
+  - @object-ui/plugin-list@4.0.7
+  - @object-ui/plugin-report@4.0.7
+  - @object-ui/plugin-view@4.0.7
+  - @object-ui/types@4.0.7
+  - @object-ui/auth@4.0.7
+  - @object-ui/permissions@4.0.7
+  - @object-ui/collaboration@4.0.7
+
 ## 4.0.6
 
 ### Patch Changes

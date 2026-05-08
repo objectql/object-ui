@@ -1,5 +1,13 @@
 # @object-ui/data-objectstack
 
+## 4.0.7
+
+### Patch Changes
+
+- Updated dependencies [7c9b85c]
+  - @object-ui/core@4.0.7
+  - @object-ui/types@4.0.7
+
 ## 4.0.6
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-charts",
-  "version": "4.0.6",
+  "version": "4.0.7",
   "type": "module",
   "license": "MIT",
   "description": "Chart components plugin for Object UI, powered by Recharts",
