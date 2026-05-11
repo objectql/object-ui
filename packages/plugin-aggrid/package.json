@@ -52,7 +52,7 @@
     "ag-grid-react": "^35.2.1",
     "ag-grid-community": "^35.2.1",
     "typescript": "^6.0.3",
-    "vite": "^8.0.10",
+    "vite": "^8.0.12",
     "vite-plugin-dts": "^5.0.0"
   },
   "keywords": [
