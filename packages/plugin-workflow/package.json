@@ -38,13 +38,13 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.7.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "vite": "^8.0.12",
     "vite-plugin-dts": "^5.0.0",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.6"
   },
   "description": "Workflow/BPMN plugin for Object UI — process designer, flow execution visualization and Automation builder UI",
   "keywords": [
