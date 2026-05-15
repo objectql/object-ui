@@ -59,7 +59,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
-    "@eslint/js": "^9.39.4",
+    "@eslint/js": "^10.0.1",
     "@objectstack/cli": "^4.0.5",
     "@objectstack/spec": "^4.0.5",
     "@playwright/test": "^1.60.0",
