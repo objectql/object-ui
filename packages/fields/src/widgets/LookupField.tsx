@@ -31,16 +31,64 @@ const LOOKUP_PAGE_SIZE = 50;
 const SchemaRendererContext: React.Context<any> = ImportedSchemaRendererContext;
 
 /**
+ * Render a record title from a `titleFormat` template (e.g. `{full_name}` or
+ * `{case_number} - {subject}`). When a templated key resolves to an empty
+ * value, the surrounding separator (`-/|·,:` plus em/en dashes) is stripped
+ * so we never produce orphan glyphs like `" - foo"`.
+ *
+ * Mirrors the implementation in `@object-ui/plugin-detail`'s
+ * `resolveDisplayTitle` and `@object-ui/plugin-calendar`'s event-title
+ * renderer so labels stay consistent across the product.
+ */
+function formatRecordTitle(record: any, titleFormat: string): string | null {
+  if (!record || typeof record !== 'object' || !titleFormat) return null;
+  const EMPTY = '\u0000';
+  const SEP = '[-\\u2013\\u2014|/·,:]';
+  let any = false;
+  const raw = titleFormat.replace(/\{([^{}]+)\}/g, (_m, key) => {
+    const v = (record as any)[key.trim()];
+    if (v !== null && v !== undefined && v !== '') {
+      any = true;
+      return String(v);
+    }
+    return EMPTY;
+  });
+  if (!any) return null;
+  const out = raw
+    .replace(new RegExp(`\\s*${SEP}\\s*${EMPTY}`, 'g'), '')
+    .replace(new RegExp(`${EMPTY}\\s*${SEP}\\s*`, 'g'), '')
+    .replace(new RegExp(EMPTY, 'g'), '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return out || null;
+}
+
+/**
  * Map a raw record to a LookupOption using a display field and an id field.
+ *
+ * When `titleFormat` is supplied (typically derived from the referenced
+ * object's schema), the label is rendered via the template so users see a
+ * human-readable name (e.g. `"Acme - John Doe"`) instead of falling all the
+ * way through to the raw record id.
  */
 function recordToOption(
   record: any,
   displayField: string,
   idField: string,
   descriptionField?: string,
+  titleFormat?: string | null,
 ): LookupOption {
   const val = record[idField] ?? record.id ?? record._id;
-  const label = record[displayField] ?? record.label ?? record.name ?? String(val);
+  const templated = titleFormat ? formatRecordTitle(record, titleFormat) : null;
+  const label =
+    templated ??
+    record[displayField] ??
+    record.label ??
+    record.name ??
+    record.full_name ??
+    record.title ??
+    record.subject ??
+    String(val);
   const description = descriptionField ? record[descriptionField] : undefined;
   return { value: val, label: String(label), description, ...record };
 }
@@ -191,6 +239,29 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
 
   const hasDataSource = dataSource != null && typeof dataSource.find === 'function' && !!referenceTo;
 
+  // Fetch the referenced object's schema so we can render option labels via
+  // its `titleFormat` template (e.g. `{full_name}`, `{case_number} - {subject}`).
+  // Without this the label fell back to a non-existent `name` field and
+  // ultimately to the raw record id.
+  const [refObjectSchema, setRefObjectSchema] = useState<any>(null);
+  useEffect(() => {
+    if (!dataSource || !referenceTo) return;
+    const getSchema = (dataSource as any).getObjectSchema;
+    if (typeof getSchema !== 'function') return;
+    let alive = true;
+    Promise.resolve(getSchema.call(dataSource, referenceTo))
+      .then((s: any) => { if (alive) setRefObjectSchema(s); })
+      .catch(() => { /* fall back to displayField chain */ });
+    return () => { alive = false; };
+  }, [dataSource, referenceTo]);
+
+  const refTitleFormat: string | null = useMemo(() => {
+    const raw = refObjectSchema?.titleFormat;
+    if (typeof raw === 'string') return raw;
+    if (raw && typeof raw === 'object' && typeof raw.source === 'string') return raw.source;
+    return null;
+  }, [refObjectSchema]);
+
   // Optional create-new callback
   const onCreateNew: ((searchQuery: string) => void) | undefined =
     (props as any).onCreateNew ?? lookupField?.onCreateNew;
@@ -256,7 +327,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
 
         const result = await dataSource.find(referenceTo, params);
         const records: any[] = result?.data ?? result ?? [];
-        const mapped = records.map(r => recordToOption(r, displayField, idField, descriptionField));
+        const mapped = records.map(r => recordToOption(r, displayField, idField, descriptionField, refTitleFormat));
 
         setFetchedOptions(mapped);
         setTotalCount(result?.total ?? records.length);
@@ -268,7 +339,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         setLoading(false);
       }
     },
-    [dataSource, referenceTo, displayField, idField, descriptionField, dependenciesMissing, dependsOn, resolvedDependentValues],
+    [dataSource, referenceTo, displayField, idField, descriptionField, refTitleFormat, dependenciesMissing, dependsOn, resolvedDependentValues],
   );
 
   // Re-fetch when dependent values change while the picker is open. This keeps
@@ -353,14 +424,14 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         for (const id of unresolved) {
           if (typeof (dataSource as any).findOne === 'function') {
             const rec = await (dataSource as any).findOne(referenceTo, id);
-            if (rec) fetched.push(recordToOption(rec, displayField, idField, descriptionField));
+            if (rec) fetched.push(recordToOption(rec, displayField, idField, descriptionField, refTitleFormat));
           } else {
             const res = await dataSource.find(referenceTo, {
               $filter: { [idField]: id },
               $top: 1,
             } as QueryParams);
             const rows = res?.data ?? res ?? [];
-            if (rows[0]) fetched.push(recordToOption(rows[0], displayField, idField, descriptionField));
+            if (rows[0]) fetched.push(recordToOption(rows[0], displayField, idField, descriptionField, refTitleFormat));
           }
         }
         if (!cancelled && fetched.length) {
@@ -428,10 +499,10 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   // findOption can resolve display labels after the dialog closes.
   const handlePickerSelectRecords = useCallback(
     (records: any[]) => {
-      const mapped = records.map(r => recordToOption(r, displayField, idField, descriptionField));
+      const mapped = records.map(r => recordToOption(r, displayField, idField, descriptionField, refTitleFormat));
       setPickerResolvedRecords(mapped);
     },
-    [displayField, idField, descriptionField],
+    [displayField, idField, descriptionField, refTitleFormat],
   );
 
   // Keyboard handler for the search input — arrow keys + Enter
@@ -473,7 +544,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         <div className="flex flex-wrap gap-1">
           {selectedOptions.map((opt, idx) => (
             <Badge key={idx} variant="outline">
-              {opt?.[displayField] || opt?.label}
+              {opt?.label || opt?.[displayField]}
             </Badge>
           ))}
         </div>
@@ -482,7 +553,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
 
     return (
       <span className="text-sm">
-        {selectedOptions[0]?.[displayField] || selectedOptions[0]?.label}
+        {selectedOptions[0]?.label || selectedOptions[0]?.[displayField]}
       </span>
     );
   }
@@ -498,12 +569,12 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
               variant="outline"
               className="gap-1"
             >
-              {opt?.[displayField] || opt?.label}
+              {opt?.label || opt?.[displayField]}
               <button
                 onClick={() => handleRemove(opt?.value)}
                 className="ml-1 hover:text-destructive"
                 type="button"
-                aria-label={`Remove ${opt?.[displayField] || opt?.label}`}
+                aria-label={`Remove ${opt?.label || opt?.[displayField]}`}
               >
                 <X className="size-3" />
               </button>
@@ -713,6 +784,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           objectName={referenceTo}
           columns={lookupColumns}
           displayField={displayField}
+          titleFormat={refTitleFormat}
           idField={idField}
           pageSize={lookupPageSize}
           value={value}

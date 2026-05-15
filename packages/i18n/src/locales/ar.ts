@@ -35,6 +35,9 @@ const ar = {
     optional: 'اختياري',
     selectOption: 'اختر خياراً',
     select: 'اختر...',
+    openChat: 'فتح المحادثة',
+    closeChat: 'إغلاق المحادثة',
+    toggleSidebar: 'تبديل الشريط الجانبي',
   },
   validation: {
     required: '{{field}} مطلوب',

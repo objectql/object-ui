@@ -28,12 +28,6 @@ import { GanttConfigSchema } from '@objectstack/spec/ui';
 import { useNavigationOverlay } from '@object-ui/react';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -42,9 +36,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  Button,
-  Input,
-  Label,
 } from '@object-ui/components';
 import { extractRecords, buildExpandFields } from '@object-ui/core';
 import { GanttView, type GanttTask } from './GanttView';
@@ -360,87 +351,12 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     [ganttConfig, dataConfig, dataSource, schema.objectName, data],
   );
 
-  // -- Quick-create dialog (triggered by the toolbar "+ New Task" button) --
-  // Pre-fills start/end with the current date range (today → +7 days) so the
-  // user only needs to type a title. Full record can be edited afterward via
-  // the detail view.
-  const [quickCreate, setQuickCreate] = useState<
-    { title: string; start: string; end: string; submitting: boolean; error?: string } | null
-  >(null);
-
-  const openQuickCreate = useCallback(() => {
-    if (!ganttConfig) return;
-    const today = new Date();
-    const week = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-    setQuickCreate({
-      title: '',
-      start: today.toLocaleDateString('en-CA'),
-      end: week.toLocaleDateString('en-CA'),
-      submitting: false,
-    });
-  }, [ganttConfig]);
-
-  const submitQuickCreate = useCallback(async () => {
-    if (!quickCreate || !ganttConfig) return;
-    const title = quickCreate.title.trim();
-    if (!title) {
-      setQuickCreate((qc) => (qc ? { ...qc, error: 'Title is required' } : qc));
-      return;
-    }
-    const objectName =
-      dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
-    if (!objectName || !dataSource?.create) return;
-
-    setQuickCreate((qc) => (qc ? { ...qc, submitting: true, error: undefined } : qc));
-    const { startDateField, endDateField, titleField } = ganttConfig;
-    const payload: Record<string, any> = {
-      [titleField || 'name']: title,
-      [startDateField]: new Date(quickCreate.start).toISOString(),
-      [endDateField]: new Date(quickCreate.end).toISOString(),
-    };
-
-    // Auto-fill required fields the user hasn't provided (mirrors ObjectCalendar).
-    const fieldsMeta = objectSchema?.fields;
-    if (fieldsMeta && typeof fieldsMeta === 'object') {
-      const entries: [string, any][] = Array.isArray(fieldsMeta)
-        ? fieldsMeta.map((f: any) => [f.name ?? f.apiName, f] as [string, any])
-        : Object.entries(fieldsMeta);
-      for (const [name, def] of entries) {
-        if (!name || name in payload) continue;
-        if (!def?.required) continue;
-        if (def.defaultValue !== undefined && def.defaultValue !== null) {
-          payload[name] = def.defaultValue;
-          continue;
-        }
-        const t = def.type;
-        if (t === 'select' || t === 'picklist' || t === 'status') {
-          const opts = (def.options || def.choices || []) as any[];
-          const first = opts[0];
-          if (first !== undefined) {
-            payload[name] = typeof first === 'object' ? (first.value ?? first.id) : first;
-          }
-        } else if (t === 'boolean' || t === 'checkbox') {
-          payload[name] = false;
-        } else if (t === 'number' || t === 'integer' || t === 'decimal' || t === 'currency' || t === 'percent') {
-          payload[name] = 0;
-        }
-      }
-    }
-
-    try {
-      const created = await dataSource.create(objectName, payload);
-      const c: any = created;
-      const newRecord = (c && (c.record || c.data || c)) ?? null;
-      if (newRecord && (newRecord.id !== undefined || newRecord._id !== undefined)) {
-        setData((prev) => [...prev, newRecord]);
-      }
-      setQuickCreate(null);
-    } catch (err: any) {
-      const msg = err?.message || String(err);
-      setQuickCreate((qc) => (qc ? { ...qc, submitting: false, error: msg } : qc));
-      console.error('[ObjectGantt] Quick-create failed:', err);
-    }
-  }, [quickCreate, ganttConfig, dataConfig, dataSource, schema.objectName, objectSchema]);
+  // -- Quick-create dialog removed --
+  // The toolbar's "+ New Task" button only collected 3 fields (title +
+  // start + end) which silently failed on objects with required fields
+  // outside that set. The page-level header already exposes a fully-
+  // fielded create form, so we defer to that instead of maintaining a
+  // half-broken inline path.
 
   // -- Delete confirmation --
   // GanttView's row kebab calls onTaskDelete(task) -> we open an AlertDialog,
@@ -528,7 +444,6 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           }}
           onTaskUpdate={handleTaskUpdateDefault}
           onTaskDelete={requestDelete}
-          onAddClick={openQuickCreate}
           inlineEdit
         />
       </div>
@@ -573,74 +488,6 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         );
       })()}
 
-      {/* Quick-create dialog */}
-      <Dialog open={!!quickCreate} onOpenChange={(open) => { if (!open) setQuickCreate(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>New task</DialogTitle>
-            <DialogDescription>
-              Create a new {schema.objectName ?? 'record'} on the Gantt timeline.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="gantt-qc-title">Title</Label>
-              <Input
-                id="gantt-qc-title"
-                autoFocus
-                value={quickCreate?.title ?? ''}
-                onChange={(e) => setQuickCreate((qc) => qc ? { ...qc, title: e.target.value, error: undefined } : qc)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !quickCreate?.submitting) {
-                    e.preventDefault();
-                    void submitQuickCreate();
-                  }
-                }}
-                placeholder="What's this task about?"
-                disabled={quickCreate?.submitting}
-                data-testid="gantt-qc-title"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="gantt-qc-start">Start</Label>
-                <Input
-                  id="gantt-qc-start"
-                  type="date"
-                  value={quickCreate?.start ?? ''}
-                  onChange={(e) => setQuickCreate((qc) => qc ? { ...qc, start: e.target.value } : qc)}
-                  disabled={quickCreate?.submitting}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="gantt-qc-end">End</Label>
-                <Input
-                  id="gantt-qc-end"
-                  type="date"
-                  value={quickCreate?.end ?? ''}
-                  onChange={(e) => setQuickCreate((qc) => qc ? { ...qc, end: e.target.value } : qc)}
-                  disabled={quickCreate?.submitting}
-                />
-              </div>
-            </div>
-            {quickCreate?.error && (
-              <p className="text-sm text-destructive">{quickCreate.error}</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setQuickCreate(null)} disabled={quickCreate?.submitting}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => void submitQuickCreate()}
-              disabled={quickCreate?.submitting || !quickCreate?.title.trim()}
-              data-testid="gantt-qc-submit"
-            >
-              {quickCreate?.submitting ? 'Creating…' : 'Create'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete confirmation */}
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => { if (!open && !deleting) setPendingDelete(null); }}>

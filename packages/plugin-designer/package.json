@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-designer",
-  "version": "4.0.7",
+  "version": "4.0.8",
   "type": "module",
   "license": "MIT",
   "description": "Visual designer plugin for Object UI with page, data model, process, and report designers plus collaborative editing.",
@@ -46,7 +46,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.14.0",
     "sonner": "^2.0.7",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
     "@types/node": "^25.7.0",

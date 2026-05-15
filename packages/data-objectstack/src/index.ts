@@ -1269,7 +1269,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         return true;
       });
       if (measureMissing) {
-        const result = await this.find(resource as any);
+        const result = await this.find(resource as any, params.filter ? { $filter: params.filter } as any : undefined);
         const records = result.data || [];
         if (records.length === 0) return [];
         return this.aggregateClientSide(records, params);
@@ -1289,8 +1289,11 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       });
     } catch {
       // If the analytics endpoint is not available, fall back to
-      // find() + client-side aggregation
-      const result = await this.find(resource as any);
+      // find() + client-side aggregation. Crucially, forward the same
+      // filter so the fallback aggregates over the SAME row set the
+      // server-side analytics query would have — otherwise the KPI
+      // silently sums the whole table and lies to the user.
+      const result = await this.find(resource as any, params.filter ? { $filter: params.filter } as any : undefined);
       const records = result.data || [];
       if (records.length === 0) return [];
 

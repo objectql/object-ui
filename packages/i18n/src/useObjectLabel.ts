@@ -288,6 +288,69 @@ export function useObjectLabel() {
      */
     reportLabel: (reportDef: { name: string; label?: string }) =>
       resolve(reportSuffixes(reportDef.name, 'label'), reportDef.label ?? reportDef.name),
+
+    /**
+     * Resolve translated list-view label.
+     * Convention (per @objectstack/spec): `{ns}.objects.{objectName}._views.{viewName}.label`.
+     */
+    viewLabel: (objectName: string, viewName: string, fallback: string) =>
+      resolve(objectSuffixes(objectName, `_views.${viewName}.label`), fallback),
+
+    /**
+     * Resolve translated list-view description.
+     * Convention: `{ns}.objects.{objectName}._views.{viewName}.description`.
+     */
+    viewDescription: (objectName: string, viewName: string, fallback?: string) => {
+      const fb = fallback ?? '';
+      const resolved = resolve(objectSuffixes(objectName, `_views.${viewName}.description`), fb);
+      return resolved || undefined;
+    },
+
+    /**
+     * Resolve translated form-section label.
+     * Convention: `{ns}.objects.{objectName}._sections.{sectionName}.label`.
+     */
+    sectionLabel: (objectName: string, sectionName: string, fallback: string) =>
+      resolve(objectSuffixes(objectName, `_sections.${sectionName}.label`), fallback),
+
+    /**
+     * Resolve translated action label.
+     * Convention: `{ns}.objects.{objectName}._actions.{actionName}.label`.
+     * Falls back to `{ns}.globalActions.{actionName}.label` when objectName is omitted.
+     */
+    actionLabel: (objectName: string | undefined, actionName: string, fallback: string) => {
+      if (objectName) {
+        return resolve(objectSuffixes(objectName, `_actions.${actionName}.label`), fallback);
+      }
+      return resolve(`globalActions.${actionName}.label`, fallback);
+    },
+
+    /**
+     * Resolve translated action confirmation prompt.
+     * Convention: `{ns}.objects.{objectName}._actions.{actionName}.confirmText`.
+     * Returns undefined when no translation and no fallback exist.
+     */
+    actionConfirm: (objectName: string | undefined, actionName: string, fallback?: string) => {
+      const fb = fallback ?? '';
+      const suffixes = objectName
+        ? objectSuffixes(objectName, `_actions.${actionName}.confirmText`)
+        : `globalActions.${actionName}.confirmText`;
+      const resolved = resolve(suffixes, fb);
+      return resolved || undefined;
+    },
+
+    /**
+     * Resolve translated action success message.
+     * Convention: `{ns}.objects.{objectName}._actions.{actionName}.successMessage`.
+     */
+    actionSuccess: (objectName: string | undefined, actionName: string, fallback?: string) => {
+      const fb = fallback ?? '';
+      const suffixes = objectName
+        ? objectSuffixes(objectName, `_actions.${actionName}.successMessage`)
+        : `globalActions.${actionName}.successMessage`;
+      const resolved = resolve(suffixes, fb);
+      return resolved || undefined;
+    },
   };
 }
 
@@ -298,8 +361,8 @@ export function useObjectLabel() {
  */
 export function useSafeFieldLabel() {
   try {
-    const { fieldLabel, translateOptions, fieldOptionLabel } = useObjectLabel();
-    return { fieldLabel, translateOptions, fieldOptionLabel };
+    const { fieldLabel, translateOptions, fieldOptionLabel, sectionLabel } = useObjectLabel();
+    return { fieldLabel, translateOptions, fieldOptionLabel, sectionLabel };
   } catch {
     return {
       fieldLabel: (_objectName: string, _fieldName: string, fallback: string) => fallback,
@@ -309,6 +372,7 @@ export function useSafeFieldLabel() {
         options: Array<{ value: string; label: string; [key: string]: any }>
       ) => options,
       fieldOptionLabel: (_objectName: string, _fieldName: string, _optionValue: string, fallback: string) => fallback,
+      sectionLabel: (_objectName: string, _sectionName: string, fallback: string) => fallback,
     };
   }
 }

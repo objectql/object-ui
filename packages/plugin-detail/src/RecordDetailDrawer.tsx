@@ -26,12 +26,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  Button,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
 } from '@object-ui/components';
-import { ExternalLink } from 'lucide-react';
 import type { DataSource } from '@object-ui/types';
 import { DetailView } from './DetailView';
 import { useDetailTranslation } from './useDetailTranslation';
@@ -230,6 +225,12 @@ export function RecordDetailDrawer({
         side="right"
         className="w-full overflow-y-auto p-0 sm:!max-w-none"
         style={widthStyle}
+        // Suppress Radix's default auto-focus on open. The drawer is for
+        // browsing/inspecting a record, not for immediate keyboard entry,
+        // so auto-focusing the Close button (or the first focusable
+        // child) flashes a focus ring on mount which feels jarring.
+        // Keyboard users can still Tab in normally.
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {/* Drag handle on the left edge — only rendered on >= sm screens
             where pointer-resize is meaningful. */}
@@ -242,28 +243,13 @@ export function RecordDetailDrawer({
             className="hidden sm:block absolute left-0 top-0 h-full w-1.5 cursor-col-resize select-none bg-transparent hover:bg-primary/30 active:bg-primary/50 transition-colors z-10"
           />
         )}
-        <SheetHeader className="px-6 pt-6 pb-2">
-          <div className="flex items-center justify-between gap-2">
-            <SheetTitle className="truncate">{title}</SheetTitle>
-            {fullPageHref && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-2 shrink-0"
-                    onClick={() => window.open(fullPageHref, '_blank', 'noopener')}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    <span className="hidden sm:inline">{t('detail.openInNewTab')}</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('detail.openInNewTab')}</TooltipContent>
-              </Tooltip>
-            )}
-          </div>
+        {/* Accessible title for screen readers — DetailView's own
+            HeaderHighlight renders the visible title, so we hide ours
+            visually to avoid the duplicate-heading look. */}
+        <SheetHeader className="sr-only">
+          <SheetTitle>{title}</SheetTitle>
         </SheetHeader>
-        <div className="px-6 pb-6">
+        <div className="px-6 pt-6 pb-6">
           <DetailView
             dataSource={dataSource}
             inlineEdit
@@ -275,6 +261,29 @@ export function RecordDetailDrawer({
               showDelete: true,
               columns,
               fields,
+              // Fold "Open in new tab" into DetailView's unified header
+              // overflow menu (the "..." kebab) rather than floating it
+              // as a separate icon. This way we never stack a third icon
+              // on top of the existing Edit + More-actions + Close X
+              // cluster at the top-right of the drawer.
+              actions: fullPageHref
+                ? [
+                    {
+                      type: 'action:bar',
+                      location: 'record_header',
+                      systemActions: [
+                        {
+                          name: 'sys_open_new_tab',
+                          label: t('detail.openInNewTab'),
+                          icon: 'external-link',
+                          type: 'script',
+                          onClick: () =>
+                            window.open(fullPageHref, '_blank', 'noopener'),
+                        },
+                      ],
+                    },
+                  ]
+                : undefined,
             } as any}
             onFieldSave={async (field, value) => {
               try {

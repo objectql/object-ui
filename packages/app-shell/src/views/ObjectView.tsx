@@ -250,7 +250,7 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
     const [searchParams, setSearchParams] = useSearchParams();
     const { showDebug } = useMetadataInspector();
     const { t } = useObjectTranslation();
-    const { objectLabel, objectDescription: objectDesc } = useObjectLabel();
+    const { objectLabel, objectDescription: objectDesc, viewLabel, actionLabel, actionConfirm, actionSuccess } = useObjectLabel();
     
     // Inline view config panel state (Airtable-style right sidebar)
     const [showViewConfigPanel, setShowViewConfigPanel] = useState(false);
@@ -1471,7 +1471,16 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
                       <SchemaRenderer schema={{
                         type: 'action:bar',
                         location: 'list_toolbar',
-                        actions: objectDef.actions,
+                        actions: (objectDef.actions || []).map((a: any) => ({
+                          ...a,
+                          label: actionLabel(objectDef.name, a.name, a.label || a.name),
+                          ...(a.confirmText !== undefined && {
+                            confirmText: actionConfirm(objectDef.name, a.name, a.confirmText),
+                          }),
+                          ...(a.successMessage !== undefined && {
+                            successMessage: actionSuccess(objectDef.name, a.name, a.successMessage),
+                          }),
+                        })),
                         size: 'sm',
                         variant: 'outline',
                       }} />
@@ -1531,7 +1540,7 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
                  const isSystem = !saved;
                  return {
                    id: view.id,
-                   label: view.label,
+                   label: viewLabel(objectDef.name, view.name || view.id, view.label || view.name || view.id),
                    type: view.type,
                    hasActiveFilters: Array.isArray(view.filter) && view.filter.length > 0,
                    hasActiveSort: Array.isArray(view.sort) && view.sort.length > 0,

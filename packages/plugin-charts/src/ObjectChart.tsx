@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
-import { useDataScope, SchemaRendererContext } from '@object-ui/react';
+import { useDataScope, SchemaRendererContext, SchemaRenderer } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, extractRecords } from '@object-ui/core';
+import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveDateMacros, type DrillEvent } from '@object-ui/core';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle } from '@object-ui/components';
 import { AlertCircle } from 'lucide-react';
 import { useSafeFieldLabel } from '@object-ui/i18n';
 
@@ -82,6 +83,10 @@ export async function resolveGroupByLabels(
   if (!data.length || !groupByField) return data;
 
   const t = translateOption || ((_v: string, fallback: string) => fallback);
+  // Stash the original raw value under a side-channel key so click handlers
+  // can recover it for filter computation. Display-side rendering keeps using
+  // `groupByField` as before.
+  const rawKey = `__raw_${groupByField}`;
 
   const fieldDef = objectSchema?.fields?.[groupByField];
   if (!fieldDef) {
@@ -89,11 +94,13 @@ export async function resolveGroupByLabels(
     // ISO-date-like values through untouched so date chart axes can format them.
     const isoLike = /^\d{4}-\d{2}-\d{2}/;
     return data.map(row => {
-      const raw = String(row[groupByField] ?? '');
-      const humanized = isoLike.test(raw) ? raw : humanizeLabel(raw);
+      const raw = row[groupByField];
+      const rawStr = String(raw ?? '');
+      const humanized = isoLike.test(rawStr) ? rawStr : humanizeLabel(rawStr);
       return {
         ...row,
-        [groupByField]: t(raw, humanized),
+        [groupByField]: t(rawStr, humanized),
+        [rawKey]: raw,
       };
     });
   }
@@ -105,11 +112,13 @@ export async function resolveGroupByLabels(
     const options: Array<{ value: string; label: string } | string> = fieldDef.options || [];
     if (options.length === 0) {
       return data.map(row => {
-        const raw = String(row[groupByField] ?? '');
-        const humanized = humanizeLabel(raw);
+        const raw = row[groupByField];
+        const rawStr = String(raw ?? '');
+        const humanized = humanizeLabel(rawStr);
         return {
           ...row,
-          [groupByField]: t(raw, humanized),
+          [groupByField]: t(rawStr, humanized),
+          [rawKey]: raw,
         };
       });
     }
@@ -125,26 +134,30 @@ export async function resolveGroupByLabels(
     }
 
     return data.map(row => {
-      const rawValue = String(row[groupByField] ?? '');
+      const raw = row[groupByField];
+      const rawValue = String(raw ?? '');
       const fallback = labelMap[rawValue] || humanizeLabel(rawValue);
       return {
         ...row,
         [groupByField]: t(rawValue, fallback),
+        [rawKey]: raw,
       };
     });
   }
 
   // --- lookup / master_detail fields ---
   if (fieldType === 'lookup' || fieldType === 'master_detail') {
+    // --- lookup / master_detail fields ---
     const referenceTo = fieldDef.reference_to || fieldDef.reference;
     if (!referenceTo || !dataSource || typeof dataSource.find !== 'function') {
-      // Cannot resolve — return as-is
-      return data;
+      // Cannot resolve — return as-is but still attach the rawKey so the
+      // click handler can recover the FK id.
+      return data.map(row => ({ ...row, [rawKey]: row[groupByField] }));
     }
 
     // Collect unique IDs to fetch
     const ids = [...new Set(data.map(row => row[groupByField]).filter(v => v != null))];
-    if (ids.length === 0) return data;
+    if (ids.length === 0) return data.map(row => ({ ...row, [rawKey]: row[groupByField] }));
 
     // Derive the ID field from metadata (fallback to 'id')
     const idField: string = fieldDef.id_field || 'id';
@@ -167,15 +180,17 @@ export async function resolveGroupByLabels(
       }
 
       return data.map(row => {
-        const rawValue = String(row[groupByField] ?? '');
+        const raw = row[groupByField];
+        const rawValue = String(raw ?? '');
         return {
           ...row,
           [groupByField]: idToName[rawValue] || rawValue,
+          [rawKey]: raw,
         };
       });
     } catch (e) {
       console.warn('[ObjectChart] Failed to resolve lookup labels:', e);
-      return data;
+      return data.map(row => ({ ...row, [rawKey]: row[groupByField] }));
     }
   }
 
@@ -189,7 +204,7 @@ export async function resolveGroupByLabels(
     fieldType === 'timestamp' ||
     fieldType === 'time'
   ) {
-    return data;
+    return data.map(row => ({ ...row, [rawKey]: row[groupByField] }));
   }
 
   // --- fallback for other field types ---
@@ -197,10 +212,12 @@ export async function resolveGroupByLabels(
   // chart's tickFormatter can present them nicely. Otherwise humanize.
   const isoLike = /^\d{4}-\d{2}-\d{2}/;
   return data.map(row => {
-    const raw = String(row[groupByField] ?? '');
+    const raw = row[groupByField];
+    const rawValue = String(raw ?? '');
     return {
       ...row,
-      [groupByField]: isoLike.test(raw) ? raw : humanizeLabel(raw),
+      [groupByField]: isoLike.test(rawValue) ? rawValue : humanizeLabel(rawValue),
+      [rawKey]: raw,
     };
   });
 }
@@ -225,6 +242,9 @@ export const ObjectChart = (props: any) => {
   const [fetchedData, setFetchedData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Drill-down click event — must be declared with the other hooks (above
+  // any conditional early return) to keep hook order stable between renders.
+  const [drillEvent, setDrillEvent] = useState<DrillEvent | null>(null);
 
   // Stable JSON keys for aggregate/filter so that callers passing a fresh
   // object literal on each render (e.g. DashboardRenderer.getComponentSchema)
@@ -246,6 +266,10 @@ export const ObjectChart = (props: any) => {
       }
       try {
           let data: any[];
+          // Resolve relative-date macros (e.g. "{current_quarter_start}")
+          // so both aggregate and find see real ISO dates and any drill-down
+          // filter further down the line stays consistent.
+          const resolvedFilter = resolveDateMacros(schema.filter);
 
           // Prefer server-side aggregation when aggregate config is provided
           // and dataSource supports the aggregate() method.
@@ -254,13 +278,13 @@ export const ObjectChart = (props: any) => {
                   field: schema.aggregate.field,
                   function: schema.aggregate.function,
                   groupBy: schema.aggregate.groupBy,
-                  filter: schema.filter,
+                  filter: resolvedFilter,
               });
               data = Array.isArray(results) ? results : [];
           } else if (typeof ds.find === 'function') {
               // Fallback: fetch all records and aggregate client-side
               const results = await ds.find(schema.objectName, {
-                 $filter: schema.filter
+                 $filter: resolvedFilter
               });
               
               data = extractRecords(results);
@@ -318,6 +342,34 @@ export const ObjectChart = (props: any) => {
   const rawData = boundData || schema.data || fetchedData;
   const finalData = Array.isArray(rawData) ? rawData : [];
 
+  // --- Drill-down --------------------------------------------------------
+  // Charts can opt into drill-down via `schema.drillDown`. Clicking a bar
+  // segment / pie slice opens a Sheet rendering the underlying records,
+  // filtered by the click context (category → groupBy field). The drilled
+  // table is rendered via SchemaRenderer + the registered "object-data-table"
+  // component (provided by plugin-dashboard).
+  const drillDown = (schema as any).drillDown;
+  const groupByField = schema.aggregate?.groupBy || schema.xAxisKey;
+
+  // Build a label→raw map from the resolved chart data. resolveGroupByLabels
+  // stashes the original raw enum/id under `__raw_${groupByField}`. The chart
+  // event payload exposes the displayed label as `category`; we reverse-resolve
+  // it so the drill filter compares against the value the backend actually
+  // stores instead of the human-readable label (which would never match).
+  // NOTE: declared above any conditional early returns to keep hook order stable.
+  const labelToRaw = useMemo(() => {
+    if (!groupByField) return new Map<string, unknown>();
+    const map = new Map<string, unknown>();
+    const rawKey = `__raw_${groupByField}`;
+    for (const row of finalData) {
+      const label = row?.[groupByField];
+      if (label == null) continue;
+      const raw = rawKey in (row || {}) ? row[rawKey] : label;
+      map.set(String(label), raw);
+    }
+    return map;
+  }, [finalData, groupByField]);
+
   // Merge data if not provided in schema
   const finalSchema = {
     ...schema,
@@ -343,7 +395,66 @@ export const ObjectChart = (props: any) => {
       return <div className={"flex items-center justify-center text-muted-foreground text-sm p-4 " + (schema.className || '')} data-testid="chart-no-datasource">No data source available for &ldquo;{schema.objectName}&rdquo;</div>;
   }
 
-  return <ChartRenderer {...props} schema={finalSchema} />;
+  const onChartClick = isDrillEnabled(drillDown)
+    ? (ev: { category?: string; series?: string; value?: number }) => {
+        const labelCategory = ev.category;
+        const rawCategory = labelCategory != null && labelToRaw.has(String(labelCategory))
+          ? labelToRaw.get(String(labelCategory))
+          : labelCategory;
+        setDrillEvent({
+          ...ev,
+          // Use the raw value for filter matching; expose label separately for the title.
+          category: rawCategory as any,
+          categoryLabel: labelCategory,
+          scope: 'cell',
+        });
+      }
+    : undefined;
+
+  const drillDrawer = drillEvent && schema.objectName ? (() => {
+    const baseFilter = computeDrillFilter(drillDown, drillEvent, { groupByField });
+    const merged = { ...(schema.filter || {}), ...baseFilter };
+    const title = resolveDrillTitle(drillDown, drillEvent, schema.title || 'Details');
+    const target = drillDown?.target ?? 'drawer';
+    const tableSchema = {
+      type: 'object-data-table',
+      objectName: schema.objectName,
+      filter: merged,
+      pagination: true,
+      pageSize: drillDown?.maxRows,
+      columns: drillDown?.columns?.map((c: string) => ({ accessorKey: c, header: c })),
+    };
+    const body = (
+      <div className="overflow-auto" data-testid="chart-drill-body">
+        <SchemaRenderer schema={tableSchema} dataSource={dataSource} />
+      </div>
+    );
+    if (target === 'dialog') {
+      return (
+        <Dialog open onOpenChange={(v) => !v && setDrillEvent(null)}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+            {body}
+          </DialogContent>
+        </Dialog>
+      );
+    }
+    return (
+      <Sheet open onOpenChange={(v) => !v && setDrillEvent(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl flex flex-col">
+          <SheetHeader><SheetTitle>{title}</SheetTitle></SheetHeader>
+          <div className="flex-1 overflow-hidden mt-2">{body}</div>
+        </SheetContent>
+      </Sheet>
+    );
+  })() : null;
+
+  return (
+    <>
+      <ChartRenderer {...props} schema={finalSchema} onChartClick={onChartClick} />
+      {drillDrawer}
+    </>
+  );
 };
 
 // Register it

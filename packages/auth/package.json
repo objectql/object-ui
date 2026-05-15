@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/auth",
-  "version": "4.0.7",
+  "version": "4.0.8",
   "type": "module",
   "license": "MIT",
   "description": "Authentication system for Object UI with AuthProvider, useAuth hook, AuthGuard, and form components.",
@@ -42,7 +42,7 @@
   },
   "devDependencies": {
     "@types/react": "19.2.14",
-    "react": "19.2.5",
+    "react": "19.2.6",
     "typescript": "^6.0.3",
     "vitest": "^4.1.6"
   },

@@ -34,6 +34,9 @@ const ru = {
     optional: 'Необязательно',
     selectOption: 'Выберите вариант',
     select: 'Выбрать...',
+    openChat: 'Открыть чат',
+    closeChat: 'Закрыть чат',
+    toggleSidebar: 'Переключить боковую панель',
   },
   validation: {
     required: 'Поле {{field}} обязательно для заполнения',

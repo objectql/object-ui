@@ -94,7 +94,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
   const [visibleCount, setVisibleCount] = React.useState<number | undefined>(undefined);
   const [showEmptyOverride, setShowEmptyOverride] = React.useState(false);
   const { t } = useDetailTranslation();
-  const { fieldLabel } = useSafeFieldLabel();
+  const { fieldLabel, translateOptions } = useSafeFieldLabel();
 
   const handleCopyField = React.useCallback((fieldName: string, value: any) => {
     const textValue = value !== null && value !== undefined ? String(value) : '';
@@ -175,6 +175,11 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
         const refTarget = objectDefField.reference_to || objectDefField.reference;
         if (refTarget && !enrichedField.reference_to) enrichedField.reference_to = refTarget;
         if (objectDefField.reference_field && !enrichedField.reference_field) enrichedField.reference_field = objectDefField.reference_field;
+      }
+      // i18n: translate select-field option labels so cell renderers
+      // (e.g. SelectCellRenderer / status badge) display localized text.
+      if (objectName && Array.isArray(enrichedField.options) && enrichedField.options.length > 0) {
+        enrichedField.options = translateOptions(objectName, field.name, enrichedField.options as any);
       }
       // Use type-aware cell renderer; respect format hints (e.g.
       // text + format: 'phone' → PhoneCellRenderer with tel: link).

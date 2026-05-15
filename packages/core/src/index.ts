@@ -37,3 +37,5 @@ export * from './protocols/index.js';
  * in the next major version of `@object-ui/core`.
  */
 export { composeStacks } from '@objectstack/spec';
+export * from './utils/drill-down.js';
+export * from './utils/date-macros.js';

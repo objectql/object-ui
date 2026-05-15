@@ -66,7 +66,9 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
   schema,
   dataSource,
 }) => {
-
+  const { sectionLabel } = useSafeFieldLabel();
+  const tSec = (s: any) =>
+    s?.name ? sectionLabel(schema.objectName, s.name, s.label || s.name) : s?.label;
   // Route to specialized form variant based on formType
   if (schema.formType === 'tabbed' && schema.sections?.length) {
     return (
@@ -76,7 +78,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
           formType: 'tabbed',
           sections: schema.sections.map(s => ({
             name: s.name,
-            label: s.label,
+            label: tSec(s),
             description: s.description,
             columns: s.columns,
             fields: s.fields,
@@ -98,7 +100,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
           formType: 'wizard',
           sections: schema.sections.map(s => ({
             name: s.name,
-            label: s.label,
+            label: tSec(s),
             description: s.description,
             columns: s.columns,
             fields: s.fields,
@@ -123,7 +125,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
           formType: 'split',
           sections: schema.sections.map(s => ({
             name: s.name,
-            label: s.label,
+            label: tSec(s),
             description: s.description,
             columns: s.columns,
             fields: s.fields,
@@ -149,7 +151,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
           formType: 'drawer',
           sections: schema.sections?.map(s => ({
             name: s.name,
-            label: s.label,
+            label: tSec(s),
             description: s.description,
             columns: s.columns,
             fields: s.fields,
@@ -178,7 +180,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
           formType: 'modal',
           sections: schema.sections?.map(s => ({
             name: s.name,
-            label: s.label,
+            label: tSec(s),
             description: s.description,
             columns: s.columns,
             fields: s.fields,
@@ -205,7 +207,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
   schema,
   dataSource,
 }) => {
-  const { fieldLabel } = useSafeFieldLabel();
+  const { fieldLabel, sectionLabel } = useSafeFieldLabel();
   const isMobile = useIsMobile();
 
   const [objectSchema, setObjectSchema] = useState<any>(null);
@@ -553,7 +555,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
           return (
             <FormSection
               key={section.name || section.label || index}
-              label={section.label}
+              label={section.name ? sectionLabel(schema.objectName, section.name, section.label || section.name) : section.label}
               description={section.description}
               collapsible={section.collapsible}
               collapsed={section.collapsed}

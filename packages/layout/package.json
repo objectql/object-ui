@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/layout",
-  "version": "4.0.7",
+  "version": "4.0.8",
   "type": "module",
   "sideEffects": false,
   "main": "dist/index.umd.cjs",
@@ -27,9 +27,9 @@
     "@object-ui/types": "workspace:*",
     "clsx": "^2.1.1",
     "lucide-react": "^1.14.0",
-    "react": "19.2.5",
-    "react-dom": "19.2.5",
-    "tailwind-merge": "^3.5.0"
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "tailwind-merge": "^3.6.0"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.1",
-    "react-router-dom": "^7.14.2",
+    "react-router-dom": "^7.15.0",
     "vite": "^8.0.12",
     "vite-plugin-dts": "^5.0.0"
   },

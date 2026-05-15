@@ -103,6 +103,23 @@ export function DashboardWithConfig({
       aggregate: widget.aggregate ?? options.aggregate ?? '',
       colorVariant: widget.colorVariant ?? options.colorVariant ?? 'default',
       actionUrl: widget.actionUrl ?? options.actionUrl ?? '',
+      // Drill-down lives under options.drillDown — flatten so the panel
+      // can edit it as plain top-level switches. Default ON for object-
+      // backed pivot widgets and for object-backed drillable chart types
+      // (mirrors DashboardRenderer policy).
+      drillDownEnabled: options.drillDown?.enabled
+        ?? (!!widget.object && (
+          widget.type === 'pivot' ||
+          widget.type === 'metric' ||
+          widget.type === 'bar' ||
+          widget.type === 'horizontal-bar' ||
+          widget.type === 'line' ||
+          widget.type === 'area' ||
+          widget.type === 'pie' ||
+          widget.type === 'donut' ||
+          widget.type === 'funnel'
+        ) ? true : false),
+      drillDownTarget: options.drillDown?.target ?? 'drawer',
       layoutW: widget.layout?.w ?? 1,
       layoutH: widget.layout?.h ?? 1,
     };
@@ -137,6 +154,16 @@ export function DashboardWithConfig({
             if (field === 'layoutH') {
               return { ...w, layout: { ...(w.layout || {}), h: value } as DashboardWidgetSchema['layout'] };
             }
+            // Drill-down toggles map into options.drillDown.{enabled,target}
+            // so the renderer (which reads options.drillDown) picks them up.
+            if (field === 'drillDownEnabled' || field === 'drillDownTarget') {
+              const prevDrill = (w.options as any)?.drillDown ?? {};
+              const nextDrill =
+                field === 'drillDownEnabled'
+                  ? { ...prevDrill, enabled: !!value }
+                  : { ...prevDrill, target: value };
+              return { ...w, options: { ...(w.options || {}), drillDown: nextDrill } } as DashboardWidgetSchema;
+            }
             return { ...w, [field]: value };
           }),
         };
@@ -148,7 +175,21 @@ export function DashboardWithConfig({
   const handleWidgetSave = useCallback(
     (widgetConfig: Record<string, any>) => {
       if (selectedWidgetId && onWidgetSave) {
-        onWidgetSave(selectedWidgetId, widgetConfig);
+        // Re-nest drill-down flat keys back under options.drillDown so
+        // persistence callers receive the canonical widget shape.
+        const { drillDownEnabled, drillDownTarget, ...rest } = widgetConfig;
+        const persisted: Record<string, any> = { ...rest };
+        if (drillDownEnabled || drillDownTarget) {
+          persisted.options = {
+            ...(rest.options || {}),
+            drillDown: {
+              ...((rest.options as any)?.drillDown || {}),
+              ...(drillDownEnabled !== undefined ? { enabled: !!drillDownEnabled } : {}),
+              ...(drillDownTarget !== undefined ? { target: drillDownTarget } : {}),
+            },
+          };
+        }
+        onWidgetSave(selectedWidgetId, persisted);
       }
       setSelectedWidgetId(null);
       setConfigVersion((v) => v + 1);

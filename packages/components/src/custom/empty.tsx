@@ -7,8 +7,19 @@
  */
 
 import { cva, type VariantProps } from "class-variance-authority"
+import { useObjectTranslation } from "@object-ui/i18n"
 
 import { cn } from "../lib/utils"
+
+function useEmptyValueLabel(): string {
+  try {
+    const { t } = useObjectTranslation()
+    const v = t("detail.noValue")
+    return !v || v === "detail.noValue" ? "No value" : v
+  } catch {
+    return "No value"
+  }
+}
 
 function Empty({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -115,10 +126,11 @@ function EmptyValue({
   glyph = "—",
   ...props
 }: React.ComponentProps<"span"> & { glyph?: string }) {
+  const ariaLabel = useEmptyValueLabel()
   return (
     <span
       data-slot="empty-value"
-      aria-label="No value"
+      aria-label={ariaLabel}
       className={cn(
         "select-none text-muted-foreground/50 no-underline pointer-events-none",
         className

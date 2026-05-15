@@ -74,6 +74,11 @@ const AGGREGATING_TYPES = ['metric', ...CHART_TYPES];
 // re-runs the query grouped by that field, producing multiple results).
 const CATEGORY_GROUPED_TYPES = [...CHART_TYPES];
 
+// Widget types that support drill-down (clicking a cell/segment opens a
+// filtered list of underlying records). Pairs with the @object-ui/core
+// `drill-down` helpers.
+const DRILL_DOWN_TYPES = ['pivot', 'metric', 'bar', 'horizontal-bar', 'line', 'area', 'pie', 'donut', 'funnel'];
+
 function isChartType(t: string | undefined): boolean {
   return !!t && CHART_TYPES.includes(t);
 }
@@ -89,6 +94,15 @@ function usesCategoryField(t: string | undefined): boolean {
 function isAggregatingType(t: string | undefined): boolean {
   return !!t && AGGREGATING_TYPES.includes(t);
 }
+
+export function supportsDrillDown(t: string | undefined): boolean {
+  return !!t && DRILL_DOWN_TYPES.includes(t);
+}
+
+const DRILL_DOWN_TARGET_OPTIONS = [
+  { value: 'drawer', label: 'Side drawer' },
+  { value: 'dialog', label: 'Center dialog' },
+];
 
 const SORT_BY_OPTIONS = [
   { value: 'group', label: 'Group' },
@@ -484,6 +498,32 @@ function buildWidgetSchema(
         ],
       },
 
+      // ----- Drill-down (chart + pivot) -----------------------------------
+      {
+        key: 'drill-down',
+        title: 'Drill-down',
+        collapsible: true,
+        defaultCollapsed: true,
+        visibleWhen: (d: Record<string, any>) => supportsDrillDown(d.type),
+        fields: [
+          {
+            key: 'drillDownEnabled',
+            label: 'Enable drill-down',
+            type: 'switch',
+            defaultValue: false,
+            helpText: 'When enabled, clicking a cell / segment opens a filtered list of underlying records.',
+          },
+          {
+            key: 'drillDownTarget',
+            label: 'Open in',
+            type: 'select',
+            options: DRILL_DOWN_TARGET_OPTIONS,
+            defaultValue: 'drawer',
+            visibleWhen: (d: Record<string, any>) => !!d.drillDownEnabled,
+          },
+        ],
+      },
+
       // ----- Behavior (always visible, collapsed by default) -------------
       {
         key: 'behavior',
@@ -613,6 +653,11 @@ function sanitizeDraftForType(draft: Record<string, any>): Record<string, any> {
   if (t !== 'table') {
     delete out.searchable;
     delete out.pagination;
+  }
+  // Drill-down only applies to chart / pivot
+  if (!supportsDrillDown(t)) {
+    delete out.drillDownEnabled;
+    delete out.drillDownTarget;
   }
   return out;
 }

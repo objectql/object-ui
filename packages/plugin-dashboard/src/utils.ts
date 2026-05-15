@@ -15,3 +15,7 @@ export function isObjectProvider(widgetData: unknown): widgetData is { provider:
     (widgetData as any).provider === 'object'
   );
 }
+
+// Re-export the date-macro resolver from core so existing internal imports
+// (`import { resolveDateMacros } from './utils'`) keep working.
+export { resolveDateMacros } from '@object-ui/core';

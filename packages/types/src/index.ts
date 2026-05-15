@@ -159,6 +159,7 @@ export type {
   ChartSchema,
   PivotAggregation,
   PivotTableSchema,
+  DrillDownConfig,
   TimelineEvent,
   TimelineSchema,
   KbdSchema,
@@ -879,23 +880,21 @@ export type {
  * const view: UI.ListView = { name: 'all', label: 'All Records', ... };
  * ```
  */
-export type {
-  Data,
-  UI,
-  System,
-  AI,
-  API,
-  Cloud,
-  Automation,
-  Shared,
-  QA,
-  Kernel,
-  Contracts,
-  Integration,
-  Studio,
-  Identity,
-  Security,
-} from '@objectstack/spec';
+export type * as Data from '@objectstack/spec/data';
+export type * as UI from '@objectstack/spec/ui';
+export type * as System from '@objectstack/spec/system';
+export type * as AI from '@objectstack/spec/ai';
+export type * as API from '@objectstack/spec/api';
+export type * as Cloud from '@objectstack/spec/cloud';
+export type * as Automation from '@objectstack/spec/automation';
+export type * as Shared from '@objectstack/spec/shared';
+export type * as QA from '@objectstack/spec/qa';
+export type * as Kernel from '@objectstack/spec/kernel';
+export type * as Contracts from '@objectstack/spec/contracts';
+export type * as Integration from '@objectstack/spec/integration';
+export type * as Studio from '@objectstack/spec/studio';
+export type * as Identity from '@objectstack/spec/identity';
+export type * as Security from '@objectstack/spec/security';
 
 // ============================================================================
 // ObjectStack Protocol Utilities - defineStack

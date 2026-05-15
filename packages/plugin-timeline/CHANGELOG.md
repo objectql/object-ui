@@ -1,5 +1,15 @@
 # @object-ui/plugin-timeline
 
+## 4.0.8
+
+### Patch Changes
+
+- @object-ui/components@4.0.8
+- @object-ui/react@4.0.8
+- @object-ui/types@4.0.8
+- @object-ui/core@4.0.8
+- @object-ui/mobile@4.0.8
+
 ## 4.0.7
 
 ### Patch Changes

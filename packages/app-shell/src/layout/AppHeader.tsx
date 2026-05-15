@@ -116,7 +116,7 @@ export function AppHeader({
   } = useAuth();
   const dataSource = useAdapter();
   const { t } = useObjectTranslation();
-  const { objectLabel, dashboardLabel, pageLabel, reportLabel } = useObjectLabel();
+  const { objectLabel, dashboardLabel, pageLabel, reportLabel, viewLabel } = useObjectLabel();
   const { apps: metadataApps, dashboards: metadataDashboards, pages: metadataPages, reports: metadataReports } = useMetadata();
   const { currentAppName, recordTitle } = useNavigationContext();
 
@@ -256,8 +256,9 @@ export function AppHeader({
           const viewName = pathParts[4];
           const definedViews = (currentObject as any).listViews || (currentObject as any).list_views || {};
           const viewDef = (definedViews as Record<string, any>)[viewName];
-          const viewLabel = (viewDef && (viewDef.label || viewDef.title)) || humanizeSlug(viewName);
-          extraSegments.push({ label: viewLabel });
+          const fallbackLabel = (viewDef && (viewDef.label || viewDef.title)) || humanizeSlug(viewName);
+          const localizedViewLabel = viewLabel(currentObject.name, viewName, fallbackLabel);
+          extraSegments.push({ label: localizedViewLabel });
         }
       }
     }
@@ -296,7 +297,7 @@ export function AppHeader({
         {isApp && (
           <>
             {/* Mobile sidebar trigger */}
-            <SidebarTrigger className="md:hidden shrink-0 ml-1" />
+            <SidebarTrigger className="md:hidden shrink-0 ml-1" aria-label={t('common.toggleSidebar') || 'Toggle sidebar'} />
 
             {/* App dropdown */}
             {activeAppName && onAppChange ? (

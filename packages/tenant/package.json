@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/tenant",
-  "version": "4.0.7",
+  "version": "4.0.8",
   "type": "module",
   "license": "MIT",
   "description": "Multi-tenancy support for Object UI with tenant isolation, scoped queries, and custom branding.",
@@ -41,7 +41,7 @@
   },
   "devDependencies": {
     "@types/react": "19.2.14",
-    "react": "19.2.5",
+    "react": "19.2.6",
     "typescript": "^6.0.3",
     "vitest": "^4.1.6"
   },

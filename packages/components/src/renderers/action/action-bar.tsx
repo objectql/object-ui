@@ -35,8 +35,19 @@ import React, { forwardRef, useMemo } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema, ActionLocation, ActionComponent } from '@object-ui/types';
 import { useCondition, toPredicateInput } from '@object-ui/react';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { cn } from '../../lib/utils';
 import { useIsMobile } from '../../hooks/use-mobile';
+
+function useActionsLabel(): string {
+  try {
+    const { t } = useObjectTranslation();
+    const v = t('common.actions');
+    return !v || v === 'common.actions' ? 'Actions' : v;
+  } catch {
+    return 'Actions';
+  }
+}
 
 export interface ActionBarSchema {
   type: 'action:bar';
@@ -76,6 +87,7 @@ export interface ActionBarSchema {
 
 const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; [key: string]: any }>(
   ({ schema, className, ...props }, ref) => {
+    const actionsAriaLabel = useActionsLabel();
     const {
       'data-obj-id': dataObjId,
       'data-obj-type': dataObjType,
@@ -194,7 +206,7 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
           className,
         )}
         role="toolbar"
-        aria-label="Actions"
+        aria-label={actionsAriaLabel}
         {...rest}
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
       >

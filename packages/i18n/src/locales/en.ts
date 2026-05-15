@@ -34,6 +34,9 @@ const en = {
     optional: 'Optional',
     selectOption: 'Select an option',
     select: 'Select...',
+    openChat: 'Open chat',
+    closeChat: 'Close chat',
+    toggleSidebar: 'Toggle sidebar',
   },
   validation: {
     required: '{{field}} is required',
@@ -234,6 +237,7 @@ const en = {
     noViewsFound: 'No views match your search.',
     dragToReorder: 'Drag to reorder',
     defaultView: 'Default view',
+    tabActionsFor: 'View actions for {{name}}',
   },
   detail: {
     back: 'Back',
@@ -353,6 +357,12 @@ const en = {
     subscribeAriaLabel: 'Subscribe to notifications',
     unsubscribeAriaLabel: 'Unsubscribe from notifications',
     clearSearch: 'Clear search',
+    copyEmail: 'Copy email',
+    copyPhone: 'Copy phone number',
+    copyRecordId: 'Copy record ID',
+    showEmptyFields: 'Show {{count}} empty fields',
+    hideEmptyFields: 'Hide empty fields',
+    noValue: 'No value',
   },
   chart: {
     noData: 'No chart data available',
@@ -431,6 +441,7 @@ const en = {
     editLayout: 'Edit layout',
     saveLayout: 'Save layout',
     resetLayout: 'Reset layout',
+    total: 'Total',
   },
   configPanel: {
     save: 'Save',

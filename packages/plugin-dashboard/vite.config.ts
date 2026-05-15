@@ -47,6 +47,8 @@ export default defineConfig({
           '@object-ui/core': 'ObjectUICore',
           '@object-ui/react': 'ObjectUIReact',
           '@object-ui/types': 'ObjectUITypes',
+          '@object-ui/i18n': 'ObjectUII18n',
+          '@object-ui/fields': 'ObjectUIFields',
         },
       },
     },

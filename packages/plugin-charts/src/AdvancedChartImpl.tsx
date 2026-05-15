@@ -79,6 +79,12 @@ export interface AdvancedChartImplProps {
   xAxisKey?: string;
   series?: Array<{ dataKey: string; chartType?: 'bar' | 'line' | 'area' }>;
   className?: string;
+  /**
+   * Optional drill-down click handler. Fires when a chart segment is clicked
+   * with `{ category, series, value }`. Wired for bar/horizontal-bar/line/
+   * area/pie/donut. Other chart types are no-ops in L1.
+   */
+  onChartClick?: (event: { category?: string; series?: string; value?: number }) => void;
 }
 
 /**
@@ -92,9 +98,35 @@ export default function AdvancedChartImpl({
   xAxisKey = 'name',
   series = [],
   className = '',
+  onChartClick,
 }: AdvancedChartImplProps) {
   const data = Array.isArray(rawData) ? rawData : [];
   const [isMobile, setIsMobile] = React.useState(false);
+
+  // Recharts' top-level onClick payload: { activeLabel, activePayload, ... }
+  const handleCartesianClick = React.useCallback((payload: any) => {
+    if (!onChartClick || !payload) return;
+    const ap = Array.isArray(payload.activePayload) ? payload.activePayload[0] : undefined;
+    onChartClick({
+      category: payload.activeLabel != null ? String(payload.activeLabel) : undefined,
+      series: ap?.dataKey ? String(ap.dataKey) : undefined,
+      value: typeof ap?.value === 'number' ? ap.value : undefined,
+    });
+  }, [onChartClick]);
+
+  const handlePieClick = React.useCallback((entry: any) => {
+    if (!onChartClick || !entry) return;
+    const cat = entry.payload?.[xAxisKey];
+    const dk = series[0]?.dataKey || 'value';
+    onChartClick({
+      category: cat != null ? String(cat) : undefined,
+      series: dk,
+      value: typeof entry.payload?.[dk] === 'number' ? entry.payload[dk] : undefined,
+    });
+  }, [onChartClick, xAxisKey, series]);
+
+  const cartesianClickProps = onChartClick ? { onClick: handleCartesianClick, style: { cursor: 'pointer' as const } } : {};
+  const pieClickProps = onChartClick ? { onClick: handlePieClick, style: { cursor: 'pointer' as const } } : {};
 
   React.useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
@@ -175,6 +207,7 @@ export default function AdvancedChartImpl({
             strokeWidth={5}
             paddingAngle={2}
             outerRadius={80}
+            {...pieClickProps}
           >
              {data.map((entry, index) => {
                 // 1. Try config by nameKey (category)
@@ -202,6 +235,18 @@ export default function AdvancedChartImpl({
   if (chartType === 'funnel') {
     const dataKey = series[0]?.dataKey || 'value';
     const palette = getPalette();
+    const handleFunnelClick = onChartClick
+      ? (entry: any) => {
+          if (!entry) return;
+          onChartClick({
+            category: entry?.payload?.[xAxisKey] ?? entry?.[xAxisKey],
+            value: entry?.payload?.[dataKey] ?? entry?.[dataKey],
+          });
+        }
+      : undefined;
+    const funnelClickProps = handleFunnelClick
+      ? { onClick: handleFunnelClick, style: { cursor: 'pointer' as const } }
+      : {};
     return (
       <ChartContainer config={config} className={className}>
         <FunnelChart>
@@ -211,6 +256,7 @@ export default function AdvancedChartImpl({
             data={data}
             nameKey={xAxisKey}
             isAnimationActive
+            {...funnelClickProps}
           >
             <LabelList position="right" fill="hsl(var(--foreground))" stroke="none" dataKey={xAxisKey} />
             {data.map((_entry, idx) => (
@@ -341,7 +387,7 @@ export default function AdvancedChartImpl({
 
   return (
     <ChartContainer config={config} className={className}>
-      <ChartComponent data={data} layout={isHorizontal ? 'vertical' : 'horizontal'}>
+      <ChartComponent data={data} layout={isHorizontal ? 'vertical' : 'horizontal'} {...cartesianClickProps}>
         <CartesianGrid vertical={false} />
         {isHorizontal ? (
           <>

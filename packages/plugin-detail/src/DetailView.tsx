@@ -38,7 +38,7 @@ import { SectionGroup } from './SectionGroup';
 import { HeaderHighlight } from './HeaderHighlight';
 import { RecordComments } from './RecordComments';
 import { ActivityTimeline } from './ActivityTimeline';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildExpandFields } from '@object-ui/core';
 import type { DetailViewSchema, DataSource, ActionSchema, SchemaNode } from '@object-ui/types';
 import { useDetailTranslation } from './useDetailTranslation';
@@ -168,6 +168,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
   const [objectSchema, setObjectSchema] = React.useState<any>(null);
   const [idCopied, setIdCopied] = React.useState(false);
   const { t } = useDetailTranslation();
+  const { fieldOptionLabel } = useSafeFieldLabel();
 
   // Fire onDataLoaded whenever the record changes so hosts can publish it
   // (e.g. to the navigation breadcrumb or document title).
@@ -441,42 +442,18 @@ export const DetailView: React.FC<DetailViewProps> = ({
     return () => document.removeEventListener('keydown', handler);
   }, [schema.recordNavigation]);
 
-  // Auto-discover related lists from objectSchema reference fields
-  const discoveredRelated = React.useMemo(() => {
-    if (!schema.autoDiscoverRelated || !objectSchema?.fields) return [];
-    // Only auto-discover when no explicit related config is provided
-    if (schema.related && schema.related.length > 0) return [];
-    const refs: Array<{ title: string; type: 'list' | 'grid' | 'table'; objectName: string; referenceField: string }> = [];
-    const fields = objectSchema.fields;
-    for (const [fieldName, fieldDef] of Object.entries<any>(fields)) {
-      const refTarget = fieldDef?.reference_to || fieldDef?.reference;
-      if (
-        fieldDef &&
-        (fieldDef.type === 'lookup' || fieldDef.type === 'master_detail') &&
-        refTarget
-      ) {
-        refs.push({
-          title: fieldDef.label || fieldName.charAt(0).toUpperCase() + fieldName.slice(1),
-          type: 'table',
-          objectName: refTarget,
-          referenceField: fieldName,
-        });
-      }
-    }
-    return refs;
-  }, [schema.autoDiscoverRelated, schema.related, objectSchema]);
-
-  // Merge explicit and auto-discovered related lists
+  // Auto-discovery of related panels via INVERSE references (other objects
+  // whose FK points to the current record) is the responsibility of the
+  // page layer (e.g. RecordDetailView), which has access to the registry of
+  // all objects. We deliberately do NOT auto-derive related panels from the
+  // current object's *forward* lookups (account, owner, …) — those are
+  // parent references already surfaced as detail fields, and listing them
+  // here always produces empty 0-count panels with no usable "+ New" CTA
+  // (the new child wouldn't have an FK to back-fill). Leaving them out
+  // avoids the misleading "为什么有的能新建有的不能" experience.
   const effectiveRelated: NonNullable<DetailViewSchema['related']> = React.useMemo(() => {
-    if (schema.related && schema.related.length > 0) return schema.related;
-    return discoveredRelated.map((r) => ({
-      title: r.title,
-      type: r.type,
-      api: r.objectName,
-      data: [] as any[],
-      referenceField: r.referenceField,
-    }));
-  }, [schema.related, discoveredRelated]);
+    return schema.related ?? [];
+  }, [schema.related]);
 
   /**
    * Chrome-level "system" actions (Duplicate, Export, View History, Delete,
@@ -691,6 +668,21 @@ export const DetailView: React.FC<DetailViewProps> = ({
                         const normalized = num <= 1 ? num * 100 : num;
                         percentValue = Math.max(0, Math.min(100, normalized));
                       }
+                    } else if (ftype === 'select' || ftype === 'status' || ftype === 'multiselect') {
+                      // Resolve raw option label from field metadata as
+                      // fallback, then translate via i18n resolver.
+                      const opts = (sectionField as any)?.options || objField?.options;
+                      let fallback = String(val);
+                      if (Array.isArray(opts)) {
+                        const m = opts.find((o: any) => String(o?.value ?? o) === String(val));
+                        if (m?.label) fallback = m.label;
+                      } else if (opts && typeof opts === 'object') {
+                        const m = (opts as any)[String(val)];
+                        if (m?.label) fallback = m.label;
+                      }
+                      display = schema.objectName
+                        ? fieldOptionLabel(schema.objectName, fieldName, String(val), fallback)
+                        : fallback;
                     }
                   } catch {
                     /* fall back to String(val) */

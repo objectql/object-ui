@@ -645,12 +645,59 @@ export interface ChartSchema extends BaseSchema {
    * Chart configuration (library-specific)
    */
   config?: Record<string, any>;
+  /**
+   * Optional drill-down configuration. When enabled, clicking a chart
+   * segment opens a filtered list view (drawer/dialog).
+   */
+  drillDown?: DrillDownConfig;
 }
 
 /**
  * Aggregation function for pivot table values
  */
 export type PivotAggregation = 'sum' | 'count' | 'avg' | 'min' | 'max';
+
+/**
+ * Declarative drill-down configuration shared by pivot tables and charts.
+ *
+ * When a user clicks a pivot cell / chart segment, the engine opens a side
+ * drawer (default) listing the underlying records filtered by the click
+ * context. All values support `${event.*}` interpolation; sensible defaults
+ * are derived from the widget's row/column/groupBy fields when omitted.
+ *
+ * Pivot event payload:  rowKey, colKey, rowLabel, colLabel, value, scope
+ * Chart event payload:  category, series, value
+ */
+export interface DrillDownConfig {
+  /** Master switch. Set to true (or supply any other field) to enable. */
+  enabled?: boolean;
+  /** Where the drill-down view opens. Defaults to "drawer". */
+  target?: 'drawer' | 'dialog';
+  /**
+   * Filter applied to the drilled list view. Each value supports
+   * `${event.x}` interpolation (e.g. `"${event.rowKey}"`).
+   * When omitted, the engine derives a default filter from the widget's
+   * row/column/groupBy fields and the click payload.
+   */
+  filter?: Record<string, unknown>;
+  /** Drawer/dialog title. Supports `${event.*}` interpolation. */
+  title?: string;
+  /**
+   * Optional list view id (reserved). When supported the engine looks up
+   * the named list view from the app and renders it inside the drawer.
+   * For the L1 implementation an inline ObjectDataTable is rendered.
+   */
+  view?: string;
+  /**
+   * Optional column whitelist for the inline drill list. When omitted the
+   * data table renders all default columns.
+   */
+  columns?: string[];
+  /** Default sort applied to the drill list. */
+  sort?: Array<{ field: string; dir?: 'asc' | 'desc' }>;
+  /** Hard cap on rows fetched. */
+  maxRows?: number;
+}
 
 /**
  * Pivot table (cross-tabulation) component
@@ -703,6 +750,11 @@ export interface PivotTableSchema extends BaseSchema {
    * Mapping of column header values to Tailwind text-color classes
    */
   columnColors?: Record<string, string>;
+  /**
+   * Optional drill-down configuration. When enabled, clicking a cell /
+   * row header / column header / total opens a filtered list view.
+   */
+  drillDown?: DrillDownConfig;
 }
 
 /**

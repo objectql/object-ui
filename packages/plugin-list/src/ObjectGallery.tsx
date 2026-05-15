@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useContext } from 'react';
-import { useDataScope, SchemaRendererContext, useNavigationOverlay } from '@object-ui/react';
+import { useDataScope, SchemaRendererContext, useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
 import { ComponentRegistry, buildExpandFields } from '@object-ui/core';
 import { cn, Card, CardContent, NavigationOverlay } from '@object-ui/components';
 import type { GalleryConfig, ViewNavigationConfig, GroupingConfig } from '@object-ui/types';
@@ -74,6 +74,30 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
     const cardSize = gallery?.cardSize ?? 'medium';
     const titleField = gallery?.titleField ?? schema.titleField ?? 'name';
     const visibleFields = gallery?.visibleFields;
+
+    // i18n: translate select-field option labels in card cells
+    const { fieldOptionLabel } = useSafeFieldLabel();
+    const formatFieldValue = useCallback((field: string, value: unknown): string => {
+      if (value == null || value === '') return '';
+      if (typeof value === 'object') {
+        return ((value as any).label ?? (value as any).name ?? (value as any).id ?? JSON.stringify(value));
+      }
+      const fieldDef = objectDef?.fields?.[field];
+      const isSelectLike = fieldDef?.type === 'select' || fieldDef?.type === 'status' || fieldDef?.type === 'multiselect';
+      if (isSelectLike && schema.objectName) {
+        // Find the raw option label as fallback (handles both array & keyed-object option shapes)
+        let fallback = String(value);
+        if (Array.isArray(fieldDef.options)) {
+          const m = fieldDef.options.find((o: any) => String(o?.value ?? o) === String(value));
+          if (m) fallback = m.label ?? fallback;
+        } else if (fieldDef.options && typeof fieldDef.options === 'object') {
+          const m = (fieldDef.options as any)[String(value)];
+          if (m) fallback = m.label ?? fallback;
+        }
+        return fieldOptionLabel(schema.objectName, field, String(value), fallback);
+      }
+      return String(value);
+    }, [objectDef, schema.objectName, fieldOptionLabel]);
 
     // Fetch object definition for metadata
     useEffect(() => {
@@ -246,9 +270,7 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
                             {visibleFields.map((field) => {
                                 const value = (item as any)[field];
                                 if (value == null || value === '') return null;
-                                const display = typeof value === 'object'
-                                    ? ((value as any).label ?? (value as any).name ?? (value as any).id ?? JSON.stringify(value))
-                                    : String(value);
+                                const display = formatFieldValue(field, value);
                                 return (
                                     <p key={field} className="text-xs text-muted-foreground truncate">
                                         {display}

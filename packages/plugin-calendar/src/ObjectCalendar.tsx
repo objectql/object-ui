@@ -437,42 +437,14 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
     onRowClick: navIsOverlay ? undefined : onRowClick,
   });
 
-  if (loading) {
-    return (
-      <div className={className}>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-muted-foreground">Loading calendar...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className={className}>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-destructive">Error: {error.message}</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!calendarConfig) {
-    return (
-      <div className={className}>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-muted-foreground">
-            Calendar configuration required. Please specify startDateField and titleField.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // Default drag-to-reschedule handler. When the caller hasn't provided an
   // `onEventDrop`, persist the new dates back to the data source so dragging
   // an event in the month view actually changes the record. Optimistic
   // update local state first for snappy feedback; revert on failure.
+  // NOTE: This hook (and the quick-create hooks below) MUST be declared
+  // before the early returns for `loading` / `error` / `!calendarConfig`,
+  // otherwise React detects a hook-order change when those conditions
+  // flip across re-renders (e.g. tab switching between board → calendar).
   const handleEventDropDefault = useCallback(async (record: any, newStart: Date, newEnd?: Date) => {
     if (!calendarConfig) return;
     const { startDateField, endDateField } = calendarConfig;
@@ -590,6 +562,38 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
       console.error('[ObjectCalendar] Quick-create failed:', err);
     }
   }, [quickCreate, calendarConfig, schema.objectName, dataSource, objectSchema]);
+
+  if (loading) {
+    return (
+      <div className={className}>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-muted-foreground">Loading calendar...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={className}>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-destructive">Error: {error.message}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!calendarConfig) {
+    return (
+      <div className={className}>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-muted-foreground">
+            Calendar configuration required. Please specify startDateField and titleField.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={pullRef} className={className}>

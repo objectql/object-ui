@@ -226,6 +226,14 @@ export interface RecordPickerDialogProps {
   columns?: Array<string | LookupColumnDef>;
   /** Primary display field (default: 'name') */
   displayField?: string;
+  /**
+   * Optional `titleFormat` template (e.g. `"{full_name}"` or
+   * `"{case_number} - {subject}"`). When set and the displayField column is
+   * auto-inferred, the column renders via the template instead of reading
+   * a possibly-missing field. Mirrors how DetailView/ObjectCalendar resolve
+   * record titles.
+   */
+  titleFormat?: string | null;
   /** Record id field (default: 'id') */
   idField?: string;
 
@@ -316,6 +324,7 @@ export function RecordPickerDialog({
   objectName,
   columns: columnsProp,
   displayField = 'name',
+  titleFormat,
   idField = 'id',
   pageSize = DEFAULT_PAGE_SIZE,
   value,
@@ -668,6 +677,33 @@ export function RecordPickerDialog({
 
   // Get display value for a cell — type-aware rendering when cellRenderer is provided
   const renderCellContent = useCallback((record: any, col: LookupColumnDef): React.ReactNode => {
+    // When the column is the auto-inferred displayField column and the
+    // referenced object declares a `titleFormat`, render via the template so
+    // users see human-readable names instead of a raw id when the displayField
+    // (commonly defaulted to `name`) doesn't exist on the record.
+    if (titleFormat && col.field === displayField) {
+      const EMPTY = '\u0000';
+      const SEP = '[-\\u2013\\u2014|/·,:]';
+      let any = false;
+      const raw = titleFormat.replace(/\{([^{}]+)\}/g, (_m, key) => {
+        const v = (record as any)[key.trim()];
+        if (v !== null && v !== undefined && v !== '') {
+          any = true;
+          return String(v);
+        }
+        return EMPTY;
+      });
+      if (any) {
+        const out = raw
+          .replace(new RegExp(`\\s*${SEP}\\s*${EMPTY}`, 'g'), '')
+          .replace(new RegExp(`${EMPTY}\\s*${SEP}\\s*`, 'g'), '')
+          .replace(new RegExp(EMPTY, 'g'), '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (out) return out;
+      }
+    }
+
     const val = record[col.field];
 
     // Use type-aware renderer when column type and resolver are available
@@ -690,7 +726,7 @@ export function RecordPickerDialog({
     }
     if (typeof val === 'boolean') return val ? 'Yes' : 'No';
     return String(val);
-  }, [cellRenderer]);
+  }, [cellRenderer, titleFormat, displayField]);
 
   // Render sort indicator for a column
   const renderSortIcon = useCallback((field: string) => {

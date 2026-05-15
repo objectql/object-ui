@@ -42,7 +42,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
   const { user } = useAuth();
   const navigate = useNavigate();
   const { t } = useObjectTranslation();
-  const { objectLabel } = useObjectLabel();
+  const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess } = useObjectLabel();
   const [isLoading, setIsLoading] = useState(true);
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [recordViewers, setRecordViewers] = useState<PresenceUser[]>([]);
@@ -419,7 +419,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
     const formSections = objectDef.views?.form?.sections;
     const sections = formSections && formSections.length > 0
       ? formSections.map((sec: any) => ({
-          title: sec.title,
+          title: sec.name ? sectionLabel(objectDef.name, sec.name, sec.title || sec.name) : sec.title,
           collapsible: sec.collapsible,
           defaultCollapsed: sec.defaultCollapsed,
           fields: (sec.fields || []).map((f: any) => {
@@ -472,7 +472,16 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
         if (seen.has(a.name)) return false;
         seen.add(a.name);
         return true;
-      });
+      }).map((a: any) => ({
+        ...a,
+        label: actionLabel(objectDef.name, a.name, a.label || a.name),
+        ...(a.confirmText !== undefined && {
+          confirmText: actionConfirm(objectDef.name, a.name, a.confirmText),
+        }),
+        ...(a.successMessage !== undefined && {
+          successMessage: actionSuccess(objectDef.name, a.name, a.successMessage),
+        }),
+      }));
     })();
 
     // Build highlightFields: exclusively from objectDef metadata (no hardcoded fallback)
@@ -641,7 +650,7 @@ export function RecordDetailView({ dataSource, objects, onEdit }: RecordDetailVi
               key={actionRefreshKey}
               schema={detailSchema}
               dataSource={dataSource}
-              objectLabel={objectDef.label}
+              objectLabel={objectLabel({ name: objectDef.name, label: objectDef.label })}
               onDataLoaded={(record) => {
                 if (!record || typeof record !== 'object') return;
                 // Resolve the same way DetailView's header does, so the

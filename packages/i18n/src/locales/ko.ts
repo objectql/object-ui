@@ -34,6 +34,9 @@ const ko = {
     optional: '선택',
     selectOption: '옵션을 선택하세요',
     select: '선택...',
+    openChat: '채팅 열기',
+    closeChat: '채팅 닫기',
+    toggleSidebar: '사이드바 전환',
   },
   validation: {
     required: '{{field}}은(는) 필수입니다',

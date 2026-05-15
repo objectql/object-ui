@@ -12,6 +12,7 @@ import { extractRecords } from '@object-ui/core';
 import { Skeleton, cn } from '@object-ui/components';
 import { useSafeFieldLabel } from '@object-ui/i18n';
 import { getCellRenderer, resolveCellRendererType, formatCurrency, formatPercent, formatDate } from '@object-ui/fields';
+import { resolveDateMacros } from './utils';
 
 export interface ObjectDataTableProps {
   schema: {
@@ -98,17 +99,27 @@ export function computeLookupExpand(
   } else {
     for (const [name, def] of Object.entries(objectSchema.fields)) fieldsByName[name] = { name, ...(def as any) };
   }
+  const isLookup = (t: unknown) =>
+    t === 'lookup' || t === 'reference' || t === 'master_detail' || t === 'user' || t === 'owner';
+
   const cols = Array.isArray(schema.columns) ? schema.columns : [];
-  const accessors = cols
-    .map((c: any) => (typeof c === 'string' ? c : (c.accessorKey || c.name)))
-    .filter(Boolean);
   const out = new Set<string>();
-  for (const acc of accessors) {
-    const def = fieldsByName[acc];
-    if (!def) continue;
-    const t = def.type;
-    if (t === 'lookup' || t === 'reference' || t === 'master_detail' || t === 'user' || t === 'owner') {
-      out.add(acc);
+
+  if (cols.length > 0) {
+    // Explicit columns whitelist: only expand the relations the user asked for.
+    const accessors = cols
+      .map((c: any) => (typeof c === 'string' ? c : (c.accessorKey || c.name)))
+      .filter(Boolean);
+    for (const acc of accessors) {
+      const def = fieldsByName[acc];
+      if (def && isLookup(def.type)) out.add(acc);
+    }
+  } else {
+    // No columns whitelist (auto-derive mode, e.g. drill-down drawer):
+    // expand every lookup-type field known from the schema so cells show
+    // the related record's display name instead of a bare FK id.
+    for (const [name, def] of Object.entries(fieldsByName)) {
+      if (isLookup((def as any)?.type)) out.add(name);
     }
   }
   return Array.from(out);
@@ -142,7 +153,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
           // cells can render the related record's display name instead of a
           // bare FK id. Adapters that don't understand `$expand` ignore it.
           const expand = computeLookupExpand(schema, objectSchema);
-          const params: any = { $filter: schema.filter };
+          const params: any = { $filter: resolveDateMacros(schema.filter) };
           if (expand.length) params.$expand = expand;
           const results = await dataSource.find(schema.objectName, params);
           data = extractRecords(results);
@@ -258,17 +269,32 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
         options,
         referenceTo,
         format: col.format ?? meta?.format,
-        currency: (col as any).currency ?? meta?.currency,
-        decimals: (col as any).decimals ?? meta?.decimals,
+        currency: (col as any).currency ?? meta?.currency ?? meta?.defaultCurrency,
+        decimals: (col as any).decimals ?? meta?.decimals ?? meta?.precision ?? meta?.scale,
       };
 
-      if (typeof col.cell === 'function') return { ...col, ...fieldMeta };
+      // Numeric-flavoured columns look better right-aligned (tabular-nums
+      // already on the cell). Honor an explicit `align` if the author set one.
+      const NUMERIC_TYPES = new Set([
+        'currency', 'money', 'number', 'integer', 'decimal', 'float', 'percent', 'percentage',
+      ]);
+      const inferredAlign = (col as any).align
+        ?? ((NUMERIC_TYPES.has(fieldMeta.type as string) ||
+            (typeof fieldMeta.format === 'string' && /^[\$¥€£]|%$|0/.test(fieldMeta.format)))
+          ? 'right'
+          : undefined);
+
+      if (typeof col.cell === 'function') return { ...col, ...fieldMeta, align: inferredAlign };
 
       const cell = (value: any): React.ReactNode => {
         if (value == null || value === '') return '';
         const fmt = fieldMeta.format;
         if (typeof fmt === 'string' && /^\$|¥|€|£/.test(fmt) && typeof value === 'number') {
-          return formatCurrency(value, fieldMeta.currency || 'USD');
+          // Honor explicit `currency`; else infer from the leading symbol so
+          // we never silently fall back to USD when the author wrote `¥`/`€`.
+          const symbolMap: Record<string, string> = { '$': 'USD', '¥': 'JPY', '€': 'EUR', '£': 'GBP' };
+          const inferred = symbolMap[fmt[0]];
+          return formatCurrency(value, fieldMeta.currency || inferred);
         }
         if (typeof fmt === 'string' && /%/.test(fmt) && typeof value === 'number') {
           const decimals = (fmt.match(/0\.(0+)%/) || [, ''])[1].length;
@@ -281,7 +307,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
         const Renderer = getCellRenderer(resolveCellRendererType(fieldMeta as any));
         return <Renderer value={value} field={fieldMeta as any} />;
       };
-      return { ...col, ...fieldMeta, cell };
+      return { ...col, ...fieldMeta, align: inferredAlign, cell };
     };
 
     if (schema.columns && schema.columns.length > 0) {
@@ -292,8 +318,36 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
       return withHeaders.map(enrich);
     }
     if (finalData.length === 0) return [];
-    const keys = Object.keys(finalData[0]).filter(k => !k.startsWith('_'));
-    return keys.map(k => enrich({ header: buildHeader(k), accessorKey: k }));
+
+    // Auto-derived columns should hide framework/system audit fields by
+    // default. Users wanting them can pass an explicit `columns` whitelist.
+    const SYSTEM_FIELDS = new Set([
+      'id',
+      'organization_id',
+      'tenant_id',
+      'created_at',
+      'updated_at',
+      'created_by',
+      'updated_by',
+      'deleted_at',
+      'deleted_by',
+      'version',
+      '_id',
+      '__typename',
+    ]);
+    const isSystemField = (name: string, def?: any): boolean => {
+      if (def && (def.isSystem === true || def.system === true)) return true;
+      return SYSTEM_FIELDS.has(name);
+    };
+
+    // Prefer the objectSchema field order (declaration order = author intent)
+    // and drop system fields. Fall back to the row's keys when no schema
+    // is loaded, applying the same denylist.
+    const orderedKeys = Object.keys(fieldsByName).length > 0
+      ? Object.keys(fieldsByName).filter((k) => !isSystemField(k, fieldsByName[k]))
+      : Object.keys(finalData[0]).filter((k) => !k.startsWith('_') && !isSystemField(k));
+
+    return orderedKeys.map((k) => enrich({ header: buildHeader(k), accessorKey: k }));
   }, [schema.columns, schema.objectName, finalData, objectSchema, fieldLabel, fieldOptionLabel]);
 
   // Note: per-cell select-label translation that used to happen here is now

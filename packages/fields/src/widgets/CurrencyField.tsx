@@ -3,29 +3,47 @@ import { Input, EmptyValue } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
 
 /**
- * Format currency value for display
+ * Format currency value for display. When `currency` is undefined the value
+ * is rendered as a plain number with thousands separators (no symbol),
+ * because silently assuming USD is misleading for non-USD businesses.
  */
-function formatCurrency(value: number, currency: string = 'USD'): string {
+function formatAmount(value: number, currency: string | undefined, precision: number): string {
+  if (currency) {
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: precision,
+        maximumFractionDigits: precision,
+      }).format(value);
+    } catch {
+      return `${currency} ${value.toFixed(precision)}`;
+    }
+  }
   try {
     return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
+      minimumFractionDigits: precision,
+      maximumFractionDigits: precision,
     }).format(value);
   } catch {
-    return `${currency} ${value.toFixed(2)}`;
+    return value.toFixed(precision);
   }
 }
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: '$',
+};
+
 export function CurrencyField({ value, onChange, field, readonly, errorMessage, className, ...props }: FieldWidgetProps<number>) {
   const currencyField = (field || (props as any).schema) as any;
-  const currency = currencyField?.currency || 'USD';
+  const currency: string | undefined = currencyField?.currency;
   const precision = currencyField?.precision ?? 2;
 
   if (readonly) {
     if (value == null) return <EmptyValue />;
     return (
       <span className="text-sm font-medium tabular-nums">
-        {formatCurrency(Number(value), currency)}
+        {formatAmount(Number(value), currency, precision)}
       </span>
     );
   }
@@ -38,11 +56,15 @@ export function CurrencyField({ value, onChange, field, readonly, errorMessage, 
     }
   };
 
+  const symbol = currency ? (currency === 'USD' ? '$' : currency) : '';
+
   return (
     <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-        {currency === 'USD' ? '$' : currency}
-      </span>
+      {symbol && (
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+          {symbol}
+        </span>
+      )}
       <Input
         {...props}
         type="number"
@@ -54,7 +76,7 @@ export function CurrencyField({ value, onChange, field, readonly, errorMessage, 
         onBlur={handleBlur}
         placeholder={currencyField?.placeholder || '0.00'}
         disabled={readonly || props.disabled}
-        className={`pl-8 ${className || ''}`}
+        className={`${symbol ? 'pl-8' : ''} ${className || ''}`}
         step={Math.pow(10, -precision).toFixed(precision)}
         aria-invalid={!!errorMessage}
       />

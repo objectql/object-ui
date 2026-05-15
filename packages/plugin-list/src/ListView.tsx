@@ -20,7 +20,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { evaluatePlainCondition, normalizeQuickFilter, normalizeQuickFilters, buildExpandFields } from '@object-ui/core';
-import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
+import { useObjectTranslation, useObjectLabel, useSafeFieldLabel } from '@object-ui/i18n';
 
 export interface ListViewProps {
   schema: ListViewSchema;
@@ -223,6 +223,7 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.share': 'Share',
   'list.print': 'Print',
   'list.hideFieldsTitle': 'Hide Fields',
+  'table.rowsPerPage': 'Rows per page',
 };
 
 /**
@@ -310,6 +311,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // i18n support for record count and other labels
   const { t } = useListViewTranslation();
   const { fieldLabel: resolveFieldLabel } = useListFieldLabel();
+  const { translateOptions } = useSafeFieldLabel();
 
   // Kernel level default: Ensure viewType is always defined (default to 'grid')
   const schema = React.useMemo(() => ({
@@ -1146,6 +1148,26 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   const filterFields = React.useMemo(() => {
     let fields: Array<{ value: string; label: string; type: string; options?: any; referenceTo?: string; displayField?: string; idField?: string }>;
 
+    // Translate select-field option labels through the i18n resolver.
+    // fieldDef.options may be an array of { value, label } or a keyed object;
+    // we normalize to array form so FilterBuilder's value-pickers show
+    // localized option labels (e.g. 网站 instead of "Web").
+    const buildOptions = (key: string, raw: any): any[] | undefined => {
+      if (!raw) return undefined;
+      const arr: Array<{ value: any; label: string; [k: string]: any }> = Array.isArray(raw)
+        ? raw.map((o: any) => ({
+            value: o?.value ?? o,
+            label: o?.label ?? String(o?.value ?? o),
+            ...(o && typeof o === 'object' ? o : {}),
+          }))
+        : Object.entries(raw as Record<string, any>).map(([value, meta]) => ({
+            value,
+            label: (meta as any)?.label || value,
+            ...(meta as any),
+          }));
+      return schema.objectName ? translateOptions(schema.objectName, key, arr) : arr;
+    };
+
     if (!objectDef?.fields) {
         // Fallback to schema fields if objectDef not loaded yet
         fields = (schema.fields || []).map((f: any) => {
@@ -1155,7 +1177,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               value: fieldName,
               label: tFieldLabel(fieldName, f.label || f.name),
               type: f.type || 'text',
-              options: f.options,
+              options: buildOptions(fieldName, f.options),
               referenceTo: f.reference_to || f.reference,
               displayField: f.display_field || f.reference_field,
               idField: f.id_field,
@@ -1166,7 +1188,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             value: key,
             label: tFieldLabel(key, field.label || key),
             type: field.type || 'text',
-            options: field.options,
+            options: buildOptions(key, field.options),
             referenceTo: field.reference_to || field.reference,
             displayField: field.display_field || field.reference_field,
             idField: field.id_field,
@@ -1180,7 +1202,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     }
 
     return fields;
-  }, [objectDef, schema.fields, schema.filterableFields]);
+  }, [objectDef, schema.fields, schema.filterableFields, schema.objectName, tFieldLabel, translateOptions]);
 
   // Quick filter toggle handler
   const toggleQuickFilter = React.useCallback((id: string) => {
@@ -1757,7 +1779,12 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
       {/* View Content */}
       <div key={currentView} className="flex-1 min-h-0 bg-background relative overflow-hidden animate-in fade-in-0 duration-200">
-        {!loading && data.length === 0 ? (
+        {/* Empty state is rendered here ONLY for tabular/list-like views.
+            Structural views (kanban/calendar/gallery/gantt/timeline/map) own
+            their own empty rendering so their column/lane/grid structure
+            stays visible — otherwise users see a generic "No items found"
+            on Task Board / Calendar etc. even though the view exists. */}
+        {!loading && data.length === 0 && (currentView === 'grid' || currentView === 'list') ? (
           (() => {
             const iconName = schema.emptyState?.icon;
             const ResolvedIcon: LucideIcon = iconName
@@ -1876,7 +1903,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           )}
           {schema.pagination?.pageSizeOptions && schema.pagination.pageSizeOptions.length > 0 && (
             <div className="ml-auto flex items-center gap-2">
-              <span>Rows per page</span>
+              <span>{t('table.rowsPerPage', { defaultValue: 'Rows per page' })}</span>
               <select
                 data-testid="page-size-selector"
                 className="h-7 w-[72px] px-2 py-1 text-xs rounded-md border border-input bg-background"

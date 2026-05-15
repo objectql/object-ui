@@ -8,7 +8,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import type { DataSource } from '@object-ui/types';
-import { useDataScope, useNavigationOverlay } from '@object-ui/react';
+import { useDataScope, useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import { extractRecords, buildExpandFields } from '@object-ui/core';
 import { KanbanRenderer } from './index';
@@ -37,6 +37,7 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
   ..._props
 }) => {
   void _props;
+  const { translateOptions } = useSafeFieldLabel();
   // When a parent (e.g. ListView) pre-fetches data and passes it via the `data` prop,
   // we must not trigger a second fetch. Detect external data by checking if externalData
   // is an array (undefined when not provided by parent).
@@ -295,9 +296,16 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
 
     // Try to get options from metadata
     if (schema.groupBy && objectDef?.fields?.[schema.groupBy]?.options) {
-        return objectDef.fields[schema.groupBy].options.map((opt: any) => ({
+        const rawOptions = objectDef.fields[schema.groupBy].options.map((opt: any) => ({
+            value: opt.value,
+            label: opt.label,
+        }));
+        const localized = schema.objectName
+          ? translateOptions(schema.objectName, schema.groupBy, rawOptions)
+          : rawOptions;
+        return localized.map((opt: any) => ({
             id: opt.value,
-            title: opt.label
+            title: opt.label,
         }));
     }
 
@@ -311,7 +319,7 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
     }
 
     return [];
-  }, [schema.columns, schema.groupBy, effectiveData, objectDef]);
+  }, [schema.columns, schema.groupBy, schema.objectName, effectiveData, objectDef, translateOptions]);
 
   // Clone schema to inject data and className
   // Use grouping.fields[0].field as swimlaneField fallback when no explicit swimlaneField

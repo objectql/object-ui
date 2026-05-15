@@ -18,8 +18,9 @@ import { ObjectDataTable } from './ObjectDataTable';
 import { DashboardConfigPanel } from './DashboardConfigPanel';
 import { WidgetConfigPanel } from './WidgetConfigPanel';
 import { DashboardWithConfig } from './DashboardWithConfig';
+import { DrillDownDrawer } from './DrillDownDrawer';
 
-export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, ObjectMetricWidget, PivotTable, ObjectPivotTable, ObjectDataTable, DashboardConfigPanel, WidgetConfigPanel, DashboardWithConfig };
+export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, ObjectMetricWidget, PivotTable, ObjectPivotTable, ObjectDataTable, DashboardConfigPanel, WidgetConfigPanel, DashboardWithConfig, DrillDownDrawer };
 
 // Register dashboard component
 ComponentRegistry.register(

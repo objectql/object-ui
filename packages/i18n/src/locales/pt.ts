@@ -34,6 +34,9 @@ const pt = {
     optional: 'Opcional',
     selectOption: 'Selecionar uma opção',
     select: 'Selecionar...',
+    openChat: 'Abrir chat',
+    closeChat: 'Fechar chat',
+    toggleSidebar: 'Alternar barra lateral',
   },
   validation: {
     required: '{{field}} é obrigatório',

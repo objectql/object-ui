@@ -49,12 +49,14 @@ export interface ChartRendererProps {
     xAxisKey?: string;
     series?: Array<{ dataKey: string; label?: string }>;
   };
+  /** Drill-down click handler — wired by ObjectChart when drillDown is enabled. */
+  onChartClick?: (event: { category?: string; series?: string; value?: number }) => void;
 }
 
 /**
  * ChartRenderer - The public API for the advanced chart component
  */
-export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema }) => {
+export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema, onChartClick }) => {
   // ⚡️ Adapter: Normalize JSON schema to Recharts Props
   const props = React.useMemo(() => {
     // 1. Defaults
@@ -106,6 +108,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema }) => {
         xAxisKey={props.xAxisKey}
         series={props.series}
         className={props.className}
+        onChartClick={onChartClick}
       />
     </Suspense>
   );

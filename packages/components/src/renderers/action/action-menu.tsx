@@ -18,6 +18,7 @@ import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
 import { useCondition, toPredicateInput } from '@object-ui/react';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { Button } from '../../ui';
 import {
   DropdownMenu,
@@ -29,6 +30,16 @@ import {
 import { cn } from '../../lib/utils';
 import { Loader2, MoreHorizontal } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
+
+function useMoreActionsLabel(): string {
+  try {
+    const { t } = useObjectTranslation();
+    const v = t('detail.moreActions');
+    return !v || v === 'detail.moreActions' ? 'More actions' : v;
+  } catch {
+    return 'More actions';
+  }
+}
 
 export interface ActionMenuSchema {
   type: 'action:menu';
@@ -95,6 +106,7 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
 
     const { execute } = useAction();
     const [loading, setLoading] = useState(false);
+    const moreActionsLabel = useMoreActionsLabel();
 
     const isVisible = useCondition(toPredicateInput(schema.visible));
 
@@ -151,7 +163,7 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
               className,
             )}
             disabled={loading}
-            aria-label={schema.label || 'More actions'}
+            aria-label={schema.label || moreActionsLabel}
             {...rest}
             {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
           >

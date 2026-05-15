@@ -34,6 +34,9 @@ const zh = {
     optional: '选填',
     selectOption: '请选择',
     select: '选择...',
+    openChat: '打开聊天',
+    closeChat: '关闭聊天',
+    toggleSidebar: '切换侧边栏',
   },
   validation: {
     required: '{{field}}不能为空',
@@ -234,6 +237,7 @@ const zh = {
     noViewsFound: '没有匹配的视图。',
     dragToReorder: '拖动排序',
     defaultView: '默认视图',
+    tabActionsFor: '{{name}} 的视图操作',
   },
   detail: {
     back: '返回',
@@ -353,6 +357,12 @@ const zh = {
     subscribeAriaLabel: '订阅通知',
     unsubscribeAriaLabel: '取消订阅通知',
     clearSearch: '清除搜索',
+    copyEmail: '复制邮箱',
+    copyPhone: '复制电话号码',
+    copyRecordId: '复制记录 ID',
+    showEmptyFields: '显示 {{count}} 个空字段',
+    hideEmptyFields: '隐藏空字段',
+    noValue: '无',
   },
   chart: {
     noData: '暂无图表数据',
@@ -431,6 +441,7 @@ const zh = {
     editLayout: '编辑布局',
     saveLayout: '保存布局',
     resetLayout: '重置布局',
+    total: '总计',
   },
   configPanel: {
     save: '保存',

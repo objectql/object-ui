@@ -17,17 +17,11 @@ import {
   Calendar as CalendarIcon,
   PanelLeftClose,
   PanelLeft,
-  Plus,
   CalendarDays,
 } from "lucide-react"
 import { 
   cn, 
   Button, 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue,
   Separator,
   useResizeObserver,
 } from "@object-ui/components"
@@ -73,18 +67,27 @@ export interface GanttTask {
   dependencies?: (string | number)[]
 }
 
+/**
+ * @deprecated The day/week/month/quarter view-mode dropdown was removed
+ * because all four values rendered the same daily-column timeline.
+ * Kept exported only to avoid breaking downstream type imports; the
+ * `viewMode` / `onViewChange` props on `GanttViewProps` are no-ops.
+ * Re-introduce real semantics here when timeline granularity is
+ * implemented.
+ */
 export type GanttViewMode = 'day' | 'week' | 'month' | 'quarter';
 
 export interface GanttViewProps {
   tasks: GanttTask[]
+  /** @deprecated no-op — see {@link GanttViewMode} */
   viewMode?: GanttViewMode
   startDate?: Date
   endDate?: Date
   onTaskClick?: (task: GanttTask) => void
   onTaskUpdate?: (task: GanttTask, changes: Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>>) => void
   onTaskDelete?: (task: GanttTask) => void
+  /** @deprecated no-op — see {@link GanttViewMode} */
   onViewChange?: (view: GanttViewMode) => void
-  onAddClick?: () => void
   className?: string
   /** Enable inline editing of task fields */
   inlineEdit?: boolean
@@ -92,13 +95,10 @@ export interface GanttViewProps {
 
 export function GanttView({
   tasks,
-  viewMode = 'month',
   startDate,
   endDate,
   onTaskClick,
   onTaskUpdate,
-  onViewChange,
-  onAddClick,
   className,
   inlineEdit = false,
 }: GanttViewProps) {
@@ -339,12 +339,10 @@ export function GanttView({
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 border-b bg-card">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => onAddClick?.()} aria-label="Create new task">
-            <Plus className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">New Task</span>
-            <span className="sm:hidden">New</span>
-          </Button>
-          <div className="h-4 w-px bg-border mx-1 sm:mx-2" />
+          {/* "New Task" intentionally removed — the page-level header
+              already exposes a fully-fielded create form for this
+              object, and the toolbar's quick-create only set 3 fields
+              which was confusing for required-field-heavy schemas. */}
           <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Previous period">
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -357,17 +355,12 @@ export function GanttView({
         </div>
         
         <div className="flex items-center gap-2">
-          <Select value={viewMode} onValueChange={(v) => onViewChange?.(v as GanttViewMode)}>
-            <SelectTrigger className="w-[100px] sm:w-[120px] h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="day">Day View</SelectItem>
-              <SelectItem value="week">Week View</SelectItem>
-              <SelectItem value="month">Month View</SelectItem>
-              <SelectItem value="quarter">Quarter View</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* View-mode select removed — it was cosmetic only. The
+              timeline always iterates one day per column regardless of
+              the chosen value, and the only knob that actually changes
+              column density is the Zoom in/out below. Re-introduce a
+              real Select here when day/week/month/quarter rendering is
+              actually implemented in `timeColumns` + `tickWidth`. */}
           <div className="flex bg-muted rounded-md p-1">
             <Button
               variant="ghost"

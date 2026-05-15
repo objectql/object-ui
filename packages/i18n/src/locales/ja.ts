@@ -34,6 +34,9 @@ const ja = {
     optional: '任意',
     selectOption: '選択してください',
     select: '選択...',
+    openChat: 'チャットを開く',
+    closeChat: 'チャットを閉じる',
+    toggleSidebar: 'サイドバーを切り替え',
   },
   validation: {
     required: '{{field}}は必須です',

@@ -11,6 +11,23 @@ import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
 import { ComponentRegistry } from '@object-ui/core';
 import { Badge, Avatar, AvatarFallback, Button, Checkbox, EmptyValue } from '@object-ui/components';
 import { Check, X, Copy, Phone as PhoneIcon } from 'lucide-react';
+import { useObjectTranslation } from '@object-ui/react';
+
+/**
+ * Safe label resolver for cell-level UI strings. Falls back to the English
+ * default when no I18nProvider is available or when the key is missing.
+ */
+function useFieldLabel() {
+  try {
+    const { t } = useObjectTranslation();
+    return (key: string, fallback: string) => {
+      const v = t(key);
+      return !v || v === key ? fallback : v;
+    };
+  } catch {
+    return (_k: string, fallback: string) => fallback;
+  }
+}
 
 import { TextField } from './widgets/TextField';
 import { NumberField } from './widgets/NumberField';
@@ -124,6 +141,22 @@ export function formatCompactCurrency(value: number, currency: string = 'USD'): 
     return formatted.replace(/\.0(?=[KMBT])/, '');
   } catch {
     return `${currency} ${value}`;
+  }
+}
+
+/**
+ * Format a plain number with thousands separators, no currency symbol.
+ * Used as a safe fallback when a currency-typed field has no `currency`
+ * configured — we'd rather render `1,234.50` than silently assume USD.
+ */
+export function formatNumber(value: number, decimals: number = 2): string {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }).format(value);
+  } catch {
+    return value.toFixed(decimals);
   }
 }
 
@@ -255,9 +288,14 @@ export function CurrencyCellRenderer({ value, field }: CellRendererProps): React
   
   const safe = coerceToSafeValue(value);
   const currencyField = field as any;
-  const currency = currencyField.currency || 'USD';
+  // Honor both `currency` (legacy/grid configs) and `defaultCurrency`
+  // (the canonical key from `@objectstack/spec` Field.currency()).
+  const currency: string | undefined = currencyField.currency || currencyField.defaultCurrency;
   const num = Number(safe);
-  const formatted = !isNaN(num) ? formatCurrency(num, currency) : String(safe);
+  const decimals = currencyField.precision ?? currencyField.scale ?? currencyField.decimals ?? 2;
+  const formatted = !isNaN(num)
+    ? (currency ? formatCurrency(num, currency) : formatNumber(num, decimals))
+    : String(safe);
   
   return <span className="tabular-nums font-medium whitespace-nowrap">{formatted}</span>;
 }
@@ -558,18 +596,29 @@ function getBadgeColorClasses(color?: string, val?: unknown): string {
 export function SelectCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
   const selectField = field as any;
   const options: SelectOptionMetadata[] = selectField.options || [];
-  
+
   if (value == null || value === '') return <EmptyValue />;
-  
+
+  // Match a stored value to a configured option, falling back to a
+  // case-insensitive comparison so seed data with mixed case
+  // (e.g. "Referral" stored, "referral" defined) still resolves to the
+  // localized option label.
+  const findOption = (val: any): SelectOptionMetadata | undefined => {
+    const exact = options.find(opt => opt.value === val);
+    if (exact) return exact;
+    const norm = String(val).toLowerCase();
+    return options.find(opt => String(opt.value).toLowerCase() === norm);
+  };
+
   // Handle multiple values
   if (Array.isArray(value)) {
     return (
       <div className="flex flex-wrap gap-1">
         {value.map((val, idx) => {
-          const option = options.find(opt => opt.value === val);
+          const option = findOption(val);
           const label = option?.label || humanizeLabel(String(val));
           const colorClasses = getBadgeColorClasses(option?.color, val);
-          
+
           return (
             <Badge
               key={idx}
@@ -583,9 +632,9 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
       </div>
     );
   }
-  
+
   // Handle single value
-  const option = options.find(opt => opt.value === value);
+  const option = findOption(value);
   const label = option?.label || humanizeLabel(String(value));
   const colorClasses = getBadgeColorClasses(option?.color, value);
   
@@ -604,7 +653,8 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
  */
 export function EmailCellRenderer({ value }: CellRendererProps): React.ReactElement {
   if (!value) return <EmptyValue />;
-  
+
+  const label = useFieldLabel();
   const safe = String(coerceToSafeValue(value) ?? '');
   const [copied, setCopied] = React.useState(false);
 
@@ -635,7 +685,7 @@ export function EmailCellRenderer({ value }: CellRendererProps): React.ReactElem
         type="button"
         className="opacity-0 group-hover/email:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
         onClick={handleCopy}
-        aria-label="Copy email"
+        aria-label={label('detail.copyEmail', 'Copy email')}
       >
         {copied ? (
           <Check className="h-3 w-3 text-green-600" />
@@ -677,7 +727,8 @@ export function UrlCellRenderer({ value }: CellRendererProps): React.ReactElemen
  */
 export function PhoneCellRenderer({ value }: CellRendererProps): React.ReactElement {
   if (!value) return <EmptyValue />;
-  
+
+  const label = useFieldLabel();
   const safe = String(coerceToSafeValue(value) ?? '');
   const [copied, setCopied] = React.useState(false);
 
@@ -704,7 +755,7 @@ export function PhoneCellRenderer({ value }: CellRendererProps): React.ReactElem
         type="button"
         className="opacity-0 group-hover/phone:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
         onClick={handleCopy}
-        aria-label="Copy phone number"
+        aria-label={label('detail.copyPhone', 'Copy phone number')}
       >
         {copied ? (
           <Check className="h-3 w-3 text-green-600" />

@@ -87,6 +87,19 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { ViewTabBarConfig } from '@object-ui/types';
+import { useObjectTranslation } from '@object-ui/react';
+
+function useViewTabLabel() {
+  try {
+    const { t } = useObjectTranslation();
+    return (key: string, fallback: string, vars?: Record<string, unknown>) => {
+      const v = t(key, vars as any);
+      return !v || v === key ? fallback : v;
+    };
+  } catch {
+    return (_k: string, fallback: string) => fallback;
+  }
+}
 
 /** Visibility group sort order: private → team → organization → public */
 const VISIBILITY_ORDER: Record<string, number> = { private: 0, team: 1, organization: 2, public: 3 };
@@ -250,6 +263,8 @@ export const ViewTabBar: React.FC<ViewTabBarProps> = ({
     showPinnedSection = true,
     showVisibilityGroups = false,
   } = config;
+
+  const viewTabLabel = useViewTabLabel();
 
   // --- Inline rename state ---
   const [renamingViewId, setRenamingViewId] = useState<string | null>(null);
@@ -495,7 +510,7 @@ export const ViewTabBar: React.FC<ViewTabBarProps> = ({
                 onClick={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
-                aria-label={`View actions for ${view.label}`}
+                aria-label={viewTabLabel('view.tabActionsFor', `View actions for ${view.label}`, { name: view.label })}
               >
                 <ChevronDown className="h-3 w-3" />
               </button>

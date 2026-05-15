@@ -11,6 +11,19 @@ import { cn } from "@object-ui/components"
 import { Button } from "@object-ui/components"
 import { MessageCircle, X } from "lucide-react"
 import { useFloatingChatbot } from "./FloatingChatbotProvider"
+import { useObjectTranslation } from "@object-ui/react"
+
+function useChatbotLabel() {
+  try {
+    const { t } = useObjectTranslation();
+    return (key: 'openChat' | 'closeChat', fallback: string) => {
+      const v = t(`common.${key}`);
+      return !v || v === `common.${key}` ? fallback : v;
+    };
+  } catch {
+    return (_k: string, fallback: string) => fallback;
+  }
+}
 
 export interface FloatingChatbotTriggerProps {
   /** Position of the FAB */
@@ -31,6 +44,7 @@ export function FloatingChatbotTrigger({
   className,
 }: FloatingChatbotTriggerProps) {
   const { isOpen, toggle } = useFloatingChatbot()
+  const label = useChatbotLabel()
 
   return (
     <Button
@@ -42,7 +56,7 @@ export function FloatingChatbotTrigger({
       )}
       style={{ width: size, height: size }}
       size="icon"
-      aria-label={isOpen ? "Close chat" : "Open chat"}
+      aria-label={isOpen ? label('closeChat', 'Close chat') : label('openChat', 'Open chat')}
       data-testid="floating-chatbot-trigger"
     >
       {isOpen ? (
