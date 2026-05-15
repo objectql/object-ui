@@ -1,5 +1,19 @@
 # @object-ui/plugin-calendar
 
+## 4.0.8
+
+### Patch Changes
+
+- Updated dependencies [3d58eaa]
+  - @object-ui/i18n@4.0.8
+  - @object-ui/components@4.0.8
+  - @object-ui/fields@4.0.8
+  - @object-ui/react@4.0.8
+  - @object-ui/plugin-detail@4.0.8
+  - @object-ui/types@4.0.8
+  - @object-ui/core@4.0.8
+  - @object-ui/mobile@4.0.8
+
 ## 4.0.7
 
 ### Patch Changes

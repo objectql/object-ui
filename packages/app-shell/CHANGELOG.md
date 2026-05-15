@@ -1,5 +1,52 @@
 # @object-ui/app-shell — Changelog
 
+## 4.0.8
+
+### Patch Changes
+
+- 3d58eaa: fix(auth,app-shell): hide Log out menu item when auth is disabled (guest/preview mode)
+
+  When the console runs against a server with `discovery.services.auth.enabled === false`
+  (or in preview mode), `AuthProvider` hardcodes `isAuthenticated: true` and the mock
+  `signOut()` has no real backend. Previously, clicking "Log out" in the user menu had
+  no visible effect — the user/session were nulled but the UI stayed authenticated.
+
+  Changes:
+  - **`@object-ui/auth`** — added `isAuthEnabled: boolean` to `AuthContextValue`
+    (`true` only when real auth is in use, `false` for guest/preview modes).
+  - **`@object-ui/app-shell`** — `AppHeader` and `AppSidebar` now hide the "Log out"
+    menu item entirely when `!isAuthEnabled`, so users aren't presented with an action
+    that can't actually do anything. Also fixed two missed i18n strings in
+    `AppSidebar` ("Settings", "Log out").
+  - **`@object-ui/i18n`** — added `user.{profile,settings,logout}` namespace to all
+    10 built-in locales (en/zh translated; ja/ko/de/fr/es/pt/ru/ar fall back to
+    English pending native translation).
+
+- Updated dependencies [3d58eaa]
+  - @object-ui/auth@4.0.8
+  - @object-ui/i18n@4.0.8
+  - @object-ui/components@4.0.8
+  - @object-ui/fields@4.0.8
+  - @object-ui/plugin-calendar@4.0.8
+  - @object-ui/plugin-charts@4.0.8
+  - @object-ui/plugin-dashboard@4.0.8
+  - @object-ui/plugin-designer@4.0.8
+  - @object-ui/plugin-list@4.0.8
+  - @object-ui/react@4.0.8
+  - @object-ui/layout@4.0.8
+  - @object-ui/plugin-chatbot@4.0.8
+  - @object-ui/plugin-detail@4.0.8
+  - @object-ui/plugin-form@4.0.8
+  - @object-ui/plugin-grid@4.0.8
+  - @object-ui/plugin-kanban@4.0.8
+  - @object-ui/plugin-report@4.0.8
+  - @object-ui/plugin-view@4.0.8
+  - @object-ui/types@4.0.8
+  - @object-ui/core@4.0.8
+  - @object-ui/data-objectstack@4.0.8
+  - @object-ui/permissions@4.0.8
+  - @object-ui/collaboration@4.0.8
+
 ## 4.0.7
 
 ### Patch Changes
