@@ -1,5 +1,16 @@
 # @object-ui/plugin-aggrid
 
+## 4.0.9
+
+### Patch Changes
+
+- @object-ui/types@4.0.9
+- @object-ui/core@4.0.9
+- @object-ui/react@4.0.9
+- @object-ui/components@4.0.9
+- @object-ui/fields@4.0.9
+- @object-ui/data-objectstack@4.0.9
+
 ## 4.0.8
 
 ### Patch Changes

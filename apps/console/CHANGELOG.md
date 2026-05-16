@@ -1,5 +1,11 @@
 # @object-ui/console
 
+## 4.0.9
+
+### Patch Changes
+
+- 19c044f: i18n
+
 ## 4.0.8
 
 ## 4.0.7
