@@ -1,5 +1,19 @@
 # @object-ui/plugin-calendar
 
+## 5.0.0
+
+### Patch Changes
+
+- Updated dependencies [1909bc3]
+  - @object-ui/i18n@5.0.0
+  - @object-ui/components@5.0.0
+  - @object-ui/fields@5.0.0
+  - @object-ui/react@5.0.0
+  - @object-ui/plugin-detail@5.0.0
+  - @object-ui/types@5.0.0
+  - @object-ui/core@5.0.0
+  - @object-ui/mobile@5.0.0
+
 ## 4.0.10
 
 ### Patch Changes

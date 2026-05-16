@@ -1,5 +1,15 @@
 # @object-ui/plugin-form
 
+## 5.0.0
+
+### Patch Changes
+
+- @object-ui/components@5.0.0
+- @object-ui/fields@5.0.0
+- @object-ui/react@5.0.0
+- @object-ui/types@5.0.0
+- @object-ui/core@5.0.0
+
 ## 4.0.10
 
 ### Patch Changes
