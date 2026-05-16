@@ -1,5 +1,34 @@
 # @object-ui/app-shell — Changelog
 
+## 4.0.10
+
+### Patch Changes
+
+- 7cb0c37: metadata
+  - @object-ui/types@4.0.10
+  - @object-ui/core@4.0.10
+  - @object-ui/i18n@4.0.10
+  - @object-ui/react@4.0.10
+  - @object-ui/components@4.0.10
+  - @object-ui/fields@4.0.10
+  - @object-ui/layout@4.0.10
+  - @object-ui/data-objectstack@4.0.10
+  - @object-ui/auth@4.0.10
+  - @object-ui/permissions@4.0.10
+  - @object-ui/plugin-calendar@4.0.10
+  - @object-ui/plugin-charts@4.0.10
+  - @object-ui/plugin-chatbot@4.0.10
+  - @object-ui/plugin-dashboard@4.0.10
+  - @object-ui/plugin-designer@4.0.10
+  - @object-ui/plugin-detail@4.0.10
+  - @object-ui/plugin-form@4.0.10
+  - @object-ui/plugin-grid@4.0.10
+  - @object-ui/plugin-kanban@4.0.10
+  - @object-ui/plugin-list@4.0.10
+  - @object-ui/plugin-report@4.0.10
+  - @object-ui/plugin-view@4.0.10
+  - @object-ui/collaboration@4.0.10
+
 ## 4.0.9
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @object-ui/layout
 
+## 4.0.10
+
+### Patch Changes
+
+- @object-ui/types@4.0.10
+- @object-ui/core@4.0.10
+- @object-ui/react@4.0.10
+- @object-ui/components@4.0.10
+
 ## 4.0.9
 
 ### Patch Changes

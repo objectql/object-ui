@@ -1,5 +1,7 @@
 # @object-ui/console
 
+## 4.0.10
+
 ## 4.0.9
 
 ### Patch Changes

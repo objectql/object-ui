@@ -1,5 +1,11 @@
 # @object-ui/mobile
 
+## 4.0.10
+
+### Patch Changes
+
+- @object-ui/types@4.0.10
+
 ## 4.0.9
 
 ### Patch Changes
