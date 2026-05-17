@@ -1,5 +1,14 @@
 # @object-ui/plugin-editor
 
+## 4.0.11
+
+### Patch Changes
+
+- @object-ui/components@4.0.11
+- @object-ui/react@4.0.11
+- @object-ui/types@4.0.11
+- @object-ui/core@4.0.11
+
 ## 4.0.10
 
 ### Patch Changes

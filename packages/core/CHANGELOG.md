@@ -1,5 +1,11 @@
 # @object-ui/core
 
+## 4.0.11
+
+### Patch Changes
+
+- @object-ui/types@4.0.11
+
 ## 4.0.10
 
 ### Patch Changes

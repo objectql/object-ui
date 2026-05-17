@@ -1,5 +1,15 @@
 # @object-ui/react
 
+## 4.0.11
+
+### Patch Changes
+
+- Updated dependencies [1909bc3]
+  - @object-ui/i18n@4.0.11
+  - @object-ui/types@4.0.11
+  - @object-ui/core@4.0.11
+  - @object-ui/data-objectstack@4.0.11
+
 ## 4.0.10
 
 ### Patch Changes
