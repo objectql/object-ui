@@ -30,7 +30,7 @@
     "@object-ui/plugin-view": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "ag-grid-community": "^35.2.1",
+    "ag-grid-community": "^35.3.0",
     "ag-grid-react": "^35.2.1",
     "fumadocs-core": "16.8.9",
     "fumadocs-mdx": "15.0.5",
