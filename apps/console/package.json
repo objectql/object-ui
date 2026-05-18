@@ -74,7 +74,7 @@
     "@vitest/ui": "^4.1.6",
     "autoprefixer": "^10.5.0",
     "happy-dom": "^20.9.0",
-    "lucide-react": "^1.14.0",
+    "lucide-react": "^1.16.0",
     "postcss": "^8.5.14",
     "react": "19.2.6",
     "react-dom": "19.2.6",
