@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/app-shell",
-  "version": "4.0.11",
+  "version": "4.0.12",
   "type": "module",
   "license": "MIT",
   "description": "Minimal application shell for ObjectUI - framework-agnostic rendering engine",
