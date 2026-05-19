@@ -1,5 +1,19 @@
 # @object-ui/i18n
 
+## 4.2.0
+
+### Patch Changes
+
+- eb738bd: fix(i18n): add missing top-level `report` key to ar/de/es/fr/ja/ko/pt/ru locales
+
+  The i18n parity test (`all locales have the same top-level keys`) was failing
+  because the `report` key existed only in `en` and `zh`. The other built-in
+  locales now include the same `report` block (English fallback strings) so the
+  CI parity check passes again.
+
+- 650392e: MatrixRenderer now displays i18n-translated labels for picklist (`select` / `status`) groupings instead of raw values (e.g. `Best Case` / `Commit` / `Pipeline` instead of `best_case` / `commit` / `pipeline`). Field labels in the corner cell, row/column total labels, and the `(Empty)` / `(All)` placeholders are also fully translated. Adds `report.*` keys to `en` and `zh` locale bundles.
+- 84b4bf1: Summary reports now render i18n-translated labels in the chart axis, chart series legend, and totals strip. `buildChartData` accepts a new `labels` parameter so callers (currently `SpecReportGrid`) can supply field/column/aggregate/value resolvers. Replaces raw column keys (e.g. `Count of case_number`) and raw picklist values (e.g. `closed`, `in_progress`) with their translated display labels (e.g. `案例编号 · 计数`, `已关闭`, `处理中`). Adds `report.totals` locale key.
+
 ## 4.1.0
 
 ## 4.0.12

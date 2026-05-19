@@ -1,5 +1,25 @@
 # @object-ui/app-shell — Changelog
 
+## 4.2.0
+
+### Patch Changes
+
+- 786de60: ReportView no longer caps the report content at `max-w-5xl` (1024px). Reports now use the full available content width, matching DashboardView behavior. Matrix and grid reports in particular benefit from the additional horizontal real estate.
+- Updated dependencies [eb738bd]
+- Updated dependencies [650392e]
+- Updated dependencies [84b4bf1]
+  - @object-ui/i18n@4.2.0
+  - @object-ui/components@4.2.0
+  - @object-ui/fields@4.2.0
+  - @object-ui/react@4.2.0
+  - @object-ui/layout@4.2.0
+  - @object-ui/types@4.2.0
+  - @object-ui/core@4.2.0
+  - @object-ui/data-objectstack@4.2.0
+  - @object-ui/auth@4.2.0
+  - @object-ui/permissions@4.2.0
+  - @object-ui/collaboration@4.2.0
+
 ## 4.1.0
 
 ### Patch Changes

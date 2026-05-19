@@ -1,5 +1,33 @@
 # @object-ui/plugin-report
 
+## 4.2.0
+
+### Minor Changes
+
+- 650392e: MatrixRenderer now displays i18n-translated labels for picklist (`select` / `status`) groupings instead of raw values (e.g. `Best Case` / `Commit` / `Pipeline` instead of `best_case` / `commit` / `pipeline`). Field labels in the corner cell, row/column total labels, and the `(Empty)` / `(All)` placeholders are also fully translated. Adds `report.*` keys to `en` and `zh` locale bundles.
+- 26f5fce: Simplify report identity: replace the dashboard-style KPI grid with a compact "Totals" strip so reports look like reports (table-first with a grand total), not like mini-dashboards.
+  - `SpecReportGrid` now renders one inline `Totals: Label1: value Label2: value …` strip above the chart and table, styled as a muted single-line band — clearly subordinate to the data grid below.
+  - The Totals strip is now also shown for `tabular` reports when they declare aggregating columns (matches Salesforce's "Grand Total" convention).
+  - Drop the duplicate chart title `<div>`: the chart component already renders its own title from `report.chart.title`.
+  - Test ids renamed: `spec-report-kpis` → `spec-report-totals`, `spec-report-kpi-${key}` → `spec-report-total-${key}`.
+
+  Visual distinction from dashboards is now intentional: dashboard widgets use prominent floating KPI cards to convey "headline numbers"; report Totals describe the single dataset on the page and are intentionally compact.
+
+- 84b4bf1: Summary reports now render i18n-translated labels in the chart axis, chart series legend, and totals strip. `buildChartData` accepts a new `labels` parameter so callers (currently `SpecReportGrid`) can supply field/column/aggregate/value resolvers. Replaces raw column keys (e.g. `Count of case_number`) and raw picklist values (e.g. `closed`, `in_progress`) with their translated display labels (e.g. `案例编号 · 计数`, `已关闭`, `处理中`). Adds `report.totals` locale key.
+
+### Patch Changes
+
+- Updated dependencies [eb738bd]
+- Updated dependencies [650392e]
+- Updated dependencies [84b4bf1]
+  - @object-ui/i18n@4.2.0
+  - @object-ui/components@4.2.0
+  - @object-ui/fields@4.2.0
+  - @object-ui/react@4.2.0
+  - @object-ui/plugin-grid@4.2.0
+  - @object-ui/types@4.2.0
+  - @object-ui/core@4.2.0
+
 ## 4.1.0
 
 ### Minor Changes

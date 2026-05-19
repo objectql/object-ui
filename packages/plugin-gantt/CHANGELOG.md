@@ -1,5 +1,16 @@
 # @object-ui/plugin-gantt
 
+## 4.2.0
+
+### Patch Changes
+
+- @object-ui/components@4.2.0
+- @object-ui/fields@4.2.0
+- @object-ui/react@4.2.0
+- @object-ui/plugin-detail@4.2.0
+- @object-ui/types@4.2.0
+- @object-ui/core@4.2.0
+
 ## 4.1.0
 
 ### Patch Changes

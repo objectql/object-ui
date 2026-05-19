@@ -1,5 +1,16 @@
 # @object-ui/runner
 
+## 4.2.0
+
+### Patch Changes
+
+- @object-ui/components@4.2.0
+- @object-ui/plugin-charts@4.2.0
+- @object-ui/plugin-kanban@4.2.0
+- @object-ui/react@4.2.0
+- @object-ui/types@4.2.0
+- @object-ui/core@4.2.0
+
 ## 4.1.0
 
 ### Patch Changes
