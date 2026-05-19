@@ -1,5 +1,50 @@
 # @object-ui/app-shell — Changelog
 
+## 4.3.0
+
+### Patch Changes
+
+- 079c3b2: feat(plugin-report): per-block field resolution for joined reports
+
+  Joined report blocks can override `objectName` to query a different
+  object than the container, but the editor was always offering the
+  container's fields — wrong field names, wrong types, broken granularity
+  and chart-axis filtering.
+
+  `ReportConfigPanel` now accepts an optional `getFieldsForObject`
+  resolver. `JoinedBlocksEditor` uses it to source fields for each
+  block based on `block.objectName ?? containerObjectName`, falling
+  back to the static `availableFields` when the resolver returns
+  `undefined` (unknown object).
+
+  `ReportView` wires the resolver against the app's loaded `objects`
+  list and reuses the same parsing path internally to derive its
+  top-level `availableFields`, removing the duplicated schema lookup.
+
+  5 new RTL tests verify the resolver wiring, fallback behaviour,
+  add-block flow, and inline duplicate-name validation (111 plugin-report
+  tests green).
+
+- 154a36c: fix
+- fed4897: fix
+- Updated dependencies [f196cf4]
+- Updated dependencies [ee1cc96]
+- Updated dependencies [0b032be]
+- Updated dependencies [115d36a]
+- Updated dependencies [4e7bc1b]
+- Updated dependencies [8442c05]
+  - @object-ui/i18n@4.3.0
+  - @object-ui/components@4.3.0
+  - @object-ui/fields@4.3.0
+  - @object-ui/react@4.3.0
+  - @object-ui/layout@4.3.0
+  - @object-ui/types@4.3.0
+  - @object-ui/core@4.3.0
+  - @object-ui/data-objectstack@4.3.0
+  - @object-ui/auth@4.3.0
+  - @object-ui/permissions@4.3.0
+  - @object-ui/collaboration@4.3.0
+
 ## 4.2.1
 
 ### Patch Changes

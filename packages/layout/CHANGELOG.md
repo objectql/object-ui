@@ -1,5 +1,16 @@
 # @object-ui/layout
 
+## 4.3.0
+
+### Patch Changes
+
+- Updated dependencies [4e7bc1b]
+- Updated dependencies [8442c05]
+  - @object-ui/components@4.3.0
+  - @object-ui/react@4.3.0
+  - @object-ui/types@4.3.0
+  - @object-ui/core@4.3.0
+
 ## 4.2.1
 
 ### Patch Changes
