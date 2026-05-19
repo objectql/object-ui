@@ -1,5 +1,16 @@
 # @object-ui/plugin-grid
 
+## 5.0.0
+
+### Patch Changes
+
+- @object-ui/types@5.0.0
+- @object-ui/core@5.0.0
+- @object-ui/react@5.0.0
+- @object-ui/components@5.0.0
+- @object-ui/fields@5.0.0
+- @object-ui/mobile@5.0.0
+
 ## 4.0.12
 
 ### Patch Changes

@@ -1,5 +1,41 @@
 # @object-ui/app-shell — Changelog
 
+## 5.0.0
+
+### Patch Changes
+
+- b4ce9e2: Fix summary reports: render chart + KPIs, correct empty-table on server-aggregated data.
+  - `plugin-report`: `SpecReportGrid` now renders a KPI strip (per aggregating column) and a chart section above the grid for `summary` reports. KPI section auto-hides when no aggregating columns. New `buildChartData()` adapter buckets aggregated `ReportRow[]` to chart-ready data, auto-sorts pie/funnel descending, and falls back to row count when the chart `yAxis` points at a non-numeric column. When the data is server-aggregated, the grid switches columns to `[groupings, ${field}__${agg}]` so cells aren't empty against a raw-row column schema.
+  - `plugin-charts`: register `'column'` as an alias of `'bar'` in `ChartRenderer` / `AdvancedChartImpl` (Recharts only has `BarChart`).
+  - `app-shell`: `ReportView` now routes any object-backed report (matrix/joined/summary/tabular/columns/groupingsAcross) through the spec `ReportRenderer`; fully-legacy `fields`+`data` schemas still use `ReportViewer`.
+
+- Updated dependencies [c26e0d5]
+- Updated dependencies [b4ce9e2]
+- Updated dependencies [b42a0d0]
+  - @object-ui/plugin-dashboard@5.0.0
+  - @object-ui/plugin-report@5.0.0
+  - @object-ui/plugin-charts@5.0.0
+  - @object-ui/types@5.0.0
+  - @object-ui/core@5.0.0
+  - @object-ui/i18n@5.0.0
+  - @object-ui/react@5.0.0
+  - @object-ui/components@5.0.0
+  - @object-ui/fields@5.0.0
+  - @object-ui/layout@5.0.0
+  - @object-ui/data-objectstack@5.0.0
+  - @object-ui/auth@5.0.0
+  - @object-ui/permissions@5.0.0
+  - @object-ui/plugin-calendar@5.0.0
+  - @object-ui/plugin-chatbot@5.0.0
+  - @object-ui/plugin-designer@5.0.0
+  - @object-ui/plugin-detail@5.0.0
+  - @object-ui/plugin-form@5.0.0
+  - @object-ui/plugin-grid@5.0.0
+  - @object-ui/plugin-kanban@5.0.0
+  - @object-ui/plugin-list@5.0.0
+  - @object-ui/plugin-view@5.0.0
+  - @object-ui/collaboration@5.0.0
+
 ## 4.0.12
 
 ### Patch Changes

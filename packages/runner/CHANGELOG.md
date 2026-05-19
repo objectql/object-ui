@@ -1,5 +1,17 @@
 # @object-ui/runner
 
+## 5.0.0
+
+### Patch Changes
+
+- Updated dependencies [b4ce9e2]
+  - @object-ui/plugin-charts@5.0.0
+  - @object-ui/types@5.0.0
+  - @object-ui/core@5.0.0
+  - @object-ui/react@5.0.0
+  - @object-ui/components@5.0.0
+  - @object-ui/plugin-kanban@5.0.0
+
 ## 4.0.12
 
 ### Patch Changes
