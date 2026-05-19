@@ -1,5 +1,18 @@
 # @object-ui/plugin-calendar
 
+## 4.2.1
+
+### Patch Changes
+
+- @object-ui/types@4.2.1
+- @object-ui/core@4.2.1
+- @object-ui/i18n@4.2.1
+- @object-ui/react@4.2.1
+- @object-ui/components@4.2.1
+- @object-ui/fields@4.2.1
+- @object-ui/mobile@4.2.1
+- @object-ui/plugin-detail@4.2.1
+
 ## 4.2.0
 
 ### Patch Changes

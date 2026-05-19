@@ -1,5 +1,22 @@
 # @object-ui/app-shell — Changelog
 
+## 4.2.1
+
+### Patch Changes
+
+- 47c27c7: fix
+  - @object-ui/types@4.2.1
+  - @object-ui/core@4.2.1
+  - @object-ui/i18n@4.2.1
+  - @object-ui/react@4.2.1
+  - @object-ui/components@4.2.1
+  - @object-ui/fields@4.2.1
+  - @object-ui/layout@4.2.1
+  - @object-ui/data-objectstack@4.2.1
+  - @object-ui/auth@4.2.1
+  - @object-ui/permissions@4.2.1
+  - @object-ui/collaboration@4.2.1
+
 ## 4.2.0
 
 ### Patch Changes
