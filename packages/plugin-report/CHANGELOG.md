@@ -1,5 +1,171 @@
 # @object-ui/plugin-report
 
+## 4.3.0
+
+### Minor Changes
+
+- f196cf4: feat(plugin-report): popup picker for groupings + section-aware test ids
+
+  The matrix/summary "Group by" (rows) and "Columns axis" (cols) sections now
+  share the same searchable popup picker as the columns section, with a
+  commit-on-select single-pick mode wired through `FieldPickerDialog`.
+  - Per-row field buttons display the human-readable field label and open a
+    dialog scoped to swap that single field (already-used fields filtered out)
+  - "Add grouping" trigger uses the same dialog
+  - `GroupingsBuilder` accepts a `testIdPrefix` prop; ReportConfigPanel passes
+    `rows-grouping` and `cols-grouping` so both instances no longer share the
+    ambiguous `grouping-field-0` testid
+  - Bigger row spacing (h-7 / text-xs) — the old `text-[10px]` was unreadable
+
+  `FieldPickerDialog` gains:
+  - `commitOnSelect`: hides the Confirm/Cancel footer; clicking a row commits
+    - closes immediately (intended for `singleSelect` flows)
+  - `trigger`: custom trigger element override (used by the per-row field button)
+
+- 079c3b2: feat(plugin-report): per-block field resolution for joined reports
+
+  Joined report blocks can override `objectName` to query a different
+  object than the container, but the editor was always offering the
+  container's fields — wrong field names, wrong types, broken granularity
+  and chart-axis filtering.
+
+  `ReportConfigPanel` now accepts an optional `getFieldsForObject`
+  resolver. `JoinedBlocksEditor` uses it to source fields for each
+  block based on `block.objectName ?? containerObjectName`, falling
+  back to the static `availableFields` when the resolver returns
+  `undefined` (unknown object).
+
+  `ReportView` wires the resolver against the app's loaded `objects`
+  list and reuses the same parsing path internally to derive its
+  top-level `availableFields`, removing the duplicated schema lookup.
+
+  5 new RTL tests verify the resolver wiring, fallback behaviour,
+  add-block flow, and inline duplicate-name validation (111 plugin-report
+  tests green).
+
+- ee1cc96: feat(plugin-report): joined-report block editor
+
+  `type: 'joined'` reports were a black hole in the editor — the type
+  selector exposed them but no UI knew how to edit the `blocks` array,
+  so users could neither create nor modify joined reports without
+  hand-editing JSON.
+
+  This change adds a `Blocks` section to the report editor, visible only
+  when `type === 'joined'`. Each block renders as a collapsible card with
+  its own name (required + unique-validated), label, description, block
+  type, object override, and reuses the existing `ColumnsEditor`,
+  `GroupingsBuilder`, `SpecFilterAdapter`, and `ChartConfig` builders so
+  every block behaves like a mini standalone report — matching the
+  runtime contract of `JoinedReportRenderer`.
+
+  Block-level validation is surfaced in the main `ValidationBanner`:
+  empty blocks array, missing or duplicate block names, and blocks
+  without columns all become editor-time errors so saves stay safe.
+
+  The non-joined sections (Columns / Rows / Columns axis / Filters /
+  Chart) are hidden when `type === 'joined'` since they live per-block
+  in the spec.
+
+  New exports from `@object-ui/plugin-report`:
+  - `JoinedBlocksEditor` — standalone component for embedding the
+    block editor anywhere.
+  - `validateJoinedBlocks` — pure helper returning translated
+    problem strings, suitable for custom validation banners.
+  - `ColumnsEditor`, `GroupingsBuilder`, `ChartConfig`,
+    `SpecFilterAdapter`, `normalizeColumns` are now exported so
+    downstream consumers can build their own report-editor surfaces.
+
+  i18n: added `report.editor.blocks*` / `report.editor.addBlock` /
+  `report.editor.removeBlock` / `report.editor.blockName*` /
+  `report.editor.blockLabel*` / `report.editor.blockDescription*` /
+  `report.editor.validationJoinedNeedsBlocks` /
+  `report.editor.validationBlockNameRequired` /
+  `report.editor.validationBlockNameDuplicate` /
+  `report.editor.validationBlockNeedsColumns` to en + zh.
+
+- 0b032be: feat(plugin-report): replace inline column picker with a popup field picker
+
+  The columns section now opens a Dialog-based multi-select picker (`FieldPickerDialog`)
+  instead of rendering the unselected field list inline. The popup supports search,
+  batched multi-selection (commit several fields in one click), per-field type badges,
+  cancel-discards-pending semantics, and is fully i18n'd. Also fixes a latent
+  `ReferenceError: normalizeColumns is not defined` that crashed the editor whenever
+  the chart section was expanded.
+
+- 4e7bc1b: **Report editor panel overhaul**
+
+  The report configuration panel is now safe to open on any spec-shape `Report` and only exposes fields that are actually persisted by `@objectstack/spec`.
+
+  `@object-ui/plugin-report`:
+  - Add a bidirectional `SpecFilterAdapter` so `ReportConfigPanel` can edit
+    spec `FilterCondition` filters (`{field: value}`, `{field: {$op: value}}`,
+    top-level `$and`/`$or`). Complex / nested filters fall back to a
+    read-only banner and are preserved verbatim on save.
+  - Drop sections that never round-tripped through the spec
+    (`conditionalFormatting`, `sections`, `export`, `schedule`, `appearance`)
+    and their helper components.
+  - Add type-driven section visibility: `tabular` shows Columns/Filters,
+    `summary` adds Rows + Chart, `matrix` adds Rows + Columns axis + Chart.
+  - New `GroupingsBuilder` covers `groupingsDown`/`groupingsAcross` with
+    `sortOrder` and date-aware `dateGranularity` controls.
+  - New `ColumnsEditor` lets users reorder picked columns, override labels,
+    set aggregates and choose a display format.
+  - Chart subset now mirrors the spec: chart `title`, `showLegend`,
+    `showDataLabels`, plus `funnel` (scatter removed).
+  - Validation banner highlights missing `objectName` and missing
+    rows/columns for `matrix`/`summary` reports.
+  - All editor labels and hints are i18n-driven (`report.editor.*`).
+  - 18 new unit tests cover the filter adapter round-trip.
+
+  `@object-ui/components`:
+  - `FilterBuilder` now guards against malformed external `value` props.
+    Previously a spec-shape filter (`{is_active: true}`) would crash the
+    component on first render; the builder now falls back to an empty
+    AND group whenever `value` is not a valid `FilterGroup`.
+
+  `@object-ui/i18n`:
+  - Add `report.editor.*` strings to `en` and `zh`.
+
+- 8442c05: Improve report editor panel usability based on real-user browser testing:
+  - **Wider config panel** — the report editor now defaults to a `--config-panel-width`
+    of 440px (up from 280px), driven by a new optional `style` prop on
+    `ConfigPanelRenderer`. Long field labels, report titles, type labels, and filter
+    rows no longer truncate to "Account Na" / "kup" / "ct" / 1-character widths.
+  - **Disambiguated "Columns" sections** — for `summary` and `matrix` reports the
+    measure list is now labelled **"Values / 度量"** (pivot-style vocabulary) instead
+    of "Columns", which previously clashed with the matrix's pivot column axis
+    (also called "Columns / 列"). The two sections used to be indistinguishable.
+    New i18n key `report.editor.values` / `valuesHint` is shipped for all 10
+    locales (en, zh, ar, de, es, fr, ja, ko, pt, ru).
+  - **Reordered sections for matrix/summary** — the editor now surfaces _Rows_
+    and _Columns_ (the pivot axes) **before** _Values_, mirroring how a business
+    user thinks about a pivot table.
+  - **Per-row aggregate/format headers** — each column row in `ColumnsEditor` now
+    shows small "Aggregate" / "Format" labels above the respective selects, and
+    the row uses a 2-line layout so the label input has its own line. The cramped
+    3-dropdowns-side-by-side layout at 10px font is gone.
+  - **Searchable field picker** — the "Add columns" list now has a search box,
+    a `filtered / total` counter, an empty-state message, and a scrollable bordered
+    container. New i18n keys: `report.editor.searchFields`,
+    `report.editor.noMatchingFields`.
+
+### Patch Changes
+
+- 12c3b7c: refactor(plugin-report): split ReportConfigPanel.tsx (~1200 lines) into per-builder modules. The orchestrator file now only hosts `buildReportSchema`, `ValidationBanner`, and the public `ReportConfigPanel` component; each sub-editor (`SpecFilterAdapter`, `ColumnsEditor`, `GroupingsBuilder`, `ChartConfig`) lives in its own file alongside `editorTypes.ts` for shared types/constants. All existing exports are re-exported from `ReportConfigPanel` so test files and downstream consumers (`JoinedBlocksEditor`, `app-shell`) keep their current import paths. Pure refactor — no behavior change, 111 tests green.
+- Updated dependencies [f196cf4]
+- Updated dependencies [ee1cc96]
+- Updated dependencies [0b032be]
+- Updated dependencies [115d36a]
+- Updated dependencies [4e7bc1b]
+- Updated dependencies [8442c05]
+  - @object-ui/i18n@4.3.0
+  - @object-ui/components@4.3.0
+  - @object-ui/fields@4.3.0
+  - @object-ui/react@4.3.0
+  - @object-ui/plugin-grid@4.3.0
+  - @object-ui/types@4.3.0
+  - @object-ui/core@4.3.0
+
 ## 4.2.1
 
 ### Patch Changes
