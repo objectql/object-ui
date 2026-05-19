@@ -1,5 +1,7 @@
 # @object-ui/plugin-list
 
+## 4.3.0
+
 ## 4.2.1
 
 ## 4.2.0

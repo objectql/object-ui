@@ -1,5 +1,77 @@
 # @object-ui/components
 
+## 4.3.0
+
+### Patch Changes
+
+- 4e7bc1b: **Report editor panel overhaul**
+
+  The report configuration panel is now safe to open on any spec-shape `Report` and only exposes fields that are actually persisted by `@objectstack/spec`.
+
+  `@object-ui/plugin-report`:
+  - Add a bidirectional `SpecFilterAdapter` so `ReportConfigPanel` can edit
+    spec `FilterCondition` filters (`{field: value}`, `{field: {$op: value}}`,
+    top-level `$and`/`$or`). Complex / nested filters fall back to a
+    read-only banner and are preserved verbatim on save.
+  - Drop sections that never round-tripped through the spec
+    (`conditionalFormatting`, `sections`, `export`, `schedule`, `appearance`)
+    and their helper components.
+  - Add type-driven section visibility: `tabular` shows Columns/Filters,
+    `summary` adds Rows + Chart, `matrix` adds Rows + Columns axis + Chart.
+  - New `GroupingsBuilder` covers `groupingsDown`/`groupingsAcross` with
+    `sortOrder` and date-aware `dateGranularity` controls.
+  - New `ColumnsEditor` lets users reorder picked columns, override labels,
+    set aggregates and choose a display format.
+  - Chart subset now mirrors the spec: chart `title`, `showLegend`,
+    `showDataLabels`, plus `funnel` (scatter removed).
+  - Validation banner highlights missing `objectName` and missing
+    rows/columns for `matrix`/`summary` reports.
+  - All editor labels and hints are i18n-driven (`report.editor.*`).
+  - 18 new unit tests cover the filter adapter round-trip.
+
+  `@object-ui/components`:
+  - `FilterBuilder` now guards against malformed external `value` props.
+    Previously a spec-shape filter (`{is_active: true}`) would crash the
+    component on first render; the builder now falls back to an empty
+    AND group whenever `value` is not a valid `FilterGroup`.
+
+  `@object-ui/i18n`:
+  - Add `report.editor.*` strings to `en` and `zh`.
+
+- 8442c05: Improve report editor panel usability based on real-user browser testing:
+  - **Wider config panel** — the report editor now defaults to a `--config-panel-width`
+    of 440px (up from 280px), driven by a new optional `style` prop on
+    `ConfigPanelRenderer`. Long field labels, report titles, type labels, and filter
+    rows no longer truncate to "Account Na" / "kup" / "ct" / 1-character widths.
+  - **Disambiguated "Columns" sections** — for `summary` and `matrix` reports the
+    measure list is now labelled **"Values / 度量"** (pivot-style vocabulary) instead
+    of "Columns", which previously clashed with the matrix's pivot column axis
+    (also called "Columns / 列"). The two sections used to be indistinguishable.
+    New i18n key `report.editor.values` / `valuesHint` is shipped for all 10
+    locales (en, zh, ar, de, es, fr, ja, ko, pt, ru).
+  - **Reordered sections for matrix/summary** — the editor now surfaces _Rows_
+    and _Columns_ (the pivot axes) **before** _Values_, mirroring how a business
+    user thinks about a pivot table.
+  - **Per-row aggregate/format headers** — each column row in `ColumnsEditor` now
+    shows small "Aggregate" / "Format" labels above the respective selects, and
+    the row uses a 2-line layout so the label input has its own line. The cramped
+    3-dropdowns-side-by-side layout at 10px font is gone.
+  - **Searchable field picker** — the "Add columns" list now has a search box,
+    a `filtered / total` counter, an empty-state message, and a scrollable bordered
+    container. New i18n keys: `report.editor.searchFields`,
+    `report.editor.noMatchingFields`.
+
+- Updated dependencies [f196cf4]
+- Updated dependencies [ee1cc96]
+- Updated dependencies [0b032be]
+- Updated dependencies [115d36a]
+- Updated dependencies [4e7bc1b]
+- Updated dependencies [8442c05]
+  - @object-ui/i18n@4.3.0
+  - @object-ui/react@4.3.0
+  - @object-ui/types@4.3.0
+  - @object-ui/core@4.3.0
+
 ## 4.2.1
 
 ### Patch Changes
