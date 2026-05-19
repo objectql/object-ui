@@ -1,5 +1,15 @@
 # @object-ui/plugin-form
 
+## 4.1.0
+
+### Patch Changes
+
+- @object-ui/types@4.1.0
+- @object-ui/core@4.1.0
+- @object-ui/react@4.1.0
+- @object-ui/components@4.1.0
+- @object-ui/fields@4.1.0
+
 ## 4.0.12
 
 ### Patch Changes

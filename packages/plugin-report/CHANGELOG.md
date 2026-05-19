@@ -1,5 +1,38 @@
 # @object-ui/plugin-report
 
+## 4.1.0
+
+### Minor Changes
+
+- b4ce9e2: Fix summary reports: render chart + KPIs, correct empty-table on server-aggregated data.
+  - `plugin-report`: `SpecReportGrid` now renders a KPI strip (per aggregating column) and a chart section above the grid for `summary` reports. KPI section auto-hides when no aggregating columns. New `buildChartData()` adapter buckets aggregated `ReportRow[]` to chart-ready data, auto-sorts pie/funnel descending, and falls back to row count when the chart `yAxis` points at a non-numeric column. When the data is server-aggregated, the grid switches columns to `[groupings, ${field}__${agg}]` so cells aren't empty against a raw-row column schema.
+  - `plugin-charts`: register `'column'` as an alias of `'bar'` in `ChartRenderer` / `AdvancedChartImpl` (Recharts only has `BarChart`).
+  - `app-shell`: `ReportView` now routes any object-backed report (matrix/joined/summary/tabular/columns/groupingsAcross) through the spec `ReportRenderer`; fully-legacy `fields`+`data` schemas still use `ReportViewer`.
+
+- b42a0d0: Server-side `dateGranularity` pushdown.
+
+  `useReportData()` reports with `{ groupBy: [{ field, dateGranularity }] }`
+  are now aggregated directly in the database via native SQL (`strftime` /
+  `to_char` / `date_format`) instead of fetching raw rows and bucketing in
+  Node. The framework's `driver-sql` advertises per-granularity support via
+  `IDataDriver.supports.queryDateGranularity` and the engine transparently
+  falls back to in-memory bucketing only when the dialect can't express a
+  given granularity (notably SQLite `week`, which needs `strftime('%V')`
+  added in SQLite 3.46). Output bucket labels (`2026-Q2`, `2026-01-15`,
+  `2026-W23`, …) are byte-for-byte identical between paths so drill
+  `groupKey` filters compose correctly across SQL and in-memory routes.
+
+  Requires framework ≥ commit `b26d217c`.
+
+### Patch Changes
+
+- @object-ui/types@4.1.0
+- @object-ui/core@4.1.0
+- @object-ui/react@4.1.0
+- @object-ui/components@4.1.0
+- @object-ui/fields@4.1.0
+- @object-ui/plugin-grid@4.1.0
+
 ## 4.0.12
 
 ### Patch Changes

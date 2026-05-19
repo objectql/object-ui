@@ -1,5 +1,22 @@
 # @object-ui/plugin-dashboard
 
+## 4.1.0
+
+### Minor Changes
+
+- c26e0d5: Gauge widgets bound to an object (`type: 'gauge' | 'solid-gauge'` + `object`) now honor display options that were previously dropped on the floor when the renderer fell back to `object-metric`:
+  - `format` (e.g. `'0%'`), `currency`, `prefix`, `suffix` are now forwarded to the underlying metric widget.
+  - New `invert` option on `ObjectMetricWidget`: when the aggregated value is a rate in `[0, 1]`, displays `1 - value`. Useful for "compliance" / "uptime" gauges that aggregate the opposite signal (e.g. `avg(is_sla_violated)` → display the SLA compliance rate).
+
+### Patch Changes
+
+- @object-ui/types@4.1.0
+- @object-ui/core@4.1.0
+- @object-ui/i18n@4.1.0
+- @object-ui/react@4.1.0
+- @object-ui/components@4.1.0
+- @object-ui/fields@4.1.0
+
 ## 4.0.12
 
 ### Patch Changes
