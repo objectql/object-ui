@@ -1,5 +1,21 @@
 # @object-ui/app-shell — Changelog
 
+## 4.7.0
+
+### Patch Changes
+
+- @object-ui/types@4.7.0
+- @object-ui/core@4.7.0
+- @object-ui/i18n@4.7.0
+- @object-ui/react@4.7.0
+- @object-ui/components@4.7.0
+- @object-ui/fields@4.7.0
+- @object-ui/layout@4.7.0
+- @object-ui/data-objectstack@4.7.0
+- @object-ui/auth@4.7.0
+- @object-ui/permissions@4.7.0
+- @object-ui/collaboration@4.7.0
+
 ## 4.6.0
 
 ### Patch Changes

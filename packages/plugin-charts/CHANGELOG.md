@@ -1,5 +1,15 @@
 # @object-ui/plugin-charts
 
+## 4.7.0
+
+### Patch Changes
+
+- @object-ui/types@4.7.0
+- @object-ui/core@4.7.0
+- @object-ui/i18n@4.7.0
+- @object-ui/react@4.7.0
+- @object-ui/components@4.7.0
+
 ## 4.6.0
 
 ### Patch Changes

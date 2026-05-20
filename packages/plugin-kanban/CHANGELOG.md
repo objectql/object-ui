@@ -1,5 +1,23 @@
 # @object-ui/plugin-kanban
 
+## 4.7.0
+
+### Minor Changes
+
+- 186fb2b: Mobile UI optimization: declutter list & kanban on small screens.
+  - **ListView toolbar** now auto-collapses HideFields / Group / Color / Density into a single settings gear at `<sm` breakpoints, even when `compactToolbar` is not enabled. Desktop behavior unchanged.
+  - **Kanban board** replaces the verbose "← Swipe to navigate →" caption with a compact dot indicator that tracks which column is currently snapped into view. Hidden when there is only one column.
+
+### Patch Changes
+
+- @object-ui/types@4.7.0
+- @object-ui/core@4.7.0
+- @object-ui/i18n@4.7.0
+- @object-ui/react@4.7.0
+- @object-ui/components@4.7.0
+- @object-ui/fields@4.7.0
+- @object-ui/plugin-detail@4.7.0
+
 ## 4.6.0
 
 ### Patch Changes
