@@ -1,5 +1,60 @@
 # @object-ui/layout
 
+## 4.4.0
+
+### Minor Changes
+
+- 67dabe1: feat(page-header): first-class `actions` property on page:header
+
+  PageHeader now accepts an `actions: ActionDef[]` (or string[]) property
+  and renders the toolbar inline in the header's right-aligned action slot.
+  Removes the need for authors to declare a sibling `record:quick_actions`
+  node and the `-mt-12` visual offset hack to pair the toolbar with the
+  title. The hack still applies for legacy schemas using the sibling form
+  (via location:'record_header'); the new in-header rendering opts out via
+  an `inline: true` flag automatically set by PageHeader.
+
+### Patch Changes
+
+- 63eb66d: fix(detail): expand lookup fields so subtitle + lookup cells show display names
+
+  The record-page fetch in `RecordDetailView` (the page-mode path) now
+  requests `$expand` for every lookup/master_detail field on the object,
+  mirroring the behaviour the legacy `DetailView` already had. Combined
+  with two small downstream fixes — `PageHeader` subtitle interpolation
+  now extracts `name/label` from expanded reference objects instead of
+  rendering `[object Object]`, and `LookupCellRenderer` now short-circuits
+  to `pickRecordDisplayName` when the value is already a nested record —
+  all `record:*` renderers and the page header subtitle (`Owned by
+{account}`) now display the related record's name rather than the raw
+  foreign-key id.
+
+- ef0e30d: feat(page-header): back-to-list arrow on record pages
+
+  `page:header` now renders a ← back arrow at the left when a record
+  context with an id is present. Clicking it strips the trailing
+  `/record/{id}` segment from the URL so users return to the object list,
+  falling back to `history.back()` for deep-linked entry. The legacy app
+  pages without a record context are unaffected.
+
+- 2bd45af: feat(shell): main becomes the scroll container; record tabs are sticky
+  - `AppShell`'s SidebarProvider wrapper is now constrained to viewport
+    height (`h-svh overflow-hidden`) instead of expanding with content via
+    the default `min-h-svh`. This makes the inner `<main>` (which is
+    `overflow-auto`) the actual scroll container instead of the window.
+  - `RecordDetailView` page-mode container drops the redundant
+    `h-full overflow-auto` (avoids nested scrollers; main owns scroll now).
+  - `page:tabs` (horizontal) gets `sticky top-0 z-20` with a translucent
+    backdrop so the tab strip stays visible while users scroll through
+    long record pages — the Salesforce Lightning behaviour our schemas
+    were already implying.
+
+- Updated dependencies [2bd45af]
+  - @object-ui/components@4.4.0
+  - @object-ui/types@4.4.0
+  - @object-ui/core@4.4.0
+  - @object-ui/react@4.4.0
+
 ## 4.3.1
 
 ### Patch Changes

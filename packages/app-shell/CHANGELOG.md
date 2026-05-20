@@ -1,5 +1,64 @@
 # @object-ui/app-shell — Changelog
 
+## 4.4.0
+
+### Patch Changes
+
+- 501ce20: fix(detail): hide system/tenant fields from auto-generated record detail
+
+  The auto-generated detail section (used when an object has no explicit form
+  sections) was leading every record page with `organization_id` (rendered as
+  "ORGANIZATION: Admin's Workspace") — pure tenancy metadata with no business
+  value. Extended the existing audit-field filter to also drop
+  `organization_id`, `tenant_id`, `is_deleted`, and `deleted_at`. Objects that
+  intentionally surface tenant info can still do so via explicit
+  `views.form.sections`.
+
+- 63eb66d: fix(detail): expand lookup fields so subtitle + lookup cells show display names
+
+  The record-page fetch in `RecordDetailView` (the page-mode path) now
+  requests `$expand` for every lookup/master_detail field on the object,
+  mirroring the behaviour the legacy `DetailView` already had. Combined
+  with two small downstream fixes — `PageHeader` subtitle interpolation
+  now extracts `name/label` from expanded reference objects instead of
+  rendering `[object Object]`, and `LookupCellRenderer` now short-circuits
+  to `pickRecordDisplayName` when the value is already a nested record —
+  all `record:*` renderers and the page header subtitle (`Owned by
+{account}`) now display the related record's name rather than the raw
+  foreign-key id.
+
+- 2bd45af: feat(shell): main becomes the scroll container; record tabs are sticky
+  - `AppShell`'s SidebarProvider wrapper is now constrained to viewport
+    height (`h-svh overflow-hidden`) instead of expanding with content via
+    the default `min-h-svh`. This makes the inner `<main>` (which is
+    `overflow-auto`) the actual scroll container instead of the window.
+  - `RecordDetailView` page-mode container drops the redundant
+    `h-full overflow-auto` (avoids nested scrollers; main owns scroll now).
+  - `page:tabs` (horizontal) gets `sticky top-0 z-20` with a translucent
+    backdrop so the tab strip stays visible while users scroll through
+    long record pages — the Salesforce Lightning behaviour our schemas
+    were already implying.
+
+- e33d575: Support dotted paths (e.g. `{account.name}`) in object `titleFormat`. When a
+  placeholder resolves to an expanded reference object, automatically extract
+  its `name`/`label`/`display_name`/`title` so detail page titles render the
+  related record's display name instead of falling through to the object label.
+- Updated dependencies [63eb66d]
+- Updated dependencies [67dabe1]
+- Updated dependencies [ef0e30d]
+- Updated dependencies [2bd45af]
+  - @object-ui/layout@4.4.0
+  - @object-ui/fields@4.4.0
+  - @object-ui/components@4.4.0
+  - @object-ui/types@4.4.0
+  - @object-ui/core@4.4.0
+  - @object-ui/i18n@4.4.0
+  - @object-ui/react@4.4.0
+  - @object-ui/data-objectstack@4.4.0
+  - @object-ui/auth@4.4.0
+  - @object-ui/permissions@4.4.0
+  - @object-ui/collaboration@4.4.0
+
 ## 4.3.1
 
 ### Patch Changes

@@ -1,5 +1,30 @@
 # @object-ui/fields
 
+## 4.4.0
+
+### Patch Changes
+
+- 63eb66d: fix(detail): expand lookup fields so subtitle + lookup cells show display names
+
+  The record-page fetch in `RecordDetailView` (the page-mode path) now
+  requests `$expand` for every lookup/master_detail field on the object,
+  mirroring the behaviour the legacy `DetailView` already had. Combined
+  with two small downstream fixes — `PageHeader` subtitle interpolation
+  now extracts `name/label` from expanded reference objects instead of
+  rendering `[object Object]`, and `LookupCellRenderer` now short-circuits
+  to `pickRecordDisplayName` when the value is already a nested record —
+  all `record:*` renderers and the page header subtitle (`Owned by
+{account}`) now display the related record's name rather than the raw
+  foreign-key id.
+
+- Updated dependencies [2bd45af]
+  - @object-ui/components@4.4.0
+  - @object-ui/types@4.4.0
+  - @object-ui/core@4.4.0
+  - @object-ui/i18n@4.4.0
+  - @object-ui/react@4.4.0
+  - @object-ui/providers@4.4.0
+
 ## 4.3.1
 
 ### Patch Changes
