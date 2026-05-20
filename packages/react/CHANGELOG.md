@@ -1,5 +1,16 @@
 # @object-ui/react
 
+## 4.5.0
+
+### Patch Changes
+
+- Updated dependencies [ab5e281]
+- Updated dependencies [22fa558]
+  - @object-ui/types@4.5.0
+  - @object-ui/i18n@4.5.0
+  - @object-ui/core@4.5.0
+  - @object-ui/data-objectstack@4.5.0
+
 ## 4.4.0
 
 ### Patch Changes

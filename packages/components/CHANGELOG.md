@@ -1,5 +1,32 @@
 # @object-ui/components
 
+## 4.5.0
+
+### Minor Changes
+
+- 6b6afd1: `page:tabs` items now render their optional `icon` (lucide name) and `count`
+  badge after the label. Counts >= 1000 are shortened to compact form
+  (e.g. `1.2k`). Spec-aligned: `PageTabsItem.icon` and `PageTabsItem.count`.
+- aa7855f: `page:tabs` now auto-derives count badges from any descendant `record:related_list`.
+
+  For every tab item whose `count` is not set explicitly, the renderer walks the tab's children (depth-first) to find the first `record:related_list` schema node and issues a `limit:1` find through the active `dataSource` to read the matching `total`. The badge appears in the tab strip without spec authors having to wire counts manually.
+
+  Behavior:
+  - Explicit `count` in the spec always wins.
+  - Probe is filtered by the parent record id via `relationshipField` when present (skipped until the parent record is loaded).
+  - Best-effort: a failed probe just omits the badge — no error surface.
+  - Cancellable on unmount.
+
+### Patch Changes
+
+- 170d89f: PageTabsRenderer auto-count now descends into accordion (`properties.items`) and sums counts when a tab contains multiple `record:related_list` widgets — matches Salesforce "Related" tab semantics. Previously only the first list was probed (or none, if wrapped in an accordion).
+- Updated dependencies [ab5e281]
+- Updated dependencies [22fa558]
+  - @object-ui/types@4.5.0
+  - @object-ui/i18n@4.5.0
+  - @object-ui/core@4.5.0
+  - @object-ui/react@4.5.0
+
 ## 4.4.0
 
 ### Patch Changes

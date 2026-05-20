@@ -1,5 +1,13 @@
 # @object-ui/types
 
+## 4.5.0
+
+### Minor Changes
+
+- ab5e281: `record:highlights` renderer normalizes rich field items.
+
+  `RecordHighlightsComponentProps.fields` is now `Array<string | { name, label?, icon?, type? }>`. The renderer normalizes both forms before passing to `HeaderHighlight`, so schemas can attach per-instance label/icon overrides without editing the underlying object metadata. FLS and `redactFields` still apply on the normalized list.
+
 ## 4.4.0
 
 ## 4.3.1

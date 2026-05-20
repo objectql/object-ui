@@ -1,5 +1,29 @@
 # @object-ui/plugin-detail
 
+## 4.5.0
+
+### Minor Changes
+
+- ab5e281: `record:highlights` renderer normalizes rich field items.
+
+  `RecordHighlightsComponentProps.fields` is now `Array<string | { name, label?, icon?, type? }>`. The renderer normalizes both forms before passing to `HeaderHighlight`, so schemas can attach per-instance label/icon overrides without editing the underlying object metadata. FLS and `redactFields` still apply on the normalized list.
+
+### Patch Changes
+
+- d714e85: Lookup display-name resolution now falls back through a Salesforce-style chain
+  when an `$expand`'d reference object lacks a top-level `name`/`label`/
+  `display_name`/`title` field:
+  1. Standard display fields (existing behaviour)
+  2. `salutation first_name last_name` composite — handles person records that
+     only carry first/last name parts
+  3. `email` — last-resort identifier, beats the opaque id
+
+  Applies to `LookupCellRenderer`, `PageHeader.subtitle` interpolation,
+  `DetailView` page-mode `titleFormat`, and the shared `formatRecordTitle`
+  utility. Concretely: a Contact reference with `first_name: Bob`, `last_name:
+Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
+  the email or [object Object] fallback.
+
 ## 4.4.0
 
 ### Patch Changes

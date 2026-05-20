@@ -1,5 +1,27 @@
 # @object-ui/plugin-dashboard
 
+## 4.5.0
+
+### Patch Changes
+
+- e9efa55: Clean up TypeScript errors in `plugin-dashboard`:
+  - `DashboardGridLayout.tsx`: replace bare `process.env.NODE_ENV` with `globalThis` cast (package doesn't include `@types/node`, and the dev-mode warning shouldn't pull it in)
+  - `DashboardRenderer.tsx`: annotate widget callback params explicitly so `noImplicitAny` is happy; guard `widgetType` before indexing
+  - `ObjectDataTable.tsx`: cast normalised column return value to the narrow `NormalizedColumn` shape
+  - `ObjectMetricWidget.tsx`: fix stale `target === 'modal'` check — the type allows `'dialog'`, never `'modal'`
+- Updated dependencies [ab5e281]
+- Updated dependencies [d714e85]
+- Updated dependencies [6b6afd1]
+- Updated dependencies [22fa558]
+- Updated dependencies [aa7855f]
+- Updated dependencies [170d89f]
+  - @object-ui/types@4.5.0
+  - @object-ui/fields@4.5.0
+  - @object-ui/components@4.5.0
+  - @object-ui/i18n@4.5.0
+  - @object-ui/core@4.5.0
+  - @object-ui/react@4.5.0
+
 ## 4.4.0
 
 ### Patch Changes

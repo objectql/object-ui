@@ -1,5 +1,26 @@
 # @object-ui/plugin-form
 
+## 4.5.0
+
+### Patch Changes
+
+- 6b6afd1: ModalForm / SplitForm / WizardForm now honor field-level `visibleOn` (CEL
+  expression on inline fields) and `visible_on` (object schema mirror) inside
+  their section-mode rendering. Previously only flat-field forms via ObjectForm
+  respected the expression; section-mode dropped it so conditional fields
+  always rendered.
+- Updated dependencies [ab5e281]
+- Updated dependencies [d714e85]
+- Updated dependencies [6b6afd1]
+- Updated dependencies [aa7855f]
+- Updated dependencies [170d89f]
+  - @object-ui/types@4.5.0
+  - @object-ui/fields@4.5.0
+  - @object-ui/components@4.5.0
+  - @object-ui/core@4.5.0
+  - @object-ui/permissions@4.5.0
+  - @object-ui/react@4.5.0
+
 ## 4.4.0
 
 ### Patch Changes

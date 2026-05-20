@@ -1,5 +1,41 @@
 # @object-ui/app-shell — Changelog
 
+## 4.5.0
+
+### Patch Changes
+
+- d714e85: Lookup display-name resolution now falls back through a Salesforce-style chain
+  when an `$expand`'d reference object lacks a top-level `name`/`label`/
+  `display_name`/`title` field:
+  1. Standard display fields (existing behaviour)
+  2. `salutation first_name last_name` composite — handles person records that
+     only carry first/last name parts
+  3. `email` — last-resort identifier, beats the opaque id
+
+  Applies to `LookupCellRenderer`, `PageHeader.subtitle` interpolation,
+  `DetailView` page-mode `titleFormat`, and the shared `formatRecordTitle`
+  utility. Concretely: a Contact reference with `first_name: Bob`, `last_name:
+Lin` and no `name` field now renders as `Bob Lin` everywhere — instead of
+  the email or [object Object] fallback.
+
+- Updated dependencies [ab5e281]
+- Updated dependencies [d714e85]
+- Updated dependencies [6b6afd1]
+- Updated dependencies [22fa558]
+- Updated dependencies [aa7855f]
+- Updated dependencies [170d89f]
+  - @object-ui/types@4.5.0
+  - @object-ui/fields@4.5.0
+  - @object-ui/layout@4.5.0
+  - @object-ui/components@4.5.0
+  - @object-ui/i18n@4.5.0
+  - @object-ui/auth@4.5.0
+  - @object-ui/collaboration@4.5.0
+  - @object-ui/core@4.5.0
+  - @object-ui/data-objectstack@4.5.0
+  - @object-ui/permissions@4.5.0
+  - @object-ui/react@4.5.0
+
 ## 4.4.0
 
 ### Patch Changes
