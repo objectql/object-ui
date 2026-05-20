@@ -1,5 +1,17 @@
 # @object-ui/plugin-gantt
 
+## 4.8.0
+
+### Patch Changes
+
+- Updated dependencies [06a4066]
+  - @object-ui/plugin-detail@4.8.0
+  - @object-ui/types@4.8.0
+  - @object-ui/core@4.8.0
+  - @object-ui/react@4.8.0
+  - @object-ui/components@4.8.0
+  - @object-ui/fields@4.8.0
+
 ## 4.7.0
 
 ### Patch Changes
