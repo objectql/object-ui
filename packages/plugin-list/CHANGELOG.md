@@ -1,5 +1,72 @@
 # @object-ui/plugin-list
 
+## 4.8.0
+
+### Minor Changes
+
+- 3a17c8d: Mobile UI: aggressive chrome reduction to match real mobile-app conventions.
+
+  Real mobile CRMs (Salesforce, HubSpot, Notion, Linear) keep one row of
+  chrome on phones: title + 1 primary action, plus content. We were
+  shipping ~5 rows of toolbars + chips + tabs above the data. This commit
+  hides the desktop-only chrome at the `<sm` breakpoint:
+  - **ListView**: TabBar (view switcher), UserFilters chip row, quick-filters
+    chip row, Sort button, list-scoped Search popover, and the
+    (newly-added) mobile-only ViewSettingsPopover gear are all hidden on
+    phones. Only the **Filter** icon survives on mobile — paired with the
+    global ⌘K top-bar search, that is the entire mobile control surface.
+  - **Kanban**: previous commit replaced verbose swipe text with a dot
+    indicator; that stands.
+  - **ObjectView page header**: the Import (CSV upload) button is hidden
+    on mobile — CSV import is a desktop workflow.
+
+  Net effect on a 390px viewport: ListView toolbar collapses from
+  ~10 controls (5 chips + 5 icons) to a single Filter icon next to the
+  title; the body of the page is reachable without scrolling past 3 rows
+  of chrome.
+
+  Desktop and tablet behavior is unchanged.
+
+- 51e274a: feat(app-shell,plugin-list): mobile Airtable-style topbar + filter chip row
+
+  Refactor mobile object-view layout to match the Airtable Interface
+  pattern:
+  - **AppHeader**: the mobile topbar's static page label is now a
+    view-switcher dropdown (`<viewName> ▾`). Tapping opens a list of
+    available views with icons + active-state checkmark. Falls back to
+    plain text when only one view exists, or when the current page has
+    no view-switching surface (Home, Settings, …).
+  - **ObjectView**: drops the standalone mobile `sm:hidden` view-select
+    row that previously lived between the desktop tab bar and the
+    content area. View switching is now exposed exclusively via the
+    topbar dropdown on mobile, eliminating the duplicated `object name`
+    vs `view name` rows.
+  - **ListView**: un-hides the `UserFilters` chip row on mobile.
+    Single-line, horizontally scrollable, matches the Airtable Interface
+    filter chip strip.
+  - New lightweight `MobileViewSwitcherContext` provides a
+    page → header data channel (no zustand dependency added).
+
+  Net effect on mobile (390×844):
+
+  ```
+  ☰ 客户卡片 ▾                🔍 🔔 M    ← topbar
+  类型 ▾  行业 ▾  是否活跃 ▾  更多 3 ▾  ⛛  ← chip row
+  [content cards]                          ← content
+                                    (+)    ← FAB
+  [Leads | Accounts | Contacts | …]        ← bottom nav
+  ```
+
+- faba0e3: Mobile UX cleanup:
+  - `app-shell/AppHeader`: hide the platform-logo, app-switcher pill, and
+    intermediate path separators on mobile when inside an app route. The
+    sidebar already exposes those affordances; the topbar now reads
+    `☰ + page title + Search + Inbox + Avatar`.
+  - `plugin-list`: replace the hidden mobile TabBar with a new compact
+    `TabBarSelect` dropdown (current view name + chevron → menu of every
+    view). Phone users keep view-switching without burning a row on chip
+    pills. Desktop continues to render the inline TabBar.
+
 ## 4.7.0
 
 ### Minor Changes
