@@ -1,5 +1,37 @@
 # @object-ui/layout
 
+## 4.3.1
+
+### Patch Changes
+
+- 6b683c8: fix(detail): clean up record page rendering
+  - Drop `ai:chat_window` from the protocol-component placeholder list. The
+    floating chat overlay (plugin-chatbot) is the canonical AI entry point;
+    inline page schemas that still reference `ai:chat_window` now surface
+    as an explicit "Unknown component type" so the misconfiguration is
+    fixed at the source instead of silently leaking a placeholder card.
+  - `page:header` now resolves `{field.path}` tokens in `title` / `description`
+    against the current record context (matching the behaviour of the
+    alternative `containers.tsx` renderer). Without this, schemas like
+    `title: "{first_name} {last_name}"` rendered the literal template.
+  - `containers.tsx` `PageHeaderRenderer`: also read from `schema.properties.*`
+    as a fallback so both inlined and raw-bag schema shapes are supported.
+
+- 0d8eb98: feat(detail): Salesforce-style record header + section field grid
+  - `page:header` now renders an icon chip (resolves Lucide names via
+    `LazyIcon`) plus subtitle, so detail pages can show
+    "Name / Company" without an extra component.
+  - `record:details` normalises string field entries (`fields: ['email']`)
+    into the `{name, label?}` shape expected by `DetailSection`, and maps
+    section `label` → `title`. Schemas authored against `@objectstack/spec`
+    now produce a real grouped field grid instead of an empty card.
+
+- Updated dependencies [6b683c8]
+  - @object-ui/components@4.3.1
+  - @object-ui/react@4.3.1
+  - @object-ui/types@4.3.1
+  - @object-ui/core@4.3.1
+
 ## 4.3.0
 
 ### Patch Changes

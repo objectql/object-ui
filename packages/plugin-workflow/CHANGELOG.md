@@ -1,5 +1,15 @@
 # @object-ui/plugin-workflow
 
+## 4.3.1
+
+### Patch Changes
+
+- Updated dependencies [6b683c8]
+  - @object-ui/components@4.3.1
+  - @object-ui/react@4.3.1
+  - @object-ui/types@4.3.1
+  - @object-ui/core@4.3.1
+
 ## 4.3.0
 
 ### Patch Changes

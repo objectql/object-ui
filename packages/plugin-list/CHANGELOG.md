@@ -1,5 +1,11 @@
 # @object-ui/plugin-list
 
+## 4.3.1
+
+### Patch Changes
+
+- 5f4ac6e: perf(plugin-list): avoid allocating a new schema object every render when the viewType default is unneeded. Stabilizes the downstream `viewComponentSchema` memo so the child SchemaRenderer no longer reconciles on unrelated parent re-renders.
+
 ## 4.3.0
 
 ## 4.2.1
