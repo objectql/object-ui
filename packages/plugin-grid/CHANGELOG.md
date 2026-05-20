@@ -1,5 +1,48 @@
 # @object-ui/plugin-grid
 
+## 4.6.0
+
+### Minor Changes
+
+- 9aacced: **Bulk actions (Phase 2): cross-page select-all.**
+
+  When the user selects every row on the current page and there are more matching records off-screen, the `BulkActionBar` now surfaces a banner with a "Select all N matching" affordance (Gmail / Salesforce convention). Opting in flips the bar into "all matches" mode and the bulk dispatcher transparently expands the record set by re-issuing the active find against `dataSource` (paged at 500/request, hard-capped at 5000) before handing it to the executor or the consumer's `onBulkDelete` callback.
+  - `BulkActionBar` gains `pageSize`, `totalMatching`, `allMatchingSelected`, and `onSelectAllMatching` props.
+  - `ObjectGrid` captures `total` + the last find params from `dataSource.find` and resets the cross-page flag whenever the underlying query changes.
+  - 7 new `BulkActionBar.test.tsx` cases cover the affordance + Clear interaction.
+
+- 9661d86: **Bulk actions (Phase 2): undo last batch + per-row error inspector.**
+
+  `useBulkExecutor` now snapshots the pre-mutation values for every successful row in an `update` run (limited to keys actually touched by the patch). The dialog's result step exposes:
+  - **Undo** — a one-shot button that replays the snapshot through `dataSource.update`, restoring the prior values. Available only for `update` operations where at least one row landed; consumed after a single click so a sticky toast can't double-revert.
+  - **Per-row error inspector** — failed rows are listed with an inline **Retry** affordance that re-attempts the original op + params for that record and drops the row from the error list on success.
+
+  Notes:
+  - `delete` and `custom` operations never accumulate a snapshot — undoing a delete from the client would silently miss server-side cascades, so the button is hidden up-front.
+  - The CSV export of all errors is unchanged.
+  - 5 new tests in `useBulkExecutor.test.ts` cover snapshot capture, failure filtering, undo replay, delete no-op, and retry-clears-error.
+
+- 3ee436d: feat(components): add `RelatedCountStore` runtime cache + `useRelatedCount`
+  hook (built on `useSyncExternalStore`, no new deps). Replaces
+  `PageTabsRenderer`'s local per-instance `derivedCounts` state with a
+  shared module-scoped store so multiple consumers of the same
+  object/parent pair share a single probe.
+
+  Wires `useBulkExecutor` to call `RelatedCountStore.invalidate(resource)`
+  after any successful bulk update/delete, so related-list badges on
+  parent records re-probe automatically on the next render instead of
+  showing stale counts.
+
+### Patch Changes
+
+- Updated dependencies [3ee436d]
+  - @object-ui/components@4.6.0
+  - @object-ui/fields@4.6.0
+  - @object-ui/types@4.6.0
+  - @object-ui/core@4.6.0
+  - @object-ui/react@4.6.0
+  - @object-ui/mobile@4.6.0
+
 ## 4.5.0
 
 ### Patch Changes

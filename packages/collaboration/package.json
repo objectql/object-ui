@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/collaboration",
-  "version": "4.5.0",
+  "version": "4.6.0",
   "type": "module",
   "license": "MIT",
   "description": "Real-time collaboration for Object UI with presence tracking, live cursors, conflict resolution, and comment threads.",

@@ -1,5 +1,7 @@
 # @object-ui/i18n
 
+## 4.6.0
+
 ## 4.5.0
 
 ### Patch Changes

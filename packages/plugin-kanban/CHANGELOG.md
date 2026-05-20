@@ -1,5 +1,19 @@
 # @object-ui/plugin-kanban
 
+## 4.6.0
+
+### Patch Changes
+
+- Updated dependencies [8f490ad]
+- Updated dependencies [3ee436d]
+  - @object-ui/plugin-detail@4.6.0
+  - @object-ui/components@4.6.0
+  - @object-ui/fields@4.6.0
+  - @object-ui/types@4.6.0
+  - @object-ui/core@4.6.0
+  - @object-ui/i18n@4.6.0
+  - @object-ui/react@4.6.0
+
 ## 4.5.0
 
 ### Patch Changes

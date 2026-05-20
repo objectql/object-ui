@@ -1,5 +1,27 @@
 # @object-ui/components
 
+## 4.6.0
+
+### Minor Changes
+
+- 3ee436d: feat(components): add `RelatedCountStore` runtime cache + `useRelatedCount`
+  hook (built on `useSyncExternalStore`, no new deps). Replaces
+  `PageTabsRenderer`'s local per-instance `derivedCounts` state with a
+  shared module-scoped store so multiple consumers of the same
+  object/parent pair share a single probe.
+
+  Wires `useBulkExecutor` to call `RelatedCountStore.invalidate(resource)`
+  after any successful bulk update/delete, so related-list badges on
+  parent records re-probe automatically on the next render instead of
+  showing stale counts.
+
+### Patch Changes
+
+- @object-ui/types@4.6.0
+- @object-ui/core@4.6.0
+- @object-ui/i18n@4.6.0
+- @object-ui/react@4.6.0
+
 ## 4.5.0
 
 ### Minor Changes

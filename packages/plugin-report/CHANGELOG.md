@@ -1,5 +1,20 @@
 # @object-ui/plugin-report
 
+## 4.6.0
+
+### Patch Changes
+
+- Updated dependencies [9aacced]
+- Updated dependencies [9661d86]
+- Updated dependencies [3ee436d]
+  - @object-ui/plugin-grid@4.6.0
+  - @object-ui/components@4.6.0
+  - @object-ui/fields@4.6.0
+  - @object-ui/types@4.6.0
+  - @object-ui/core@4.6.0
+  - @object-ui/i18n@4.6.0
+  - @object-ui/react@4.6.0
+
 ## 4.5.0
 
 ### Patch Changes

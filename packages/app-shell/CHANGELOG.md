@@ -1,5 +1,22 @@
 # @object-ui/app-shell — Changelog
 
+## 4.6.0
+
+### Patch Changes
+
+- Updated dependencies [3ee436d]
+  - @object-ui/components@4.6.0
+  - @object-ui/fields@4.6.0
+  - @object-ui/layout@4.6.0
+  - @object-ui/types@4.6.0
+  - @object-ui/core@4.6.0
+  - @object-ui/i18n@4.6.0
+  - @object-ui/react@4.6.0
+  - @object-ui/data-objectstack@4.6.0
+  - @object-ui/auth@4.6.0
+  - @object-ui/permissions@4.6.0
+  - @object-ui/collaboration@4.6.0
+
 ## 4.5.0
 
 ### Patch Changes
