@@ -1,5 +1,11 @@
 # @object-ui/i18n
 
+## 4.3.1
+
+### Patch Changes
+
+- 5f4ac6e: fix(i18n): add notifications + organizations namespaces to all 8 non-en/zh locales (ar/de/es/fr/ja/ko/pt/ru) to restore top-level key parity. Resolves the long-standing i18n.test.ts locale-parity failure.
+
 ## 4.3.0
 
 ### Patch Changes

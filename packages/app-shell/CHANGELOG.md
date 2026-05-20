@@ -1,5 +1,26 @@
 # @object-ui/app-shell — Changelog
 
+## 4.3.1
+
+### Patch Changes
+
+- 9167935: fix
+- 52af5cf: fix
+- Updated dependencies [5f4ac6e]
+- Updated dependencies [6b683c8]
+- Updated dependencies [0d8eb98]
+  - @object-ui/i18n@4.3.1
+  - @object-ui/components@4.3.1
+  - @object-ui/layout@4.3.1
+  - @object-ui/fields@4.3.1
+  - @object-ui/react@4.3.1
+  - @object-ui/types@4.3.1
+  - @object-ui/core@4.3.1
+  - @object-ui/data-objectstack@4.3.1
+  - @object-ui/auth@4.3.1
+  - @object-ui/permissions@4.3.1
+  - @object-ui/collaboration@4.3.1
+
 ## 4.3.0
 
 ### Patch Changes
