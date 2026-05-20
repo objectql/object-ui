@@ -1,5 +1,21 @@
 # @object-ui/plugin-view
 
+## 4.5.0
+
+### Patch Changes
+
+- Updated dependencies [6b6afd1]
+- Updated dependencies [ab5e281]
+- Updated dependencies [6b6afd1]
+- Updated dependencies [aa7855f]
+- Updated dependencies [170d89f]
+  - @object-ui/plugin-form@4.5.0
+  - @object-ui/types@4.5.0
+  - @object-ui/components@4.5.0
+  - @object-ui/core@4.5.0
+  - @object-ui/plugin-grid@4.5.0
+  - @object-ui/react@4.5.0
+
 ## 4.4.0
 
 ### Patch Changes
