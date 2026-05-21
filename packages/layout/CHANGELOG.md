@@ -1,5 +1,68 @@
 # @object-ui/layout
 
+## 5.0.0
+
+### Patch Changes
+
+- 95b6b21: feat(page:header): record-aware chip + dedupe registrations (Phase D)
+
+  The `page:header` schema renderer is the visual anchor of every custom
+  record detail page (lead, opportunity, future account/contact/case).
+  Before this change it had two problems that bled into every custom
+  page across the product:
+  1. **Quadruple registration**: `@object-ui/layout` registered both
+     `page-header` and `page:header`, and `@object-ui/components`
+     independently registered `page:header` (and `page:section`).
+     Whichever package loaded last won the unqualified `page:header`
+     lookup — visually unstable.
+  2. **Bare `<h1>`** with no record affordances (no icon, ★ favourite,
+     copy-id, edit, ⋯ menu) — every custom page shipped a thinner header
+     than the default detail view it was meant to supersede.
+
+  This commit:
+  - Removes the `@object-ui/layout` `page:header` registration. The
+    layout package keeps the legacy kebab-cased `page-header` alias only.
+    The canonical renderer now lives in `@object-ui/components` and is
+    always the one resolved.
+  - Upgrades `PageHeaderRenderer` to render a `<RecordTitleChip>` when
+    wrapped in a `RecordContext`. The chip mirrors the default detail
+    header: title (resolved from `data.name` / `data.title` /
+    `data.display_name`, or an interpolated `schema.title`), a favourite
+    star, the object label, and a copy-record-id button. Authors opt out
+    via `recordChrome: false` or hide individual affordances with
+    `showStar: false` / `showCopyId: false`.
+  - Extracts the chip into a new shared `RecordTitleChip` component in
+    `@object-ui/components/custom`. It carries an inline zh-CN/zh-TW
+    dictionary for star/copy tooltips so it stays i18n-correct without
+    pulling in a translation dependency.
+  - Fixes `interpolate()` so a `{account}`-style token that resolves to
+    a related-record object renders as empty instead of
+    `"[object Object]"`. Authors who want a field of the related record
+    should use a deeper path (`{account.name}`).
+
+  Verified at 1440×900 on `lead_detail` and `opportunity_detail`:
+  both pages now show the same chip with star + copy-id and the
+  opportunity highlights strip looks coherent with the chip above it.
+
+- Updated dependencies [8930b15]
+- Updated dependencies [95b6b21]
+- Updated dependencies [ddb08a7]
+- Updated dependencies [765d50f]
+- Updated dependencies [927187a]
+- Updated dependencies [bae8ba8]
+- Updated dependencies [8435860]
+- Updated dependencies [bb2ea48]
+- Updated dependencies [b14fe09]
+- Updated dependencies [a7bef6e]
+- Updated dependencies [74962b0]
+- Updated dependencies [3154334]
+- Updated dependencies [fa4c2cb]
+- Updated dependencies [7213027]
+  - @object-ui/components@5.0.0
+  - @object-ui/react@5.0.0
+  - @object-ui/types@5.0.0
+  - @object-ui/core@5.0.0
+
 ## 4.8.0
 
 ### Patch Changes

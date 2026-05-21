@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.0.0
+
+### Patch Changes
+
+- Updated dependencies [7213027]
+  - @object-ui/types@5.0.0
+  - @object-ui/core@5.0.0
+
 ## 4.8.0
 
 ### Patch Changes

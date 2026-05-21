@@ -1,5 +1,39 @@
 # @object-ui/plugin-gantt
 
+## 5.0.0
+
+### Patch Changes
+
+- Updated dependencies [542cca9]
+- Updated dependencies [8930b15]
+- Updated dependencies [95b6b21]
+- Updated dependencies [ddb08a7]
+- Updated dependencies [f16a762]
+- Updated dependencies [765d50f]
+- Updated dependencies [927187a]
+- Updated dependencies [bae8ba8]
+- Updated dependencies [8435860]
+- Updated dependencies [bece8ca]
+- Updated dependencies [bb2ea48]
+- Updated dependencies [77c1877]
+- Updated dependencies [b14fe09]
+- Updated dependencies [1911d34]
+- Updated dependencies [ba98039]
+- Updated dependencies [a7bef6e]
+- Updated dependencies [86c04f1]
+- Updated dependencies [74962b0]
+- Updated dependencies [8b850b5]
+- Updated dependencies [3154334]
+- Updated dependencies [fa4c2cb]
+- Updated dependencies [7213027]
+- Updated dependencies [34b66bf]
+  - @object-ui/plugin-detail@5.0.0
+  - @object-ui/components@5.0.0
+  - @object-ui/react@5.0.0
+  - @object-ui/types@5.0.0
+  - @object-ui/fields@5.0.0
+  - @object-ui/core@5.0.0
+
 ## 4.8.0
 
 ### Patch Changes

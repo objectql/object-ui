@@ -1,5 +1,114 @@
 # @object-ui/react
 
+## 5.0.0
+
+### Minor Changes
+
+- 927187a: Phase N.1 + N.2: visual polish for record detail pages.
+
+  **N.1 — System actions on full Lightning pages.** `PageHeaderRenderer`
+  now merges `headerSystemActions` from `RecordContext` with authored
+  actions (authored wins on name/id collision), so full custom pages
+  (lead, opportunity, ...) once again show 编辑 / 分享 / 删除 alongside
+  their authored actions. `sys_share` and `sys_delete` now use the
+  `outline` variant instead of `destructive` to read better in
+  multi-button clusters.
+
+  **N.2 — Hide empty fields by default in synth detail pages.**
+  `record:details` defaults `section.hideEmpty` to `true` so synthesized
+  pages don't render label graveyards on first load. The "显示 N 个空字段"
+  reveal toggle is preserved as the user-facing escape hatch. Authors can
+  opt back into showing every field by setting `hideEmpty: false` on the
+  section schema.
+
+- 8435860: Phase N.4b: highlight↔body dedup now works for hand-authored Lightning
+  pages too.
+
+  Adds a small `HighlightFieldsContext` registry. `record:highlights`
+  registers the field names it currently surfaces; `record:details` unions
+  that live set into its `hideFieldNames` filter so a field shown in the
+  highlight strip is never duplicated in the section grid below.
+
+  Previously the dedup only fired for synth-generated pages (via the
+  `hideFields` prop passed by `buildDefaultPageSchema`). Custom Lightning
+  pages (e.g. opportunity) showed `所属客户` both in the strip and in the
+  body. The registry-based approach covers both code paths uniformly with
+  no schema author work required.
+
+  The registry uses `useSyncExternalStore` so adding/removing highlights
+  notifies consumers without triggering the provider value identity to
+  change — avoiding the update-loop that a naive context implementation
+  would cause.
+
+  `RecordDetailView` mounts `<HighlightFieldsProvider>` once per record
+  page so the two renderers share state.
+
+- 74962b0: feat(detail): record:discussion schema component + flush accordion variant
+  - New `record:discussion` schema type lets authors place the record
+    chatter feed anywhere in a custom Page schema. Wired through a
+    shared `DiscussionContext` provider on the `assignedPage` branch
+    of `RecordDetailView`; auto-append still applies when no explicit
+    `record:discussion` / `record:chatter` node is present.
+  - `page:accordion` gains a `variant` prop. Default `flush` strips the
+    per-item border so accordion sections no longer double-wrap inner
+    Card-bearing renderers (RelatedList, etc.). Authors who want the
+    old visual pass `variant: 'card'`.
+  - `translateLabel` now handles compound labels split by `&`, `and`,
+    or `和` (e.g. `Notes & Attachments` → `备注与附件`).
+
+- 7213027: feat(detail): slotted record pages (Track 3 Phase I)
+
+  Introduce `kind: "slotted"` record pages that override one or more
+  named slots while letting the default-page synthesizer fill in the
+  rest. Authors no longer need to re-author the entire page just to
+  customize the header or one tab.
+
+  **Slot menu (v1):**
+  - `header` — replaces `page:header`
+  - `actions` — replaces the `record:quick_actions` action bar
+  - `highlights` — replaces the chips + chevron path strip
+  - `details` — replaces the Details tab body (other tabs stay synthesized)
+  - `tabs` — replaces the entire `page:tabs` node (wins over `details`)
+  - `discussion` — replaces the inline `record:discussion` footer
+
+  Each slot is a full replacement at the slot boundary. To compose
+  default + custom, call the corresponding `buildDefault*` sub-builder
+  (now exported from `@object-ui/plugin-detail`):
+  `buildDefaultHeader`, `buildDefaultActions`, `buildDefaultHighlights`,
+  `buildDefaultDetails`, `buildDefaultTabs`, `buildDefaultDiscussion`.
+
+  **Author shape:**
+
+  ```ts
+  {
+    type: 'record',
+    object: 'account',
+    kind: 'slotted',
+    slots: {
+      header: { type: 'page:header', properties: { ... } },
+    },
+  }
+  ```
+
+  **API changes:**
+  - `PageSchema` (in `@object-ui/types`): adds `kind?: 'full' | 'slotted'`
+    (default `'full'`) and `slots?: PageSlotMap`.
+  - `usePageAssignment` (in `@object-ui/react`): result now exposes a
+    `slots` field populated when the matched page has `kind === 'slotted'`.
+    Existing `page` field is unchanged for full pages.
+  - `buildDefaultPageSchema` (in `@object-ui/plugin-detail`): accepts an
+    `options.slots` map that overrides individual regions at synthesis time.
+
+### Patch Changes
+
+- Updated dependencies [8930b15]
+- Updated dependencies [7213027]
+- Updated dependencies [c7561a7]
+  - @object-ui/i18n@5.0.0
+  - @object-ui/types@5.0.0
+  - @object-ui/data-objectstack@5.0.0
+  - @object-ui/core@5.0.0
+
 ## 4.8.0
 
 ### Patch Changes

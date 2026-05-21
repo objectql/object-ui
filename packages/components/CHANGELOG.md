@@ -1,5 +1,258 @@
 # @object-ui/components
 
+## 5.0.0
+
+### Major Changes
+
+- bb2ea48: **Phase O.0 — fix: related-list shows wrong records (critical data bug)**
+
+  `RelatedList` previously called `dataSource.find(api)` with no filter
+  when auto-fetching, so every Related tab dumped the entire target
+  object table instead of the records that actually reference the
+  current parent (e.g. an Account showed every Contact in the system,
+  not only contacts of that account).
+
+  Two coupled fixes:
+  1. `RelatedList` now requires `parentId` + `referenceField` to auto-
+     fetch. When both are present it calls `dataSource.find(api,
+{ $filter: { [referenceField]: parentId } })`. When either is
+     missing it renders the empty state and logs a developer warning —
+     never silently fetches the whole object.
+  2. `RelatedCountStore` was sending the probe query as `{ where, limit }`
+     which most data-source adapters silently ignored (the codebase
+     convention is `{ $filter, $top }`). The tab-count badges were
+     therefore showing the global object count, not the parent-scoped
+     count. Switched to `$filter` / `$top` to match.
+
+  `record:related_list` renderer threads `ctx.recordId` through as
+  `parentId`; no schema author changes required.
+
+  **Breaking:** custom callers that depended on `RelatedList` fetching
+  the entire object table when `referenceField` is omitted will need to
+  either pass `data` explicitly or supply both `parentId` and
+  `referenceField`. The previous behaviour was a bug, not a feature.
+
+### Minor Changes
+
+- 8930b15: feat(detail): close the gap between Page-assigned and default record detail pages (Track 1)
+
+  Custom Lightning-style record detail pages (assigned via `assignedPage` /
+  `Page` schemas) used to feel meaningfully poorer than the auto-generated
+  default detail view. They were missing cross-cutting affordances and
+  shipped with English-only tab labels and heavy bordered section cards
+  even when the host locale was Chinese. Track 1 closes the visible gap:
+  - **app-shell `RecordDetailView`**: the `assignedPage` branch now wears
+    the same chrome as the default branch — lifecycle managed-by badge
+    and presence avatars in the top-right, `MetadataPanel` debug panel,
+    `ActionConfirmDialog` / `ActionParamDialog`, and an auto-appended
+    `RecordChatterPanel` at the bottom of the page. Authors opt out of
+    the auto-discussion with `assignedPage.disableDiscussion = true`.
+  - **plugin-detail `record:details`**: defaults to `inlineEdit: true` so
+    fields are click-to-edit just like the default page, and synthesises
+    sections with `showBorder: false` by default so a Lightning page
+    doesn't double-wrap every block in a heavy Card.
+  - **components `page:tabs` / `page:accordion`**: well-known English
+    labels (Details / Related / Activity / History / Notes / Files /
+    Tasks / Events / Attachments / Chatter / Discussion / Comments /
+    Overview / Summary) auto-translate to Chinese (`zh-CN` / `zh-TW`)
+    via a built-in dictionary keyed off `document.documentElement.lang`.
+    Authors supplying explicit localised labels (string or
+    `{ default, zh-CN, ... }`) are not affected.
+  - **i18n provider**: applies the initial language to
+    `document.documentElement.lang` on mount (i18next does not fire
+    `languageChanged` for the bootstrap language), so locale-aware
+    renderers downstream see the right value from the first render.
+
+- 95b6b21: feat(page:header): record-aware chip + dedupe registrations (Phase D)
+
+  The `page:header` schema renderer is the visual anchor of every custom
+  record detail page (lead, opportunity, future account/contact/case).
+  Before this change it had two problems that bled into every custom
+  page across the product:
+  1. **Quadruple registration**: `@object-ui/layout` registered both
+     `page-header` and `page:header`, and `@object-ui/components`
+     independently registered `page:header` (and `page:section`).
+     Whichever package loaded last won the unqualified `page:header`
+     lookup — visually unstable.
+  2. **Bare `<h1>`** with no record affordances (no icon, ★ favourite,
+     copy-id, edit, ⋯ menu) — every custom page shipped a thinner header
+     than the default detail view it was meant to supersede.
+
+  This commit:
+  - Removes the `@object-ui/layout` `page:header` registration. The
+    layout package keeps the legacy kebab-cased `page-header` alias only.
+    The canonical renderer now lives in `@object-ui/components` and is
+    always the one resolved.
+  - Upgrades `PageHeaderRenderer` to render a `<RecordTitleChip>` when
+    wrapped in a `RecordContext`. The chip mirrors the default detail
+    header: title (resolved from `data.name` / `data.title` /
+    `data.display_name`, or an interpolated `schema.title`), a favourite
+    star, the object label, and a copy-record-id button. Authors opt out
+    via `recordChrome: false` or hide individual affordances with
+    `showStar: false` / `showCopyId: false`.
+  - Extracts the chip into a new shared `RecordTitleChip` component in
+    `@object-ui/components/custom`. It carries an inline zh-CN/zh-TW
+    dictionary for star/copy tooltips so it stays i18n-correct without
+    pulling in a translation dependency.
+  - Fixes `interpolate()` so a `{account}`-style token that resolves to
+    a related-record object renders as empty instead of
+    `"[object Object]"`. Authors who want a field of the related record
+    should use a deeper path (`{account.name}`).
+
+  Verified at 1440×900 on `lead_detail` and `opportunity_detail`:
+  both pages now show the same chip with star + copy-id and the
+  opportunity highlights strip looks coherent with the chip above it.
+
+- ddb08a7: feat(page:header,page:tabs): title fallback + single-tab strip auto-hide (Phase G slice 3 polish)
+  - `page:header.resolvedTitle` now honors `objectSchema.titleFormat`
+    (e.g. `{first_name} {last_name}`) and falls back through `name →
+full_name → title → subject → display_name → label` before degrading
+    to `${objectLabel} ${idPrefix}`. Mirrors `DetailView.resolveDisplayTitle`
+    so default and synthesized record pages produce identical titles.
+  - `page:tabs` hides the tab strip entirely when there's only one tab
+    (a single labelled pill is visual clutter, not an affordance).
+    Authors can opt back in with `properties.alwaysShowStrip: true`.
+    Single-tab content margin tightens from `mt-3` to `mt-0` to remove
+    the now-empty top space.
+
+- 927187a: Phase N.1 + N.2: visual polish for record detail pages.
+
+  **N.1 — System actions on full Lightning pages.** `PageHeaderRenderer`
+  now merges `headerSystemActions` from `RecordContext` with authored
+  actions (authored wins on name/id collision), so full custom pages
+  (lead, opportunity, ...) once again show 编辑 / 分享 / 删除 alongside
+  their authored actions. `sys_share` and `sys_delete` now use the
+  `outline` variant instead of `destructive` to read better in
+  multi-button clusters.
+
+  **N.2 — Hide empty fields by default in synth detail pages.**
+  `record:details` defaults `section.hideEmpty` to `true` so synthesized
+  pages don't render label graveyards on first load. The "显示 N 个空字段"
+  reveal toggle is preserved as the user-facing escape hatch. Authors can
+  opt back into showing every field by setting `hideEmpty: false` on the
+  section schema.
+
+- bae8ba8: Phase N.3 + N.4 + N.6: record detail visual polish.
+
+  **N.3 — Highlight strip packs left.** `HeaderHighlight` no longer
+  stretches a 1-2 chip strip across the full page. Each cell is now
+  `min-w-[8rem] max-w-[16rem]` and wraps via flexbox so sparse strips
+  sit naturally at the left edge.
+
+  **N.4 — De-duplicate highlight ↔ body.** `record:details` accepts a
+  new `hideFields: string[]` prop. The synth pipeline auto-populates it
+  with the highlight-strip field list so a field surfaced in
+  `record:highlights` no longer appears a second time in the section
+  grid below. Authors can also set it directly on the schema.
+
+  **N.6 — Tab count badges only show when >0.** `page:tabs` suppresses
+  the count pill when the count is exactly 0 (was rendering "0" as a
+  muted badge on every empty Activity/History tab).
+
+- b14fe09: Phase P.0 + P.5: tighten record-detail header chrome.
+  - `RecordTitleChip` collapses the title row to a single baseline-aligned line — H1, eyebrow object label, copy-id, favorite star — instead of the previous two-row title + subtitle layout.
+  - `record:details` extends the highlight-field dedup set to also exclude the title field resolved from `objectSchema.primaryField` (or the standard `name`/`full_name`/`title`/`subject`/`display_name`/`label` fallbacks). Removes the duplicate row that previously echoed the H1 (e.g. "客户名称: Acme Corporation") inside the field grid.
+
+- a7bef6e: Phase P.3: anchor `page:tabs` 'line' variant with a proper underline rail.
+
+  The Shadcn Tabs primitive defaults to a pill-card look (bg-muted,
+  rounded, white-on-active). On long record-detail pages this strip
+  floats unmoored — users scroll past it without realising it's a
+  section anchor.
+
+  `PageTabsRenderer` now applies an underline-style treatment to the
+  default 'line' variant: the `TabsList` gets a bottom border, and each
+  `TabsTrigger` renders as a transparent button with a 2px primary-color
+  underline when active. 'card' and 'pill' variants are unchanged.
+
+- 74962b0: feat(detail): record:discussion schema component + flush accordion variant
+  - New `record:discussion` schema type lets authors place the record
+    chatter feed anywhere in a custom Page schema. Wired through a
+    shared `DiscussionContext` provider on the `assignedPage` branch
+    of `RecordDetailView`; auto-append still applies when no explicit
+    `record:discussion` / `record:chatter` node is present.
+  - `page:accordion` gains a `variant` prop. Default `flush` strips the
+    per-item border so accordion sections no longer double-wrap inner
+    Card-bearing renderers (RelatedList, etc.). Authors who want the
+    old visual pass `variant: 'card'`.
+  - `translateLabel` now handles compound labels split by `&`, `and`,
+    or `和` (e.g. `Notes & Attachments` → `备注与附件`).
+
+- fa4c2cb: feat(detail): renderViaSchema opt-in routes default detail through SchemaRenderer (Track 3 Phase G slice 2)
+
+  When `?renderViaSchema=1` is in the URL, or `objectDef.detail.renderViaSchema === true`,
+  `RecordDetailView`'s no-assignedPage branch now synthesizes a canonical
+  Page schema (`page:header` → `record:highlights` → `record:path` →
+  `page:tabs(record:details)` → `record:discussion`) via
+  `buildDefaultPageSchema(objectDef, { sections, highlightFields })` and
+  renders it through the existing `<SchemaRenderer>` pipeline.
+
+  This means every object without a custom assigned page can opt in to
+  the same chrome (record-aware header chip, chevron path, flush
+  accordion, discussion slot) that custom Lightning pages already enjoy.
+
+  Changes:
+  - `buildDefaultPageSchema` now emits `page:tabs.items` (correct shape
+    for the renderer) rather than `tabs`.
+  - `PageHeaderRenderer.resolvedTitle` honors `objectSchema.primaryField`
+    before the legacy `name/title/display_name/label` fallbacks.
+  - `RecordDetailView` rebuilds the synthesized schema with
+    `detailSchema.sections` + `highlightFields` at render time so
+    `record:details` inherits the same field layout the legacy
+    `<DetailView>` would have produced.
+
+  Flag is intentionally off by default — flipping the default is a
+  separate explicit commit after empirical parity validation across
+  multiple objects. Known gaps tracked for slice 3: titleFormat
+  fallback for objects without `primaryField`, auto Activity / History
+  tabs, header-action buttons.
+
+### Patch Changes
+
+- 765d50f: fix(components): strip dangling separators from interpolated record titles
+
+  `page:header` now post-processes the result of interpolating a record's
+  `titleFormat` through `cleanupTitleSeparators` so a missing field in the
+  template doesn't leave a trailing/leading connector.
+
+  Example: with `titleFormat: '{contract_number} - {name}'` and a contract
+  whose `name` is empty, the header was rendering `CTR-0001 -` (with a
+  dangling hyphen). It now renders `CTR-0001`. Also handles a missing
+  middle field (`A -  - B` → `A - B`) and collapses whitespace runs.
+
+  Supports hyphen / em-dash / en-dash / middle-dot / colon / slash / pipe
+  connectors. Idempotent. Exported as `cleanupTitleSeparators` from the
+  containers module; covered by 10 new unit tests.
+
+- 3154334: fix(components): render `page:header.actions` on custom detail pages
+
+  `PageHeaderRenderer` previously read `title`, `subtitle`, `breadcrumb`,
+  `showStar`, `showCopyId` but never the `actions` array. Authored
+  Lightning record pages embed action buttons directly on
+  `page:header` (e.g. Lead → "Convert Lead", Opportunity → "Clone
+  Opportunity"); these buttons silently disappeared.
+
+  The renderer now reads `schema.actions ?? schema.properties?.actions`,
+  filters by `locations.includes('record_header')` (default-include when
+  absent), evaluates `visible` / `hidden` predicates (boolean, string,
+  or `{ dialect, source }` shapes) against the live record via
+  `ExpressionEvaluator`, and dispatches clicks through the
+  `ActionProvider`'s shared runner — so `confirmText`, `successMessage`,
+  `refreshAfter`, `flow`, navigation and modal handlers all fire.
+
+  The `data-page-actions-slot` portal target is preserved as a fallback
+  when no actions are declared in schema.
+
+- Updated dependencies [8930b15]
+- Updated dependencies [927187a]
+- Updated dependencies [8435860]
+- Updated dependencies [74962b0]
+- Updated dependencies [7213027]
+  - @object-ui/i18n@5.0.0
+  - @object-ui/react@5.0.0
+  - @object-ui/types@5.0.0
+  - @object-ui/core@5.0.0
+
 ## 4.8.0
 
 ### Patch Changes

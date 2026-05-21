@@ -1,5 +1,28 @@
 # @object-ui/plugin-markdown
 
+## 5.0.0
+
+### Patch Changes
+
+- Updated dependencies [8930b15]
+- Updated dependencies [95b6b21]
+- Updated dependencies [ddb08a7]
+- Updated dependencies [765d50f]
+- Updated dependencies [927187a]
+- Updated dependencies [bae8ba8]
+- Updated dependencies [8435860]
+- Updated dependencies [bb2ea48]
+- Updated dependencies [b14fe09]
+- Updated dependencies [a7bef6e]
+- Updated dependencies [74962b0]
+- Updated dependencies [3154334]
+- Updated dependencies [fa4c2cb]
+- Updated dependencies [7213027]
+  - @object-ui/components@5.0.0
+  - @object-ui/react@5.0.0
+  - @object-ui/types@5.0.0
+  - @object-ui/core@5.0.0
+
 ## 4.8.0
 
 ### Patch Changes
