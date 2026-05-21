@@ -1,5 +1,23 @@
 # @object-ui/app-shell — Changelog
 
+## 5.0.1
+
+### Patch Changes
+
+- cb4879e: form
+  - @object-ui/types@5.0.1
+  - @object-ui/core@5.0.1
+  - @object-ui/i18n@5.0.1
+  - @object-ui/react@5.0.1
+  - @object-ui/components@5.0.1
+  - @object-ui/fields@5.0.1
+  - @object-ui/layout@5.0.1
+  - @object-ui/data-objectstack@5.0.1
+  - @object-ui/auth@5.0.1
+  - @object-ui/permissions@5.0.1
+  - @object-ui/collaboration@5.0.1
+  - @object-ui/providers@5.0.1
+
 ## 5.0.0
 
 ### Minor Changes
