@@ -1,5 +1,23 @@
 # @object-ui/plugin-form
 
+## 5.0.2
+
+### Patch Changes
+
+- a311e22: Fix EmbeddableForm rendering no inputs on the public-form path. When the
+  caller passes a `fields: string[]` list (e.g. the response from
+  `GET /api/v1/forms/:slug`) the inner `ObjectForm` now receives a
+  read-only wrapper of the data source — preserving `getObjectSchema()`
+  so it can materialise widgets, while neutralising mutating ops so all
+  backend writes still go through `EmbeddableForm.handleSubmit` (and its
+  consent / honeypot / min-fill / redirect / payload-sanitisation gates).
+  - @object-ui/components@5.0.2
+  - @object-ui/fields@5.0.2
+  - @object-ui/react@5.0.2
+  - @object-ui/types@5.0.2
+  - @object-ui/core@5.0.2
+  - @object-ui/permissions@5.0.2
+
 ## 5.0.1
 
 ### Patch Changes
