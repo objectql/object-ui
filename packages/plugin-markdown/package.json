@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-markdown",
-  "version": "5.1.0",
+  "version": "5.1.1",
   "type": "module",
   "license": "MIT",
   "description": "Markdown rendering plugin for Object UI, powered by react-markdown",

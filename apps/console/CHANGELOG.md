@@ -1,5 +1,7 @@
 # @object-ui/console
 
+## 5.1.1
+
 ## 5.1.0
 
 ### Patch Changes

@@ -1,5 +1,23 @@
 # @object-ui/app-shell — Changelog
 
+## 5.1.1
+
+### Patch Changes
+
+- Updated dependencies [8955b9c]
+  - @object-ui/components@5.1.1
+  - @object-ui/fields@5.1.1
+  - @object-ui/layout@5.1.1
+  - @object-ui/types@5.1.1
+  - @object-ui/core@5.1.1
+  - @object-ui/i18n@5.1.1
+  - @object-ui/react@5.1.1
+  - @object-ui/data-objectstack@5.1.1
+  - @object-ui/auth@5.1.1
+  - @object-ui/permissions@5.1.1
+  - @object-ui/collaboration@5.1.1
+  - @object-ui/providers@5.1.1
+
 ## 5.1.0
 
 ### Minor Changes

@@ -1,5 +1,7 @@
 # @object-ui/plugin-list
 
+## 5.1.1
+
 ## 5.1.0
 
 ### Minor Changes
