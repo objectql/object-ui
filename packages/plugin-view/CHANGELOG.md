@@ -1,5 +1,18 @@
 # @object-ui/plugin-view
 
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [cab6a93]
+- Updated dependencies [a311e22]
+  - @object-ui/plugin-grid@5.0.2
+  - @object-ui/plugin-form@5.0.2
+  - @object-ui/components@5.0.2
+  - @object-ui/react@5.0.2
+  - @object-ui/types@5.0.2
+  - @object-ui/core@5.0.2
+
 ## 5.0.1
 
 ### Patch Changes

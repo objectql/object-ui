@@ -1,5 +1,18 @@
 # @object-ui/plugin-kanban
 
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [cab6a93]
+  - @object-ui/i18n@5.0.2
+  - @object-ui/components@5.0.2
+  - @object-ui/fields@5.0.2
+  - @object-ui/react@5.0.2
+  - @object-ui/plugin-detail@5.0.2
+  - @object-ui/types@5.0.2
+  - @object-ui/core@5.0.2
+
 ## 5.0.1
 
 ### Patch Changes

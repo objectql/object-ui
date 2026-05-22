@@ -1,5 +1,14 @@
 # @object-ui/plugin-map
 
+## 5.0.2
+
+### Patch Changes
+
+- @object-ui/components@5.0.2
+- @object-ui/react@5.0.2
+- @object-ui/types@5.0.2
+- @object-ui/core@5.0.2
+
 ## 5.0.1
 
 ### Patch Changes
