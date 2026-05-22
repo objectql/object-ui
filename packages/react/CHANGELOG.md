@@ -1,5 +1,59 @@
 # @object-ui/react
 
+## 5.1.0
+
+### Patch Changes
+
+- bd8447d: Three platform-wide detail polish items.
+
+  **Tighter page rhythm**
+  - Outer `PageRenderer` padding `p-4 md:p-6 lg:p-8` → `p-3 md:p-4 lg:p-6`
+    and outer body wrap `space-y-8` → `space-y-6` so list / detail / home
+    pages share the same edge rhythm. Cuts ~16px of edge slack on lg.
+
+  **Highlights KPI treatment**
+  - `HeaderHighlight` now renders numeric / currency / percent / decimal
+    values as KPI numbers (`text-xl md:text-2xl font-semibold tabular-nums`)
+    instead of the uniform `text-sm font-semibold`, so amount / probability
+    / count fields read as headline stats — Salesforce-style key facts.
+
+  **Discussion footer upgrade**
+  - `RecordActivityTimeline` now uses `RichTextCommentInput` (bold / italic /
+    list / code, `@`-mention autocomplete, preview toggle, Send) instead of
+    a bare `<textarea>`.
+  - `DiscussionContext` gains an optional `mentionSuggestions` array that
+    hosts can wire (e.g. team member directory). Falls back to free-text
+    `@mention` when omitted.
+  - `RecordChatterPanel` threads `mentionSuggestions` through both inline
+    and sidebar positions.
+
+- d51a577: feat(platform): Discussion attachments + @mention directory + Reference Rail aside
+  - **Discussion attachments** — `RichTextCommentInput` now accepts an `extraSlot`
+    and a `canSubmitEmpty` flag so hosts can mount the existing
+    `CommentAttachment` composer beneath the editor without forking the toolbar.
+    `RecordActivityTimeline` plumbs the attachments through
+    `DiscussionContext.onUploadAttachments` and submits attachment-only comments.
+  - **@mention directory** — `DiscussionContext` gains a `mentionSuggestions`
+    field; `RecordDetailView` populates it from the host `sys_user` collection so
+    `@` autocomplete in the composer now resolves against real users.
+  - **Reference Rail** — New `record:reference_rail` renderer + a dedicated
+    `aside` region emitted by `buildDefaultPageSchema` whenever a record has
+    ≥ 2 related lists. The rail surfaces a Salesforce/HubSpot-style snapshot
+    of related collections (count badge + top 3 records) on `xl+` viewports.
+  - **Layout** — `PageRenderer`'s structured-layout `<aside>` wrappers now honor
+    `aside.className`, letting schemas attach responsive utilities like
+    `hidden xl:flex` to the rail region.
+
+- Updated dependencies [1976691]
+- Updated dependencies [cf30cc2]
+- Updated dependencies [5b80cfd]
+- Updated dependencies [49b1760]
+- Updated dependencies [c0b236f]
+  - @object-ui/i18n@5.1.0
+  - @object-ui/types@5.1.0
+  - @object-ui/core@5.1.0
+  - @object-ui/data-objectstack@5.1.0
+
 ## 5.0.2
 
 ### Patch Changes

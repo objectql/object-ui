@@ -1,5 +1,26 @@
 # @object-ui/fields
 
+## 5.1.0
+
+### Patch Changes
+
+- Updated dependencies [bd8447d]
+- Updated dependencies [fbd5052]
+- Updated dependencies [d51a577]
+- Updated dependencies [1976691]
+- Updated dependencies [d1ec6a2]
+- Updated dependencies [cf30cc2]
+- Updated dependencies [5b80cfd]
+- Updated dependencies [49b1760]
+- Updated dependencies [c0b236f]
+- Updated dependencies [d548d6b]
+  - @object-ui/components@5.1.0
+  - @object-ui/react@5.1.0
+  - @object-ui/i18n@5.1.0
+  - @object-ui/types@5.1.0
+  - @object-ui/core@5.1.0
+  - @object-ui/providers@5.1.0
+
 ## 5.0.2
 
 ### Patch Changes
