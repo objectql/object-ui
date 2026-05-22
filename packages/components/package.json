@@ -99,7 +99,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "autoprefixer": "^10.5.0",
-    "postcss": "^8.5.14",
+    "postcss": "^8.5.15",
     "shadcn": "^4.7.0",
     "storybook": "^8.6.18",
     "tailwindcss": "^4.3.0",
