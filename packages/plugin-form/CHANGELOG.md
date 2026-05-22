@@ -1,5 +1,31 @@
 # @object-ui/plugin-form
 
+## 5.1.0
+
+### Minor Changes
+
+- c0b236f: Platform detail/form polish:
+  - **Auto-section grouping**: When an object has no authored `views.form.sections`, the detail page now splits fields into a primary section and a collapsible "More details" section based on a field-type/name heuristic (textarea / markdown / description / notes / remarks). Eliminates the wall-of-fields layout on objects without explicit detail metadata.
+  - **FormSection card chrome**: `FormSection` now accepts `showBorder`. Defaults to `true` for titled sections (Card wrapper) and `false` for untitled sections (flat). Same auto-default already applied to `DetailSection`.
+  - **Origin breadcrumb**: Navigating from a list/kanban into a record now records the source view; the detail page shows a `← <view label>` back-link above the page header.
+  - New i18n key `detail.sectionMoreDetails` (en + zh-CN).
+
+### Patch Changes
+
+- Updated dependencies [bd8447d]
+- Updated dependencies [fbd5052]
+- Updated dependencies [d51a577]
+- Updated dependencies [d1ec6a2]
+- Updated dependencies [cf30cc2]
+- Updated dependencies [5b80cfd]
+- Updated dependencies [d548d6b]
+  - @object-ui/components@5.1.0
+  - @object-ui/react@5.1.0
+  - @object-ui/types@5.1.0
+  - @object-ui/core@5.1.0
+  - @object-ui/fields@5.1.0
+  - @object-ui/permissions@5.1.0
+
 ## 5.0.2
 
 ### Patch Changes

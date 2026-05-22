@@ -1,5 +1,46 @@
 # @object-ui/types
 
+## 5.1.0
+
+### Minor Changes
+
+- cf30cc2: Polish Lightning record detail page layout.
+  - `record:details` sections now render with Card chrome by default when a `title` is present, restoring visual grouping that was missing on pages like the opportunity detail page.
+  - Section labels can be translated via the `{ns}.objects.{objectName}._sections.{name}.label` convention. Author each section with a stable `name` (e.g. `info`, `forecast`) and the renderer picks up the locale-specific label automatically. Falls back to the literal `label` when no translation exists.
+  - The `page:header` action toolbar now collapses into a `⋯` overflow menu when more than two actions are present. The first business action stays inline; secondary system actions (Edit / Share / Delete) move into the menu, with destructive styling applied to Delete.
+  - Header action labels resolve via the `{ns}.objects.{objectName}._actions.{name}.label` convention.
+  - Removed the meaningless field-count Badge from collapsible section headers (the `2` chip next to "Description"). Field-count metadata wasn't useful in the header and added visual noise.
+  - Synth-path `sys_delete` now carries `variant: 'destructive'` so the overflow menu can color it appropriately.
+
+- 5b80cfd: feat: Optimistic Concurrency Control (OCC) on DataSource writes
+
+  `DataSource.update()` and `DataSource.delete()` now accept an optional fourth /
+  third argument `opts?: { ifMatch?: string }`. When supplied, adapters forward
+  the token to the backend; servers that implement OCC (e.g. ObjectStack
+  `>=4.2.0`) compare it against the record's current `updated_at` and reject
+  with `409 CONCURRENT_UPDATE` on mismatch, preventing silent overwrites in
+  multi-user editing scenarios.
+
+  **`@object-ui/data-objectstack`**
+  - Exports `ConcurrentUpdateError` (carries `currentVersion` and
+    `currentRecord`) and `isConcurrentUpdateError()` type guard.
+  - `update()` / `delete()` accept `opts.ifMatch` and forward it via the
+    `@objectstack/client` data API (header: `If-Match`). Requires
+    `@objectstack/client@>=4.1.2` for the header to reach the server;
+    older clients silently drop the option and fall back to today's
+    "last writer wins" behaviour.
+  - Adapter-level error handling maps a 409 with `code === 'CONCURRENT_UPDATE'`
+    into a typed `ConcurrentUpdateError` so callers can detect and recover
+    from conflicts without parsing the wire format.
+
+  **`@object-ui/core`**
+  - `ApiDataSource.update()` and `.delete()` accept `opts.ifMatch` and emit
+    the `If-Match` HTTP header.
+
+  UI consumers (Detail view, inline cell-edit) will be wired in a follow-up
+  patch to capture `updated_at` at load time, pass it as `ifMatch` on save,
+  and present a Reload / Overwrite / Cancel dialog on conflict.
+
 ## 5.0.2
 
 ## 5.0.1

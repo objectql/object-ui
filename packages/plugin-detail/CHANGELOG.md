@@ -1,5 +1,167 @@
 # @object-ui/plugin-detail
 
+## 5.1.0
+
+### Minor Changes
+
+- d1ec6a2: Fold inline-edit into the page-header overflow menu (HubSpot/Lightning
+  pattern) and remove the orphan "Edit fields" toolbar row that previously
+  floated between the tab strip and the first detail section.
+  - `@object-ui/app-shell` `RecordDetailView`: injects a new `sys_inline_edit`
+    system action that appears in the ⋯ overflow menu and dispatches a
+    `objectui:record:inline-edit-toggle` window CustomEvent (filtered by
+    recordId + objectName).
+  - `@object-ui/plugin-detail` `DetailView`: listens for that event to
+    toggle inline-edit mode; the in-page toolbar now renders only during
+    active editing / save error / locked states, so the idle layout flows
+    tabs → first section card with no orphan row.
+  - `@object-ui/components` layout containers: extended `KNOWN_LABEL_DICT`
+    with zh-CN + zh-TW translations for common CRM related-list labels
+    (Quotes / Products / Contacts / Accounts / Leads / Opportunities /
+    Cases / Campaigns / Approvals / Documents / Emails / Calls / Meetings
+    / Open Tasks / Closed Tasks), so authored English labels auto-translate
+    in `page:accordion` / `page:tabs` items.
+
+- cf30cc2: Polish Lightning record detail page layout.
+  - `record:details` sections now render with Card chrome by default when a `title` is present, restoring visual grouping that was missing on pages like the opportunity detail page.
+  - Section labels can be translated via the `{ns}.objects.{objectName}._sections.{name}.label` convention. Author each section with a stable `name` (e.g. `info`, `forecast`) and the renderer picks up the locale-specific label automatically. Falls back to the literal `label` when no translation exists.
+  - The `page:header` action toolbar now collapses into a `⋯` overflow menu when more than two actions are present. The first business action stays inline; secondary system actions (Edit / Share / Delete) move into the menu, with destructive styling applied to Delete.
+  - Header action labels resolve via the `{ns}.objects.{objectName}._actions.{name}.label` convention.
+  - Removed the meaningless field-count Badge from collapsible section headers (the `2` chip next to "Description"). Field-count metadata wasn't useful in the header and added visual noise.
+  - Synth-path `sys_delete` now carries `variant: 'destructive'` so the overflow menu can color it appropriately.
+
+- 32306e8: feat(plugin-detail): conflict-resolution dialog for OCC
+
+  When inline record-detail edits race a concurrent writer, the bound
+  DataSource now raises `ConcurrentUpdateError` (HTTP 409
+  `CONCURRENT_UPDATE`). `RecordDetailsRenderer` catches it and opens a
+  new `<ConcurrentUpdateDialog>` showing the user's pending value next
+  to the server's current value, with three resolution paths:
+  - **Reload latest** — discard the pending edit and refetch.
+  - **Overwrite anyway** — retry against the server's freshest version
+    (still OCC-checked, but acknowledges "I've seen the newer version").
+  - **Cancel** — close the dialog and leave the form untouched.
+
+  The renderer now forwards `record.updated_at` as `{ ifMatch }` to
+  `dataSource.update()`, so the server can detect stale writes. The
+  component is re-exported as `ConcurrentUpdateDialog` /
+  `isConcurrentUpdateError` from `@object-ui/plugin-detail` for hosts
+  that need to surface the same UX from custom save paths.
+
+  End-to-end OCC requires `@objectstack/client@>=4.2.0` (now wired) and
+  backend support in `@objectstack/rest@>=4.2.0`.
+
+- 49b1760: Polish the ConcurrentUpdateDialog and add i18n.
+  - Internationalise all dialog strings (title, body, button labels, "your edit" / "current value" headings, audit-trail line) through `useDetailTranslation`. Locale strings added to `@object-ui/i18n` for English and Chinese.
+  - Replace the plain dialog header with an amber warning badge + `AlertTriangle` icon to communicate that this is a conflict, not a routine confirmation.
+  - Visually differentiate the two value blocks: amber tint for the user's pending edit, sky tint for the server's current value. Both wrap long values cleanly.
+  - Surface audit provenance for the racer's write (`updated_at`, plus `updated_by_name`/`updated_by_label` when supplied). Opaque ID-looking `updated_by` tokens are suppressed.
+  - Re-prioritise the action buttons: **Reload latest** is now the primary/recommended action (autofocused), **Overwrite anyway** is rendered as a destructive-outline button so the dangerous path requires deliberate intent, and **Cancel** falls back to a ghost variant.
+
+- 8fd863e: Platform highlight + list polish:
+  - **deriveHighlightFields**: extended the preferred-field list (close_date, due_date, account, contact, …) and now skips fields whose declared type is not "highlight-friendly" (textarea, markdown, json, boolean, rich-text, etc.). Untyped legacy fields still pass through. Prevents long-form/structural fields from ending up in the highlight strip on objects with sparse metadata.
+  - **ListView bulk-action labels**: bulk-action buttons now resolve their labels through `actionLabel(objectName, action, fallback)` so they pick up app-supplied translations under `_actions.<name>.label`, matching the detail-page page-header overflow menu. Falls back to the previous title-cased string when no resource is found.
+
+### Patch Changes
+
+- bd8447d: Three platform-wide detail polish items.
+
+  **Tighter page rhythm**
+  - Outer `PageRenderer` padding `p-4 md:p-6 lg:p-8` → `p-3 md:p-4 lg:p-6`
+    and outer body wrap `space-y-8` → `space-y-6` so list / detail / home
+    pages share the same edge rhythm. Cuts ~16px of edge slack on lg.
+
+  **Highlights KPI treatment**
+  - `HeaderHighlight` now renders numeric / currency / percent / decimal
+    values as KPI numbers (`text-xl md:text-2xl font-semibold tabular-nums`)
+    instead of the uniform `text-sm font-semibold`, so amount / probability
+    / count fields read as headline stats — Salesforce-style key facts.
+
+  **Discussion footer upgrade**
+  - `RecordActivityTimeline` now uses `RichTextCommentInput` (bold / italic /
+    list / code, `@`-mention autocomplete, preview toggle, Send) instead of
+    a bare `<textarea>`.
+  - `DiscussionContext` gains an optional `mentionSuggestions` array that
+    hosts can wire (e.g. team member directory). Falls back to free-text
+    `@mention` when omitted.
+  - `RecordChatterPanel` threads `mentionSuggestions` through both inline
+    and sidebar positions.
+
+- fbd5052: Tighten record-detail visual rhythm. Section card titles were rendering at
+  Shadcn's default `text-2xl` which dominated the page; the related-list
+  accordion in flush mode dropped all per-item borders so the collapsed
+  "Quotes / Products / Open Tasks" triggers stacked with zero visual
+  separation.
+  - `@object-ui/plugin-detail` `DetailSection`: override the `CardTitle`
+    className to `text-base font-semibold tracking-tight`, slim down
+    `CardHeader` padding (`py-3 px-4 sm:py-4 sm:px-6`) and `CardContent`
+    vertical padding so titles + content read as a single tight block
+    rather than a billboard. Demoted the section description from `text-sm
+mt-1.5` to `text-xs mt-1` for the same reason.
+  - `@object-ui/components` `PageAccordionRenderer`: in the default
+    `flush` variant restore a subtle `border-b last:border-b-0` divider
+    between accordion items so collapsed siblings get a separator, and
+    style the trigger as `text-sm font-semibold tracking-tight
+hover:no-underline` (Shadcn's hover-underline default looks busy on
+    CRM-style related-list lists).
+
+- d51a577: feat(platform): Discussion attachments + @mention directory + Reference Rail aside
+  - **Discussion attachments** — `RichTextCommentInput` now accepts an `extraSlot`
+    and a `canSubmitEmpty` flag so hosts can mount the existing
+    `CommentAttachment` composer beneath the editor without forking the toolbar.
+    `RecordActivityTimeline` plumbs the attachments through
+    `DiscussionContext.onUploadAttachments` and submits attachment-only comments.
+  - **@mention directory** — `DiscussionContext` gains a `mentionSuggestions`
+    field; `RecordDetailView` populates it from the host `sys_user` collection so
+    `@` autocomplete in the composer now resolves against real users.
+  - **Reference Rail** — New `record:reference_rail` renderer + a dedicated
+    `aside` region emitted by `buildDefaultPageSchema` whenever a record has
+    ≥ 2 related lists. The rail surfaces a Salesforce/HubSpot-style snapshot
+    of related collections (count badge + top 3 records) on `xl+` viewports.
+  - **Layout** — `PageRenderer`'s structured-layout `<aside>` wrappers now honor
+    `aside.className`, letting schemas attach responsive utilities like
+    `hidden xl:flex` to the rail region.
+
+- a49f300: feat(detail): per-object Reference Rail opt-out via `objectDef.detail.hideReferenceRail`
+
+  The Record-detail Reference Rail (right-hand related-list summary cards)
+  can now be suppressed on a per-object basis without authoring a full
+  custom `Page`. Catalog-style objects (Product, Task) ship with the rail
+  off by default; hub objects (Account, Opportunity, Contact, Case) keep it
+  on.
+  - `RecordDetailView` now reads `(objectDef as any)?.detail?.hideReferenceRail`
+    and `…?.hideRelatedTab` and threads them to `buildDefaultPageSchema`.
+  - The Reference Rail renderer also accepts entries authored as either a
+    flat `entries` array or nested under `properties.entries`, so explicit
+    `Page` authors can opt-in via the standard spec shape.
+  - See `packages/plugin-detail/README.md` (Reference Rail decision matrix)
+    for the rationale and per-object guidance.
+
+- 1cb6e21: feat(plugin-detail): suppress Related tab when Reference Rail is auto-emitted
+
+  When `buildDefaultPageSchema` decides to emit the Reference Rail (≥ 2
+  related lists), the duplicate `Related` tab is now suppressed by
+  default. The same data appeared in both places before, which is
+  visually noisy and risks confusing users when one surface refreshes
+  out-of-step with the other.
+
+  Behavior matches HubSpot / Microsoft Dynamics: the rail is the single
+  source of truth for related-list snapshots, and each rail card now
+  exposes a `View all` link that deep-links into the child object's
+  filtered list view. Authors can opt back into both surfaces via the
+  new `hideRelatedTab: false` option.
+
+  The change is gated on the same `≥ 2` heuristic that emits the rail,
+  so single-related-list pages keep the inline Related tab (where the
+  rail wouldn't have helped anyway).
+
+- d548d6b: Unify empty-state visuals across timeline + registered `empty` renderer.
+  - `RecordActivityTimeline` and `ActivityTimeline` now use `DataEmptyState`
+    instead of a bare `<p>` so empty timelines match list/related-list visuals
+    (muted icon badge + centered copy).
+  - The `ui:empty` schema renderer now delegates to `DataEmptyState`, giving
+    schema-driven empty regions the same chrome as ad-hoc consumers.
+
 ## 5.0.2
 
 ## 5.0.1

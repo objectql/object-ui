@@ -1,5 +1,115 @@
 # @object-ui/app-shell — Changelog
 
+## 5.1.0
+
+### Minor Changes
+
+- d1ec6a2: Fold inline-edit into the page-header overflow menu (HubSpot/Lightning
+  pattern) and remove the orphan "Edit fields" toolbar row that previously
+  floated between the tab strip and the first detail section.
+  - `@object-ui/app-shell` `RecordDetailView`: injects a new `sys_inline_edit`
+    system action that appears in the ⋯ overflow menu and dispatches a
+    `objectui:record:inline-edit-toggle` window CustomEvent (filtered by
+    recordId + objectName).
+  - `@object-ui/plugin-detail` `DetailView`: listens for that event to
+    toggle inline-edit mode; the in-page toolbar now renders only during
+    active editing / save error / locked states, so the idle layout flows
+    tabs → first section card with no orphan row.
+  - `@object-ui/components` layout containers: extended `KNOWN_LABEL_DICT`
+    with zh-CN + zh-TW translations for common CRM related-list labels
+    (Quotes / Products / Contacts / Accounts / Leads / Opportunities /
+    Cases / Campaigns / Approvals / Documents / Emails / Calls / Meetings
+    / Open Tasks / Closed Tasks), so authored English labels auto-translate
+    in `page:accordion` / `page:tabs` items.
+
+- cf30cc2: Polish Lightning record detail page layout.
+  - `record:details` sections now render with Card chrome by default when a `title` is present, restoring visual grouping that was missing on pages like the opportunity detail page.
+  - Section labels can be translated via the `{ns}.objects.{objectName}._sections.{name}.label` convention. Author each section with a stable `name` (e.g. `info`, `forecast`) and the renderer picks up the locale-specific label automatically. Falls back to the literal `label` when no translation exists.
+  - The `page:header` action toolbar now collapses into a `⋯` overflow menu when more than two actions are present. The first business action stays inline; secondary system actions (Edit / Share / Delete) move into the menu, with destructive styling applied to Delete.
+  - Header action labels resolve via the `{ns}.objects.{objectName}._actions.{name}.label` convention.
+  - Removed the meaningless field-count Badge from collapsible section headers (the `2` chip next to "Description"). Field-count metadata wasn't useful in the header and added visual noise.
+  - Synth-path `sys_delete` now carries `variant: 'destructive'` so the overflow menu can color it appropriately.
+
+- c0b236f: Platform detail/form polish:
+  - **Auto-section grouping**: When an object has no authored `views.form.sections`, the detail page now splits fields into a primary section and a collapsible "More details" section based on a field-type/name heuristic (textarea / markdown / description / notes / remarks). Eliminates the wall-of-fields layout on objects without explicit detail metadata.
+  - **FormSection card chrome**: `FormSection` now accepts `showBorder`. Defaults to `true` for titled sections (Card wrapper) and `false` for untitled sections (flat). Same auto-default already applied to `DetailSection`.
+  - **Origin breadcrumb**: Navigating from a list/kanban into a record now records the source view; the detail page shows a `← <view label>` back-link above the page header.
+  - New i18n key `detail.sectionMoreDetails` (en + zh-CN).
+
+### Patch Changes
+
+- d51a577: feat(platform): Discussion attachments + @mention directory + Reference Rail aside
+  - **Discussion attachments** — `RichTextCommentInput` now accepts an `extraSlot`
+    and a `canSubmitEmpty` flag so hosts can mount the existing
+    `CommentAttachment` composer beneath the editor without forking the toolbar.
+    `RecordActivityTimeline` plumbs the attachments through
+    `DiscussionContext.onUploadAttachments` and submits attachment-only comments.
+  - **@mention directory** — `DiscussionContext` gains a `mentionSuggestions`
+    field; `RecordDetailView` populates it from the host `sys_user` collection so
+    `@` autocomplete in the composer now resolves against real users.
+  - **Reference Rail** — New `record:reference_rail` renderer + a dedicated
+    `aside` region emitted by `buildDefaultPageSchema` whenever a record has
+    ≥ 2 related lists. The rail surfaces a Salesforce/HubSpot-style snapshot
+    of related collections (count badge + top 3 records) on `xl+` viewports.
+  - **Layout** — `PageRenderer`'s structured-layout `<aside>` wrappers now honor
+    `aside.className`, letting schemas attach responsive utilities like
+    `hidden xl:flex` to the rail region.
+
+- 1976691: Fix the drawer "Open as full page" (maximize) button on the record drawer
+  which threw `TypeError: name.indexOf is not a function` and prevented
+  navigation to the dedicated detail page.
+  - `@object-ui/app-shell` `ObjectView`: pass `objectDef.name` (string) — not
+    the whole `objectDef` — into `viewLabel(...)` when computing the
+    `originState.from.label` for both drawer-navigate and list-navigate
+    flows. Two call sites fixed.
+  - `@object-ui/i18n` `useObjectLabel`: harden `stripNamespace` so it
+    tolerates non-string inputs and returns an empty string instead of
+    throwing, providing a safety net for similar future regressions.
+
+- a49f300: feat(detail): per-object Reference Rail opt-out via `objectDef.detail.hideReferenceRail`
+
+  The Record-detail Reference Rail (right-hand related-list summary cards)
+  can now be suppressed on a per-object basis without authoring a full
+  custom `Page`. Catalog-style objects (Product, Task) ship with the rail
+  off by default; hub objects (Account, Opportunity, Contact, Case) keep it
+  on.
+  - `RecordDetailView` now reads `(objectDef as any)?.detail?.hideReferenceRail`
+    and `…?.hideRelatedTab` and threads them to `buildDefaultPageSchema`.
+  - The Reference Rail renderer also accepts entries authored as either a
+    flat `entries` array or nested under `properties.entries`, so explicit
+    `Page` authors can opt-in via the standard spec shape.
+  - See `packages/plugin-detail/README.md` (Reference Rail decision matrix)
+    for the rationale and per-object guidance.
+
+- e9767b0: Remove dead `sys_presence` REST probes from `RecordDetailView` and `AppHeader`. Real-time
+  presence does not belong in a regular REST collection — the feature is being redesigned
+  behind a transport-level `<PresenceProvider>` (see ROADMAP). This change removes the
+  probe (and associated state / unused UI mounts) so the browser no longer makes silently
+  swallowed 404 requests on every record open / app navigation. UI surface area is
+  unchanged for end users (the previous code never rendered viewers when the probe failed).
+- Updated dependencies [bd8447d]
+- Updated dependencies [fbd5052]
+- Updated dependencies [d51a577]
+- Updated dependencies [1976691]
+- Updated dependencies [d1ec6a2]
+- Updated dependencies [cf30cc2]
+- Updated dependencies [5b80cfd]
+- Updated dependencies [49b1760]
+- Updated dependencies [c0b236f]
+- Updated dependencies [d548d6b]
+  - @object-ui/components@5.1.0
+  - @object-ui/react@5.1.0
+  - @object-ui/i18n@5.1.0
+  - @object-ui/types@5.1.0
+  - @object-ui/core@5.1.0
+  - @object-ui/data-objectstack@5.1.0
+  - @object-ui/fields@5.1.0
+  - @object-ui/layout@5.1.0
+  - @object-ui/auth@5.1.0
+  - @object-ui/collaboration@5.1.0
+  - @object-ui/permissions@5.1.0
+  - @object-ui/providers@5.1.0
+
 ## 5.0.2
 
 ### Patch Changes

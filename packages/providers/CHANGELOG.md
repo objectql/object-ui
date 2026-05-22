@@ -1,5 +1,13 @@
 # @object-ui/providers — Changelog
 
+## 5.1.0
+
+### Patch Changes
+
+- Updated dependencies [cf30cc2]
+- Updated dependencies [5b80cfd]
+  - @object-ui/types@5.1.0
+
 ## 5.0.2
 
 ### Patch Changes

@@ -1,5 +1,114 @@
 # @object-ui/components
 
+## 5.1.0
+
+### Minor Changes
+
+- cf30cc2: Polish Lightning record detail page layout.
+  - `record:details` sections now render with Card chrome by default when a `title` is present, restoring visual grouping that was missing on pages like the opportunity detail page.
+  - Section labels can be translated via the `{ns}.objects.{objectName}._sections.{name}.label` convention. Author each section with a stable `name` (e.g. `info`, `forecast`) and the renderer picks up the locale-specific label automatically. Falls back to the literal `label` when no translation exists.
+  - The `page:header` action toolbar now collapses into a `⋯` overflow menu when more than two actions are present. The first business action stays inline; secondary system actions (Edit / Share / Delete) move into the menu, with destructive styling applied to Delete.
+  - Header action labels resolve via the `{ns}.objects.{objectName}._actions.{name}.label` convention.
+  - Removed the meaningless field-count Badge from collapsible section headers (the `2` chip next to "Description"). Field-count metadata wasn't useful in the header and added visual noise.
+  - Synth-path `sys_delete` now carries `variant: 'destructive'` so the overflow menu can color it appropriately.
+
+### Patch Changes
+
+- bd8447d: Three platform-wide detail polish items.
+
+  **Tighter page rhythm**
+  - Outer `PageRenderer` padding `p-4 md:p-6 lg:p-8` → `p-3 md:p-4 lg:p-6`
+    and outer body wrap `space-y-8` → `space-y-6` so list / detail / home
+    pages share the same edge rhythm. Cuts ~16px of edge slack on lg.
+
+  **Highlights KPI treatment**
+  - `HeaderHighlight` now renders numeric / currency / percent / decimal
+    values as KPI numbers (`text-xl md:text-2xl font-semibold tabular-nums`)
+    instead of the uniform `text-sm font-semibold`, so amount / probability
+    / count fields read as headline stats — Salesforce-style key facts.
+
+  **Discussion footer upgrade**
+  - `RecordActivityTimeline` now uses `RichTextCommentInput` (bold / italic /
+    list / code, `@`-mention autocomplete, preview toggle, Send) instead of
+    a bare `<textarea>`.
+  - `DiscussionContext` gains an optional `mentionSuggestions` array that
+    hosts can wire (e.g. team member directory). Falls back to free-text
+    `@mention` when omitted.
+  - `RecordChatterPanel` threads `mentionSuggestions` through both inline
+    and sidebar positions.
+
+- fbd5052: Tighten record-detail visual rhythm. Section card titles were rendering at
+  Shadcn's default `text-2xl` which dominated the page; the related-list
+  accordion in flush mode dropped all per-item borders so the collapsed
+  "Quotes / Products / Open Tasks" triggers stacked with zero visual
+  separation.
+  - `@object-ui/plugin-detail` `DetailSection`: override the `CardTitle`
+    className to `text-base font-semibold tracking-tight`, slim down
+    `CardHeader` padding (`py-3 px-4 sm:py-4 sm:px-6`) and `CardContent`
+    vertical padding so titles + content read as a single tight block
+    rather than a billboard. Demoted the section description from `text-sm
+mt-1.5` to `text-xs mt-1` for the same reason.
+  - `@object-ui/components` `PageAccordionRenderer`: in the default
+    `flush` variant restore a subtle `border-b last:border-b-0` divider
+    between accordion items so collapsed siblings get a separator, and
+    style the trigger as `text-sm font-semibold tracking-tight
+hover:no-underline` (Shadcn's hover-underline default looks busy on
+    CRM-style related-list lists).
+
+- d51a577: feat(platform): Discussion attachments + @mention directory + Reference Rail aside
+  - **Discussion attachments** — `RichTextCommentInput` now accepts an `extraSlot`
+    and a `canSubmitEmpty` flag so hosts can mount the existing
+    `CommentAttachment` composer beneath the editor without forking the toolbar.
+    `RecordActivityTimeline` plumbs the attachments through
+    `DiscussionContext.onUploadAttachments` and submits attachment-only comments.
+  - **@mention directory** — `DiscussionContext` gains a `mentionSuggestions`
+    field; `RecordDetailView` populates it from the host `sys_user` collection so
+    `@` autocomplete in the composer now resolves against real users.
+  - **Reference Rail** — New `record:reference_rail` renderer + a dedicated
+    `aside` region emitted by `buildDefaultPageSchema` whenever a record has
+    ≥ 2 related lists. The rail surfaces a Salesforce/HubSpot-style snapshot
+    of related collections (count badge + top 3 records) on `xl+` viewports.
+  - **Layout** — `PageRenderer`'s structured-layout `<aside>` wrappers now honor
+    `aside.className`, letting schemas attach responsive utilities like
+    `hidden xl:flex` to the rail region.
+
+- d1ec6a2: Fold inline-edit into the page-header overflow menu (HubSpot/Lightning
+  pattern) and remove the orphan "Edit fields" toolbar row that previously
+  floated between the tab strip and the first detail section.
+  - `@object-ui/app-shell` `RecordDetailView`: injects a new `sys_inline_edit`
+    system action that appears in the ⋯ overflow menu and dispatches a
+    `objectui:record:inline-edit-toggle` window CustomEvent (filtered by
+    recordId + objectName).
+  - `@object-ui/plugin-detail` `DetailView`: listens for that event to
+    toggle inline-edit mode; the in-page toolbar now renders only during
+    active editing / save error / locked states, so the idle layout flows
+    tabs → first section card with no orphan row.
+  - `@object-ui/components` layout containers: extended `KNOWN_LABEL_DICT`
+    with zh-CN + zh-TW translations for common CRM related-list labels
+    (Quotes / Products / Contacts / Accounts / Leads / Opportunities /
+    Cases / Campaigns / Approvals / Documents / Emails / Calls / Meetings
+    / Open Tasks / Closed Tasks), so authored English labels auto-translate
+    in `page:accordion` / `page:tabs` items.
+
+- d548d6b: Unify empty-state visuals across timeline + registered `empty` renderer.
+  - `RecordActivityTimeline` and `ActivityTimeline` now use `DataEmptyState`
+    instead of a bare `<p>` so empty timelines match list/related-list visuals
+    (muted icon badge + centered copy).
+  - The `ui:empty` schema renderer now delegates to `DataEmptyState`, giving
+    schema-driven empty regions the same chrome as ad-hoc consumers.
+
+- Updated dependencies [bd8447d]
+- Updated dependencies [d51a577]
+- Updated dependencies [1976691]
+- Updated dependencies [cf30cc2]
+- Updated dependencies [5b80cfd]
+- Updated dependencies [49b1760]
+- Updated dependencies [c0b236f]
+  - @object-ui/react@5.1.0
+  - @object-ui/i18n@5.1.0
+  - @object-ui/types@5.1.0
+  - @object-ui/core@5.1.0
+
 ## 5.0.2
 
 ### Patch Changes
