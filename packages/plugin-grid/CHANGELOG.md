@@ -1,5 +1,111 @@
 # @object-ui/plugin-grid
 
+## 5.2.0
+
+### Minor Changes
+
+- e3160a5: `useBulkExecutor` now collapses an `update` batch into a single
+  `dataSource.bulkUpdate(resource, ids, patch)` call when the adapter
+  exposes the bulk primitive — turning "mark 500 notifications read"
+  from 500 PATCH calls into 1.
+  - Adapters without `bulkUpdate` keep working unchanged (per-row path).
+  - Single-row batches stay per-row (no win, just overhead).
+  - `delete`/`custom` operations are unchanged.
+  - On bulk throw, the executor falls back to per-row updates for that
+    batch so users still get id-level error attribution.
+  - Partial server counts (`succeeded < total`) surface as one aggregate
+    error entry per batch — bulk endpoints rarely report per-row failures.
+  - Pre-mutation snapshot and `undo()`/`retry()` still work because the
+    snapshot is captured client-side before any mutation.
+
+### Patch Changes
+
+- de0c5e6: Add `DataSource.bulkDelete(resource, ids)` as the symmetric counterpart
+  to `bulkUpdate`. Implemented in `data-objectstack` via the client's
+  `deleteMany` primitive with a per-id fallback that emulates
+  `continueOnError` semantics for older clients.
+
+  Extract the bulk-vs-per-row decision into a reusable
+  `executeBulkBatch(input, ops)` helper in `@object-ui/core`:
+  - Single decision tree shared by both update and delete fast paths.
+  - Bulk success → no per-row pass.
+  - Bulk partial-count → aggregate batch error.
+  - Bulk throw → per-row fallback so users still get id-level error detail.
+
+  `useBulkExecutor` in plugin-grid now uses the helper for both `update`
+  and `delete` batches, cutting "delete 500 selected rows" from 500 HTTP
+  requests down to ~3.
+
+- 5633edd: feat(detail,grid): tab + selection motion polish
+
+  **plugin-detail**
+  - `DetailTabs` and the auto-tabs path in `DetailView` (5 inline
+    `<TabsContent>` instances: details, related, activity, discussion,
+    history) now fade in when their tab becomes active, eliminating
+    the harsh flash when switching tabs.
+
+  **plugin-grid**
+  - `BulkActionBar` slides in from the bottom + fades in when a
+    selection is made, instead of popping into existence.
+  - The "N items selected" counter re-animates on every count change
+    (re-keyed on the count value with a small `zoom-in-90`), so users
+    see clear feedback as they tick/untick rows. `tabular-nums` keeps
+    the number from jittering during the animation.
+
+  All animations are wrapped in `motion-safe:` so prefers-reduced-motion
+  users keep the original instant UI. No new deps.
+
+  **Dialog / Sheet motion audit (informational, no code change)**
+
+  Verified `packages/components/src/ui/{dialog,alert-dialog,sheet}.tsx`:
+  Dialog + AlertDialog use a consistent `duration-200`. Sheet uses an
+  asymmetric `open:500ms / close:300ms` — this is the intentional
+  shadcn upstream default ("slower open feels purposeful"). No fixes
+  needed; these primitives live in the no-touch zone anyway.
+
+- e919433: Stop silently assuming USD when a currency field has no `currency`
+  configured. For non-USD orgs (e.g. a CNY-based CRM seeded without an
+  explicit currency) the cells now render as plain locale-formatted
+  numbers (`150,000.00`) instead of `$150,000.00` — which was the #1
+  "why is my RMB showing as dollars?" bug.
+
+  Behavior change is opt-in via omission: when `currency` /
+  `defaultCurrency` is set on the field/column, formatting is unchanged.
+
+  Fixed call sites:
+  - `@object-ui/fields`: `formatCurrency`, `formatCompactCurrency`, and
+    `CurrencyCellRenderer` no longer default-param `'USD'`.
+  - `@object-ui/i18n`: `formatCurrency()` falls back to `formatNumber`
+    semantics when `currency` is omitted.
+  - `@object-ui/plugin-grid`: column-summary formatter (`Sum: 5,000,000`
+    instead of `Sum: $5,000,000.00`).
+  - `@object-ui/plugin-detail`: header-highlight currency formatter.
+  - `@object-ui/plugin-dashboard`: `ObjectMetricWidget` inferred
+    currency now resolves to `undefined` (not `'USD'`) for un-tagged
+    fields, so `MetricWidget`'s `isCurrency` heuristic falls through
+    to plain number formatting.
+
+- Updated dependencies [de0c5e6]
+- Updated dependencies [9997cae]
+- Updated dependencies [b2d1704]
+- Updated dependencies [6c3f018]
+- Updated dependencies [d912a60]
+- Updated dependencies [87bc8ff]
+- Updated dependencies [3ebba63]
+- Updated dependencies [e919433]
+- Updated dependencies [a8d12ec]
+- Updated dependencies [70b5570]
+- Updated dependencies [aa063db]
+- Updated dependencies [d9c3bae]
+- Updated dependencies [d1442e3]
+- Updated dependencies [7c7400a]
+  - @object-ui/types@5.2.0
+  - @object-ui/core@5.2.0
+  - @object-ui/react@5.2.0
+  - @object-ui/fields@5.2.0
+  - @object-ui/components@5.2.0
+  - @object-ui/mobile@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

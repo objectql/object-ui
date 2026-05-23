@@ -1,5 +1,96 @@
 # @object-ui/i18n
 
+## 5.2.0
+
+### Minor Changes
+
+- b2d1704: feat(cmdk): record search across objects in the Command Palette
+  - New `useRecordSearch` hook in `@object-ui/react` debounces a query, fans out
+    to `dataSource.find(name, { $search, $top })` across candidate objects, and
+    aggregates hits. Race-safe via a monotonic runId; per-object 404s are
+    silently dropped via `Promise.allSettled`.
+  - `CommandPalette` (`@object-ui/app-shell`) now accepts a `dataSource` prop;
+    when supplied, the palette renders a `Records` group at the top with hits
+    scoped to the active app's nav objects. Item `value` embeds the live query
+    so cmdk's client-side filter doesn't hide async results.
+  - Added `console.commandPalette.records` i18n key (`Records` / `记录`).
+
+### Patch Changes
+
+- 321294c: Cmd-K now shows recently viewed records in its empty state, sourced
+  from the existing cloud-synced `sys_user_preference` adapter (already
+  wired by `RecentItemsProvider` + `useTrackRouteAsRecent` +
+  `RecordDetailView`). Multi-device by construction: open a record on
+  laptop, see it in `⌘K → Recently viewed` on phone.
+  - Group renders only when input is empty (no competition with search).
+  - Limited to the 5 most recent record-type entries.
+  - New i18n key `console.commandPalette.recentRecords` (en + zh seeded;
+    other locales fall back to `defaultValue: "Recently viewed"`).
+
+- 0a644f0: feat(app-shell): CommandPalette searching indicator
+
+  When `useRecordSearch` is mid-flight (debounced fetch across objects
+  hasn't returned yet), the palette now surfaces a subtle visual:
+  - A small pulsing primary-coloured dot next to the **Records** group
+    heading, so the user sees that more results may still appear.
+  - A `Searching…` placeholder inside the empty state when the user has
+    typed something but no hits exist yet — replaces the static
+    "No results found." message until the request settles.
+
+  New i18n key `console.commandPalette.searching` (en + zh).
+
+- a3cb88f: CRM UX polish batch:
+  - Kanban columns: drop the per-column rainbow top stripe. Lane border + header divider are sufficient; cards are now the loudest thing on screen (Linear / HubSpot pattern).
+  - Stage chevron (`record:path`): bump completed-stage contrast (emerald-800 text on emerald-500/15, was 700 on /10) and future-stage text from `foreground/70` to `foreground/85` for legibility.
+  - i18n: add `notifications.emptyUnread`, `notifications.filterUnread`, `notifications.filterAll` (en + zh) so the InboxPopover Unread/All sub-filter renders in the active locale.
+- 5425608: CRM UX polish pass — calmer enterprise look across detail + kanban.
+  - **plugin-kanban**: column headers now use a 2px muted accent stripe with
+    neutral foreground titles + a quiet grey count pill instead of full
+    rainbow gradient + colored title + colored count. Pipeline boards
+    (Opportunity, Case, Task, Lead) look like Salesforce/Linear instead of
+    a toy. WIP-limit overflow remains destructive-red so urgency stays loud.
+  - **plugin-detail (`record:reference_rail`)**: new `hideEmpty` prop
+    (default true) collapses entries whose total === 0 into a single
+    `+ N empty (Quotes · Products …)` chip at the bottom of the rail.
+    Removes the 4–7 "No records" stack that dominated the aside.
+  - **plugin-detail (`record:path`)**: completed stages now render with an
+    emerald-tinted background + bold green check instead of low-contrast
+    `bg-muted text-muted-foreground` (which read as "light grey on white"
+    and was borderline unreadable).
+  - **app-shell (`RecordDetailView`)**: record-not-found short-circuit.
+    Previously a stale/missing recordId still rendered the page chrome
+    (rail, discussion, breadcrumb with the raw id), making invalid links
+    look like a partially broken page. Now renders a clean centered
+    `Empty` state with database icon + i18n'd "Record not found" copy.
+  - **i18n**: added `detail.showEmptyRelated_{one,other}` and
+    `empty.recordNotFound{,Description}` keys (en + zh).
+
+- e919433: Stop silently assuming USD when a currency field has no `currency`
+  configured. For non-USD orgs (e.g. a CNY-based CRM seeded without an
+  explicit currency) the cells now render as plain locale-formatted
+  numbers (`150,000.00`) instead of `$150,000.00` — which was the #1
+  "why is my RMB showing as dollars?" bug.
+
+  Behavior change is opt-in via omission: when `currency` /
+  `defaultCurrency` is set on the field/column, formatting is unchanged.
+
+  Fixed call sites:
+  - `@object-ui/fields`: `formatCurrency`, `formatCompactCurrency`, and
+    `CurrencyCellRenderer` no longer default-param `'USD'`.
+  - `@object-ui/i18n`: `formatCurrency()` falls back to `formatNumber`
+    semantics when `currency` is omitted.
+  - `@object-ui/plugin-grid`: column-summary formatter (`Sum: 5,000,000`
+    instead of `Sum: $5,000,000.00`).
+  - `@object-ui/plugin-detail`: header-highlight currency formatter.
+  - `@object-ui/plugin-dashboard`: `ObjectMetricWidget` inferred
+    currency now resolves to `undefined` (not `'USD'`) for un-tagged
+    fields, so `MetricWidget`'s `isCurrency` heuristic falls through
+    to plain number formatting.
+
+- d9c3bae: `RichTextField` now translates its inline hints (`Format: markdown`,
+  `Rich text editor (basic)`, `Enter text...`) instead of hardcoding
+  English. Adds `fields.richText.*` keys to the en / zh locale packs.
+
 ## 5.1.1
 
 ## 5.1.0

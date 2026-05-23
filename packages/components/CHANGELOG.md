@@ -1,5 +1,68 @@
 # @object-ui/components
 
+## 5.2.0
+
+### Minor Changes
+
+- 87bc8ff: `DataEmptyState` (re-exported as `EmptyState`) is now the canonical
+  platform primitive for "no records / no data" states. Two new props
+  keep it flexible enough to absorb the hand-rolled variants that lived
+  in `plugin-list`, `plugin-kanban`, and `plugin-dashboard`:
+  - `showIcon?: boolean` — drops the icon container entirely. Used by the
+    kanban board-level empty banner, which is a status banner rather than
+    a true empty-state.
+  - `iconWrapperClassName?: string` — overrides the default muted rounded
+    square. Pass `""` to render the icon raw (used by `ListView`'s grid
+    empty state, which uses a large standalone glyph).
+
+  Adopters:
+  - `plugin-list` (`ListView` grid empty-state) — preserves the existing
+    large icon, title, message, add-record button and `data-testid`s,
+    but delegates the structural markup to `DataEmptyState`.
+  - `plugin-kanban` (board-level "all columns empty" banner) — keeps the
+    dashed border + `role="status"` / `aria-live="polite"` semantics.
+  - `plugin-dashboard` (`PivotTable` zero-rows branch) — keeps the
+    custom 4-quad SVG icon and `pivot-empty-state` test id.
+
+  No public-API change for consumers; the older inline markup is gone
+  but the rendered output, translation keys, and test hooks are
+  preserved.
+
+- a8d12ec: `page:header` subtitle and title-format interpolation now translates
+  enum field values through the i18n option-label dictionary.
+
+  A schema like `subtitle: "{industry} · {type}"` previously rendered the
+  raw enum values (`"technology · customer"`) regardless of locale or
+  authored option labels. The interpolator now looks up the current
+  record's `objectSchema.fields` and routes each token through
+  `useSafeFieldLabel().fieldOptionLabel(...)`, so the same template
+  renders as `"科技 · 正式客户"` in zh-CN and `"Technology · Customer"`
+  in en — without authors having to write per-locale subtitle templates.
+
+  The change is transparent for tokens that resolve to non-enum field
+  values; only fields with an `options` array are remapped.
+
+### Patch Changes
+
+- Updated dependencies [de0c5e6]
+- Updated dependencies [9997cae]
+- Updated dependencies [321294c]
+- Updated dependencies [b2d1704]
+- Updated dependencies [0a644f0]
+- Updated dependencies [a3cb88f]
+- Updated dependencies [5425608]
+- Updated dependencies [3ebba63]
+- Updated dependencies [e919433]
+- Updated dependencies [70b5570]
+- Updated dependencies [aa063db]
+- Updated dependencies [d9c3bae]
+- Updated dependencies [d1442e3]
+- Updated dependencies [7c7400a]
+  - @object-ui/types@5.2.0
+  - @object-ui/core@5.2.0
+  - @object-ui/i18n@5.2.0
+  - @object-ui/react@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

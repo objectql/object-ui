@@ -1,5 +1,30 @@
 # @object-ui/plugin-aggrid
 
+## 5.2.0
+
+### Patch Changes
+
+- Updated dependencies [de0c5e6]
+- Updated dependencies [9997cae]
+- Updated dependencies [b2d1704]
+- Updated dependencies [6c3f018]
+- Updated dependencies [d912a60]
+- Updated dependencies [87bc8ff]
+- Updated dependencies [3ebba63]
+- Updated dependencies [e919433]
+- Updated dependencies [a8d12ec]
+- Updated dependencies [70b5570]
+- Updated dependencies [aa063db]
+- Updated dependencies [d9c3bae]
+- Updated dependencies [d1442e3]
+- Updated dependencies [7c7400a]
+  - @object-ui/types@5.2.0
+  - @object-ui/data-objectstack@5.2.0
+  - @object-ui/core@5.2.0
+  - @object-ui/react@5.2.0
+  - @object-ui/fields@5.2.0
+  - @object-ui/components@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

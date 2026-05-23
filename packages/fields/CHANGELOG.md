@@ -1,5 +1,88 @@
 # @object-ui/fields
 
+## 5.2.0
+
+### Patch Changes
+
+- 6c3f018: `CurrencyCellRenderer` now reads the currency code from three locations
+  in priority order: `field.currency` (legacy grid configs) →
+  `field.defaultCurrency` (canonical top-level) →
+  `field.currencyConfig.defaultCurrency` (nested shape emitted by
+  `@objectstack/spec` `Field.currency({ currencyConfig: ... })`).
+
+  Previously the renderer only checked the first two, so currency-type
+  fields defined via the canonical spec helper rendered without their
+  configured symbol. When none of the three is set, the cell still
+  gracefully degrades to a plain formatted number — never silently
+  assuming USD.
+
+- d912a60: CRM polish — denser kanban cards, smarter currency, calmer dates.
+  - **plugin-kanban card body**: drop the verbose `Label: value` two-column
+    grid in favor of a single-column dense list (values only, with the
+    field label preserved as a hover `title` for accessibility). Pipeline
+    cards across Salesforce / HubSpot / Linear all do this because the
+    value's own type carries its meaning, and the saved space lets the
+    title breathe.
+  - **fields/formatCurrency**: drop trailing `.00` when the value is a
+    whole number (Salesforce convention: `$1,234.50` keeps cents,
+    `$1,234` doesn't). Pipeline amounts like `500,000.00` now read as
+    `500,000`.
+  - **fields/formatDate** default branch: drop the year when it matches
+    the current year — `7月21日` instead of `2026年7月21日`. Past- and
+    future-year dates keep the year for disambiguation
+    (`2025年11月23日`).
+  - **fields/CurrencyCellRenderer**: removed the now-redundant
+    `.replace(/[.,]00$/, '')` workaround that hid cents for `precision:0`
+    fields; the formatter now handles whole-unit trimming natively.
+
+- e919433: Stop silently assuming USD when a currency field has no `currency`
+  configured. For non-USD orgs (e.g. a CNY-based CRM seeded without an
+  explicit currency) the cells now render as plain locale-formatted
+  numbers (`150,000.00`) instead of `$150,000.00` — which was the #1
+  "why is my RMB showing as dollars?" bug.
+
+  Behavior change is opt-in via omission: when `currency` /
+  `defaultCurrency` is set on the field/column, formatting is unchanged.
+
+  Fixed call sites:
+  - `@object-ui/fields`: `formatCurrency`, `formatCompactCurrency`, and
+    `CurrencyCellRenderer` no longer default-param `'USD'`.
+  - `@object-ui/i18n`: `formatCurrency()` falls back to `formatNumber`
+    semantics when `currency` is omitted.
+  - `@object-ui/plugin-grid`: column-summary formatter (`Sum: 5,000,000`
+    instead of `Sum: $5,000,000.00`).
+  - `@object-ui/plugin-detail`: header-highlight currency formatter.
+  - `@object-ui/plugin-dashboard`: `ObjectMetricWidget` inferred
+    currency now resolves to `undefined` (not `'USD'`) for un-tagged
+    fields, so `MetricWidget`'s `isCurrency` heuristic falls through
+    to plain number formatting.
+
+- d9c3bae: `RichTextField` now translates its inline hints (`Format: markdown`,
+  `Rich text editor (basic)`, `Enter text...`) instead of hardcoding
+  English. Adds `fields.richText.*` keys to the en / zh locale packs.
+- Updated dependencies [de0c5e6]
+- Updated dependencies [9997cae]
+- Updated dependencies [321294c]
+- Updated dependencies [b2d1704]
+- Updated dependencies [0a644f0]
+- Updated dependencies [a3cb88f]
+- Updated dependencies [5425608]
+- Updated dependencies [87bc8ff]
+- Updated dependencies [3ebba63]
+- Updated dependencies [e919433]
+- Updated dependencies [a8d12ec]
+- Updated dependencies [70b5570]
+- Updated dependencies [aa063db]
+- Updated dependencies [d9c3bae]
+- Updated dependencies [d1442e3]
+- Updated dependencies [7c7400a]
+  - @object-ui/types@5.2.0
+  - @object-ui/core@5.2.0
+  - @object-ui/i18n@5.2.0
+  - @object-ui/react@5.2.0
+  - @object-ui/components@5.2.0
+  - @object-ui/providers@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

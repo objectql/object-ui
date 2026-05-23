@@ -1,5 +1,58 @@
 # @object-ui/layout
 
+## 5.2.0
+
+### Minor Changes
+
+- e7b6eae: `NavigationRenderer` now resolves a group's initial open state with two
+  platform-aware defaults:
+  1. **`expanded` field honored.** `@objectstack/spec` `AppNavigation`
+     uses `expanded: true | false` on group items; objectui historically
+     only read `defaultOpen`. App authors who wrote `expanded: false`
+     would see no effect because the renderer silently fell back to the
+     "open unless `defaultOpen === false`" rule. Both field names now
+     resolve to the same explicit override.
+  2. **Auto-collapse long groups.** When the author has set neither
+     `expanded` nor `defaultOpen`, groups with **8 or more direct
+     children** default to collapsed. Long sidebar sections (e.g. 10+
+     reports) doubled the sidebar height and pushed siblings below the
+     fold — Slack, Linear, and Notion all default-collapse oversized
+     sections for the same reason. Short groups (typical 3–6 items) still
+     open by default.
+  3. **Active-route override.** Both heuristics are bypassed when the
+     current route lives inside the group, so users never lose visual
+     orientation to a hidden active item.
+
+### Patch Changes
+
+- b703480: feat(layout): smoother sidebar transitions
+
+  `SidebarNav` now animates the previously-instant state changes:
+  - Active-state colour swap on `SidebarMenuButton` /
+    `SidebarMenuSubButton` is wrapped in `transition-colors duration-150`
+    so navigating between rows glides rather than snaps.
+  - `CollapsibleContent` (group children) fades + slides in / out when
+    the parent group is expanded/collapsed (chevron already rotated;
+    the children now match).
+
+  All animations are gated on `motion-safe:` so users with
+  `prefers-reduced-motion` see the original instant UI.
+
+- Updated dependencies [de0c5e6]
+- Updated dependencies [9997cae]
+- Updated dependencies [b2d1704]
+- Updated dependencies [87bc8ff]
+- Updated dependencies [3ebba63]
+- Updated dependencies [a8d12ec]
+- Updated dependencies [70b5570]
+- Updated dependencies [aa063db]
+- Updated dependencies [d1442e3]
+- Updated dependencies [7c7400a]
+  - @object-ui/types@5.2.0
+  - @object-ui/core@5.2.0
+  - @object-ui/react@5.2.0
+  - @object-ui/components@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

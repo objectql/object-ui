@@ -1,5 +1,40 @@
 # @object-ui/core
 
+## 5.2.0
+
+### Minor Changes
+
+- de0c5e6: Add `DataSource.bulkDelete(resource, ids)` as the symmetric counterpart
+  to `bulkUpdate`. Implemented in `data-objectstack` via the client's
+  `deleteMany` primitive with a per-id fallback that emulates
+  `continueOnError` semantics for older clients.
+
+  Extract the bulk-vs-per-row decision into a reusable
+  `executeBulkBatch(input, ops)` helper in `@object-ui/core`:
+  - Single decision tree shared by both update and delete fast paths.
+  - Bulk success → no per-row pass.
+  - Bulk partial-count → aggregate batch error.
+  - Bulk throw → per-row fallback so users still get id-level error detail.
+
+  `useBulkExecutor` in plugin-grid now uses the helper for both `update`
+  and `delete` batches, cutting "delete 500 selected rows" from 500 HTTP
+  requests down to ~3.
+
+### Patch Changes
+
+- d1442e3: test(core): comprehensive security + correctness tests for SafeExpressionParser
+
+  Add a ~50-case suite covering literals, operators, ternary, property
+  access, calls/arrows, and a full security section (blocks
+  `constructor` / `__proto__` / `prototype` / `__defineGetter__` /
+  `__defineSetter__`, denies `eval` / `Function` / `window` / `process`,
+  rejects assignment syntax). No production code changes.
+
+- Updated dependencies [de0c5e6]
+- Updated dependencies [9997cae]
+- Updated dependencies [70b5570]
+  - @object-ui/types@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

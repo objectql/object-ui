@@ -1,5 +1,16 @@
 # Changelog
 
+## 5.2.0
+
+### Patch Changes
+
+- Updated dependencies [de0c5e6]
+- Updated dependencies [9997cae]
+- Updated dependencies [70b5570]
+- Updated dependencies [d1442e3]
+  - @object-ui/types@5.2.0
+  - @object-ui/core@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

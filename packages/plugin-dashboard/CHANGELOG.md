@@ -1,5 +1,80 @@
 # @object-ui/plugin-dashboard
 
+## 5.2.0
+
+### Patch Changes
+
+- 87bc8ff: `DataEmptyState` (re-exported as `EmptyState`) is now the canonical
+  platform primitive for "no records / no data" states. Two new props
+  keep it flexible enough to absorb the hand-rolled variants that lived
+  in `plugin-list`, `plugin-kanban`, and `plugin-dashboard`:
+  - `showIcon?: boolean` — drops the icon container entirely. Used by the
+    kanban board-level empty banner, which is a status banner rather than
+    a true empty-state.
+  - `iconWrapperClassName?: string` — overrides the default muted rounded
+    square. Pass `""` to render the icon raw (used by `ListView`'s grid
+    empty state, which uses a large standalone glyph).
+
+  Adopters:
+  - `plugin-list` (`ListView` grid empty-state) — preserves the existing
+    large icon, title, message, add-record button and `data-testid`s,
+    but delegates the structural markup to `DataEmptyState`.
+  - `plugin-kanban` (board-level "all columns empty" banner) — keeps the
+    dashed border + `role="status"` / `aria-live="polite"` semantics.
+  - `plugin-dashboard` (`PivotTable` zero-rows branch) — keeps the
+    custom 4-quad SVG icon and `pivot-empty-state` test id.
+
+  No public-API change for consumers; the older inline markup is gone
+  but the rendered output, translation keys, and test hooks are
+  preserved.
+
+- e919433: Stop silently assuming USD when a currency field has no `currency`
+  configured. For non-USD orgs (e.g. a CNY-based CRM seeded without an
+  explicit currency) the cells now render as plain locale-formatted
+  numbers (`150,000.00`) instead of `$150,000.00` — which was the #1
+  "why is my RMB showing as dollars?" bug.
+
+  Behavior change is opt-in via omission: when `currency` /
+  `defaultCurrency` is set on the field/column, formatting is unchanged.
+
+  Fixed call sites:
+  - `@object-ui/fields`: `formatCurrency`, `formatCompactCurrency`, and
+    `CurrencyCellRenderer` no longer default-param `'USD'`.
+  - `@object-ui/i18n`: `formatCurrency()` falls back to `formatNumber`
+    semantics when `currency` is omitted.
+  - `@object-ui/plugin-grid`: column-summary formatter (`Sum: 5,000,000`
+    instead of `Sum: $5,000,000.00`).
+  - `@object-ui/plugin-detail`: header-highlight currency formatter.
+  - `@object-ui/plugin-dashboard`: `ObjectMetricWidget` inferred
+    currency now resolves to `undefined` (not `'USD'`) for un-tagged
+    fields, so `MetricWidget`'s `isCurrency` heuristic falls through
+    to plain number formatting.
+
+- Updated dependencies [de0c5e6]
+- Updated dependencies [9997cae]
+- Updated dependencies [321294c]
+- Updated dependencies [b2d1704]
+- Updated dependencies [0a644f0]
+- Updated dependencies [a3cb88f]
+- Updated dependencies [5425608]
+- Updated dependencies [6c3f018]
+- Updated dependencies [d912a60]
+- Updated dependencies [87bc8ff]
+- Updated dependencies [3ebba63]
+- Updated dependencies [e919433]
+- Updated dependencies [a8d12ec]
+- Updated dependencies [70b5570]
+- Updated dependencies [aa063db]
+- Updated dependencies [d9c3bae]
+- Updated dependencies [d1442e3]
+- Updated dependencies [7c7400a]
+  - @object-ui/types@5.2.0
+  - @object-ui/core@5.2.0
+  - @object-ui/i18n@5.2.0
+  - @object-ui/react@5.2.0
+  - @object-ui/fields@5.2.0
+  - @object-ui/components@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

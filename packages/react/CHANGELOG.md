@@ -1,5 +1,86 @@
 # @object-ui/react
 
+## 5.2.0
+
+### Minor Changes
+
+- b2d1704: feat(cmdk): record search across objects in the Command Palette
+  - New `useRecordSearch` hook in `@object-ui/react` debounces a query, fans out
+    to `dataSource.find(name, { $search, $top })` across candidate objects, and
+    aggregates hits. Race-safe via a monotonic runId; per-object 404s are
+    silently dropped via `Promise.allSettled`.
+  - `CommandPalette` (`@object-ui/app-shell`) now accepts a `dataSource` prop;
+    when supplied, the palette renders a `Records` group at the top with hits
+    scoped to the active app's nav objects. Item `value` embeds the live query
+    so cmdk's client-side filter doesn't hide async results.
+  - Added `console.commandPalette.records` i18n key (`Records` / `记录`).
+
+- 3ebba63: Fix silent blank page on shorthand record deep-links.
+
+  Three related fixes that all addressed the same UX: a user follows a URL
+  shaped `/{object}/{recordId}` and sees a completely blank content area.
+  1. **`useNavigationOverlay` produced the broken URL itself.** When
+     middle-click / Cmd-click opened a gallery card in a new tab and no
+     `onNavigate` was provided, the hook built `/{object}/{id}` — a URL
+     shape that does not match any route in the console route table. The
+     builder now emits the canonical `/{object}/record/{id}`.
+  2. **Shorthand redirect for externally shared links.** Even with the
+     producer fixed, links pasted from email / Slack / older builds
+     still use the shorthand. The console now intercepts
+     `/{:objectName}/:maybeRecordId` and, when the second segment looks
+     like a record id (URL-safe slug ≥ 6 chars, not a reserved keyword),
+     redirects to `/{objectName}/record/{recordId}` preserving query and
+     hash.
+  3. **Visible 404 fallback.** Routes that match nothing at all now
+     render an explicit "Page not found" empty state with a "Go back"
+     action instead of leaving the content area blank. Silent failures
+     are now visible failures.
+
+- aa063db: `useRecordSearch` now orders hits by relevance instead of object-fanout
+  order. Tiers (higher wins):
+  - 110: exact recordId paste
+  - 100: display exactly equals the query
+  - 80: display starts with the query
+  - 60: any token in display starts with the query
+  - 40: display contains the query as a substring
+
+  This makes `⌘K → "Ada"` rank "Ada Lovelace" above "AdvancedTradingAccount"
+  even though Account is queried before Contact in the fanout.
+
+  `RecordSearchHit` gains a `score` field for callers that want to render
+  hint chips, filter low-confidence rows, or further customize ordering.
+
+- 7c7400a: feat(react): dev-mode schema validation in SchemaRenderer
+
+  `SchemaRenderer` now runs the canonical `validateSchema` from
+  `@object-ui/core` on every schema object it renders (deduped per-object
+  via a WeakSet so re-renders don't re-log). Errors are surfaced via a
+  single grouped `console.warn` that includes the offending JSON path,
+  and the host element receives `data-obj-schema-invalid="true"` so apps
+  can hook a visual cue (e.g. red outline) via CSS.
+
+  The entire pass is gated on `process.env.NODE_ENV !== 'production'`
+  and is a no-op in production builds — zero runtime cost shipped to
+  users.
+
+### Patch Changes
+
+- Updated dependencies [de0c5e6]
+- Updated dependencies [9997cae]
+- Updated dependencies [321294c]
+- Updated dependencies [b2d1704]
+- Updated dependencies [0a644f0]
+- Updated dependencies [a3cb88f]
+- Updated dependencies [5425608]
+- Updated dependencies [e919433]
+- Updated dependencies [70b5570]
+- Updated dependencies [d9c3bae]
+- Updated dependencies [d1442e3]
+  - @object-ui/types@5.2.0
+  - @object-ui/data-objectstack@5.2.0
+  - @object-ui/core@5.2.0
+  - @object-ui/i18n@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

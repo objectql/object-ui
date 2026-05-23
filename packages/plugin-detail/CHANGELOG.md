@@ -1,5 +1,138 @@
 # @object-ui/plugin-detail
 
+## 5.2.0
+
+### Minor Changes
+
+- 7c441f5: End-to-end @-mention notifications.
+
+  `@object-ui/plugin-detail` now exports `extractMentions(text, suggestions)`
+  — a small utility that resolves `@<label>` tokens in a comment body to
+  user ids, using the same suggestion list that drives the in-editor
+  dropdown. Handles labels with spaces ("@QA Test"), CJK ("@王小明"),
+  longest-match disambiguation ("Anna Lee" wins over "Anna"), and ignores
+  unknown @-tokens. 9 unit tests.
+
+  `@object-ui/app-shell` `RecordDetailView` now:
+  1. Serializes the resolved mention ids into `sys_comment.mentions`
+     (previously hard-coded `'[]'`, so servers had no idea who was being
+     pinged).
+  2. Fan-outs a `sys_notification` row per mentioned recipient
+     (self-mentions are filtered as noise) with the canonical bell-inbox
+     shape: `type: 'mention'`, `recipient_id`, `actor_name`, `title`,
+     `body` preview (≤140 chars), `source_object`/`source_id`/
+     `source_comment_id`, `is_read: false`, `created_at`.
+
+  The notification write tolerates 404 silently, so deployments without
+  a notification collection degrade to the previous behavior (mention
+  text + highlight, no inbox row). Spec-compliant servers that emit
+  notifications via their own sys_comment after-create hook can ignore
+  the client-side write — the bell de-dupes by id at the polling layer.
+
+- 70b5570: `record:path` now distinguishes won/lost terminal stages. Stages can opt
+  in via the new `terminal: 'won' | 'lost'` property on each stage entry,
+  and the renderer also falls back to a value/label heuristic (matches
+  `closed_lost`, `lost`, `failed`, `cancelled`, `失败`, `流失`, `丢单`, etc.)
+  so existing CRM-style picklists get the treatment without migration.
+  - **Lost** stages render in a visually separated group with a left
+    border, destructive (red) tint, pill shape, and `✗` glyph — mirroring
+    the Salesforce / HubSpot alt-terminus pattern that signals "this
+    breaks the forward path, not steps past it."
+  - **Won** terminus (the last stage of the forward chevron) gets a subtle
+    emerald wash + 🏆 glyph to read as "the goal," even before the record
+    reaches it.
+  - Mobile pill row distinguishes lost via color, since the layout doesn't
+    have room to fork the row.
+
+- 3216f8a: `buildDefaultPageSchema` now accepts a `slots.rightRail` override that
+  contributes nodes to the aside (right-rail) region. The aside region is
+  emitted whenever either the auto-detected reference rail OR
+  `slots.rightRail` is non-empty (previously: only when 2+ related lists
+  were declared). Slot contributions are appended after the canonical
+  `record:reference_rail` so the "related summary" stays anchored at the
+  top while plugins can drop activity feeds, workflow status cards,
+  presence lists, etc. beneath it.
+
+  No change for existing schemas — the aside region only renders if
+  something opts in.
+
+### Patch Changes
+
+- a3cb88f: CRM UX polish batch:
+  - Kanban columns: drop the per-column rainbow top stripe. Lane border + header divider are sufficient; cards are now the loudest thing on screen (Linear / HubSpot pattern).
+  - Stage chevron (`record:path`): bump completed-stage contrast (emerald-800 text on emerald-500/15, was 700 on /10) and future-stage text from `foreground/70` to `foreground/85` for legibility.
+  - i18n: add `notifications.emptyUnread`, `notifications.filterUnread`, `notifications.filterAll` (en + zh) so the InboxPopover Unread/All sub-filter renders in the active locale.
+- 5425608: CRM UX polish pass — calmer enterprise look across detail + kanban.
+  - **plugin-kanban**: column headers now use a 2px muted accent stripe with
+    neutral foreground titles + a quiet grey count pill instead of full
+    rainbow gradient + colored title + colored count. Pipeline boards
+    (Opportunity, Case, Task, Lead) look like Salesforce/Linear instead of
+    a toy. WIP-limit overflow remains destructive-red so urgency stays loud.
+  - **plugin-detail (`record:reference_rail`)**: new `hideEmpty` prop
+    (default true) collapses entries whose total === 0 into a single
+    `+ N empty (Quotes · Products …)` chip at the bottom of the rail.
+    Removes the 4–7 "No records" stack that dominated the aside.
+  - **plugin-detail (`record:path`)**: completed stages now render with an
+    emerald-tinted background + bold green check instead of low-contrast
+    `bg-muted text-muted-foreground` (which read as "light grey on white"
+    and was borderline unreadable).
+  - **app-shell (`RecordDetailView`)**: record-not-found short-circuit.
+    Previously a stale/missing recordId still rendered the page chrome
+    (rail, discussion, breadcrumb with the raw id), making invalid links
+    look like a partially broken page. Now renders a clean centered
+    `Empty` state with database icon + i18n'd "Record not found" copy.
+  - **i18n**: added `detail.showEmptyRelated_{one,other}` and
+    `empty.recordNotFound{,Description}` keys (en + zh).
+
+- 5633edd: feat(detail,grid): tab + selection motion polish
+
+  **plugin-detail**
+  - `DetailTabs` and the auto-tabs path in `DetailView` (5 inline
+    `<TabsContent>` instances: details, related, activity, discussion,
+    history) now fade in when their tab becomes active, eliminating
+    the harsh flash when switching tabs.
+
+  **plugin-grid**
+  - `BulkActionBar` slides in from the bottom + fades in when a
+    selection is made, instead of popping into existence.
+  - The "N items selected" counter re-animates on every count change
+    (re-keyed on the count value with a small `zoom-in-90`), so users
+    see clear feedback as they tick/untick rows. `tabular-nums` keeps
+    the number from jittering during the animation.
+
+  All animations are wrapped in `motion-safe:` so prefers-reduced-motion
+  users keep the original instant UI. No new deps.
+
+  **Dialog / Sheet motion audit (informational, no code change)**
+
+  Verified `packages/components/src/ui/{dialog,alert-dialog,sheet}.tsx`:
+  Dialog + AlertDialog use a consistent `duration-200`. Sheet uses an
+  asymmetric `open:500ms / close:300ms` — this is the intentional
+  shadcn upstream default ("slower open feels purposeful"). No fixes
+  needed; these primitives live in the no-touch zone anyway.
+
+- e919433: Stop silently assuming USD when a currency field has no `currency`
+  configured. For non-USD orgs (e.g. a CNY-based CRM seeded without an
+  explicit currency) the cells now render as plain locale-formatted
+  numbers (`150,000.00`) instead of `$150,000.00` — which was the #1
+  "why is my RMB showing as dollars?" bug.
+
+  Behavior change is opt-in via omission: when `currency` /
+  `defaultCurrency` is set on the field/column, formatting is unchanged.
+
+  Fixed call sites:
+  - `@object-ui/fields`: `formatCurrency`, `formatCompactCurrency`, and
+    `CurrencyCellRenderer` no longer default-param `'USD'`.
+  - `@object-ui/i18n`: `formatCurrency()` falls back to `formatNumber`
+    semantics when `currency` is omitted.
+  - `@object-ui/plugin-grid`: column-summary formatter (`Sum: 5,000,000`
+    instead of `Sum: $5,000,000.00`).
+  - `@object-ui/plugin-detail`: header-highlight currency formatter.
+  - `@object-ui/plugin-dashboard`: `ObjectMetricWidget` inferred
+    currency now resolves to `undefined` (not `'USD'`) for un-tagged
+    fields, so `MetricWidget`'s `isCurrency` heuristic falls through
+    to plain number formatting.
+
 ## 5.1.1
 
 ## 5.1.0

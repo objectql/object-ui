@@ -1,5 +1,30 @@
 # @object-ui/collaboration
 
+## 5.2.0
+
+### Minor Changes
+
+- a4a0e1d: Add `<PresenceProvider>` abstraction with `useTenantPresence()` and
+  `useRecordPresence(objectName, recordId)` hooks. The default source is a
+  no-op so hooks return `[]` until a host app wires in a realtime
+  transport (WebSocket / SSE). Replaces the two architectural TODOs in
+  `AppHeader` (tenant scope) and `RecordDetailView` (record scope) that
+  were waiting on this abstraction.
+
+  `AppHeader` now falls back to `useTenantPresence()` when the
+  `presenceUsers` prop is omitted, and `RecordDetailView` renders
+  `<PresenceAvatars>` next to the lifecycle badge when other users are
+  viewing the same record. Both code paths render exactly as before when
+  no provider is mounted, so this change is non-visual for existing
+  consumers.
+
+### Patch Changes
+
+- Updated dependencies [de0c5e6]
+- Updated dependencies [9997cae]
+- Updated dependencies [70b5570]
+  - @object-ui/types@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

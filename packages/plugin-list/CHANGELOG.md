@@ -1,5 +1,63 @@
 # @object-ui/plugin-list
 
+## 5.2.0
+
+### Minor Changes
+
+- fe63b8c: Gallery cards now prefix numeric / currency / percent fields with their
+  translated field label.
+
+  The card layout in `ObjectGallery` previously dropped every label,
+  relying on each cell renderer to be self-describing. That works for
+  status badges, phone links, email links, and dates — but for bare
+  numbers a row like `5,000,000 / 250` gives the user no clue whether
+  those are revenue, headcount, pipeline value, or close-date.
+
+  We now auto-prepend a small muted field label for the low-semantic
+  renderer types (`number`, `currency`, `percent`, `integer`, `decimal`).
+  Self-describing types are unchanged. The label is routed through the
+  i18n field-label dictionary so authored objects with translated labels
+  render consistently with the detail page.
+
+### Patch Changes
+
+- 87bc8ff: `DataEmptyState` (re-exported as `EmptyState`) is now the canonical
+  platform primitive for "no records / no data" states. Two new props
+  keep it flexible enough to absorb the hand-rolled variants that lived
+  in `plugin-list`, `plugin-kanban`, and `plugin-dashboard`:
+  - `showIcon?: boolean` — drops the icon container entirely. Used by the
+    kanban board-level empty banner, which is a status banner rather than
+    a true empty-state.
+  - `iconWrapperClassName?: string` — overrides the default muted rounded
+    square. Pass `""` to render the icon raw (used by `ListView`'s grid
+    empty state, which uses a large standalone glyph).
+
+  Adopters:
+  - `plugin-list` (`ListView` grid empty-state) — preserves the existing
+    large icon, title, message, add-record button and `data-testid`s,
+    but delegates the structural markup to `DataEmptyState`.
+  - `plugin-kanban` (board-level "all columns empty" banner) — keeps the
+    dashed border + `role="status"` / `aria-live="polite"` semantics.
+  - `plugin-dashboard` (`PivotTable` zero-rows branch) — keeps the
+    custom 4-quad SVG icon and `pivot-empty-state` test id.
+
+  No public-API change for consumers; the older inline markup is gone
+  but the rendered output, translation keys, and test hooks are
+  preserved.
+
+- 50cdefd: Gallery cards no longer render a giant gradient letter placeholder when
+  the configured `coverField` has no populated values anywhere in the
+  dataset. Previously, simply declaring `gallery.coverField` would force
+  the cover area on even when every record's image was null/empty, producing
+  oversized 200×200 "C" / "A" letter blocks that dwarfed the actual card
+  content (the Contact and Account card views in the CRM example were the
+  most visible offenders).
+
+  The configured-but-empty state now matches the unconfigured state:
+  collapse the cover area, render a compact title-plus-fields card.
+  When at least one record in the dataset has a cover image, the cover
+  area still renders for all cards so heights stay consistent.
+
 ## 5.1.1
 
 ## 5.1.0
