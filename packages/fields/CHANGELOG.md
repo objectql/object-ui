@@ -1,5 +1,16 @@
 # @object-ui/fields
 
+## 5.3.0
+
+### Patch Changes
+
+- @object-ui/types@5.3.0
+- @object-ui/core@5.3.0
+- @object-ui/i18n@5.3.0
+- @object-ui/react@5.3.0
+- @object-ui/components@5.3.0
+- @object-ui/providers@5.3.0
+
 ## 5.2.1
 
 ### Patch Changes
