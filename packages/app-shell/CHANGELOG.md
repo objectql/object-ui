@@ -1,5 +1,265 @@
 # @object-ui/app-shell — Changelog
 
+## 6.0.0
+
+### Major Changes
+
+- 54e3dfb: **Breaking change:** Remove unused stub renderers from `@object-ui/app-shell`:
+  - `ObjectRenderer` / `ObjectRendererProps`
+  - `DashboardRenderer` / `DashboardRendererProps`
+  - `PageRenderer` / `PageRendererProps`
+  - `FormRenderer` / `FormRendererProps`
+
+  These were placeholder components that never delegated to a real
+  SchemaRenderer — they rendered a "TODO" string and were not consumed
+  anywhere in the monorepo or in the official Console app. The real
+  renderers ship from the respective plugin packages:
+  - Dashboard → `@object-ui/plugin-dashboard` (`DashboardRenderer`)
+  - Page / Object / Form → `@object-ui/react` (`SchemaRenderer`) +
+    `@object-ui/plugin-form` / `@object-ui/plugin-grid` etc.
+
+  If you were importing one of the removed stubs, replace it with the
+  plugin-package equivalent.
+
+### Minor Changes
+
+- 321294c: Cmd-K now shows recently viewed records in its empty state, sourced
+  from the existing cloud-synced `sys_user_preference` adapter (already
+  wired by `RecentItemsProvider` + `useTrackRouteAsRecent` +
+  `RecordDetailView`). Multi-device by construction: open a record on
+  laptop, see it in `⌘K → Recently viewed` on phone.
+  - Group renders only when input is empty (no competition with search).
+  - Limited to the 5 most recent record-type entries.
+  - New i18n key `console.commandPalette.recentRecords` (en + zh seeded;
+    other locales fall back to `defaultValue: "Recently viewed"`).
+
+- b2d1704: feat(cmdk): record search across objects in the Command Palette
+  - New `useRecordSearch` hook in `@object-ui/react` debounces a query, fans out
+    to `dataSource.find(name, { $search, $top })` across candidate objects, and
+    aggregates hits. Race-safe via a monotonic runId; per-object 404s are
+    silently dropped via `Promise.allSettled`.
+  - `CommandPalette` (`@object-ui/app-shell`) now accepts a `dataSource` prop;
+    when supplied, the palette renders a `Records` group at the top with hits
+    scoped to the active app's nav objects. Item `value` embeds the live query
+    so cmdk's client-side filter doesn't hide async results.
+  - Added `console.commandPalette.records` i18n key (`Records` / `记录`).
+
+- 921bd28: Console now honors `App.homePageId` for the bare `/console/apps/:appName`
+  landing route. Previously it always redirected to the first reachable nav
+  item, so CRM-style apps with KPI dashboards still landed users on the
+  first object list (e.g. Leads) rather than the configured home page.
+
+  The new `resolveLandingRoute` looks up the `homePageId` nav item, builds
+  its route (object / view / page / dashboard / report), and falls back to
+  the existing `findFirstRoute` only when no `homePageId` is set or it
+  resolves to a routeless item type.
+
+- 3ebba63: Fix silent blank page on shorthand record deep-links.
+
+  Three related fixes that all addressed the same UX: a user follows a URL
+  shaped `/{object}/{recordId}` and sees a completely blank content area.
+  1. **`useNavigationOverlay` produced the broken URL itself.** When
+     middle-click / Cmd-click opened a gallery card in a new tab and no
+     `onNavigate` was provided, the hook built `/{object}/{id}` — a URL
+     shape that does not match any route in the console route table. The
+     builder now emits the canonical `/{object}/record/{id}`.
+  2. **Shorthand redirect for externally shared links.** Even with the
+     producer fixed, links pasted from email / Slack / older builds
+     still use the shorthand. The console now intercepts
+     `/{:objectName}/:maybeRecordId` and, when the second segment looks
+     like a record id (URL-safe slug ≥ 6 chars, not a reserved keyword),
+     redirects to `/{objectName}/record/{recordId}` preserving query and
+     hash.
+  3. **Visible 404 fallback.** Routes that match nothing at all now
+     render an explicit "Page not found" empty state with a "Go back"
+     action instead of leaving the content area blank. Silent failures
+     are now visible failures.
+
+- a4a0e1d: Add `<PresenceProvider>` abstraction with `useTenantPresence()` and
+  `useRecordPresence(objectName, recordId)` hooks. The default source is a
+  no-op so hooks return `[]` until a host app wires in a realtime
+  transport (WebSocket / SSE). Replaces the two architectural TODOs in
+  `AppHeader` (tenant scope) and `RecordDetailView` (record scope) that
+  were waiting on this abstraction.
+
+  `AppHeader` now falls back to `useTenantPresence()` when the
+  `presenceUsers` prop is omitted, and `RecordDetailView` renders
+  `<PresenceAvatars>` next to the lifecycle badge when other users are
+  viewing the same record. Both code paths render exactly as before when
+  no provider is mounted, so this change is non-visual for existing
+  consumers.
+
+### Patch Changes
+
+- 9997cae: DataSource: add optional `bulkUpdate(resource, ids, patch)` for "same patch, many rows" interactions (Slack "mark all as read", Linear "archive selected"). The ObjectStack adapter routes to `POST /api/v1/data/:object/updateMany` so the client pays one HTTP/auth/RLS round-trip instead of N parallel PATCHes, eliminating mark-all-read jank on inboxes with 50+ unread.
+
+  AppHeader's `markAllRead` now prefers `bulkUpdate`, with a transparent fallback to the per-id loop for adapters that don't implement the helper.
+
+- 0a644f0: feat(app-shell): CommandPalette searching indicator
+
+  When `useRecordSearch` is mid-flight (debounced fetch across objects
+  hasn't returned yet), the palette now surfaces a subtle visual:
+  - A small pulsing primary-coloured dot next to the **Records** group
+    heading, so the user sees that more results may still appear.
+  - A `Searching…` placeholder inside the empty state when the user has
+    typed something but no hits exist yet — replaces the static
+    "No results found." message until the request settles.
+
+  New i18n key `console.commandPalette.searching` (en + zh).
+
+- 5f71924: feat(app-shell): better default toast UX in ConsoleToaster
+
+  `ConsoleToaster` now ships UX-positive defaults that match the Linear
+  / Notion pattern users expect from an enterprise console:
+  - `position="top-right"` — keeps the user's primary work area (centre
+    - bottom) unobstructed.
+  - `closeButton` — every toast has an explicit X so users can dismiss
+    rather than wait the duration out.
+  - `richColors` — type-aware coloured backgrounds (success / error /
+    warning / info) so the kind of message is legible at a glance.
+  - `expand` — toast stack expands on hover so users can read multiple
+    recent toasts without dismissing.
+  - `visibleToasts={4}` — prevents the corner from being overrun.
+  - `duration: 4000` — long enough to read + click an `Undo` action.
+
+  All of these are still overridable via `<ConsoleToaster …>` props.
+
+- 5425608: CRM UX polish pass — calmer enterprise look across detail + kanban.
+  - **plugin-kanban**: column headers now use a 2px muted accent stripe with
+    neutral foreground titles + a quiet grey count pill instead of full
+    rainbow gradient + colored title + colored count. Pipeline boards
+    (Opportunity, Case, Task, Lead) look like Salesforce/Linear instead of
+    a toy. WIP-limit overflow remains destructive-red so urgency stays loud.
+  - **plugin-detail (`record:reference_rail`)**: new `hideEmpty` prop
+    (default true) collapses entries whose total === 0 into a single
+    `+ N empty (Quotes · Products …)` chip at the bottom of the rail.
+    Removes the 4–7 "No records" stack that dominated the aside.
+  - **plugin-detail (`record:path`)**: completed stages now render with an
+    emerald-tinted background + bold green check instead of low-contrast
+    `bg-muted text-muted-foreground` (which read as "light grey on white"
+    and was borderline unreadable).
+  - **app-shell (`RecordDetailView`)**: record-not-found short-circuit.
+    Previously a stale/missing recordId still rendered the page chrome
+    (rail, discussion, breadcrumb with the raw id), making invalid links
+    look like a partially broken page. Now renders a clean centered
+    `Empty` state with database icon + i18n'd "Record not found" copy.
+  - **i18n**: added `detail.showEmptyRelated_{one,other}` and
+    `empty.recordNotFound{,Description}` keys (en + zh).
+
+- 710fbe6: feat(app-shell): notification center animation polish
+
+  InboxPopover now animates every signal that matters for "noticing":
+  - Bell button **bounces once** when total pressure increases (new
+    notification or approval arrives). Tracks previous total via a ref
+    so the very first render — when the server-side counts hydrate —
+    does not trigger a spurious bounce.
+  - Bell badge **zooms in** on every count change (re-keyed on
+    `totalBadge` so each transition is an independent animation).
+  - Per-tab counter badges (Notifications / Approvals) get the same
+    zoom-in treatment on count change.
+  - Notification list rows **fade + slide in from top** with a small
+    staggered delay (capped at 6×20ms so a full list never feels
+    laggy).
+  - Activity rows mirror the same fade/slide pattern.
+  - Empty states (`You're all caught up`, `No recent activity`, `No
+pending approvals`) fade in instead of popping in.
+  - The unread dot (•) is now always rendered but fades its opacity
+    when `is_read` flips, instead of disappearing instantly — gives a
+    smooth "marked read" affordance.
+
+  All animations are wrapped in `motion-safe:` utility variants so
+  users with `prefers-reduced-motion` see the previous (instant) UI.
+  No new dependencies; reuses `tailwindcss-animate` utilities already
+  present in the design system.
+
+- 7c441f5: End-to-end @-mention notifications.
+
+  `@object-ui/plugin-detail` now exports `extractMentions(text, suggestions)`
+  — a small utility that resolves `@<label>` tokens in a comment body to
+  user ids, using the same suggestion list that drives the in-editor
+  dropdown. Handles labels with spaces ("@QA Test"), CJK ("@王小明"),
+  longest-match disambiguation ("Anna Lee" wins over "Anna"), and ignores
+  unknown @-tokens. 9 unit tests.
+
+  `@object-ui/app-shell` `RecordDetailView` now:
+  1. Serializes the resolved mention ids into `sys_comment.mentions`
+     (previously hard-coded `'[]'`, so servers had no idea who was being
+     pinged).
+  2. Fan-outs a `sys_notification` row per mentioned recipient
+     (self-mentions are filtered as noise) with the canonical bell-inbox
+     shape: `type: 'mention'`, `recipient_id`, `actor_name`, `title`,
+     `body` preview (≤140 chars), `source_object`/`source_id`/
+     `source_comment_id`, `is_read: false`, `created_at`.
+
+  The notification write tolerates 404 silently, so deployments without
+  a notification collection degrade to the previous behavior (mention
+  text + highlight, no inbox row). Spec-compliant servers that emit
+  notifications via their own sys_comment after-create hook can ignore
+  the client-side write — the bell de-dupes by id at the polling layer.
+
+- 072cad0: Always seed @-mention suggestions with the current user so the dropdown
+  appears even when the backend has no `sys_user` directory (or the fetch
+  fails). Hosts with a real user roster still get the merged list —
+  current user first, then directory entries de-duped by id.
+
+  Previously, typing `@` in the discussion comment box was a no-op on
+  example backends that don't serve `sys_user`, making the feature look
+  broken. Authors can now at minimum mention themselves; richer rosters
+  are merged in automatically when available.
+
+- Updated dependencies [de0c5e6]
+- Updated dependencies [e3160a5]
+- Updated dependencies [9997cae]
+- Updated dependencies [321294c]
+- Updated dependencies [b2d1704]
+- Updated dependencies [0a644f0]
+- Updated dependencies [a3cb88f]
+- Updated dependencies [5425608]
+- Updated dependencies [6c3f018]
+- Updated dependencies [d912a60]
+- Updated dependencies [5633edd]
+- Updated dependencies [87bc8ff]
+- Updated dependencies [3ebba63]
+- Updated dependencies [fe63b8c]
+- Updated dependencies [50cdefd]
+- Updated dependencies [77a6118]
+- Updated dependencies [7c441f5]
+- Updated dependencies [e919433]
+- Updated dependencies [a8d12ec]
+- Updated dependencies [a4a0e1d]
+- Updated dependencies [70b5570]
+- Updated dependencies [aa063db]
+- Updated dependencies [d9c3bae]
+- Updated dependencies [3216f8a]
+- Updated dependencies [d1442e3]
+- Updated dependencies [7c7400a]
+- Updated dependencies [b703480]
+- Updated dependencies [e7b6eae]
+  - @object-ui/types@6.0.0
+  - @object-ui/data-objectstack@6.0.0
+  - @object-ui/core@6.0.0
+  - @object-ui/plugin-grid@6.0.0
+  - @object-ui/i18n@6.0.0
+  - @object-ui/react@6.0.0
+  - @object-ui/plugin-kanban@6.0.0
+  - @object-ui/plugin-detail@6.0.0
+  - @object-ui/fields@6.0.0
+  - @object-ui/components@6.0.0
+  - @object-ui/plugin-list@6.0.0
+  - @object-ui/plugin-dashboard@6.0.0
+  - @object-ui/collaboration@6.0.0
+  - @object-ui/layout@6.0.0
+  - @object-ui/auth@6.0.0
+  - @object-ui/permissions@6.0.0
+  - @object-ui/plugin-calendar@6.0.0
+  - @object-ui/plugin-charts@6.0.0
+  - @object-ui/plugin-chatbot@6.0.0
+  - @object-ui/plugin-designer@6.0.0
+  - @object-ui/plugin-form@6.0.0
+  - @object-ui/plugin-report@6.0.0
+  - @object-ui/plugin-view@6.0.0
+  - @object-ui/providers@6.0.0
+
 ## 5.1.1
 
 ### Patch Changes
