@@ -1,5 +1,16 @@
 # @object-ui/plugin-workflow
 
+## 5.2.0
+
+### Patch Changes
+
+- Updated dependencies [9997cae]
+- Updated dependencies [70b5570]
+  - @object-ui/types@5.2.0
+  - @object-ui/components@5.2.0
+  - @object-ui/core@5.2.0
+  - @object-ui/react@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

@@ -1,5 +1,43 @@
 # @object-ui/plugin-grid
 
+## 5.2.0
+
+### Patch Changes
+
+- e919433: Stop silently assuming USD when a currency field has no `currency`
+  configured. For non-USD orgs (e.g. a CNY-based CRM seeded without an
+  explicit currency) the cells now render as plain locale-formatted
+  numbers (`150,000.00`) instead of `$150,000.00` — which was the #1
+  "why is my RMB showing as dollars?" bug.
+
+  Behavior change is opt-in via omission: when `currency` /
+  `defaultCurrency` is set on the field/column, formatting is unchanged.
+
+  Fixed call sites:
+  - `@object-ui/fields`: `formatCurrency`, `formatCompactCurrency`, and
+    `CurrencyCellRenderer` no longer default-param `'USD'`.
+  - `@object-ui/i18n`: `formatCurrency()` falls back to `formatNumber`
+    semantics when `currency` is omitted.
+  - `@object-ui/plugin-grid`: column-summary formatter (`Sum: 5,000,000`
+    instead of `Sum: $5,000,000.00`).
+  - `@object-ui/plugin-detail`: header-highlight currency formatter.
+  - `@object-ui/plugin-dashboard`: `ObjectMetricWidget` inferred
+    currency now resolves to `undefined` (not `'USD'`) for un-tagged
+    fields, so `MetricWidget`'s `isCurrency` heuristic falls through
+    to plain number formatting.
+
+- Updated dependencies [9997cae]
+- Updated dependencies [6c3f018]
+- Updated dependencies [d912a60]
+- Updated dependencies [e919433]
+- Updated dependencies [70b5570]
+  - @object-ui/types@5.2.0
+  - @object-ui/fields@5.2.0
+  - @object-ui/components@5.2.0
+  - @object-ui/core@5.2.0
+  - @object-ui/mobile@5.2.0
+  - @object-ui/react@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

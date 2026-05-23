@@ -1,5 +1,28 @@
 # @object-ui/types
 
+## 5.2.0
+
+### Minor Changes
+
+- 9997cae: DataSource: add optional `bulkUpdate(resource, ids, patch)` for "same patch, many rows" interactions (Slack "mark all as read", Linear "archive selected"). The ObjectStack adapter routes to `POST /api/v1/data/:object/updateMany` so the client pays one HTTP/auth/RLS round-trip instead of N parallel PATCHes, eliminating mark-all-read jank on inboxes with 50+ unread.
+
+  AppHeader's `markAllRead` now prefers `bulkUpdate`, with a transparent fallback to the per-id loop for adapters that don't implement the helper.
+
+- 70b5570: `record:path` now distinguishes won/lost terminal stages. Stages can opt
+  in via the new `terminal: 'won' | 'lost'` property on each stage entry,
+  and the renderer also falls back to a value/label heuristic (matches
+  `closed_lost`, `lost`, `failed`, `cancelled`, `失败`, `流失`, `丢单`, etc.)
+  so existing CRM-style picklists get the treatment without migration.
+  - **Lost** stages render in a visually separated group with a left
+    border, destructive (red) tint, pill shape, and `✗` glyph — mirroring
+    the Salesforce / HubSpot alt-terminus pattern that signals "this
+    breaks the forward path, not steps past it."
+  - **Won** terminus (the last stage of the forward chevron) gets a subtle
+    emerald wash + 🏆 glyph to read as "the goal," even before the record
+    reaches it.
+  - Mobile pill row distinguishes lost via color, since the layout doesn't
+    have room to fork the row.
+
 ## 5.1.1
 
 ## 5.1.0

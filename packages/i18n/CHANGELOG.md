@@ -1,5 +1,57 @@
 # @object-ui/i18n
 
+## 5.2.0
+
+### Patch Changes
+
+- a3cb88f: CRM UX polish batch:
+  - Kanban columns: drop the per-column rainbow top stripe. Lane border + header divider are sufficient; cards are now the loudest thing on screen (Linear / HubSpot pattern).
+  - Stage chevron (`record:path`): bump completed-stage contrast (emerald-800 text on emerald-500/15, was 700 on /10) and future-stage text from `foreground/70` to `foreground/85` for legibility.
+  - i18n: add `notifications.emptyUnread`, `notifications.filterUnread`, `notifications.filterAll` (en + zh) so the InboxPopover Unread/All sub-filter renders in the active locale.
+- 5425608: CRM UX polish pass — calmer enterprise look across detail + kanban.
+  - **plugin-kanban**: column headers now use a 2px muted accent stripe with
+    neutral foreground titles + a quiet grey count pill instead of full
+    rainbow gradient + colored title + colored count. Pipeline boards
+    (Opportunity, Case, Task, Lead) look like Salesforce/Linear instead of
+    a toy. WIP-limit overflow remains destructive-red so urgency stays loud.
+  - **plugin-detail (`record:reference_rail`)**: new `hideEmpty` prop
+    (default true) collapses entries whose total === 0 into a single
+    `+ N empty (Quotes · Products …)` chip at the bottom of the rail.
+    Removes the 4–7 "No records" stack that dominated the aside.
+  - **plugin-detail (`record:path`)**: completed stages now render with an
+    emerald-tinted background + bold green check instead of low-contrast
+    `bg-muted text-muted-foreground` (which read as "light grey on white"
+    and was borderline unreadable).
+  - **app-shell (`RecordDetailView`)**: record-not-found short-circuit.
+    Previously a stale/missing recordId still rendered the page chrome
+    (rail, discussion, breadcrumb with the raw id), making invalid links
+    look like a partially broken page. Now renders a clean centered
+    `Empty` state with database icon + i18n'd "Record not found" copy.
+  - **i18n**: added `detail.showEmptyRelated_{one,other}` and
+    `empty.recordNotFound{,Description}` keys (en + zh).
+
+- e919433: Stop silently assuming USD when a currency field has no `currency`
+  configured. For non-USD orgs (e.g. a CNY-based CRM seeded without an
+  explicit currency) the cells now render as plain locale-formatted
+  numbers (`150,000.00`) instead of `$150,000.00` — which was the #1
+  "why is my RMB showing as dollars?" bug.
+
+  Behavior change is opt-in via omission: when `currency` /
+  `defaultCurrency` is set on the field/column, formatting is unchanged.
+
+  Fixed call sites:
+  - `@object-ui/fields`: `formatCurrency`, `formatCompactCurrency`, and
+    `CurrencyCellRenderer` no longer default-param `'USD'`.
+  - `@object-ui/i18n`: `formatCurrency()` falls back to `formatNumber`
+    semantics when `currency` is omitted.
+  - `@object-ui/plugin-grid`: column-summary formatter (`Sum: 5,000,000`
+    instead of `Sum: $5,000,000.00`).
+  - `@object-ui/plugin-detail`: header-highlight currency formatter.
+  - `@object-ui/plugin-dashboard`: `ObjectMetricWidget` inferred
+    currency now resolves to `undefined` (not `'USD'`) for un-tagged
+    fields, so `MetricWidget`'s `isCurrency` heuristic falls through
+    to plain number formatting.
+
 ## 5.1.1
 
 ## 5.1.0

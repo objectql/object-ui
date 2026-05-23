@@ -1,5 +1,19 @@
 # @object-ui/components
 
+## 5.2.0
+
+### Patch Changes
+
+- Updated dependencies [9997cae]
+- Updated dependencies [a3cb88f]
+- Updated dependencies [5425608]
+- Updated dependencies [e919433]
+- Updated dependencies [70b5570]
+  - @object-ui/types@5.2.0
+  - @object-ui/i18n@5.2.0
+  - @object-ui/core@5.2.0
+  - @object-ui/react@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

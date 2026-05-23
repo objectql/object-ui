@@ -1,5 +1,13 @@
 # @object-ui/permissions
 
+## 5.2.0
+
+### Patch Changes
+
+- Updated dependencies [9997cae]
+- Updated dependencies [70b5570]
+  - @object-ui/types@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

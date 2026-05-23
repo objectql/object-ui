@@ -1,5 +1,70 @@
 # @object-ui/plugin-kanban
 
+## 5.2.0
+
+### Patch Changes
+
+- a3cb88f: CRM UX polish batch:
+  - Kanban columns: drop the per-column rainbow top stripe. Lane border + header divider are sufficient; cards are now the loudest thing on screen (Linear / HubSpot pattern).
+  - Stage chevron (`record:path`): bump completed-stage contrast (emerald-800 text on emerald-500/15, was 700 on /10) and future-stage text from `foreground/70` to `foreground/85` for legibility.
+  - i18n: add `notifications.emptyUnread`, `notifications.filterUnread`, `notifications.filterAll` (en + zh) so the InboxPopover Unread/All sub-filter renders in the active locale.
+- 5425608: CRM UX polish pass — calmer enterprise look across detail + kanban.
+  - **plugin-kanban**: column headers now use a 2px muted accent stripe with
+    neutral foreground titles + a quiet grey count pill instead of full
+    rainbow gradient + colored title + colored count. Pipeline boards
+    (Opportunity, Case, Task, Lead) look like Salesforce/Linear instead of
+    a toy. WIP-limit overflow remains destructive-red so urgency stays loud.
+  - **plugin-detail (`record:reference_rail`)**: new `hideEmpty` prop
+    (default true) collapses entries whose total === 0 into a single
+    `+ N empty (Quotes · Products …)` chip at the bottom of the rail.
+    Removes the 4–7 "No records" stack that dominated the aside.
+  - **plugin-detail (`record:path`)**: completed stages now render with an
+    emerald-tinted background + bold green check instead of low-contrast
+    `bg-muted text-muted-foreground` (which read as "light grey on white"
+    and was borderline unreadable).
+  - **app-shell (`RecordDetailView`)**: record-not-found short-circuit.
+    Previously a stale/missing recordId still rendered the page chrome
+    (rail, discussion, breadcrumb with the raw id), making invalid links
+    look like a partially broken page. Now renders a clean centered
+    `Empty` state with database icon + i18n'd "Record not found" copy.
+  - **i18n**: added `detail.showEmptyRelated_{one,other}` and
+    `empty.recordNotFound{,Description}` keys (en + zh).
+
+- d912a60: CRM polish — denser kanban cards, smarter currency, calmer dates.
+  - **plugin-kanban card body**: drop the verbose `Label: value` two-column
+    grid in favor of a single-column dense list (values only, with the
+    field label preserved as a hover `title` for accessibility). Pipeline
+    cards across Salesforce / HubSpot / Linear all do this because the
+    value's own type carries its meaning, and the saved space lets the
+    title breathe.
+  - **fields/formatCurrency**: drop trailing `.00` when the value is a
+    whole number (Salesforce convention: `$1,234.50` keeps cents,
+    `$1,234` doesn't). Pipeline amounts like `500,000.00` now read as
+    `500,000`.
+  - **fields/formatDate** default branch: drop the year when it matches
+    the current year — `7月21日` instead of `2026年7月21日`. Past- and
+    future-year dates keep the year for disambiguation
+    (`2025年11月23日`).
+  - **fields/CurrencyCellRenderer**: removed the now-redundant
+    `.replace(/[.,]00$/, '')` workaround that hid cents for `precision:0`
+    fields; the formatter now handles whole-unit trimming natively.
+
+- Updated dependencies [9997cae]
+- Updated dependencies [a3cb88f]
+- Updated dependencies [5425608]
+- Updated dependencies [6c3f018]
+- Updated dependencies [d912a60]
+- Updated dependencies [7c441f5]
+- Updated dependencies [e919433]
+- Updated dependencies [70b5570]
+  - @object-ui/types@5.2.0
+  - @object-ui/plugin-detail@5.2.0
+  - @object-ui/i18n@5.2.0
+  - @object-ui/fields@5.2.0
+  - @object-ui/components@5.2.0
+  - @object-ui/core@5.2.0
+  - @object-ui/react@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes

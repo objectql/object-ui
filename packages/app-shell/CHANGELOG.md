@@ -1,5 +1,103 @@
 # @object-ui/app-shell — Changelog
 
+## 5.2.0
+
+### Minor Changes
+
+- 921bd28: Console now honors `App.homePageId` for the bare `/console/apps/:appName`
+  landing route. Previously it always redirected to the first reachable nav
+  item, so CRM-style apps with KPI dashboards still landed users on the
+  first object list (e.g. Leads) rather than the configured home page.
+
+  The new `resolveLandingRoute` looks up the `homePageId` nav item, builds
+  its route (object / view / page / dashboard / report), and falls back to
+  the existing `findFirstRoute` only when no `homePageId` is set or it
+  resolves to a routeless item type.
+
+### Patch Changes
+
+- 9997cae: DataSource: add optional `bulkUpdate(resource, ids, patch)` for "same patch, many rows" interactions (Slack "mark all as read", Linear "archive selected"). The ObjectStack adapter routes to `POST /api/v1/data/:object/updateMany` so the client pays one HTTP/auth/RLS round-trip instead of N parallel PATCHes, eliminating mark-all-read jank on inboxes with 50+ unread.
+
+  AppHeader's `markAllRead` now prefers `bulkUpdate`, with a transparent fallback to the per-id loop for adapters that don't implement the helper.
+
+- 5425608: CRM UX polish pass — calmer enterprise look across detail + kanban.
+  - **plugin-kanban**: column headers now use a 2px muted accent stripe with
+    neutral foreground titles + a quiet grey count pill instead of full
+    rainbow gradient + colored title + colored count. Pipeline boards
+    (Opportunity, Case, Task, Lead) look like Salesforce/Linear instead of
+    a toy. WIP-limit overflow remains destructive-red so urgency stays loud.
+  - **plugin-detail (`record:reference_rail`)**: new `hideEmpty` prop
+    (default true) collapses entries whose total === 0 into a single
+    `+ N empty (Quotes · Products …)` chip at the bottom of the rail.
+    Removes the 4–7 "No records" stack that dominated the aside.
+  - **plugin-detail (`record:path`)**: completed stages now render with an
+    emerald-tinted background + bold green check instead of low-contrast
+    `bg-muted text-muted-foreground` (which read as "light grey on white"
+    and was borderline unreadable).
+  - **app-shell (`RecordDetailView`)**: record-not-found short-circuit.
+    Previously a stale/missing recordId still rendered the page chrome
+    (rail, discussion, breadcrumb with the raw id), making invalid links
+    look like a partially broken page. Now renders a clean centered
+    `Empty` state with database icon + i18n'd "Record not found" copy.
+  - **i18n**: added `detail.showEmptyRelated_{one,other}` and
+    `empty.recordNotFound{,Description}` keys (en + zh).
+
+- 7c441f5: End-to-end @-mention notifications.
+
+  `@object-ui/plugin-detail` now exports `extractMentions(text, suggestions)`
+  — a small utility that resolves `@<label>` tokens in a comment body to
+  user ids, using the same suggestion list that drives the in-editor
+  dropdown. Handles labels with spaces ("@QA Test"), CJK ("@王小明"),
+  longest-match disambiguation ("Anna Lee" wins over "Anna"), and ignores
+  unknown @-tokens. 9 unit tests.
+
+  `@object-ui/app-shell` `RecordDetailView` now:
+  1. Serializes the resolved mention ids into `sys_comment.mentions`
+     (previously hard-coded `'[]'`, so servers had no idea who was being
+     pinged).
+  2. Fan-outs a `sys_notification` row per mentioned recipient
+     (self-mentions are filtered as noise) with the canonical bell-inbox
+     shape: `type: 'mention'`, `recipient_id`, `actor_name`, `title`,
+     `body` preview (≤140 chars), `source_object`/`source_id`/
+     `source_comment_id`, `is_read: false`, `created_at`.
+
+  The notification write tolerates 404 silently, so deployments without
+  a notification collection degrade to the previous behavior (mention
+  text + highlight, no inbox row). Spec-compliant servers that emit
+  notifications via their own sys_comment after-create hook can ignore
+  the client-side write — the bell de-dupes by id at the polling layer.
+
+- 072cad0: Always seed @-mention suggestions with the current user so the dropdown
+  appears even when the backend has no `sys_user` directory (or the fetch
+  fails). Hosts with a real user roster still get the merged list —
+  current user first, then directory entries de-duped by id.
+
+  Previously, typing `@` in the discussion comment box was a no-op on
+  example backends that don't serve `sys_user`, making the feature look
+  broken. Authors can now at minimum mention themselves; richer rosters
+  are merged in automatically when available.
+
+- Updated dependencies [9997cae]
+- Updated dependencies [a3cb88f]
+- Updated dependencies [5425608]
+- Updated dependencies [6c3f018]
+- Updated dependencies [d912a60]
+- Updated dependencies [e919433]
+- Updated dependencies [70b5570]
+- Updated dependencies [e7b6eae]
+  - @object-ui/types@5.2.0
+  - @object-ui/data-objectstack@5.2.0
+  - @object-ui/i18n@5.2.0
+  - @object-ui/fields@5.2.0
+  - @object-ui/layout@5.2.0
+  - @object-ui/auth@5.2.0
+  - @object-ui/collaboration@5.2.0
+  - @object-ui/components@5.2.0
+  - @object-ui/core@5.2.0
+  - @object-ui/permissions@5.2.0
+  - @object-ui/providers@5.2.0
+  - @object-ui/react@5.2.0
+
 ## 5.1.1
 
 ### Patch Changes
