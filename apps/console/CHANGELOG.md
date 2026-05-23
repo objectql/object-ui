@@ -1,5 +1,51 @@
 # @object-ui/console
 
+## 5.3.1
+
+### Patch Changes
+
+- 9c95649: Make the published Console SPA path-portable. Build with relative Vite
+  base (`./`) and derive the React Router basename from `document.baseURI`
+  at runtime, so the same `dist/` works at any mount path (`/_console/`,
+  `/console/`, `/foo/bar/`). Hosts should inject `<base href="/path/">`
+  into the served HTML — the framework CLI does this automatically.
+- c351c96: Fix self-host blank page: clear `VITE_SERVER_URL` in `.env.production`
+  so the published SPA defaults to same-origin instead of baking in
+  `https://demo.objectstack.ai`. CORS-blocked auth/i18n/discovery calls
+  were preventing the SPA from rendering when embedded in any host other
+  than the demo deployment. Demo-only deployments now inject
+  `VITE_SERVER_URL` at deploy time.
+  - @object-ui/types@5.3.1
+  - @object-ui/core@5.3.1
+  - @object-ui/i18n@5.3.1
+  - @object-ui/react@5.3.1
+  - @object-ui/components@5.3.1
+  - @object-ui/fields@5.3.1
+  - @object-ui/layout@5.3.1
+  - @object-ui/data-objectstack@5.3.1
+  - @object-ui/auth@5.3.1
+  - @object-ui/permissions@5.3.1
+  - @object-ui/mobile@5.3.1
+  - @object-ui/plugin-calendar@5.3.1
+  - @object-ui/plugin-charts@5.3.1
+  - @object-ui/plugin-chatbot@5.3.1
+  - @object-ui/plugin-dashboard@5.3.1
+  - @object-ui/plugin-designer@5.3.1
+  - @object-ui/plugin-detail@5.3.1
+  - @object-ui/plugin-form@5.3.1
+  - @object-ui/plugin-gantt@5.3.1
+  - @object-ui/plugin-grid@5.3.1
+  - @object-ui/plugin-kanban@5.3.1
+  - @object-ui/plugin-list@5.3.1
+  - @object-ui/plugin-map@5.3.1
+  - @object-ui/plugin-markdown@5.3.1
+  - @object-ui/plugin-report@5.3.1
+  - @object-ui/plugin-timeline@5.3.1
+  - @object-ui/plugin-view@5.3.1
+  - @object-ui/collaboration@5.3.1
+  - @object-ui/app-shell@5.3.1
+  - @object-ui/providers@5.3.1
+
 ## 5.3.0
 
 ### Minor Changes
