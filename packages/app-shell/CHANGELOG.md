@@ -1,5 +1,36 @@
 # @object-ui/app-shell — Changelog
 
+## 5.2.1
+
+### Patch Changes
+
+- 9ccda28: security: force DOMPurify to `^3.4.5` via pnpm override
+
+  Resolves 8 moderate-severity GHSA advisories against the transitive
+  `dompurify@3.2.7` pulled in by `monaco-editor`. Vulnerabilities covered:
+  - SAFE_FOR_TEMPLATES bypass in RETURN_DOM mode
+  - FORBID_TAGS bypassed by function-based ADD_TAGS predicate
+  - Prototype Pollution to XSS via CUSTOM_ELEMENT_HANDLING fallback
+  - ADD_TAGS function-form short-circuit bypass of FORBID_TAGS
+  - ADD_ATTR predicate skipping URI validation
+  - USE_PROFILES prototype pollution enabling event handlers
+  - mutation-XSS via Re-Contextualization
+  - Generic XSS vector
+
+  No API changes; override is transparent to consumers.
+  - @object-ui/types@5.2.1
+  - @object-ui/core@5.2.1
+  - @object-ui/i18n@5.2.1
+  - @object-ui/react@5.2.1
+  - @object-ui/components@5.2.1
+  - @object-ui/fields@5.2.1
+  - @object-ui/layout@5.2.1
+  - @object-ui/data-objectstack@5.2.1
+  - @object-ui/auth@5.2.1
+  - @object-ui/permissions@5.2.1
+  - @object-ui/collaboration@5.2.1
+  - @object-ui/providers@5.2.1
+
 ## 5.2.0
 
 ### Minor Changes

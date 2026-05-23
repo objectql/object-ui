@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-dashboard",
-  "version": "5.2.0",
+  "version": "5.2.1",
   "type": "module",
   "license": "MIT",
   "description": "Dashboard plugin for Object UI",

@@ -1,5 +1,11 @@
 # @object-ui/providers — Changelog
 
+## 5.2.1
+
+### Patch Changes
+
+- @object-ui/types@5.2.1
+
 ## 5.2.0
 
 ### Patch Changes
