@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-view",
-  "version": "5.3.2",
+  "version": "5.4.0",
   "type": "module",
   "license": "MIT",
   "description": "Object View plugin for Object UI",
