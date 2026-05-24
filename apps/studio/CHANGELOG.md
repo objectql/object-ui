@@ -1,5 +1,11 @@
 # @objectstack/studio
 
+## 5.3.2
+
+### Patch Changes
+
+- b9b396c: release
+
 ## Unreleased
 
 ### Studio UX overhaul
@@ -14,13 +20,13 @@ introduced the first real **metadata-as-code write loop**.
   project-relative paths under a `src/` directory with `.ts/.tsx/.json`
   extensions; rejects path traversal, absolute paths, existing files
   (unless `mode: 'overwrite'`). Only registered when `isDev === true`.
-    - `GET  /_studio/api/metadata/layout`         — resolves on-disk srcRoot.
-    - `POST /_studio/api/metadata/file`           — write whole new file.
-    - `POST /_studio/api/metadata/field-patch`    — ts-morph powered
-      surgery on a single field inside `ObjectSchema.create({...})` /
-      `defineObject({...})`. Handles `Field.X({...})` and
-      `Field.lookup('rel', {...})` shapes; treats `null` / `''` / `false`
-      as "remove this property" so source stays minimal.
+  - `GET  /_studio/api/metadata/layout` — resolves on-disk srcRoot.
+  - `POST /_studio/api/metadata/file` — write whole new file.
+  - `POST /_studio/api/metadata/field-patch` — ts-morph powered
+    surgery on a single field inside `ObjectSchema.create({...})` /
+    `defineObject({...})`. Handles `Field.X({...})` and
+    `Field.lookup('rel', {...})` shapes; treats `null` / `''` / `false`
+    as "remove this property" so source stays minimal.
 - **"Create file" button** in `CreateMetadataDialog`: clicking now
   scaffolds a real file on disk and lets HMR reload the runtime.
   `Copy snippet` remains as a fallback for production hosts.
@@ -85,7 +91,6 @@ introduced the first real **metadata-as-code write loop**.
   from releasing them. The CLI (`@objectstack/cli`) resolves these packages from
   `node_modules/@objectstack/{account,console,studio}` to serve their built `dist`
   assets, so third-party projects could not consume them via `pnpm add`.
-
   - Removed `private: true` from `apps/account` and `apps/console`.
   - Added `publishConfig.access: public` to `account`, `console`, and `studio` for
     scoped-package publish safety.
@@ -104,7 +109,6 @@ introduced the first real **metadata-as-code write loop**.
 
 - e15885f: Fix multiple live-preview rendering bugs surfaced by end-to-end browser
   verification:
-
   - **Grid empty render** – `@object-ui/plugin-grid` serialises `sort:[{field,order}]`
     into a space-delimited `$orderby` string which `@object-ui/data-objectstack`
     then iterates with `Object.entries()` (character indices), producing
@@ -130,7 +134,6 @@ introduced the first real **metadata-as-code write loop**.
   Previously `view + timeline` and `dashboard` metadata fell through to the
   "Unsupported" JSON inspector. They now render against the same live
   DataSource as the rest of Studio:
-
   - **TimelinePreview** — vertical chronological list grouped by date,
     honouring `timeline.{startDateField, endDateField, titleField,
 groupByField, colorField}`. Status-coloured dots, start→end ranges.
@@ -179,7 +182,6 @@ groupByField, colorField}`. Status-coloured dots, start→end ranges.
 ### Patch Changes
 
 - 3a99239: Metadata HMR via SSE — close the agent-edits → preview-refresh loop.
-
   - `@objectstack/metadata`: register `/api/v1/dev/metadata-events` SSE endpoint unconditionally;
     add `POST` trigger that reloads the artifact and broadcasts a `reload` event to all listeners.
   - `@objectstack/cli` (`os dev`): chokidar-based watch on `objectstack.config.ts` and `src/`;
@@ -191,7 +193,6 @@ groupByField, colorField}`. Status-coloured dots, start→end ranges.
 - bab9bb8: fix
 - 14f5cde: Studio: wire form previews to the **real running backend** instead of the
   hand-rolled disabled-input mockup.
-
   - New `LiveFormPreview` component renders `<ObjectForm>` from `@object-ui/plugin-form`
     against the live `DataSource`, with a Create / Edit / Read-only mode toggle and a
     record picker (top 10 most-recent records via `dataSource.find`) for Edit mode.
@@ -251,7 +252,6 @@ groupByField, colorField}`. Status-coloured dots, start→end ranges.
 ### Patch Changes
 
 - 5326c6b: Studio developer UX overhaul.
-
   - **Inspector drawer** (right Sheet, toggle via header button or `]`) with API / Source / Refs tabs that auto-populate from the current resource detail page.
   - **Problems panel** (status bar pill + `[`) that subscribes to object/view/flow/hook changes and surfaces unknown object refs, missing field refs, and broken triggers with deep-links back to source.
   - **Keyboard shortcuts**: `g o|f|v|a|s|p` navigation, `[` problems, `]` inspector, `?` help dialog.
@@ -466,7 +466,6 @@ groupByField, colorField}`. Status-coloured dots, start→end ranges.
 ### Minor Changes
 
 - Add collapsible right-side AI Chat floating panel (VS Code Copilot Chat style).
-
   - New `AiChatPanel` component: fixed right-side panel with 48px collapsed edge
     button and 380px expanded view. Supports stream chat via Vercel AI SDK
     `useChat` hook connected to `/api/v1/ai/chat`.
@@ -486,7 +485,6 @@ groupByField, colorField}`. Status-coloured dots, start→end ranges.
   at the project root, but `vercel.json` sets `outputDirectory: "dist"` — causing
   Vercel to never find the function entrypoint and fall back to the SPA HTML route
   for all `/api/*` requests.
-
   - Change esbuild `outfile` from `api/index.js` to `dist/api/index.js` so the
     bundled serverless function lands inside the Vercel output directory.
   - Add explicit `functions` config in `vercel.json` pointing to `api/index.js`
@@ -525,7 +523,6 @@ groupByField, colorField}`. Status-coloured dots, start→end ranges.
 ### Fixes
 
 - **Vercel deployment: Fix `functions` pattern validation error**
-
   - The `functions` key in `vercel.json` referenced `api/index.js` — a build artifact created by
     `bundle-api.mjs` — which does not exist in the source tree. Vercel CLI validates patterns against
     source files before the build runs, producing the error:
