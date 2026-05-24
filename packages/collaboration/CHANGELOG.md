@@ -1,5 +1,12 @@
 # @object-ui/collaboration
 
+## 5.4.0
+
+### Patch Changes
+
+- Updated dependencies [3a8c754]
+  - @object-ui/types@5.4.0
+
 ## 5.3.2
 
 ### Patch Changes
