@@ -27,7 +27,7 @@ importers:
         version: 10.0.1(eslint@10.4.0(jiti@2.7.0))
       '@objectstack/cli':
         specifier: ^5.2.0
-        version: 5.2.0(@ai-sdk/anthropic@3.0.69(zod@4.4.3))(@ai-sdk/google@3.0.63(zod@4.4.3))(@ai-sdk/openai@3.0.52(zod@4.4.3))(@better-auth/core@1.6.11(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@4.4.3))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@objectstack/core@5.2.0(ai@6.0.191(zod@4.4.3)))(@opentelemetry/api@1.9.1)(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(ai@6.0.191(zod@4.4.3))(better-call@1.3.5(zod@4.4.3))(better-sqlite3@12.9.0)(i18next@26.2.0(typescript@6.0.3))(mongodb@7.2.0)(next@16.2.6(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react-grid-layout@2.2.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-is@19.2.6)(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(tailwindcss@4.3.0)(typescript@6.0.3)(vitest@4.1.7)
+        version: 5.2.0(@ai-sdk/anthropic@3.0.69(zod@4.4.3))(@ai-sdk/google@3.0.63(zod@4.4.3))(@ai-sdk/openai@3.0.52(zod@4.4.3))(@better-auth/core@1.6.11(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@4.4.3))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@objectstack/core@6.5.1(ai@6.0.191(zod@4.4.3)))(@opentelemetry/api@1.9.1)(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(ai@6.0.191(zod@4.4.3))(better-call@1.3.5(zod@4.4.3))(better-sqlite3@12.9.0)(i18next@26.2.0(typescript@6.0.3))(mongodb@7.2.0)(next@16.2.6(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react-grid-layout@2.2.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-is@19.2.6)(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(tailwindcss@4.3.0)(typescript@6.0.3)(vitest@4.1.7)
       '@objectstack/spec':
         specifier: ^5.2.0
         version: 5.2.0(ai@6.0.191(zod@4.4.3))
@@ -350,11 +350,11 @@ importers:
   apps/dev-server:
     dependencies:
       '@objectstack/account':
-        specifier: ^5.2.0
-        version: 5.2.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(ai@6.0.191(zod@4.4.3))(typescript@6.0.3)
+        specifier: ^6.5.1
+        version: 6.5.1(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(ai@6.0.191(zod@4.4.3))(typescript@6.0.3)
       '@objectstack/cli':
         specifier: ^5.2.0
-        version: 5.2.0(@ai-sdk/anthropic@3.0.69(zod@4.4.3))(@ai-sdk/google@3.0.63(zod@4.4.3))(@ai-sdk/openai@3.0.52(zod@4.4.3))(@better-auth/core@1.6.11(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@4.4.3))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@objectstack/core@5.2.0(ai@6.0.191(zod@4.4.3)))(@opentelemetry/api@1.9.1)(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(ai@6.0.191(zod@4.4.3))(better-call@1.3.5(zod@4.4.3))(better-sqlite3@12.9.0)(i18next@26.2.0(typescript@6.0.3))(mongodb@7.2.0)(next@16.2.6(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react-grid-layout@2.2.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-is@19.2.6)(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(tailwindcss@4.3.0)(typescript@6.0.3)(vitest@4.1.7)
+        version: 5.2.0(@ai-sdk/anthropic@3.0.69(zod@4.4.3))(@ai-sdk/google@3.0.63(zod@4.4.3))(@ai-sdk/openai@3.0.52(zod@4.4.3))(@better-auth/core@1.6.11(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@4.4.3))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@objectstack/core@6.5.1(ai@6.0.191(zod@4.4.3)))(@opentelemetry/api@1.9.1)(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(ai@6.0.191(zod@4.4.3))(better-call@1.3.5(zod@4.4.3))(better-sqlite3@12.9.0)(i18next@26.2.0(typescript@6.0.3))(mongodb@7.2.0)(next@16.2.6(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react-grid-layout@2.2.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-is@19.2.6)(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(tailwindcss@4.3.0)(typescript@6.0.3)(vitest@4.1.7)
       '@objectstack/driver-memory':
         specifier: ^5.2.0
         version: 5.2.0(ai@6.0.191(zod@4.4.3))
@@ -4640,6 +4640,11 @@ packages:
     peerDependencies:
       react: 19.2.6
 
+  '@object-ui/i18n@6.0.3':
+    resolution: {integrity: sha512-fVPmJXg51bAX9ATWTvNaaEoWlQZx2BsV0+tSgnVHBIAWMPSVysoxbrbZcsukFyLQ6OiqKa1nEpqhXc5HTaI26g==}
+    peerDependencies:
+      react: 19.2.6
+
   '@object-ui/layout@5.3.1':
     resolution: {integrity: sha512-5ctDC7A4wqr9T9td43WOl9e3oiJccDU1rQoKaikkku5fOsckQPgmz4ntr1q15A2q596BwlFLxs373zRMlHpsag==}
     peerDependencies:
@@ -4784,8 +4789,8 @@ packages:
   '@object-ui/types@5.3.1':
     resolution: {integrity: sha512-2krZF5mwKIk95ph83tR28HkOVkqPgUSq8dMJOj2bagJR2zqHuRbE7kaiH8Kauo+5jpZtoAxco1xg5E3dxBw7Pg==}
 
-  '@objectstack/account@5.2.0':
-    resolution: {integrity: sha512-9AxbhgPriTQT4SGETM3Xd6wl0MfOc5xKSTSHza/nW/5JnvOxrNviNB3v5CSsWaza7cDX9EueIV16yWowoEGzyg==}
+  '@objectstack/account@6.5.1':
+    resolution: {integrity: sha512-jrQ8fSzNKzfAPBKQV8tQMXf1m+9FfqyVNTejxL4yBdV72ck3iOBwYNNvmS5JtkBijZcAIgwR7RcuW52Ez0rdUQ==}
 
   '@objectstack/cli@5.2.0':
     resolution: {integrity: sha512-tkpGM7BqFmaAsbA8bAlzp3hNHJFsZgdMHVl3iQ7Io9jaI8q6xA214Z9bgIredUNTIO9sQBASo3YcNl+aDF/DRw==}
@@ -4800,6 +4805,12 @@ packages:
     peerDependencies:
       react: 19.2.6
 
+  '@objectstack/client-react@6.5.1':
+    resolution: {integrity: sha512-UHHsR4eJOjOY/k6qs+cAqE7ZdSak+HbMTUJL6xGqzzksB4nqsDrT/rHkzINJAw+E3J403EnlGLW/vz0Ii40cow==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      react: 19.2.6
+
   '@objectstack/client@4.2.0':
     resolution: {integrity: sha512-/Gyq+hRqXJ/7p0oIU85rQYOoMdD1/6q5mK+MgtunvMmylDF14l8B/sTBLLOvmmXiodQ5yMBqi3dnr8pFMW9UYg==}
     engines: {node: '>=18.0.0'}
@@ -4808,12 +4819,20 @@ packages:
     resolution: {integrity: sha512-JccZxVFXRncDjhp01d3nV0fEumwqfCuR6debRvk8XbKi8KXNEZ6fkP7mzo6M/B1RvS5vEMsah6PNCtypaKyGag==}
     engines: {node: '>=18.0.0'}
 
+  '@objectstack/client@6.5.1':
+    resolution: {integrity: sha512-lfNYW61M2i+BkE+kQAXGCO4Cmd2GugFJBAU5+EWGFgoVkRPxRMl5sKNtzQl5OPSrY1qokptuG1EC+ZxDlFJjWA==}
+    engines: {node: '>=18.0.0'}
+
   '@objectstack/core@4.2.0':
     resolution: {integrity: sha512-HEvDrPIs3kRwe5Ymvq0B07PXksmIB5eB0tMaWsODULBbGKagj5oksAIovBZ3n9EzlXVnY8c/H9roomTyaK+6Ow==}
     engines: {node: '>=18.0.0'}
 
   '@objectstack/core@5.2.0':
     resolution: {integrity: sha512-ys/cFMlbkjv52SXxOapJk1wvuKnMnjLeNAJia+kWabJitfz4fegNffUrecSokTMDKQj/KSd5ICaUt38AdeapCA==}
+    engines: {node: '>=18.0.0'}
+
+  '@objectstack/core@6.5.1':
+    resolution: {integrity: sha512-9IEAmm8DIX4LKIHXPBqD7NlGZXJA9gHDRKHTcWjZciVRqHw5FOsOQc6mODOULbfZBvQy2N9ww42qztCeizHNqw==}
     engines: {node: '>=18.0.0'}
 
   '@objectstack/driver-memory@5.2.0':
@@ -4996,6 +5015,15 @@ packages:
 
   '@objectstack/spec@5.2.0':
     resolution: {integrity: sha512-sQWLFK/sjjuVM8X/M7z1L+d4fNAI3FNmp5E4tplS8Nd1mgOawyXHRc/ixkSzR+j6S1Qekxn0BzSF121ndBWeGw==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      ai: ^6.0.0
+    peerDependenciesMeta:
+      ai:
+        optional: true
+
+  '@objectstack/spec@6.5.1':
+    resolution: {integrity: sha512-uUdbJ3TjCeX5nRit8R0a97YxczdwUkhdt98vA7Biohky3Sl6UeRzDTP6T9bF+FJTxJ6eEWRcRT7VKPhsR3o4rg==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       ai: ^6.0.0
@@ -6582,13 +6610,6 @@ packages:
       '@tanstack/router-core':
         optional: true
 
-  '@tanstack/react-router@1.170.7':
-    resolution: {integrity: sha512-4Q8M8Q9sGobhyt72yW+vxzUOSPfrCAHwjPOCb7+ocReQnFQ37t9Qh4RNG4+7zsFQ4tW9C8LpllRe49aK2RYy2Q==}
-    engines: {node: '>=20.19'}
-    peerDependencies:
-      react: 19.2.6
-      react-dom: 19.2.6
-
   '@tanstack/react-router@1.170.8':
     resolution: {integrity: sha512-Qw2ju6jjnIsMpuW+VrnHZWHuugqs592PWsnI56sG28qNhg14CgRLahOcNajfuJR9P4MxKGP94WVzmFKSYUz/ig==}
     engines: {node: '>=20.19'}
@@ -6607,10 +6628,6 @@ packages:
     peerDependencies:
       react: 19.2.6
       react-dom: 19.2.6
-
-  '@tanstack/router-core@1.171.5':
-    resolution: {integrity: sha512-BfilbQqqWiQwJn68cD8wmk1ajEWIO3IlEA1zVuWslWbiVc23CDn+6ACO5tfPAcc96ED37hxela5ij3VBvAtusw==}
-    engines: {node: '>=20.19'}
 
   '@tanstack/router-core@1.171.6':
     resolution: {integrity: sha512-Ol6DQ+j6rf/rPVELIzo8LHwOQV2KL+zry3b+39kL/GKrt7YId52WJRAFMzuseY4XceSW+PU7sG/Cc1QkwJr0hg==}
@@ -11535,12 +11552,6 @@ packages:
       '@types/react':
         optional: true
 
-  react-resizable-panels@4.11.1:
-    resolution: {integrity: sha512-kA4w58V6wYdRLm2rg9pzroZwGlqBLul1FjMP0J8kqTo3zSHtjeH+LXmZaldCo6+HWqs1e5hOcPoajKXdOze37Q==}
-    peerDependencies:
-      react: 19.2.6
-      react-dom: 19.2.6
-
   react-resizable-panels@4.11.2:
     resolution: {integrity: sha512-+kfFbDZ8mygc7g0vxOcDzCVGuwiIUOnILqPoUHo6/uP+Mmyx6HzZU+kj1aOPDlktXuobYbr6BtQekvJwHRX4Eg==}
     peerDependencies:
@@ -15327,6 +15338,16 @@ snapshots:
       - react-native
       - typescript
 
+  '@object-ui/i18n@6.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)':
+    dependencies:
+      i18next: 26.2.0(typescript@6.0.3)
+      react: 19.2.6
+      react-i18next: 17.0.8(i18next@26.2.0(typescript@6.0.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
+    transitivePeerDependencies:
+      - react-dom
+      - react-native
+      - typescript
+
   '@object-ui/layout@5.3.1(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(ai@6.0.191(zod@4.4.3))(react-dom@19.2.6(react@19.2.6))(react-is@19.2.6)(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(tailwindcss@4.3.0)(typescript@6.0.3)':
     dependencies:
       '@dnd-kit/core': 6.3.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -15761,12 +15782,12 @@ snapshots:
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/account@5.2.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(ai@6.0.191(zod@4.4.3))(typescript@6.0.3)':
+  '@objectstack/account@6.5.1(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(ai@6.0.191(zod@4.4.3))(typescript@6.0.3)':
     dependencies:
-      '@object-ui/i18n': 5.3.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
-      '@objectstack/client': 5.2.0(ai@6.0.191(zod@4.4.3))
-      '@objectstack/client-react': 5.2.0(ai@6.0.191(zod@4.4.3))(react@19.2.6)
-      '@objectstack/spec': 5.2.0(ai@6.0.191(zod@4.4.3))
+      '@object-ui/i18n': 6.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
+      '@objectstack/client': 6.5.1(ai@6.0.191(zod@4.4.3))
+      '@objectstack/client-react': 6.5.1(ai@6.0.191(zod@4.4.3))(react@19.2.6)
+      '@objectstack/spec': 6.5.1(ai@6.0.191(zod@4.4.3))
       '@radix-ui/react-avatar': 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@radix-ui/react-checkbox': 1.3.3(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@radix-ui/react-collapsible': 1.1.12(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -15781,13 +15802,13 @@ snapshots:
       '@radix-ui/react-tabs': 1.1.13(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@radix-ui/react-toast': 1.2.15(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@radix-ui/react-tooltip': 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@tanstack/react-router': 1.170.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@tanstack/react-router': 1.170.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       class-variance-authority: 0.7.1
       clsx: 2.1.1
       lucide-react: 1.16.0(react@19.2.6)
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
-      react-resizable-panels: 4.11.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react-resizable-panels: 4.11.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       tailwind-merge: 3.6.0
     transitivePeerDependencies:
       - '@types/react'
@@ -15796,12 +15817,12 @@ snapshots:
       - react-native
       - typescript
 
-  '@objectstack/cli@5.2.0(@ai-sdk/anthropic@3.0.69(zod@4.4.3))(@ai-sdk/google@3.0.63(zod@4.4.3))(@ai-sdk/openai@3.0.52(zod@4.4.3))(@better-auth/core@1.6.11(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@4.4.3))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@objectstack/core@5.2.0(ai@6.0.191(zod@4.4.3)))(@opentelemetry/api@1.9.1)(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(ai@6.0.191(zod@4.4.3))(better-call@1.3.5(zod@4.4.3))(better-sqlite3@12.9.0)(i18next@26.2.0(typescript@6.0.3))(mongodb@7.2.0)(next@16.2.6(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react-grid-layout@2.2.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-is@19.2.6)(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(tailwindcss@4.3.0)(typescript@6.0.3)(vitest@4.1.7)':
+  '@objectstack/cli@5.2.0(@ai-sdk/anthropic@3.0.69(zod@4.4.3))(@ai-sdk/google@3.0.63(zod@4.4.3))(@ai-sdk/openai@3.0.52(zod@4.4.3))(@better-auth/core@1.6.11(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@4.4.3))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@objectstack/core@6.5.1(ai@6.0.191(zod@4.4.3)))(@opentelemetry/api@1.9.1)(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(ai@6.0.191(zod@4.4.3))(better-call@1.3.5(zod@4.4.3))(better-sqlite3@12.9.0)(i18next@26.2.0(typescript@6.0.3))(mongodb@7.2.0)(next@16.2.6(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react-grid-layout@2.2.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-is@19.2.6)(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(tailwindcss@4.3.0)(typescript@6.0.3)(vitest@4.1.7)':
     dependencies:
       '@ai-sdk/gateway': 3.0.120(zod@4.4.3)
       '@object-ui/console': 5.3.1(@opentelemetry/api@1.9.1)(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(ai@6.0.191(zod@4.4.3))(better-sqlite3@12.9.0)(i18next@26.2.0(typescript@6.0.3))(mongodb@7.2.0)(next@16.2.6(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react-grid-layout@2.2.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-is@19.2.6)(react-router-dom@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(tailwindcss@4.3.0)(typescript@6.0.3)(vitest@4.1.7)(zod@4.4.3)
       '@objectstack/client': 5.2.0(ai@6.0.191(zod@4.4.3))
-      '@objectstack/core': 5.2.0(ai@6.0.191(zod@4.4.3))
+      '@objectstack/core': 6.5.1(ai@6.0.191(zod@4.4.3))
       '@objectstack/driver-memory': 5.2.0(ai@6.0.191(zod@4.4.3))
       '@objectstack/driver-mongodb': 5.2.0(ai@6.0.191(zod@4.4.3))
       '@objectstack/driver-sql': 5.2.0(ai@6.0.191(zod@4.4.3))(better-sqlite3@12.9.0)
@@ -15911,6 +15932,15 @@ snapshots:
     transitivePeerDependencies:
       - ai
 
+  '@objectstack/client-react@6.5.1(ai@6.0.191(zod@4.4.3))(react@19.2.6)':
+    dependencies:
+      '@objectstack/client': 6.5.1(ai@6.0.191(zod@4.4.3))
+      '@objectstack/core': 6.5.1(ai@6.0.191(zod@4.4.3))
+      '@objectstack/spec': 6.5.1(ai@6.0.191(zod@4.4.3))
+      react: 19.2.6
+    transitivePeerDependencies:
+      - ai
+
   '@objectstack/client@4.2.0(ai@6.0.191(zod@4.4.3))':
     dependencies:
       '@objectstack/core': 4.2.0(ai@6.0.191(zod@4.4.3))
@@ -15925,6 +15955,13 @@ snapshots:
     transitivePeerDependencies:
       - ai
 
+  '@objectstack/client@6.5.1(ai@6.0.191(zod@4.4.3))':
+    dependencies:
+      '@objectstack/core': 6.5.1(ai@6.0.191(zod@4.4.3))
+      '@objectstack/spec': 6.5.1(ai@6.0.191(zod@4.4.3))
+    transitivePeerDependencies:
+      - ai
+
   '@objectstack/core@4.2.0(ai@6.0.191(zod@4.4.3))':
     dependencies:
       '@objectstack/spec': 4.2.0(ai@6.0.191(zod@4.4.3))
@@ -15935,6 +15972,13 @@ snapshots:
   '@objectstack/core@5.2.0(ai@6.0.191(zod@4.4.3))':
     dependencies:
       '@objectstack/spec': 5.2.0(ai@6.0.191(zod@4.4.3))
+      zod: 4.4.3
+    transitivePeerDependencies:
+      - ai
+
+  '@objectstack/core@6.5.1(ai@6.0.191(zod@4.4.3))':
+    dependencies:
+      '@objectstack/spec': 6.5.1(ai@6.0.191(zod@4.4.3))
       zod: 4.4.3
     transitivePeerDependencies:
       - ai
@@ -16344,6 +16388,12 @@ snapshots:
       ai: 6.0.191(zod@4.4.3)
 
   '@objectstack/spec@5.2.0(ai@6.0.191(zod@4.4.3))':
+    dependencies:
+      zod: 4.4.3
+    optionalDependencies:
+      ai: 6.0.191(zod@4.4.3)
+
+  '@objectstack/spec@6.5.1(ai@6.0.191(zod@4.4.3))':
     dependencies:
       zod: 4.4.3
     optionalDependencies:
@@ -17981,15 +18031,6 @@ snapshots:
     transitivePeerDependencies:
       - csstype
 
-  '@tanstack/react-router@1.170.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
-    dependencies:
-      '@tanstack/history': 1.162.0
-      '@tanstack/react-store': 0.9.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@tanstack/router-core': 1.171.5
-      isbot: 5.1.40
-      react: 19.2.6
-      react-dom: 19.2.6(react@19.2.6)
-
   '@tanstack/react-router@1.170.8(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
       '@tanstack/history': 1.162.0
@@ -18011,13 +18052,6 @@ snapshots:
       '@tanstack/virtual-core': 3.15.0
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
-
-  '@tanstack/router-core@1.171.5':
-    dependencies:
-      '@tanstack/history': 1.162.0
-      cookie-es: 3.1.1
-      seroval: 1.5.4
-      seroval-plugins: 1.5.4(seroval@1.5.4)
 
   '@tanstack/router-core@1.171.6':
     dependencies:
@@ -23791,11 +23825,6 @@ snapshots:
       use-sidecar: 1.1.3(@types/react@19.2.15)(react@19.2.6)
     optionalDependencies:
       '@types/react': 19.2.15
-
-  react-resizable-panels@4.11.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
-    dependencies:
-      react: 19.2.6
-      react-dom: 19.2.6(react@19.2.6)
 
   react-resizable-panels@4.11.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
     dependencies:

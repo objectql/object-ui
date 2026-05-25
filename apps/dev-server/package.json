@@ -12,7 +12,7 @@
     "validate": "objectstack validate"
   },
   "dependencies": {
-    "@objectstack/account": "^5.2.0",
+    "@objectstack/account": "^6.5.1",
     "@objectstack/cli": "^5.2.0",
     "@objectstack/driver-memory": "^5.2.0",
     "@objectstack/metadata": "^5.2.0",
