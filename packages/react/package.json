@@ -35,7 +35,7 @@
     "@object-ui/i18n": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@objectstack/spec": "^5.2.0",
-    "react-hook-form": "^7.76.0"
+    "react-hook-form": "^7.76.1"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
