@@ -1,5 +1,23 @@
 # @object-ui/app-shell — Changelog
 
+## 5.4.2
+
+### Patch Changes
+
+- 3efeecf: ai
+  - @object-ui/types@5.4.2
+  - @object-ui/core@5.4.2
+  - @object-ui/i18n@5.4.2
+  - @object-ui/react@5.4.2
+  - @object-ui/components@5.4.2
+  - @object-ui/fields@5.4.2
+  - @object-ui/layout@5.4.2
+  - @object-ui/data-objectstack@5.4.2
+  - @object-ui/auth@5.4.2
+  - @object-ui/permissions@5.4.2
+  - @object-ui/collaboration@5.4.2
+  - @object-ui/providers@5.4.2
+
 ## 5.4.1
 
 ### Patch Changes
