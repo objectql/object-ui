@@ -15,7 +15,7 @@
     "@objectstack/account": "^5.2.0",
     "@objectstack/cli": "^5.2.0",
     "@objectstack/driver-memory": "^5.2.0",
-    "@objectstack/metadata": "^5.2.0",
+    "@objectstack/metadata": "^6.5.1",
     "@objectstack/objectql": "^5.2.0",
     "@objectstack/runtime": "^5.2.0",
     "@objectstack/spec": "^5.2.0"
