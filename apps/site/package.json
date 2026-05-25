@@ -29,7 +29,7 @@
     "@object-ui/plugin-view": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "fumadocs-core": "16.8.11",
+    "fumadocs-core": "16.9.1",
     "fumadocs-mdx": "15.0.8",
     "fumadocs-ui": "16.8.11",
     "lucide-react": "^1.16.0",
