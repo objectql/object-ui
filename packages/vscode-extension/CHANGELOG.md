@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.5.0
+
+### Patch Changes
+
+- @object-ui/types@5.5.0
+- @object-ui/core@5.5.0
+
 ## 5.4.2
 
 ### Patch Changes

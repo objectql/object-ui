@@ -1,5 +1,18 @@
 # @object-ui/plugin-designer
 
+## 5.5.0
+
+### Patch Changes
+
+- @object-ui/types@5.5.0
+- @object-ui/core@5.5.0
+- @object-ui/i18n@5.5.0
+- @object-ui/react@5.5.0
+- @object-ui/components@5.5.0
+- @object-ui/fields@5.5.0
+- @object-ui/plugin-form@5.5.0
+- @object-ui/plugin-grid@5.5.0
+
 ## 5.4.2
 
 ### Patch Changes
