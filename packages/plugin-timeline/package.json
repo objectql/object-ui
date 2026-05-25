@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-timeline",
-  "version": "5.4.0",
+  "version": "5.4.1",
   "type": "module",
   "license": "MIT",
   "description": "Timeline component plugin for Object UI",
