@@ -1,5 +1,28 @@
 # @object-ui/app-shell — Changelog
 
+## 6.0.3
+
+### Patch Changes
+
+- 58f0af6: Fix marketplace install dialog showing "No environments found" even when the
+  signed-in user has cloud environments. Cloud's data API returns rows under
+  `records`, not `data`/`items`; the dialog now reads the correct key. As a
+  hardening pass, also filter `sys_member` rows by the caller's session
+  `user_id` so a leaky data endpoint cannot widen the install target list to
+  other tenants' organizations.
+  - @object-ui/types@6.0.3
+  - @object-ui/core@6.0.3
+  - @object-ui/i18n@6.0.3
+  - @object-ui/react@6.0.3
+  - @object-ui/components@6.0.3
+  - @object-ui/fields@6.0.3
+  - @object-ui/layout@6.0.3
+  - @object-ui/data-objectstack@6.0.3
+  - @object-ui/auth@6.0.3
+  - @object-ui/permissions@6.0.3
+  - @object-ui/collaboration@6.0.3
+  - @object-ui/providers@6.0.3
+
 ## 6.0.2
 
 ### Patch Changes

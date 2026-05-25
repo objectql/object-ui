@@ -1,5 +1,11 @@
 # @object-ui/core
 
+## 6.0.3
+
+### Patch Changes
+
+- @object-ui/types@6.0.3
+
 ## 6.0.2
 
 ### Patch Changes
