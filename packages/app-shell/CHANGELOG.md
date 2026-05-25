@@ -1,5 +1,27 @@
 # @object-ui/app-shell — Changelog
 
+## 6.0.4
+
+### Patch Changes
+
+- 76e73fe: Gate App Marketplace pages by `useIsWorkspaceAdmin()`. Non-admin members of
+  the active organization can no longer load the marketplace catalog, package
+  detail, or installed-apps pages — they get an "admin-only" empty state
+  instead. The marketplace nav link in the sidebar was already gated; this
+  closes the direct-URL gap.
+  - @object-ui/types@6.0.4
+  - @object-ui/core@6.0.4
+  - @object-ui/i18n@6.0.4
+  - @object-ui/react@6.0.4
+  - @object-ui/components@6.0.4
+  - @object-ui/fields@6.0.4
+  - @object-ui/layout@6.0.4
+  - @object-ui/data-objectstack@6.0.4
+  - @object-ui/auth@6.0.4
+  - @object-ui/permissions@6.0.4
+  - @object-ui/collaboration@6.0.4
+  - @object-ui/providers@6.0.4
+
 ## 6.0.3
 
 ### Patch Changes

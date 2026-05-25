@@ -1,5 +1,16 @@
 # @object-ui/plugin-gantt
 
+## 6.0.4
+
+### Patch Changes
+
+- @object-ui/types@6.0.4
+- @object-ui/core@6.0.4
+- @object-ui/react@6.0.4
+- @object-ui/components@6.0.4
+- @object-ui/fields@6.0.4
+- @object-ui/plugin-detail@6.0.4
+
 ## 6.0.3
 
 ### Patch Changes

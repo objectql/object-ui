@@ -1,5 +1,7 @@
 # @object-ui/plugin-list
 
+## 6.0.4
+
 ## 6.0.3
 
 ## 6.0.2

@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-kanban",
-  "version": "6.0.3",
+  "version": "6.0.4",
   "type": "module",
   "license": "MIT",
   "description": "Kanban board plugin for Object UI, powered by dnd-kit",

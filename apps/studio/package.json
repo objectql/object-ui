@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/studio",
-  "version": "6.0.3",
+  "version": "6.0.4",
   "description": "ObjectStack Studio — metadata-driven designer for ObjectStack applications. Published from the objectstack-ai/objectui monorepo.",
   "license": "Apache-2.0",
   "type": "module",
