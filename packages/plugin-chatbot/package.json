@@ -46,7 +46,7 @@
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.1",
     "remark-gfm": "^4.0.1",
-    "shiki": "^4.0.2",
+    "shiki": "^4.1.0",
     "streamdown": "^1.4.1",
     "use-stick-to-bottom": "^1.1.1"
   },
