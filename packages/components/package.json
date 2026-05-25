@@ -104,7 +104,7 @@
     "storybook": "^8.6.18",
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
-    "vite": "^8.0.13",
+    "vite": "^8.0.14",
     "vite-plugin-dts": "^5.0.0"
   },
   "keywords": [
