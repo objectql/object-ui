@@ -1,5 +1,14 @@
 # @object-ui/react
 
+## 6.0.2
+
+### Patch Changes
+
+- @object-ui/types@6.0.2
+- @object-ui/core@6.0.2
+- @object-ui/i18n@6.0.2
+- @object-ui/data-objectstack@6.0.2
+
 ## 6.0.1
 
 ### Patch Changes

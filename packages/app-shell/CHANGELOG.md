@@ -1,5 +1,30 @@
 # @object-ui/app-shell — Changelog
 
+## 6.0.2
+
+### Patch Changes
+
+- d0e63f1: Migrate AI chat history from localStorage to the server-backed
+  `ai_conversations` / `ai_messages` REST API. The studio `AiChatPanel`,
+  the console `ConsoleFloatingChatbot`, and any other consumer of the new
+  `useChatConversation` hook (in `@object-ui/app-shell`) now resolve a
+  durable conversation id per signed-in user, hydrate prior messages on
+  mount, and rotate the conversation on reset. The previous
+  `objectstack:ai-chat-messages` localStorage entries are no longer read
+  or written.
+  - @object-ui/types@6.0.2
+  - @object-ui/core@6.0.2
+  - @object-ui/i18n@6.0.2
+  - @object-ui/react@6.0.2
+  - @object-ui/components@6.0.2
+  - @object-ui/fields@6.0.2
+  - @object-ui/layout@6.0.2
+  - @object-ui/data-objectstack@6.0.2
+  - @object-ui/auth@6.0.2
+  - @object-ui/permissions@6.0.2
+  - @object-ui/collaboration@6.0.2
+  - @object-ui/providers@6.0.2
+
 ## 6.0.1
 
 ### Patch Changes

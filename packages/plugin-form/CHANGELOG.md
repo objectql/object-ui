@@ -1,5 +1,16 @@
 # @object-ui/plugin-form
 
+## 6.0.2
+
+### Patch Changes
+
+- @object-ui/types@6.0.2
+- @object-ui/core@6.0.2
+- @object-ui/react@6.0.2
+- @object-ui/components@6.0.2
+- @object-ui/fields@6.0.2
+- @object-ui/permissions@6.0.2
+
 ## 6.0.1
 
 ### Patch Changes
