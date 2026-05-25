@@ -42,13 +42,13 @@
     "react-dom": "^18.0.0"
   },
   "devDependencies": {
-    "@types/node": "^25.9.0",
-    "@types/react": "19.2.14",
+    "@types/node": "^25.9.1",
+    "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "vite": "^8.0.14",
-    "vite-plugin-dts": "^5.0.0",
-    "vitest": "^4.1.6"
+    "vite-plugin-dts": "^5.0.1",
+    "vitest": "^4.1.7"
   },
   "description": "Report plugin for Object UI — schema-driven pivot tables, grouped aggregations and printable report layouts",
   "keywords": [
