@@ -45,7 +45,7 @@
     "@object-ui/plugin-timeline": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/client": "^5.2.0",
+    "@objectstack/client": "^6.5.1",
     "@objectstack/client-react": "^5.2.0",
     "@objectstack/spec": "^5.2.0",
     "@playwright/test": "^1.60.0",
