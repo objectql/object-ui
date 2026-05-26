@@ -1,5 +1,33 @@
 # @object-ui/app-shell — Changelog
 
+## 6.2.0
+
+### Minor Changes
+
+- ca685ab: Add ChatGPT-style AI chat history surface at `/ai` and `/ai/:conversationId`.
+  - New `DefaultAiChatPage` with conversations sidebar (list, create, select, delete) and chat pane on the right.
+  - New `ConversationsSidebar` component and `useConversationList` hook for listing and managing `ai_conversations`.
+  - `useChatConversation` now accepts an optional `activeId` to hydrate a specific conversation (bypassing the localStorage cache), and guards against duplicate conversation creation when sibling state (e.g. selected agent / scope) changes during the same visit.
+  - Deleting the active conversation navigates back to `/ai` so the URL doesn't reference a stale id.
+  - Auto-title new conversations from the first user message (truncated to 40 chars) via `PATCH /api/v1/ai/conversations/:id`; resumed conversations are left alone.
+  - Manual rename in the sidebar: pencil icon opens an inline editor with optimistic update and rollback on server error.
+  - Client-side search input filters the sidebar by title/preview substring.
+
+### Patch Changes
+
+- @object-ui/types@6.2.0
+- @object-ui/core@6.2.0
+- @object-ui/i18n@6.2.0
+- @object-ui/react@6.2.0
+- @object-ui/components@6.2.0
+- @object-ui/fields@6.2.0
+- @object-ui/layout@6.2.0
+- @object-ui/data-objectstack@6.2.0
+- @object-ui/auth@6.2.0
+- @object-ui/permissions@6.2.0
+- @object-ui/collaboration@6.2.0
+- @object-ui/providers@6.2.0
+
 ## 6.1.0
 
 ### Patch Changes
