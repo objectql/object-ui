@@ -1,5 +1,12 @@
 # @object-ui/tenant
 
+## 6.1.0
+
+### Patch Changes
+
+- Updated dependencies [991b62d]
+  - @object-ui/types@6.1.0
+
 ## 6.0.4
 
 ### Patch Changes

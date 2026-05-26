@@ -1,5 +1,15 @@
 # @object-ui/plugin-ai
 
+## 6.1.0
+
+### Patch Changes
+
+- Updated dependencies [991b62d]
+  - @object-ui/core@6.1.0
+  - @object-ui/types@6.1.0
+  - @object-ui/components@6.1.0
+  - @object-ui/react@6.1.0
+
 ## 6.0.4
 
 ### Patch Changes
