@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-editor",
-  "version": "6.2.0",
+  "version": "6.2.1",
   "type": "module",
   "license": "MIT",
   "description": "Rich text editor plugin for Object UI, powered by Monaco Editor",

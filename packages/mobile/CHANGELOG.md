@@ -1,5 +1,11 @@
 # @object-ui/mobile
 
+## 6.2.1
+
+### Patch Changes
+
+- @object-ui/types@6.2.1
+
 ## 6.2.0
 
 ### Patch Changes

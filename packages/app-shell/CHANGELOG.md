@@ -1,5 +1,24 @@
 # @object-ui/app-shell — Changelog
 
+## 6.2.1
+
+### Patch Changes
+
+- bc269b0: fix
+  - @object-ui/types@6.2.1
+  - @object-ui/core@6.2.1
+  - @object-ui/i18n@6.2.1
+  - @object-ui/react@6.2.1
+  - @object-ui/components@6.2.1
+  - @object-ui/fields@6.2.1
+  - @object-ui/layout@6.2.1
+  - @object-ui/data-objectstack@6.2.1
+  - @object-ui/auth@6.2.1
+  - @object-ui/permissions@6.2.1
+  - @object-ui/plugin-editor@6.2.1
+  - @object-ui/collaboration@6.2.1
+  - @object-ui/providers@6.2.1
+
 ## 6.2.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-grid",
-  "version": "6.2.0",
+  "version": "6.2.1",
   "type": "module",
   "license": "MIT",
   "description": "Grid plugin for Object UI",
