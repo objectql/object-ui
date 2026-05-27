@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/app-shell",
-  "version": "6.1.0",
+  "version": "6.2.0",
   "type": "module",
   "license": "MIT",
   "description": "Minimal application shell for ObjectUI - framework-agnostic rendering engine",
@@ -34,7 +34,7 @@
     "@object-ui/auth": "workspace:*",
     "@object-ui/collaboration": "workspace:*",
     "@object-ui/components": "workspace:*",
-		"@object-ui/plugin-editor": "workspace:*",
+    "@object-ui/plugin-editor": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/data-objectstack": "workspace:*",
     "@object-ui/fields": "workspace:*",

@@ -1,5 +1,16 @@
 # @object-ui/plugin-view
 
+## 6.2.0
+
+### Patch Changes
+
+- @object-ui/plugin-form@6.2.0
+- @object-ui/plugin-grid@6.2.0
+- @object-ui/react@6.2.0
+- @object-ui/components@6.2.0
+- @object-ui/types@6.2.0
+- @object-ui/core@6.2.0
+
 ## 6.1.0
 
 ### Patch Changes

@@ -1,5 +1,102 @@
 # @object-ui/plugin-designer
 
+## 6.2.0
+
+### Minor Changes
+
+- fe3c1d3: Metadata Admin engine — unified UI for all 27 metadata types.
+
+  A generic, schema-driven admin shell that replaces the old per-type
+  bespoke pages with a single registry-driven engine. Admins can now browse,
+  create, override, diff, and roll back every registered metadata type from
+  the Setup app → _All Metadata Types_.
+
+  ### New: `@object-ui/app-shell` views/metadata-admin
+  - **`MetadataDirectoryPage`** — auto-grouped tile directory by domain, with
+    free-text search, domain chips, and a _Writable only_ filter.
+  - **`MetadataResourceListPage` / `MetadataResourceEditPage` / `…CreatePage` / `…HistoryPage`** —
+    generic CRUD shell. Uses the new `/meta/types` schema field to render
+    SchemaForm; uses `?layers=code,overlay,effective` to power a 3-state diff
+    tab; uses `/references` to warn before destructive deletes.
+  - **`MetadataQuickFind`** — Cmd+Shift+M palette searching across types and
+    items.
+  - **`PermissionMatrixEditor`** — Salesforce-style matrix custom editor for
+    `type=permission`. Objects × CRUD/VAMA/lifecycle columns with cascade
+    rules (viewAllRecords ⟹ allowRead, etc.), expandable per-object field
+    R/W subtable, bulk-set (R / CRUD / All / None), filter, _only granted_
+    toggle, destructive-change confirmation, profile switch.
+  - **`DesignerEditorWrapper`** — generic load–edit–save shell that hosts any
+    bespoke designer (`ObjectViewConfigurator`, `DashboardEditor`,
+    `PageCanvasEditor`, …). Handles dirty tracking, Save / Reset / Refresh /
+    History buttons, and the read-only fallback when `allowOrgOverride` is
+    false.
+  - **`i18n.ts`** — bilingual (`en-US`, `zh-CN`) bundle for built-in type
+    labels, domain labels, and engine UI strings, with `detectLocale()` and a
+    `t(key)` helper.
+
+  ### New routing variant
+  - App nav now supports `{ type: 'component', componentRef, params? }` items.
+    `AppContent` resolves them through the existing `ComponentRegistry`.
+  - Built-in components registered: `metadata:directory`, `metadata:resource`,
+    `metadata:object/edit` (FieldsPage), `metadata:permission/edit`
+    (PermissionMatrixEditor), and lazy designer wrappers for view / dashboard
+    / page.
+
+  ### Plugin-designer
+  - Lazy-exported `ObjectManager`, `FieldDesigner`, `ObjectViewConfigurator`,
+    `DashboardEditor`, `PageCanvasEditor`, `MetadataObjectsPage`, and
+    `MetadataFieldsPage` so the engine can mount them on demand.
+
+  The temporary `/dev/meta` route is removed. Setup app navigation flows
+  through the new component routes.
+
+- ec8dcde: Add visual editing for object & field metadata in the Setup app.
+
+  **`@object-ui/data-objectstack`** — new `MetadataClient` class. A thin,
+  auth-friendly wrapper over the framework's `/api/v1/meta/*` REST
+  endpoints (list / get / save / reset / history), with first-class
+  support for `If-Match` (optimistic concurrency), `X-Actor` (audit
+  attribution), environment-scoped paths
+  (`/environments/:id/meta/*`), and 404-as-null semantics. Use
+  `new MetadataClient({ baseUrl })` or `client.withEnvironment(id)` to
+  target a specific environment.
+
+  **`@object-ui/plugin-designer`** — two new route-ready pages that
+  together close the "Data Model" management loop in the Setup app:
+  - `MetadataObjectsPage` — lists every object schema (via
+    `MetadataClient.list('object')`), renders the existing
+    `ObjectManager`, and persists edits/deletes through PUT/DELETE on
+    the metadata REST surface. Honours `allowRuntimeCreate` and
+    surfaces server errors verbatim.
+  - `MetadataFieldsPage` — for a single object, loads the parent
+    schema, projects `fields` into the existing `FieldDesigner`, and
+    on save merges the edited field map back into the object before
+    issuing a single PUT. Preserves unknown per-field attributes so
+    nothing the designer doesn't render is dropped.
+
+  Both pages take either a pre-built `MetadataClient` or a
+  `MetadataClientConfig`; neither imposes a routing convention on the
+  host app — they can be mounted anywhere (e.g.
+  `/apps/setup/_meta/object` and `/apps/setup/_meta/object/:name/fields`).
+
+  These additions do not modify the underlying `ObjectManager` /
+  `FieldDesigner` components, which remain pure controlled-input
+  components usable in non-REST contexts.
+
+### Patch Changes
+
+- Updated dependencies [fe3c1d3]
+- Updated dependencies [ec8dcde]
+  - @object-ui/data-objectstack@6.2.0
+  - @object-ui/plugin-form@6.2.0
+  - @object-ui/plugin-grid@6.2.0
+  - @object-ui/react@6.2.0
+  - @object-ui/components@6.2.0
+  - @object-ui/fields@6.2.0
+  - @object-ui/types@6.2.0
+  - @object-ui/core@6.2.0
+  - @object-ui/i18n@6.2.0
+
 ## 6.1.0
 
 ### Patch Changes

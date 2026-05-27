@@ -1,5 +1,115 @@
 # @object-ui/app-shell — Changelog
 
+## 6.2.0
+
+### Minor Changes
+
+- fe3c1d3: Metadata Admin engine — unified UI for all 27 metadata types.
+
+  A generic, schema-driven admin shell that replaces the old per-type
+  bespoke pages with a single registry-driven engine. Admins can now browse,
+  create, override, diff, and roll back every registered metadata type from
+  the Setup app → _All Metadata Types_.
+
+  ### New: `@object-ui/app-shell` views/metadata-admin
+  - **`MetadataDirectoryPage`** — auto-grouped tile directory by domain, with
+    free-text search, domain chips, and a _Writable only_ filter.
+  - **`MetadataResourceListPage` / `MetadataResourceEditPage` / `…CreatePage` / `…HistoryPage`** —
+    generic CRUD shell. Uses the new `/meta/types` schema field to render
+    SchemaForm; uses `?layers=code,overlay,effective` to power a 3-state diff
+    tab; uses `/references` to warn before destructive deletes.
+  - **`MetadataQuickFind`** — Cmd+Shift+M palette searching across types and
+    items.
+  - **`PermissionMatrixEditor`** — Salesforce-style matrix custom editor for
+    `type=permission`. Objects × CRUD/VAMA/lifecycle columns with cascade
+    rules (viewAllRecords ⟹ allowRead, etc.), expandable per-object field
+    R/W subtable, bulk-set (R / CRUD / All / None), filter, _only granted_
+    toggle, destructive-change confirmation, profile switch.
+  - **`DesignerEditorWrapper`** — generic load–edit–save shell that hosts any
+    bespoke designer (`ObjectViewConfigurator`, `DashboardEditor`,
+    `PageCanvasEditor`, …). Handles dirty tracking, Save / Reset / Refresh /
+    History buttons, and the read-only fallback when `allowOrgOverride` is
+    false.
+  - **`i18n.ts`** — bilingual (`en-US`, `zh-CN`) bundle for built-in type
+    labels, domain labels, and engine UI strings, with `detectLocale()` and a
+    `t(key)` helper.
+
+  ### New routing variant
+  - App nav now supports `{ type: 'component', componentRef, params? }` items.
+    `AppContent` resolves them through the existing `ComponentRegistry`.
+  - Built-in components registered: `metadata:directory`, `metadata:resource`,
+    `metadata:object/edit` (FieldsPage), `metadata:permission/edit`
+    (PermissionMatrixEditor), and lazy designer wrappers for view / dashboard
+    / page.
+
+  ### Plugin-designer
+  - Lazy-exported `ObjectManager`, `FieldDesigner`, `ObjectViewConfigurator`,
+    `DashboardEditor`, `PageCanvasEditor`, `MetadataObjectsPage`, and
+    `MetadataFieldsPage` so the engine can mount them on demand.
+
+  The temporary `/dev/meta` route is removed. Setup app navigation flows
+  through the new component routes.
+
+- ca685ab: Add ChatGPT-style AI chat history surface at `/ai` and `/ai/:conversationId`.
+  - New `DefaultAiChatPage` with conversations sidebar (list, create, select, delete) and chat pane on the right.
+  - New `ConversationsSidebar` component and `useConversationList` hook for listing and managing `ai_conversations`.
+  - `useChatConversation` now accepts an optional `activeId` to hydrate a specific conversation (bypassing the localStorage cache), and guards against duplicate conversation creation when sibling state (e.g. selected agent / scope) changes during the same visit.
+  - Deleting the active conversation navigates back to `/ai` so the URL doesn't reference a stale id.
+  - Auto-title new conversations from the first user message (truncated to 40 chars) via `PATCH /api/v1/ai/conversations/:id`; resumed conversations are left alone.
+  - Manual rename in the sidebar: pencil icon opens an inline editor with optimistic update and rollback on server error.
+  - Client-side search input filters the sidebar by title/preview substring.
+
+- 0335ec4: Polish the AI chat surface based on real-world dogfooding feedback.
+
+  **`@object-ui/plugin-chatbot`** — new display helpers shared by `ChatbotEnhanced`:
+  - `unwrapToolResult(value)` peels the MCP-style `{ type: 'text', value: '<json>' }`
+    envelope that backend tools emit (`@objectstack/service-ai`'s data/metadata
+    tools, in particular), and JSON-parses the inner payload. The result panel
+    now renders a structured object tree instead of a doubly-escaped wall of
+    `\\\"objects\\\":[…]`.
+  - `humanizeToolName(name)` converts snake_case / kebab-case / camelCase tool
+    ids into sentence case ("list_objects" → "List objects"), preserving known
+    acronyms (API, ID, SQL, …). Tool-call cards now show the friendly title with
+    the raw id as a small monospace badge for power users.
+  - `summarizeChatError(err)` strips the AI SDK's
+    `"Failed after N attempts. Last error: "` prefix and keeps the first
+    sentence as a headline; the full text is exposed via an optional `details`
+    field so the new error banner can render a "Details" disclosure plus a
+    prominent Retry button instead of a 300-character single-line wall.
+
+  A new `⌘⏎ to send` hint is shown in the prompt footer (hidden on narrow
+  screens). `ToolHeader.title` now accepts `ReactNode` (previously `string`)
+  so wrappers can compose richer titles.
+
+  **`@object-ui/app-shell`** — `AiChatPage`:
+  - Removes the fake "Hello! I'm X" assistant welcome bubble so the empty-state
+    suggestion chips can actually render.
+  - Adds per-agent default suggestion sets (`data_chat`, `metadata_assistant`)
+    with a generic fallback. New conversations open with three actionable
+    starter prompts tailored to the selected agent.
+  - Surfaces agent-fetch failures as an inline warning on the agent picker
+    instead of hijacking the welcome message.
+  - Placeholder text now hints at the first suggestion (e.g. `Ask Data
+Assistant…  (try "系统里有多少个用户？")`).
+
+### Patch Changes
+
+- Updated dependencies [fe3c1d3]
+- Updated dependencies [ec8dcde]
+  - @object-ui/data-objectstack@6.2.0
+  - @object-ui/react@6.2.0
+  - @object-ui/components@6.2.0
+  - @object-ui/fields@6.2.0
+  - @object-ui/layout@6.2.0
+  - @object-ui/plugin-editor@6.2.0
+  - @object-ui/types@6.2.0
+  - @object-ui/core@6.2.0
+  - @object-ui/i18n@6.2.0
+  - @object-ui/auth@6.2.0
+  - @object-ui/permissions@6.2.0
+  - @object-ui/collaboration@6.2.0
+  - @object-ui/providers@6.2.0
+
 ## 6.1.0
 
 ### Patch Changes

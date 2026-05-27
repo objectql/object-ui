@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-gantt",
-  "version": "6.1.0",
+  "version": "6.2.0",
   "type": "module",
   "license": "MIT",
   "description": "Gantt chart plugin for Object UI",
