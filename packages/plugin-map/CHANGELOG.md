@@ -1,5 +1,14 @@
 # @object-ui/plugin-map
 
+## 6.2.1
+
+### Patch Changes
+
+- @object-ui/types@6.2.1
+- @object-ui/core@6.2.1
+- @object-ui/react@6.2.1
+- @object-ui/components@6.2.1
+
 ## 6.2.0
 
 ### Patch Changes

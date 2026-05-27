@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/create-plugin",
-  "version": "6.2.0",
+  "version": "6.2.1",
   "description": "CLI tool to scaffold ObjectUI plugins",
   "type": "module",
   "license": "MIT",
