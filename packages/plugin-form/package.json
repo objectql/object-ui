@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-form",
-  "version": "6.2.2",
+  "version": "6.2.3",
   "type": "module",
   "license": "MIT",
   "description": "Form plugin for Object UI",

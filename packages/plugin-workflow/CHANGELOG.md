@@ -1,5 +1,14 @@
 # @object-ui/plugin-workflow
 
+## 6.2.3
+
+### Patch Changes
+
+- @object-ui/types@6.2.3
+- @object-ui/core@6.2.3
+- @object-ui/react@6.2.3
+- @object-ui/components@6.2.3
+
 ## 6.2.2
 
 ### Patch Changes
