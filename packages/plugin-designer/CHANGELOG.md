@@ -1,5 +1,20 @@
 # @object-ui/plugin-designer
 
+## 6.3.0
+
+### Patch Changes
+
+- Updated dependencies [c12986e]
+  - @object-ui/core@6.3.0
+  - @object-ui/react@6.3.0
+  - @object-ui/components@6.3.0
+  - @object-ui/data-objectstack@6.3.0
+  - @object-ui/fields@6.3.0
+  - @object-ui/plugin-form@6.3.0
+  - @object-ui/plugin-grid@6.3.0
+  - @object-ui/types@6.3.0
+  - @object-ui/i18n@6.3.0
+
 ## 6.2.3
 
 ### Patch Changes
