@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **Demo link from official website.** Removed the "View Demo" button from the homepage hero section and the "Demo" navigation link pointing to `demo.objectui.org`.
+
 ### Added
 
 - **Spec-driven reports — `tabular` / `summary` / `matrix` / `joined`

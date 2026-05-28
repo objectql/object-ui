@@ -22,10 +22,6 @@ export function baseOptions(): BaseLayoutProps {
         text: 'Documentation',
         url: '/docs',
       },
-      {
-        text: 'Demo',
-        url: 'https://demo.objectui.org',
-      },
     ],
   };
 }
