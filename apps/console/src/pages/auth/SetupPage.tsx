@@ -190,12 +190,12 @@ export function SetupPage() {
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="email">
-                  {t('auth.emailLabel', { defaultValue: 'Email' })}
+                  {t('auth.setup.emailLabel', { defaultValue: 'Email' })}
                 </Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder={t('auth.emailPlaceholder', { defaultValue: 'name@example.com' })}
+                  placeholder={t('auth.setup.emailPlaceholder', { defaultValue: 'name@example.com' })}
                   autoComplete="email"
                   required
                   value={email}
@@ -204,7 +204,7 @@ export function SetupPage() {
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="password">
-                  {t('auth.passwordLabel', { defaultValue: 'Password' })}
+                  {t('auth.setup.passwordLabel', { defaultValue: 'Password' })}
                 </Label>
                 <Input
                   id="password"
