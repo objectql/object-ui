@@ -1,22 +1,27 @@
 /**
- * AuthLayout — minimal shared shell for every unauthenticated Console
- * surface (login, register, forgot-password, reset-password, verify-email,
- * setup, oauth/consent, auth/device, accept-invitation).
+ * AuthLayout — shared shell for every unauthenticated Console surface
+ * (login, register, forgot-password, reset-password, verify-email, setup,
+ * oauth/consent, auth/device, accept-invitation).
  *
  *   ┌─────────────────────────────────────────┐
- *   │                                         │
- *   │          centred form card              │
- *   │                                         │
+ *   │              ◇ ObjectStack               │
+ *   │          ┌─────────────────┐             │
+ *   │          │  centred form   │             │
+ *   │          └─────────────────┘             │
+ *   │     (faint dot-grid + soft brand glow)    │
  *   └─────────────────────────────────────────┘
  *
- * Deliberately brand-agnostic — ObjectStack is a developer tool and
- * downstream operators don't want a vendor wordmark on every customer-
- * facing auth page. A small host pill is shown when the page renders on
- * what looks like a tenant subdomain so a user bouncing through an SSO
- * redirect can still tell which workspace they're signing in to.
+ * Content-first, refined-centred layout: a near-neutral canvas with a faint
+ * dot-grid and a single soft brand glow for depth, a restrained ObjectStack
+ * wordmark above the card, and the form itself rendered by each page.
  *
- * Mirrors `framework/apps/account/src/components/auth/auth-shell.tsx` so
- * the Console-hosted auth pages look identical to the legacy Account SPA.
+ * A small host pill is still shown when the page renders on what looks like a
+ * tenant subdomain so a user bouncing through an SSO redirect can tell which
+ * workspace they're signing in to. It is suppressed on local/loopback hosts,
+ * which carry no tenant meaning.
+ *
+ * Mirrors `framework/apps/account/src/components/auth/auth-shell.tsx` so the
+ * Console-hosted auth pages stay visually aligned with the legacy Account SPA.
  */
 
 import { useEffect, type ReactNode } from 'react';
@@ -34,9 +39,47 @@ function isCanonicalCloudHost(host: string): boolean {
   return /^cloud\./.test(bare);
 }
 
+/**
+ * Local dev / loopback hosts carry no tenant meaning, so the host pill
+ * (which exists to disambiguate the SSO workspace) is just noise there.
+ */
+function isLocalHost(host: string): boolean {
+  const bare = host.split(':')[0]!.toLowerCase();
+  return bare === 'localhost' || bare === '127.0.0.1' || bare === '[::1]' || bare.endsWith('.local');
+}
+
 function currentHost(): string | null {
   if (typeof window === 'undefined') return null;
   return window.location.host || null;
+}
+
+/**
+ * Restrained ObjectStack brand mark shown above the auth card — a layered
+ * "stack" glyph on the indigo→violet brand gradient plus the wordmark.
+ */
+function BrandMark() {
+  return (
+    <div className="flex items-center justify-center gap-2.5 select-none">
+      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm shadow-violet-500/30">
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M12 2 2 7l10 5 10-5-10-5Z" />
+          <path d="m2 17 10 5 10-5" />
+          <path d="m2 12 10 5 10-5" />
+        </svg>
+      </span>
+      <span className="text-lg font-semibold tracking-tight text-foreground">ObjectStack</span>
+    </div>
+  );
 }
 
 export function AuthLayout({ children, formWidth = 'sm' }: AuthLayoutProps) {
@@ -44,7 +87,7 @@ export function AuthLayout({ children, formWidth = 'sm' }: AuthLayoutProps) {
   const widthCls = formWidth === 'md' ? 'max-w-md' : 'max-w-sm';
 
   const host = currentHost();
-  const showHostPill = !!host && !isCanonicalCloudHost(host);
+  const showHostPill = !!host && !isCanonicalCloudHost(host) && !isLocalHost(host);
 
   useEffect(() => {
     if (typeof document === 'undefined' || !host) return;
@@ -56,8 +99,23 @@ export function AuthLayout({ children, formWidth = 'sm' }: AuthLayoutProps) {
   }, [host, showHostPill]);
 
   return (
-    <div className="flex min-h-svh w-full items-center justify-center bg-muted p-6">
-      <div className={cn('flex w-full flex-col gap-4', widthCls)}>
+    <div className="relative flex min-h-svh w-full items-center justify-center overflow-hidden bg-background p-6">
+      {/* Refined depth: a faint dot-grid fading toward the edges, plus a single
+          soft indigo→violet glow behind the card. Kept very low-opacity so the
+          canvas reads as calm and neutral, not a marketing wash. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+        <div
+          className="absolute inset-0 opacity-[0.35] dark:opacity-[0.25] [mask-image:radial-gradient(ellipse_at_center,black,transparent_72%)] [-webkit-mask-image:radial-gradient(ellipse_at_center,black,transparent_72%)]"
+          style={{
+            backgroundImage: 'radial-gradient(hsl(var(--border)) 1px, transparent 1px)',
+            backgroundSize: '22px 22px',
+          }}
+        />
+        <div className="absolute left-1/2 top-1/2 h-[34rem] w-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-indigo-500/10 to-violet-500/10 blur-3xl dark:from-indigo-500/10 dark:to-violet-600/10" />
+      </div>
+
+      <div className={cn('flex w-full flex-col gap-5', widthCls)}>
+        <BrandMark />
         {showHostPill ? (
           <div className="flex justify-center">
             <span
