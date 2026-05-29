@@ -35,30 +35,59 @@ type SchemaLoader = () => Promise<ZodLikeSchema | undefined>;
 // Each loader pulls only one spec subpath so we don't drag the whole
 // 2MB schema bundle into the studio bundle.
 //
-// Types not listed (validation, role, workflow, trigger, approval,
-// translation, profile, plus the 11 new 7.1 types like api/connector/
-// webhook) fall back to server validation only.
+// Types still falling through to server-only validation:
+//   - `validation`: not a top-level metadata file; lives inside object. (DataValidationRuleSchema
+//     exists but has empty shape, so it's not useful for client validation.)
+//   - `profile`: spec ships no top-level ProfileSchema (7.1 confirmed).
+//   - `trigger`: no standalone TriggerSchema export at runtime (only
+//     ConnectorTriggerSchema / WebhookEventSchema variants).
+//   - `sharing_rule`: SharingRuleSchema is declared but has empty shape — server-only.
+//   - `translation`: TranslationBundleSchema is z.object({}) — accepts anything; server-only.
+//   - `connector`: ConnectorSchema requires an `id` field that's not in the on-disk
+//     metadata shape — the spec models the runtime connector instance, not the file.
+//     Wiring it would flag every valid connector definition.
 const LOADERS: Record<string, SchemaLoader> = {
+  // data
   object: async () => (await import('@objectstack/spec/data')).ObjectSchema as unknown as ZodLikeSchema,
   hook: async () => (await import('@objectstack/spec/data')).HookSchema as unknown as ZodLikeSchema,
+  mapping: async () => (await import('@objectstack/spec/data')).MappingSchema as unknown as ZodLikeSchema,
+  analytics_cube: async () => (await import('@objectstack/spec/data')).CubeSchema as unknown as ZodLikeSchema,
 
+  // ui
   view: async () => (await import('@objectstack/spec/ui')).ViewSchema as unknown as ZodLikeSchema,
   page: async () => (await import('@objectstack/spec/ui')).PageSchema as unknown as ZodLikeSchema,
   app: async () => (await import('@objectstack/spec/ui')).AppSchema as unknown as ZodLikeSchema,
   dashboard: async () => (await import('@objectstack/spec/ui')).DashboardSchema as unknown as ZodLikeSchema,
   report: async () => (await import('@objectstack/spec/ui')).ReportSchema as unknown as ZodLikeSchema,
   action: async () => (await import('@objectstack/spec/ui')).ActionSchema as unknown as ZodLikeSchema,
+  theme: async () => (await import('@objectstack/spec/ui')).ThemeSchema as unknown as ZodLikeSchema,
 
+  // automation
   flow: async () => (await import('@objectstack/spec/automation')).FlowSchema as unknown as ZodLikeSchema,
+  workflow: async () => (await import('@objectstack/spec/automation')).WorkflowRuleSchema as unknown as ZodLikeSchema,
+  approval: async () => (await import('@objectstack/spec/automation')).ApprovalProcessSchema as unknown as ZodLikeSchema,
+  webhook: async () => (await import('@objectstack/spec/automation')).WebhookSchema as unknown as ZodLikeSchema,
 
+  // ai
   agent: async () => (await import('@objectstack/spec/ai')).AgentSchema as unknown as ZodLikeSchema,
   tool: async () => (await import('@objectstack/spec/ai')).ToolSchema as unknown as ZodLikeSchema,
   skill: async () => (await import('@objectstack/spec/ai')).SkillSchema as unknown as ZodLikeSchema,
 
+  // system
   email_template: async () => (await import('@objectstack/spec/system')).EmailTemplateSchema as unknown as ZodLikeSchema,
   job: async () => (await import('@objectstack/spec/system')).JobSchema as unknown as ZodLikeSchema,
 
+  // kernel
   permission: async () => (await import('@objectstack/spec/kernel')).PermissionSchema as unknown as ZodLikeSchema,
+
+  // security
+  policy: async () => (await import('@objectstack/spec/security')).PolicySchema as unknown as ZodLikeSchema,
+
+  // identity
+  role: async () => (await import('@objectstack/spec/identity')).RoleSchema as unknown as ZodLikeSchema,
+
+  // api
+  api: async () => (await import('@objectstack/spec/api')).ApiEndpointSchema as unknown as ZodLikeSchema,
 };
 
 const SCHEMA_CACHE = new Map<string, ZodLikeSchema | null>();
