@@ -147,3 +147,48 @@ export const TYPES_BY_CATEGORY: Array<{ category: BlockCategory; types: BlockTyp
 
 /** Fallback icon for unknown block types. */
 export const UnknownBlockIcon = Box;
+
+/**
+ * Per-category color tone — keeps block kinds scannable in the page
+ * canvas and picker, mirroring the field-type / nav-kind / node-type
+ * tinting used across the other Studio designers. Class strings are
+ * written out in full so Tailwind's JIT emits them, with light + dark
+ * variants (the app defaults to dark).
+ */
+export interface BlockCategoryTone {
+  icon: string;
+  badge: string;
+}
+
+export const BLOCK_CATEGORY_TONE: Record<BlockCategory, BlockCategoryTone> = {
+  layout: {
+    icon: 'text-slate-500 dark:text-slate-400',
+    badge: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300',
+  },
+  record: {
+    icon: 'text-blue-500 dark:text-blue-400',
+    badge: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
+  },
+  navigation: {
+    icon: 'text-indigo-500 dark:text-indigo-400',
+    badge: 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300',
+  },
+  element: {
+    icon: 'text-teal-500 dark:text-teal-400',
+    badge: 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900 dark:bg-teal-950/40 dark:text-teal-300',
+  },
+  ai: {
+    icon: 'text-violet-500 dark:text-violet-400',
+    badge: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300',
+  },
+  misc: {
+    icon: 'text-zinc-500 dark:text-zinc-400',
+    badge: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400',
+  },
+};
+
+/** Resolve a category tone for any block `type` string (handles unknowns). */
+export function resolveBlockTone(type: string): BlockCategoryTone {
+  const meta = BLOCK_TYPE_META[type as BlockTypeId];
+  return BLOCK_CATEGORY_TONE[meta?.category ?? 'misc'];
+}

@@ -162,11 +162,11 @@ export function ApprovalPreview({ draft, editing, selection, onSelectionChange, 
 
           {/* Escalation callout */}
           {escalation?.enabled && (
-            <div className="rounded border border-amber-200 bg-amber-50 p-2.5 text-xs">
-              <div className="flex items-center gap-1.5 font-medium text-amber-900">
+            <div className="rounded border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40 p-2.5 text-xs">
+              <div className="flex items-center gap-1.5 font-medium text-amber-900 dark:text-amber-200">
                 <AlarmClock className="h-3.5 w-3.5" /> SLA escalation enabled
               </div>
-              <div className="mt-1 text-amber-900">
+              <div className="mt-1 text-amber-900 dark:text-amber-200">
                 After <code className="font-mono">{escalation.timeoutHours}h</code> on a pending step →{' '}
                 <span className="font-medium">{escalation.action ?? 'notify'}</span>
                 {escalation.escalateTo && <> → <code className="font-mono">{escalation.escalateTo}</code></>}
@@ -262,7 +262,7 @@ function StepRow({ step, index, onClick, selected }: { step: ApprovalStep; index
             <Users className="h-3 w-3 mt-0.5 text-muted-foreground shrink-0" />
             <span className="text-muted-foreground shrink-0">Approvers:</span>
             {approvers.length === 0 ? (
-              <span className="text-amber-700">none</span>
+              <span className="text-amber-700 dark:text-amber-400">none</span>
             ) : (
               <div className="flex flex-wrap gap-1">
                 {approvers.map((a, i) => (
@@ -315,7 +315,7 @@ function ActionLine({
   label: string;
   actions: ApprovalAction[];
 }) {
-  const cls = tone === 'green' ? 'text-emerald-700' : 'text-red-700';
+  const cls = tone === 'green' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400';
   return (
     <div className="flex items-start gap-1.5">
       <Icon className={`h-3 w-3 mt-0.5 ${cls}`} />
@@ -345,9 +345,9 @@ function Hook({
 }) {
   const cls =
     tone === 'green'
-      ? 'text-emerald-700'
+      ? 'text-emerald-700 dark:text-emerald-400'
       : tone === 'red'
-        ? 'text-red-700'
+        ? 'text-red-700 dark:text-red-400'
         : 'text-muted-foreground';
   return (
     <span className={`inline-flex items-center gap-1 ${cls}`}>
@@ -370,7 +370,7 @@ function Pill({
   mono?: boolean;
 }) {
   const cls =
-    tone === 'green' ? 'text-emerald-700' : tone === 'amber' ? 'text-amber-700' : 'text-foreground';
+    tone === 'green' ? 'text-emerald-700 dark:text-emerald-400' : tone === 'amber' ? 'text-amber-700 dark:text-amber-400' : 'text-foreground';
   return (
     <span className="inline-flex items-center gap-1">
       {Icon && <Icon className="h-3 w-3 text-muted-foreground" />}

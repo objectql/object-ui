@@ -55,12 +55,24 @@ function celText(c: unknown): string | undefined {
 function severityTone(s: Severity) {
   switch (s) {
     case 'error':
-      return { ring: 'border-red-200 bg-red-50', text: 'text-red-700', icon: XOctagon };
+      return {
+        ring: 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40',
+        text: 'text-red-700 dark:text-red-300',
+        icon: XOctagon,
+      };
     case 'warning':
-      return { ring: 'border-amber-200 bg-amber-50', text: 'text-amber-800', icon: AlertTriangle };
+      return {
+        ring: 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40',
+        text: 'text-amber-800 dark:text-amber-300',
+        icon: AlertTriangle,
+      };
     case 'info':
     default:
-      return { ring: 'border-blue-200 bg-blue-50', text: 'text-blue-800', icon: Info };
+      return {
+        ring: 'border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40',
+        text: 'text-blue-800 dark:text-blue-300',
+        icon: Info,
+      };
   }
 }
 
@@ -174,7 +186,7 @@ function TypeBody({ type, d }: { type: string; d: Record<string, unknown> }) {
           <Section title={`Unique on ${fields.length} field${fields.length === 1 ? '' : 's'}`} icon={Fingerprint}>
             <div className="flex flex-wrap gap-1">
               {fields.length === 0 ? (
-                <span className="text-xs text-amber-700">no fields set</span>
+                <span className="text-xs text-amber-700 dark:text-amber-400">no fields set</span>
               ) : (
                 fields.map((f) => (
                   <span key={f} className="rounded border bg-muted/40 px-1.5 py-0.5 text-[11px] font-mono">
@@ -201,7 +213,7 @@ function TypeBody({ type, d }: { type: string; d: Record<string, unknown> }) {
       return (
         <Section title={`Transitions${field ? ` on ${field}` : ''}`} icon={Workflow}>
           {transitions.length === 0 ? (
-            <div className="text-xs text-amber-700">No transitions declared.</div>
+            <div className="text-xs text-amber-700 dark:text-amber-400">No transitions declared.</div>
           ) : (
             <ul className="rounded border bg-background divide-y text-xs">
               {transitions.map((t, i) => (
@@ -210,7 +222,7 @@ function TypeBody({ type, d }: { type: string; d: Record<string, unknown> }) {
                     {Array.isArray(t.from) ? t.from.join(' | ') : (t.from ?? '*')}
                   </span>
                   <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-mono text-emerald-700">{t.to ?? '?'}</span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400">{t.to ?? '?'}</span>
                 </li>
               ))}
             </ul>
@@ -237,7 +249,7 @@ function TypeBody({ type, d }: { type: string; d: Record<string, unknown> }) {
                 <code className="font-mono break-all">{pattern}</code>
               </div>
             )}
-            {!format && !pattern && <span className="text-amber-700">No format or regex set.</span>}
+            {!format && !pattern && <span className="text-amber-700 dark:text-amber-400">No format or regex set.</span>}
           </div>
         </Section>
       );
@@ -289,7 +301,7 @@ function TypeBody({ type, d }: { type: string; d: Record<string, unknown> }) {
       return (
         <Section title="Custom handler" icon={Code2}>
           <div className="rounded border bg-background px-2.5 py-1.5 text-xs">
-            {handler ? <code className="font-mono break-all">{handler}</code> : <span className="text-amber-700">No handler set.</span>}
+            {handler ? <code className="font-mono break-all">{handler}</code> : <span className="text-amber-700 dark:text-amber-400">No handler set.</span>}
           </div>
         </Section>
       );
@@ -308,7 +320,7 @@ function TypeBody({ type, d }: { type: string; d: Record<string, unknown> }) {
 
 function CelBlock({ value }: { value: string | undefined }) {
   if (!value) {
-    return <div className="text-xs text-amber-700">No expression set.</div>;
+    return <div className="text-xs text-amber-700 dark:text-amber-400">No expression set.</div>;
   }
   return (
     <pre className="rounded border bg-background p-2.5 text-xs font-mono whitespace-pre-wrap break-words">
@@ -348,7 +360,7 @@ function Pill({
   tone?: 'gray' | 'green';
   mono?: boolean;
 }) {
-  const cls = tone === 'green' ? 'text-emerald-700' : 'text-foreground';
+  const cls = tone === 'green' ? 'text-emerald-700 dark:text-emerald-400' : 'text-foreground';
   return (
     <span className="inline-flex items-center gap-1">
       {Icon && <Icon className="h-3 w-3 text-muted-foreground" />}

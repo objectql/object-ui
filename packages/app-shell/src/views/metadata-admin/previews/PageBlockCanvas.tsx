@@ -31,6 +31,7 @@ import {
   TYPES_BY_CATEGORY,
   CATEGORY_LABEL_EN,
   UnknownBlockIcon,
+  resolveBlockTone,
   type BlockTypeId,
 } from './block-types';
 
@@ -404,6 +405,7 @@ function BlockRow({
   const typeStr = String(block.type ?? '');
   const meta = BLOCK_TYPE_META[typeStr as BlockTypeId];
   const Icon = meta?.Icon ?? UnknownBlockIcon;
+  const tone = resolveBlockTone(typeStr);
   const label = blockLabel(block);
   const draggable = !readOnly;
   const [dropZone, setDropZone] = React.useState<'before' | 'after' | null>(null);
@@ -491,7 +493,7 @@ function BlockRow({
                 aria-hidden="true"
               />
             )}
-            <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <Icon className={cn('h-3.5 w-3.5 shrink-0', tone.icon)} />
             {editingLabel ? (
               <input
                 autoFocus
@@ -519,7 +521,7 @@ function BlockRow({
               <code className="text-[10px] text-muted-foreground/70 font-mono truncate">#{block.id}</code>
             )}
           </div>
-          <Badge variant="outline" className="text-[10px] shrink-0 font-mono">
+          <Badge variant="outline" className={cn('text-[10px] shrink-0 font-mono', tone.badge)}>
             {typeStr}
           </Badge>
         </div>
@@ -581,6 +583,7 @@ function AddBlockButton({ onPick }: { onPick: (type: BlockTypeId) => void }) {
                 {g.types.map((id) => {
                   const m = BLOCK_TYPE_META[id];
                   const Icon = m.Icon;
+                  const tone = resolveBlockTone(id);
                   return (
                     <button
                       key={id}
@@ -588,7 +591,7 @@ function AddBlockButton({ onPick }: { onPick: (type: BlockTypeId) => void }) {
                       onClick={() => { onPick(id); setOpen(false); setFilter(''); }}
                       className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-accent text-left"
                     >
-                      <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <Icon className={cn('h-3.5 w-3.5 shrink-0', tone.icon)} />
                       <span className="truncate">{m.label}</span>
                       <code className="ml-auto text-[10px] text-muted-foreground/70 font-mono truncate">{id}</code>
                     </button>
