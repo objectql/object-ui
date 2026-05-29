@@ -173,13 +173,16 @@ export function HomePage() {
   }
 
   return (
-    <div className="relative isolate min-h-full bg-gradient-to-b from-background via-background to-muted/40">
-      {/* Decorative ambient blobs */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[28rem] overflow-hidden">
-        <div className="absolute -top-32 -left-24 h-[28rem] w-[28rem] rounded-full bg-primary/30 blur-3xl opacity-70 dark:opacity-40" />
-        <div className="absolute -top-20 right-[-6rem] h-[26rem] w-[36rem] rounded-full bg-sky-400/30 blur-3xl opacity-70 dark:opacity-35" />
-        <div className="absolute top-32 left-1/3 h-[18rem] w-[24rem] rounded-full bg-fuchsia-400/25 blur-3xl opacity-60 dark:opacity-25" />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/40 to-background" />
+    <div className="relative isolate min-h-full bg-background">
+      {/*
+        A single brand-hue glow (indigo→violet, adjacent hues so they never
+        muddy) anchored top-left, fading quickly into a clean neutral canvas.
+        Replaces the previous three-color blue/sky/fuchsia wash that smeared
+        into an uneven pastel haze in light mode.
+      */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 overflow-hidden">
+        <div className="absolute -top-44 left-[-8%] h-[34rem] w-[46rem] rounded-full bg-gradient-to-br from-indigo-500/25 via-violet-500/20 to-transparent blur-3xl opacity-80 dark:from-indigo-500/20 dark:via-violet-600/15 dark:opacity-55" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/70 to-background" />
       </div>
 
       {/* Hero */}
