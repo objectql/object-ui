@@ -1,5 +1,14 @@
 # @object-ui/data-objectstack
 
+## 6.3.0
+
+### Patch Changes
+
+- Updated dependencies [c12986e]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@6.3.0
+  - @object-ui/types@6.3.0
+
 ## 6.2.3
 
 ### Patch Changes

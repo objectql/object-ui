@@ -1,5 +1,20 @@
 # @object-ui/plugin-calendar
 
+## 6.3.0
+
+### Patch Changes
+
+- Updated dependencies [c12986e]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@6.3.0
+  - @object-ui/react@6.3.0
+  - @object-ui/components@6.3.0
+  - @object-ui/fields@6.3.0
+  - @object-ui/plugin-detail@6.3.0
+  - @object-ui/types@6.3.0
+  - @object-ui/i18n@6.3.0
+  - @object-ui/mobile@6.3.0
+
 ## 6.2.3
 
 ### Patch Changes
