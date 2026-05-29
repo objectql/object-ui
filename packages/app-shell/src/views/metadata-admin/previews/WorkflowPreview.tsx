@@ -32,6 +32,7 @@ import {
   Power,
   Workflow as WorkflowIcon,
 } from 'lucide-react';
+import { cn } from '@object-ui/components';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
 import { appendArray } from '../inspectors/_shared';
@@ -70,6 +71,75 @@ function actionIcon(type: string) {
       return Plug;
     default:
       return Bot;
+  }
+}
+
+/**
+ * Per-action-type color tone — mirrors the flow node-type tinting so
+ * action kinds are scannable in the rule's action list. Full Tailwind
+ * class strings (JIT) with light + dark variants.
+ */
+interface ActionTone {
+  /** Icon color. */
+  icon: string;
+  /** Icon chip (border + bg). */
+  chip: string;
+}
+
+const ACTION_TONE: Record<string, ActionTone> = {
+  field_update: {
+    icon: 'text-blue-600 dark:text-blue-400',
+    chip: 'border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40',
+  },
+  email_alert: {
+    icon: 'text-violet-600 dark:text-violet-400',
+    chip: 'border-violet-200 bg-violet-50 dark:border-violet-900 dark:bg-violet-950/40',
+  },
+  http_call: {
+    icon: 'text-indigo-600 dark:text-indigo-400',
+    chip: 'border-indigo-200 bg-indigo-50 dark:border-indigo-900 dark:bg-indigo-950/40',
+  },
+  task_creation: {
+    icon: 'text-emerald-600 dark:text-emerald-400',
+    chip: 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40',
+  },
+  push_notification: {
+    icon: 'text-amber-600 dark:text-amber-400',
+    chip: 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40',
+  },
+  custom_script: {
+    icon: 'text-teal-600 dark:text-teal-400',
+    chip: 'border-teal-200 bg-teal-50 dark:border-teal-900 dark:bg-teal-950/40',
+  },
+  connector_action: {
+    icon: 'text-rose-600 dark:text-rose-400',
+    chip: 'border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/40',
+  },
+  default: {
+    icon: 'text-slate-500 dark:text-slate-400',
+    chip: 'border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60',
+  },
+};
+
+function actionTone(type: string): ActionTone {
+  switch (type) {
+    case 'field_update':
+      return ACTION_TONE.field_update;
+    case 'email_alert':
+      return ACTION_TONE.email_alert;
+    case 'http_call':
+    case 'webhook':
+      return ACTION_TONE.http_call;
+    case 'task_creation':
+      return ACTION_TONE.task_creation;
+    case 'push_notification':
+      return ACTION_TONE.push_notification;
+    case 'custom_script':
+      return ACTION_TONE.custom_script;
+    case 'connector_action':
+      return ACTION_TONE.connector_action;
+    default:
+      return ACTION_TONE.default;
   }
 }
 
@@ -254,6 +324,7 @@ export function WorkflowPreview({ draft, editing, selection, onSelectionChange, 
 
 function ActionRow({ action, onClick, selected }: { action: WorkflowAction; onClick?: () => void; selected?: boolean }) {
   const Icon = actionIcon(action.type);
+  const tone = actionTone(action.type);
   const summary = summarizeAction(action);
   const aName = (action as any).name as string | undefined;
   return (
@@ -261,7 +332,9 @@ function ActionRow({ action, onClick, selected }: { action: WorkflowAction; onCl
       className={`flex items-start gap-2 px-3 py-2 text-xs ${onClick ? 'cursor-pointer hover:bg-accent/40' : ''} ${selected ? 'bg-primary/5 ring-1 ring-primary' : ''}`}
       onClick={onClick ? (e) => { e.stopPropagation(); onClick(); } : undefined}
     >
-      <Icon className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
+      <span className={cn('mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border', tone.chip)}>
+        <Icon className={cn('h-3 w-3', tone.icon)} />
+      </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2 flex-wrap">
           <span className="font-medium">{prettyActionType(action.type)}</span>
