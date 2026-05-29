@@ -46,13 +46,9 @@ function GettingStartedHint({ t }: { t: (key: string, opts?: any) => string }) {
   return (
     <section
       data-testid="home-getting-started"
-      className="relative overflow-hidden rounded-2xl border border-border/60 bg-card/70 backdrop-blur-sm p-6 sm:p-8"
+      className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm"
     >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-fuchsia-500/5"
-      />
-      <div className="relative flex flex-col sm:flex-row sm:items-center gap-5">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-5">
         <div className="flex items-center gap-2 shrink-0">
           <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10 ring-1 ring-amber-500/20 text-amber-600 dark:text-amber-400">
             <Star className="h-5 w-5" />
@@ -98,7 +94,7 @@ function StatPill({
   tone: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/70 px-3 py-1.5 text-sm backdrop-blur-sm">
+    <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm shadow-sm">
       <Icon className={`h-4 w-4 ${tone}`} />
       <span className="font-semibold tabular-nums">{value}</span>
       <span className="text-muted-foreground">{label}</span>
@@ -173,23 +169,19 @@ export function HomePage() {
   }
 
   return (
-    <div className="relative isolate min-h-full bg-background">
+    <div className="relative min-h-full bg-background">
       {/*
-        A single brand-hue glow (indigo→violet, adjacent hues so they never
-        muddy) anchored top-left, fading quickly into a clean neutral canvas.
-        Replaces the previous three-color blue/sky/fuchsia wash that smeared
-        into an uneven pastel haze in light mode.
+        Content-first neutral canvas (Linear/Vercel-console style): no ambient
+        color wash. Hierarchy comes from typography, spacing, and hairline
+        borders + micro-shadows on cards — the only brand-color highlight is
+        the gradient display name in the hero.
       */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 overflow-hidden">
-        <div className="absolute -top-44 left-[-8%] h-[34rem] w-[46rem] rounded-full bg-gradient-to-br from-indigo-500/25 via-violet-500/20 to-transparent blur-3xl opacity-80 dark:from-indigo-500/20 dark:via-violet-600/15 dark:opacity-55" />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/70 to-background" />
-      </div>
 
       {/* Hero */}
       <section className="px-4 sm:px-6 lg:px-8 pt-10 pb-6">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-3">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
+            <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="uppercase tracking-wider">{t('home.title', { defaultValue: 'Home' })}</span>
           </div>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-pretty">
@@ -248,7 +240,7 @@ export function HomePage() {
           <section>
             <div className="flex items-end justify-between mb-5">
               <div className="flex items-center gap-2.5">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 ring-1 ring-indigo-500/20 text-indigo-600 dark:text-indigo-400">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground">
                   <LayoutGrid className="h-4 w-4" />
                 </span>
                 <div>
