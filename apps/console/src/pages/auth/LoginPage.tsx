@@ -16,7 +16,7 @@
  *    `emailPassword.disableSignUp === true`.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth, LoginForm } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -201,13 +201,16 @@ function LoginFormCard({
   const { t } = useObjectTranslation();
   const navigate = useNavigate();
   // LoginForm doesn't expose the submitted email, so we capture it here
-  // to forward into the verify-email-prompt redirect.
-  const [lastEmail, setLastEmail] = useState('');
+  // to forward into the verify-email-prompt redirect. A ref is used instead
+  // of state so capturing each keystroke doesn't re-render this subtree
+  // (which would otherwise recompute every translated label and re-render
+  // <LoginForm> on every character typed into the email field).
+  const lastEmailRef = useRef('');
 
   useEffect(() => {
     const handler = (e: Event) => {
       const target = e.target as HTMLInputElement;
-      if (target?.id === 'login-email') setLastEmail(target.value);
+      if (target?.id === 'login-email') lastEmailRef.current = target.value;
     };
     document.addEventListener('input', handler, true);
     return () => document.removeEventListener('input', handler, true);
@@ -225,7 +228,7 @@ function LoginFormCard({
             (lower.includes('verif') || lower.includes('not verified')));
         if (isEmailUnverified) {
           const sp = new URLSearchParams();
-          if (lastEmail) sp.set('email', lastEmail);
+          if (lastEmailRef.current) sp.set('email', lastEmailRef.current);
           if (redirect) sp.set('redirect', redirect);
           navigate(`/verify-email-prompt?${sp.toString()}`);
         }
