@@ -49,6 +49,7 @@ const ComponentNavView = lazy(() => import('../views/ComponentNavView').then(m =
 // level so URLs read like a normal nested resource (RFC-style) instead of
 // piggy-backing on the legacy ComponentRegistry fan-out.
 const MetadataDirectoryPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataDirectoryPage })));
+const StudioHomePage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.StudioHomePage })));
 const MetadataResourceListPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataResourceListPage })));
 const MetadataResourceEditPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataResourceEditPage })));
 const MetadataResourceHistoryPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataResourceHistoryPage })));
@@ -373,7 +374,18 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
             <Suspense fallback={<LoadingScreen />}>
               <RouteFader className="h-full">
                 <Routes>
-                <Route path="/" element={<Navigate to={resolveLandingRoute(activeApp, { currentUserId: user?.id ?? null })} replace />} />
+                <Route
+                  path="/"
+                  element={(() => {
+                    // When the app declares a landing target (home page or
+                    // first nav route) honour it; otherwise — e.g. the
+                    // metadata-admin "Studio" app whose nav is built from
+                    // domains and has no single landing — render the rich
+                    // overview instead of a blank `<Navigate to="">`.
+                    const landing = resolveLandingRoute(activeApp, { currentUserId: user?.id ?? null });
+                    return landing ? <Navigate to={landing} replace /> : <StudioHomePage />;
+                  })()}
+                />
                 {/* Metadata admin routes — declared BEFORE the generic
                     `:objectName/...` routes so the static `metadata` prefix
                     wins React Router's score tiebreaker (both
