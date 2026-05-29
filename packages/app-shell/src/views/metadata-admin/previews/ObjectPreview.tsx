@@ -70,23 +70,16 @@ export function ObjectPreview({
   name,
   draft,
   onPatch,
-  editing,
 }: MetadataPreviewProps) {
   const objectName = String((draft as any).name ?? name ?? '');
   const columns = React.useMemo(() => deriveColumns((draft as any).fields), [draft]);
   const label = String((draft as any).label ?? objectName);
   const pluralLabel = String((draft as any).pluralLabel ?? `${label}s`);
 
-  // Default to Designer when editing + writable; otherwise Data view
-  // keeps the run-time fidelity for read-only browsing.
-  const canDesign = !!onPatch && editing !== false;
-  const [mode, setMode] = React.useState<Mode>(canDesign ? 'designer' : 'data');
-
-  // If editing toggles to read-only, snap back to Data view to avoid
-  // showing an inert designer surface.
-  React.useEffect(() => {
-    if (!canDesign && mode === 'designer') setMode('data');
-  }, [canDesign, mode]);
+  // Default to Designer: even in read-only tiers, browsing the field
+  // definitions is more useful than an empty Data grid. FieldDesigner
+  // gracefully degrades via its `readOnly` prop when onPatch is absent.
+  const [mode, setMode] = React.useState<Mode>('designer');
 
   if (!objectName) {
     return (
@@ -107,7 +100,6 @@ export function ObjectPreview({
       <ModeButton
         active={mode === 'designer'}
         onClick={() => setMode('designer')}
-        disabled={!canDesign}
         icon={<Pencil className="h-3 w-3" />}
         label="Designer"
       />
