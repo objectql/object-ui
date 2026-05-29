@@ -30,7 +30,7 @@ import {
   Trash2,
   type LucideIcon,
 } from 'lucide-react';
-import { Badge } from '@object-ui/components';
+import { Badge, cn } from '@object-ui/components';
 import { appendArray, moveArray, spliceArray } from '../inspectors/_shared';
 
 const DND_MIME = 'text/x-objectui-nav';
@@ -83,6 +83,51 @@ function kindIcon(kind: string): LucideIcon {
     default:
       return Compass;
   }
+}
+
+/**
+ * Per-kind color tone — keeps nav kinds scannable at a glance and
+ * mirrors the field-type category tinting used elsewhere in Studio.
+ * Class strings are written out in full so Tailwind's JIT emits them.
+ */
+interface KindTone {
+  icon: string;
+  badge: string;
+}
+
+const KIND_TONE: Record<string, KindTone> = {
+  object: {
+    icon: 'text-blue-500',
+    badge: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
+  },
+  page: {
+    icon: 'text-violet-500',
+    badge: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300',
+  },
+  dashboard: {
+    icon: 'text-teal-500',
+    badge: 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900 dark:bg-teal-950/40 dark:text-teal-300',
+  },
+  report: {
+    icon: 'text-amber-500',
+    badge: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300',
+  },
+  link: {
+    icon: 'text-indigo-500',
+    badge: 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300',
+  },
+  group: {
+    icon: 'text-slate-500',
+    badge: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300',
+  },
+  item: {
+    icon: 'text-zinc-500',
+    badge: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400',
+  },
+};
+
+function kindTone(kind: string): KindTone {
+  return KIND_TONE[kind] ?? KIND_TONE.item;
 }
 
 function navLabel(it: RawNav, i: number): string {
@@ -349,6 +394,7 @@ function NavCard({
 }) {
   const kind = inferKind(item);
   const Icon = kindIcon(kind);
+  const tone = kindTone(kind);
   const path0 = navPath(item);
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(navLabel(item, index));
@@ -403,7 +449,7 @@ function NavCard({
         ) : (
           <span className="w-3.5" />
         )}
-        <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <Icon className={cn('h-3.5 w-3.5 shrink-0', tone.icon)} />
         {editing ? (
           <input
             autoFocus
@@ -439,7 +485,7 @@ function NavCard({
             {navLabel(item, index)}
           </span>
         )}
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className={cn('text-[10px] font-medium', tone.badge)}>
           {kind}
         </Badge>
         {path0 && (

@@ -33,6 +33,7 @@ import {
   Workflow,
   Zap,
 } from 'lucide-react';
+import { cn } from '@object-ui/components';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
 import { uniqueId, appendArray } from '../inspectors/_shared';
@@ -85,6 +86,73 @@ function nodeIcon(type: string) {
       return Workflow;
     default:
       return CircleDot;
+  }
+}
+
+/**
+ * Per-node-type color tone — makes step kinds scannable in the list
+ * and mirrors the field-type / nav-kind tinting used elsewhere in
+ * Studio. Class strings are written in full for Tailwind's JIT.
+ */
+interface NodeTone {
+  /** Icon + type-label text color. */
+  icon: string;
+  /** Step-number chip (border + bg + text). */
+  chip: string;
+}
+
+const NODE_TONE: Record<string, NodeTone> = {
+  start: {
+    icon: 'text-emerald-600 dark:text-emerald-400',
+    chip: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300',
+  },
+  end: {
+    icon: 'text-rose-600 dark:text-rose-400',
+    chip: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300',
+  },
+  decision: {
+    icon: 'text-amber-600 dark:text-amber-400',
+    chip: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300',
+  },
+  wait: {
+    icon: 'text-blue-600 dark:text-blue-400',
+    chip: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
+  },
+  signal: {
+    icon: 'text-violet-600 dark:text-violet-400',
+    chip: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300',
+  },
+  subflow: {
+    icon: 'text-indigo-600 dark:text-indigo-400',
+    chip: 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300',
+  },
+  task: {
+    icon: 'text-slate-500 dark:text-slate-400',
+    chip: 'border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300',
+  },
+};
+
+function nodeTone(type: string): NodeTone {
+  switch (type) {
+    case 'start':
+      return NODE_TONE.start;
+    case 'end':
+      return NODE_TONE.end;
+    case 'decision':
+    case 'branch':
+    case 'gateway':
+      return NODE_TONE.decision;
+    case 'wait':
+    case 'timer':
+      return NODE_TONE.wait;
+    case 'boundary_event':
+    case 'signal':
+      return NODE_TONE.signal;
+    case 'subflow':
+    case 'flow':
+      return NODE_TONE.subflow;
+    default:
+      return NODE_TONE.task;
   }
 }
 
@@ -202,6 +270,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
             <ol className="space-y-2">
               {ordered.map((node, idx) => {
                 const Icon = nodeIcon(node.type);
+                const tone = nodeTone(node.type);
                 const outs = outgoingByNode.get(node.id) ?? [];
                 const isBranch = node.type === 'decision' || node.type === 'branch' || node.type === 'gateway';
                 return (
@@ -211,15 +280,15 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                     onClick={designMode ? (e) => { e.stopPropagation(); selectNode(node); } : undefined}
                   >
                     <div className="flex items-start gap-2 p-2.5">
-                      <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-mono">
+                      <span className={cn('mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-mono', tone.chip)}>
                         {idx + 1}
                       </span>
-                      <Icon className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                      <Icon className={cn('h-4 w-4 mt-0.5 shrink-0', tone.icon)} />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-baseline gap-x-2">
                           <span className="text-sm font-medium truncate">{node.label || node.id}</span>
                           <span className="font-mono text-[10px] text-muted-foreground">{node.id}</span>
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          <span className={cn('text-[10px] uppercase tracking-wider font-medium', tone.icon)}>
                             {node.type}
                           </span>
                         </div>
