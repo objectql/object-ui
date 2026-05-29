@@ -385,14 +385,22 @@ function FieldRow({
       {dropZone === 'before' && (
         <div className="absolute left-0 right-0 -top-0.5 h-0.5 bg-primary rounded-full" />
       )}
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        }}
         draggable={draggable}
         onDragStart={handleDragStart}
         className={cn(
           'group w-full text-left rounded-md border bg-card px-3.5 py-2.5 transition-colors',
           'hover:border-primary/40 hover:bg-card',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
           selected ? 'border-primary ring-2 ring-primary/30 shadow-sm' : 'border-border',
           readOnly && 'cursor-default',
           draggable && 'cursor-grab active:cursor-grabbing',
@@ -449,7 +457,7 @@ function FieldRow({
           referenceTo={referenceTo}
           formula={formula}
         />
-      </button>
+      </div>
       {dropZone === 'after' && (
         <div className="absolute left-0 right-0 -bottom-1 h-0.5 bg-primary rounded-full" />
       )}
