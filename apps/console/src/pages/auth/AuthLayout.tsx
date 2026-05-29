@@ -4,7 +4,7 @@
  * oauth/consent, auth/device, accept-invitation).
  *
  *   ┌─────────────────────────────────────────┐
- *   │              ◇ ObjectStack               │
+ *   │               ◇ ObjectOS                 │
  *   │          ┌─────────────────┐             │
  *   │          │  centred form   │             │
  *   │          └─────────────────┘             │
@@ -12,8 +12,9 @@
  *   └─────────────────────────────────────────┘
  *
  * Content-first, refined-centred layout: a near-neutral canvas with a faint
- * dot-grid and a single soft brand glow for depth, a restrained ObjectStack
- * wordmark above the card, and the form itself rendered by each page.
+ * dot-grid and a single soft brand glow for depth, a restrained product
+ * wordmark above the card (server-driven product name, default "ObjectOS",
+ * so operators can rebrand), and the form itself rendered by each page.
  *
  * A small host pill is still shown when the page renders on what looks like a
  * tenant subdomain so a user bouncing through an SSO redirect can tell which
@@ -27,6 +28,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { cn } from '@object-ui/components';
+import { getProductName } from '@object-ui/app-shell';
 
 export interface AuthLayoutProps {
   children: ReactNode;
@@ -54,10 +56,15 @@ function currentHost(): string | null {
 }
 
 /**
- * Restrained ObjectStack brand mark shown above the auth card — a layered
- * "stack" glyph on the indigo→violet brand gradient plus the wordmark.
+ * Restrained brand mark shown above the auth card — a layered "stack" glyph
+ * on the indigo→violet brand gradient plus the product wordmark.
+ *
+ * The product name is server-driven (runtime-config `branding.productName`,
+ * default "ObjectOS") so downstream operators can rebrand the auth surface
+ * without code changes. We never hard-code a vendor name here.
  */
 function BrandMark() {
+  const productName = getProductName();
   return (
     <div className="flex items-center justify-center gap-2.5 select-none">
       <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm shadow-violet-500/30">
@@ -77,7 +84,7 @@ function BrandMark() {
           <path d="m2 12 10 5 10-5" />
         </svg>
       </span>
-      <span className="text-lg font-semibold tracking-tight text-foreground">ObjectStack</span>
+      <span className="text-lg font-semibold tracking-tight text-foreground">{productName}</span>
     </div>
   );
 }
