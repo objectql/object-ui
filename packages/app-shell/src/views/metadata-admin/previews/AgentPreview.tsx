@@ -38,6 +38,7 @@ import {
   Sparkles,
   Wrench,
 } from 'lucide-react';
+import { cn } from '@object-ui/components';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
 
@@ -141,11 +142,20 @@ export function AgentPreview({ name, draft }: MetadataPreviewProps) {
             {/* Capabilities */}
             <Section title="Capabilities" icon={Wrench}>
               <div className="space-y-2">
-                <ChipList label="Skills" emptyHint="Attach skills (preferred)" items={skills.map((s) => ({ key: s, label: s }))} mono />
+                <ChipList
+                  label="Skills"
+                  emptyHint="Attach skills (preferred)"
+                  items={skills.map((s) => ({ key: s, label: s }))}
+                  icon={Sparkles}
+                  tone="violet"
+                  mono
+                />
                 <ChipList
                   label="Tools"
                   emptyHint="No direct tools (skills can provide them)"
                   items={tools.map((t, i) => ({ key: `${t.type ?? ''}:${t.name ?? i}`, label: t.name ?? String(t), hint: t.type }))}
+                  icon={Wrench}
+                  tone="blue"
                   mono
                 />
               </div>
@@ -254,17 +264,38 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <div className="text-xs text-muted-foreground italic">{children}</div>;
 }
 
+/**
+ * Tone presets for capability chips — keep skills and tools visually
+ * distinct at a glance. Full Tailwind class strings (JIT) with light +
+ * dark variants.
+ */
+const CHIP_TONE = {
+  violet: {
+    chip: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300',
+    icon: 'text-violet-500 dark:text-violet-400',
+  },
+  blue: {
+    chip: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
+    icon: 'text-blue-500 dark:text-blue-400',
+  },
+} as const;
+
 function ChipList({
   label,
   emptyHint,
   items,
+  icon: Icon,
+  tone,
   mono = false,
 }: {
   label: string;
   emptyHint: string;
   items: Array<{ key: string; label: string; hint?: string }>;
+  icon?: React.ComponentType<{ className?: string }>;
+  tone?: keyof typeof CHIP_TONE;
   mono?: boolean;
 }) {
+  const t = tone ? CHIP_TONE[tone] : null;
   return (
     <div>
       <div className="text-[10px] uppercase text-muted-foreground tracking-wider mb-1">{label}</div>
@@ -275,10 +306,15 @@ function ChipList({
           {items.map((it) => (
             <span
               key={it.key}
-              className={`inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-[11px] ${mono ? 'font-mono' : ''}`}
+              className={cn(
+                'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px]',
+                t ? t.chip : 'bg-background',
+                mono && 'font-mono',
+              )}
             >
+              {Icon && <Icon className={cn('h-3 w-3 shrink-0', t?.icon)} />}
               {it.label}
-              {it.hint && <span className="text-[9px] uppercase text-muted-foreground">{it.hint}</span>}
+              {it.hint && <span className="text-[9px] uppercase opacity-70">{it.hint}</span>}
             </span>
           ))}
         </div>
