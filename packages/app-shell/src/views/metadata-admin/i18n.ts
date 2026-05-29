@@ -61,6 +61,16 @@ const TYPE_LABELS_EN: Record<string, string> = {
   package: 'Package',
   data: 'Dataset',
   job: 'Background Job',
+  // New in spec 7.1 — externally surfaced metadata types that did not
+  // ship with a human-readable label in the framework registry.
+  api: 'API Endpoint',
+  connector: 'Connector',
+  mapping: 'Field Mapping',
+  policy: 'Policy',
+  webhook: 'Webhook',
+  theme: 'Theme',
+  sharing_rule: 'Sharing Rule',
+  analytics_cube: 'Analytics Cube',
 };
 
 const TYPE_LABELS_ZH: Record<string, string> = {
@@ -93,6 +103,15 @@ const TYPE_LABELS_ZH: Record<string, string> = {
   package: '包',
   data: '数据集',
   job: '后台任务',
+  // New in spec 7.1.
+  api: 'API 端点',
+  connector: '连接器',
+  mapping: '字段映射',
+  policy: '策略',
+  webhook: 'Webhook',
+  theme: '主题',
+  sharing_rule: '共享规则',
+  analytics_cube: '分析立方体',
 };
 
 const DOMAIN_LABELS_EN: Record<string, string> = {

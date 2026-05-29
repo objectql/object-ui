@@ -37,7 +37,7 @@ import {
   useMetadataTypes,
   type RichMetadataTypeEntry,
 } from './useMetadata';
-import { detectLocale, t as tr } from './i18n';
+import { detectLocale, t as tr, translateMetadataType } from './i18n';
 
 type ItemResult = {
   kind: 'item';
@@ -138,6 +138,7 @@ export function MetadataQuickFind({ appSlug }: MetadataQuickFindProps = {}) {
         (e) =>
           e.type.toLowerCase().includes(q) ||
           (e.label ?? '').toLowerCase().includes(q) ||
+          translateMetadataType(e.type, locale, e.label).toLowerCase().includes(q) ||
           (e.description ?? '').toLowerCase().includes(q),
       )
       .slice(0, 8)
@@ -243,7 +244,7 @@ export function MetadataQuickFind({ appSlug }: MetadataQuickFindProps = {}) {
                     {r.kind === 'type' ? (
                       <>
                         <div className="text-sm font-medium truncate">
-                          {r.entry.label ?? r.entry.type}
+                          {translateMetadataType(r.entry.type, locale, r.entry.label)}
                         </div>
                         {r.entry.description && (
                           <div className="text-xs text-muted-foreground truncate">

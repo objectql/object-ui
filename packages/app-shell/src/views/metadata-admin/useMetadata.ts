@@ -52,6 +52,24 @@ export function useMetadataClient(environmentId?: string): MetadataClient {
 }
 
 /**
+ * Drop camelCase aliases when the registry also exposes a snake_case
+ * sibling. The framework's `/meta/types` endpoint surfaces both forms
+ * for some 7.1 system types (e.g. `analytics_cube` + `analyticsCube`,
+ * `sharing_rule` + `sharingRule`) and we don't want the directory to
+ * render the same logical type twice. Keep the snake_case row because
+ * it matches our `TYPE_LABELS_*` keys and the framework's preferred
+ * file naming convention.
+ */
+function dedupeCamelAliases(list: RichMetadataTypeEntry[]): RichMetadataTypeEntry[] {
+  const have = new Set(list.map((e) => e.type));
+  return list.filter((e) => {
+    if (!/[A-Z]/.test(e.type)) return true;
+    const snake = e.type.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+    return !(snake !== e.type && have.has(snake));
+  });
+}
+
+/**
  * Fetch and cache the rich `/meta/types` registry response. Most pages
  * only need it once per session, so we memoise per (client) instance.
  */
@@ -86,7 +104,7 @@ export function useMetadataTypes(client: MetadataClient): {
           }
         }
         if (!cancelled) {
-          setEntries(list);
+          setEntries(dedupeCamelAliases(list));
           setLoading(false);
         }
       } catch (err: any) {

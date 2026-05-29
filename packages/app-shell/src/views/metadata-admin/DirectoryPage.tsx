@@ -123,6 +123,7 @@ export function MetadataDirectoryPage() {
       const hit =
         e.type.toLowerCase().includes(q) ||
         (e.label ?? '').toLowerCase().includes(q) ||
+        translateMetadataType(e.type, locale, e.label).toLowerCase().includes(q) ||
         (e.description ?? '').toLowerCase().includes(q);
       if (!hit) return false;
     }
