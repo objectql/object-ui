@@ -16,7 +16,7 @@
  * @module
  */
 
-import { useMemo } from 'react';
+import { useMemo, type ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMetadata } from '../../providers/MetadataProvider';
 import { useRecentItems } from '../../hooks/useRecentItems';
@@ -27,7 +27,7 @@ import { AppCard } from './AppCard';
 import { RecentApps } from './RecentApps';
 import { StarredApps } from './StarredApps';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
-import { Plus, Settings, Sparkles, Star, Clock, ArrowDown, Store } from 'lucide-react';
+import { Plus, Settings, Sparkles, Star, Clock, ArrowDown, Store, LayoutGrid } from 'lucide-react';
 
 function pickGreetingKey(hour: number): string {
   if (hour < 5) return 'home.greetingNight';
@@ -78,6 +78,31 @@ function GettingStartedHint({ t }: { t: (key: string, opts?: any) => string }) {
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * Compact at-a-glance metric pill shown under the hero greeting — gives
+ * the workspace a sense of scale ("3 apps · 6 recent · 2 starred") the
+ * moment the page loads.
+ */
+function StatPill({
+  icon: Icon,
+  value,
+  label,
+  tone,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  value: number;
+  label: string;
+  tone: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/70 px-3 py-1.5 text-sm backdrop-blur-sm">
+      <Icon className={`h-4 w-4 ${tone}`} />
+      <span className="font-semibold tabular-nums">{value}</span>
+      <span className="text-muted-foreground">{label}</span>
+    </span>
   );
 }
 
@@ -165,15 +190,46 @@ export function HomePage() {
             <span className="uppercase tracking-wider">{t('home.title', { defaultValue: 'Home' })}</span>
           </div>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-pretty">
-            <span className="bg-gradient-to-r from-foreground via-foreground to-foreground/70 bg-clip-text text-transparent">
+            <span className="text-foreground">
               {greeting}
-              {displayName ? `, ${displayName}` : ''}
+              {displayName ? ', ' : ''}
             </span>
+            {displayName && (
+              <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 bg-clip-text text-transparent dark:from-indigo-400 dark:via-violet-400 dark:to-fuchsia-400">
+                {displayName}
+              </span>
+            )}
             <span className="text-foreground/40">.</span>
           </h1>
           <p className="text-base sm:text-lg text-muted-foreground mt-2 max-w-2xl">
             {t('home.heroTagline', { defaultValue: 'Pick up where you left off, or explore something new.' })}
           </p>
+
+          {/* At-a-glance stat pills */}
+          <div className="mt-5 flex flex-wrap items-center gap-2.5">
+            <StatPill
+              icon={LayoutGrid}
+              tone="text-indigo-600 dark:text-indigo-400"
+              value={activeApps.length}
+              label={t('home.stats.apps', { defaultValue: 'Applications' })}
+            />
+            {recentItems.length > 0 && (
+              <StatPill
+                icon={Clock}
+                tone="text-sky-600 dark:text-sky-400"
+                value={recentItems.length}
+                label={t('home.recentApps.title', { defaultValue: 'Recently Accessed' })}
+              />
+            )}
+            {favorites.length > 0 && (
+              <StatPill
+                icon={Star}
+                tone="text-amber-500 dark:text-amber-400"
+                value={favorites.length}
+                label={t('home.starredApps.title', { defaultValue: 'Starred' })}
+              />
+            )}
+          </div>
         </div>
       </section>
 
@@ -188,15 +244,20 @@ export function HomePage() {
 
           <section>
             <div className="flex items-end justify-between mb-5">
-              <div>
-                <h2 className="text-2xl font-semibold tracking-tight">
-                  {t('home.allApps', { defaultValue: 'All Applications' })}
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {activeApps.length}
-                  {' · '}
-                  {t('home.stats.apps', { defaultValue: 'Applications' })}
-                </p>
+              <div className="flex items-center gap-2.5">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 ring-1 ring-indigo-500/20 text-indigo-600 dark:text-indigo-400">
+                  <LayoutGrid className="h-4 w-4" />
+                </span>
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight">
+                    {t('home.allApps', { defaultValue: 'All Applications' })}
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {activeApps.length}
+                    {' · '}
+                    {t('home.stats.apps', { defaultValue: 'Applications' })}
+                  </p>
+                </div>
               </div>
               {isAdmin && (
                 <Button
