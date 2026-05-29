@@ -1321,9 +1321,9 @@ function MetadataResourceEditPageImpl({
               </div>
             )}
             {isLocked && (
-              <div className="text-xs text-amber-900 border border-amber-300 bg-amber-50 rounded p-3 dark:text-amber-200 dark:border-amber-700/50 dark:bg-amber-950/30 flex items-start gap-3">
-                <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                <div className="flex-1">
+              <div className="text-xs text-amber-900 border border-amber-300/70 bg-amber-50/70 rounded-md px-3 py-2.5 dark:text-amber-200 dark:border-amber-700/40 dark:bg-amber-950/20 flex items-start gap-2.5">
+                <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0 opacity-80" />
+                <div className="flex-1 min-w-0">
                   <div className="font-medium">
                     {layered?.lock === 'full' && t('engine.edit.lockFull', locale)}
                     {layered?.lock === 'no-overlay' && t('engine.edit.lockNoOverlay', locale)}
@@ -1336,6 +1336,20 @@ function MetadataResourceEditPageImpl({
                     </div>
                   )}
                 </div>
+                {/* When this locked item ships from a code package the
+                    user can still author their own copy — fold that CTA
+                    into the lock banner instead of stacking a second,
+                    near-identical amber notice below it. */}
+                {showArtifactLockedBanner && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 h-7 bg-background/60"
+                    onClick={() => navigate(`../new`, { relative: 'path' })}
+                  >
+                    {t('engine.list.create', locale)}
+                  </Button>
+                )}
               </div>
             )}
             {hasDraft && !createMode && (
@@ -1369,8 +1383,12 @@ function MetadataResourceEditPageImpl({
                 )}
               </div>
             )}
-            {readOnly && (
-              <div className="text-xs text-amber-800 border border-amber-300 bg-amber-50 rounded p-3 dark:text-amber-200 dark:border-amber-700/50 dark:bg-amber-950/30 flex items-start gap-3">
+            {/* When the item is already flagged via the lock banner above,
+                this read-only notice is redundant (and its CTA has been
+                folded into the lock banner). Only render it for the
+                non-locked read-only cases. */}
+            {readOnly && !isLocked && (
+              <div className="text-xs text-amber-800 border border-amber-300/70 bg-amber-50/70 rounded-md px-3 py-2.5 dark:text-amber-200 dark:border-amber-700/40 dark:bg-amber-950/20 flex items-start gap-3">
                 <div className="flex-1">
                   {showArtifactLockedBanner ? (
                     /* Type allows runtime-create but THIS item ships from

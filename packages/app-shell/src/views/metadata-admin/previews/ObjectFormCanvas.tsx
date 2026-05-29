@@ -39,6 +39,7 @@ import {
   FIELD_TYPE_META,
   TYPES_BY_CATEGORY,
   CATEGORY_LABEL_EN,
+  CATEGORY_TONE,
   type FieldTypeId,
 } from './field-types';
 import { FieldStub } from './FieldStub';
@@ -310,6 +311,7 @@ function FieldRow({
   const typeStr = typeof def.type === 'string' ? (def.type as string) : 'text';
   const meta = FIELD_TYPE_META[typeStr as FieldTypeId];
   const Icon = meta?.Icon;
+  const tone = CATEGORY_TONE[meta?.category ?? 'advanced'];
   const label = typeof def.label === 'string' ? (def.label as string) : entry.name;
   const required = !!def.required;
   const description = typeof def.description === 'string' ? (def.description as string) : null;
@@ -405,7 +407,7 @@ function FieldRow({
                 aria-hidden="true"
               />
             )}
-            {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+            {Icon && <Icon className={cn('h-3.5 w-3.5 shrink-0', tone.icon)} />}
             {editingLabel ? (
               <input
                 autoFocus
@@ -432,7 +434,7 @@ function FieldRow({
             {required && <span className="text-destructive text-sm">*</span>}
             <code className="text-[10px] text-muted-foreground/70 font-mono truncate">{entry.name}</code>
           </div>
-          <Badge variant="outline" className="text-[10px] shrink-0">
+          <Badge variant="outline" className={cn('text-[10px] shrink-0 font-medium', tone.badge)}>
             {meta?.label ?? typeStr}
           </Badge>
         </div>
@@ -537,7 +539,7 @@ function AddFieldButton({ onPick }: { onPick: (type: FieldTypeId) => void }) {
                         }}
                         className="flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs hover:bg-accent"
                       >
-                        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <Icon className={cn('h-3.5 w-3.5 shrink-0', CATEGORY_TONE[m.category].icon)} />
                         <span className="truncate">{m.label}</span>
                       </button>
                     );

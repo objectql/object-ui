@@ -123,6 +123,41 @@ export const CATEGORY_LABEL_EN: Record<FieldTypeCategory, string> = {
   calculated: 'Calculated', advanced: 'Advanced',
 };
 
+/**
+ * Per-category color tone. Lets the canvas, type badges, and type
+ * picker tint a field by its category so the form is scannable at a
+ * glance (text vs number vs relation vs media …) instead of a wall of
+ * neutral-grey rows. Colour is used purely as a category *signal* —
+ * subtle tints, never loud fills — consistent with the console's
+ * content-first visual language.
+ *
+ * Class strings are written out in full (not composed) so Tailwind's
+ * JIT can see and emit every variant.
+ */
+export interface CategoryTone {
+  /** Icon stroke colour. */
+  icon: string;
+  /** Tinted type-badge classes (border + bg + text), light & dark. */
+  badge: string;
+}
+
+export const CATEGORY_TONE: Record<FieldTypeCategory, CategoryTone> = {
+  text:       { icon: 'text-slate-500 dark:text-slate-400',     badge: 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700/50 dark:bg-slate-800/40 dark:text-slate-300' },
+  number:     { icon: 'text-blue-600 dark:text-blue-400',       badge: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800/50 dark:bg-blue-950/40 dark:text-blue-300' },
+  date:       { icon: 'text-violet-600 dark:text-violet-400',   badge: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800/50 dark:bg-violet-950/40 dark:text-violet-300' },
+  logic:      { icon: 'text-amber-600 dark:text-amber-400',     badge: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-300' },
+  selection:  { icon: 'text-teal-600 dark:text-teal-400',       badge: 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-800/50 dark:bg-teal-950/40 dark:text-teal-300' },
+  relation:   { icon: 'text-indigo-600 dark:text-indigo-400',   badge: 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800/50 dark:bg-indigo-950/40 dark:text-indigo-300' },
+  media:      { icon: 'text-pink-600 dark:text-pink-400',       badge: 'border-pink-200 bg-pink-50 text-pink-700 dark:border-pink-800/50 dark:bg-pink-950/40 dark:text-pink-300' },
+  calculated: { icon: 'text-emerald-600 dark:text-emerald-400', badge: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-300' },
+  advanced:   { icon: 'text-zinc-500 dark:text-zinc-400',       badge: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700/50 dark:bg-zinc-800/40 dark:text-zinc-300' },
+};
+
+/** Resolve the colour tone for any field-type string (unknown → advanced). */
+export function resolveCategoryTone(type: unknown): CategoryTone {
+  return CATEGORY_TONE[resolveFieldTypeMeta(type).category];
+}
+
 export const CATEGORY_LABEL_ZH: Record<FieldTypeCategory, string> = {
   text: '文本', number: '数值', date: '日期/时间', logic: '逻辑',
   selection: '选择', relation: '关系', media: '媒体',
