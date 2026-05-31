@@ -48,11 +48,33 @@ export type FlowConfigFieldKind =
  *   • `flow`          → a flow, by name (`client.list('flow')`)
  *   • `role`          → a security role (`client.list('role')`)
  *   • `node`          → another node in *this* flow, by id (read from the draft)
+ *   • `user` / `team` / `queue` / `department` → the matching metadata list
+ *                       (`client.list(kind)`); empty in dev, populated per tenant
+ *   • `connector`     → an installed connector (`client.list('connector')`)
+ *   • `email-template`→ an email template (`client.list('email_template')`)
+ *
+ * Kinds that have no catalog in the current tenant simply degrade to a plain
+ * text box — the control is always an editable combobox, never a hard dropdown.
  */
-export type ReferenceKind = 'object' | 'object-field' | 'flow' | 'role' | 'node';
+export type ReferenceKind =
+  | 'object'
+  | 'object-field'
+  | 'flow'
+  | 'role'
+  | 'node'
+  | 'user'
+  | 'team'
+  | 'queue'
+  | 'department'
+  | 'connector'
+  | 'email-template';
 
 export interface FlowReferenceSpec {
-  kind: ReferenceKind;
+  /**
+   * Concrete reference kind. Omit when the kind is *polymorphic* — chosen at
+   * render time from a sibling value (see {@link kindFrom}).
+   */
+  kind?: ReferenceKind;
   /**
    * For `object-field` only: where to find the target object's name.
    *   • `'$trigger'` (default) → the flow trigger object, read from the start
@@ -61,15 +83,26 @@ export interface FlowReferenceSpec {
    *     the object name (e.g. CRUD nodes resolve from their own `objectName`).
    */
   objectSource?: string;
+  /**
+   * Polymorphic reference: the kind is selected at render time by the value of
+   * a sibling field/column named `kindFrom`, looked up in {@link map}. A value
+   * with no mapping (or an empty sibling) falls back to free text. Used by the
+   * approval node's `approvers[].value` (kind follows the row's `type`) and the
+   * script node's `template` (follows `actionType`).
+   */
+  kindFrom?: string;
+  map?: Record<string, ReferenceKind>;
 }
 
 /** Column descriptor for an `objectList` repeater row. */
 export interface FlowConfigColumn {
   key: string;
   label: string;
-  kind: 'text' | 'expression' | 'boolean' | 'select';
+  kind: 'text' | 'expression' | 'boolean' | 'select' | 'reference';
   placeholder?: string;
   options?: Array<{ value: string; label: string }>;
+  /** For `kind: 'reference'` — the picker data source (may be polymorphic). */
+  ref?: FlowReferenceSpec;
 }
 
 export interface FlowConfigField {
@@ -256,7 +289,10 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
       defaultValue: 'code',
       help: 'How this step runs. Leave as Code for a raw script.',
     }),
-    cfg('template', 'Template', 'text', {
+    cfg('template', 'Template', 'reference', {
+      // Polymorphic: an email step picks from the email-template catalog; sms /
+      // notification have no flat catalog yet, so they degrade to free text.
+      ref: { kindFrom: 'actionType', map: { email: 'email-template' } },
       placeholder: 'case_escalated',
       help: 'Message template id.',
       showWhen: { field: 'actionType', equals: ['email', 'sms', 'notification'] },
@@ -316,7 +352,27 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
             { value: 'queue', label: 'Queue' },
           ],
         },
-        { key: 'value', label: 'Value', kind: 'text', placeholder: 'user id / role / field — per type' },
+        {
+          // Polymorphic: the picker follows the row's `type`. `manager` takes no
+          // value (resolved from the submitter's manager_id) so it stays unmapped
+          // → free text; unmapped/empty types likewise fall back to free text.
+          key: 'value',
+          label: 'Value',
+          kind: 'reference',
+          placeholder: 'user id / role / field — per type',
+          ref: {
+            kindFrom: 'type',
+            objectSource: '$trigger',
+            map: {
+              user: 'user',
+              role: 'role',
+              team: 'team',
+              department: 'department',
+              field: 'object-field',
+              queue: 'queue',
+            },
+          },
+        },
       ],
     }),
     cfg('behavior', 'Behavior', 'select', {
@@ -349,7 +405,7 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
       ],
       showWhen: { field: 'escalation.enabled', equals: ['true'] },
     },
-    { id: 'escalation.escalateTo', path: ['config', 'escalation', 'escalateTo'], label: 'Escalate to', kind: 'text', placeholder: 'user id / role / manager level', showWhen: { field: 'escalation.enabled', equals: ['true'] } },
+    { id: 'escalation.escalateTo', path: ['config', 'escalation', 'escalateTo'], label: 'Escalate to', kind: 'reference', ref: { kind: 'role' }, placeholder: 'user id / role / manager level', showWhen: { field: 'escalation.enabled', equals: ['true'] } },
     { id: 'escalation.notifySubmitter', path: ['config', 'escalation', 'notifySubmitter'], label: 'Notify submitter', kind: 'boolean', showWhen: { field: 'escalation.enabled', equals: ['true'] } },
   ],
   wait: [
@@ -388,7 +444,9 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     { id: 'timeoutMs', path: ['timeoutMs'], label: 'Timeout (ms)', kind: 'number', placeholder: '60000' },
   ],
   connector_action: [
-    at('connectorConfig', 'connectorId', 'Connector', 'text', { placeholder: 'slack · email · salesforce' }),
+    at('connectorConfig', 'connectorId', 'Connector', 'reference', { ref: { kind: 'connector' }, placeholder: 'slack · email · salesforce' }),
+    // actionId is polymorphic on the chosen connector and has no flat catalog
+    // (a deliberate open extension point) — stays free text.
     at('connectorConfig', 'actionId', 'Action', 'text', { placeholder: 'sendMessage · send' }),
     at('connectorConfig', 'input', 'Input', 'keyValue', { help: 'Mapped inputs for the connector action.' }),
     { id: 'timeoutMs', path: ['timeoutMs'], label: 'Timeout (ms)', kind: 'number', placeholder: '30000' },

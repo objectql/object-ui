@@ -82,6 +82,7 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
             addLabel={t('engine.inspector.flowNode.list.add', locale)}
             removeLabel={t('engine.inspector.flowNode.list.remove', locale)}
             emptyLabel={t('engine.inspector.flowNode.list.empty', locale)}
+            context={context}
           />
         );
       case 'number':

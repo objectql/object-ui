@@ -34,6 +34,7 @@ import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShe
 import { uniqueId, appendArray } from '../inspectors/_shared';
 import { t as tr } from '../i18n';
 import { FlowCanvas } from './FlowCanvas';
+import { edgeKey } from './flow-canvas-layout';
 import { FlowSimulatorPanel } from './FlowSimulatorPanel';
 
 interface FlowNode {
@@ -73,6 +74,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
   const designMode = !!(editing && onSelectionChange);
   const canEdit = designMode && !!onPatch;
   const selectedId = selection && selection.kind === 'node' ? selection.id : null;
+  const selectedEdgeId = selection && selection.kind === 'edge' ? selection.id : null;
 
   const [showDebug, setShowDebug] = React.useState(false);
   const [showVars, setShowVars] = React.useState(true);
@@ -170,6 +172,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                 editable={canEdit}
                 designMode={designMode}
                 selectedId={selectedId}
+                selectedEdgeId={selectedEdgeId}
                 locale={locale}
                 activeNodeId={runHL?.activeNodeId ?? null}
                 visitedNodeIds={runHL?.visitedNodeIds}
@@ -177,6 +180,11 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                 onSelect={(n) =>
                   n
                     ? onSelectionChange?.({ kind: 'node', id: n.id, label: n.label || n.id })
+                    : onSelectionChange?.(null)
+                }
+                onSelectEdge={(e, key) =>
+                  e
+                    ? onSelectionChange?.({ kind: 'edge', id: key, label: `${e.source} → ${e.target}` })
                     : onSelectionChange?.(null)
                 }
                 onPatch={onPatch}

@@ -47,10 +47,12 @@ interface JsonSchemaNode {
   required?: string[];
   /**
    * Reference annotation carried from the executor's Zod `.meta({ xRef })`
-   * (ADR-0018). Marks a string as a typed reference (object field, object,
-   * flow, role, node) so the inspector renders a picker instead of free text.
+   * (ADR-0018). Marks a string as a typed reference so the inspector renders a
+   * picker instead of free text. Either static (`kind`) or **polymorphic**
+   * (`kindFrom` + `map`): the concrete kind is chosen at render time from a
+   * sibling field/column value (e.g. an approver's `value` follows its `type`).
    */
-  xRef?: { kind?: string; objectSource?: string };
+  xRef?: { kind?: string; objectSource?: string; kindFrom?: string; map?: Record<string, string> };
 }
 
 const REFERENCE_KINDS: ReadonlySet<string> = new Set<ReferenceKind>([
@@ -59,16 +61,40 @@ const REFERENCE_KINDS: ReadonlySet<string> = new Set<ReferenceKind>([
   'flow',
   'role',
   'node',
+  'user',
+  'team',
+  'queue',
+  'department',
+  'connector',
+  'email-template',
 ]);
 
-/** Read a valid `xRef` annotation off a schema node, or undefined. */
+/**
+ * Read a valid `xRef` annotation off a schema node, or undefined. Accepts both
+ * the static shape (`{ kind }`) and the polymorphic shape (`{ kindFrom, map }`),
+ * validating every referenced kind against {@link REFERENCE_KINDS} so an unknown
+ * kind degrades to free text rather than a broken picker.
+ */
 function refOf(node: JsonSchemaNode): FlowReferenceSpec | undefined {
   const x = node.xRef;
-  if (!x || typeof x !== 'object' || typeof x.kind !== 'string' || !REFERENCE_KINDS.has(x.kind)) return undefined;
-  return {
-    kind: x.kind as ReferenceKind,
-    ...(typeof x.objectSource === 'string' && x.objectSource ? { objectSource: x.objectSource } : {}),
-  };
+  if (!x || typeof x !== 'object') return undefined;
+  const objectSource = typeof x.objectSource === 'string' && x.objectSource ? { objectSource: x.objectSource } : {};
+
+  // Polymorphic: kindFrom + a map of discriminator value → kind.
+  if (typeof x.kindFrom === 'string' && x.kindFrom && x.map && typeof x.map === 'object') {
+    const map: Record<string, ReferenceKind> = {};
+    for (const [disc, kind] of Object.entries(x.map)) {
+      if (typeof kind === 'string' && REFERENCE_KINDS.has(kind)) map[disc] = kind as ReferenceKind;
+    }
+    if (Object.keys(map).length === 0) return undefined;
+    return { kindFrom: x.kindFrom, map, ...objectSource };
+  }
+
+  // Static: a single concrete kind.
+  if (typeof x.kind === 'string' && REFERENCE_KINDS.has(x.kind)) {
+    return { kind: x.kind as ReferenceKind, ...objectSource };
+  }
+  return undefined;
 }
 
 /** "approvalStatusField" → "Approval Status Field"; "approve" → "Approve". */
@@ -134,7 +160,12 @@ function columnsFor(item: JsonSchemaNode): FlowConfigColumn[] {
     const t = schemaType(prop);
     let kind: FlowConfigColumn['kind'];
     let options: Array<{ value: string; label: string }> | undefined;
-    if (Array.isArray(prop.enum)) {
+    // A reference annotation wins over the plain scalar mapping — the column is
+    // a typed reference and gets a picker (static or polymorphic via kindFrom).
+    const ref = refOf(prop);
+    if (ref) {
+      kind = 'reference';
+    } else if (Array.isArray(prop.enum)) {
       kind = 'select';
       options = enumOptions(prop.enum);
     } else if (t === 'boolean') {
@@ -147,6 +178,7 @@ function columnsFor(item: JsonSchemaNode): FlowConfigColumn[] {
       label: prop.title || humanizeKey(key),
       kind,
       ...(options ? { options } : {}),
+      ...(ref ? { ref } : {}),
       // Columns have no help slot — surface the schema description as a hint.
       ...(prop.description ? { placeholder: prop.description } : {}),
     });

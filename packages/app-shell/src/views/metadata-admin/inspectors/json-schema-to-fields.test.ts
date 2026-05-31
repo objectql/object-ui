@@ -19,7 +19,15 @@ const APPROVAL_CONFIG_SCHEMA = {
         type: 'object',
         properties: {
           type: { type: 'string', enum: ['user', 'role', 'team', 'department', 'manager', 'field', 'queue'] },
-          value: { description: 'User id / role / team / department / field / queue — per `type`', type: 'string' },
+          value: {
+            description: 'User id / role / team / department / field / queue — per `type`',
+            type: 'string',
+            xRef: {
+              kindFrom: 'type',
+              objectSource: '$trigger',
+              map: { user: 'user', role: 'role', team: 'team', department: 'department', field: 'object-field', queue: 'queue' },
+            },
+          },
         },
         required: ['type'],
       },
@@ -44,7 +52,7 @@ const APPROVAL_CONFIG_SCHEMA = {
         enabled: { default: false, description: 'Enable SLA-based escalation for this node', type: 'boolean' },
         timeoutHours: { type: 'number', minimum: 1, description: 'Hours before escalation triggers' },
         action: { default: 'notify', description: 'Action on escalation timeout', type: 'string', enum: ['reassign', 'auto_approve', 'auto_reject', 'notify'] },
-        escalateTo: { description: 'User id, role, or manager level to escalate to', type: 'string' },
+        escalateTo: { description: 'User id, role, or manager level to escalate to', type: 'string', xRef: { kind: 'role' } },
         notifySubmitter: { default: true, description: 'Notify the original submitter on escalation', type: 'boolean' },
       },
       required: ['timeoutHours'],
@@ -97,8 +105,50 @@ describe('jsonSchemaToFlowFields', () => {
     expect(typeCol.kind).toBe('select');
     expect(typeCol.options!.map((o) => o.value)).toEqual(['user', 'role', 'team', 'department', 'manager', 'field', 'queue']);
     const valueCol = approvers.columns!.find((c) => c.key === 'value')!;
-    expect(valueCol.kind).toBe('text');
+    // Polymorphic reference: the picker follows the row's `type`.
+    expect(valueCol.kind).toBe('reference');
+    expect(valueCol.ref).toEqual({
+      kindFrom: 'type',
+      objectSource: '$trigger',
+      map: { user: 'user', role: 'role', team: 'team', department: 'department', field: 'object-field', queue: 'queue' },
+    });
     expect(valueCol.placeholder).toBe('User id / role / team / department / field / queue — per `type`');
+  });
+
+  it('maps a static-kind xRef column into a reference column', () => {
+    const fields = jsonSchemaToFlowFields({
+      type: 'object',
+      properties: {
+        rows: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { connector: { type: 'string', xRef: { kind: 'connector' } } },
+          },
+        },
+      },
+    })!;
+    const col = fields.find((f) => f.id === 'rows')!.columns!.find((c) => c.key === 'connector')!;
+    expect(col.kind).toBe('reference');
+    expect(col.ref).toEqual({ kind: 'connector' });
+  });
+
+  it('drops a polymorphic xRef whose map has no known kinds (column stays text)', () => {
+    const fields = jsonSchemaToFlowFields({
+      type: 'object',
+      properties: {
+        rows: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { value: { type: 'string', xRef: { kindFrom: 'type', map: { foo: 'bogus' } } } },
+          },
+        },
+      },
+    })!;
+    const col = fields.find((f) => f.id === 'rows')!.columns!.find((c) => c.key === 'value')!;
+    expect(col.kind).toBe('text');
+    expect(col.ref).toBeUndefined();
   });
 
   it('maps an enum string into a select with humanized option labels + default', () => {
@@ -167,5 +217,11 @@ describe('jsonSchemaToFlowFields', () => {
     expect(action.defaultValue).toBe('notify');
     expect(action.options!.map((o) => o.value)).toEqual(['reassign', 'auto_approve', 'auto_reject', 'notify']);
     expect(action.showWhen).toEqual({ field: 'escalation.enabled', equals: ['true'] });
+
+    // A nested xRef string flattens into a reference field, still gated.
+    const escalateTo = fields.find((f) => f.id === 'escalation.escalateTo')!;
+    expect(escalateTo.kind).toBe('reference');
+    expect(escalateTo.ref).toEqual({ kind: 'role' });
+    expect(escalateTo.showWhen).toEqual({ field: 'escalation.enabled', equals: ['true'] });
   });
 });

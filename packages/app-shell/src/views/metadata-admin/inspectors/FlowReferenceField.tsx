@@ -2,8 +2,9 @@
 
 /**
  * FlowReferenceField — an *editable combobox* for flow-node config values that
- * are really references (an object's field, an object/flow/role by name, or
- * another node in this flow) rather than free-form strings.
+ * are really references (an object's field, an object/flow/role/user/… by name,
+ * a connector, an email template, or another node in this flow) rather than
+ * free-form strings.
  *
  * Why a combobox and not a strict dropdown: the designer must never trap the
  * author. The control suggests known values (fetched per {@link ReferenceKind})
@@ -13,6 +14,13 @@
  * suggest-but-allow-anything behaviour, zero extra dependencies, and built-in
  * accessibility.
  *
+ * Two layers:
+ *   • {@link ReferenceCombobox} — the bare control, given an already-resolved
+ *     concrete kind. Reused by the `objectList` repeater for per-row reference
+ *     cells (e.g. an approver's value).
+ *   • {@link FlowReferenceField} — the inspector field wrapper (label + hint),
+ *     resolving a *polymorphic* reference against the node's own sibling config.
+ *
  * Data sources are resolved lazily from the running backend (the same source of
  * truth as the rest of the designer); `object-field` additionally needs to know
  * *which* object — resolved from the reference's `objectSource` against the
@@ -21,7 +29,7 @@
 
 import * as React from 'react';
 import { Input, Label } from '@object-ui/components';
-import type { FlowConfigField, FlowReferenceSpec } from './flow-node-config';
+import type { FlowReferenceSpec, ReferenceKind } from './flow-node-config';
 import { useMetadataClient } from '../useMetadata';
 import { useObjectFields } from '../previews/useObjectFields';
 
@@ -38,6 +46,49 @@ interface Option {
   label: string;
 }
 
+/**
+ * Reference kinds backed by a flat metadata list (`client.list(type)`), mapped
+ * to their metadata-type name. `object-field` and `node` are resolved
+ * specially (not via a list) and are intentionally absent.
+ */
+const KIND_TO_META_TYPE: Partial<Record<ReferenceKind, string>> = {
+  object: 'object',
+  flow: 'flow',
+  role: 'role',
+  user: 'user',
+  team: 'team',
+  queue: 'queue',
+  department: 'department',
+  connector: 'connector',
+  'email-template': 'email_template',
+};
+
+/** A concrete (non-polymorphic) reference resolution. */
+export interface ResolvedRef {
+  kind: ReferenceKind;
+  objectSource?: string;
+}
+
+/**
+ * Resolve a (possibly polymorphic) reference spec to a concrete kind. For a
+ * polymorphic spec, `sibling(key)` supplies the discriminator value (the row's
+ * `type`, or a sibling config key). Returns undefined when nothing resolves —
+ * the caller then renders plain free text.
+ */
+export function resolveRefKind(
+  ref: FlowReferenceSpec | undefined,
+  sibling: (key: string) => unknown,
+): ResolvedRef | undefined {
+  if (!ref) return undefined;
+  if (ref.kind) return { kind: ref.kind, objectSource: ref.objectSource };
+  if (ref.kindFrom && ref.map) {
+    const disc = sibling(ref.kindFrom);
+    const k = typeof disc === 'string' ? ref.map[disc] : undefined;
+    if (k) return { kind: k, objectSource: ref.objectSource };
+  }
+  return undefined;
+}
+
 /** Read `node.config[key]` as a non-empty string, else undefined. */
 function configString(node: Record<string, unknown> | null | undefined, key: string): string | undefined {
   const cfg = node?.config;
@@ -47,9 +98,9 @@ function configString(node: Record<string, unknown> | null | undefined, key: str
 }
 
 /** Resolve the target object name for an `object-field` reference. */
-function resolveObjectName(ref: FlowReferenceSpec | undefined, ctx: FlowReferenceContext): string | undefined {
-  if (!ref || ref.kind !== 'object-field') return undefined;
-  const src = ref.objectSource || '$trigger';
+function resolveObjectName(kind: ReferenceKind, objectSource: string | undefined, ctx: FlowReferenceContext): string | undefined {
+  if (kind !== 'object-field') return undefined;
+  const src = objectSource || '$trigger';
   if (src === '$trigger') {
     const nodes = Array.isArray(ctx.draft.nodes) ? (ctx.draft.nodes as Array<Record<string, unknown>>) : [];
     const start = nodes.find((n) => n?.type === 'start');
@@ -99,67 +150,72 @@ function useMetadataListOptions(type: string | undefined): { options: Option[]; 
   return state;
 }
 
-export interface FlowReferenceFieldProps {
-  field: FlowConfigField;
+export interface ReferenceComboboxProps {
+  /** The resolved concrete reference, or undefined → plain free text. */
+  resolved: ResolvedRef | undefined;
   value: unknown;
   onCommit: (value: unknown) => void;
+  /** Optional blur handler (the `objectList` repeater flushes rows on blur). */
+  onBlur?: () => void;
   disabled?: boolean;
+  placeholder?: string;
   context?: FlowReferenceContext;
+  /** Show the "Fields of X." / unresolved hint under the control (default true). */
+  showHint?: boolean;
 }
 
-export function FlowReferenceField({ field, value, onCommit, disabled, context }: FlowReferenceFieldProps) {
+/**
+ * The bare reference combobox — suggestions for `resolved.kind`, always
+ * free-text editable. Hooks are called unconditionally (kind-gated args) so the
+ * component is safe to use in a repeater where the kind changes per row.
+ */
+export function ReferenceCombobox({ resolved, value, onCommit, onBlur, disabled, placeholder, context, showHint = true }: ReferenceComboboxProps) {
   const listId = React.useId();
-  const ref = field.ref;
   const ctx: FlowReferenceContext = context ?? { draft: {}, node: null };
-  const kind = ref?.kind;
+  const kind = resolved?.kind;
 
   // object-field: resolve the target object, then its field catalog.
-  const objectName = resolveObjectName(ref, ctx);
+  const objectName = resolved ? resolveObjectName(resolved.kind, resolved.objectSource, ctx) : undefined;
   const { fields: objectFields } = useObjectFields(kind === 'object-field' ? objectName : undefined);
 
-  // object / flow / role: list the metadata type.
-  const listType = kind === 'object' ? 'object' : kind === 'flow' ? 'flow' : kind === 'role' ? 'role' : undefined;
+  // Flat metadata-list kinds (object / flow / role / user / team / …).
+  const listType = kind && kind !== 'object-field' && kind !== 'node' ? KIND_TO_META_TYPE[kind] : undefined;
   const { options: listOptions } = useMetadataListOptions(listType);
 
   const options = React.useMemo<Option[]>(() => {
-    switch (kind) {
-      case 'object-field':
-        return objectFields.map((f) => ({
-          value: f.name,
-          label: f.label && f.label !== f.name ? `${f.label} (${f.name})` : f.name,
-        }));
-      case 'object':
-      case 'flow':
-      case 'role':
-        return listOptions;
-      case 'node': {
-        const nodes = Array.isArray(ctx.draft.nodes) ? (ctx.draft.nodes as Array<Record<string, unknown>>) : [];
-        const currentId = typeof ctx.node?.id === 'string' ? ctx.node.id : undefined;
-        return nodes
-          .filter((n) => typeof n?.id === 'string' && n.id && n.id !== currentId)
-          .map((n) => {
-            const id = String(n.id);
-            const lbl = typeof n.label === 'string' && n.label ? `${n.label} (${id})` : id;
-            return { value: id, label: lbl };
-          });
-      }
-      default:
-        return [];
+    if (kind === 'object-field') {
+      return objectFields.map((f) => ({
+        value: f.name,
+        label: f.label && f.label !== f.name ? `${f.label} (${f.name})` : f.name,
+      }));
     }
-  }, [kind, objectFields, listOptions, ctx.draft, ctx.node]);
+    if (kind === 'node') {
+      const nodes = Array.isArray(ctx.draft.nodes) ? (ctx.draft.nodes as Array<Record<string, unknown>>) : [];
+      const currentId = typeof ctx.node?.id === 'string' ? ctx.node.id : undefined;
+      return nodes
+        .filter((n) => typeof n?.id === 'string' && n.id && n.id !== currentId)
+        .map((n) => {
+          const id = String(n.id);
+          const lbl = typeof n.label === 'string' && n.label ? `${n.label} (${id})` : id;
+          return { value: id, label: lbl };
+        });
+    }
+    if (listType) return listOptions;
+    return [];
+  }, [kind, listType, objectFields, listOptions, ctx.draft, ctx.node]);
 
   // For an object-field whose object can't be resolved, tell the author why the
   // suggestions are empty — but still let them type a value.
   const unresolvedObject = kind === 'object-field' && !objectName;
 
   return (
-    <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{field.label}</Label>
+    <div className="w-full space-y-1">
       <Input
         list={options.length ? listId : undefined}
         value={value != null ? String(value) : ''}
         onChange={(e) => onCommit(e.target.value)}
-        placeholder={field.placeholder}
+        onBlur={onBlur}
+        placeholder={placeholder}
         disabled={disabled}
         className="h-8 text-sm"
       />
@@ -172,14 +228,45 @@ export function FlowReferenceField({ field, value, onCommit, disabled, context }
           ))}
         </datalist>
       )}
-      {kind === 'object-field' && objectName && (
+      {showHint && kind === 'object-field' && objectName && (
         <p className="text-[11px] leading-snug text-muted-foreground">Fields of {objectName}.</p>
       )}
-      {unresolvedObject && (
+      {showHint && unresolvedObject && (
         <p className="text-[11px] leading-snug text-muted-foreground">
           Set the flow’s trigger object (on the Start node) to list fields.
         </p>
       )}
+    </div>
+  );
+}
+
+export interface FlowReferenceFieldProps {
+  field: { label: string; placeholder?: string; ref?: FlowReferenceSpec };
+  value: unknown;
+  onCommit: (value: unknown) => void;
+  disabled?: boolean;
+  context?: FlowReferenceContext;
+}
+
+/**
+ * Inspector field wrapper: a labelled reference combobox. A polymorphic ref is
+ * resolved against the node's own sibling config keys (e.g. the script node's
+ * `template` follows `actionType`).
+ */
+export function FlowReferenceField({ field, value, onCommit, disabled, context }: FlowReferenceFieldProps) {
+  const node = context?.node ?? null;
+  const resolved = resolveRefKind(field.ref, (key) => configString(node, key));
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs text-muted-foreground">{field.label}</Label>
+      <ReferenceCombobox
+        resolved={resolved}
+        value={value}
+        onCommit={onCommit}
+        disabled={disabled}
+        placeholder={field.placeholder}
+        context={context}
+      />
     </div>
   );
 }

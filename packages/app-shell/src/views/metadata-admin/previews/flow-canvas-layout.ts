@@ -216,6 +216,18 @@ export function edgeMidpoint(from: Point, to: Point): Point {
   return { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
 }
 
+/**
+ * Stable identity for an edge. Prefers an explicit `edge.id`; otherwise falls
+ * back to a `source->target#index` composite so an unsaved edge still has a
+ * deterministic key. Used for selection, traversal highlighting, and inspector
+ * lookup — all of which read the same `draft.edges` array, so the index is
+ * consistent across them. Editing label/condition/isDefault never changes the
+ * key (source/target/index are untouched), so a selection survives edits.
+ */
+export function edgeKey(edge: FlowEdge, index: number): string {
+  return edge.id || `${edge.source}->${edge.target}#${index}`;
+}
+
 /** Human-readable condition text for an edge's optional guard. */
 export function conditionText(c: FlowEdge['condition']): string | undefined {
   if (!c) return undefined;

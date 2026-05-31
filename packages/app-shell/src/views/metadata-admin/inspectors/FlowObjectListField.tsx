@@ -16,6 +16,7 @@ import { Plus, X } from 'lucide-react';
 import { Button, Input, Label, Checkbox } from '@object-ui/components';
 import { uniqueId } from './_shared';
 import type { FlowConfigColumn } from './flow-node-config';
+import { ReferenceCombobox, resolveRefKind, type FlowReferenceContext } from './FlowReferenceField';
 
 type Cell = string | boolean;
 interface Row {
@@ -70,6 +71,8 @@ export interface FlowObjectListFieldProps {
   addLabel: string;
   removeLabel: string;
   emptyLabel: string;
+  /** Draft + node context so `reference` columns can resolve their options. */
+  context?: FlowReferenceContext;
 }
 
 export function FlowObjectListField({
@@ -81,6 +84,7 @@ export function FlowObjectListField({
   addLabel,
   removeLabel,
   emptyLabel,
+  context,
 }: FlowObjectListFieldProps) {
   const external = React.useMemo(
     () =>
@@ -169,6 +173,19 @@ export function FlowObjectListField({
                       }}
                       disabled={disabled}
                     />
+                  ) : col.kind === 'reference' ? (
+                    <div className="flex-1">
+                      <ReferenceCombobox
+                        resolved={resolveRefKind(col.ref, (k) => row.values[k])}
+                        value={typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : ''}
+                        onCommit={(v) => setCell(row.id, col.key, typeof v === 'string' ? v : '')}
+                        onBlur={() => flush(rows)}
+                        placeholder={col.placeholder}
+                        disabled={disabled}
+                        context={context}
+                        showHint={false}
+                      />
+                    </div>
                   ) : (
                     <Input
                       value={typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : ''}

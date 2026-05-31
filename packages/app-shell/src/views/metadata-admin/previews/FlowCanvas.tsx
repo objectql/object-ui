@@ -33,6 +33,7 @@ import {
   topAnchor,
   edgePath,
   edgeMidpoint,
+  edgeKey,
   conditionText,
   NODE_H,
   V_GAP,
@@ -69,6 +70,8 @@ export interface FlowCanvasProps {
   editable: boolean;
   designMode: boolean;
   selectedId: string | null;
+  /** Stable key (see `edgeKey`) of the currently-selected edge, or null. */
+  selectedEdgeId?: string | null;
   locale?: string;
   /** Simulation overlay: currently-executing node. */
   activeNodeId?: string | null;
@@ -77,6 +80,8 @@ export interface FlowCanvasProps {
   /** Simulation overlay: ids of edges that were traversed. */
   traversedEdgeIds?: string[];
   onSelect: (node: FlowNode | null) => void;
+  /** Select an edge (its `edgeKey`), or clear selection with `null`. */
+  onSelectEdge?: (edge: FlowEdge | null, key: string) => void;
   onPatch?: (partial: Record<string, unknown>) => void;
 }
 
@@ -86,11 +91,13 @@ export function FlowCanvas({
   editable,
   designMode,
   selectedId,
+  selectedEdgeId,
   locale,
   activeNodeId,
   visitedNodeIds,
   traversedEdgeIds,
   onSelect,
+  onSelectEdge,
   onPatch,
 }: FlowCanvasProps) {
   const viewportRef = React.useRef<HTMLDivElement>(null);
@@ -438,23 +445,63 @@ export function FlowCanvas({
               const mid = edgeMidpoint(from, to);
               const cond = conditionText(edge.condition);
               const branchLabel = edge.isDefault ? 'else' : cond ? `if ${cond}` : edge.label;
-              const eid = edge.id || `${edge.source}->${edge.target}#${i}`;
+              const eid = edgeKey(edge, i);
               const traversed = traversedSet.has(eid);
+              const selected = selectedEdgeId === eid;
+              const d = edgePath(from, to);
+              // Edges are selectable in design mode; the host opens the edge
+              // inspector. A wide transparent hit-path widens the click target
+              // beyond the 1.5px visible stroke without altering the visuals.
+              const selectable = designMode && !!onSelectEdge;
               return (
                 <g key={edge.id || `${edge.source}-${edge.target}-${i}`}>
                   <path
-                    d={edgePath(from, to)}
+                    d={d}
                     className={cn(
                       'fill-none',
-                      traversed ? 'stroke-sky-500' : simRunning ? 'stroke-muted-foreground/25' : 'stroke-muted-foreground/50',
+                      traversed
+                        ? 'stroke-sky-500'
+                        : selected
+                          ? 'stroke-primary'
+                          : simRunning
+                            ? 'stroke-muted-foreground/25'
+                            : 'stroke-muted-foreground/50',
                     )}
-                    strokeWidth={traversed ? 2.5 : 1.5}
+                    strokeWidth={traversed ? 2.5 : selected ? 2.5 : 1.5}
                     markerEnd="url(#flow-arrow)"
                   />
+                  {selectable && (
+                    <path
+                      d={d}
+                      className="pointer-events-auto cursor-pointer fill-none stroke-transparent"
+                      strokeWidth={14}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectEdge!(edge, eid);
+                      }}
+                    >
+                      <title>{`${edge.source} → ${edge.target}`}</title>
+                    </path>
+                  )}
                   {branchLabel && (
-                    <foreignObject x={mid.x - 60} y={mid.y - 11} width={120} height={22}>
+                    <foreignObject
+                      x={mid.x - 60}
+                      y={mid.y - 11}
+                      width={120}
+                      height={22}
+                      className={cn(selectable && 'pointer-events-auto')}
+                    >
                       <div className="flex justify-center">
-                        <span className="max-w-full truncate rounded border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground shadow-sm">
+                        <span
+                          onPointerDown={selectable ? (e) => e.stopPropagation() : undefined}
+                          onClick={selectable ? (e) => { e.stopPropagation(); onSelectEdge!(edge, eid); } : undefined}
+                          className={cn(
+                            'max-w-full truncate rounded border bg-background px-1.5 py-0.5 text-[10px] font-medium shadow-sm',
+                            selectable && 'cursor-pointer',
+                            selected ? 'border-primary text-primary' : 'text-muted-foreground',
+                          )}
+                        >
                           {branchLabel}
                         </span>
                       </div>
