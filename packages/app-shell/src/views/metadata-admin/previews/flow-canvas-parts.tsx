@@ -369,17 +369,19 @@ export function NodeCard({
 
 export interface NodePaletteProps {
   locale?: string;
+  /** Node types to offer. Defaults to the hardcoded {@link NODE_PALETTE}. */
+  items?: PaletteItem[];
   onPick: (type: string) => void;
   onClose: () => void;
 }
 
 /** Compact popover listing the node types an author can add. */
-export function NodePalette({ onPick, onClose }: NodePaletteProps) {
+export function NodePalette({ items = NODE_PALETTE, onPick, onClose }: NodePaletteProps) {
   return (
     <>
       <div className="fixed inset-0 z-20" onClick={onClose} aria-hidden />
-      <div className="absolute right-0 top-full z-30 mt-1 w-56 overflow-hidden rounded-lg border bg-popover p-1 shadow-lg">
-        {NODE_PALETTE.map((item) => {
+      <div className="absolute right-0 top-full z-30 mt-1 max-h-[60vh] w-56 overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">
+        {items.map((item) => {
           const tone = nodeTone(item.type);
           return (
             <button

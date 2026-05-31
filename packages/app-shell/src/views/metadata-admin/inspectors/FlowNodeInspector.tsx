@@ -31,6 +31,8 @@ import {
   configKeyOf,
   FLOW_NODE_TYPE_OPTIONS,
 } from './flow-node-config';
+import { jsonSchemaToFlowFields } from './json-schema-to-fields';
+import { useActionConfigSchemas } from '../previews/useFlowNodePalette';
 import { FlowNodeConfigField } from './FlowNodeConfigField';
 
 interface FlowNode {
@@ -73,7 +75,17 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
   const index = nodes.findIndex((n) => n?.id === selection.id);
   const node = index >= 0 ? nodes[index] : null;
 
-  const fields = fieldsForNodeType(node?.type);
+  // Server-driven property form: when the running engine publishes a config
+  // JSON Schema for this node type (ADR-0018 §configSchema — e.g. the ADR-0019
+  // approval node), derive the form from it so the designer stays in lock-step
+  // with the backend. Falls back to the hardcoded field group when no schema is
+  // published (offline / plugin absent / older backend).
+  const configSchemas = useActionConfigSchemas();
+  const fields = React.useMemo(() => {
+    const schema = node?.type ? configSchemas[node.type] : undefined;
+    const serverFields = schema !== undefined ? jsonSchemaToFlowFields(schema) : null;
+    return serverFields ?? fieldsForNodeType(node?.type);
+  }, [configSchemas, node?.type]);
   const config = asConfig(node);
   const visibleFields = fields.filter((f) => isFieldVisible(f, node, fields));
   // Only fields stored under `config` "own" a config key; spec-structured
@@ -202,6 +214,7 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
           onCommit={(v) => setField(field.path, v)}
           disabled={readOnly}
           locale={locale}
+          context={{ draft, node }}
         />
       ))}
 

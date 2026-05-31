@@ -33,7 +33,35 @@ export type FlowConfigFieldKind =
   | 'textarea'
   | 'keyValue'
   | 'stringList'
-  | 'objectList';
+  | 'objectList'
+  | 'reference';
+
+/**
+ * What a `reference` field points at — the picker's data source. The control
+ * is always an *editable* combobox (suggestions + free text), so an unknown /
+ * not-yet-created value is never rejected and an empty catalog degrades to a
+ * plain text box.
+ *
+ *   • `object`        → a business object, by API name (`client.list('object')`)
+ *   • `object-field`  → a field of some object; the object is resolved via
+ *                       {@link FlowReferenceSpec.objectSource}
+ *   • `flow`          → a flow, by name (`client.list('flow')`)
+ *   • `role`          → a security role (`client.list('role')`)
+ *   • `node`          → another node in *this* flow, by id (read from the draft)
+ */
+export type ReferenceKind = 'object' | 'object-field' | 'flow' | 'role' | 'node';
+
+export interface FlowReferenceSpec {
+  kind: ReferenceKind;
+  /**
+   * For `object-field` only: where to find the target object's name.
+   *   • `'$trigger'` (default) → the flow trigger object, read from the start
+   *     node's `config.objectName` (the record an approval / record node acts on).
+   *   • any other string       → a sibling config key on the *same* node holding
+   *     the object name (e.g. CRUD nodes resolve from their own `objectName`).
+   */
+  objectSource?: string;
+}
 
 /** Column descriptor for an `objectList` repeater row. */
 export interface FlowConfigColumn {
@@ -76,6 +104,8 @@ export interface FlowConfigField {
   showWhen?: { field: string; equals: string[] };
   /** Column schema for `objectList` fields (array-of-objects repeater). */
   columns?: FlowConfigColumn[];
+  /** Reference target for `reference` fields — drives the combobox data source. */
+  ref?: FlowReferenceSpec;
 }
 
 /** Convenience: a `['config', key]`-rooted field (the common case). */
@@ -129,7 +159,8 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
         { value: 'event', label: 'Platform event' },
       ],
     }),
-    cfg('objectName', 'Object', 'text', {
+    cfg('objectName', 'Object', 'reference', {
+      ref: { kind: 'object' },
       placeholder: 'crm_lead',
       help: 'Target object for record / scheduled-scan triggers.',
     }),
@@ -183,21 +214,21 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     cfg('iteratorVariable', 'Item variable', 'text', { placeholder: 'currentItem' }),
   ],
   create_record: [
-    cfg('objectName', 'Object', 'text', { placeholder: 'contract' }),
+    cfg('objectName', 'Object', 'reference', { ref: { kind: 'object' }, placeholder: 'contract' }),
     cfg('fields', 'Field values', 'keyValue', { help: 'Field values to write on the new record.' }),
     cfg('outputVariable', 'Output variable', 'text', { placeholder: 'newRecord' }),
   ],
   update_record: [
-    cfg('objectName', 'Object', 'text', { placeholder: 'contract' }),
+    cfg('objectName', 'Object', 'reference', { ref: { kind: 'object' }, placeholder: 'contract' }),
     cfg('filter', 'Filter', 'keyValue', { help: 'Field/value pairs identifying the record(s) to update (e.g. id → {recordId}).' }),
     cfg('fields', 'Field values', 'keyValue', { help: 'Field values to write.' }),
   ],
   delete_record: [
-    cfg('objectName', 'Object', 'text', { placeholder: 'contract' }),
+    cfg('objectName', 'Object', 'reference', { ref: { kind: 'object' }, placeholder: 'contract' }),
     cfg('filter', 'Filter', 'keyValue', { help: 'Field/value pairs identifying the record(s) to delete.' }),
   ],
   get_record: [
-    cfg('objectName', 'Object', 'text', { placeholder: 'contract' }),
+    cfg('objectName', 'Object', 'reference', { ref: { kind: 'object' }, placeholder: 'contract' }),
     cfg('filter', 'Filter', 'keyValue', { help: 'Field/value pairs to match (e.g. status → active). Operator values like {"$ne": null} are preserved.' }),
     cfg('limit', 'Limit', 'number', { placeholder: '100' }),
     cfg('outputVariable', 'Output variable', 'text', { placeholder: 'records' }),
@@ -299,7 +330,8 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     cfg('lockRecord', 'Lock record', 'boolean', {
       help: 'Lock the triggering record from edits while this node is pending.',
     }),
-    cfg('approvalStatusField', 'Status field', 'text', {
+    cfg('approvalStatusField', 'Status field', 'reference', {
+      ref: { kind: 'object-field', objectSource: '$trigger' },
       placeholder: 'approval_status',
       help: 'Business-object field to mirror request status onto (pending/approved/rejected). Should be readonly.',
     }),
@@ -350,7 +382,7 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     }),
   ],
   subflow: [
-    cfg('flowName', 'Flow', 'text', { placeholder: 'escalation_flow' }),
+    cfg('flowName', 'Flow', 'reference', { ref: { kind: 'flow' }, placeholder: 'escalation_flow' }),
     cfg('input', 'Input mapping', 'keyValue', { help: 'Values passed to the subflow\u2019s input variables.' }),
     cfg('outputVariable', 'Output variable', 'text', { placeholder: 'subResult' }),
     { id: 'timeoutMs', path: ['timeoutMs'], label: 'Timeout (ms)', kind: 'number', placeholder: '60000' },
@@ -364,7 +396,7 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
   parallel_gateway: [],
   join_gateway: [],
   boundary_event: [
-    at('boundaryConfig', 'attachedToNodeId', 'Attached to', 'text', { placeholder: 'host node id', help: 'Host node this boundary event monitors.' }),
+    at('boundaryConfig', 'attachedToNodeId', 'Attached to', 'reference', { ref: { kind: 'node' }, placeholder: 'host node id', help: 'Host node this boundary event monitors.' }),
     at('boundaryConfig', 'eventType', 'Event type', 'select', {
       options: [
         { value: 'error', label: 'Error' },
@@ -397,7 +429,7 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
    */
   legacy_action: [
     cfg('action', 'Action', 'text', { placeholder: 'sendEmail · createTask · update · query' }),
-    cfg('objectName', 'Object', 'text', { placeholder: 'contract' }),
+    cfg('objectName', 'Object', 'reference', { ref: { kind: 'object' }, placeholder: 'contract' }),
     cfg('recordId', 'Record', 'expression', { placeholder: 'record.id' }),
     cfg('params', 'Parameters', 'keyValue', { help: 'Action inputs. Values auto-typed: 3 \u2192 number, true \u2192 boolean.' }),
     cfg('fields', 'Field values', 'keyValue' ),

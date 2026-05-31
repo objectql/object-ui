@@ -41,6 +41,7 @@ import {
   type Point,
 } from './flow-canvas-layout';
 import { NodeCard, NodePalette, defaultNodeLabel, defaultNodeExtras } from './flow-canvas-parts';
+import { useFlowNodePalette } from './useFlowNodePalette';
 
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 1.6;
@@ -96,6 +97,11 @@ export function FlowCanvas({
   const [zoom, setZoom] = React.useState(1);
   const [pan, setPan] = React.useState<Point>({ x: 0, y: 0 });
   const [paletteOpen, setPaletteOpen] = React.useState(false);
+  // Node types offered by the add-node palette, driven by the engine's
+  // published descriptors (`GET /api/v1/automation/actions`) merged with the
+  // hardcoded base — so the palette reflects what the backend actually supports
+  // (e.g. the `approval` node, third-party connector actions).
+  const paletteItems = useFlowNodePalette();
 
   // Transient drag position override (commit-on-drop) so rapid pointer moves
   // never spam onPatch and never diverge from the persisted draft.
@@ -334,6 +340,7 @@ export function FlowCanvas({
             {paletteOpen && (
               <NodePalette
                 locale={locale}
+                items={paletteItems}
                 onClose={() => setPaletteOpen(false)}
                 onPick={(type) => addNode(type, { from: selectedId ?? undefined })}
               />

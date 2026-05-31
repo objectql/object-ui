@@ -19,6 +19,7 @@ import { Label } from '@object-ui/components';
 import { FlowKeyValueField } from './FlowKeyValueField';
 import { FlowStringListField } from './FlowStringListField';
 import { FlowObjectListField } from './FlowObjectListField';
+import { FlowReferenceField, type FlowReferenceContext } from './FlowReferenceField';
 
 export interface FlowNodeConfigFieldProps {
   field: FlowConfigField;
@@ -26,11 +27,23 @@ export interface FlowNodeConfigFieldProps {
   onCommit: (value: unknown) => void;
   disabled?: boolean;
   locale?: string;
+  /** Draft + node context so `reference` fields can resolve their options. */
+  context?: FlowReferenceContext;
 }
 
-export function FlowNodeConfigField({ field, value, onCommit, disabled, locale }: FlowNodeConfigFieldProps) {
+export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, context }: FlowNodeConfigFieldProps) {
   const control = (() => {
     switch (field.kind) {
+      case 'reference':
+        return (
+          <FlowReferenceField
+            field={field}
+            value={value}
+            onCommit={(v) => onCommit(v)}
+            disabled={disabled}
+            context={context}
+          />
+        );
       case 'keyValue':
         return (
           <FlowKeyValueField
