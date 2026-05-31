@@ -64,7 +64,9 @@ const LOADERS: Record<string, SchemaLoader> = {
 
   // automation
   flow: async () => (await import('@objectstack/spec/automation')).FlowSchema as unknown as ZodLikeSchema,
-  workflow: async () => (await import('@objectstack/spec/automation')).StateMachineSchema as unknown as ZodLikeSchema,
+  // `workflow` is no longer a standalone metadata type (ADR-0020) — record
+  // state machines are a `state_machine` validation rule on the object,
+  // validated as part of ObjectSchema; there is no top-level workflow schema.
   // `approval` is no longer a standalone metadata type — it's a flow node
   // (`type: 'approval'`, ADR-0019). Its config (ApprovalNodeConfigSchema) is
   // validated as part of the enclosing flow; there is no top-level schema, so

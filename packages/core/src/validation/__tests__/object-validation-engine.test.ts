@@ -190,94 +190,79 @@ describe('ObjectValidationEngine', () => {
   });
 
   describe('StateMachineValidation', () => {
+    // ADR-0020 flat FSM: `field` + `{ from: [allowedTo] }` map (no guards).
+    const orderFlow: StateMachineValidation = {
+      type: 'state_machine',
+      name: 'order_status_flow',
+      active: true,
+      events: ['update'],
+      severity: 'error',
+      message: 'Invalid status transition',
+      field: 'status',
+      transitions: {
+        draft: ['submitted'],
+        submitted: ['approved', 'rejected'],
+        approved: ['completed'],
+      },
+    };
+
     it('should allow valid state transition', async () => {
       const engine = new ObjectValidationEngine();
-      const rule: StateMachineValidation = {
-        type: 'state_machine',
-        name: 'order_status_flow',
-        active: true,
-        events: ['update'],
-        severity: 'error',
-        message: 'Invalid status transition',
-        stateField: 'status',
-        transitions: [
-          { from: 'draft', to: 'submitted' },
-          { from: 'submitted', to: 'approved' },
-          { from: 'submitted', to: 'rejected' },
-          { from: 'approved', to: 'completed' },
-        ],
-      };
-
       const context: ObjectValidationContext = {
         record: { status: 'submitted' },
         oldRecord: { status: 'draft' },
       };
 
-      const results = await engine.validateRecord([rule], context, 'update');
+      const results = await engine.validateRecord([orderFlow], context, 'update');
       expect(results).toHaveLength(0);
     });
 
     it('should prevent invalid state transition', async () => {
       const engine = new ObjectValidationEngine();
-      const rule: StateMachineValidation = {
-        type: 'state_machine',
-        name: 'order_status_flow',
-        active: true,
-        events: ['update'],
-        severity: 'error',
-        message: 'Invalid status transition',
-        stateField: 'status',
-        transitions: [
-          { from: 'draft', to: 'submitted' },
-          { from: 'submitted', to: 'approved' },
-        ],
-      };
-
       const context: ObjectValidationContext = {
         record: { status: 'approved' },
         oldRecord: { status: 'draft' },
       };
 
-      const results = await engine.validateRecord([rule], context, 'update');
+      const results = await engine.validateRecord([orderFlow], context, 'update');
       expect(results).toHaveLength(1);
-      expect(results[0]).toMatchObject({
-        valid: false,
-      });
+      expect(results[0]).toMatchObject({ valid: false });
       expect(results[0].message).toContain('transition');
     });
 
-    it('should support conditional state transitions', async () => {
+    it('should allow the initial assignment on insert (no prior state)', async () => {
       const engine = new ObjectValidationEngine();
-      const rule: StateMachineValidation = {
-        type: 'state_machine',
-        name: 'conditional_transition',
-        active: true,
-        events: ['update'],
-        severity: 'error',
-        message: 'Invalid transition',
-        stateField: 'status',
-        transitions: [
-          {
-            from: 'pending',
-            to: 'approved',
-            condition: 'amount < 1000',
-          },
-        ],
+      const context: ObjectValidationContext = {
+        record: { status: 'draft' },
+        oldRecord: undefined,
       };
 
-      const context1: ObjectValidationContext = {
-        record: { status: 'approved', amount: 500 },
-        oldRecord: { status: 'pending', amount: 500 },
-      };
-      const results1 = await engine.validateRecord([rule], context1, 'update');
-      expect(results1).toHaveLength(0);
+      const results = await engine.validateRecord([orderFlow], context, 'insert');
+      expect(results).toHaveLength(0);
+    });
 
-      const context2: ObjectValidationContext = {
-        record: { status: 'approved', amount: 2000 },
-        oldRecord: { status: 'pending', amount: 2000 },
+    it('should be a no-op when the state field is unchanged', async () => {
+      const engine = new ObjectValidationEngine();
+      const context: ObjectValidationContext = {
+        record: { status: 'draft', other: 'changed' },
+        oldRecord: { status: 'draft', other: 'original' },
       };
-      const results2 = await engine.validateRecord([rule], context2, 'update');
-      expect(results2).toHaveLength(1);
+
+      const results = await engine.validateRecord([orderFlow], context, 'update');
+      expect(results).toHaveLength(0);
+    });
+
+    it('should leave an undeclared from-state unconstrained (lenient)', async () => {
+      const engine = new ObjectValidationEngine();
+      const context: ObjectValidationContext = {
+        // `completed` is a declared dead-end (no entry as a from-key), so any
+        // outbound transition is left unconstrained rather than rejected.
+        record: { status: 'reopened' },
+        oldRecord: { status: 'completed' },
+      };
+
+      const results = await engine.validateRecord([orderFlow], context, 'update');
+      expect(results).toHaveLength(0);
     });
   });
 

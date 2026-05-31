@@ -888,26 +888,22 @@ export interface UniquenessValidation extends BaseValidation {
 }
 
 /**
- * State machine validation (ObjectStack Spec v2.0.1)
- * Enforces valid state transitions
+ * State machine validation (ObjectStack Spec — ADR-0020)
+ * Enforces valid state transitions on a single state field.
+ *
+ * ADR-0020 converged record state machines onto this one flat rule: a state
+ * `field` plus a `transitions` map of `{ fromState: [allowedToStates] }`.
+ * (The legacy `{ stateField, transitions: Array<{from,to,condition}> }`
+ * shape and the separate `workflow` metadata type were retired.)
  */
 export interface StateMachineValidation extends BaseValidation {
   type: 'state_machine';
-  
-  /** Field containing the state */
-  stateField: string;
-  
-  /** Allowed state transitions */
-  transitions: Array<{
-    /** Source state(s) */
-    from: string | string[];
-    
-    /** Target state */
-    to: string;
-    
-    /** Optional condition that must be true */
-    condition?: string;
-  }>;
+
+  /** Field containing the state (e.g. `status`). */
+  field: string;
+
+  /** Map of `{ fromState: [allowedToStates] }`. */
+  transitions: Record<string, string[]>;
 }
 
 /**

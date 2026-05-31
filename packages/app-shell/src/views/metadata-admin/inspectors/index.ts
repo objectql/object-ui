@@ -9,7 +9,6 @@ import { registerMetadataInspector } from '../inspector-registry';
 import { registerMetadataDefaultInspector } from '../default-inspector-registry';
 import { DashboardWidgetInspector } from './DashboardWidgetInspector';
 import { FlowInspector } from './FlowInspector';
-import { WorkflowActionInspector } from './WorkflowActionInspector';
 import { AppNavInspector } from './AppNavInspector';
 import { ViewInspector, ViewDefaultInspector } from './ViewInspector';
 import { PageBlockInspector } from './PageBlockInspector';
@@ -22,7 +21,9 @@ export function registerBuiltinInspectors(): void {
   // edited through FlowInspector, not a standalone step inspector. FlowInspector
   // routes node vs. edge selections to the right scoped editor.
   registerMetadataInspector('flow', FlowInspector);
-  registerMetadataInspector('workflow', WorkflowActionInspector);
+  // ADR-0020: `workflow` retired as a metadata type — no workflow-action
+  // inspector. State machines live on the object as a `state_machine`
+  // validation rule.
   registerMetadataInspector('app', AppNavInspector);
   registerMetadataInspector('view', ViewInspector);
   registerMetadataDefaultInspector('view', ViewDefaultInspector);

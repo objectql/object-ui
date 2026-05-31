@@ -423,38 +423,33 @@ export class ObjectValidationEngine {
     rule: StateMachineValidation,
     context: ObjectValidationContext
   ): ObjectValidationResult {
-    const currentState = context.record[rule.stateField];
-    const previousState = context.oldRecord?.[rule.stateField];
+    // ADR-0020 flat FSM: a `field` plus a `{ from: [allowedTo] }` map.
+    // Semantics mirror the server-side rule-validator:
+    //   - insert / no prior state           → allow (initial assignment)
+    //   - field unchanged (from === to)      → allow (no transition)
+    //   - `from` not declared in the map      → lenient allow (unconstrained)
+    //   - `to` ∉ transitions[from]           → reject
+    const currentState = context.record[rule.field];
+    const previousState = context.oldRecord?.[rule.field];
 
-    // If no previous state (insert), allow any state
-    if (!previousState) {
+    // No prior state (insert) — any initial value is allowed.
+    if (previousState === undefined || previousState === null) {
       return { valid: true };
     }
 
-    // Check if transition is allowed
-    for (const transition of rule.transitions) {
-      const fromStates = Array.isArray(transition.from) ? transition.from : [transition.from];
-      
-      if (!fromStates.includes(previousState)) {
-        continue;
-      }
-      
-      if (transition.to !== currentState) {
-        continue;
-      }
-      
-      // Check condition if specified
-      if (transition.condition) {
-        const conditionMet = this.expressionEvaluator.evaluate(
-          transition.condition,
-          context.record
-        );
-        if (!conditionMet) {
-          continue;
-        }
-      }
-      
-      // Valid transition found
+    // The state field wasn't part of this change — nothing to police.
+    if (previousState === currentState) {
+      return { valid: true };
+    }
+
+    const allowed = rule.transitions[previousState];
+
+    // `from` state not declared — leave it unconstrained (lenient).
+    if (allowed === undefined) {
+      return { valid: true };
+    }
+
+    if (allowed.includes(currentState)) {
       return { valid: true };
     }
 

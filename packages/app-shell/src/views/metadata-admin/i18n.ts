@@ -40,7 +40,7 @@ const TYPE_LABELS_EN: Record<string, string> = {
   report: 'Report',
   // Automation
   flow: 'Flow',
-  workflow: 'Workflow',
+  // ADR-0020: `workflow` retired as a metadata type.
   approval: 'Approval Process',
   // System
   datasource: 'Datasource',
@@ -86,7 +86,7 @@ const TYPE_LABELS_ZH: Record<string, string> = {
   action: '操作',
   report: '报表',
   flow: '流程',
-  workflow: '工作流',
+  // ADR-0020: `workflow` 已不再是独立元数据类型。
   approval: '审批流程',
   datasource: '数据源',
   translation: '翻译',

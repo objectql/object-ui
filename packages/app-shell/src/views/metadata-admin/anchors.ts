@@ -186,7 +186,7 @@ export function registerBuiltinAnchors(): void {
     },
   });
 
-  // flow / workflow may reference an object at the root or under `on`
+  // flow may reference an object at the root or under `on`
   registerMetadataResource({
     type: 'flow',
     anchors: [{
@@ -201,16 +201,8 @@ export function registerBuiltinAnchors(): void {
     ],
     createDefaults: { nodes: [], edges: [] },
   });
-  registerMetadataResource({
-    type: 'workflow',
-    anchors: [{
-      anchorType: 'object',
-      match: anchorByField(['object', 'on.object']),
-      groupLabel: 'Workflow Rules',
-      order: 51,
-    }],
-    createFields: ['name', 'objectName', 'triggerType', 'description'],
-  });
+  // ADR-0020: `workflow` retired as a metadata type — record state machines
+  // are a `state_machine` validation rule on the object (no separate anchor).
 
   // trigger.object → object (low-level DB-style triggers)
   registerMetadataResource({

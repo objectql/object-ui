@@ -18,7 +18,6 @@ import { AppPreview } from './AppPreview';
 import { ObjectPreview } from './ObjectPreview';
 import { EmailTemplatePreview } from './EmailTemplatePreview';
 import { FlowPreview } from './FlowPreview';
-import { WorkflowPreview } from './WorkflowPreview';
 import { AgentPreview } from './AgentPreview';
 import { ToolPreview } from './ToolPreview';
 import { PermissionPreview } from './PermissionPreview';
@@ -50,7 +49,9 @@ export function registerBuiltinPreviews(): void {
   // the Flow canvas with its `approve` / `reject` branches; no standalone
   // approval-process preview.
   registerMetadataPreview('flow', FlowPreview);
-  registerMetadataPreview('workflow', WorkflowPreview);
+  // ADR-0020: `workflow` retired as a metadata type — record state machines
+  // are now a `state_machine` validation rule (rendered by ValidationPreview)
+  // and side-effecting automation is a Flow. No standalone workflow preview.
   registerMetadataPreview('job', JobPreview);
   // AI
   registerMetadataPreview('agent', AgentPreview);

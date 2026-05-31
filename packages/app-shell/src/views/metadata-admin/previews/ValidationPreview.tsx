@@ -206,23 +206,26 @@ function TypeBody({ type, d }: { type: string; d: Record<string, unknown> }) {
     }
 
     case 'state_machine': {
-      const transitions = Array.isArray(d.transitions)
-        ? (d.transitions as Array<{ from?: string | string[]; to?: string }>)
-        : [];
+      // ADR-0020 shape: transitions is a `{ fromState: [allowedToStates] }` map.
+      const transitionMap =
+        d.transitions && typeof d.transitions === 'object' && !Array.isArray(d.transitions)
+          ? (d.transitions as Record<string, string[]>)
+          : {};
+      const entries = Object.entries(transitionMap);
       const field = d.field as string | undefined;
       return (
         <Section title={`Transitions${field ? ` on ${field}` : ''}`} icon={Workflow}>
-          {transitions.length === 0 ? (
+          {entries.length === 0 ? (
             <div className="text-xs text-amber-700 dark:text-amber-400">No transitions declared.</div>
           ) : (
             <ul className="rounded border bg-background divide-y text-xs">
-              {transitions.map((t, i) => (
-                <li key={i} className="flex items-center gap-2 px-2.5 py-1.5">
-                  <span className="font-mono">
-                    {Array.isArray(t.from) ? t.from.join(' | ') : (t.from ?? '*')}
-                  </span>
+              {entries.map(([from, tos]) => (
+                <li key={from} className="flex items-center gap-2 px-2.5 py-1.5">
+                  <span className="font-mono">{from}</span>
                   <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-mono text-emerald-700 dark:text-emerald-400">{t.to ?? '?'}</span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400">
+                    {Array.isArray(tos) && tos.length > 0 ? tos.join(' | ') : '∅ (dead-end)'}
+                  </span>
                 </li>
               ))}
             </ul>
