@@ -103,9 +103,95 @@ export function toFieldName(raw: string): string {
 }
 
 /**
+ * A declared field group (a.k.a. "section"). Lives at the object's
+ * top level as `draft.fieldGroups`; individual fields opt into a group
+ * via `Field.group === FieldGroup.key`.
+ */
+export interface FieldGroup {
+  key: string;
+  label: string;
+}
+
+/** Read `draft.fieldGroups` into a normalized, well-typed list. */
+export function readGroups(fieldGroupsInput: unknown): FieldGroup[] {
+  if (!Array.isArray(fieldGroupsInput)) return [];
+  return fieldGroupsInput
+    .filter((g): g is { key?: unknown; label?: unknown } => !!g && typeof g === 'object')
+    .map((g) => ({
+      key: typeof g.key === 'string' ? g.key : '',
+      label: typeof g.label === 'string' ? g.label : '',
+    }))
+    .filter((g) => g.key);
+}
+
+/**
+ * Derive a unique snake_case group key from a human label, avoiding
+ * collisions with `existing` keys. Falls back to `group` / `group_N`.
+ */
+export function genGroupKey(label: string, existing: string[]): string {
+  // toFieldName() bottoms out at "field"; for a *group* key prefer
+  // "group" when the label carries no usable alphanumerics.
+  const base = /[a-z0-9]/i.test(label) ? toFieldName(label) : 'group';
+  if (!existing.includes(base)) return base;
+  let i = 2;
+  while (existing.includes(`${base}_${i}`)) i += 1;
+  return `${base}_${i}`;
+}
+
+/** Append a new group with a unique key derived from `label`. */
+export function addGroup(groups: FieldGroup[], label: string): FieldGroup[] {
+  const clean = label.trim() || 'New section';
+  const key = genGroupKey(clean, groups.map((g) => g.key));
+  return [...groups, { key, label: clean }];
+}
+
+/** Rename a group's label in place (key is stable). */
+export function renameGroup(groups: FieldGroup[], key: string, label: string): FieldGroup[] {
+  const clean = label.trim();
+  if (!clean) return groups;
+  return groups.map((g) => (g.key === key ? { ...g, label: clean } : g));
+}
+
+/** Remove a group declaration (callers should also clear members' `group`). */
+export function removeGroup(groups: FieldGroup[], key: string): FieldGroup[] {
+  return groups.filter((g) => g.key !== key);
+}
+
+/** Move a group one slot up (-1) or down (+1), clamped to bounds. */
+export function moveGroup(groups: FieldGroup[], key: string, dir: -1 | 1): FieldGroup[] {
+  const idx = groups.findIndex((g) => g.key === key);
+  if (idx < 0) return groups;
+  const to = idx + dir;
+  if (to < 0 || to >= groups.length) return groups;
+  return moveArray(groups, idx, to);
+}
+
+/** Strip `group === key` from every field (used after removing a group). */
+export function clearFieldGroup(view: FieldsView, key: string): FieldsView {
+  return {
+    shape: view.shape,
+    entries: view.entries.map((e) =>
+      e.def.group === key ? { name: e.name, def: { ...e.def, group: undefined } } : e,
+    ),
+  };
+}
+
+/** Generic immutable array move helper (also used by group reorder). */
+export function moveArray<T>(arr: T[], from: number, to: number): T[] {
+  const next = arr.slice();
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
+/**
  * Group entries by their `group` property, in `fieldGroups[]` order.
  * Fields with no group (or a group not declared in fieldGroups) land
  * in a trailing "Ungrouped" bucket.
+ *
+ * By default empty *declared* groups are dropped to avoid chrome noise
+ * (read-only / preview). Pass `includeEmptyDeclared` while editing so a
+ * freshly-added, still-empty section stays visible as a drop target.
  */
 export interface GroupedEntries {
   key: string | null;
@@ -116,6 +202,7 @@ export interface GroupedEntries {
 export function groupEntries(
   view: FieldsView,
   fieldGroups: Array<{ key?: string; label?: string }> | undefined,
+  opts?: { includeEmptyDeclared?: boolean },
 ): GroupedEntries[] {
   const declared = Array.isArray(fieldGroups) ? fieldGroups.filter((g) => typeof g?.key === 'string') : [];
   const buckets = new Map<string | null, GroupedEntries>();
@@ -132,6 +219,9 @@ export function groupEntries(
       buckets.get(null)!.entries.push(e);
     }
   }
-  // Filter out empty declared buckets so they don't add chrome noise.
-  return Array.from(buckets.values()).filter((b) => b.entries.length > 0);
+  const includeEmpty = !!opts?.includeEmptyDeclared;
+  // Drop empty declared buckets unless asked to keep them (edit mode).
+  // The implicit "Ungrouped" bucket is only created when populated, so
+  // it never shows empty.
+  return Array.from(buckets.values()).filter((b) => b.entries.length > 0 || (includeEmpty && b.key !== null));
 }

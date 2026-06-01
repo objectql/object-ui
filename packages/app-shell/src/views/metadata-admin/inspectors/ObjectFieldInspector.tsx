@@ -50,8 +50,12 @@ import {
   FIELD_TYPE_META,
   TYPES_BY_CATEGORY,
   CATEGORY_LABEL_EN,
+  CATEGORY_LABEL_ZH,
   type FieldTypeId,
 } from '../previews/field-types';
+import { t, tFormat } from '../i18n';
+
+const isZh = (locale?: string) => (locale ?? '').toLowerCase().startsWith('zh');
 
 interface Option {
   value: string;
@@ -91,12 +95,16 @@ function isTexty(type: string): boolean {
   return type === 'text' || type === 'textarea' || type === 'email' || type === 'url' || type === 'phone' || type === 'password';
 }
 
-const TYPE_OPTIONS = TYPES_BY_CATEGORY.flatMap((g) =>
-  g.types.map((id) => ({
-    value: id,
-    label: `${CATEGORY_LABEL_EN[g.category]} · ${FIELD_TYPE_META[id].label}`,
-  })),
-);
+function buildTypeOptions(locale?: string): Array<{ value: string; label: string }> {
+  const zh = (locale ?? '').toLowerCase().startsWith('zh');
+  const cats = zh ? CATEGORY_LABEL_ZH : CATEGORY_LABEL_EN;
+  return TYPES_BY_CATEGORY.flatMap((g) =>
+    g.types.map((id) => {
+      const m = FIELD_TYPE_META[id];
+      return { value: id, label: `${cats[g.category]} · ${zh ? m.labelZh : m.label}` };
+    }),
+  );
+}
 
 /* ─────────────── Inspector ─────────────── */
 
@@ -107,7 +115,10 @@ export function ObjectFieldInspector({
   onClearSelection,
   onSelectionChange,
   readOnly,
+  locale,
 }: MetadataInspectorProps) {
+  const tr = React.useCallback((key: string) => t(key, locale), [locale]);
+  const typeOptions = React.useMemo(() => buildTypeOptions(locale), [locale]);
   const view: FieldsView = React.useMemo(() => readFields((draft as any).fields), [draft]);
   const name = String(selection.id);
   const idx = indexOfField(view, name);
@@ -121,8 +132,13 @@ export function ObjectFieldInspector({
 
   if (!entry) {
     return (
-      <InspectorShell kindLabel="Field" title={name || 'Field'} onClose={onClearSelection}>
-        <InspectorEmptyState message="This field no longer exists in the draft." />
+      <InspectorShell
+        kindLabel={tr('designer.field.kind')}
+        title={name || tr('designer.field.kind')}
+        onClose={onClearSelection}
+        closeLabel={tr('designer.field.close')}
+      >
+        <InspectorEmptyState message={tr('designer.field.missing')} />
       </InspectorShell>
     );
   }
@@ -192,58 +208,63 @@ export function ObjectFieldInspector({
 
   const footer = (
     <InspectorRemoveButton
-      label={`Remove “${(typeof def.label === 'string' ? def.label : entry.name)}”`}
+      label={tFormat('designer.field.remove', locale, {
+        label: typeof def.label === 'string' ? def.label : entry.name,
+      })}
       onClick={removeField}
       disabled={readOnly}
     />
   );
 
+  const typeMetaLabel = isZh(locale) ? typeMeta?.labelZh : typeMeta?.label;
+
   return (
     <InspectorShell
-      kindLabel="Field"
+      kindLabel={tr('designer.field.kind')}
       title={typeof def.label === 'string' && def.label ? (def.label as string) : entry.name}
       onClose={onClearSelection}
+      closeLabel={tr('designer.field.close')}
       headerActions={headerActions}
       footer={footer}
     >
       {/* Basic */}
-      <Section title="Basic">
+      <Section title={tr('designer.field.section.basic')}>
         <InspectorTextField
-          label="API name"
+          label={tr('designer.field.apiName')}
           value={entry.name}
           onCommit={setKey}
           disabled={readOnly}
           mono
         />
         <InspectorTextField
-          label="Label"
+          label={tr('designer.field.label')}
           value={typeof def.label === 'string' ? (def.label as string) : ''}
           onCommit={(v) => patchDef({ label: v })}
           disabled={readOnly}
         />
         <InspectorSelectField
-          label="Type"
+          label={tr('designer.field.type')}
           value={type}
-          options={TYPE_OPTIONS}
+          options={typeOptions}
           onCommit={(v) => patchDef({ type: v })}
           disabled={readOnly}
         />
         <div className="flex items-center gap-4 pt-1">
           <InspectorCheckboxField
-            label="Required"
+            label={tr('designer.field.required')}
             value={!!def.required}
             onCommit={(v) => patchDef({ required: v || undefined })}
             disabled={readOnly}
           />
           <InspectorCheckboxField
-            label="Unique"
+            label={tr('designer.field.unique')}
             value={!!def.unique}
             onCommit={(v) => patchDef({ unique: v || undefined })}
             disabled={readOnly}
           />
         </div>
         <TextareaField
-          label="Description"
+          label={tr('designer.field.description')}
           value={typeof def.description === 'string' ? (def.description as string) : ''}
           onCommit={(v) => patchDef({ description: v || undefined })}
           disabled={readOnly}
@@ -253,35 +274,37 @@ export function ObjectFieldInspector({
 
       {/* Type-specific */}
       {(isPicklist(type) || isLookup(type) || isComputed(type) || isNumeric(type) || isTexty(type)) && (
-        <Section title={`${typeMeta?.label ?? type} options`}>
+        <Section title={tFormat('designer.field.section.options', locale, { type: typeMetaLabel ?? type })}>
           {isPicklist(type) && (
             <OptionsEditor
               options={options}
               onChange={patchOptions}
               disabled={readOnly}
+              locale={locale}
             />
           )}
           {isLookup(type) && (
             <>
               <ObjectPicker
-                label="Related object"
+                label={tr('designer.field.relatedObject')}
                 value={typeof def.reference === 'string' ? (def.reference as string) : ''}
                 options={objectOptions}
                 onCommit={(v) => patchDef({ reference: v || undefined })}
                 disabled={readOnly}
+                placeholder={tr('designer.field.objectNamePlaceholder')}
               />
               <InspectorTextField
-                label="Relationship name"
+                label={tr('designer.field.relationshipName')}
                 value={typeof def.relationshipName === 'string' ? (def.relationshipName as string) : ''}
                 onCommit={(v) => patchDef({ relationshipName: v || undefined })}
                 disabled={readOnly}
-                placeholder="Inverse collection key on the parent"
+                placeholder={tr('designer.field.relationshipNameHint')}
               />
             </>
           )}
           {isComputed(type) && (
             <TextareaField
-              label="Formula (CEL)"
+              label={tr('designer.field.formula')}
               value={typeof def.formula === 'string' ? (def.formula as string) : ''}
               onCommit={(v) => patchDef({ formula: v || undefined })}
               disabled={readOnly}
@@ -293,25 +316,25 @@ export function ObjectFieldInspector({
           {isNumeric(type) && (
             <div className="grid grid-cols-2 gap-2">
               <InspectorNumberField
-                label="Precision"
+                label={tr('designer.field.precision')}
                 value={typeof def.precision === 'number' ? (def.precision as number) : undefined}
                 onCommit={(v) => patchDef({ precision: v })}
                 disabled={readOnly}
               />
               <InspectorNumberField
-                label="Scale"
+                label={tr('designer.field.scale')}
                 value={typeof def.scale === 'number' ? (def.scale as number) : undefined}
                 onCommit={(v) => patchDef({ scale: v })}
                 disabled={readOnly}
               />
               <InspectorNumberField
-                label="Min"
+                label={tr('designer.field.min')}
                 value={typeof def.min === 'number' ? (def.min as number) : undefined}
                 onCommit={(v) => patchDef({ min: v })}
                 disabled={readOnly}
               />
               <InspectorNumberField
-                label="Max"
+                label={tr('designer.field.max')}
                 value={typeof def.max === 'number' ? (def.max as number) : undefined}
                 onCommit={(v) => patchDef({ max: v })}
                 disabled={readOnly}
@@ -320,7 +343,7 @@ export function ObjectFieldInspector({
           )}
           {isTexty(type) && (
             <InspectorNumberField
-              label="Max length"
+              label={tr('designer.field.maxLength')}
               value={typeof def.maxLength === 'number' ? (def.maxLength as number) : undefined}
               onCommit={(v) => patchDef({ maxLength: v })}
               disabled={readOnly}
@@ -331,51 +354,51 @@ export function ObjectFieldInspector({
       )}
 
       {/* Advanced */}
-      <Section title="Advanced">
+      <Section title={tr('designer.field.section.advanced')}>
         <div className="grid grid-cols-2 gap-2">
           <InspectorCheckboxField
-            label="Read-only"
+            label={tr('designer.field.readonly')}
             value={!!def.readonly}
             onCommit={(v) => patchDef({ readonly: v || undefined })}
             disabled={readOnly}
           />
           <InspectorCheckboxField
-            label="Hidden"
+            label={tr('designer.field.hidden')}
             value={!!def.hidden}
             onCommit={(v) => patchDef({ hidden: v || undefined })}
             disabled={readOnly}
           />
           <InspectorCheckboxField
-            label="Indexed"
+            label={tr('designer.field.indexed')}
             value={!!def.indexed}
             onCommit={(v) => patchDef({ indexed: v || undefined })}
             disabled={readOnly}
           />
           <InspectorCheckboxField
-            label="External ID"
+            label={tr('designer.field.externalId')}
             value={!!def.externalId}
             onCommit={(v) => patchDef({ externalId: v || undefined })}
             disabled={readOnly}
           />
           <InspectorCheckboxField
-            label="Track history"
+            label={tr('designer.field.trackHistory')}
             value={!!def.trackHistory}
             onCommit={(v) => patchDef({ trackHistory: v || undefined })}
             disabled={readOnly}
           />
         </div>
         <InspectorTextField
-          label="Placeholder"
+          label={tr('designer.field.placeholder')}
           value={typeof def.placeholder === 'string' ? (def.placeholder as string) : ''}
           onCommit={(v) => patchDef({ placeholder: v || undefined })}
           disabled={readOnly}
         />
         {fieldGroups.length > 0 && (
           <InspectorSelectField
-            label="Group"
+            label={tr('designer.field.group')}
             value={typeof def.group === 'string' ? (def.group as string) : ''}
             options={[
-              { value: '', label: '— No group —' },
+              { value: '', label: tr('designer.field.noGroup') },
               ...fieldGroups
                 .filter((g) => typeof g.key === 'string')
                 .map((g) => ({ value: g.key as string, label: String(g.label ?? g.key) })),
@@ -443,12 +466,14 @@ function ObjectPicker({
   options,
   onCommit,
   disabled,
+  placeholder,
 }: {
   label: string;
   value: string;
   options: Array<{ value: string; label: string }>;
   onCommit: (v: string) => void;
   disabled?: boolean;
+  placeholder?: string;
 }) {
   // List may be empty (still loading or no objects). Allow free-text fallback.
   const listId = React.useId();
@@ -461,7 +486,7 @@ function ObjectPicker({
         onChange={(e) => onCommit(e.target.value)}
         disabled={disabled}
         className="h-8 text-sm font-mono"
-        placeholder="object_name"
+        placeholder={placeholder ?? 'object_name'}
       />
       <datalist id={listId}>
         {options.map((o) => (
@@ -476,10 +501,12 @@ function OptionsEditor({
   options,
   onChange,
   disabled,
+  locale,
 }: {
   options: Option[];
   onChange: (next: Option[]) => void;
   disabled?: boolean;
+  locale?: string;
 }) {
   const update = (i: number, patch: Partial<Option>) => {
     const next = [...options];
@@ -493,11 +520,11 @@ function OptionsEditor({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <Label className="text-xs text-muted-foreground">Picklist values</Label>
+        <Label className="text-xs text-muted-foreground">{t('designer.field.picklistValues', locale)}</Label>
         <Badge variant="outline" className="text-[10px]">{options.length}</Badge>
       </div>
       {options.length === 0 ? (
-        <div className="text-[11px] italic text-muted-foreground px-1">No values yet.</div>
+        <div className="text-[11px] italic text-muted-foreground px-1">{t('designer.field.noValues', locale)}</div>
       ) : (
         <div className="space-y-1">
           {options.map((o, i) => (
@@ -505,14 +532,14 @@ function OptionsEditor({
               <Input
                 value={o.value}
                 onChange={(e) => update(i, { value: e.target.value })}
-                placeholder="value"
+                placeholder={t('designer.field.optValue', locale)}
                 disabled={disabled}
                 className="h-7 text-xs font-mono flex-1"
               />
               <Input
                 value={o.label ?? ''}
                 onChange={(e) => update(i, { label: e.target.value })}
-                placeholder="Label"
+                placeholder={t('designer.field.optLabel', locale)}
                 disabled={disabled}
                 className="h-7 text-xs flex-1"
               />
@@ -522,7 +549,7 @@ function OptionsEditor({
                 onChange={(e) => update(i, { color: e.target.value })}
                 disabled={disabled}
                 className="h-7 w-7 rounded border bg-background cursor-pointer p-0.5"
-                title="Color"
+                title={t('designer.field.optColor', locale)}
               />
               <Button
                 variant="ghost"
@@ -530,7 +557,7 @@ function OptionsEditor({
                 className="h-7 w-7 p-0"
                 onClick={() => move(i, i - 1)}
                 disabled={disabled || i === 0}
-                aria-label="Move up"
+                aria-label={t('designer.field.moveUp', locale)}
               >
                 <ArrowUp className="h-3 w-3" />
               </Button>
@@ -540,7 +567,7 @@ function OptionsEditor({
                 className="h-7 w-7 p-0"
                 onClick={() => move(i, i + 1)}
                 disabled={disabled || i === options.length - 1}
-                aria-label="Move down"
+                aria-label={t('designer.field.moveDown', locale)}
               >
                 <ArrowDown className="h-3 w-3" />
               </Button>
@@ -550,7 +577,7 @@ function OptionsEditor({
                 className="h-7 w-7 p-0 text-destructive"
                 onClick={() => remove(i)}
                 disabled={disabled}
-                aria-label="Remove"
+                aria-label={t('designer.field.removeValue', locale)}
               >
                 <X className="h-3 w-3" />
               </Button>
@@ -561,7 +588,7 @@ function OptionsEditor({
       {!disabled && (
         <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={add}>
           <Plus className="h-3 w-3" />
-          Add value
+          {t('designer.field.addValue', locale)}
         </Button>
       )}
     </div>

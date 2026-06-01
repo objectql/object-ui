@@ -17,6 +17,7 @@ import * as React from 'react';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
 import { ObjectFormCanvas } from './ObjectFormCanvas';
+import { t } from '../i18n';
 
 export function ObjectPreview({
   name,
@@ -24,6 +25,7 @@ export function ObjectPreview({
   onPatch,
   selection,
   onSelectionChange,
+  locale,
 }: MetadataPreviewProps) {
   const objectName = String((draft as any).name ?? name ?? '');
 
@@ -31,7 +33,7 @@ export function ObjectPreview({
     return (
       <PreviewShell hint="object">
         <PreviewMessage>
-          Give the object a name in the Form tab to enable the preview.
+          {t('designer.canvas.nameToStart', locale)}
         </PreviewMessage>
       </PreviewShell>
     );
@@ -46,6 +48,7 @@ export function ObjectPreview({
           onPatch={onPatch}
           selection={selection}
           onSelectionChange={onSelectionChange}
+          locale={locale}
         />
       </PreviewErrorBoundary>
     </PreviewShell>

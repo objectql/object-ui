@@ -206,22 +206,34 @@ export function InspectorSelectField({
   placeholder?: string;
   disabled?: boolean;
 }) {
+  // Radix `<Select.Item>` forbids an empty-string value (it reserves ""
+  // for the cleared/placeholder state), yet callers legitimately use ""
+  // to mean "no value" (e.g. a "— None —" option). Bridge with an
+  // internal sentinel so the public contract (value="" ⇄ none) holds.
+  const toInner = (v: string) => (v === '' ? SELECT_NONE_SENTINEL : v);
+  const fromInner = (v: string) => (v === SELECT_NONE_SENTINEL ? '' : v);
   return (
     <div className="space-y-1">
       <Label className="text-xs text-muted-foreground">{label}</Label>
-      <Select value={value ?? ''} onValueChange={onCommit} disabled={disabled}>
+      <Select
+        value={toInner(value ?? '')}
+        onValueChange={(v) => onCommit(fromInner(v))}
+        disabled={disabled}
+      >
         <SelectTrigger className="h-8 text-sm">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
           {options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            <SelectItem key={o.value} value={toInner(o.value)}>{o.label}</SelectItem>
           ))}
         </SelectContent>
       </Select>
     </div>
   );
 }
+
+const SELECT_NONE_SENTINEL = '__inspector_select_none__';
 
 export function InspectorCheckboxField({
   label,

@@ -25,7 +25,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@object-ui/components';
-import { GripVertical, Plus } from 'lucide-react';
+import {
+  GripVertical,
+  Plus,
+  ChevronDown,
+  ChevronRight,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  FolderPlus,
+  ChevronsDownUp,
+  ChevronsUpDown,
+} from 'lucide-react';
 import type { MetadataSelection } from '../preview-registry';
 import {
   readFields,
@@ -33,16 +44,35 @@ import {
   newField,
   toFieldName,
   groupEntries,
+  readGroups,
+  addGroup,
+  renameGroup,
+  removeGroup,
+  moveGroup,
+  clearFieldGroup,
   type FieldEntry,
+  type FieldGroup,
 } from './object-fields-io';
 import {
   FIELD_TYPE_META,
   TYPES_BY_CATEGORY,
   CATEGORY_LABEL_EN,
+  CATEGORY_LABEL_ZH,
   CATEGORY_TONE,
   type FieldTypeId,
+  type FieldTypeMeta,
+  type FieldTypeCategory,
 } from './field-types';
 import { FieldStub } from './FieldStub';
+import { t, tFormat } from '../i18n';
+
+/* ─── locale helpers ─── */
+const isZh = (locale?: string) => (locale ?? '').toLowerCase().startsWith('zh');
+/** Field-type display label in the active locale (data carries both). */
+const typeLabel = (meta: FieldTypeMeta | undefined, locale?: string): string | undefined =>
+  meta ? (isZh(locale) ? meta.labelZh : meta.label) : undefined;
+const categoryLabel = (cat: FieldTypeCategory, locale?: string): string =>
+  (isZh(locale) ? CATEGORY_LABEL_ZH : CATEGORY_LABEL_EN)[cat];
 
 export interface ObjectFormCanvasProps {
   objectName: string;
@@ -50,6 +80,7 @@ export interface ObjectFormCanvasProps {
   onPatch?: (patch: Record<string, unknown>) => void;
   selection?: MetadataSelection | null;
   onSelectionChange?: (next: MetadataSelection | null) => void;
+  locale?: string;
 }
 
 export function ObjectFormCanvas({
@@ -58,16 +89,43 @@ export function ObjectFormCanvas({
   onPatch,
   selection,
   onSelectionChange,
+  locale,
 }: ObjectFormCanvasProps) {
   const readOnly = !onPatch;
 
   const view = React.useMemo(() => readFields((draft as any).fields), [draft]);
-  const fieldGroups = Array.isArray((draft as any).fieldGroups)
-    ? ((draft as any).fieldGroups as Array<{ key?: string; label?: string }>)
-    : undefined;
-  const groups = React.useMemo(() => groupEntries(view, fieldGroups), [view, fieldGroups]);
+  const declaredGroups = React.useMemo<FieldGroup[]>(
+    () => readGroups((draft as any).fieldGroups),
+    [draft],
+  );
+  const hasGroups = declaredGroups.length > 0;
+  // While editing, keep empty declared sections visible as drop targets.
+  const groups = React.useMemo(
+    () => groupEntries(view, declaredGroups, { includeEmptyDeclared: !readOnly }),
+    [view, declaredGroups, readOnly],
+  );
+
+  // Collapse state is local UI — keyed by group key (null bucket → "").
+  const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({});
+  const collapseKey = (key: string | null) => key ?? '__ungrouped__';
+  const toggleCollapse = React.useCallback((key: string | null) => {
+    const k = key ?? '__ungrouped__';
+    setCollapsed((prev) => ({ ...prev, [k]: !prev[k] }));
+  }, []);
+  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed[collapseKey(g.key)]);
+  const setAllCollapsed = React.useCallback(
+    (value: boolean) => {
+      setCollapsed(() => {
+        const next: Record<string, boolean> = {};
+        for (const g of groups) next[collapseKey(g.key)] = value;
+        return next;
+      });
+    },
+    [groups],
+  );
 
   const selectedName = selection?.kind === 'field' ? String(selection.id) : null;
+  const requiredCount = view.entries.filter((e) => !!e.def.required).length;
 
   const selectField = React.useCallback(
     (entry: FieldEntry) => {
@@ -82,7 +140,7 @@ export function ObjectFormCanvas({
   );
 
   const addField = React.useCallback(
-    (type: FieldTypeId) => {
+    (type: FieldTypeId, groupKey?: string | null) => {
       if (!onPatch) return;
       const existing = view.entries.map((e) => e.name);
       const base = type === 'select' ? 'status' : type;
@@ -93,8 +151,18 @@ export function ObjectFormCanvas({
         name = `${base}_${i}`;
       }
       const entry = newField(name, type);
-      const next = { shape: view.shape, entries: [...view.entries, entry] };
-      onPatch({ fields: writeFields(next) });
+      if (groupKey) entry.def = { ...entry.def, group: groupKey };
+      // Insert at the end of the target group's run so it lands in-section,
+      // otherwise append to the very end (ungrouped / no groups).
+      let insertAt = view.entries.length;
+      if (groupKey) {
+        for (let j = view.entries.length - 1; j >= 0; j -= 1) {
+          if (view.entries[j].def.group === groupKey) { insertAt = j + 1; break; }
+        }
+      }
+      const entries = view.entries.slice();
+      entries.splice(insertAt, 0, entry);
+      onPatch({ fields: writeFields({ shape: view.shape, entries }) });
       onSelectionChange?.({
         kind: 'field',
         id: name,
@@ -102,6 +170,50 @@ export function ObjectFormCanvas({
       });
     },
     [onPatch, onSelectionChange, view],
+  );
+
+  /* ─── Section (field group) operations ─── */
+
+  const addSection = React.useCallback(() => {
+    if (!onPatch) return;
+    const label = tFormat('designer.canvas.sectionN', locale, {
+      n: declaredGroups.length + 1,
+    });
+    const next = addGroup(declaredGroups, label);
+    const created = next[next.length - 1];
+    onPatch({ fieldGroups: next });
+    // Reveal the new (empty) section if everything was collapsed.
+    setCollapsed((prev) => ({ ...prev, [created.key]: false }));
+  }, [onPatch, declaredGroups, locale]);
+
+  const renameSection = React.useCallback(
+    (key: string, label: string) => {
+      if (!onPatch) return;
+      onPatch({ fieldGroups: renameGroup(declaredGroups, key, label) });
+    },
+    [onPatch, declaredGroups],
+  );
+
+  const removeSection = React.useCallback(
+    (key: string) => {
+      if (!onPatch) return;
+      // Drop the declaration AND clear `group` from its members so they
+      // fall back to the Ungrouped bucket rather than vanishing.
+      const clearedView = clearFieldGroup(view, key);
+      onPatch({
+        fieldGroups: removeGroup(declaredGroups, key),
+        fields: writeFields(clearedView),
+      });
+    },
+    [onPatch, declaredGroups, view],
+  );
+
+  const moveSection = React.useCallback(
+    (key: string, dir: -1 | 1) => {
+      if (!onPatch) return;
+      onPatch({ fieldGroups: moveGroup(declaredGroups, key, dir) });
+    },
+    [onPatch, declaredGroups],
   );
 
   // Reorder fields by moving `fromName` to the position of `toName`.
@@ -190,6 +302,9 @@ export function ObjectFormCanvas({
   );
 
   const emptyState = view.entries.length === 0;
+  // Section chrome (headers, collapse, drop-to-assign) only appears once
+  // groups exist — otherwise the canvas stays a flat field list.
+  const showSectionChrome = hasGroups || groups.length > 1;
 
   return (
     <div
@@ -197,39 +312,138 @@ export function ObjectFormCanvas({
       onClick={handleBgClick}
       data-object-name={objectName}
     >
-      <div className="mx-auto max-w-3xl px-6 py-6 space-y-6" onClick={handleBgClick}>
+      <div className="mx-auto max-w-3xl px-6 py-6 space-y-4" onClick={handleBgClick}>
+        {!emptyState && (
+          <CanvasToolbar
+            fieldCount={view.entries.length}
+            requiredCount={requiredCount}
+            sectionCount={declaredGroups.length}
+            allCollapsed={allCollapsed}
+            onToggleAll={showSectionChrome ? () => setAllCollapsed(!allCollapsed) : undefined}
+            locale={locale}
+          />
+        )}
+
         {emptyState ? (
-          <EmptyCanvas onAdd={readOnly ? undefined : addField} />
+          <EmptyCanvas onAdd={readOnly ? undefined : addField} locale={locale} />
         ) : (
-          groups.map((g) => (
-            <GroupSection
-              key={g.key ?? '__ungrouped__'}
-              groupKey={g.key}
-              label={g.label}
-              showHeader={groups.length > 1}
-              onDropField={readOnly ? undefined : moveToGroup}
-            >
-              {g.entries.map((entry) => (
-                <FieldRow
-                  key={entry.name}
-                  entry={entry}
-                  selected={entry.name === selectedName}
+          <div className="space-y-5">
+            {groups.map((g) => {
+              const declaredIdx = g.key
+                ? declaredGroups.findIndex((d) => d.key === g.key)
+                : -1;
+              return (
+                <GroupSection
+                  key={g.key ?? '__ungrouped__'}
+                  groupKey={g.key}
+                  label={g.key === null ? t('designer.canvas.ungrouped', locale) : g.label}
+                  count={g.entries.length}
+                  showHeader={showSectionChrome}
+                  collapsed={!!collapsed[collapseKey(g.key)]}
+                  onToggleCollapse={() => toggleCollapse(g.key)}
                   readOnly={readOnly}
-                  onClick={() => selectField(entry)}
-                  onReorder={readOnly ? undefined : reorderField}
-                  onRenameLabel={readOnly ? undefined : renameLabel}
-                />
-              ))}
-            </GroupSection>
-          ))
+                  locale={locale}
+                  canMoveUp={declaredIdx > 0}
+                  canMoveDown={declaredIdx >= 0 && declaredIdx < declaredGroups.length - 1}
+                  onRename={g.key ? (label) => renameSection(g.key!, label) : undefined}
+                  onRemove={g.key ? () => removeSection(g.key!) : undefined}
+                  onMove={g.key ? (dir) => moveSection(g.key!, dir) : undefined}
+                  onAddField={readOnly ? undefined : (type) => addField(type, g.key)}
+                  onDropField={readOnly ? undefined : moveToGroup}
+                >
+                  {g.entries.map((entry) => (
+                    <FieldRow
+                      key={entry.name}
+                      entry={entry}
+                      selected={entry.name === selectedName}
+                      readOnly={readOnly}
+                      locale={locale}
+                      onClick={() => selectField(entry)}
+                      onReorder={readOnly ? undefined : reorderField}
+                      onRenameLabel={readOnly ? undefined : renameLabel}
+                    />
+                  ))}
+                  {g.entries.length === 0 && (
+                    <div className="rounded-md border border-dashed bg-background/40 px-3 py-4 text-center text-[11px] text-muted-foreground">
+                      {readOnly
+                        ? t('designer.canvas.emptySection', locale)
+                        : t('designer.canvas.dropHint', locale)}
+                    </div>
+                  )}
+                </GroupSection>
+              );
+            })}
+          </div>
         )}
 
         {!emptyState && !readOnly && (
-          <div className="pt-1">
-            <AddFieldButton onPick={addField} />
+          <div className="flex items-center gap-2 pt-1">
+            <AddFieldButton onPick={(type) => addField(type)} locale={locale} />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-muted-foreground hover:text-foreground"
+              onClick={addSection}
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+              {t('designer.canvas.addSection', locale)}
+            </Button>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ─────────────── Review toolbar ─────────────── */
+
+function CanvasToolbar({
+  fieldCount,
+  requiredCount,
+  sectionCount,
+  allCollapsed,
+  onToggleAll,
+  locale,
+}: {
+  fieldCount: number;
+  requiredCount: number;
+  sectionCount: number;
+  allCollapsed: boolean;
+  onToggleAll?: () => void;
+  locale?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+      <div className="flex items-center gap-1.5">
+        <span className="font-medium text-foreground/80">{fieldCount}</span>{' '}
+        {t('designer.canvas.fields', locale)}
+        <span className="text-muted-foreground/50">·</span>
+        <span className="font-medium text-foreground/80">{requiredCount}</span>{' '}
+        {t('designer.canvas.required', locale)}
+        {sectionCount > 0 && (
+          <>
+            <span className="text-muted-foreground/50">·</span>
+            <span className="font-medium text-foreground/80">{sectionCount}</span>{' '}
+            {t('designer.canvas.sections', locale)}
+          </>
+        )}
+      </div>
+      {onToggleAll && (
+        <button
+          type="button"
+          onClick={onToggleAll}
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-accent hover:text-foreground transition-colors"
+        >
+          {allCollapsed ? (
+            <ChevronsUpDown className="h-3 w-3" />
+          ) : (
+            <ChevronsDownUp className="h-3 w-3" />
+          )}
+          {allCollapsed
+            ? t('designer.canvas.expandAll', locale)
+            : t('designer.canvas.collapseAll', locale)}
+        </button>
+      )}
     </div>
   );
 }
@@ -239,13 +453,36 @@ export function ObjectFormCanvas({
 function GroupSection({
   groupKey,
   label,
+  count,
   showHeader,
+  collapsed,
+  onToggleCollapse,
+  readOnly,
+  locale,
+  canMoveUp,
+  canMoveDown,
+  onRename,
+  onRemove,
+  onMove,
+  onAddField,
   onDropField,
   children,
 }: {
   groupKey: string | null;
   label: string;
+  count: number;
   showHeader: boolean;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  readOnly: boolean;
+  locale?: string;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  /** Rename/remove/move are only wired for real groups (not Ungrouped). */
+  onRename?: (label: string) => void;
+  onRemove?: () => void;
+  onMove?: (dir: -1 | 1) => void;
+  onAddField?: (type: FieldTypeId) => void;
   onDropField?: (fromName: string, groupKey: string | null) => void;
   children: React.ReactNode;
 }) {
@@ -282,13 +519,157 @@ function GroupSection({
       onDrop={handleDrop}
     >
       {showHeader && (
-        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground pl-1 flex items-center gap-1.5">
+        <SectionHeader
+          label={label}
+          count={count}
+          collapsed={collapsed}
+          onToggleCollapse={onToggleCollapse}
+          readOnly={readOnly}
+          locale={locale}
+          canMoveUp={canMoveUp}
+          canMoveDown={canMoveDown}
+          dropActive={active}
+          onRename={onRename}
+          onRemove={onRemove}
+          onMove={onMove}
+          onAddField={onAddField}
+        />
+      )}
+      {!collapsed && <div className="space-y-2.5">{children}</div>}
+    </section>
+  );
+}
+
+function SectionHeader({
+  label,
+  count,
+  collapsed,
+  onToggleCollapse,
+  readOnly,
+  locale,
+  canMoveUp,
+  canMoveDown,
+  dropActive,
+  onRename,
+  onRemove,
+  onMove,
+  onAddField,
+}: {
+  label: string;
+  count: number;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  readOnly: boolean;
+  locale?: string;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  dropActive: boolean;
+  onRename?: (label: string) => void;
+  onRemove?: () => void;
+  onMove?: (dir: -1 | 1) => void;
+  onAddField?: (type: FieldTypeId) => void;
+}) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(label);
+  React.useEffect(() => { setDraft(label); }, [label]);
+  const commit = () => {
+    if (!onRename) { setEditing(false); return; }
+    const next = draft.trim();
+    if (next && next !== label) onRename(next);
+    setEditing(false);
+  };
+  const Chevron = collapsed ? ChevronRight : ChevronDown;
+
+  return (
+    <div className="group/sec flex items-center gap-1.5 pl-0.5 min-h-[24px]">
+      <button
+        type="button"
+        onClick={onToggleCollapse}
+        className="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:bg-accent hover:text-foreground transition-colors shrink-0"
+        aria-label={
+          collapsed
+            ? t('designer.canvas.expandSection', locale)
+            : t('designer.canvas.collapseSection', locale)
+        }
+        aria-expanded={!collapsed}
+      >
+        <Chevron className="h-3.5 w-3.5" />
+      </button>
+      {editing ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') { e.preventDefault(); commit(); }
+            else if (e.key === 'Escape') { e.preventDefault(); setDraft(label); setEditing(false); }
+          }}
+          onBlur={commit}
+          className="text-[11px] font-medium uppercase tracking-wider px-1 py-0.5 -my-0.5 rounded border border-primary bg-background outline-none min-w-0 flex-1 max-w-[220px]"
+        />
+      ) : (
+        <span
+          className={cn(
+            'text-[11px] font-medium uppercase tracking-wider text-muted-foreground truncate',
+            onRename && 'cursor-text hover:text-foreground',
+          )}
+          onDoubleClick={onRename ? () => { setDraft(label); setEditing(true); } : undefined}
+          title={onRename ? t('designer.canvas.renameHint', locale) : undefined}
+        >
           {label}
-          {active && <span className="text-primary normal-case text-[10px]">drop to assign</span>}
+        </span>
+      )}
+      <span className="text-[10px] text-muted-foreground/60 tabular-nums shrink-0">{count}</span>
+      {dropActive && (
+        <span className="text-primary normal-case text-[10px] font-normal">
+          {t('designer.canvas.dropToAssign', locale)}
+        </span>
+      )}
+
+      {/* Section actions — appear on hover, edit-mode only, real groups only. */}
+      {!readOnly && (onMove || onRemove || onAddField) && (
+        <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover/sec:opacity-100 focus-within:opacity-100 transition-opacity">
+          {onAddField && (
+            <AddFieldButton onPick={onAddField} compact locale={locale} />
+          )}
+          {onMove && (
+            <>
+              <button
+                type="button"
+                onClick={() => onMove(-1)}
+                disabled={!canMoveUp}
+                className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
+                aria-label={t('designer.canvas.moveSectionUp', locale)}
+              >
+                <ArrowUp className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onMove(1)}
+                disabled={!canMoveDown}
+                className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
+                aria-label={t('designer.canvas.moveSectionDown', locale)}
+              >
+                <ArrowDown className="h-3 w-3" />
+              </button>
+            </>
+          )}
+          {onRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              aria-label={t('designer.canvas.removeSection', locale)}
+              title={t('designer.canvas.removeSectionHint', locale)}
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          )}
         </div>
       )}
-      <div className="space-y-2.5">{children}</div>
-    </section>
+    </div>
   );
 }
 
@@ -296,6 +677,7 @@ function FieldRow({
   entry,
   selected,
   readOnly,
+  locale,
   onClick,
   onReorder,
   onRenameLabel,
@@ -303,6 +685,7 @@ function FieldRow({
   entry: FieldEntry;
   selected: boolean;
   readOnly: boolean;
+  locale?: string;
   onClick: () => void;
   onReorder?: (fromName: string, toName: string, position: 'before' | 'after') => void;
   onRenameLabel?: (name: string, nextLabel: string) => void;
@@ -434,7 +817,7 @@ function FieldRow({
               <span
                 className={cn('text-sm font-medium truncate', onRenameLabel && 'cursor-text')}
                 onDoubleClick={beginEdit}
-                title={onRenameLabel ? 'Double-click to rename' : undefined}
+                title={onRenameLabel ? t('designer.canvas.renameHint', locale) : undefined}
               >
                 {label}
               </span>
@@ -443,7 +826,7 @@ function FieldRow({
             <code className="text-[10px] text-muted-foreground/70 font-mono truncate">{entry.name}</code>
           </div>
           <Badge variant="outline" className={cn('text-[10px] shrink-0 font-medium', tone.badge)}>
-            {meta?.label ?? typeStr}
+            {typeLabel(meta, locale) ?? typeStr}
           </Badge>
         </div>
         {description && (
@@ -456,6 +839,7 @@ function FieldRow({
           options={options}
           referenceTo={referenceTo}
           formula={formula}
+          locale={locale}
         />
       </div>
       {dropZone === 'after' && (
@@ -465,23 +849,23 @@ function FieldRow({
   );
 }
 
-function EmptyCanvas({ onAdd }: { onAdd?: (type: FieldTypeId) => void }) {
+function EmptyCanvas({ onAdd, locale }: { onAdd?: (type: FieldTypeId) => void; locale?: string }) {
   return (
     <div className="rounded-lg border-2 border-dashed bg-background py-16 px-6 text-center space-y-3">
-      <div className="text-sm font-medium">No fields yet</div>
+      <div className="text-sm font-medium">{t('designer.canvas.noFields', locale)}</div>
       <div className="text-xs text-muted-foreground">
-        Add a field to start designing the form. Click any field to edit its properties on the right.
+        {t('designer.canvas.noFieldsHint', locale)}
       </div>
       {onAdd && (
         <div className="pt-2">
-          <AddFieldButton onPick={onAdd} />
+          <AddFieldButton onPick={onAdd} locale={locale} />
         </div>
       )}
     </div>
   );
 }
 
-function AddFieldButton({ onPick }: { onPick: (type: FieldTypeId) => void }) {
+function AddFieldButton({ onPick, compact, locale }: { onPick: (type: FieldTypeId) => void; compact?: boolean; locale?: string }) {
   const [open, setOpen] = React.useState(false);
   const [filter, setFilter] = React.useState('');
   const q = filter.trim().toLowerCase();
@@ -508,10 +892,21 @@ function AddFieldButton({ onPick }: { onPick: (type: FieldTypeId) => void }) {
       }}
     >
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5 border-dashed">
-          <Plus className="h-3.5 w-3.5" />
-          Add field
-        </Button>
+        {compact ? (
+          <button
+            type="button"
+            className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label={t('designer.canvas.addFieldToSection', locale)}
+            title={t('designer.canvas.addFieldToSection', locale)}
+          >
+            <Plus className="h-3 w-3" />
+          </button>
+        ) : (
+          <Button variant="outline" size="sm" className="gap-1.5 border-dashed">
+            <Plus className="h-3.5 w-3.5" />
+            {t('designer.canvas.addField', locale)}
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[320px] p-0 max-h-[480px] overflow-hidden flex flex-col">
         <div className="p-2 border-b">
@@ -519,18 +914,20 @@ function AddFieldButton({ onPick }: { onPick: (type: FieldTypeId) => void }) {
             autoFocus
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Search field type…"
+            placeholder={t('designer.canvas.searchFieldType', locale)}
             className="h-7 w-full px-2 text-sm border rounded bg-background outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
         <div className="flex-1 overflow-auto p-1">
           {groups.length === 0 ? (
-            <div className="text-xs text-muted-foreground p-4 text-center">No matching types.</div>
+            <div className="text-xs text-muted-foreground p-4 text-center">
+              {t('designer.canvas.noMatchingTypes', locale)}
+            </div>
           ) : (
             groups.map((g) => (
               <div key={g.category} className="mb-1">
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-2 pt-2 pb-1">
-                  {CATEGORY_LABEL_EN[g.category]}
+                  {categoryLabel(g.category, locale)}
                 </div>
                 <div className="grid grid-cols-2 gap-0.5">
                   {g.types.map((id) => {
@@ -548,7 +945,7 @@ function AddFieldButton({ onPick }: { onPick: (type: FieldTypeId) => void }) {
                         className="flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs hover:bg-accent"
                       >
                         <Icon className={cn('h-3.5 w-3.5 shrink-0', CATEGORY_TONE[m.category].icon)} />
-                        <span className="truncate">{m.label}</span>
+                        <span className="truncate">{typeLabel(m, locale)}</span>
                       </button>
                     );
                   })}

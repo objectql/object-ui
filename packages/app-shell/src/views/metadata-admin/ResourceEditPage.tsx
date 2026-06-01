@@ -108,6 +108,26 @@ import { validateMetadataDraft, hasClientValidator } from './clientValidation';
 const PanelGroup = ResizablePanelGroup as React.FC<any>;
 
 /**
+ * Metadata types whose canvas IS the primary create-time authoring
+ * surface, so we render the preview/inspector split during create
+ * instead of the centered basic-info form. Object-level basics stay
+ * editable via the no-selection default inspector. Other types keep
+ * the conventional "name it first, design after save" create flow.
+ */
+const CREATE_MODE_CANVAS_TYPES = new Set<string>(['object']);
+
+/**
+ * Top-level metadata keys that a type's canvas PreviewComponent owns and
+ * edits visually (e.g. the object designer owns `fields` + `fieldGroups`).
+ * These must never surface in the inspector's fallback SchemaForm — the
+ * no-selection panel would otherwise render a raw JSON editor for data
+ * the user is already editing on the canvas.
+ */
+const CANVAS_OWNED_KEYS: Record<string, string[]> = {
+  object: ['fields', 'fieldGroups'],
+};
+
+/**
  * Normalize the framework's draft envelope into either the draft body or
  * `null` (no pending draft). The envelope is:
  *
@@ -290,7 +310,14 @@ function MetadataResourceEditPageImpl({
   }, [createMode, config.createFields, schema]);
 
   const effectiveHiddenFields = React.useMemo<string[] | undefined>(() => {
-    if (!createMode || !createFieldList) return config.hiddenFields;
+    // Keys edited on the canvas (fields, fieldGroups) are never shown in
+    // the inspector's SchemaForm fallback — otherwise deselecting reveals
+    // a raw JSON editor for data the canvas already owns.
+    const canvasOwned = CANVAS_OWNED_KEYS[type] ?? [];
+    if (!createMode || !createFieldList) {
+      if (canvasOwned.length === 0) return config.hiddenFields;
+      return Array.from(new Set([...(config.hiddenFields ?? []), ...canvasOwned]));
+    }
     const props = (schema?.properties as Record<string, unknown> | undefined) ?? {};
     const allow = new Set(createFieldList);
     const hidden = Object.keys(props).filter((k) => !allow.has(k));
@@ -299,8 +326,10 @@ function MetadataResourceEditPageImpl({
     if (config.hiddenFields) {
       for (const k of config.hiddenFields) if (!hidden.includes(k)) hidden.push(k);
     }
+    // Canvas-owned keys are hidden regardless of the create allowlist.
+    for (const k of canvasOwned) if (!hidden.includes(k)) hidden.push(k);
     return hidden;
-  }, [createMode, createFieldList, schema, config.hiddenFields]);
+  }, [createMode, createFieldList, schema, config.hiddenFields, type]);
 
   const effectiveFieldOrder = React.useMemo<string[] | undefined>(() => {
     if (createMode && createFieldList) return createFieldList;
@@ -1067,7 +1096,18 @@ function MetadataResourceEditPageImpl({
   // Preview tab — opt-in via `registerMetadataPreview()`. Hidden in
   // create mode (nothing to preview yet) and inside the embedded
   // drawer (the parent context owns the preview surface).
-  const PreviewComponent = !createMode && !embedded ? getMetadataPreview(type) : undefined;
+  //
+  // Exception: a few types host their primary authoring surface IN the
+  // canvas (object → field designer). For those we light the canvas up
+  // during create too, so authors design fields immediately instead of
+  // round-tripping through a save first. Object-level basics (name,
+  // label, …) stay editable via the default inspector shown when no
+  // field is selected, so naming still works before any field exists.
+  const showPreviewInCreate = CREATE_MODE_CANVAS_TYPES.has(type);
+  const PreviewComponent =
+    !embedded && (!createMode || showPreviewInCreate)
+      ? getMetadataPreview(type)
+      : undefined;
 
   // Optional scoped inspector for the selected sub-element (e.g. a
   // dashboard widget). Registered separately via

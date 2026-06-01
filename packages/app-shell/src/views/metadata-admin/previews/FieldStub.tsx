@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { FieldTypeId } from './field-types';
 import { FIELD_TYPE_META } from './field-types';
+import { t, tFormat } from '../i18n';
 
 interface FieldStubProps {
   type: string;
@@ -30,10 +31,12 @@ interface FieldStubProps {
   referenceTo?: string;
   /** Formula expression for formula/summary. */
   formula?: string;
+  /** Active UI locale (illustrative placeholder text is localized). */
+  locale?: string;
 }
 
 export function FieldStub(props: FieldStubProps) {
-  const { type } = props;
+  const { type, locale } = props;
   switch (type as FieldTypeId) {
     case 'text':
     case 'password':
@@ -51,7 +54,7 @@ export function FieldStub(props: FieldStubProps) {
       return <PlainInput {...props} icon={<Hash className="h-3.5 w-3.5" />} placeholder={props.placeholder ?? '0'} />;
     case 'date':
     case 'datetime':
-      return <PlainInput {...props} icon={<Calendar className="h-3.5 w-3.5" />} placeholder="Pick a date…" />;
+      return <PlainInput {...props} icon={<Calendar className="h-3.5 w-3.5" />} placeholder={t('designer.stub.pickDate', locale)} />;
     case 'time':
       return <PlainInput {...props} icon={<Clock className="h-3.5 w-3.5" />} placeholder="hh:mm" />;
     case 'textarea':
@@ -66,7 +69,7 @@ export function FieldStub(props: FieldStubProps) {
       return (
         <div className="flex items-center gap-2 h-8">
           <Switch disabled />
-          <span className="text-xs text-muted-foreground">{props.placeholder ?? 'Off'}</span>
+          <span className="text-xs text-muted-foreground">{props.placeholder ?? t('designer.stub.off', locale)}</span>
         </div>
       );
     case 'select':
@@ -82,14 +85,14 @@ export function FieldStub(props: FieldStubProps) {
       return <LookupStub {...props} />;
     case 'image':
     case 'avatar':
-      return <MediaTile icon={<ImageIcon className="h-4 w-4" />} label={type === 'avatar' ? 'Upload avatar' : 'Upload image'} />;
+      return <MediaTile icon={<ImageIcon className="h-4 w-4" />} label={t(type === 'avatar' ? 'designer.stub.uploadAvatar' : 'designer.stub.uploadImage', locale)} />;
     case 'file':
     case 'video':
     case 'audio':
     case 'signature':
-      return <MediaTile icon={<Paperclip className="h-4 w-4" />} label={`Upload ${type}`} />;
+      return <MediaTile icon={<Paperclip className="h-4 w-4" />} label={tFormat('designer.stub.upload', locale, { type })} />;
     case 'qrcode':
-      return <MediaTile icon={<Paperclip className="h-4 w-4" />} label="QR code" />;
+      return <MediaTile icon={<Paperclip className="h-4 w-4" />} label={t('designer.stub.qrcode', locale)} />;
     case 'color':
       return (
         <div className="flex items-center gap-2 h-8">
@@ -126,26 +129,26 @@ export function FieldStub(props: FieldStubProps) {
         </div>
       );
     case 'location':
-      return <PlainInput {...props} icon={<MapPin className="h-3.5 w-3.5" />} placeholder="Lat, lng" />;
+      return <PlainInput {...props} icon={<MapPin className="h-3.5 w-3.5" />} placeholder={t('designer.stub.latLng', locale)} />;
     case 'address':
       return <TextareaStub {...props} placeholder={props.placeholder ?? 'Street\nCity, State ZIP\nCountry'} />;
     case 'formula':
     case 'summary':
       return (
         <div className="h-8 px-2 flex items-center text-xs font-mono bg-muted/40 border rounded text-muted-foreground">
-          {props.formula ? `ƒ ${props.formula}` : 'ƒ Computed value'}
+          {props.formula ? `ƒ ${props.formula}` : `ƒ ${t('designer.stub.computed', locale)}`}
         </div>
       );
     case 'composite':
       return (
         <div className="p-2 border-dashed border-2 rounded text-[11px] text-muted-foreground italic">
-          Composite — nested sub-fields edit in the inspector.
+          {t('designer.stub.composite', locale)}
         </div>
       );
     case 'repeater':
       return (
         <div className="p-2 border-dashed border-2 rounded text-[11px] text-muted-foreground italic">
-          Repeater — repeating row group.
+          {t('designer.stub.repeater', locale)}
         </div>
       );
     case 'vector':
@@ -185,13 +188,13 @@ function TextareaStub({ placeholder, mono }: FieldStubProps & { mono?: boolean }
   );
 }
 
-function PicklistStub({ options, placeholder, single }: FieldStubProps & { single: boolean }) {
+function PicklistStub({ options, placeholder, single, locale }: FieldStubProps & { single: boolean }) {
   const opts = options ?? [];
   const visible = opts.slice(0, single ? 1 : 3).filter((o) => o.value || o.label);
   if (single) {
     return (
       <div className="h-8 px-2 flex items-center justify-between text-sm border rounded bg-background text-muted-foreground">
-        <span className="truncate">{visible[0]?.label || visible[0]?.value || placeholder || 'Select…'}</span>
+        <span className="truncate">{visible[0]?.label || visible[0]?.value || placeholder || t('designer.stub.select', locale)}</span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0" />
       </div>
     );
@@ -199,7 +202,7 @@ function PicklistStub({ options, placeholder, single }: FieldStubProps & { singl
   return (
     <div className="min-h-8 px-1.5 py-1 flex items-center flex-wrap gap-1 border rounded bg-background">
       {visible.length === 0 ? (
-        <span className="text-xs text-muted-foreground px-1">{placeholder || 'Pick one or more…'}</span>
+        <span className="text-xs text-muted-foreground px-1">{placeholder || t('designer.stub.pickMulti', locale)}</span>
       ) : (
         visible.map((o, i) => (
           <Badge key={i} variant="secondary" className="text-[10px]">{o.label || o.value}</Badge>
@@ -212,13 +215,13 @@ function PicklistStub({ options, placeholder, single }: FieldStubProps & { singl
   );
 }
 
-function LookupStub({ referenceTo, placeholder }: FieldStubProps) {
+function LookupStub({ referenceTo, placeholder, locale }: FieldStubProps) {
   const meta = referenceTo ? FIELD_TYPE_META.lookup : null;
   return (
     <div className="h-8 px-2 flex items-center gap-2 border rounded bg-background text-sm text-muted-foreground">
       <Link2 className="h-3.5 w-3.5 shrink-0" />
       <span className="truncate flex-1">
-        {placeholder || (referenceTo ? `Search ${referenceTo}…` : 'Choose related object…')}
+        {placeholder || (referenceTo ? tFormat('designer.stub.searchRef', locale, { ref: referenceTo }) : t('designer.stub.chooseRelated', locale))}
       </span>
       {referenceTo && (
         <Badge variant="outline" className="text-[10px] shrink-0">→ {referenceTo}</Badge>
