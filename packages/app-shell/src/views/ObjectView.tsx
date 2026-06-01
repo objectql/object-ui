@@ -55,6 +55,7 @@ import { toast } from 'sonner';
 import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog';
 import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog';
 import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog';
+import { FlowRunner, type ScreenFlowState } from './FlowRunner';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
 
@@ -386,6 +387,8 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
 
     // Refresh trigger — bumped after view CRUD or external data mutations.
     const [refreshKey, setRefreshKey] = useState(0);
+    // Screen-flow runtime: a paused `screen`-node flow awaiting user input.
+    const [screenFlow, setScreenFlow] = useState<ScreenFlowState | null>(null);
 
     // Resolve which generic CRUD affordances belong in the toolbar for
     // this object's lifecycle bucket (`managedBy`).  config tables show
@@ -1200,14 +1203,21 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
         }
         try {
             const baseUrl = import.meta.env.VITE_SERVER_URL || '';
-            const params = action.params || {};
+            // Row context is stashed on params under `_rowRecord` by the row-action
+            // dispatcher (ObjectGrid → onRowAction). For a list_item flow action the
+            // row's id is the flow's `recordId` (e.g. the Reassign wizard targets it).
+            const params = { ...(action.params || {}) } as Record<string, any>;
+            const rowRecord = params._rowRecord as Record<string, any> | undefined;
+            delete params._rowRecord;
+            const recordId = params.recordId ?? rowRecord?.id;
+            if (recordId != null && params.recordId == null) params.recordId = recordId;
             const res = await authFetch(
                 `${baseUrl}/api/v1/automation/${encodeURIComponent(flowName)}/trigger`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        recordId: params.recordId,
+                        recordId,
                         objectName: objectDef.name,
                         params,
                     }),
@@ -1217,6 +1227,14 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
             if (!res.ok || (json && json.success === false)) {
                 const errMsg = json?.error || `Flow "${flowName}" failed (HTTP ${res.status})`;
                 return { success: false, error: errMsg };
+            }
+            // Screen-flow runtime: the run paused at a `screen` node awaiting
+            // input — open the FlowRunner to render the form + resume. Refresh
+            // happens when the FlowRunner completes, not now.
+            const data = json?.data ?? {};
+            if (data.status === 'paused' && data.screen) {
+                setScreenFlow({ flowName, runId: data.runId, screen: data.screen });
+                return { success: true };
             }
             const shouldRefresh = action.refreshAfter !== false;
             if (shouldRefresh) {
@@ -2147,6 +2165,13 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
                 resultDialogState.resolve?.();
                 setResultDialogState({ open: false });
             }}
+        />
+        <FlowRunner
+            state={screenFlow}
+            authFetch={authFetch}
+            baseUrl={import.meta.env.VITE_SERVER_URL || ''}
+            onClose={() => setScreenFlow(null)}
+            onComplete={() => { setScreenFlow(null); setRefreshKey(k => k + 1); }}
         />
         </ActionProvider>
     );

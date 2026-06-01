@@ -24,6 +24,7 @@ import { hasExplicitDiscussion } from '../utils/pageSchemaIntrospect';
 import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog';
 import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog';
 import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog';
+import { FlowRunner, type ScreenFlowState } from './FlowRunner';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 import type { DetailViewSchema, FeedItem, HighlightField, SectionGroup } from '@object-ui/types';
@@ -125,6 +126,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     Array<{ id: string; label: string; avatarUrl?: string }>
   >([]);
   const [actionRefreshKey, setActionRefreshKey] = useState(0);
+  // Screen-flow runtime: a paused `screen`-node flow launched from a record action.
+  const [screenFlow, setScreenFlow] = useState<ScreenFlowState | null>(null);
   const [childRelatedData, setChildRelatedData] = useState<Record<string, any[]>>({});
   const [historyEntries, setHistoryEntries] = useState<any[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -401,6 +404,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       if (!res.ok || (json && json.success === false)) {
         const errMsg = json?.error || `Flow "${flowName}" failed (HTTP ${res.status})`;
         return { success: false, error: errMsg };
+      }
+      // Screen-flow runtime: the run paused at a `screen` node awaiting input —
+      // open the FlowRunner to render the form + resume (refresh on completion).
+      const data = json?.data ?? {};
+      if (data.status === 'paused' && data.screen) {
+        setScreenFlow({ flowName, runId: data.runId, screen: data.screen });
+        return { success: true };
       }
       const shouldRefresh = action.refreshAfter !== false;
       if (shouldRefresh) {
@@ -1690,6 +1700,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             setResultDialogState({ open: false });
           }}
         />
+        <FlowRunner
+          state={screenFlow}
+          authFetch={authFetch}
+          baseUrl={import.meta.env.VITE_SERVER_URL || ''}
+          onClose={() => setScreenFlow(null)}
+          onComplete={() => { setScreenFlow(null); setActionRefreshKey(k => k + 1); }}
+        />
       </div>
     );
   }
@@ -1789,6 +1806,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           resultDialogState.resolve?.();
           setResultDialogState({ open: false });
         }}
+      />
+      <FlowRunner
+        state={screenFlow}
+        authFetch={authFetch}
+        baseUrl={import.meta.env.VITE_SERVER_URL || ''}
+        onClose={() => setScreenFlow(null)}
+        onComplete={() => { setScreenFlow(null); setActionRefreshKey(k => k + 1); }}
       />
     </div>
   );
