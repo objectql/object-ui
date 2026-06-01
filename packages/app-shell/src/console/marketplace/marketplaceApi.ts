@@ -61,6 +61,14 @@ export interface MarketplacePackageDetail extends MarketplacePackageSummary {
   readme?: string | null;
 }
 
+/** Structured permission grants a plugin requests (ADR-0025 §3.2). */
+export interface PluginPermissions {
+  services?: string[];
+  hooks?: string[];
+  network?: string[];
+  fs?: string[];
+}
+
 export interface MarketplacePackageVersion {
   id: string;
   version: string;
@@ -69,6 +77,25 @@ export interface MarketplacePackageVersion {
   published_at?: string | null;
   listing_status?: string;
   reviewed_at?: string | null;
+
+  // Plugin distribution disclosure (ADR-0025 PD4 §3.11). Present only for
+  // code-bearing versions; the control plane exposes verification STATUS,
+  // never the raw signatures.
+  artifact_kind?: string;
+  /** True when this version carries executable code (a `plugin` artifact). */
+  contains_code?: boolean;
+  /** Trust tier the plugin runs under: 'node' | 'sandbox' | 'worker'. */
+  runtime?: string;
+  /** Dependency packaging: 'bundled' | 'manifest-deps'. */
+  packaging?: string;
+  /** Structured permission set the plugin asks the installer to grant. */
+  permissions?: PluginPermissions | null;
+  /** Compatibility ranges ({ platform, protocol }). */
+  engines?: { platform?: string; protocol?: string } | null;
+  /** Whether the artifact carries a verified publisher signature. */
+  signed?: boolean;
+  /** Whether the marketplace counter-signed (reviewed + approved) this version. */
+  platform_verified?: boolean;
 }
 
 export interface MarketplaceListResponse {

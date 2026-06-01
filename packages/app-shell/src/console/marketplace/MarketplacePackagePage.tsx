@@ -38,6 +38,7 @@ import { useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { PackageIcon } from './PackageIcon';
 import { MarkdownText } from './MarkdownText';
+import { PluginDisclosure } from './PluginDisclosure';
 import { MarketplaceAccessDenied } from './MarketplaceAccessDenied';
 import { localizePackage } from './usePackageL10n';
 import {
@@ -80,6 +81,9 @@ export function MarketplacePackagePage() {
   const [envsError, setEnvsError] = useState<string | null>(null);
   const [selectedEnv, setSelectedEnv] = useState<string>('');
   const [seedSampleData, setSeedSampleData] = useState(false);
+  // PD4: a code-bearing package requires explicit acknowledgement of its
+  // requested permissions before the install button is enabled.
+  const [acknowledged, setAcknowledged] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [installResult, setInstallResult] = useState<{ ok: boolean; message: string } | null>(null);
   // Tracks whether the package has been installed into the current
@@ -471,6 +475,8 @@ export function MarketplacePackagePage() {
   const loc = localizePackage(pkg as any, language);
   const latestVersion = pkg.latest_version?.version ?? data.versions[0]?.version ?? null;
   const localInstall = localInstalls.find((i) => i.manifestId === pkg.manifest_id) ?? null;
+  // PD4 (ADR-0025 §3.11): code-bearing packages must disclose + be acknowledged.
+  const containsCode = !!pkg.latest_version?.contains_code;
 
   const supportsLocal = getRuntimeConfig().features.installLocal;
   const primaryDisabled = !latestVersion || installingLocal || installing || (!supportsLocal && !!cloudInstalledVersion);
@@ -702,7 +708,7 @@ export function MarketplacePackagePage() {
         </div>
       </div>
 
-      <Dialog open={installOpen} onOpenChange={(o) => { setInstallOpen(o); if (!o) setInstallResult(null); }}>
+      <Dialog open={installOpen} onOpenChange={(o) => { setInstallOpen(o); if (!o) { setInstallResult(null); setAcknowledged(false); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('marketplace.install.dialogTitle', { name: loc.displayName || pkg.manifest_id })}</DialogTitle>
@@ -772,6 +778,24 @@ export function MarketplacePackagePage() {
             </div>
           )}
 
+          {containsCode && !envsError && (
+            <div className="space-y-3">
+              <PluginDisclosure version={pkg.latest_version} />
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="ack-perms"
+                  checked={acknowledged}
+                  onCheckedChange={(c) => setAcknowledged(c === true)}
+                />
+                <Label htmlFor="ack-perms" className="text-sm font-normal cursor-pointer leading-snug">
+                  {t('marketplace.disclosure.acknowledge', {
+                    defaultValue: 'I understand this package runs code and grants the permissions above.',
+                  })}
+                </Label>
+              </div>
+            </div>
+          )}
+
           {installResult && (
             <div className={`rounded-md border p-3 text-sm ${installResult.ok ? 'border-green-500/30 bg-green-500/5 text-green-700' : 'border-destructive/30 bg-destructive/5 text-destructive'}`}>
               {installResult.message}
@@ -783,7 +807,7 @@ export function MarketplacePackagePage() {
             {!envsError && (
               <Button
                 onClick={doInstall}
-                disabled={!selectedEnv || installing || installResult?.ok === true}
+                disabled={!selectedEnv || installing || installResult?.ok === true || (containsCode && !acknowledged)}
               >
                 {installing ? t('marketplace.action.installing') : t('marketplace.action.install')}
               </Button>
