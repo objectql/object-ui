@@ -17,6 +17,13 @@ theme-aware (light/dark), and still dependency-free.
   `screen`/`user_task` (pink) and `assignment` (purple) — previously they fell
   back to the generic slate "task" tone, so every node type now reads as a
   distinct color in the canvas.
+- **Readable labels**: node width 188→240 and the per-node summary moved from a
+  right-hand column onto a second line, so the label now gets the **full card
+  width** (it was badly truncated — "Manager Re…", "Budget Ab…"). A native title
+  tooltip surfaces the full text on the rare remaining truncation.
+- **No overlap on add**: adding a connected node no longer pins it directly below
+  its parent (which stacked every sibling on the same spot) — it's left to the
+  layered auto-layout, which slots it beside its siblings.
 - **Canvas surface**: the dot grid now tracks pan **and** zoom (it moves with
   the diagram instead of floating behind a static texture), plus a subtle inset
   vignette for depth.

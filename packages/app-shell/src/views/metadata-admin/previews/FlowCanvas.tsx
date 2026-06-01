@@ -35,8 +35,6 @@ import {
   edgeMidpoint,
   edgeKey,
   conditionText,
-  NODE_H,
-  V_GAP,
   type FlowNode,
   type FlowEdge,
   type Point,
@@ -152,14 +150,11 @@ export function FlowCanvas({
       const existing = nodes.map((n) => n.id).filter(Boolean) as string[];
       const id = uniqueId('node', existing);
       const label = type === 'end' ? 'End' : defaultNodeLabel(type);
-      const at =
-        opts?.at ??
-        (opts?.from
-          ? (() => {
-              const p = positionOf(opts.from);
-              return { x: p.x, y: p.y + NODE_H + V_GAP };
-            })()
-          : undefined);
+      // Only an explicit `at` pins a manual position. A `from`-append is left
+      // unpinned so the layered auto-layout slots it below its parent and
+      // spaces it horizontally among siblings — pinning it directly under the
+      // parent (the old behavior) made every sibling stack on the same spot.
+      const at = opts?.at;
       const newNode: FlowNode = { id, type, label, ...defaultNodeExtras(type), ...(at ? { ui: { x: at.x, y: at.y } } : {}) };
       const nextNodes = appendArray(nodes, newNode);
       const patch: Record<string, unknown> = { nodes: nextNodes };

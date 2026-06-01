@@ -380,16 +380,22 @@ export function NodeCard({
           <NodeTypeIcon type={type} className={cn('h-[18px] w-[18px]', tone.icon)} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold leading-tight text-foreground">{label}</div>
-          <div className={cn('mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.08em]', tone.label)}>
-            {type}
+          {/* Label gets the full card width (the summary moved to line 2), and a
+              native title tooltip surfaces the full text when it does truncate. */}
+          <div title={label} className="truncate text-[13px] font-semibold leading-tight text-foreground">
+            {label}
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5 leading-tight">
+            <span className={cn('shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em]', tone.label)}>
+              {type}
+            </span>
+            {summary && (
+              <span className="min-w-0 truncate font-mono text-[10px] text-muted-foreground" title={summary}>
+                {summary}
+              </span>
+            )}
           </div>
         </div>
-        {summary && (
-          <div className="max-w-[42%] shrink-0 truncate rounded-md bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-            {summary}
-          </div>
-        )}
       </div>
       {editable && type !== 'end' && (
         <button

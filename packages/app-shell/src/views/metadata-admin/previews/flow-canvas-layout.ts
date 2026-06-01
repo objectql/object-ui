@@ -44,9 +44,9 @@ export interface Point {
 
 // Node card + spacing geometry. Written as plain numbers so both the layout
 // pass and the SVG edge router share one source of truth.
-export const NODE_W = 188;
-export const NODE_H = 62;
-export const H_GAP = 40;
+export const NODE_W = 240;
+export const NODE_H = 66;
+export const H_GAP = 44;
 export const V_GAP = 56;
 export const PADDING = 28;
 
