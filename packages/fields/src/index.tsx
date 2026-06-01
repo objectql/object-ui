@@ -1352,6 +1352,44 @@ export function resolveCellRendererType(fieldOrType: string | { type?: string; f
 }
 
 /**
+ * Renders structured/embedded values (json, object, composite, record,
+ * address, geolocation) as compact, readable JSON. Objects and arrays are
+ * stringified; primitives fall through to their string form.
+ */
+export function JsonCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  if (value == null || value === '') return <EmptyValue />;
+  let text: string;
+  if (typeof value === 'object') {
+    try {
+      text = JSON.stringify(value);
+    } catch {
+      text = String(value);
+    }
+  } else {
+    text = String(value);
+  }
+  return <span className="font-mono text-xs text-gray-600 truncate" title={text}>{text}</span>;
+}
+
+/**
+ * Renders a `color` value as a swatch alongside its hex/string value.
+ */
+export function ColorSwatchCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  if (value == null || value === '') return <EmptyValue />;
+  const color = String(value);
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm">
+      <span
+        className="h-3.5 w-3.5 rounded border border-black/10 shrink-0"
+        style={{ backgroundColor: color }}
+        aria-hidden="true"
+      />
+      <span className="font-mono text-xs">{color}</span>
+    </span>
+  );
+}
+
+/**
  * Get the appropriate cell renderer for a field type
  */
 export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> {
@@ -1366,30 +1404,59 @@ export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> 
     textarea: TextCellRenderer,
     markdown: TextCellRenderer,
     html: TextCellRenderer,
+    richtext: TextCellRenderer,
+    code: TextCellRenderer,
+    qrcode: TextCellRenderer,
     number: NumberCellRenderer,
     currency: CurrencyCellRenderer,
     percent: PercentCellRenderer,
+    progress: PercentCellRenderer,
+    slider: NumberCellRenderer,
+    rating: NumberCellRenderer,
     boolean: BooleanCellRenderer,
+    toggle: BooleanCellRenderer,
     date: DateCellRenderer,
     datetime: DateTimeCellRenderer,
     time: TextCellRenderer,
     select: SelectCellRenderer,
     status: SelectCellRenderer,
+    multiselect: SelectCellRenderer,
+    radio: SelectCellRenderer,
+    checkboxes: SelectCellRenderer,
+    tags: SelectCellRenderer,
     lookup: LookupCellRenderer,
     master_detail: LookupCellRenderer,
+    tree: LookupCellRenderer,
     email: EmailCellRenderer,
     url: UrlCellRenderer,
     phone: PhoneCellRenderer,
     file: FileCellRenderer,
+    video: FileCellRenderer,
+    audio: FileCellRenderer,
     image: ImageCellRenderer,
+    avatar: ImageCellRenderer,
+    signature: ImageCellRenderer,
     formula: FormulaCellRenderer,
     summary: FormulaCellRenderer,
     auto_number: TextCellRenderer,
     user: UserCellRenderer,
     owner: UserCellRenderer,
     password: () => <span>••••••</span>,
+    secret: () => <span>••••••</span>,
     location: TextCellRenderer, // Default fallback
-    object: () => <span className="text-gray-500 italic">[Object]</span>,
+    geolocation: JsonCellRenderer,
+    address: JsonCellRenderer,
+    color: ColorSwatchCellRenderer,
+    json: JsonCellRenderer,
+    object: JsonCellRenderer,
+    composite: JsonCellRenderer,
+    record: JsonCellRenderer,
+    repeater: ({ value }: CellRendererProps) => {
+      const n = Array.isArray(value) ? value.length : 0;
+      return n > 0
+        ? <span className="text-gray-500 italic">{n} 项</span>
+        : <EmptyValue />;
+    },
     vector: () => <span className="text-gray-500 italic">[Vector]</span>,
     grid: () => <span className="text-gray-500 italic">[Grid]</span>,
   };
@@ -1430,38 +1497,66 @@ export function mapFieldTypeToFormType(fieldType: string): string {
     textarea: 'field:textarea',
     markdown: 'field:markdown', // Markdown editor (fallback to textarea)
     html: 'field:html', // Rich text editor (fallback to textarea)
-    
+    richtext: 'field:richtext', // WYSIWYG rich-text editor
+    secret: 'field:password', // encrypted-at-rest value — mask input like a password
+
     // Numeric fields
     number: 'field:number',
     currency: 'field:currency',
     percent: 'field:percent',
-    
+    slider: 'field:slider',
+    progress: 'field:slider', // bounded 0..100 progress — edit via slider
+    rating: 'field:rating',
+
     // Date/Time fields
     date: 'field:date',
     datetime: 'field:datetime',
     time: 'field:time',
-    
+
     // Boolean
     boolean: 'field:boolean',
-    
+    toggle: 'field:boolean', // toggle is a boolean rendered as a switch
+
     // Selection fields
     select: 'field:select',
+    multiselect: 'field:multiselect',
+    radio: 'field:radio',
+    checkboxes: 'field:checkboxes',
+    tags: 'field:tags',
     lookup: 'field:lookup',
     master_detail: 'field:master_detail',
-    
+    tree: 'field:lookup', // hierarchical reference — pick the parent via a lookup
+
     // Contact fields
     email: 'field:email',
     phone: 'field:phone',
     url: 'field:url',
-    
-    // File fields
+
+    // File / media fields
     file: 'field:file',
     image: 'field:image',
-    
-    // Special fields
+    avatar: 'field:avatar',
+    video: 'field:file', // uploads as a file
+    audio: 'field:file', // uploads as a file
+    signature: 'field:signature',
+
+    // Special / enhanced fields
     password: 'field:password',
     location: 'field:location', // Location/map field (fallback to input)
-    
+    geolocation: 'field:geolocation',
+    address: 'field:address',
+    color: 'field:color',
+    code: 'field:code',
+    json: 'field:code', // JSON edited in the code editor
+    qrcode: 'field:qrcode',
+    vector: 'field:vector',
+
+    // Embedded structured values (stored as JSON on the row)
+    object: 'field:object',
+    composite: 'field:object', // embedded object
+    record: 'field:object', // name-keyed map
+    repeater: 'field:grid', // embedded array of rows
+
     // Auto-generated/computed fields (typically read-only)
     formula: 'field:formula',
     summary: 'field:summary',
@@ -1693,12 +1788,19 @@ const fieldWidgetMap: Record<string, () => Promise<{ default: React.ComponentTyp
   'phone': () => import('./widgets/PhoneField').then(m => ({ default: m.PhoneField })),
   'url': () => import('./widgets/UrlField').then(m => ({ default: m.UrlField })),
   
+  // Selection fields (multi-value / option groups)
+  'multiselect': () => import('./widgets/MultiSelectField').then(m => ({ default: m.MultiSelectField })),
+  'radio': () => import('./widgets/RadioField').then(m => ({ default: m.RadioField })),
+  'checkboxes': () => import('./widgets/CheckboxesField').then(m => ({ default: m.CheckboxesField })),
+  'tags': () => import('./widgets/TagsField').then(m => ({ default: m.TagsField })),
+
   // Specialized fields
   'currency': () => import('./widgets/CurrencyField').then(m => ({ default: m.CurrencyField })),
   'percent': () => import('./widgets/PercentField').then(m => ({ default: m.PercentField })),
   'password': () => import('./widgets/PasswordField').then(m => ({ default: m.PasswordField })),
   'markdown': () => import('./widgets/RichTextField').then(m => ({ default: m.RichTextField })),
   'html': () => import('./widgets/RichTextField').then(m => ({ default: m.RichTextField })),
+  'richtext': () => import('./widgets/RichTextField').then(m => ({ default: m.RichTextField })),
   'lookup': () => import('./widgets/LookupField').then(m => ({ default: m.LookupField })),
   // master_detail represents the child-side FK to its parent. In create/edit forms it
   // must render as a single-value lookup picker (it is typically NOT NULL). The legacy
@@ -1908,6 +2010,10 @@ export * from './widgets/GeolocationField';
 export * from './widgets/SignatureField';
 export * from './widgets/QRCodeField';
 export * from './widgets/MasterDetailField';
+export * from './widgets/MultiSelectField';
+export * from './widgets/RadioField';
+export * from './widgets/CheckboxesField';
+export * from './widgets/TagsField';
 
 // Initialize registry
 registerAllFields();

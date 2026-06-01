@@ -96,6 +96,53 @@ const CHART_COLORS = [
 ];
 
 /**
+ * Spec-level `ChartType` families normalized to a base type that the chart
+ * implementation (plugin-charts/AdvancedChartImpl) actually renders. The
+ * widget `type` taxonomy is broader than the set of distinct visual renderers;
+ * several families collapse onto a shared renderer (e.g. stacked / grouped /
+ * column bars all render through the bar chart). Keeps the dashboard from
+ * surfacing a raw "Unknown component type" for a perfectly meaningful chart.
+ */
+const CHART_TYPE_ALIASES: Record<string, string> = {
+  column: 'bar',
+  'stacked-bar': 'bar',
+  'grouped-bar': 'bar',
+  'bi-polar-bar': 'bar',
+  spline: 'line',
+  'step-line': 'line',
+  'stacked-area': 'area',
+  pyramid: 'funnel',
+  bubble: 'scatter',
+};
+
+/**
+ * Chart types the renderer can draw (after alias normalization). Anything
+ * outside this set that is still a chart family renders a clean
+ * "not-yet-supported" placeholder instead of a raw error box.
+ */
+const SUPPORTED_CHART_TYPES = new Set([
+  'bar', 'horizontal-bar', 'line', 'area', 'pie', 'donut', 'scatter', 'funnel', 'radar',
+]);
+
+/**
+ * Single-value "performance" widgets that render as a metric card rather than
+ * a chart (gauge/kpi/bullet are all one number with optional target).
+ */
+const METRIC_LIKE_TYPES = new Set(['gauge', 'solid-gauge', 'kpi', 'bullet']);
+
+/**
+ * Chart families that have no dedicated renderer yet (Recharts cannot draw
+ * them and no approximation reads honestly). These render a labelled
+ * placeholder so the dashboard stays clean instead of dumping the widget JSON
+ * under a red "Unknown component type" error.
+ */
+const UNSUPPORTED_CHART_TYPES = new Set([
+  'heatmap', 'treemap', 'sunburst', 'sankey', 'waterfall',
+  'candlestick', 'stock', 'box-plot', 'violin',
+  'gl-map', 'choropleth', 'bubble-map', 'word-cloud',
+]);
+
+/**
  * Chart sub-types that have a meaningful drill-down interaction.
  * Mirrors WidgetConfigPanel.DRILL_DOWN_TYPES and the click-handler wiring
  * in plugin-charts/AdvancedChartImpl. Scatter and funnel are excluded
@@ -399,8 +446,9 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 };
             }
 
-            // gauge / solid-gauge with object binding → render as object-metric
-            if ((widgetType === 'gauge' || widgetType === 'solid-gauge') && widget.object) {
+            // gauge / solid-gauge / kpi / bullet with object binding → render as
+            // object-metric (all are a single aggregated value, optionally vs a target).
+            if (METRIC_LIKE_TYPES.has(widgetType || '') && widget.object) {
                 const aggregate = widget.aggregate ? {
                     field: widget.valueField || 'value',
                     function: widget.aggregate,
@@ -425,11 +473,12 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 };
             }
 
-            // 'horizontal-bar' uses BarChart with vertical layout; 'funnel' has its own renderer.
-            const chartTypeMap: Record<string, string> = {};
-            const resolvedWidgetType = (widgetType && chartTypeMap[widgetType]) || widgetType;
+            // Normalize spec-level chart families onto a renderer-supported base
+            // type (e.g. column→bar, spline→line). 'horizontal-bar' uses BarChart
+            // with vertical layout; 'funnel'/'radar' have their own renderers.
+            const resolvedWidgetType = (widgetType && CHART_TYPE_ALIASES[widgetType]) || widgetType;
 
-            if (resolvedWidgetType === 'bar' || resolvedWidgetType === 'horizontal-bar' || resolvedWidgetType === 'line' || resolvedWidgetType === 'area' || resolvedWidgetType === 'pie' || resolvedWidgetType === 'donut' || resolvedWidgetType === 'scatter' || resolvedWidgetType === 'funnel') {
+            if (resolvedWidgetType && SUPPORTED_CHART_TYPES.has(resolvedWidgetType)) {
                 // Support data at widget level or nested inside options
                 const widgetData = (widget as any).data || options.data;
                 // Widget-level fields (from config panel) override options-level fields
@@ -669,6 +718,19 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 return {
                     type: 'text',
                     value: 'Custom widget — set `component` to a UIComponent schema.',
+                    variant: 'caption',
+                    align: 'center',
+                    className: 'flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-muted-foreground',
+                };
+            }
+
+            // Known chart family with no dedicated renderer yet → clean labelled
+            // placeholder instead of falling through to a raw "Unknown component
+            // type" error box that dumps the widget JSON.
+            if (widgetType && UNSUPPORTED_CHART_TYPES.has(widgetType)) {
+                return {
+                    type: 'text',
+                    value: `「${widgetType}」chart type is not supported yet`,
                     variant: 'caption',
                     align: 'center',
                     className: 'flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-muted-foreground',
