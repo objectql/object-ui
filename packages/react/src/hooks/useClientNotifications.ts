@@ -12,6 +12,14 @@
  * Bridge hook between the @objectstack/client notifications API
  * and the local NotificationContext state. Fetches server-side
  * notifications and surfaces them through the existing provider.
+ *
+ * ADR-0030 (Notification Convergence): the `client.notifications.*` helpers
+ * are the stable transport contract — the server routes them to the L5
+ * `sys_inbox_message` materialization and the `sys_notification_receipt`
+ * read-state spine (the re-modeled `sys_notification` L2 event carries no
+ * recipient/read columns). This hook only needs to call the SDK with its
+ * current signatures: `list(options)`, `markRead(ids[])`, `markAllRead()`,
+ * and `registerDevice(request)`.
  */
 
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
@@ -158,7 +166,13 @@ export function useClientNotifications(
       if (!client?.notifications) return;
       setError(null);
       try {
-        await client.notifications.registerDevice(token, platform);
+        // ADR-0030 / @objectstack/client v7+: registerDevice takes a single
+        // RegisterDeviceRequest object (`{ token, platform }`), not positional
+        // args. `platform` is the device platform enum.
+        await client.notifications.registerDevice({
+          token,
+          platform: platform as 'ios' | 'android' | 'web',
+        });
       } catch (err) {
         const wrapped = err instanceof Error ? err : new Error('Failed to register device');
         setError(wrapped);
@@ -209,7 +223,11 @@ export function useClientNotifications(
       if (!client?.notifications) return;
       setError(null);
       try {
-        await client.notifications.markAsRead(id);
+        // ADR-0030 / @objectstack/client v7+: the SDK exposes `markRead(ids[])`
+        // (batch) — there is no single-id `markAsRead`. Server-side this writes
+        // the `read` state to the `sys_notification_receipt` spine. We keep the
+        // friendly single-id hook API and adapt to the batch call.
+        await client.notifications.markRead([id]);
       } catch (err) {
         const wrapped = err instanceof Error ? err : new Error('Failed to mark as read');
         setError(wrapped);
