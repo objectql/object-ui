@@ -90,12 +90,14 @@ export function nodeIcon(type: string): LucideIcon {
 }
 
 interface NodeTone {
-  /** Icon color. */
+  /** Icon color (used inside the tinted chip). */
   icon: string;
   /** Card accent border (left edge) + selected ring color. */
   accent: string;
   /** Small type-label text color. */
   label: string;
+  /** Tinted icon-chip background + ring — the card's primary color cue. */
+  chip: string;
 }
 
 const TONES: Record<string, NodeTone> = {
@@ -103,51 +105,61 @@ const TONES: Record<string, NodeTone> = {
     icon: 'text-emerald-600 dark:text-emerald-400',
     accent: 'border-l-emerald-500',
     label: 'text-emerald-600 dark:text-emerald-400',
+    chip: 'bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/20 dark:bg-emerald-400/10',
   },
   end: {
     icon: 'text-rose-600 dark:text-rose-400',
     accent: 'border-l-rose-500',
     label: 'text-rose-600 dark:text-rose-400',
+    chip: 'bg-rose-500/10 ring-1 ring-inset ring-rose-500/20 dark:bg-rose-400/10',
   },
   decision: {
     icon: 'text-amber-600 dark:text-amber-400',
     accent: 'border-l-amber-500',
     label: 'text-amber-600 dark:text-amber-400',
+    chip: 'bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 dark:bg-amber-400/10',
   },
   wait: {
     icon: 'text-blue-600 dark:text-blue-400',
     accent: 'border-l-blue-500',
     label: 'text-blue-600 dark:text-blue-400',
+    chip: 'bg-blue-500/10 ring-1 ring-inset ring-blue-500/20 dark:bg-blue-400/10',
   },
   signal: {
     icon: 'text-violet-600 dark:text-violet-400',
     accent: 'border-l-violet-500',
     label: 'text-violet-600 dark:text-violet-400',
+    chip: 'bg-violet-500/10 ring-1 ring-inset ring-violet-500/20 dark:bg-violet-400/10',
   },
   subflow: {
     icon: 'text-indigo-600 dark:text-indigo-400',
     accent: 'border-l-indigo-500',
     label: 'text-indigo-600 dark:text-indigo-400',
+    chip: 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-500/20 dark:bg-indigo-400/10',
   },
   task: {
     icon: 'text-slate-500 dark:text-slate-400',
     accent: 'border-l-slate-400',
     label: 'text-slate-500 dark:text-slate-400',
+    chip: 'bg-slate-500/10 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-400/10',
   },
   record: {
     icon: 'text-cyan-600 dark:text-cyan-400',
     accent: 'border-l-cyan-500',
     label: 'text-cyan-600 dark:text-cyan-400',
+    chip: 'bg-cyan-500/10 ring-1 ring-inset ring-cyan-500/20 dark:bg-cyan-400/10',
   },
   integration: {
     icon: 'text-fuchsia-600 dark:text-fuchsia-400',
     accent: 'border-l-fuchsia-500',
     label: 'text-fuchsia-600 dark:text-fuchsia-400',
+    chip: 'bg-fuchsia-500/10 ring-1 ring-inset ring-fuchsia-500/20 dark:bg-fuchsia-400/10',
   },
   approval: {
     icon: 'text-teal-600 dark:text-teal-400',
     accent: 'border-l-teal-500',
     label: 'text-teal-600 dark:text-teal-400',
+    chip: 'bg-teal-500/10 ring-1 ring-inset ring-teal-500/20 dark:bg-teal-400/10',
   },
 };
 
@@ -300,8 +312,8 @@ export function NodeCard({
   const tone = nodeTone(type);
   return (
     <div
-      className="absolute transition-opacity"
-      style={{ left: position.x, top: position.y, width: NODE_W, height: NODE_H, opacity: dimmed ? 0.4 : 1 }}
+      className="absolute transition-opacity duration-200"
+      style={{ left: position.x, top: position.y, width: NODE_W, height: NODE_H, opacity: dimmed ? 0.35 : 1 }}
     >
       <div
         role="button"
@@ -319,28 +331,36 @@ export function NodeCard({
           }
         }}
         className={cn(
-          'group flex h-full w-full items-center gap-2.5 rounded-lg border border-l-[3px] bg-card px-3 py-2 text-left shadow-sm transition-all outline-none',
-          'hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary/40',
-          tone.accent,
+          'group flex h-full w-full items-center gap-3 rounded-xl border bg-card px-2.5 py-2 text-left shadow-sm outline-none',
+          'transition-[transform,box-shadow,border-color] duration-150 ease-out will-change-transform',
+          'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-foreground/[0.06] focus-visible:ring-2 focus-visible:ring-primary/40',
           editable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
           runState === 'active'
-            ? 'border-sky-500 ring-2 ring-sky-400/60 animate-pulse'
+            ? 'border-sky-500 shadow-md shadow-sky-500/20 ring-2 ring-sky-400/60'
             : runState === 'visited'
               ? 'border-emerald-500/70 ring-1 ring-emerald-400/40'
               : selected
-                ? 'border-primary ring-2 ring-primary/30'
-                : 'border-border',
+                ? 'border-primary shadow-md ring-2 ring-primary/30'
+                : 'border-border/80',
         )}
       >
-        <NodeTypeIcon type={type} className={cn('h-4 w-4 shrink-0', tone.icon)} />
+        <div
+          className={cn(
+            'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-transform duration-150 group-hover:scale-105',
+            tone.chip,
+            runState === 'active' && 'animate-pulse',
+          )}
+        >
+          <NodeTypeIcon type={type} className={cn('h-[18px] w-[18px]', tone.icon)} />
+        </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium leading-tight">{label}</div>
-          <div className={cn('truncate text-[10px] font-medium uppercase tracking-wide', tone.label)}>
+          <div className="truncate text-[13px] font-semibold leading-tight text-foreground">{label}</div>
+          <div className={cn('mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.08em]', tone.label)}>
             {type}
           </div>
         </div>
         {summary && (
-          <div className="max-w-[40%] shrink-0 truncate font-mono text-[10px] text-muted-foreground">
+          <div className="max-w-[42%] shrink-0 truncate rounded-md bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
             {summary}
           </div>
         )}
@@ -380,7 +400,10 @@ export function NodePalette({ items = NODE_PALETTE, onPick, onClose }: NodePalet
   return (
     <>
       <div className="fixed inset-0 z-20" onClick={onClose} aria-hidden />
-      <div className="absolute right-0 top-full z-30 mt-1 max-h-[60vh] w-56 overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">
+      <div className="absolute right-0 top-full z-30 mt-1.5 max-h-[60vh] w-60 overflow-y-auto rounded-xl border bg-popover/95 p-1.5 shadow-xl shadow-foreground/[0.08] ring-1 ring-black/[0.03] backdrop-blur-md">
+        <div className="px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          Add node
+        </div>
         {items.map((item) => {
           const tone = nodeTone(item.type);
           return (
@@ -388,11 +411,13 @@ export function NodePalette({ items = NODE_PALETTE, onPick, onClose }: NodePalet
               key={item.type}
               type="button"
               onClick={() => onPick(item.type)}
-              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-accent"
+              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent"
             >
-              <NodeTypeIcon type={item.type} className={cn('h-4 w-4 shrink-0', tone.icon)} />
+              <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', tone.chip)}>
+                <NodeTypeIcon type={item.type} className={cn('h-[15px] w-[15px]', tone.icon)} />
+              </span>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">{item.label}</div>
+                <div className="truncate text-[13px] font-medium">{item.label}</div>
                 {item.hint && (
                   <div className="truncate text-[11px] text-muted-foreground">{item.hint}</div>
                 )}

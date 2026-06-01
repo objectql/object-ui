@@ -333,13 +333,13 @@ export function FlowCanvas({
   return (
     <div className="relative h-full min-h-[320px] w-full overflow-hidden">
       {/* Toolbar */}
-      <div className="absolute right-2 top-2 z-30 flex items-center gap-1">
+      <div className="absolute right-2 top-2 z-30 flex items-center gap-1.5">
         {editable && (
           <div className="relative">
             <button
               type="button"
               onClick={() => setPaletteOpen((v) => !v)}
-              className="inline-flex items-center gap-1 rounded-md border bg-background px-2.5 py-1.5 text-xs font-medium shadow-sm transition-colors hover:bg-accent"
+              className="inline-flex items-center gap-1.5 rounded-lg border bg-background/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground"
             >
               <Plus className="h-3.5 w-3.5" />
               {tr('engine.inspector.add.node', locale)}
@@ -354,7 +354,7 @@ export function FlowCanvas({
             )}
           </div>
         )}
-        <div className="flex items-center rounded-md border bg-background shadow-sm">
+        <div className="flex items-center rounded-lg border bg-background/90 shadow-sm backdrop-blur-sm">
           <button
             type="button"
             title="Zoom out"
@@ -406,8 +406,18 @@ export function FlowCanvas({
         }}
         className={cn(
           'h-full w-full cursor-grab outline-none active:cursor-grabbing',
-          'bg-[radial-gradient(circle_at_1px_1px,theme(colors.border)_1px,transparent_0)] [background-size:16px_16px] bg-muted/20',
+          'bg-muted/15 dark:bg-background/30',
+          // Subtle inset vignette gives the canvas surface depth.
+          'shadow-[inset_0_0_90px_rgba(0,0,0,0.05)]',
         )}
+        style={{
+          // Dot grid tied to pan + zoom so the surface tracks the diagram
+          // (rather than floating behind a static texture).
+          backgroundImage:
+            'radial-gradient(circle at 1px 1px, hsl(var(--border)) 1px, transparent 0)',
+          backgroundSize: `${18 * zoom}px ${18 * zoom}px`,
+          backgroundPosition: `${pan.x}px ${pan.y}px`,
+        }}
       >
         <div
           className="relative origin-top-left"
@@ -433,7 +443,7 @@ export function FlowCanvas({
                 markerHeight="7"
                 orient="auto-start-reverse"
               >
-                <path d="M 0 0 L 10 5 L 0 10 z" className="fill-muted-foreground/60" />
+                <path d="M 0 0 L 10 5 L 0 10 z" className="fill-muted-foreground/55" />
               </marker>
             </defs>
             {edges.map((edge, i) => {
@@ -457,17 +467,18 @@ export function FlowCanvas({
                 <g key={edge.id || `${edge.source}-${edge.target}-${i}`}>
                   <path
                     d={d}
+                    strokeLinecap="round"
                     className={cn(
-                      'fill-none',
+                      'fill-none transition-[stroke] duration-150',
                       traversed
                         ? 'stroke-sky-500'
                         : selected
                           ? 'stroke-primary'
                           : simRunning
-                            ? 'stroke-muted-foreground/25'
-                            : 'stroke-muted-foreground/50',
+                            ? 'stroke-muted-foreground/20'
+                            : 'stroke-muted-foreground/40',
                     )}
-                    strokeWidth={traversed ? 2.5 : selected ? 2.5 : 1.5}
+                    strokeWidth={traversed || selected ? 2.5 : 1.75}
                     markerEnd="url(#flow-arrow)"
                   />
                   {selectable && (
@@ -497,9 +508,9 @@ export function FlowCanvas({
                           onPointerDown={selectable ? (e) => e.stopPropagation() : undefined}
                           onClick={selectable ? (e) => { e.stopPropagation(); onSelectEdge!(edge, eid); } : undefined}
                           className={cn(
-                            'max-w-full truncate rounded border bg-background px-1.5 py-0.5 text-[10px] font-medium shadow-sm',
-                            selectable && 'cursor-pointer',
-                            selected ? 'border-primary text-primary' : 'text-muted-foreground',
+                            'max-w-full truncate rounded-full border bg-background/95 px-2 py-0.5 text-[10px] font-medium shadow-sm backdrop-blur-sm transition-colors',
+                            selectable && 'cursor-pointer hover:border-primary/60',
+                            selected ? 'border-primary text-primary' : 'border-border text-muted-foreground',
                           )}
                         >
                           {branchLabel}
@@ -524,7 +535,7 @@ export function FlowCanvas({
                           e.stopPropagation();
                           insertOnEdge(edge);
                         }}
-                        className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full border bg-background text-muted-foreground opacity-60 shadow-sm transition-all hover:scale-110 hover:border-primary hover:text-primary hover:opacity-100 focus-visible:opacity-100"
+                        className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full border bg-background/90 text-muted-foreground opacity-50 shadow-sm backdrop-blur-sm transition-all hover:scale-110 hover:border-primary hover:bg-background hover:text-primary hover:opacity-100 focus-visible:opacity-100"
                       >
                         <Plus className="h-3 w-3" />
                       </button>
