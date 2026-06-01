@@ -555,6 +555,21 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'designer.field.min': 'Min',
   'designer.field.max': 'Max',
   'designer.field.maxLength': 'Max length',
+  // Object basics (no-selection default inspector)
+  'designer.object.kind': 'Object',
+  'designer.object.section.basic': 'Basic info',
+  'designer.object.section.basicHint': 'Identity, display names & classification',
+  'designer.object.name': 'Name',
+  'designer.object.nameHint': 'snake_case unique identifier (cannot change after create)',
+  'designer.object.namePlaceholder': 'account',
+  'designer.object.label': 'Label',
+  'designer.object.labelPlaceholder': 'e.g. Account',
+  'designer.object.pluralLabel': 'Plural label',
+  'designer.object.pluralPlaceholder': 'e.g. Accounts',
+  'designer.object.icon': 'Icon',
+  'designer.object.iconHint': 'Lucide icon name (e.g. “building”, “users”)',
+  'designer.object.description': 'Description',
+  'designer.object.descriptionPlaceholder': 'What this object represents',
 };
 
 const ENGINE_STRINGS_ZH: Record<string, string> = {
@@ -969,6 +984,21 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'designer.field.min': '最小值',
   'designer.field.max': '最大值',
   'designer.field.maxLength': '最大长度',
+  // Object basics (no-selection default inspector)
+  'designer.object.kind': '对象',
+  'designer.object.section.basic': '基础信息',
+  'designer.object.section.basicHint': '标识、显示名与分类',
+  'designer.object.name': '名称',
+  'designer.object.nameHint': 'snake_case 唯一标识符（创建后不可修改）',
+  'designer.object.namePlaceholder': 'account',
+  'designer.object.label': '显示名',
+  'designer.object.labelPlaceholder': '如：客户',
+  'designer.object.pluralLabel': '复数显示名',
+  'designer.object.pluralPlaceholder': '如：客户列表',
+  'designer.object.icon': '图标',
+  'designer.object.iconHint': 'Lucide 图标名称（如 “building”、“users”）',
+  'designer.object.description': '描述',
+  'designer.object.descriptionPlaceholder': '该对象代表什么',
 };
 
 function pickTable(
