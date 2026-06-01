@@ -34,8 +34,11 @@ import {
   ArrowUp,
   ArrowDown,
   FolderPlus,
+  FolderInput,
   ChevronsDownUp,
   ChevronsUpDown,
+  CheckSquare,
+  X,
 } from 'lucide-react';
 import type { MetadataSelection } from '../preview-registry';
 import {
@@ -137,6 +140,77 @@ export function ObjectFormCanvas({
       });
     },
     [onSelectionChange],
+  );
+
+  /* ─── Multi-select (bulk ops) — canvas-local; no host coupling ─── */
+
+  const [multiSel, setMultiSel] = React.useState<Set<string>>(() => new Set());
+  const anchorRef = React.useRef<string | null>(null);
+  // Flat rendered order, for Shift-range selection.
+  const flatNames = React.useMemo(
+    () => groups.flatMap((g) => g.entries.map((e) => e.name)),
+    [groups],
+  );
+  // Drop names that no longer exist (e.g. after a bulk delete elsewhere).
+  React.useEffect(() => {
+    setMultiSel((prev) => {
+      if (prev.size === 0) return prev;
+      const live = new Set([...prev].filter((n) => view.entries.some((e) => e.name === n)));
+      return live.size === prev.size ? prev : live;
+    });
+  }, [view]);
+
+  const handleRowClick = React.useCallback(
+    (entry: FieldEntry, e?: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean }) => {
+      const name = entry.name;
+      if (!readOnly && e && (e.metaKey || e.ctrlKey)) {
+        setMultiSel((prev) => {
+          const next = new Set(prev);
+          if (next.has(name)) next.delete(name);
+          else next.add(name);
+          return next;
+        });
+        anchorRef.current = name;
+        return;
+      }
+      if (!readOnly && e && e.shiftKey && anchorRef.current && anchorRef.current !== name) {
+        const a = flatNames.indexOf(anchorRef.current);
+        const b = flatNames.indexOf(name);
+        if (a >= 0 && b >= 0) {
+          const [lo, hi] = a < b ? [a, b] : [b, a];
+          setMultiSel(new Set(flatNames.slice(lo, hi + 1)));
+          return;
+        }
+      }
+      // Plain click — clear multi-selection, single-select.
+      if (multiSel.size) setMultiSel(new Set());
+      anchorRef.current = name;
+      selectField(entry);
+    },
+    [readOnly, flatNames, multiSel, selectField],
+  );
+
+  const clearMulti = React.useCallback(() => setMultiSel(new Set()), []);
+
+  const bulkDelete = React.useCallback(() => {
+    if (!onPatch || multiSel.size === 0) return;
+    const entries = view.entries.filter((e) => !multiSel.has(e.name));
+    onPatch({ fields: writeFields({ shape: view.shape, entries }) });
+    if (selectedName && multiSel.has(selectedName)) onSelectionChange?.(null);
+    setMultiSel(new Set());
+  }, [onPatch, multiSel, view, selectedName, onSelectionChange]);
+
+  const bulkSetGroup = React.useCallback(
+    (groupKey: string | null) => {
+      if (!onPatch || multiSel.size === 0) return;
+      const entries = view.entries.map((e) =>
+        multiSel.has(e.name)
+          ? { name: e.name, def: { ...e.def, group: groupKey ?? undefined } }
+          : e,
+      );
+      onPatch({ fields: writeFields({ shape: view.shape, entries }) });
+    },
+    [onPatch, multiSel, view],
   );
 
   const addField = React.useCallback(
@@ -337,6 +411,16 @@ export function ObjectFormCanvas({
       onClick={handleBgClick}
       data-object-name={objectName}
     >
+      {!readOnly && multiSel.size > 0 && (
+        <BulkActionBar
+          count={multiSel.size}
+          groups={declaredGroups}
+          onMoveToGroup={bulkSetGroup}
+          onDelete={bulkDelete}
+          onClear={clearMulti}
+          locale={locale}
+        />
+      )}
       <div className="mx-auto max-w-3xl px-6 py-6 space-y-4" onClick={handleBgClick}>
         {!emptyState && (
           <CanvasToolbar
@@ -381,9 +465,10 @@ export function ObjectFormCanvas({
                       key={entry.name}
                       entry={entry}
                       selected={entry.name === selectedName}
+                      multiSelected={multiSel.has(entry.name)}
                       readOnly={readOnly}
                       locale={locale}
-                      onClick={() => selectField(entry)}
+                      onClick={(e) => handleRowClick(entry, e)}
                       onReorder={readOnly ? undefined : reorderField}
                       onRenameLabel={readOnly ? undefined : renameLabel}
                       onMoveOffset={readOnly ? undefined : (dir) => moveFieldByOffset(entry.name, dir)}
@@ -470,6 +555,81 @@ function CanvasToolbar({
             : t('designer.canvas.collapseAll', locale)}
         </button>
       )}
+    </div>
+  );
+}
+
+/* ─────────────── Bulk-action bar ─────────────── */
+
+function BulkActionBar({
+  count,
+  groups,
+  onMoveToGroup,
+  onDelete,
+  onClear,
+  locale,
+}: {
+  count: number;
+  groups: FieldGroup[];
+  onMoveToGroup: (groupKey: string | null) => void;
+  onDelete: () => void;
+  onClear: () => void;
+  locale?: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="sticky top-0 z-20 flex items-center gap-2 border-b border-primary/20 bg-primary/10 backdrop-blur px-6 py-2 text-sm">
+      <span className="font-medium text-foreground">
+        {tFormat('designer.canvas.bulkSelected', locale, { n: count })}
+      </span>
+      <span className="text-muted-foreground text-[11px] hidden md:inline">
+        {t('designer.canvas.bulkHint', locale)}
+      </span>
+      <div className="ml-auto flex items-center gap-1.5">
+        {groups.length > 0 && (
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-7 gap-1.5 bg-background/70">
+                <FolderInput className="h-3.5 w-3.5" />
+                {t('designer.canvas.bulkMoveTo', locale)}
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-52 p-1 max-h-[300px] overflow-auto">
+              <button
+                type="button"
+                onClick={() => { onMoveToGroup(null); setOpen(false); }}
+                className="w-full text-left px-2 py-1.5 rounded text-sm hover:bg-accent"
+              >
+                {t('designer.canvas.ungrouped', locale)}
+              </button>
+              {groups.map((g) => (
+                <button
+                  key={g.key}
+                  type="button"
+                  onClick={() => { onMoveToGroup(g.key); setOpen(false); }}
+                  className="w-full text-left px-2 py-1.5 rounded text-sm hover:bg-accent truncate"
+                >
+                  {g.label || g.key}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1.5 bg-background/70 text-destructive hover:text-destructive"
+          onClick={onDelete}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          {t('designer.canvas.bulkDelete', locale)}
+        </Button>
+        <Button variant="ghost" size="sm" className="h-7 gap-1.5" onClick={onClear}>
+          <X className="h-3.5 w-3.5" />
+          {t('designer.canvas.bulkClear', locale)}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -702,6 +862,7 @@ function SectionHeader({
 function FieldRow({
   entry,
   selected,
+  multiSelected,
   readOnly,
   locale,
   onClick,
@@ -711,9 +872,11 @@ function FieldRow({
 }: {
   entry: FieldEntry;
   selected: boolean;
+  multiSelected?: boolean;
   readOnly: boolean;
   locale?: string;
-  onClick: () => void;
+  /** Receives the mouse event so the host can branch on Ctrl/⌘/Shift. */
+  onClick: (e?: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean }) => void;
   onReorder?: (fromName: string, toName: string, position: 'before' | 'after') => void;
   onRenameLabel?: (name: string, nextLabel: string) => void;
   /** Keyboard reorder (Alt+↑/↓) — swap with same-group neighbour. */
@@ -821,14 +984,18 @@ function FieldRow({
           'group block w-full text-left rounded-md border bg-card px-3.5 py-2.5 transition-colors',
           'hover:border-primary/40 hover:bg-card outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
           selected ? 'border-primary ring-2 ring-primary/30 shadow-sm' : 'border-border',
+          multiSelected && 'border-primary/60 ring-2 ring-primary/40 bg-primary/[0.04]',
           readOnly && 'cursor-default',
           draggable && 'cursor-grab active:cursor-grabbing',
         )}
-        aria-pressed={selected}
+        aria-pressed={selected || multiSelected}
       >
         <div className="flex items-center justify-between gap-2 mb-1.5">
           <div className="flex items-center gap-1.5 min-w-0">
-            {draggable && (
+            {multiSelected && (
+              <CheckSquare className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
+            )}
+            {draggable && !multiSelected && (
               <GripVertical
                 className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 group-hover:text-muted-foreground/80"
                 aria-hidden="true"

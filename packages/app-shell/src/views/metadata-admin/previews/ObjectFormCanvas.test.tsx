@@ -184,3 +184,72 @@ describe('ObjectFormCanvas — keyboard reorder (Alt+↑/↓)', () => {
     expect(screen.getByText('Alpha')).toBeInTheDocument();
   });
 });
+
+describe('ObjectFormCanvas — bulk multi-select', () => {
+  const flat = {
+    name: 'x',
+    fields: {
+      a: { type: 'text', label: 'A' },
+      b: { type: 'text', label: 'B' },
+      c: { type: 'text', label: 'C' },
+    },
+  };
+  const rowFor = (label: string) => screen.getByText(label).closest('[role="button"]')!;
+
+  it('Ctrl-click enters multi-select and shows the bulk bar', () => {
+    render(<ObjectFormCanvas objectName="x" draft={flat} onPatch={vi.fn()} onSelectionChange={vi.fn()} />);
+    fireEvent.click(rowFor('A'), { ctrlKey: true });
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    fireEvent.click(rowFor('B'), { ctrlKey: true });
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+  });
+
+  it('bulk delete removes every selected field', () => {
+    const onPatch = vi.fn();
+    render(<ObjectFormCanvas objectName="x" draft={flat} onPatch={onPatch} onSelectionChange={vi.fn()} />);
+    fireEvent.click(rowFor('A'), { ctrlKey: true });
+    fireEvent.click(rowFor('B'), { ctrlKey: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(Object.keys(onPatch.mock.calls.at(-1)![0].fields)).toEqual(['c']);
+  });
+
+  it('Shift-click selects a contiguous range', () => {
+    render(<ObjectFormCanvas objectName="x" draft={flat} onPatch={vi.fn()} onSelectionChange={vi.fn()} />);
+    fireEvent.click(rowFor('A')); // plain click → anchor
+    fireEvent.click(rowFor('C'), { shiftKey: true });
+    expect(screen.getByText('3 selected')).toBeInTheDocument();
+  });
+
+  it('a plain click clears the multi-selection and single-selects', () => {
+    const onSelectionChange = vi.fn();
+    render(<ObjectFormCanvas objectName="x" draft={flat} onPatch={vi.fn()} onSelectionChange={onSelectionChange} />);
+    fireEvent.click(rowFor('A'), { ctrlKey: true });
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    fireEvent.click(rowFor('B')); // plain
+    expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+    expect(onSelectionChange).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'b' }));
+  });
+
+  it('is inert in read-only mode (no onPatch)', () => {
+    render(<ObjectFormCanvas objectName="x" draft={flat} />);
+    fireEvent.click(rowFor('A'), { ctrlKey: true });
+    expect(screen.queryByText(/selected/)).not.toBeInTheDocument();
+  });
+
+  it('only offers "Move to section" when sections exist', () => {
+    // No declared groups → no move target.
+    render(<ObjectFormCanvas objectName="x" draft={flat} onPatch={vi.fn()} onSelectionChange={vi.fn()} />);
+    fireEvent.click(rowFor('A'), { ctrlKey: true });
+    expect(screen.queryByRole('button', { name: /Move to section/ })).not.toBeInTheDocument();
+  });
+
+  it('bulk move-to-section assigns the group to selected fields', () => {
+    const onPatch = vi.fn();
+    render(<ObjectFormCanvas objectName="account" draft={draftWithGroups()} onPatch={onPatch} onSelectionChange={vi.fn()} />);
+    fireEvent.click(rowFor('Notes'), { ctrlKey: true }); // an ungrouped field
+    fireEvent.click(screen.getByRole('button', { name: /Move to section/ }));
+    // Popover lists Ungrouped + the declared sections; pick "Metadata" (key 'meta').
+    fireEvent.click(screen.getByRole('button', { name: 'Metadata' }));
+    expect(onPatch.mock.calls.at(-1)![0].fields.notes.group).toBe('meta');
+  });
+});

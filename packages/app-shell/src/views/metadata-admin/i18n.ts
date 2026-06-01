@@ -583,6 +583,12 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'designer.field.minLength': 'Min length',
   'designer.field.conditionalRequired': 'Required when (CEL)',
   'designer.field.conditionalRequiredHint': 'Field becomes required when this predicate is true.',
+  // Bulk multi-select (Tier 2)
+  'designer.canvas.bulkSelected': '{n} selected',
+  'designer.canvas.bulkMoveTo': 'Move to section',
+  'designer.canvas.bulkDelete': 'Delete',
+  'designer.canvas.bulkClear': 'Clear',
+  'designer.canvas.bulkHint': 'Ctrl/⌘-click or Shift-click to select multiple fields.',
 };
 
 const ENGINE_STRINGS_ZH: Record<string, string> = {
@@ -1025,6 +1031,12 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'designer.field.minLength': '最小长度',
   'designer.field.conditionalRequired': '条件必填 (CEL)',
   'designer.field.conditionalRequiredHint': '当此表达式为真时，该字段变为必填。',
+  // Bulk multi-select (Tier 2)
+  'designer.canvas.bulkSelected': '已选 {n} 项',
+  'designer.canvas.bulkMoveTo': '移至分组',
+  'designer.canvas.bulkDelete': '删除',
+  'designer.canvas.bulkClear': '取消选择',
+  'designer.canvas.bulkHint': '按住 Ctrl/⌘ 单击或 Shift 单击可多选字段。',
 };
 
 function pickTable(
