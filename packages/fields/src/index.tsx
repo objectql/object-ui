@@ -222,13 +222,23 @@ export interface CellRendererProps {
  */
 export function coerceToSafeValue(value: unknown): string | number | boolean | null | undefined {
   if (value == null) return value as null | undefined;
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    // A reference/expanded value can arrive as a JSON-encoded object string —
+    // e.g. an unresolved external-id reference '{"externalId":"Website Relaunch"}'.
+    // Parse and extract a human label instead of leaking raw JSON into the cell.
+    const s = value.trim();
+    if ((s.startsWith('{') && s.endsWith('}')) || (s.startsWith('[') && s.endsWith(']'))) {
+      try { return coerceToSafeValue(JSON.parse(s)); } catch { /* not JSON — fall through */ }
+    }
+    return value;
+  }
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) {
     return value.map((v) => {
       if (v != null && typeof v === 'object') {
         const obj = v as Record<string, unknown>;
-        return String(obj.name || obj.label || obj.id || obj._id || '[Object]');
+        return String(obj.name || obj.label || obj.externalId || obj.id || obj._id || '[Object]');
       }
       return String(v);
     }).join(', ');
@@ -241,8 +251,8 @@ export function coerceToSafeValue(value: unknown): string | number | boolean | n
     if ('$oid' in obj) return String(obj.$oid);
     // MongoDB date wrapper: { $date: "2024-01-01T00:00:00Z" }
     if ('$date' in obj) return String(obj.$date);
-    // Expanded reference / general object: extract name/label/id
-    return String(obj.name || obj.label || obj.id || obj._id || '[Object]');
+    // Expanded reference / general object: extract name/label/externalId/id
+    return String(obj.name || obj.label || obj.externalId || obj.id || obj._id || '[Object]');
   }
   return String(value);
 }
@@ -1111,6 +1121,24 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
   const resolvedName = useLookupName(referenceTo, primaryPrimitiveId);
 
   if (value == null || value === '') return <EmptyValue />;
+
+  // A reference can arrive as a JSON-encoded object string — e.g. an
+  // unresolved external-id reference '{"externalId":"Website Relaunch"}'.
+  // Parse it and render a label instead of leaking raw JSON into the cell.
+  if (typeof value === 'string') {
+    const s = value.trim();
+    if (s.startsWith('{') && s.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(s) as Record<string, unknown>;
+        if (parsed && typeof parsed === 'object') {
+          const display =
+            pickRecordDisplayName(parsed) ||
+            String(parsed.externalId ?? parsed.id ?? parsed._id ?? '');
+          if (display) return <span className="truncate">{display}</span>;
+        }
+      } catch { /* not JSON — fall through to normal resolution */ }
+    }
+  }
 
   // Server-side $expand returns the related record as a nested object
   // (e.g. { id, name }). Render its display name directly — no fetch needed.
