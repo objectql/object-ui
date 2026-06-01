@@ -144,3 +144,43 @@ describe('ObjectFormCanvas — empty state', () => {
     expect(screen.queryByText('fields')).not.toBeInTheDocument();
   });
 });
+
+describe('ObjectFormCanvas — keyboard reorder (Alt+↑/↓)', () => {
+  const draft = {
+    name: 'x',
+    fields: {
+      alpha: { type: 'text', label: 'Alpha' },
+      beta: { type: 'text', label: 'Beta' },
+    },
+  };
+  const rowFor = (label: string) => screen.getByText(label).closest('[role="button"]')!;
+
+  it('Alt+ArrowDown swaps a field with the next one', () => {
+    const onPatch = vi.fn();
+    render(<ObjectFormCanvas objectName="x" draft={draft} onPatch={onPatch} />);
+    fireEvent.keyDown(rowFor('Alpha'), { key: 'ArrowDown', altKey: true });
+    const patch = onPatch.mock.calls.at(-1)![0];
+    expect(Object.keys(patch.fields)).toEqual(['beta', 'alpha']);
+  });
+
+  it('Alt+ArrowUp on the first field is a no-op', () => {
+    const onPatch = vi.fn();
+    render(<ObjectFormCanvas objectName="x" draft={draft} onPatch={onPatch} />);
+    fireEvent.keyDown(rowFor('Alpha'), { key: 'ArrowUp', altKey: true });
+    expect(onPatch).not.toHaveBeenCalled();
+  });
+
+  it('plain ArrowDown (no Alt) does not reorder', () => {
+    const onPatch = vi.fn();
+    render(<ObjectFormCanvas objectName="x" draft={draft} onPatch={onPatch} />);
+    fireEvent.keyDown(rowFor('Alpha'), { key: 'ArrowDown' });
+    expect(onPatch).not.toHaveBeenCalled();
+  });
+
+  it('is inert when read-only (no onPatch)', () => {
+    render(<ObjectFormCanvas objectName="x" draft={draft} />);
+    // No throw, and the row is not draggable/reorderable.
+    fireEvent.keyDown(rowFor('Alpha'), { key: 'ArrowDown', altKey: true });
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+  });
+});

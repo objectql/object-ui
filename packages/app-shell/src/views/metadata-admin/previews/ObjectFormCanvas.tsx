@@ -248,6 +248,31 @@ export function ObjectFormCanvas({
     [onPatch, view],
   );
 
+  // Keyboard reorder (Alt+↑/↓): swap a field with its nearest neighbour
+  // in the SAME group so a focused row moves predictably within its
+  // section without ever changing groups.
+  const moveFieldByOffset = React.useCallback(
+    (name: string, dir: -1 | 1) => {
+      if (!onPatch) return;
+      const entries = view.entries.slice();
+      const idx = entries.findIndex((e) => e.name === name);
+      if (idx < 0) return;
+      const grp = typeof entries[idx].def.group === 'string' ? entries[idx].def.group : null;
+      let j = idx + dir;
+      while (j >= 0 && j < entries.length) {
+        const g = typeof entries[j].def.group === 'string' ? entries[j].def.group : null;
+        if (g === grp) break;
+        j += dir;
+      }
+      if (j < 0 || j >= entries.length) return;
+      const tmp = entries[idx];
+      entries[idx] = entries[j];
+      entries[j] = tmp;
+      onPatch({ fields: writeFields({ shape: view.shape, entries }) });
+    },
+    [onPatch, view],
+  );
+
   // Drop a field into a group section's empty space (or onto its header).
   // Reassigns Field.group and moves the entry to the end of that group's
   // run in the source order so it visually lands where it was dropped.
@@ -361,6 +386,7 @@ export function ObjectFormCanvas({
                       onClick={() => selectField(entry)}
                       onReorder={readOnly ? undefined : reorderField}
                       onRenameLabel={readOnly ? undefined : renameLabel}
+                      onMoveOffset={readOnly ? undefined : (dir) => moveFieldByOffset(entry.name, dir)}
                     />
                   ))}
                   {g.entries.length === 0 && (
@@ -681,6 +707,7 @@ function FieldRow({
   onClick,
   onReorder,
   onRenameLabel,
+  onMoveOffset,
 }: {
   entry: FieldEntry;
   selected: boolean;
@@ -689,6 +716,8 @@ function FieldRow({
   onClick: () => void;
   onReorder?: (fromName: string, toName: string, position: 'before' | 'after') => void;
   onRenameLabel?: (name: string, nextLabel: string) => void;
+  /** Keyboard reorder (Alt+↑/↓) — swap with same-group neighbour. */
+  onMoveOffset?: (dir: -1 | 1) => void;
 }) {
   const def = entry.def;
   const typeStr = typeof def.type === 'string' ? (def.type as string) : 'text';
@@ -774,6 +803,13 @@ function FieldRow({
         onClick={onClick}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return;
+          if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+            if (onMoveOffset) {
+              e.preventDefault();
+              onMoveOffset(e.key === 'ArrowUp' ? -1 : 1);
+            }
+            return;
+          }
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             onClick?.();

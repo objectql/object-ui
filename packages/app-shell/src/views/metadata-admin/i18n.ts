@@ -570,6 +570,13 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'designer.object.iconHint': 'Lucide icon name (e.g. “building”, “users”)',
   'designer.object.description': 'Description',
   'designer.object.descriptionPlaceholder': 'What this object represents',
+  // Field ergonomics (Tier 2)
+  'designer.field.defaultValue': 'Default value',
+  'designer.field.defaultNone': '— None —',
+  'designer.field.true': 'True',
+  'designer.field.false': 'False',
+  'designer.field.duplicate': 'Duplicate field',
+  'designer.field.copySuffix': ' copy',
 };
 
 const ENGINE_STRINGS_ZH: Record<string, string> = {
@@ -999,6 +1006,13 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'designer.object.iconHint': 'Lucide 图标名称（如 “building”、“users”）',
   'designer.object.description': '描述',
   'designer.object.descriptionPlaceholder': '该对象代表什么',
+  // Field ergonomics (Tier 2)
+  'designer.field.defaultValue': '默认值',
+  'designer.field.defaultNone': '— 无 —',
+  'designer.field.true': '是',
+  'designer.field.false': '否',
+  'designer.field.duplicate': '复制字段',
+  'designer.field.copySuffix': ' 副本',
 };
 
 function pickTable(

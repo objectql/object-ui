@@ -37,7 +37,7 @@ import {
   moveArray,
 } from './_shared';
 import { Button, Input, Label, Badge } from '@object-ui/components';
-import { Plus, X, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, X, ArrowUp, ArrowDown, Copy } from 'lucide-react';
 import {
   readFields,
   writeFields,
@@ -93,6 +93,28 @@ function isNumeric(type: string): boolean {
 
 function isTexty(type: string): boolean {
   return type === 'text' || type === 'textarea' || type === 'email' || type === 'url' || type === 'phone' || type === 'password';
+}
+
+type DefaultKind = 'bool' | 'number' | 'picklist' | 'text';
+
+/**
+ * Which default-value editor (if any) fits a field type. Computed,
+ * relational, media and structural types have no meaningful literal
+ * default in this UI, so they return null (no editor rendered).
+ */
+function defaultValueKind(type: string): DefaultKind | null {
+  if (type === 'boolean' || type === 'toggle') return 'bool';
+  if (type === 'number' || type === 'currency' || type === 'percent') return 'number';
+  if (type === 'select' || type === 'radio') return 'picklist';
+  const noDefault = [
+    'formula', 'summary', 'autonumber',
+    'lookup', 'master_detail', 'tree',
+    'file', 'image', 'avatar', 'video', 'audio', 'signature', 'qrcode',
+    'composite', 'repeater', 'vector',
+    'multiselect', 'checkboxes', 'tags',
+  ];
+  if (noDefault.includes(type)) return null;
+  return 'text';
 }
 
 function buildTypeOptions(locale?: string): Array<{ value: string; label: string }> {
@@ -176,6 +198,25 @@ export function ObjectFieldInspector({
     onClearSelection();
   };
 
+  const duplicateField = () => {
+    // Clone the field below itself with a collision-free name and a
+    // "(copy)" label, then select the clone so it's ready to tweak.
+    const existing = new Set(view.entries.map((e) => e.name));
+    const base = `${entry.name}_copy`;
+    let name = base;
+    let n = 1;
+    while (existing.has(name)) { n += 1; name = `${base}_${n}`; }
+    const labelStr = typeof def.label === 'string' && def.label ? def.label : '';
+    const clone: FieldEntry = {
+      name,
+      def: { ...def, label: labelStr ? labelStr + tr('designer.field.copySuffix') : undefined },
+    };
+    const nextEntries = [...view.entries];
+    nextEntries.splice(idx + 1, 0, clone);
+    writeView({ shape: view.shape, entries: nextEntries });
+    onSelectionChange?.({ kind: 'field', id: name, label: String(clone.def.label ?? name) });
+  };
+
   const moveTo = (toIndex: number) => {
     const next = { shape: view.shape, entries: moveArray(view.entries, idx, toIndex) };
     writeView(next);
@@ -198,12 +239,26 @@ export function ObjectFieldInspector({
   /* ─── Render ─── */
 
   const headerActions = (
-    <InspectorReorderButtons
-      index={idx}
-      total={view.entries.length}
-      onMove={moveTo}
-      disabled={readOnly}
-    />
+    <div className="flex items-center gap-1">
+      {!readOnly && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 w-7 p-0"
+          onClick={duplicateField}
+          title={tr('designer.field.duplicate')}
+          aria-label={tr('designer.field.duplicate')}
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
+      )}
+      <InspectorReorderButtons
+        index={idx}
+        total={view.entries.length}
+        onMove={moveTo}
+        disabled={readOnly}
+      />
+    </div>
   );
 
   const footer = (
@@ -270,6 +325,16 @@ export function ObjectFieldInspector({
           disabled={readOnly}
           rows={2}
         />
+        {defaultValueKind(type) && (
+          <DefaultValueField
+            kind={defaultValueKind(type)!}
+            value={def.defaultValue}
+            options={options}
+            onCommit={(v) => patchDef({ defaultValue: v })}
+            disabled={readOnly}
+            locale={locale}
+          />
+        )}
       </Section>
 
       {/* Type-specific */}
@@ -422,6 +487,80 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </div>
       <div className="space-y-2">{children}</div>
     </div>
+  );
+}
+
+/** Type-aware default-value editor. Stores the literal on `Field.defaultValue`. */
+function DefaultValueField({
+  kind,
+  value,
+  options,
+  onCommit,
+  disabled,
+  locale,
+}: {
+  kind: DefaultKind;
+  value: unknown;
+  options: Option[];
+  onCommit: (v: unknown) => void;
+  disabled?: boolean;
+  locale?: string;
+}) {
+  const label = t('designer.field.defaultValue', locale);
+  const none = t('designer.field.defaultNone', locale);
+
+  if (kind === 'bool') {
+    const cur = value === true ? 'true' : value === false ? 'false' : '';
+    return (
+      <InspectorSelectField
+        label={label}
+        value={cur}
+        options={[
+          { value: '', label: none },
+          { value: 'true', label: t('designer.field.true', locale) },
+          { value: 'false', label: t('designer.field.false', locale) },
+        ]}
+        onCommit={(v) => onCommit(v === '' ? undefined : v === 'true')}
+        disabled={disabled}
+      />
+    );
+  }
+
+  if (kind === 'number') {
+    return (
+      <InspectorNumberField
+        label={label}
+        value={typeof value === 'number' ? value : undefined}
+        onCommit={(v) => onCommit(v)}
+        disabled={disabled}
+      />
+    );
+  }
+
+  if (kind === 'picklist') {
+    return (
+      <InspectorSelectField
+        label={label}
+        value={typeof value === 'string' ? value : ''}
+        options={[
+          { value: '', label: none },
+          ...options
+            .filter((o) => o.value)
+            .map((o) => ({ value: o.value, label: o.label || o.value })),
+        ]}
+        onCommit={(v) => onCommit(v || undefined)}
+        disabled={disabled}
+      />
+    );
+  }
+
+  return (
+    <InspectorTextField
+      label={label}
+      value={typeof value === 'string' ? value : value == null ? '' : String(value)}
+      onCommit={(v) => onCommit(v || undefined)}
+      disabled={disabled}
+    />
   );
 }
 
