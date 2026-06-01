@@ -1389,6 +1389,46 @@ export function ColorSwatchCellRenderer({ value }: CellRendererProps): React.Rea
   );
 }
 
+const LazyMarkdownContent = React.lazy(() => import('./widgets/MarkdownContent'));
+
+/**
+ * Renders `markdown` / `richtext` values as formatted GFM markdown (lazy-loaded,
+ * sanitized) instead of the raw markup string.
+ */
+export function MarkdownCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  if (value == null || value === '') return <EmptyValue />;
+  return (
+    <React.Suspense fallback={<span className="text-sm text-muted-foreground">{String(value).slice(0, 80)}</span>}>
+      <LazyMarkdownContent value={String(value)} />
+    </React.Suspense>
+  );
+}
+
+/**
+ * Minimal HTML sanitizer for display: drops <script>/<style>/<iframe> blocks,
+ * inline event handlers, and javascript: URLs. Defense-in-depth — stored HTML
+ * is authored by users with write access, but is never trusted blindly.
+ */
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<\s*(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/(href|src)\s*=\s*("javascript:[^"]*"|'javascript:[^']*')/gi, '$1="#"');
+}
+
+/**
+ * Renders an `html` value as sanitized, formatted HTML instead of raw markup.
+ */
+export function HtmlCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  if (value == null || value === '') return <EmptyValue />;
+  return (
+    <div
+      className="prose prose-sm max-w-none dark:prose-invert break-words"
+      dangerouslySetInnerHTML={{ __html: sanitizeHtml(String(value)) }}
+    />
+  );
+}
+
 /**
  * Renders a `location`/`geolocation` value as readable coordinates with a pin.
  * Accepts `{ lat, lng }` / `{ latitude, longitude }`, a `"lat,lng"` string,
@@ -1435,9 +1475,9 @@ export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> 
   const standardMap: Record<string, React.FC<CellRendererProps>> = {
     text: TextCellRenderer,
     textarea: TextCellRenderer,
-    markdown: TextCellRenderer,
-    html: TextCellRenderer,
-    richtext: TextCellRenderer,
+    markdown: MarkdownCellRenderer,
+    html: HtmlCellRenderer,
+    richtext: MarkdownCellRenderer,
     code: TextCellRenderer,
     qrcode: TextCellRenderer,
     number: NumberCellRenderer,
