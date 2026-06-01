@@ -10,7 +10,7 @@ import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
 import { ComponentRegistry } from '@object-ui/core';
 import { Badge, Avatar, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
-import { Check, X, Copy, Phone as PhoneIcon } from 'lucide-react';
+import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { SchemaRendererContext as _SchemaRendererContext } from '@object-ui/react';
 
@@ -1390,6 +1390,39 @@ export function ColorSwatchCellRenderer({ value }: CellRendererProps): React.Rea
 }
 
 /**
+ * Renders a `location`/`geolocation` value as readable coordinates with a pin.
+ * Accepts `{ lat, lng }` / `{ latitude, longitude }`, a `"lat,lng"` string,
+ * or a `[lat, lng]` array. Falls back to compact JSON for anything else.
+ */
+export function LocationCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  if (value == null || value === '') return <EmptyValue />;
+  let lat: number | undefined;
+  let lng: number | undefined;
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    const v = value as Record<string, any>;
+    lat = typeof v.lat === 'number' ? v.lat : typeof v.latitude === 'number' ? v.latitude : undefined;
+    lng = typeof v.lng === 'number' ? v.lng : typeof v.lon === 'number' ? v.lon : typeof v.longitude === 'number' ? v.longitude : undefined;
+  } else if (Array.isArray(value) && value.length === 2) {
+    lat = Number(value[0]);
+    lng = Number(value[1]);
+  } else if (typeof value === 'string') {
+    const parts = value.split(',').map((s) => parseFloat(s.trim()));
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      [lat, lng] = parts;
+    }
+  }
+  if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
+    return (
+      <span className="inline-flex items-center gap-1 text-sm tabular-nums">
+        <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        {lat.toFixed(4)}, {lng.toFixed(4)}
+      </span>
+    );
+  }
+  return <JsonCellRenderer value={value} field={{} as any} />;
+}
+
+/**
  * Get the appropriate cell renderer for a field type
  */
 export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> {
@@ -1443,8 +1476,8 @@ export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> 
     owner: UserCellRenderer,
     password: () => <span>••••••</span>,
     secret: () => <span>••••••</span>,
-    location: TextCellRenderer, // Default fallback
-    geolocation: JsonCellRenderer,
+    location: LocationCellRenderer,
+    geolocation: LocationCellRenderer,
     address: JsonCellRenderer,
     color: ColorSwatchCellRenderer,
     json: JsonCellRenderer,
