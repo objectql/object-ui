@@ -13,7 +13,10 @@ theme-aware (light/dark), and still dependency-free.
   label, refined uppercase type caption, layered hover elevation
   (`-translate-y-0.5` + soft shadow), and clearer selected / run-state rings.
   Per-category `chip` tone tokens (soft bg + inset ring) added alongside the
-  existing icon/accent/label tones.
+  existing icon/accent/label tones. Added distinct tones for `loop` (sky),
+  `screen`/`user_task` (pink) and `assignment` (purple) — previously they fell
+  back to the generic slate "task" tone, so every node type now reads as a
+  distinct color in the canvas.
 - **Canvas surface**: the dot grid now tracks pan **and** zoom (it moves with
   the diagram instead of floating behind a static texture), plus a subtle inset
   vignette for depth.

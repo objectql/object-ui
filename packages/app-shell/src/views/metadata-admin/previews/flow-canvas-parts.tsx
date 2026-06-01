@@ -161,6 +161,24 @@ const TONES: Record<string, NodeTone> = {
     label: 'text-teal-600 dark:text-teal-400',
     chip: 'bg-teal-500/10 ring-1 ring-inset ring-teal-500/20 dark:bg-teal-400/10',
   },
+  loop: {
+    icon: 'text-sky-600 dark:text-sky-400',
+    accent: 'border-l-sky-500',
+    label: 'text-sky-600 dark:text-sky-400',
+    chip: 'bg-sky-500/10 ring-1 ring-inset ring-sky-500/20 dark:bg-sky-400/10',
+  },
+  screen: {
+    icon: 'text-pink-600 dark:text-pink-400',
+    accent: 'border-l-pink-500',
+    label: 'text-pink-600 dark:text-pink-400',
+    chip: 'bg-pink-500/10 ring-1 ring-inset ring-pink-500/20 dark:bg-pink-400/10',
+  },
+  assignment: {
+    icon: 'text-purple-600 dark:text-purple-400',
+    accent: 'border-l-purple-500',
+    label: 'text-purple-600 dark:text-purple-400',
+    chip: 'bg-purple-500/10 ring-1 ring-inset ring-purple-500/20 dark:bg-purple-400/10',
+  },
 };
 
 export function nodeTone(type: string): NodeTone {
@@ -188,6 +206,14 @@ export function nodeTone(type: string): NodeTone {
       return TONES.subflow;
     case 'approval':
       return TONES.approval;
+    case 'loop':
+    case 'for_each':
+      return TONES.loop;
+    case 'screen':
+    case 'user_task':
+      return TONES.screen;
+    case 'assignment':
+      return TONES.assignment;
     case 'create_record':
     case 'update_record':
     case 'delete_record':
