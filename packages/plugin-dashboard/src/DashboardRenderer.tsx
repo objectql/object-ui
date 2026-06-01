@@ -122,6 +122,7 @@ const CHART_TYPE_ALIASES: Record<string, string> = {
  */
 const SUPPORTED_CHART_TYPES = new Set([
   'bar', 'horizontal-bar', 'line', 'area', 'pie', 'donut', 'scatter', 'funnel', 'radar',
+  'treemap', 'sankey',
 ]);
 
 /**
@@ -137,9 +138,12 @@ const METRIC_LIKE_TYPES = new Set(['gauge', 'solid-gauge', 'kpi', 'bullet']);
  * under a red "Unknown component type" error.
  */
 const UNSUPPORTED_CHART_TYPES = new Set([
-  'heatmap', 'treemap', 'sunburst', 'sankey', 'waterfall',
-  'candlestick', 'stock', 'box-plot', 'violin',
-  'gl-map', 'choropleth', 'bubble-map', 'word-cloud',
+  // Safety net: chart families dropped from the ChartType protocol (they need
+  // richer data — OHLC / per-record distributions — or a geo dependency).
+  // Kept here so any stale dashboard still referencing them renders a clean
+  // placeholder rather than a raw "Unknown component type" error.
+  'sunburst', 'word-cloud', 'choropleth', 'bubble-map', 'gl-map',
+  'heatmap', 'waterfall', 'box-plot', 'violin', 'candlestick', 'stock',
 ]);
 
 /**

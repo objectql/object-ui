@@ -31,6 +31,9 @@ import {
   Funnel,
   FunnelChart,
   LabelList,
+  Treemap,
+  Sankey,
+  Tooltip,
 } from 'recharts';
 import {
   ChartContainer,
@@ -87,7 +90,7 @@ const comparisonStyle = (s: any, kind: 'line' | 'area' | 'bar' | 'scatter') => {
 };
 
 export interface AdvancedChartImplProps {
-  chartType?: 'bar' | 'column' | 'horizontal-bar' | 'line' | 'area' | 'pie' | 'donut' | 'radar' | 'scatter' | 'funnel' | 'combo';
+  chartType?: 'bar' | 'column' | 'horizontal-bar' | 'line' | 'area' | 'pie' | 'donut' | 'radar' | 'scatter' | 'funnel' | 'combo' | 'treemap' | 'sankey';
   data?: Array<Record<string, any>>;
   config?: ChartConfig;
   xAxisKey?: string;
@@ -162,6 +165,10 @@ export default function AdvancedChartImpl({
     scatter: ScatterChart,
     funnel: FunnelChart as any,
     combo: BarChart,
+    // treemap/sankey return from their own branches above; mapped here only so
+    // the index type stays exhaustive.
+    treemap: BarChart,
+    sankey: BarChart,
   }[chartType] || BarChart;
 
   // Format ISO date strings into compact "MMM D" / "MMM YYYY" labels for X-axis ticks.
@@ -335,6 +342,64 @@ export default function AdvancedChartImpl({
             ))}
           </Funnel>
         </FunnelChart>
+      </ChartContainer>
+    );
+  }
+
+  // Treemap — composition by relative size. Recharts <Treemap> is itself the
+  // chart root (no wrapping cartesian chart); a custom content paints each
+  // leaf with a palette color + label.
+  if (chartType === 'treemap') {
+    const dataKey = series[0]?.dataKey || 'value';
+    const palette = getPalette();
+    const tmData = data.map((row, idx) => ({
+      name: String(row?.[xAxisKey] ?? ''),
+      size: Number(row?.[dataKey]) || 0,
+      fill: resolveColor(palette[idx % palette.length]),
+    }));
+    const TreemapCell = (props: any) => {
+      const { x, y, width, height, name, fill } = props;
+      if (width <= 0 || height <= 0) return null;
+      return (
+        <g>
+          <rect x={x} y={y} width={width} height={height} fill={fill} stroke="hsl(var(--background))" strokeWidth={2} />
+          {width > 48 && height > 18 ? (
+            <text x={x + 6} y={y + 18} fill="#fff" fontSize={12} className="pointer-events-none">{name}</text>
+          ) : null}
+        </g>
+      );
+    };
+    return (
+      <ChartContainer config={config} className={className}>
+        <Treemap data={tmData} dataKey="size" nameKey="name" isAnimationActive content={<TreemapCell />}>
+          <Tooltip />
+        </Treemap>
+      </ChartContainer>
+    );
+  }
+
+  // Sankey — flow from a single root node to each category, weighted by value.
+  // (The dashboard aggregate yields one value per category; a real multi-stage
+  // flow needs richer data, but this honestly renders the sankey family.)
+  if (chartType === 'sankey') {
+    const dataKey = series[0]?.dataKey || 'value';
+    const rootName = series[0]?.label || dataKey;
+    const rows = data.filter((r) => (Number(r?.[dataKey]) || 0) > 0);
+    const nodes = [{ name: rootName }, ...rows.map((r) => ({ name: String(r?.[xAxisKey] ?? '') }))];
+    const links = rows.map((r, i) => ({ source: 0, target: i + 1, value: Number(r?.[dataKey]) || 0 }));
+    if (links.length === 0) {
+      return <div className={className} />;
+    }
+    return (
+      <ChartContainer config={config} className={className}>
+        <Sankey
+          data={{ nodes, links }}
+          nodePadding={24}
+          link={{ stroke: 'hsl(var(--muted-foreground))', strokeOpacity: 0.25 }}
+          node={{ fill: 'hsl(var(--chart-1))' } as any}
+        >
+          <Tooltip />
+        </Sankey>
       </ChartContainer>
     );
   }
