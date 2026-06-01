@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NODE_PALETTE, type PaletteItem } from './flow-canvas-parts';
+import { NODE_PALETTE, nodeCategory, type PaletteItem } from './flow-canvas-parts';
 
 /** Minimal shape of an engine action descriptor we consume. */
 interface ActionDescriptorLite {
@@ -63,6 +63,9 @@ export function mergePalette(base: PaletteItem[], descriptors: ActionDescriptorL
       type: d.type,
       label: d.name || existing?.label || d.type,
       hint: d.description || existing?.hint,
+      // Keep the base item's section; infer one for engine-only/plugin types so
+      // they still group sensibly in the palette.
+      category: existing?.category ?? nodeCategory(d.type),
     });
   }
 

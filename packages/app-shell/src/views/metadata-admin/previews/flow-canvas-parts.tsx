@@ -240,26 +240,78 @@ export function NodeTypeIcon({ type, className }: { type: string; className?: st
   return React.createElement(nodeIcon(type), { className, 'aria-hidden': true });
 }
 
+/** Palette grouping — keeps the add-node list scannable as it grows. */
+export type NodeCategory = 'Data' | 'Logic' | 'Human' | 'Integration' | 'Flow';
+
+/** Display order of the palette's category sections. */
+export const NODE_CATEGORY_ORDER: NodeCategory[] = ['Data', 'Logic', 'Human', 'Integration', 'Flow'];
+
 export interface PaletteItem {
   type: string;
   label: string;
   hint?: string;
+  /** Section this item belongs to in the grouped palette. */
+  category?: NodeCategory;
+}
+
+/**
+ * Category for a node type — drives palette grouping and gives engine-only
+ * (plugin-contributed) types a sensible section. Mirrors the `nodeTone`
+ * families so color and grouping stay consistent.
+ */
+export function nodeCategory(type: string): NodeCategory {
+  switch (type) {
+    case 'create_record':
+    case 'update_record':
+    case 'delete_record':
+    case 'get_record':
+      return 'Data';
+    case 'decision':
+    case 'branch':
+    case 'gateway':
+    case 'loop':
+    case 'for_each':
+    case 'assignment':
+    case 'parallel_gateway':
+    case 'join_gateway':
+    case 'parallel':
+      return 'Logic';
+    case 'approval':
+    case 'screen':
+    case 'user_task':
+      return 'Human';
+    case 'http_request':
+    case 'connector_action':
+    case 'script':
+    case 'webhook':
+    case 'service_task':
+    case 'script_task':
+      return 'Integration';
+    default:
+      // subflow, wait, boundary_event, end, and anything unknown → Flow control.
+      return 'Flow';
+  }
 }
 
 /** Node types offered by the add-node palette (spec `FlowNodeAction`). */
 export const NODE_PALETTE: PaletteItem[] = [
-  { type: 'create_record', label: 'Create record', hint: 'Insert a new record' },
-  { type: 'update_record', label: 'Update record', hint: 'Modify an existing record' },
-  { type: 'get_record', label: 'Get record', hint: 'Query records' },
-  { type: 'decision', label: 'Decision', hint: 'Branch on a condition' },
-  { type: 'loop', label: 'Loop', hint: 'Iterate over a collection' },
-  { type: 'http_request', label: 'HTTP request', hint: 'Call an external API' },
-  { type: 'connector_action', label: 'Connector', hint: 'Run an integration action' },
-  { type: 'script', label: 'Script', hint: 'Run custom code' },
-  { type: 'approval', label: 'Approval', hint: 'Pause for a human decision' },
-  { type: 'subflow', label: 'Subflow', hint: 'Invoke another flow' },
-  { type: 'wait', label: 'Wait', hint: 'Pause for an event or timer' },
-  { type: 'end', label: 'End', hint: 'Terminate the flow' },
+  { type: 'create_record', label: 'Create record', hint: 'Insert a new record', category: 'Data' },
+  { type: 'update_record', label: 'Update record', hint: 'Modify an existing record', category: 'Data' },
+  { type: 'get_record', label: 'Get record', hint: 'Query records', category: 'Data' },
+  { type: 'delete_record', label: 'Delete record', hint: 'Remove matching records', category: 'Data' },
+  { type: 'decision', label: 'Decision', hint: 'Branch on a condition', category: 'Logic' },
+  { type: 'loop', label: 'Loop', hint: 'Iterate over a collection', category: 'Logic' },
+  { type: 'assignment', label: 'Set variables', hint: 'Assign flow variables', category: 'Logic' },
+  { type: 'parallel_gateway', label: 'Parallel split', hint: 'Fork into concurrent branches', category: 'Logic' },
+  { type: 'join_gateway', label: 'Parallel join', hint: 'Wait for concurrent branches', category: 'Logic' },
+  { type: 'approval', label: 'Approval', hint: 'Pause for a human decision', category: 'Human' },
+  { type: 'screen', label: 'Screen', hint: 'Collect input from a user', category: 'Human' },
+  { type: 'http_request', label: 'HTTP request', hint: 'Call an external API', category: 'Integration' },
+  { type: 'connector_action', label: 'Connector', hint: 'Run an integration action', category: 'Integration' },
+  { type: 'script', label: 'Script', hint: 'Run custom code', category: 'Integration' },
+  { type: 'subflow', label: 'Subflow', hint: 'Invoke another flow', category: 'Flow' },
+  { type: 'wait', label: 'Wait', hint: 'Pause for an event or timer', category: 'Flow' },
+  { type: 'end', label: 'End', hint: 'Terminate the flow', category: 'Flow' },
 ];
 
 /** Human-friendly default label for a newly created node of `type`. */
@@ -427,36 +479,56 @@ export interface NodePaletteProps {
   onClose: () => void;
 }
 
-/** Compact popover listing the node types an author can add. */
+/** Compact popover listing the node types an author can add, grouped by category. */
 export function NodePalette({ items = NODE_PALETTE, onPick, onClose }: NodePaletteProps) {
+  // Bucket items by category (falling back to the type's inferred category, so
+  // engine-only / plugin nodes still land in a sensible section), then render
+  // sections in the canonical order. Empty sections are skipped.
+  const grouped = React.useMemo(() => {
+    const buckets = new Map<NodeCategory, PaletteItem[]>();
+    for (const item of items) {
+      const cat = item.category ?? nodeCategory(item.type);
+      const list = buckets.get(cat) ?? [];
+      list.push(item);
+      buckets.set(cat, list);
+    }
+    return NODE_CATEGORY_ORDER.map((cat) => [cat, buckets.get(cat) ?? []] as const).filter(
+      ([, list]) => list.length > 0,
+    );
+  }, [items]);
+
+  const renderItem = (item: PaletteItem) => {
+    const tone = nodeTone(item.type);
+    return (
+      <button
+        key={item.type}
+        type="button"
+        onClick={() => onPick(item.type)}
+        className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent"
+      >
+        <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', tone.chip)}>
+          <NodeTypeIcon type={item.type} className={cn('h-[15px] w-[15px]', tone.icon)} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-medium">{item.label}</div>
+          {item.hint && <div className="truncate text-[11px] text-muted-foreground">{item.hint}</div>}
+        </div>
+      </button>
+    );
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-20" onClick={onClose} aria-hidden />
-      <div className="absolute right-0 top-full z-30 mt-1.5 max-h-[60vh] w-60 overflow-y-auto rounded-xl border bg-popover/95 p-1.5 shadow-xl shadow-foreground/[0.08] ring-1 ring-black/[0.03] backdrop-blur-md">
-        <div className="px-2 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-          Add node
-        </div>
-        {items.map((item) => {
-          const tone = nodeTone(item.type);
-          return (
-            <button
-              key={item.type}
-              type="button"
-              onClick={() => onPick(item.type)}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent"
-            >
-              <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', tone.chip)}>
-                <NodeTypeIcon type={item.type} className={cn('h-[15px] w-[15px]', tone.icon)} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-medium">{item.label}</div>
-                {item.hint && (
-                  <div className="truncate text-[11px] text-muted-foreground">{item.hint}</div>
-                )}
-              </div>
-            </button>
-          );
-        })}
+      <div className="absolute right-0 top-full z-30 mt-1.5 max-h-[66vh] w-60 overflow-y-auto rounded-xl border bg-popover/95 p-1.5 shadow-xl shadow-foreground/[0.08] ring-1 ring-black/[0.03] backdrop-blur-md">
+        {grouped.map(([category, list], gi) => (
+          <div key={category} className={cn(gi > 0 && 'mt-1 border-t border-border/60 pt-1')}>
+            <div className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              {category}
+            </div>
+            {list.map(renderItem)}
+          </div>
+        ))}
       </div>
     </>
   );

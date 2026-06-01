@@ -23,6 +23,8 @@ describe('mergePalette', () => {
       type: 'approval',
       label: 'Approval (engine)',
       hint: 'Route a record for human approval',
+      // Section inferred from the type (base entry carried none here).
+      category: 'Human',
     });
   });
 
@@ -33,7 +35,7 @@ describe('mergePalette', () => {
       { type: 'assignment', name: 'Assignment', description: 'Set flow variables' },
     ]);
     expect(merged.map((i) => i.type)).toEqual(['decision', 'assignment']);
-    expect(merged[1]).toEqual({ type: 'assignment', label: 'Assignment', hint: 'Set flow variables' });
+    expect(merged[1]).toEqual({ type: 'assignment', label: 'Assignment', hint: 'Set flow variables', category: 'Logic' });
   });
 
   it('skips deprecated descriptors (the base entry, if any, is preserved)', () => {
@@ -57,6 +59,6 @@ describe('mergePalette', () => {
 
   it('falls back to the descriptor type when no name is provided', () => {
     const merged = mergePalette([], [{ type: 'custom_node' }]);
-    expect(merged[0]).toEqual({ type: 'custom_node', label: 'custom_node', hint: undefined });
+    expect(merged[0]).toEqual({ type: 'custom_node', label: 'custom_node', hint: undefined, category: 'Flow' });
   });
 });
