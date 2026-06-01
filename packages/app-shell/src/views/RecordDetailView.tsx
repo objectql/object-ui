@@ -926,11 +926,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
 
   /**
    * Note: comment-mention → notification fan-out lives on the server
-   * (`@objectstack/plugin-audit` registers a `sys_comment` afterInsert
-   * hook that parses the `mentions` JSON and writes one `sys_notification`
-   * row per recipient). The client's only job is to ensure
+   * (`@objectstack/plugin-audit` registers a `sys_comment` afterInsert hook
+   * that parses the `mentions` JSON and calls `messaging.emit('collab.mention')`
+   * — ADR-0030 single ingress — which materializes one `sys_inbox_message` per
+   * recipient that the bell then reads). The client's only job is to ensure
    * `sys_comment.mentions` carries the real id list (see handleAddComment
-   * /handleAddReply below). Deployments without plugin-audit will not
+   * /handleAddReply below). Deployments without the messaging pipeline will not
    * deliver bell notifications, which is the expected degradation.
    */
 

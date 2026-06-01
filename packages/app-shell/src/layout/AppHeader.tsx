@@ -131,12 +131,23 @@ export function AppHeader({
   const mobileSwitcher = useMobileViewSwitcher();
 
   const [apiActivities, setApiActivities] = useState<ActivityItem[] | null>(null);
-  /** M10.8: in-header notifications. Polled from sys_notification scoped to current user. */
+  /**
+   * In-header notifications (ADR-0030). Polled from `sys_inbox_message` (the L5
+   * in-app materialization, `mine` scope) joined with `sys_notification_receipt`
+   * for read-state — the bell no longer reads the re-modeled `sys_notification`
+   * L2 event (which carries no recipient/read columns).
+   */
   const [notifications, setNotifications] = useState<Array<{
     id: string;
+    /** FK → sys_notification (L2 event); keys the read-state receipt. */
+    notification_id?: string | null;
+    /** Existing receipt row id (if any) — lets mark-read UPDATE in place. */
+    receipt_id?: string | null;
     type: string;
     title: string;
     body?: string | null;
+    /** Deep-link target carried by the materialization (action_url). */
+    action_url?: string | null;
     source_object?: string | null;
     source_id?: string | null;
     actor_name?: string | null;
@@ -187,22 +198,25 @@ export function AppHeader({
   useEffect(() => { fetchPresenceAndActivities(); }, [fetchPresenceAndActivities]);
 
   /**
-   * M10.8 + M11.B3: poll sys_notification for the signed-in user.
+   * Poll the signed-in user's in-app inbox (ADR-0030 L5).
    *
-   * - Limited to the 20 most-recent entries; unread count drives the bell badge.
-   * - Adaptive interval: 10s while the tab is foregrounded (was 30s) so the
-   *   bell reflects mentions / assignments within seconds without requiring a
-   *   server-push transport.
-   * - Immediate refetch on `visibilitychange` when the user returns to the
-   *   tab, so a backgrounded tab catches up the moment it regains focus.
-   * - On transient errors, switches to exponential backoff (cap 2 min) and
-   *   resets on the first successful fetch.
-   * - Tolerates 404 so deployments without sys_notification degrade silently.
+   * Two scoped reads, joined client-side:
+   *   - `sys_inbox_message` filtered by `user_id` (the `mine` materialization),
+   *     20 most-recent — the notification rows themselves.
+   *   - `sys_notification_receipt` filtered by `user_id` + `channel:'inbox'` —
+   *     the read-state spine. A message is unread until its event has a
+   *     `read`/`clicked`/`dismissed` receipt; the unread count drives the badge.
    *
-   * Full server-push (SSE / WebSocket) is tracked separately as a M12
-   * enhancement; this adaptive poll already reduces perceived latency from
-   * ~15s (average half of the old 30s window) to ~5s and is sufficient for
-   * pilots up to ~50 concurrent users.
+   * - Adaptive interval: 10s while the tab is foregrounded so the bell reflects
+   *   mentions / assignments within seconds without a server-push transport.
+   * - Immediate refetch on `visibilitychange` when the user returns to the tab.
+   * - On transient errors, exponential backoff (cap 2 min), reset on success.
+   * - Tolerates 404 so deployments without the messaging pipeline degrade
+   *   silently.
+   *
+   * Full server-push (SSE / WebSocket) is tracked separately; this adaptive
+   * poll keeps perceived latency ~5s and is sufficient for pilots up to ~50
+   * concurrent users.
    */
   useEffect(() => {
     if (!dataSource || !isApp || !user?.id) return;
@@ -215,15 +229,52 @@ export function AppHeader({
     let backoffMs = ACTIVE_INTERVAL_MS;
     const isMissingResource = (err: any): boolean =>
       err?.httpStatus === 404 || err?.status === 404 || err?.code === 'object_not_found';
+    const READ_STATES = new Set(['read', 'clicked', 'dismissed']);
     const fetchOnce = async () => {
       try {
-        const res: any = await dataSource.find('sys_notification', {
-          $filter: { recipient_id: user.id },
-          $orderby: { created_at: 'desc' },
-          $top: 20,
-        });
+        const [inboxRes, receiptRes] = await Promise.all([
+          dataSource.find('sys_inbox_message', {
+            $filter: { user_id: user.id },
+            $orderby: { created_at: 'desc' },
+            $top: 20,
+          }) as Promise<any>,
+          // Read-state spine. Best-effort: if receipts are unavailable the
+          // inbox still renders (everything shows unread) rather than erroring.
+          (dataSource.find('sys_notification_receipt', {
+            $filter: { user_id: user.id, channel: 'inbox' },
+            $top: 200,
+          }) as Promise<any>).catch(() => ({ data: [] })),
+        ]);
         if (cancelled) return;
-        if (Array.isArray(res?.data)) setNotifications(res.data);
+        const rows: any[] = Array.isArray(inboxRes?.data) ? inboxRes.data : [];
+        const receipts: any[] = Array.isArray(receiptRes?.data) ? receiptRes.data : [];
+        // notification_id → { id, state } (most-advanced receipt wins).
+        const receiptByNotif = new Map<string, { id: string; state: string }>();
+        for (const r of receipts) {
+          const nid = r?.notification_id != null ? String(r.notification_id) : '';
+          if (!nid) continue;
+          const prev = receiptByNotif.get(nid);
+          // Prefer a read/clicked/dismissed receipt over a plain delivered one.
+          if (!prev || (!READ_STATES.has(prev.state) && READ_STATES.has(r.state))) {
+            receiptByNotif.set(nid, { id: String(r.id), state: String(r.state) });
+          }
+        }
+        const merged = rows.map((m) => {
+          const nid = m?.notification_id != null ? String(m.notification_id) : null;
+          const rec = nid ? receiptByNotif.get(nid) : undefined;
+          return {
+            id: String(m.id),
+            notification_id: nid,
+            receipt_id: rec?.id ?? null,
+            type: m.topic ?? 'notification',
+            title: m.title ?? '',
+            body: m.body_md ?? null,
+            action_url: m.action_url ?? null,
+            is_read: rec ? READ_STATES.has(rec.state) : false,
+            created_at: m.created_at,
+          };
+        });
+        setNotifications(merged);
         backoffMs = ACTIVE_INTERVAL_MS;
       } catch (err: any) {
         if (isMissingResource(err)) {
@@ -307,39 +358,42 @@ export function AppHeader({
 
   const unreadCount = notifications.reduce((n, x) => n + (x.is_read ? 0 : 1), 0);
 
-  const markNotificationRead = useCallback(async (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
-    if (!dataSource) return;
-    try {
-      await dataSource.update('sys_notification', id, {
-        is_read: true,
-        read_at: new Date().toISOString(),
+  // Read-state lives in `sys_notification_receipt`, keyed
+  // (notification_id, user_id, channel) — ADR-0030. Marking read UPDATEs the
+  // existing `delivered` receipt to `read` (the inbox channel always writes one
+  // on materialization); we INSERT only as a fallback for the rare row whose
+  // receipt is missing. Rows without a `notification_id` (legacy/synthetic)
+  // can't be keyed, so they update optimistically but don't persist.
+  const writeReadReceipt = useCallback(async (n: { notification_id?: string | null; receipt_id?: string | null }, now: string) => {
+    if (!dataSource || !n.notification_id) return;
+    if (n.receipt_id) {
+      await dataSource.update('sys_notification_receipt', n.receipt_id, { state: 'read', at: now });
+    } else {
+      await dataSource.create('sys_notification_receipt', {
+        notification_id: n.notification_id,
+        user_id: user?.id,
+        channel: 'inbox',
+        state: 'read',
+        at: now,
+        created_at: now,
       });
-    } catch { /* best-effort */ }
-  }, [dataSource]);
+    }
+  }, [dataSource, user?.id]);
+
+  const markNotificationRead = useCallback(async (id: string) => {
+    const target = notifications.find(n => n.id === id);
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    if (!target) return;
+    try { await writeReadReceipt(target, new Date().toISOString()); } catch { /* best-effort */ }
+  }, [notifications, writeReadReceipt]);
 
   const markAllRead = useCallback(async () => {
     const unread = notifications.filter(n => !n.is_read);
     if (!unread.length) return;
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-    if (!dataSource) return;
     const now = new Date().toISOString();
-    const ids = unread.map(n => n.id);
-    // Prefer the bulk endpoint — one HTTP/auth/RLS round-trip instead of
-    // N parallel PATCHes, which previously caused noticeable hitching
-    // (Slack-style "mark all read" jank) on inboxes with 50+ unread.
-    // Fall back to the per-id loop on adapters that don't implement it.
-    const ds: any = dataSource as any;
-    if (typeof ds.bulkUpdate === 'function') {
-      try {
-        await ds.bulkUpdate('sys_notification', ids, { is_read: true, read_at: now });
-        return;
-      } catch { /* fall through to per-id loop */ }
-    }
-    await Promise.all(unread.map(n =>
-      dataSource.update('sys_notification', n.id, { is_read: true, read_at: now }).catch(() => {}),
-    ));
-  }, [dataSource, notifications]);
+    await Promise.all(unread.map(n => writeReadReceipt(n, now).catch(() => {})));
+  }, [notifications, writeReadReceipt]);
 
   const tenantPresence = useTenantPresence();
   const activeUsers = presenceUsers ?? (tenantPresence.length > 0 ? tenantPresence : EMPTY_PRESENCE_USERS);

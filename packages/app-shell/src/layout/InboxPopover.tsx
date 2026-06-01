@@ -33,9 +33,14 @@ import { useNavigationContext } from '../context/NavigationContext';
 
 export interface InboxNotification {
   id: string;
+  /** FK → sys_notification (L2 event) — keys the read-state receipt (ADR-0030). */
+  notification_id?: string | null;
+  receipt_id?: string | null;
   type: string;
   title: string;
   body?: string | null;
+  /** Deep-link target carried by the inbox materialization. */
+  action_url?: string | null;
   source_object?: string | null;
   source_id?: string | null;
   actor_name?: string | null;
@@ -115,11 +120,11 @@ export function InboxPopover({
 
   const goToAllNotifications = () => {
     setOpen(false);
-    // Always route through the setup app's sys_notification list view —
-    // it's the canonical full-page inbox and lives outside per-app sidebars.
-    // The `?view=mine` query selects the "Mine" tab so the user sees their
-    // own notifications by default (matching the popover scope).
-    navigate('/apps/setup/sys_notification?view=mine');
+    // Route through the setup app's sys_inbox_message list view — the
+    // canonical full-page inbox (ADR-0030 L5), outside per-app sidebars. The
+    // `?view=mine` query selects the user-scoped "Notifications" view, matching
+    // the popover scope.
+    navigate('/apps/setup/sys_inbox_message?view=mine');
   };
 
   const goToAllActivity = () => {
@@ -132,9 +137,28 @@ export function InboxPopover({
 
   const handleNotificationClick = (n: InboxNotification) => {
     onMarkRead(n.id);
+    const app = currentAppName ?? params.appName;
+    // Prefer the materialization's action_url (ADR-0030). The messaging
+    // pipeline synthesizes an app-relative `/{object}/{id}` link from the
+    // event's source when a producer didn't set an explicit url.
+    if (n.action_url) {
+      setOpen(false);
+      const url = n.action_url;
+      if (/^https?:\/\//i.test(url)) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      if (url.startsWith('/apps/')) {
+        navigate(url);
+        return;
+      }
+      const rel = url.startsWith('/') ? url : `/${url}`;
+      navigate(app ? `/apps/${app}${rel}` : rel);
+      return;
+    }
+    // Back-compat fallback: explicit source object/record pointer.
     if (n.source_object && n.source_id) {
       setOpen(false);
-      const app = currentAppName ?? params.appName;
       const target = app
         ? `/apps/${app}/${n.source_object}/${n.source_id}`
         : `/objects/${n.source_object}/${n.source_id}`;
@@ -289,7 +313,7 @@ export function InboxPopover({
                 </ul>
               );
             })()}
-            {/* Footer link to dedicated /sys_notification list. The popover
+            {/* Footer link to the dedicated /sys_inbox_message list. The popover
                 only shows the 20 most-recent rows; users need a path to the
                 full inbox for bulk operations and older history. */}
             <div className="border-t px-3 py-2 text-center">
