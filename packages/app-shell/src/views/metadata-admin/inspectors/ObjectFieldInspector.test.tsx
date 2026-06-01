@@ -98,9 +98,44 @@ describe('ObjectFieldInspector — default value', () => {
   });
 });
 
+describe('ObjectFieldInspector — power props (conditional & validation)', () => {
+  it('commits inline help text', () => {
+    const { onPatch } = renderField({ note: { type: 'text', label: 'Note' } }, 'note');
+    fireEvent.change(controlFor('Help text'), { target: { value: 'Enter the note' } });
+    expect(onPatch.mock.calls.at(-1)![0].fields.note.inlineHelpText).toBe('Enter the note');
+  });
+
+  it('commits min length for text fields (alongside max length)', () => {
+    const { onPatch } = renderField({ note: { type: 'text' } }, 'note');
+    expect(screen.getByText('Min length')).toBeInTheDocument();
+    expect(screen.getByText('Max length')).toBeInTheDocument();
+    fireEvent.change(controlFor('Min length'), { target: { value: '3' } });
+    expect(onPatch.mock.calls.at(-1)![0].fields.note.minLength).toBe(3);
+  });
+
+  it('commits a conditional-required CEL predicate', () => {
+    const { onPatch } = renderField({ note: { type: 'text' } }, 'note');
+    fireEvent.change(controlFor('Required when (CEL)'), { target: { value: 'record.x == 1' } });
+    expect(onPatch.mock.calls.at(-1)![0].fields.note.conditionalRequired).toBe('record.x == 1');
+  });
+
+  it('offers conditional-required for non-text types too', () => {
+    renderField({ active: { type: 'boolean' } }, 'active');
+    expect(screen.getByText('Required when (CEL)')).toBeInTheDocument();
+    // Min length is text-only, so it should not show for a boolean.
+    expect(screen.queryByText('Min length')).not.toBeInTheDocument();
+  });
+});
+
 describe('ObjectFieldInspector — read-only', () => {
   it('hides the duplicate action when read-only', () => {
     renderField({ email: { type: 'email' } }, 'email', { readOnly: true });
     expect(screen.queryByRole('button', { name: 'Duplicate field' })).not.toBeInTheDocument();
+  });
+
+  it('disables the power-prop inputs when read-only', () => {
+    renderField({ note: { type: 'text' } }, 'note', { readOnly: true });
+    expect(controlFor('Help text')).toBeDisabled();
+    expect(controlFor('Required when (CEL)')).toBeDisabled();
   });
 });

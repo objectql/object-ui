@@ -577,6 +577,12 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'designer.field.false': 'False',
   'designer.field.duplicate': 'Duplicate field',
   'designer.field.copySuffix': ' copy',
+  // Field power props (Tier 2 — conditional & validation)
+  'designer.field.helpText': 'Help text',
+  'designer.field.helpTextPlaceholder': 'Shown below the field on the form',
+  'designer.field.minLength': 'Min length',
+  'designer.field.conditionalRequired': 'Required when (CEL)',
+  'designer.field.conditionalRequiredHint': 'Field becomes required when this predicate is true.',
 };
 
 const ENGINE_STRINGS_ZH: Record<string, string> = {
@@ -1013,6 +1019,12 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'designer.field.false': '否',
   'designer.field.duplicate': '复制字段',
   'designer.field.copySuffix': ' 副本',
+  // Field power props (Tier 2 — conditional & validation)
+  'designer.field.helpText': '帮助文本',
+  'designer.field.helpTextPlaceholder': '显示在表单字段下方',
+  'designer.field.minLength': '最小长度',
+  'designer.field.conditionalRequired': '条件必填 (CEL)',
+  'designer.field.conditionalRequiredHint': '当此表达式为真时，该字段变为必填。',
 };
 
 function pickTable(

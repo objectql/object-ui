@@ -335,6 +335,14 @@ export function ObjectFieldInspector({
             locale={locale}
           />
         )}
+        <TextareaField
+          label={tr('designer.field.helpText')}
+          value={typeof def.inlineHelpText === 'string' ? (def.inlineHelpText as string) : ''}
+          onCommit={(v) => patchDef({ inlineHelpText: v || undefined })}
+          disabled={readOnly}
+          rows={2}
+          placeholder={tr('designer.field.helpTextPlaceholder')}
+        />
       </Section>
 
       {/* Type-specific */}
@@ -407,13 +415,22 @@ export function ObjectFieldInspector({
             </div>
           )}
           {isTexty(type) && (
-            <InspectorNumberField
-              label={tr('designer.field.maxLength')}
-              value={typeof def.maxLength === 'number' ? (def.maxLength as number) : undefined}
-              onCommit={(v) => patchDef({ maxLength: v })}
-              disabled={readOnly}
-              placeholder="255"
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <InspectorNumberField
+                label={tr('designer.field.minLength')}
+                value={typeof def.minLength === 'number' ? (def.minLength as number) : undefined}
+                onCommit={(v) => patchDef({ minLength: v })}
+                disabled={readOnly}
+                placeholder="0"
+              />
+              <InspectorNumberField
+                label={tr('designer.field.maxLength')}
+                value={typeof def.maxLength === 'number' ? (def.maxLength as number) : undefined}
+                onCommit={(v) => patchDef({ maxLength: v })}
+                disabled={readOnly}
+                placeholder="255"
+              />
+            </div>
           )}
         </Section>
       )}
@@ -458,6 +475,19 @@ export function ObjectFieldInspector({
           onCommit={(v) => patchDef({ placeholder: v || undefined })}
           disabled={readOnly}
         />
+        <div className="space-y-1">
+          <InspectorTextField
+            label={tr('designer.field.conditionalRequired')}
+            value={typeof def.conditionalRequired === 'string' ? (def.conditionalRequired as string) : ''}
+            onCommit={(v) => patchDef({ conditionalRequired: v || undefined })}
+            disabled={readOnly}
+            mono
+            placeholder="record.status == 'closed'"
+          />
+          <p className="text-[11px] text-muted-foreground/80 px-0.5 leading-snug">
+            {tr('designer.field.conditionalRequiredHint')}
+          </p>
+        </div>
         {fieldGroups.length > 0 && (
           <InspectorSelectField
             label={tr('designer.field.group')}
