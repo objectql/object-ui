@@ -16,16 +16,18 @@ import {
   Activity,  // timeline
   GanttChartSquare, // gantt
   Map,        // map
+  BarChart3,  // chart
 } from 'lucide-react';
 
-export type ViewType = 
-  | 'grid' 
-  | 'kanban' 
-  | 'gallery' 
-  | 'calendar' 
+export type ViewType =
+  | 'grid'
+  | 'kanban'
+  | 'gallery'
+  | 'calendar'
   | 'timeline'
   | 'gantt'
-  | 'map';
+  | 'map'
+  | 'chart';
 
 export interface ViewSwitcherProps {
   currentView: ViewType;
@@ -44,6 +46,7 @@ const VIEW_ICONS: Record<ViewType, React.ReactNode> = {
   timeline: <Activity className="h-4 w-4" />,
   gantt: <GanttChartSquare className="h-4 w-4" />,
   map: <Map className="h-4 w-4" />,
+  chart: <BarChart3 className="h-4 w-4" />,
 };
 
 const VIEW_LABELS: Record<ViewType, string> = {
@@ -54,6 +57,7 @@ const VIEW_LABELS: Record<ViewType, string> = {
   timeline: 'Timeline',
   gantt: 'Gantt',
   map: 'Map',
+  chart: 'Chart',
 };
 
 export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({

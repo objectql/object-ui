@@ -1066,8 +1066,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     }
     
     // Always allow switching back to the viewType defined in schema if it's one of the supported types
-    if (schema.viewType && !views.includes(schema.viewType as ViewType) && 
-       ['grid', 'kanban', 'calendar', 'timeline', 'gantt', 'map', 'gallery'].includes(schema.viewType)) {
+    if (schema.viewType && !views.includes(schema.viewType as ViewType) &&
+       ['grid', 'kanban', 'calendar', 'timeline', 'gantt', 'map', 'gallery', 'chart'].includes(schema.viewType)) {
       views.push(schema.viewType as ViewType);
     }
     
@@ -1303,6 +1303,29 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           locationField: schema.options?.map?.locationField || 'location',
           ...(schema.options?.map || {}),
         };
+      case 'chart': {
+        // A `chart` list view renders an aggregated chart of the object's
+        // records (e.g. sum of estimate_hours grouped by status), delegating
+        // to the same object-chart component the dashboard uses.
+        const chartCfg = (schema as any).chart || schema.options?.chart || {};
+        const valueField = (Array.isArray(chartCfg.yAxisFields) && chartCfg.yAxisFields[0])
+          || chartCfg.valueField || 'value';
+        const categoryField = chartCfg.xAxisField || chartCfg.categoryField || 'name';
+        return {
+          type: 'object-chart',
+          objectName: schema.objectName,
+          chartType: chartCfg.chartType || 'bar',
+          filters: schema.filters,
+          aggregate: {
+            field: valueField,
+            function: chartCfg.aggregation || 'count',
+            groupBy: categoryField,
+          },
+          xAxisKey: categoryField,
+          series: [{ dataKey: valueField, label: valueField }],
+          className: 'h-[400px] w-full',
+        };
+      }
       default:
         return baseProps;
     }

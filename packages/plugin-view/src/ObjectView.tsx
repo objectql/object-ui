@@ -535,6 +535,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           grid: 'table',
           list: 'list',
           detail: 'file-text',
+          chart: 'bar-chart-3',
         };
         return {
           type: v.type as ViewType,
@@ -747,6 +748,27 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           locationField: viewOptions.map?.locationField || 'location',
           ...(viewOptions.map || {}),
         };
+      case 'chart': {
+        // Aggregated chart of the object's records, delegating to the same
+        // object-chart component the dashboard uses.
+        const chartCfg = viewOptions.chart || {};
+        const valueField = (Array.isArray(chartCfg.yAxisFields) && chartCfg.yAxisFields[0])
+          || chartCfg.valueField || 'value';
+        const categoryField = chartCfg.xAxisField || chartCfg.categoryField || 'name';
+        return {
+          type: 'object-chart',
+          objectName: schema.objectName,
+          chartType: chartCfg.chartType || 'bar',
+          aggregate: {
+            field: valueField,
+            function: chartCfg.aggregation || 'count',
+            groupBy: categoryField,
+          },
+          xAxisKey: categoryField,
+          series: [{ dataKey: valueField, label: valueField }],
+          className: 'h-[400px] w-full',
+        };
+      }
       default:
         return null;
     }

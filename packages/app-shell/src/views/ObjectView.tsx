@@ -1474,20 +1474,36 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
 
         if (viewDef.type === 'chart') {
             const chartConfig = viewDef.chart || {};
+            // ObjectChart consumes a structured `aggregate` ({ field, function,
+            // groupBy }) + `xAxisKey` + `series`, NOT the flat spec-level
+            // `xAxisField`/`yAxisFields`/`aggregation` keys. Translate here so the
+            // chart actually runs its aggregate query (otherwise it renders empty).
+            const categoryField = chartConfig.xAxisField || 'name';
+            const valueField =
+                (Array.isArray(chartConfig.yAxisFields) && chartConfig.yAxisFields[0]) || 'value';
+            const aggFn = chartConfig.aggregation || 'count';
+            const series =
+                chartConfig.series && chartConfig.series.length > 0
+                    ? chartConfig.series
+                    : [{ dataKey: valueField, label: valueField }];
             return (
                 <Suspense key={key} fallback={<div className="p-4 text-sm text-muted-foreground">Loading chart…</div>}>
-                    <ObjectChart 
+                    <ObjectChart
                         dataSource={ds}
                         schema={{
                             type: 'object-chart',
                             objectName: objectDef.name,
-                            chartType: chartConfig.chartType,
-                            xAxisField: chartConfig.xAxisField,
-                            yAxisFields: chartConfig.yAxisFields,
-                            aggregation: chartConfig.aggregation,
-                            series: chartConfig.series,
+                            chartType: chartConfig.chartType || 'bar',
+                            aggregate: {
+                                field: valueField,
+                                function: aggFn,
+                                groupBy: categoryField,
+                            },
+                            xAxisKey: categoryField,
+                            series,
                             config: chartConfig.config,
                             filter: chartConfig.filter,
+                            className: 'h-[400px] w-full',
                         } as any}
                     />
                 </Suspense>
