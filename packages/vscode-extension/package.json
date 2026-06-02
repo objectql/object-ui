@@ -203,7 +203,7 @@
     "@vscode/vsce": "^3.9.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.8"
   },
   "dependencies": {
     "@object-ui/core": "workspace:*",

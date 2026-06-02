@@ -96,7 +96,7 @@
     "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
-    "@vitest/ui": "^4.1.7",
+    "@vitest/ui": "^4.1.8",
     "autoprefixer": "^10.5.0",
     "happy-dom": "^20.9.0",
     "lucide-react": "^1.16.0",
@@ -108,6 +108,6 @@
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.8"
   }
 }
