@@ -44,7 +44,7 @@
     "@object-ui/providers": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/spec": "^7.3.0",
+    "@objectstack/spec": "^7.5.0",
     "@monaco-editor/react": "^4.7.0",
     "@sentry/react": "^10.53.1",
     "jsonc-parser": "^3.3.1",
