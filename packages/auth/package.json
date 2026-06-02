@@ -41,8 +41,8 @@
     "better-auth": "^1.6.13"
   },
   "devDependencies": {
-    "@types/react": "19.2.15",
-    "react": "19.2.6",
+    "@types/react": "19.2.16",
+    "react": "19.2.7",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
   },
