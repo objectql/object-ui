@@ -3,6 +3,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
 import { ObjectFormCanvas } from './ObjectFormCanvas';
+import { assistantBus } from '../../../assistant/assistantBus';
 
 afterEach(cleanup);
 
@@ -309,5 +310,37 @@ describe('ObjectFormCanvas — review/diff mode', () => {
     expect(screen.getByText('Review changes')).toBeInTheDocument();
     // The removed-field ghost only exists in review mode.
     expect(screen.queryByText('Legacy')).not.toBeInTheDocument();
+  });
+});
+
+describe('ObjectFormCanvas — Ask AI entry point', () => {
+  it('footer "Ask AI" opens the assistant via the bus', () => {
+    const before = assistantBus.getSnapshot().openSeq;
+    render(
+      <ObjectFormCanvas
+        objectName="x"
+        draft={{ name: 'x', fields: { a: { type: 'text', label: 'A' } } }}
+        onPatch={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByText('Ask AI'));
+    expect(assistantBus.getSnapshot().openSeq).toBe(before + 1);
+  });
+
+  it('empty-state "Generate fields with AI" opens the assistant', () => {
+    const before = assistantBus.getSnapshot().openSeq;
+    render(<ObjectFormCanvas objectName="x" draft={{ name: 'x', fields: {} }} onPatch={vi.fn()} />);
+    fireEvent.click(screen.getByText('Generate fields with AI'));
+    expect(assistantBus.getSnapshot().openSeq).toBe(before + 1);
+  });
+
+  it('hides the Ask AI affordance when read-only', () => {
+    render(
+      <ObjectFormCanvas
+        objectName="x"
+        draft={{ name: 'x', fields: { a: { type: 'text', label: 'A' } } }}
+      />,
+    );
+    expect(screen.queryByText('Ask AI')).not.toBeInTheDocument();
   });
 });

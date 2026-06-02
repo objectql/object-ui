@@ -96,6 +96,8 @@ import { MetadataDetailDrawer } from './MetadataDetailDrawer';
 import { HistoryPanel } from './ResourceHistoryPage';
 import { AuditPanel } from './AuditPanel';
 import { getMetadataPreview, type MetadataSelection } from './preview-registry';
+import { readFields } from './previews/object-fields-io';
+import { useRegisterAssistantEditor, type AssistantEditorContext } from '../../assistant/assistantBus';
 import { getMetadataInspector } from './inspector-registry';
 import { getMetadataDefaultInspector } from './default-inspector-registry';
 import { detectLocale, t, tFormat } from './i18n';
@@ -1070,6 +1072,31 @@ function MetadataResourceEditPageImpl({
     document.addEventListener('click', handler, true);
     return () => document.removeEventListener('click', handler, true);
   }, [isDirty, locale]);
+
+  // Publish "what's being edited" to the global AI chat so the agent can
+  // act on the open item (and offer item-specific starter prompts). Kept
+  // to a light summary — the agent can `describe_object` for full detail.
+  // Declared above the early returns to satisfy the Rules of Hooks.
+  const assistantEditorCtx = React.useMemo<AssistantEditorContext | null>(() => {
+    if (embedded) return null;
+    const itemName = String((draft as any).name ?? name ?? '');
+    if (!itemName) return null;
+    const ctx: AssistantEditorContext = {
+      type,
+      name: itemName,
+      label: typeof (draft as any).label === 'string' ? (draft as any).label : undefined,
+    };
+    if (type === 'object') {
+      ctx.fields = readFields((draft as any).fields).entries.slice(0, 60).map((e) => ({
+        name: e.name,
+        type: typeof e.def.type === 'string' ? (e.def.type as string) : undefined,
+        label: typeof e.def.label === 'string' ? (e.def.label as string) : undefined,
+        required: !!e.def.required || undefined,
+      }));
+    }
+    return ctx;
+  }, [embedded, type, name, draft]);
+  useRegisterAssistantEditor(assistantEditorCtx);
 
   if (loading) {
     return (

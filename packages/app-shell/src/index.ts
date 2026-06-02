@@ -214,3 +214,16 @@ export type {
   MetadataInspector,
   MetadataInspectorProps,
 } from './views/metadata-admin';
+
+// AI assistant bus — connects the metadata designers to the global chat.
+export {
+  assistantBus,
+  useAssistant,
+  useRegisterAssistantEditor,
+  requestAssistantOpen,
+} from './assistant/assistantBus';
+export type {
+  AssistantSnapshot,
+  AssistantEditorContext,
+  AssistantEditorField,
+} from './assistant/assistantBus';

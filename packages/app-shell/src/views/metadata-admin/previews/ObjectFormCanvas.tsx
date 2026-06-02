@@ -39,9 +39,11 @@ import {
   ChevronsUpDown,
   CheckSquare,
   GitCompareArrows,
+  Sparkles,
   X,
 } from 'lucide-react';
 import type { MetadataSelection } from '../preview-registry';
+import { requestAssistantOpen } from '../../../assistant/assistantBus';
 import {
   readFields,
   writeFields,
@@ -541,6 +543,15 @@ export function ObjectFormCanvas({
             >
               <FolderPlus className="h-3.5 w-3.5" />
               {t('designer.canvas.addSection', locale)}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 ml-auto text-primary/80 hover:text-primary"
+              onClick={() => requestAssistantOpen()}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {t('designer.canvas.askAi', locale)}
             </Button>
           </div>
         )}
@@ -1205,8 +1216,17 @@ function EmptyCanvas({ onAdd, locale }: { onAdd?: (type: FieldTypeId) => void; l
         {t('designer.canvas.noFieldsHint', locale)}
       </div>
       {onAdd && (
-        <div className="pt-2">
+        <div className="pt-2 flex items-center justify-center gap-2">
           <AddFieldButton onPick={onAdd} locale={locale} />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-primary/80 hover:text-primary"
+            onClick={() => requestAssistantOpen()}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {t('designer.canvas.askAiGenerate', locale)}
+          </Button>
         </div>
       )}
     </div>

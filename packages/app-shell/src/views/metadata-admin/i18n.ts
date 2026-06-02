@@ -597,6 +597,9 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'designer.canvas.diffChanged': 'Changed',
   'designer.canvas.diffRemoved': 'Removed',
   'designer.canvas.diffChangedKeys': 'Changed: {keys}',
+  // AI assistant entry points
+  'designer.canvas.askAi': 'Ask AI',
+  'designer.canvas.askAiGenerate': 'Generate fields with AI',
 };
 
 const ENGINE_STRINGS_ZH: Record<string, string> = {
@@ -1053,6 +1056,9 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'designer.canvas.diffChanged': '修改',
   'designer.canvas.diffRemoved': '删除',
   'designer.canvas.diffChangedKeys': '变更：{keys}',
+  // AI assistant entry points
+  'designer.canvas.askAi': '问 AI',
+  'designer.canvas.askAiGenerate': '用 AI 生成字段',
 };
 
 function pickTable(

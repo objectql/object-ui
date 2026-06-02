@@ -32,6 +32,7 @@ import {
 import { Share2, SquarePen } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useChatConversation, type HydratedUIMessage } from '../hooks';
+import { useAssistant, type AssistantEditorContext } from '../assistant/assistantBus';
 
 /**
  * Display names for the built-in platform agents. The backend ships English
@@ -177,6 +178,23 @@ function resolveApiBase(explicit?: string): string {
  * the active agent changes so `useObjectChat`'s first-render mode lock
  * (api vs local) picks up the new endpoint.
  */
+/**
+ * Starter prompts tailored to the metadata item currently open in a
+ * designer. Returns null when nothing relevant is being edited, so the
+ * caller falls back to the generic agent suggestions.
+ */
+function buildEditorSuggestions(
+  editor: AssistantEditorContext | null,
+  language: string,
+): string[] | null {
+  if (!editor || editor.type !== 'object') return null;
+  const subject = editor.label || editor.name || 'this object';
+  const zh = (language ?? '').toLowerCase().startsWith('zh');
+  return zh
+    ? [`为「${subject}」补充字段`, `为「${subject}」建议校验规则`, '添加一个状态选项字段']
+    : [`Add fields to ${subject}`, `Suggest validations for ${subject}`, 'Add a status picklist field'];
+}
+
 interface ChatbotInnerProps {
   appLabel: string;
   appName?: string;
@@ -228,6 +246,11 @@ function ChatbotInner({
 }: ChatbotInnerProps) {
   const { language } = useObjectTranslation();
 
+  // What the user is currently editing in a designer (if any). Merged into
+  // the agent context so "add a priority field" acts on the open object,
+  // and drives context-aware starter suggestions.
+  const { editor } = useAssistant();
+
   // Replay persisted history when present.
   const hydratedHistory = React.useMemo<ChatMessage[]>(() => {
     if (!persistedMessages || persistedMessages.length === 0) return [];
@@ -249,6 +272,12 @@ function ChatbotInner({
     [language, appLabel, activeAgent, activeAgentLabel, objects],
   );
 
+  // When a designer is open, prefer starter prompts about that item.
+  const editorSuggestions = React.useMemo(
+    () => buildEditorSuggestions(editor, language),
+    [editor, language],
+  );
+
   const {
     messages,
     isLoading,
@@ -266,6 +295,9 @@ function ChatbotInner({
         appName,
         objects: objects.map((o) => ({ name: o.name, label: o.label })),
         agentName: activeAgent,
+        // The metadata item currently open in a designer, so the agent
+        // can act on "this object/view/…" without the user restating it.
+        ...(editor ? { editing: editor } : {}),
       },
     },
     // Start empty so the modern empty-state + starter prompts render. We no
@@ -385,7 +417,7 @@ function ChatbotInner({
         showAvatars
         hideClearBar
         assistantAvatarFallback={locale.agentLabel}
-        suggestions={messages.length === 0 ? locale.suggestions : undefined}
+        suggestions={messages.length === 0 ? (editorSuggestions ?? locale.suggestions) : undefined}
         placeholder={
           activeAgent
             ? locale.placeholder

@@ -15,7 +15,8 @@
  *
  * @module
  */
-import React, { Suspense, lazy, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { useAssistant } from '../assistant/assistantBus';
 
 const ConsoleFloatingChatbot = lazy(() => import('./ConsoleFloatingChatbot'));
 const prefetchChatbot = () => {
@@ -28,6 +29,18 @@ export type ConsoleChatbotFabProps = ConsoleFloatingChatbotProps;
 
 export function ConsoleChatbotFab(props: ConsoleChatbotFabProps) {
   const [armed, setArmed] = useState(false);
+
+  // A designer surface can ask the assistant to open (e.g. an "Ask AI"
+  // button) via the assistant bus — arming the lazy chatbot just like a
+  // click does. Once armed, the chatbot's own trigger owns open/close.
+  const { openSeq } = useAssistant();
+  const seenOpenSeq = useRef(openSeq);
+  useEffect(() => {
+    if (openSeq !== seenOpenSeq.current) {
+      seenOpenSeq.current = openSeq;
+      setArmed(true);
+    }
+  }, [openSeq]);
 
   if (armed) {
     return (
