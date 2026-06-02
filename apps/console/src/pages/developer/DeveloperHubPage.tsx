@@ -32,7 +32,9 @@ export function DeveloperHubPage() {
       title: 'API Console',
       description: 'Inspect and exercise REST endpoints with auto-discovered services',
       icon: Terminal,
-      href: `${basePath}/developer/api-console`,
+      // Standalone top-level route — app-independent, opens full-screen.
+      // Must not start with `/api` (that prefix is proxied to the backend).
+      href: `/developer/api-console`,
     },
     {
       title: 'Flow Runs',

@@ -12,7 +12,7 @@
  * with extra `<Route>` children.
  */
 
-import { type ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, AuthGuard, useAuth } from '@object-ui/auth';
 import {
@@ -48,6 +48,20 @@ import { SetupPage } from './pages/auth/SetupPage';
 import { OAuthConsentPage } from './pages/auth/OAuthConsentPage';
 import { DeviceAuthPage } from './pages/auth/DeviceAuthPage';
 import { AcceptInvitationPage } from './pages/auth/AcceptInvitationPage';
+
+/**
+ * Standalone API Console — a top-level, full-screen route
+ * (`/developer/api-console`) decoupled from the `/apps/:appName/*` inner
+ * shell. NOTE the path must NOT start with `/api`: the dev server and
+ * production reverse-proxy forward `/api*` to the backend, so a literal
+ * `/api-console` would 502 instead of serving the SPA. It only needs the
+ * adapter context (provided by ConnectedShell) and a signed-in user, so it
+ * renders bare — no ConsoleLayout sidebar, no active app / organization.
+ * Lazy-loaded so its bundle stays out of the auth-surface critical path.
+ */
+const ApiConsolePage = lazy(() =>
+  import('./pages/developer/ApiConsolePage').then(m => ({ default: m.ApiConsolePage })),
+);
 
 const AUTH_URL = `${import.meta.env.VITE_SERVER_URL || ''}/api/v1/auth`;
 
@@ -202,6 +216,22 @@ export function App() {
             <Route path="/ai/:conversationId" element={
               <ProtectedRoute>
                 <DefaultAiChatPage />
+              </ProtectedRoute>
+            } />
+            {/*
+              * Standalone API Console — full-screen, app-independent. Wrapped
+              * in a `h-screen flex-col` host because the page root is
+              * `flex flex-1 min-h-0` and needs a height-bearing flex parent
+              * (normally supplied by the inner shell's content area).
+              * requireOrganization={false}: the console is not org-scoped.
+              */}
+            <Route path="/developer/api-console" element={
+              <ProtectedRoute requireOrganization={false}>
+                <div className="flex h-screen flex-col">
+                  <Suspense fallback={<LoadingFallback />}>
+                    <ApiConsolePage />
+                  </Suspense>
+                </div>
               </ProtectedRoute>
             } />
             <Route path="/apps/:appName/*" element={
