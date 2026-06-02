@@ -225,3 +225,70 @@ export function groupEntries(
   // it never shows empty.
   return Array.from(buckets.values()).filter((b) => b.entries.length > 0 || (includeEmpty && b.key !== null));
 }
+
+/* ─────────────── Review diff (current draft vs a baseline) ─────────────── */
+
+export type FieldDiffStatus = 'added' | 'removed' | 'changed' | 'unchanged';
+
+export interface FieldDiffEntry {
+  name: string;
+  status: FieldDiffStatus;
+  /** Sorted def keys that differ (only for `changed`). */
+  changedKeys: string[];
+}
+
+export interface FieldsDiff {
+  /** Per current-field status, keyed by field name. */
+  byName: Record<string, FieldDiffEntry>;
+  /** Baseline fields absent from the current draft (rendered as ghosts). */
+  removed: FieldEntry[];
+  counts: { added: number; changed: number; removed: number };
+}
+
+/** Stable equality for field-def values (small JSON — order-sensitive is fine). */
+function valueEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
+/** Def keys whose values differ between two field definitions, sorted. */
+function changedDefKeys(a: Record<string, unknown>, b: Record<string, unknown>): string[] {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  const out: string[] = [];
+  for (const k of keys) if (!valueEqual(a[k], b[k])) out.push(k);
+  return out.sort();
+}
+
+/**
+ * Diff the current `fields` against a `baseline` (e.g. the last published
+ * version). Drives the canvas review mode: added / changed / removed
+ * per field. Shape-agnostic — both inputs are read via {@link readFields}.
+ */
+export function diffFields(baselineInput: unknown, currentInput: unknown): FieldsDiff {
+  const base = readFields(baselineInput);
+  const cur = readFields(currentInput);
+  const baseByName = new Map(base.entries.map((e) => [e.name, e] as const));
+  const curNames = new Set(cur.entries.map((e) => e.name));
+
+  const byName: Record<string, FieldDiffEntry> = {};
+  let added = 0;
+  let changed = 0;
+  for (const e of cur.entries) {
+    const b = baseByName.get(e.name);
+    if (!b) {
+      byName[e.name] = { name: e.name, status: 'added', changedKeys: [] };
+      added += 1;
+      continue;
+    }
+    const keys = changedDefKeys(b.def, e.def);
+    if (keys.length) {
+      byName[e.name] = { name: e.name, status: 'changed', changedKeys: keys };
+      changed += 1;
+    } else {
+      byName[e.name] = { name: e.name, status: 'unchanged', changedKeys: [] };
+    }
+  }
+
+  const removed = base.entries.filter((e) => !curNames.has(e.name));
+  return { byName, removed, counts: { added, changed, removed: removed.length } };
+}

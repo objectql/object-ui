@@ -589,6 +589,14 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'designer.canvas.bulkDelete': 'Delete',
   'designer.canvas.bulkClear': 'Clear',
   'designer.canvas.bulkHint': 'Ctrl/⌘-click or Shift-click to select multiple fields.',
+  // Review / diff mode (Tier 3 — AI-draft review)
+  'designer.canvas.reviewChanges': 'Review changes',
+  'designer.canvas.reviewExit': 'Exit review',
+  'designer.canvas.reviewVsPublished': 'vs last published',
+  'designer.canvas.diffAdded': 'Added',
+  'designer.canvas.diffChanged': 'Changed',
+  'designer.canvas.diffRemoved': 'Removed',
+  'designer.canvas.diffChangedKeys': 'Changed: {keys}',
 };
 
 const ENGINE_STRINGS_ZH: Record<string, string> = {
@@ -1037,6 +1045,14 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'designer.canvas.bulkDelete': '删除',
   'designer.canvas.bulkClear': '取消选择',
   'designer.canvas.bulkHint': '按住 Ctrl/⌘ 单击或 Shift 单击可多选字段。',
+  // Review / diff mode (Tier 3 — AI-draft review)
+  'designer.canvas.reviewChanges': '查看变更',
+  'designer.canvas.reviewExit': '退出查看',
+  'designer.canvas.reviewVsPublished': '对比已发布版本',
+  'designer.canvas.diffAdded': '新增',
+  'designer.canvas.diffChanged': '修改',
+  'designer.canvas.diffRemoved': '删除',
+  'designer.canvas.diffChangedKeys': '变更：{keys}',
 };
 
 function pickTable(

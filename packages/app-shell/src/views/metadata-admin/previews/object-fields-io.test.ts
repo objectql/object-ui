@@ -12,6 +12,7 @@ import {
   moveGroup,
   clearFieldGroup,
   groupEntries,
+  diffFields,
   type FieldsView,
 } from './object-fields-io';
 
@@ -199,5 +200,63 @@ describe('group ops preserve the fields round-trip shape', () => {
     expect(out[0].name).toBe('a');
     expect(out[0].customExtra).toBe(1);
     expect(out[0].group).toBeUndefined();
+  });
+});
+
+/* ─────────────── diffFields (review mode) ─────────────── */
+
+describe('diffFields', () => {
+  const baseline = {
+    name: { type: 'text', label: 'Name' },
+    email: { type: 'email', label: 'Email' },
+    legacy: { type: 'text', label: 'Legacy' },
+  };
+  const current = {
+    name: { type: 'text', label: 'Name' }, // unchanged
+    email: { type: 'email', label: 'Email Address', required: true }, // changed
+    phone: { type: 'phone', label: 'Phone' }, // added
+    // legacy removed
+  };
+
+  it('classifies added / changed / removed / unchanged', () => {
+    const d = diffFields(baseline, current);
+    expect(d.byName.name.status).toBe('unchanged');
+    expect(d.byName.email.status).toBe('changed');
+    expect(d.byName.phone.status).toBe('added');
+    expect(d.counts).toEqual({ added: 1, changed: 1, removed: 1 });
+  });
+
+  it('reports the changed def keys (sorted)', () => {
+    const d = diffFields(baseline, current);
+    expect(d.byName.email.changedKeys).toEqual(['label', 'required']);
+  });
+
+  it('surfaces removed fields as entries for ghost rendering', () => {
+    const d = diffFields(baseline, current);
+    expect(d.removed.map((e) => e.name)).toEqual(['legacy']);
+    expect(d.removed[0].def).toMatchObject({ type: 'text', label: 'Legacy' });
+  });
+
+  it('treats a missing/empty baseline as everything-added', () => {
+    const d = diffFields(undefined, { a: { type: 'text' }, b: { type: 'text' } });
+    expect(d.counts).toEqual({ added: 2, changed: 0, removed: 0 });
+  });
+
+  it('is shape-agnostic (array baseline vs record current)', () => {
+    const d = diffFields(
+      [{ name: 'a', type: 'text' }, { name: 'b', type: 'text' }],
+      { a: { type: 'text' } }, // b removed
+    );
+    expect(d.byName.a.status).toBe('unchanged');
+    expect(d.counts.removed).toBe(1);
+    expect(d.removed[0].name).toBe('b');
+  });
+
+  it('order-insensitive equality does not flag re-ordered identical defs', () => {
+    const d = diffFields(
+      { a: { type: 'text', label: 'A' } },
+      { a: { label: 'A', type: 'text' } },
+    );
+    expect(d.byName.a.status).toBe('unchanged');
   });
 });

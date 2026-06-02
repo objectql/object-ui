@@ -1750,6 +1750,11 @@ function MetadataResourceEditPageImpl({
                           type={type}
                           name={name}
                           draft={draft}
+                          baseline={
+                            !createMode
+                              ? ((layered?.effective as Record<string, unknown> | undefined) ?? undefined)
+                              : undefined
+                          }
                           editing={editing && !previewOnly}
                           selection={previewOnly ? null : selection}
                           onSelectionChange={setSelection}

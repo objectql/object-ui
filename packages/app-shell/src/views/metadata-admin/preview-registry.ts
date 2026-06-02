@@ -57,6 +57,13 @@ export interface MetadataPreviewProps {
    */
   onPatch?: (patch: Record<string, unknown>) => void;
   /**
+   * Optional: the last *published* version of this item, for previews
+   * that offer a review/diff mode (e.g. the object designer diffing an
+   * AI-authored draft against what's live). Undefined in create mode or
+   * when no published baseline exists.
+   */
+  baseline?: Record<string, unknown>;
+  /**
    * Optional: whether the host is in edit mode. Previews that ship
    * editing affordances should render them in a disabled/hidden state
    * when `editing === false`.

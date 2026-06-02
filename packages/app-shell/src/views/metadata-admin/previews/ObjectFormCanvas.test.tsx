@@ -1,10 +1,27 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
 import { ObjectFormCanvas } from './ObjectFormCanvas';
 
 afterEach(cleanup);
+
+/* shared fixtures for the review/diff tests */
+const REVIEW_BASELINE = {
+  name: 'account',
+  fields: {
+    name: { type: 'text', label: 'Name' },
+    legacy: { type: 'text', label: 'Legacy' },
+  },
+};
+const REVIEW_DRAFT = {
+  name: 'account',
+  fields: {
+    name: { type: 'text', label: 'Full Name' }, // changed (label)
+    phone: { type: 'phone', label: 'Mobile' }, // added (label ≠ type, avoids badge clash)
+    // legacy removed
+  },
+};
 
 /** Draft with three fields, two declared sections (one empty). */
 function draftWithGroups() {
@@ -251,5 +268,46 @@ describe('ObjectFormCanvas — bulk multi-select', () => {
     // Popover lists Ungrouped + the declared sections; pick "Metadata" (key 'meta').
     fireEvent.click(screen.getByRole('button', { name: 'Metadata' }));
     expect(onPatch.mock.calls.at(-1)![0].fields.notes.group).toBe('meta');
+  });
+});
+
+describe('ObjectFormCanvas — review/diff mode', () => {
+  const rowFor = (label: string) => screen.getByText(label).closest('[role="button"]') as HTMLElement;
+
+  it('offers a Review changes toggle only when a baseline differs', () => {
+    render(<ObjectFormCanvas objectName="account" draft={REVIEW_DRAFT} baseline={REVIEW_BASELINE} onPatch={vi.fn()} />);
+    expect(screen.getByText('Review changes')).toBeInTheDocument();
+  });
+
+  it('hides the toggle when there is no baseline', () => {
+    render(<ObjectFormCanvas objectName="account" draft={REVIEW_DRAFT} onPatch={vi.fn()} />);
+    expect(screen.queryByText('Review changes')).not.toBeInTheDocument();
+  });
+
+  it('hides the toggle when the draft equals the baseline', () => {
+    render(<ObjectFormCanvas objectName="account" draft={REVIEW_BASELINE} baseline={REVIEW_BASELINE} onPatch={vi.fn()} />);
+    expect(screen.queryByText('Review changes')).not.toBeInTheDocument();
+  });
+
+  it('shows per-field badges and a removed ghost when reviewing', () => {
+    render(<ObjectFormCanvas objectName="account" draft={REVIEW_DRAFT} baseline={REVIEW_BASELINE} onPatch={vi.fn()} />);
+    fireEvent.click(screen.getByText('Review changes'));
+    // Added badge scoped to the new field's row.
+    expect(within(rowFor('Mobile')).getByText('Added')).toBeInTheDocument();
+    // Changed badge scoped to the edited field's row.
+    expect(within(rowFor('Full Name')).getByText('Changed')).toBeInTheDocument();
+    // Removed field shows as a ghost (its label survives only in review mode).
+    expect(screen.getByText('Legacy')).toBeInTheDocument();
+  });
+
+  it('Exit review removes the diff chrome (incl. the removed ghost)', () => {
+    render(<ObjectFormCanvas objectName="account" draft={REVIEW_DRAFT} baseline={REVIEW_BASELINE} onPatch={vi.fn()} />);
+    fireEvent.click(screen.getByText('Review changes'));
+    expect(screen.getByText('Exit review')).toBeInTheDocument();
+    expect(screen.getByText('Legacy')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Exit review'));
+    expect(screen.getByText('Review changes')).toBeInTheDocument();
+    // The removed-field ghost only exists in review mode.
+    expect(screen.queryByText('Legacy')).not.toBeInTheDocument();
   });
 });

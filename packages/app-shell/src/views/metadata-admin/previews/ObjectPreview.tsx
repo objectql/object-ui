@@ -22,6 +22,7 @@ import { t } from '../i18n';
 export function ObjectPreview({
   name,
   draft,
+  baseline,
   onPatch,
   selection,
   onSelectionChange,
@@ -45,6 +46,7 @@ export function ObjectPreview({
         <ObjectFormCanvas
           objectName={objectName}
           draft={draft}
+          baseline={baseline}
           onPatch={onPatch}
           selection={selection}
           onSelectionChange={onSelectionChange}

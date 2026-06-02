@@ -38,6 +38,7 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   CheckSquare,
+  GitCompareArrows,
   X,
 } from 'lucide-react';
 import type { MetadataSelection } from '../preview-registry';
@@ -53,8 +54,11 @@ import {
   removeGroup,
   moveGroup,
   clearFieldGroup,
+  diffFields,
   type FieldEntry,
   type FieldGroup,
+  type FieldsDiff,
+  type FieldDiffStatus,
 } from './object-fields-io';
 import {
   FIELD_TYPE_META,
@@ -80,6 +84,8 @@ const categoryLabel = (cat: FieldTypeCategory, locale?: string): string =>
 export interface ObjectFormCanvasProps {
   objectName: string;
   draft: Record<string, unknown>;
+  /** Last published version, for the review/diff mode. */
+  baseline?: Record<string, unknown>;
   onPatch?: (patch: Record<string, unknown>) => void;
   selection?: MetadataSelection | null;
   onSelectionChange?: (next: MetadataSelection | null) => void;
@@ -89,6 +95,7 @@ export interface ObjectFormCanvasProps {
 export function ObjectFormCanvas({
   objectName,
   draft,
+  baseline,
   onPatch,
   selection,
   onSelectionChange,
@@ -97,6 +104,25 @@ export function ObjectFormCanvas({
   const readOnly = !onPatch;
 
   const view = React.useMemo(() => readFields((draft as any).fields), [draft]);
+
+  /* ─── Review/diff mode — draft vs last published ─── */
+  const diff = React.useMemo<FieldsDiff | null>(
+    () => (baseline ? diffFields((baseline as any).fields, (draft as any).fields) : null),
+    [baseline, draft],
+  );
+  const changeCount = diff
+    ? diff.counts.added + diff.counts.changed + diff.counts.removed
+    : 0;
+  const [reviewMode, setReviewMode] = React.useState(false);
+  // Auto-exit review when nothing differs anymore (e.g. user reverted edits).
+  React.useEffect(() => {
+    if (reviewMode && changeCount === 0) setReviewMode(false);
+  }, [reviewMode, changeCount]);
+  const reviewing = reviewMode && changeCount > 0;
+  const statusOf = (name: string): FieldDiffStatus | undefined =>
+    reviewing ? diff?.byName[name]?.status : undefined;
+  const changedKeysOf = (name: string): string[] =>
+    reviewing ? diff?.byName[name]?.changedKeys ?? [] : [];
   const declaredGroups = React.useMemo<FieldGroup[]>(
     () => readGroups((draft as any).fieldGroups),
     [draft],
@@ -429,6 +455,10 @@ export function ObjectFormCanvas({
             sectionCount={declaredGroups.length}
             allCollapsed={allCollapsed}
             onToggleAll={showSectionChrome ? () => setAllCollapsed(!allCollapsed) : undefined}
+            reviewAvailable={changeCount > 0}
+            reviewing={reviewing}
+            diffCounts={diff?.counts}
+            onToggleReview={() => setReviewMode((v) => !v)}
             locale={locale}
           />
         )}
@@ -466,6 +496,8 @@ export function ObjectFormCanvas({
                       entry={entry}
                       selected={entry.name === selectedName}
                       multiSelected={multiSel.has(entry.name)}
+                      diffStatus={statusOf(entry.name)}
+                      changedKeys={changedKeysOf(entry.name)}
                       readOnly={readOnly}
                       locale={locale}
                       onClick={(e) => handleRowClick(entry, e)}
@@ -484,6 +516,17 @@ export function ObjectFormCanvas({
                 </GroupSection>
               );
             })}
+          </div>
+        )}
+
+        {reviewing && diff && diff.removed.length > 0 && (
+          <div className="space-y-2.5">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-destructive/80 pl-1">
+              {t('designer.canvas.diffRemoved', locale)}
+            </div>
+            {diff.removed.map((entry) => (
+              <GhostFieldRow key={entry.name} entry={entry} locale={locale} />
+            ))}
           </div>
         )}
 
@@ -514,6 +557,10 @@ function CanvasToolbar({
   sectionCount,
   allCollapsed,
   onToggleAll,
+  reviewAvailable,
+  reviewing,
+  diffCounts,
+  onToggleReview,
   locale,
 }: {
   fieldCount: number;
@@ -521,40 +568,85 @@ function CanvasToolbar({
   sectionCount: number;
   allCollapsed: boolean;
   onToggleAll?: () => void;
+  reviewAvailable?: boolean;
+  reviewing?: boolean;
+  diffCounts?: { added: number; changed: number; removed: number };
+  onToggleReview?: () => void;
   locale?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-      <div className="flex items-center gap-1.5">
-        <span className="font-medium text-foreground/80">{fieldCount}</span>{' '}
-        {t('designer.canvas.fields', locale)}
-        <span className="text-muted-foreground/50">·</span>
-        <span className="font-medium text-foreground/80">{requiredCount}</span>{' '}
-        {t('designer.canvas.required', locale)}
-        {sectionCount > 0 && (
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {reviewing && diffCounts ? (
           <>
+            <span className="font-medium text-emerald-600 dark:text-emerald-400">
+              {diffCounts.added}
+            </span>{' '}
+            {t('designer.canvas.diffAdded', locale)}
             <span className="text-muted-foreground/50">·</span>
-            <span className="font-medium text-foreground/80">{sectionCount}</span>{' '}
-            {t('designer.canvas.sections', locale)}
+            <span className="font-medium text-amber-600 dark:text-amber-400">
+              {diffCounts.changed}
+            </span>{' '}
+            {t('designer.canvas.diffChanged', locale)}
+            <span className="text-muted-foreground/50">·</span>
+            <span className="font-medium text-destructive">{diffCounts.removed}</span>{' '}
+            {t('designer.canvas.diffRemoved', locale)}
+            <span className="text-muted-foreground/40 normal-case ml-1">
+              {t('designer.canvas.reviewVsPublished', locale)}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="font-medium text-foreground/80">{fieldCount}</span>{' '}
+            {t('designer.canvas.fields', locale)}
+            <span className="text-muted-foreground/50">·</span>
+            <span className="font-medium text-foreground/80">{requiredCount}</span>{' '}
+            {t('designer.canvas.required', locale)}
+            {sectionCount > 0 && (
+              <>
+                <span className="text-muted-foreground/50">·</span>
+                <span className="font-medium text-foreground/80">{sectionCount}</span>{' '}
+                {t('designer.canvas.sections', locale)}
+              </>
+            )}
           </>
         )}
       </div>
-      {onToggleAll && (
-        <button
-          type="button"
-          onClick={onToggleAll}
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-accent hover:text-foreground transition-colors"
-        >
-          {allCollapsed ? (
-            <ChevronsUpDown className="h-3 w-3" />
-          ) : (
-            <ChevronsDownUp className="h-3 w-3" />
-          )}
-          {allCollapsed
-            ? t('designer.canvas.expandAll', locale)
-            : t('designer.canvas.collapseAll', locale)}
-        </button>
-      )}
+      <div className="flex items-center gap-1 shrink-0">
+        {reviewAvailable && onToggleReview && (
+          <button
+            type="button"
+            onClick={onToggleReview}
+            className={cn(
+              'inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors',
+              reviewing
+                ? 'bg-primary/10 text-primary hover:bg-primary/15'
+                : 'hover:bg-accent hover:text-foreground',
+            )}
+          >
+            <GitCompareArrows className="h-3 w-3" />
+            {reviewing
+              ? t('designer.canvas.reviewExit', locale)
+              : t('designer.canvas.reviewChanges', locale)}
+          </button>
+        )}
+        {onToggleAll && (
+          <button
+            type="button"
+            onClick={onToggleAll}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-accent hover:text-foreground transition-colors"
+          >
+            {allCollapsed ? (
+              <ChevronsUpDown className="h-3 w-3" />
+            ) : (
+              <ChevronsDownUp className="h-3 w-3" />
+            )}
+            {allCollapsed
+              ? t('designer.canvas.expandAll', locale)
+              : t('designer.canvas.collapseAll', locale)}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -859,10 +951,39 @@ function SectionHeader({
   );
 }
 
+/** Read-only ghost of a field that exists in the baseline but was removed. */
+function GhostFieldRow({ entry, locale }: { entry: FieldEntry; locale?: string }) {
+  const def = entry.def;
+  const typeStr = typeof def.type === 'string' ? (def.type as string) : 'text';
+  const meta = FIELD_TYPE_META[typeStr as FieldTypeId];
+  const Icon = meta?.Icon;
+  const label = typeof def.label === 'string' ? (def.label as string) : entry.name;
+  return (
+    <div className="rounded-md border border-dashed border-destructive/30 bg-destructive/[0.03] px-3.5 py-2.5 opacity-80">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />}
+          <span className="text-sm font-medium truncate line-through text-muted-foreground">
+            {label}
+          </span>
+          <code className="text-[10px] text-muted-foreground/60 font-mono truncate line-through">
+            {entry.name}
+          </code>
+        </div>
+        <Badge className="text-[10px] font-medium border-transparent bg-destructive/15 text-destructive shrink-0">
+          {t('designer.canvas.diffRemoved', locale)}
+        </Badge>
+      </div>
+    </div>
+  );
+}
+
 function FieldRow({
   entry,
   selected,
   multiSelected,
+  diffStatus,
+  changedKeys,
   readOnly,
   locale,
   onClick,
@@ -873,6 +994,9 @@ function FieldRow({
   entry: FieldEntry;
   selected: boolean;
   multiSelected?: boolean;
+  /** Review mode: how this field differs from the published baseline. */
+  diffStatus?: FieldDiffStatus;
+  changedKeys?: string[];
   readOnly: boolean;
   locale?: string;
   /** Receives the mouse event so the host can branch on Ctrl/⌘/Shift. */
@@ -985,6 +1109,8 @@ function FieldRow({
           'hover:border-primary/40 hover:bg-card outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
           selected ? 'border-primary ring-2 ring-primary/30 shadow-sm' : 'border-border',
           multiSelected && 'border-primary/60 ring-2 ring-primary/40 bg-primary/[0.04]',
+          diffStatus === 'added' && 'border-l-[3px] border-l-emerald-500',
+          diffStatus === 'changed' && 'border-l-[3px] border-l-amber-500',
           readOnly && 'cursor-default',
           draggable && 'cursor-grab active:cursor-grabbing',
         )}
@@ -1028,9 +1154,28 @@ function FieldRow({
             {required && <span className="text-destructive text-sm">*</span>}
             <code className="text-[10px] text-muted-foreground/70 font-mono truncate">{entry.name}</code>
           </div>
-          <Badge variant="outline" className={cn('text-[10px] shrink-0 font-medium', tone.badge)}>
-            {typeLabel(meta, locale) ?? typeStr}
-          </Badge>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {diffStatus === 'added' && (
+              <Badge className="text-[10px] font-medium border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                {t('designer.canvas.diffAdded', locale)}
+              </Badge>
+            )}
+            {diffStatus === 'changed' && (
+              <Badge
+                className="text-[10px] font-medium border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                title={
+                  changedKeys && changedKeys.length
+                    ? tFormat('designer.canvas.diffChangedKeys', locale, { keys: changedKeys.join(', ') })
+                    : undefined
+                }
+              >
+                {t('designer.canvas.diffChanged', locale)}
+              </Badge>
+            )}
+            <Badge variant="outline" className={cn('text-[10px] font-medium', tone.badge)}>
+              {typeLabel(meta, locale) ?? typeStr}
+            </Badge>
+          </div>
         </div>
         {description && (
           <div className="text-[11px] text-muted-foreground mb-1.5 line-clamp-1">{description}</div>
