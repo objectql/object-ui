@@ -447,7 +447,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // the user always gets there.
     let preOpenedTab: Window | null = null;
     if ((action as any).opensInNewTab) {
-      try { preOpenedTab = window.open('about:blank', '_blank', 'noopener,noreferrer'); } catch { preOpenedTab = null; }
+      // NOTE: do NOT pass 'noopener' here — per spec it forces window.open to
+      // return null even when the tab opens, so we'd lose the handle, fall
+      // through to the popup branch below, and end up navigating the *current*
+      // tab to the redirectUrl (the double-navigation bug: env opens in a new
+      // tab AND the list/detail page jumps to the now-consumed SSO URL). We
+      // need the reference to drive the pre-opened tab to the SSO redirect.
+      try { preOpenedTab = window.open('about:blank', '_blank'); } catch { preOpenedTab = null; }
     }
 
     try {
@@ -486,7 +492,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           }
         } else {
           let popup: Window | null = null;
-          try { popup = window.open(redirectUrl, '_blank', 'noopener,noreferrer'); } catch { popup = null; }
+          // No 'noopener' so a successful open returns a truthy handle; with
+          // it, the null return would always trip the current-tab fallback.
+          try { popup = window.open(redirectUrl, '_blank'); } catch { popup = null; }
           if (!popup) { window.location.href = redirectUrl; }
         }
       } else if (preOpenedTab) {

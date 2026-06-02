@@ -1278,7 +1278,12 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
         // current tab if the pre-open is itself blocked.
         let preOpenedTab: Window | null = null;
         if ((action as any).opensInNewTab) {
-            try { preOpenedTab = window.open('about:blank', '_blank', 'noopener,noreferrer'); } catch { preOpenedTab = null; }
+            // NOTE: no 'noopener' — per spec it forces window.open to return
+            // null even when the tab opens, losing the handle so we'd fall
+            // through to the popup branch and navigate the *current* (list)
+            // tab to the redirectUrl (double-navigation bug). We need the
+            // reference to drive the pre-opened tab to the SSO redirect.
+            try { preOpenedTab = window.open('about:blank', '_blank'); } catch { preOpenedTab = null; }
         }
         try {
             const baseUrl = import.meta.env.VITE_SERVER_URL || '';
@@ -1315,7 +1320,10 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
                     }
                 } else {
                     let popup: Window | null = null;
-                    try { popup = window.open(redirectUrl, '_blank', 'noopener,noreferrer'); } catch { popup = null; }
+                    // No 'noopener' so a successful open returns a truthy
+                    // handle; with it the null return would always trip the
+                    // current-tab fallback below.
+                    try { popup = window.open(redirectUrl, '_blank'); } catch { popup = null; }
                     if (!popup) window.location.href = redirectUrl;
                 }
             } else if (preOpenedTab) {
