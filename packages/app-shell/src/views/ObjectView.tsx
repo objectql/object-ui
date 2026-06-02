@@ -1256,8 +1256,30 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
             return { success: false, error: 'No action target provided' };
         }
         const params = (action.params && !Array.isArray(action.params))
-            ? (action.params as Record<string, unknown>)
+            ? { ...(action.params as Record<string, unknown>) }
             : {};
+        // Row-action path stashes the row under `_rowRecord` (ObjectGrid →
+        // onRowAction) but ActionRunner doesn't set `recordId` for `script`
+        // handlers — derive it from the row so list_item actions (e.g. "Open"
+        // on an environment row) resolve their target record. Strip
+        // `_rowRecord` from the sent body.
+        const _rowRecord = (params as any)._rowRecord as Record<string, any> | undefined;
+        delete (params as any)._rowRecord;
+        const recordIdField = (action as any).recordIdField || 'id';
+        const resolvedRecordId = (params as any).recordId ?? _rowRecord?.[recordIdField];
+
+        // ── Popup-blocker workaround (mirrors RecordDetailView) ───────────
+        // When `action.opensInNewTab` is set, the handler returns
+        // `{ redirectUrl }` for the UI to navigate to. Pre-open `about:blank`
+        // synchronously *before* the await so the user-gesture context is
+        // preserved and Chrome/Safari don't block the eventual navigation —
+        // without this, the post-await window.open() on the row-action path
+        // is dropped as an unsolicited popup. Falls back to navigating the
+        // current tab if the pre-open is itself blocked.
+        let preOpenedTab: Window | null = null;
+        if ((action as any).opensInNewTab) {
+            try { preOpenedTab = window.open('about:blank', '_blank', 'noopener,noreferrer'); } catch { preOpenedTab = null; }
+        }
         try {
             const baseUrl = import.meta.env.VITE_SERVER_URL || '';
             const obj = action.objectName || objectDef.name || 'global';
@@ -1266,18 +1288,44 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ recordId: (params as any).recordId, params }),
+                    body: JSON.stringify({ recordId: resolvedRecordId, params }),
                 },
             );
             const json = await res.json().catch(() => null);
             if (!res.ok || (json && json.success === false)) {
                 const errMsg = json?.error || `Action "${targetName}" failed (HTTP ${res.status})`;
+                if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
                 return { success: false, error: errMsg };
             }
             const shouldRefresh = action.refreshAfter !== false;
             if (shouldRefresh) setRefreshKey(k => k + 1);
-            return { success: true, data: json?.data, reload: shouldRefresh };
+            const data = json?.data;
+            // `{ redirectUrl }` convention: drive the pre-opened tab to it
+            // (popup-safe); otherwise open lazily, falling back to the current
+            // tab if blocked so the user always reaches the destination.
+            const redirectUrl = (data && typeof data === 'object' && typeof (data as any).redirectUrl === 'string')
+                ? (data as any).redirectUrl as string
+                : null;
+            if (redirectUrl) {
+                if (preOpenedTab) {
+                    try { preOpenedTab.location.href = redirectUrl; }
+                    catch {
+                        try { preOpenedTab.close(); } catch { /* ignore */ }
+                        window.location.href = redirectUrl;
+                    }
+                } else {
+                    let popup: Window | null = null;
+                    try { popup = window.open(redirectUrl, '_blank', 'noopener,noreferrer'); } catch { popup = null; }
+                    if (!popup) window.location.href = redirectUrl;
+                }
+            } else if (preOpenedTab) {
+                // opensInNewTab declared but no redirectUrl came back — don't
+                // leave a dangling blank tab.
+                try { preOpenedTab.close(); } catch { /* ignore */ }
+            }
+            return { success: true, data, reload: shouldRefresh };
         } catch (error) {
+            if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
             return { success: false, error: (error as Error).message };
         }
     }, [authFetch, objectDef.name]);

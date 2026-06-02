@@ -103,6 +103,44 @@ const RowActionMenuItem: React.FC<{
   );
 };
 
+/** Map a schema action variant onto a Button variant. `primary` is the
+ * accent ("default") button so the action reads as the row's main CTA. */
+function toButtonVariant(v: RowActionDef['variant']): 'default' | 'secondary' | 'destructive' | 'ghost' | 'link' {
+  switch (v) {
+    case 'danger': return 'destructive';
+    case 'secondary': return 'secondary';
+    case 'ghost': return 'ghost';
+    case 'link': return 'link';
+    default: return 'default'; // 'primary' (and unset) → accent button
+  }
+}
+
+/**
+ * A `variant: 'primary'` row action rendered as an inline button (not folded
+ * into the "⋮" overflow), so the row's main CTA — e.g. "Open" on an
+ * environment — is immediately visible and clickable. Hook-safe per item so
+ * the `visible` CEL predicate is honored just like the menu path.
+ */
+const RowActionInlineButton: React.FC<{
+  def: RowActionDef;
+  row: any;
+  onActionDef?: (def: RowActionDef, row: any) => void;
+}> = ({ def, row, onActionDef }) => {
+  const isVisible = useCondition(toPredicateInput(def.visible), row);
+  if (def.visible && !isVisible) return null;
+  return (
+    <Button
+      variant={toButtonVariant(def.variant)}
+      size="sm"
+      className="h-8"
+      data-testid={`row-action-inline-${def.name}`}
+      onClick={(e) => { e.stopPropagation(); onActionDef?.(def, row); }}
+    >
+      {def.label ?? formatActionLabel(def.name)}
+    </Button>
+  );
+};
+
 export const RowActionMenu: React.FC<RowActionMenuProps> = ({
   row,
   rowActions,
@@ -115,50 +153,72 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
   onActionDef,
 }) => {
   const t = useRowActionTranslation();
+  // Surface `variant: 'primary'` row actions inline (as the row's main CTA);
+  // everything else stays in the "⋮" overflow menu.
+  const inlineDefs = (rowActionDefs ?? []).filter(d => d.variant === 'primary');
+  const menuDefs = (rowActionDefs ?? []).filter(d => d.variant !== 'primary');
+  const hasMenu = Boolean(
+    (canEdit && onEdit) ||
+    (canDelete && onDelete) ||
+    menuDefs.length > 0 ||
+    (rowActions?.length ?? 0) > 0,
+  );
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
-          data-testid="row-action-trigger"
-        >
-          <MoreVertical className="h-4 w-4" />
-          <span className="sr-only">{t('grid.openMenu')}</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-        {canEdit && onEdit && (
-          <DropdownMenuItem onClick={() => onEdit(row)}>
-            <Edit className="mr-2 h-4 w-4" />
-            {t('grid.edit')}
-          </DropdownMenuItem>
-        )}
-        {canDelete && onDelete && (
-          <DropdownMenuItem onClick={() => onDelete(row)}>
-            <Trash2 className="mr-2 h-4 w-4" />
-            {t('grid.delete')}
-          </DropdownMenuItem>
-        )}
-        {rowActionDefs?.map(def => (
-          <RowActionMenuItem
-            key={def.name}
-            def={def}
-            row={row}
-            onActionDef={onActionDef}
-          />
-        ))}
-        {rowActions?.map(action => (
-          <DropdownMenuItem
-            key={action}
-            onClick={() => onAction?.(action, row)}
-            data-testid={`row-action-${action}`}
-          >
-            {formatActionLabel(action)}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+      {inlineDefs.map(def => (
+        <RowActionInlineButton
+          key={def.name}
+          def={def}
+          row={row}
+          onActionDef={onActionDef}
+        />
+      ))}
+      {hasMenu && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
+              data-testid="row-action-trigger"
+            >
+              <MoreVertical className="h-4 w-4" />
+              <span className="sr-only">{t('grid.openMenu')}</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            {canEdit && onEdit && (
+              <DropdownMenuItem onClick={() => onEdit(row)}>
+                <Edit className="mr-2 h-4 w-4" />
+                {t('grid.edit')}
+              </DropdownMenuItem>
+            )}
+            {canDelete && onDelete && (
+              <DropdownMenuItem onClick={() => onDelete(row)}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                {t('grid.delete')}
+              </DropdownMenuItem>
+            )}
+            {menuDefs.map(def => (
+              <RowActionMenuItem
+                key={def.name}
+                def={def}
+                row={row}
+                onActionDef={onActionDef}
+              />
+            ))}
+            {rowActions?.map(action => (
+              <DropdownMenuItem
+                key={action}
+                onClick={() => onAction?.(action, row)}
+                data-testid={`row-action-${action}`}
+              >
+                {formatActionLabel(action)}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
   );
 };
