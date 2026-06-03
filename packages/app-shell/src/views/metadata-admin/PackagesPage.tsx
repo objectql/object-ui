@@ -358,6 +358,33 @@ function PackageDetailSheet({
       'Package published.',
     );
 
+  // ADR-0033 — publish every pending draft of this app in one shot, then
+  // refresh the pending list (it should now be empty). Distinct from the
+  // registry-based `publish` above; this hits `/publish-drafts`.
+  const publishDrafts = () =>
+    run(
+      'publish-drafts',
+      () =>
+        apiJson<{ publishedCount?: number; failedCount?: number; failed?: Array<{ name?: string }> }>(
+          `${API}/${encodeURIComponent(id)}/publish-drafts`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
+        ).then(async (r) => {
+          try {
+            const fresh = await apiJson<{ drafts?: Array<{ type: string; name: string }> }>(
+              `/api/v1/meta/_drafts?packageId=${encodeURIComponent(id)}`,
+            );
+            setDrafts(fresh?.drafts ?? []);
+          } catch {
+            setDrafts([]);
+          }
+          if (r?.failedCount) {
+            throw new Error(`Published ${r.publishedCount ?? 0}; ${r.failedCount} failed.`);
+          }
+          return r;
+        }),
+      'App published — all drafts are now live.',
+    );
+
   const revert = () =>
     run(
       'revert',
@@ -440,8 +467,14 @@ function PackageDetailSheet({
                 <Badge variant="secondary">{drafts.length}</Badge>
               </p>
               <p className="text-xs text-muted-foreground">
-                Drafted, not yet published. Review and publish each to make it live.
+                Drafted, not yet published. Publish the whole app, or review each below.
               </p>
+              {!isKernel && (
+                <Button size="sm" onClick={publishDrafts} disabled={!!busy}>
+                  <Upload className="mr-1.5 h-3.5 w-3.5" />
+                  {busy === 'publish-drafts' ? 'Publishing…' : `Publish app (${drafts.length})`}
+                </Button>
+              )}
               <ul className="space-y-1">
                 {drafts.map((d) => (
                   <li key={`${d.type}/${d.name}`}>
