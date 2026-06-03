@@ -170,7 +170,46 @@ export async function installPackage(input: {
   environmentId: string;
   seedSampleData?: boolean;
 }): Promise<InstallResponse> {
-  const base = getCloudBase() || SERVER_URL;
+  const cloudBase = getCloudBase();
+
+  // ── In-environment (tenant runtime) path ──────────────────────────────
+  // When `getCloudBase()` is non-empty we're a *tenant runtime* (e.g.
+  // crm.objectos.app) whose marketplace browses a *separate* cloud origin.
+  // POSTing the install straight to `${cloudBase}/api/v1/actions/...` is a
+  // cross-origin, credentialed request that the browser blocks with
+  // "Failed to fetch" (no CORS allowance + cross-site cookie). Instead we
+  // call the SAME-ORIGIN `/api/v1/cloud-connection/install` route that the
+  // cloud-owned runtime plugin mounts: it authorizes via the environment's
+  // own session and forwards to cloud server-to-server (no CORS, no leaked
+  // cross-site cookie). The target environment is the current one, resolved
+  // by hostname on the server. See
+  // docs/design/cloud-account-binding-marketplace-install.md (cloud repo).
+  if (cloudBase) {
+    const res = await fetch(`/api/v1/cloud-connection/install`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        package_id: input.packageId,
+        seed_sample_data: !!input.seedSampleData,
+      }),
+    });
+    let payload: any = null;
+    try { payload = await res.json(); } catch { /* empty */ }
+    if (!res.ok || payload?.success === false) {
+      const code = payload?.error?.code ?? payload?.code ?? `HTTP_${res.status}`;
+      const message = payload?.error?.message ?? payload?.error ?? payload?.message ?? res.statusText;
+      const err = new Error(typeof message === 'string' ? message : `${code}`);
+      (err as any).code = code;
+      (err as any).status = res.status;
+      throw err;
+    }
+    return (payload?.data ?? payload) as InstallResponse;
+  }
+
+  // ── Cloud control-plane path (runtime IS cloud) ───────────────────────
+  // Same-origin direct call to the install action.
+  const base = SERVER_URL;
   const res = await fetch(`${base}/api/v1/actions/sys_package/install_package`, {
     method: 'POST',
     credentials: 'include',
