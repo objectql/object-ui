@@ -121,4 +121,38 @@ describe('MetadataClient', () => {
       message: 'metadata_conflict',
     });
   });
+
+  it('listDrafts requests /meta/_drafts with packageId + type and parses {drafts}', async () => {
+    const seen: string[] = [];
+    const c = new MetadataClient({
+      baseUrl: 'http://localhost:3000',
+      fetch: mockFetch(async (url) => {
+        seen.push(url);
+        return jsonResponse({
+          drafts: [{ type: 'object', name: 'course', packageId: 'app.edu', updatedAt: 't', updatedBy: 'ai' }],
+        });
+      }),
+    });
+    const out = await c.listDrafts({ packageId: 'app.edu', type: 'object' });
+    expect(seen[0]).toBe('http://localhost:3000/api/v1/meta/_drafts?packageId=app.edu&type=object');
+    expect(out).toEqual([
+      { type: 'object', name: 'course', packageId: 'app.edu', updatedAt: 't', updatedBy: 'ai' },
+    ]);
+  });
+
+  it('listDrafts tolerates the {data:{drafts}} envelope and a bare array', async () => {
+    const enveloped = new MetadataClient({
+      baseUrl: '',
+      fetch: mockFetch(async () =>
+        jsonResponse({ data: { drafts: [{ type: 'view', name: 'v', packageId: null, updatedAt: null, updatedBy: null }] } })),
+    });
+    expect((await enveloped.listDrafts()).map((d) => d.name)).toEqual(['v']);
+
+    const bare = new MetadataClient({
+      baseUrl: '',
+      fetch: mockFetch(async () =>
+        jsonResponse([{ type: 'object', name: 'b', packageId: null, updatedAt: null, updatedBy: null }])),
+    });
+    expect((await bare.listDrafts()).map((d) => d.name)).toEqual(['b']);
+  });
 });

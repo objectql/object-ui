@@ -285,11 +285,37 @@ function PackageDetailSheet({
 }) {
   const [busy, setBusy] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  // ADR-0033 — pending DRAFT items bound to this package. AI-authored metadata
+  // lands as drafts that the active-only browsers hide, so without this the
+  // package looks empty right after a build. We list them here with a link to
+  // the existing per-item review/diff (?review=1) so the user can publish them.
+  const [drafts, setDrafts] = React.useState<Array<{ type: string; name: string }> | null>(null);
 
   React.useEffect(() => {
     setMsg(null);
     setBusy(null);
   }, [pkg?.manifest.id]);
+
+  React.useEffect(() => {
+    const pid = pkg?.manifest.id;
+    if (!open || !pid) {
+      setDrafts(null);
+      return;
+    }
+    let cancelled = false;
+    apiJson<{ drafts?: Array<{ type: string; name: string }> }>(
+      `/api/v1/meta/_drafts?packageId=${encodeURIComponent(pid)}`,
+    )
+      .then((r) => {
+        if (!cancelled) setDrafts(r?.drafts ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setDrafts([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, pkg?.manifest.id]);
 
   if (!pkg) return null;
   const id = pkg.manifest.id;
@@ -404,6 +430,37 @@ function PackageDetailSheet({
           <ExternalLink className="h-3.5 w-3.5" />
           Browse this package's metadata
         </Link>
+
+        {drafts && drafts.length > 0 && (
+          <>
+            <Separator className="my-4" />
+            <div className="space-y-2">
+              <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Pending changes
+                <Badge variant="secondary">{drafts.length}</Badge>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Drafted, not yet published. Review and publish each to make it live.
+              </p>
+              <ul className="space-y-1">
+                {drafts.map((d) => (
+                  <li key={`${d.type}/${d.name}`}>
+                    <Link
+                      to={`${appBase}/metadata/${encodeURIComponent(d.type)}/${encodeURIComponent(d.name)}?review=1`}
+                      className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                      onClick={() => onOpenChange(false)}
+                    >
+                      <FileUp className="h-3.5 w-3.5" />
+                      <span className="font-mono text-xs">{d.type}</span>
+                      <span className="text-muted-foreground">·</span>
+                      {d.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
+        )}
 
         <Separator className="my-4" />
 

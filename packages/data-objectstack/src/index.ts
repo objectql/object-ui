@@ -2111,6 +2111,7 @@ export { MetadataClient } from './metadata-client';
 export type {
   MetadataClientConfig,
   MetadataListOptions,
+  MetadataDraftHeader,
   MetadataSaveOptions,
   MetadataGetOptions,
   MetadataDeleteOptions,

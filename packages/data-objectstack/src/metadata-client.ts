@@ -53,6 +53,19 @@ export interface MetadataListOptions {
   packageId?: string;
 }
 
+/**
+ * A pending DRAFT metadata item (ADR-0033), as returned by {@link MetadataClient.listDrafts}.
+ * Light header — no body — carrying the owning package so the console can group
+ * pending changes by app package.
+ */
+export interface MetadataDraftHeader {
+  type: string;
+  name: string;
+  packageId: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
 export interface MetadataSaveOptions {
   /**
    * Optimistic concurrency token (the `checksum` returned by the last
@@ -361,6 +374,31 @@ export class MetadataClient {
       return (data as { items: T[] }).items;
     }
     return [];
+  }
+
+  /**
+   * List pending DRAFT items (ADR-0033) — what an AI authored but nobody
+   * published yet. `list()` only sees published/active metadata, so a
+   * just-built app package looks empty there; this surfaces the drafts so the
+   * console can show a "pending changes" view and draft-aware package contents.
+   * Optionally narrow by `packageId` and/or `type`. Returns light headers
+   * (no body) carrying `packageId` for grouping.
+   */
+  async listDrafts(
+    options: { packageId?: string; type?: string } = {},
+  ): Promise<MetadataDraftHeader[]> {
+    const params: string[] = [];
+    if (options.packageId) params.push(`packageId=${encodeURIComponent(options.packageId)}`);
+    if (options.type) params.push(`type=${encodeURIComponent(options.type)}`);
+    const qs = params.length ? `?${params.join('&')}` : '';
+    const url = `${this.base}/_drafts${qs}`;
+    const res = await this.fetchImpl(url, { method: 'GET', headers: this.headers, cache: 'no-store' });
+    if (!res.ok) throw await parseError(res);
+    const data = (await res.json()) as
+      | MetadataDraftHeader[]
+      | { drafts?: MetadataDraftHeader[]; data?: { drafts?: MetadataDraftHeader[] } };
+    if (Array.isArray(data)) return data;
+    return data?.drafts ?? data?.data?.drafts ?? [];
   }
 
   /**
