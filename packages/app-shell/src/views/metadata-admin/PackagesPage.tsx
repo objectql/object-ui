@@ -31,6 +31,7 @@ import {
   PowerOff,
   ExternalLink,
   AlertTriangle,
+  Trash2,
 } from 'lucide-react';
 import {
   Button,
@@ -392,6 +393,57 @@ function PackageDetailSheet({
       'Reverted to last published state.',
     );
 
+  // ADR-0033 — discard every pending draft of this app in one shot, reverting
+  // it to the last published baseline. NON-destructive: published metadata and
+  // data are untouched. Distinct from the metadata-service `/revert` above —
+  // this hits the robust `/discard-drafts` (sys_metadata) path.
+  const discardDrafts = () =>
+    run(
+      'discard-drafts',
+      () =>
+        apiJson<{ discardedCount?: number; failedCount?: number }>(
+          `${API}/${encodeURIComponent(id)}/discard-drafts`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
+        ).then(async (r) => {
+          try {
+            const fresh = await apiJson<{ drafts?: Array<{ type: string; name: string }> }>(
+              `/api/v1/meta/_drafts?packageId=${encodeURIComponent(id)}`,
+            );
+            setDrafts(fresh?.drafts ?? []);
+          } catch {
+            setDrafts([]);
+          }
+          if (r?.failedCount) {
+            throw new Error(`Discarded ${r.discardedCount ?? 0}; ${r.failedCount} failed.`);
+          }
+          return r;
+        }),
+      'All pending changes discarded — back to the published version.',
+    );
+
+  // ADR-0033 — delete the WHOLE package: every metadata row (active + draft)
+  // plus each object's physical table (DESTRUCTIVE). Confirmed, then closes the
+  // sheet on success. Errors stay visible (sheet kept open).
+  const deleteApp = async () => {
+    const ok = window.confirm(
+      `Delete "${pkg?.manifest.name || id}" and all its data?\n\n` +
+        `This removes every object, view, dashboard and app in the package AND ` +
+        `drops the database tables those objects created. This cannot be undone.`,
+    );
+    if (!ok) return;
+    setBusy('delete');
+    setMsg(null);
+    try {
+      await apiJson(`${API}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      onChanged();
+      onOpenChange(false);
+    } catch (e: any) {
+      setMsg({ kind: 'err', text: e?.message ?? 'Delete failed' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const toggleEnable = () =>
     run(
       'toggle',
@@ -470,10 +522,16 @@ function PackageDetailSheet({
                 Drafted, not yet published. Publish the whole app, or review each below.
               </p>
               {!isKernel && (
-                <Button size="sm" onClick={publishDrafts} disabled={!!busy}>
-                  <Upload className="mr-1.5 h-3.5 w-3.5" />
-                  {busy === 'publish-drafts' ? 'Publishing…' : `Publish app (${drafts.length})`}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={publishDrafts} disabled={!!busy}>
+                    <Upload className="mr-1.5 h-3.5 w-3.5" />
+                    {busy === 'publish-drafts' ? 'Publishing…' : `Publish app (${drafts.length})`}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={discardDrafts} disabled={!!busy}>
+                    <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+                    {busy === 'discard-drafts' ? 'Discarding…' : `Discard changes (${drafts.length})`}
+                  </Button>
+                </div>
               )}
               <ul className="space-y-1">
                 {drafts.map((d) => (
@@ -526,6 +584,16 @@ function PackageDetailSheet({
               <Button size="sm" variant="outline" onClick={exportPkg} disabled={!!busy}>
                 <Download className="mr-1.5 h-3.5 w-3.5" />
                 {busy === 'export' ? 'Exporting…' : 'Export'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={deleteApp}
+                disabled={!!busy}
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                {busy === 'delete' ? 'Deleting…' : 'Delete app'}
               </Button>
             </div>
           </div>
