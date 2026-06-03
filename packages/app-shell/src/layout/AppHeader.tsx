@@ -44,6 +44,7 @@ import {
   Boxes,
   Layers,
   Bot,
+  User,
 } from 'lucide-react';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -769,6 +770,22 @@ export function AppHeader({
 
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
+              {/*
+               * Profile — land directly on the Account app's profile_card
+               * component. We link to the explicit component route rather than
+               * `/apps/account` because the bare app path does not reliably
+               * resolve to the first (component-type) nav item, leaving the
+               * avatar menu's account entry dead. Entering at the component
+               * route still mounts the Account app shell (Inbox / Security /
+               * Developer remain reachable from its sidebar).
+               */}
+              <DropdownMenuItem
+                onClick={() => navigate('/apps/account/component/account/profile_card')}
+                className="cursor-pointer"
+              >
+                <User className="mr-2 h-4 w-4" />
+                {t('user.profile', { defaultValue: 'Profile' })}
+              </DropdownMenuItem>
               {hasOrgSection && (
                 <DropdownMenuItem onClick={() => navigate('/organizations')} className="cursor-pointer">
                   <Boxes className="mr-2 h-4 w-4" />
@@ -779,11 +796,12 @@ export function AppHeader({
                * Hidden apps (App.hidden === true) surface here instead
                * of in the App Switcher. This is the standard pattern for
                * personal-settings-style apps that would feel out of place
-               * next to business apps — Account, Personal Settings, etc.
-               * See `App.hidden` in @objectstack/spec/ui.
+               * next to business apps — Personal Settings, etc. The `account`
+               * app is represented by the explicit Profile link above, so it
+               * is filtered out here to avoid a duplicate (dead) entry.
                */}
               {(metadataApps || [])
-                .filter((a: any) => a.active !== false && a.hidden === true)
+                .filter((a: any) => a.active !== false && a.hidden === true && a.name !== 'account')
                 .map((app: any) => {
                   const AppIcon = getIcon(app.icon);
                   const label = appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) });
