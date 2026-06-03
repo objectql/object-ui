@@ -29,7 +29,7 @@ type Listener = () => void;
 interface ProbeFn {
   (
     objectName: string,
-    query: { $filter?: Record<string, unknown>; $top?: number },
+    query: { $filter?: Record<string, unknown>; $top?: number; $count?: boolean },
   ): Promise<{ total?: number; data?: unknown[] } | unknown[] | { length?: number }>;
 }
 

@@ -25,6 +25,13 @@ export interface RuntimeFeatures {
   installLocal: boolean;
   /** `/api/v1/marketplace/*` is reachable from this runtime. */
   marketplace: boolean;
+  /**
+   * AI-driven metadata authoring ("online development") is offered by this
+   * runtime. Default true; the capability is still gated server-side by the
+   * presence of the metadata-authoring agent. When false, the SPA hides the
+   * AI authoring affordances (generic data-chat assistant is unaffected).
+   */
+  aiStudio: boolean;
 }
 
 export interface RuntimeBranding {
@@ -54,7 +61,7 @@ const defaults: RuntimeConfig = {
   singleEnvironment: false,
   defaultOrgId: null,
   defaultEnvironmentId: null,
-  features: { installLocal: false, marketplace: true },
+  features: { installLocal: false, marketplace: true, aiStudio: true },
   branding: { productName: 'ObjectOS', productShortName: 'ObjectOS' },
 };
 
@@ -106,6 +113,7 @@ export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
         ? {
           installLocal: !!body.features.installLocal,
           marketplace: body.features.marketplace !== false,
+          aiStudio: body.features.aiStudio !== false,
         }
         : current.features,
       branding: body.branding

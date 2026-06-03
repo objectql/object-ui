@@ -22,7 +22,7 @@ import { MobileViewSwitcherProvider } from './MobileViewSwitcherContext';
 import { useResponsiveSidebar } from '../hooks/useResponsiveSidebar';
 import { useNavigationContext } from '../context/NavigationContext';
 import { resolveI18nLabel } from '../utils';
-import { getProductName } from '../runtime-config';
+import { getProductName, getRuntimeConfig } from '../runtime-config';
 import type { ConnectionState } from '@object-ui/data-objectstack';
 
 /** Minimal object shape used by the chatbot context */
@@ -69,6 +69,15 @@ export function ConsoleLayout({
   // AI as disabled (e.g. framework started without `--preset full`).
   const aiBaseUrlConfigured = Boolean(import.meta.env?.VITE_AI_BASE_URL);
   const showChatbot = isAiEnabled || aiBaseUrlConfigured;
+  // AI Studio (AI-driven metadata authoring / "online development") can be
+  // turned off per deployment. When off, suppress the metadata-authoring
+  // assistant so the chatbot falls back to the generic data assistant — the
+  // generic data-chat experience stays available.
+  const aiStudioEnabled = getRuntimeConfig().features.aiStudio !== false;
+  const effectiveDefaultAgent =
+    !aiStudioEnabled && activeApp?.defaultAgent === 'metadata_assistant'
+      ? undefined
+      : activeApp?.defaultAgent;
   const { setContext, setCurrentAppName } = useNavigationContext();
 
   // Set navigation context to 'app' when this layout mounts
@@ -123,7 +132,7 @@ export function ConsoleLayout({
         <ConsoleChatbotFab
           appLabel={appLabel}
           appName={activeAppName}
-          defaultAgent={activeApp?.defaultAgent}
+          defaultAgent={effectiveDefaultAgent}
           objects={objects}
           userId={userId}
         />
