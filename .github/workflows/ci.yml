@@ -61,25 +61,17 @@ jobs:
           node-version: '20.x'
           cache: 'pnpm'
 
-      # Per-branch turbo cache. PRs restore from base branch via restore-keys
-      # for maximum cache hit rate; only changed packages re-run.
-      - name: Turbo Cache
-        uses: actions/cache@v5
-        with:
-          path: node_modules/.cache/turbo
-          key: turbo-${{ runner.os }}-test-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-test-
-            turbo-${{ runner.os }}-
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       # PRs: skip coverage instrumentation (v8 adds 40-100% overhead) and
-      # leverage turbo per-package cache so unchanged packages are skipped.
+      # run the canonical root Vitest project once. Running `turbo run test`
+      # here starts one Vitest process per package; several package configs
+      # intentionally inherit the root monorepo project list, so CI ends up
+      # repeating large chunks of the suite and can starve slower plugin tests.
       - name: Run tests (PR — fast, no coverage)
         if: github.event_name == 'pull_request'
-        run: pnpm turbo run test --concurrency=4
+        run: pnpm test
 
       # Push to main/develop: still run coverage so Codecov stays current.
       - name: Run tests with coverage (push)
