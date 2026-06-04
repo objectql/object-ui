@@ -1350,6 +1350,7 @@ const zh = {
     inboxAriaLabel: '打开消息中心',
     area: '区域',
     scope: '范围',
+    packageManagement: '软件包管理',
     recent: '最近使用',
     favorites: '收藏',
     starred: '已收藏',

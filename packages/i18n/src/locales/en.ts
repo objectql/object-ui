@@ -1351,6 +1351,7 @@ const en = {
     inboxAriaLabel: 'Open inbox',
     area: 'Area',
     scope: 'Scope',
+    packageManagement: 'Package management',
     recent: 'Recent',
     favorites: 'Favorites',
     starred: 'Starred',

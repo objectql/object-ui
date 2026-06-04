@@ -13,7 +13,7 @@
  */
 
 import * as React from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Plus, Search, RefreshCw, AlertTriangle, Lock } from 'lucide-react';
 import { Button } from '@object-ui/components';
 import { Input } from '@object-ui/components';
@@ -85,8 +85,13 @@ function classifyProvenance(item: Record<string, unknown>, rawSource?: string): 
 }
 
 export function MetadataResourceListPage({ type: typeProp }: MetadataResourceListPageProps) {
-  const params = useParams<{ type?: string }>();
+  const params = useParams<{ appName?: string; type?: string }>();
   const type = typeProp ?? params.type ?? '';
+
+  if (type === 'package') {
+    const appName = params.appName ?? 'studio';
+    return <Navigate to={`/apps/${appName}/component/developer/packages`} replace />;
+  }
 
   // If a fully custom ListPage is registered, render it and bail.
   // Done before any other hooks so hook count stays stable across type

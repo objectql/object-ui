@@ -22,7 +22,7 @@
  */
 
 import * as React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Search,
   Database,
@@ -60,7 +60,7 @@ import {
   detectLocale,
 } from './i18n';
 
-const HIDDEN_TYPES = new Set(['field']);
+const HIDDEN_TYPES = new Set(['field', 'package']);
 
 const DOMAIN_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   data: Database,
@@ -126,11 +126,78 @@ function relativeTime(iso: string, locale: string): string {
 export function StudioHomePage() {
   const client = useMetadataClient();
   const { loading, entries } = useMetadataTypes(client);
-  const { summary: diagSummary, countsByType, allPackages } = useGlobalDiagnostics(client, 'warning');
   const { recentItems } = useRecentItems();
   const locale = React.useMemo(() => detectLocale(), []);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const visible = React.useMemo(() => entries.filter((e) => !HIDDEN_TYPES.has(e.type)), [entries]);
+  const [projectPackages, setProjectPackages] = React.useState<
+    { id: string; name: string }[] | null
+  >(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await client.list<any>('package');
+        if (cancelled) return;
+        const SYSTEM_SCOPES = new Set(['system', 'cloud']);
+        const rows = (list ?? [])
+          .map((raw) => {
+            const item =
+              raw && typeof raw === 'object' && 'item' in raw ? raw.item : raw;
+            const m = ((item as any)?.manifest ?? item ?? {}) as Record<string, unknown>;
+            return {
+              id: m.id as string,
+              scope: m.scope as string,
+              name: (m.name as string) || (m.id as string),
+            };
+          })
+          .filter((p) => p.id && !SYSTEM_SCOPES.has(p.scope));
+        rows.sort((a, b) => a.name.localeCompare(b.name));
+        setProjectPackages(rows.map((p) => ({ id: p.id, name: p.name })));
+      } catch {
+        if (!cancelled) setProjectPackages([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
+
+  const urlPackage = searchParams.get('package');
+  const activePackage = React.useMemo(() => {
+    if (!projectPackages) return null;
+    if (urlPackage && projectPackages.some((p) => p.id === urlPackage)) return urlPackage;
+    return projectPackages[0]?.id ?? null;
+  }, [projectPackages, urlPackage]);
+
+  React.useEffect(() => {
+    if (!projectPackages || projectPackages.length === 0) return;
+    if (urlPackage && projectPackages.some((p) => p.id === urlPackage)) return;
+    const next = new URLSearchParams(searchParams);
+    next.set('package', projectPackages[0].id);
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectPackages, urlPackage]);
+
+  const packageSuffix = activePackage ? `?package=${encodeURIComponent(activePackage)}` : '';
+  const metadataHref = `metadata${packageSuffix}`;
+  const packagesHref = `component/developer/packages${packageSuffix}`;
+  const {
+    summary: diagSummary,
+    countsByType,
+    packagesByType,
+    loading: diagLoading,
+  } = useGlobalDiagnostics(client, 'warning', activePackage ?? undefined);
+
+  const visible = React.useMemo(
+    () =>
+      entries.filter((e) => {
+        if (HIDDEN_TYPES.has(e.type)) return false;
+        if (!activePackage) return false;
+        return (packagesByType[e.type] ?? []).includes(activePackage);
+      }),
+    [activePackage, entries, packagesByType],
+  );
   const writable = React.useMemo(
     () => visible.filter((e) => e.allowOrgOverride || e.allowRuntimeCreate),
     [visible],
@@ -156,9 +223,9 @@ export function StudioHomePage() {
   }, [writable]);
 
   const issues = diagSummary.total;
-  const healthy = !loading && issues === 0;
+  const healthy = !loading && !diagLoading && issues === 0;
 
-  if (loading) {
+  if (loading || projectPackages === null || (activePackage && diagLoading)) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
         {t('engine.home.loading', locale)}
@@ -195,9 +262,10 @@ export function StudioHomePage() {
                 <Button
                   asChild
                   size="sm"
-                  className="bg-white text-violet-700 shadow-sm hover:bg-white/90"
+                  variant="ghost"
+                  className="bg-white/10 text-white shadow-sm ring-1 ring-white/25 hover:bg-white/20 hover:text-white"
                 >
-                  <Link to="metadata">
+                  <Link to={metadataHref}>
                     <Layers className="mr-1.5 h-4 w-4" />
                     {t('engine.home.browseAll', locale)}
                   </Link>
@@ -213,7 +281,7 @@ export function StudioHomePage() {
             <div className="grid grid-cols-3 gap-3">
               <HeroPill value={visible.length} label={t('engine.home.statTypes', locale)} />
               <HeroPill value={writable.length} label={t('engine.home.statWritable', locale)} />
-              <HeroPill value={allPackages.length} label={t('engine.home.statPackages', locale)} />
+              <HeroPill value={projectPackages.length} label={t('engine.home.statPackages', locale)} />
             </div>
           </div>
         </section>
@@ -226,7 +294,7 @@ export function StudioHomePage() {
             to="to-violet-600"
             value={visible.length}
             label={t('engine.home.statTypes', locale)}
-            to_link="metadata"
+            to_link={metadataHref}
           />
           <StatCard
             icon={CheckCircle2}
@@ -234,19 +302,19 @@ export function StudioHomePage() {
             to="to-blue-600"
             value={writable.length}
             label={t('engine.home.statWritable', locale)}
-            to_link="metadata"
+            to_link={metadataHref}
           />
           <StatCard
             icon={PackageIcon}
             from="from-emerald-500"
             to="to-teal-600"
-            value={allPackages.length}
+            value={projectPackages.length}
             label={t('engine.home.statPackages', locale)}
-            to_link="metadata"
+            to_link={packagesHref}
           />
           {/* Health card — swaps colour + meaning based on diagnostics. */}
           <Link
-            to={healthy ? 'metadata' : 'metadata/_diagnostics'}
+            to={healthy ? metadataHref : `metadata/_diagnostics${packageSuffix}`}
             className={
               'group relative flex flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all hover:-translate-y-0.5 hover:shadow-lg ' +
               (healthy
@@ -295,7 +363,7 @@ export function StudioHomePage() {
                   size="sm"
                   className="group rounded-full border-dashed hover:border-solid hover:border-primary hover:bg-primary/5"
                 >
-                  <Link to={`metadata/${encodeURIComponent(e.type)}/new`}>
+                  <Link to={`metadata/${encodeURIComponent(e.type)}/new${packageSuffix}`}>
                     <Plus className="mr-1 h-3.5 w-3.5 text-primary transition-transform group-hover:rotate-90" />
                     {tFormat('engine.home.newItem', locale, {
                       label: translateMetadataType(e.type, locale, e.label),
@@ -318,7 +386,14 @@ export function StudioHomePage() {
             />
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               {grouped.map(([domain, group]) => (
-                <DomainCard key={domain} domain={domain} group={group} countsByType={countsByType} locale={locale} />
+                <DomainCard
+                  key={domain}
+                  domain={domain}
+                  group={group}
+                  countsByType={countsByType}
+                  locale={locale}
+                  packageSuffix={packageSuffix}
+                />
               ))}
             </div>
           </section>
@@ -436,11 +511,13 @@ function DomainCard({
   group,
   countsByType,
   locale,
+  packageSuffix,
 }: {
   domain: string;
   group: RichMetadataTypeEntry[];
   countsByType: Record<string, number>;
   locale: string;
+  packageSuffix: string;
 }) {
   const Icon = DOMAIN_ICONS[domain] ?? Box;
   const accent = DOMAIN_ACCENT[domain] ?? DOMAIN_ACCENT.other;
@@ -463,7 +540,7 @@ function DomainCard({
         {top.map((e) => (
           <Link
             key={e.type}
-            to={`metadata/${encodeURIComponent(e.type)}`}
+            to={`metadata/${encodeURIComponent(e.type)}${packageSuffix}`}
             className="inline-flex items-center gap-1.5 rounded-lg border bg-background px-2 py-1 text-xs transition-colors hover:border-primary/50 hover:bg-accent"
           >
             <span className="truncate max-w-[10rem]">{translateMetadataType(e.type, locale, e.label)}</span>
@@ -472,7 +549,7 @@ function DomainCard({
         ))}
         {more > 0 && (
           <Link
-            to="metadata"
+            to={`metadata${packageSuffix}`}
             className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium ${accent.text} hover:underline`}
           >
             +{more}

@@ -147,6 +147,18 @@ for each metadata type. Every type has a pure-renderer **preview** that doubles
 as its **designer** when given `editing` + `onPatch` props — no backend round
 trip is required to edit a draft.
 
+### Studio package scope
+
+Studio treats the selected package as the authoring scope. The package selector
+is mandatory, and Studio repairs missing `?package=` query parameters from the
+last selected package or the first project package so scoped pages do not drift
+out of sync with the sidebar. The Studio home overview, quick-create links,
+metadata counts, and diagnostics all follow that active package. The dedicated
+package-management page remains the global place to create, import, publish,
+enable, or disable packages; direct `/metadata/package` links redirect there.
+The Studio sidebar also flattens the root Overview group so Home and package
+navigation sit directly under the package selector.
+
 ### Visual flow canvas
 
 The `flow` designer (`FlowPreview` → `FlowCanvas`) renders an automation as an

@@ -574,8 +574,9 @@ export function AppHeader({
 
         {isApp && (
           <>
-            {/* Mobile sidebar trigger */}
-            <SidebarTrigger className="md:hidden shrink-0 ml-1" aria-label={t('common.toggleSidebar') || 'Toggle sidebar'} />
+            {/* Keep the sidebar trigger visible through narrow desktop widths,
+                where the sidebar may already be collapsed into icon mode. */}
+            <SidebarTrigger className="lg:hidden shrink-0 ml-1" aria-label={t('common.toggleSidebar') || 'Toggle sidebar'} />
 
             {/* App dropdown — desktop/tablet only. On mobile the sidebar
                 already shows the active app at its top, so a second app

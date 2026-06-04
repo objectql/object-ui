@@ -67,8 +67,12 @@ const DOMAIN_ORDER = [
  * `field` is managed in-context via the parent object's edit form
  * (master-detail widget). A flat global list of every field across
  * every object is rarely useful and clutters the admin surface.
+ *
+ * `package` is the Studio scope container itself. It has a dedicated
+ * management surface for create/publish/import/export flows, so exposing it
+ * as scoped metadata would mean "view packages inside a package".
  */
-const HIDDEN_TYPES = new Set(['field']);
+const HIDDEN_TYPES = new Set(['field', 'package']);
 
 export function MetadataDirectoryPage() {
   const client = useMetadataClient();

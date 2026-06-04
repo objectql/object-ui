@@ -148,13 +148,10 @@ export function useAppContextSelectors(
   // more "sidebar says A while the list shows B" drift.
   const params = new URLSearchParams(location.search);
 
-  // Re-apply a remembered scope once, on first mount, so a selection
-  // survives a full page reload (when the URL comes back without the
-  // query param). Subsequent navigation is driven purely by the URL.
-  const seededRef = React.useRef(false);
+  // Re-apply a remembered scope whenever navigation drops the query param.
+  // The selector is mandatory for Studio: package-scoped pages should never
+  // sit at a blank package value just because a nav link omitted `?package=`.
   React.useEffect(() => {
-    if (seededRef.current) return;
-    seededRef.current = true;
     const p = new URLSearchParams(location.search);
     let changed = false;
     for (const sel of list) {
@@ -168,8 +165,7 @@ export function useAppContextSelectors(
     if (changed) {
       navigate({ pathname: location.pathname, search: p.toString() }, { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [appName, list, location.pathname, location.search, navigate]);
 
   const setValue = React.useCallback((sel: ContextSelectorDef, raw: string) => {
     const value = raw === ALL_SENTINEL ? (sel.allValue ?? '') : raw;
@@ -190,7 +186,11 @@ export function useAppContextSelectors(
 
   const contextValues: Record<string, string> = {};
   for (const sel of list) {
-    contextValues[sel.id] = params.get('package') ?? (sel.allValue ?? '');
+    let saved = '';
+    try {
+      saved = sessionStorage.getItem(`objectui-ctx-${appName}-${sel.id}`) ?? '';
+    } catch { /* storage disabled */ }
+    contextValues[sel.id] = (params.get('package') ?? saved) || (sel.allValue ?? '');
   }
 
   const element = list.length === 0 ? null : (
@@ -238,19 +238,14 @@ function SelectorControl({
   // `includeAll`, never render an "All" row, and auto-select the first option
   // as soon as the list resolves when nothing concrete is selected yet.
   const hasConcrete = !!value && value !== (def.allValue ?? '');
-  const seededRef = React.useRef(false);
   React.useEffect(() => {
-    if (seededRef.current) return;
     if (hasConcrete) {
-      seededRef.current = true;
       return;
     }
     if (options.length > 0) {
-      seededRef.current = true;
       onChange(options[0].value);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options, hasConcrete]);
+  }, [hasConcrete, onChange, options]);
 
   const current = hasConcrete ? value : '';
 
@@ -258,14 +253,16 @@ function SelectorControl({
     <Select value={current} onValueChange={onChange}>
       <SelectTrigger
         aria-label={label}
-        className="h-8 w-full gap-1.5 rounded-md border-sidebar-border/60 bg-sidebar-accent/40 px-2 text-xs font-medium text-sidebar-foreground shadow-none hover:bg-sidebar-accent focus:ring-1 focus:ring-sidebar-ring data-[state=open]:bg-sidebar-accent"
+        className="h-9 w-full gap-2 rounded-md border-sidebar-border/70 bg-sidebar/80 px-2 text-xs font-medium text-sidebar-foreground shadow-none transition-colors hover:bg-sidebar-accent focus:ring-1 focus:ring-sidebar-ring data-[state=open]:bg-sidebar-accent [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:shrink-0"
       >
-        <span className="flex min-w-0 items-center gap-1.5 truncate">
-          <Icon className="h-3.5 w-3.5 shrink-0 opacity-60" />
-          <SelectValue placeholder={placeholder} />
-        </span>
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-sidebar-border/70 bg-sidebar-accent text-sidebar-foreground/70">
+            <Icon className="h-3 w-3" />
+          </span>
+          <SelectValue placeholder={placeholder} className="truncate" />
+        </div>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="w-[var(--radix-select-trigger-width)]">
         {options.map((opt) => (
           <SelectItem key={opt.value} value={opt.value}>
             {opt.label}

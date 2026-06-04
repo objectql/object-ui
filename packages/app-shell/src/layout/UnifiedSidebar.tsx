@@ -38,7 +38,6 @@ import {
   ChevronRight,
   Home,
   Layers,
-  Package,
 } from 'lucide-react';
 import { NavigationRenderer } from '@object-ui/layout';
 import type { NavigationItem } from '@object-ui/types';
@@ -130,6 +129,21 @@ interface UnifiedSidebarProps {
   onAppChange?: (name: string) => void;
 }
 
+function isMetadataDirectoryItem(item: NavigationItem): boolean {
+  return (item as any).componentRef === 'metadata:directory';
+}
+
+function isPackagesItem(item: NavigationItem): boolean {
+  return (item as any).componentRef === 'developer:packages';
+}
+
+function isOverviewGroup(item: NavigationItem): boolean {
+  if (item.type !== 'group') return false;
+  const id = String(item.id ?? '').toLowerCase();
+  const label = typeof item.label === 'string' ? item.label.toLowerCase() : '';
+  return id === 'overview' || label === 'overview';
+}
+
 export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
   const { isMobile, setOpenMobile } = useSidebar();
   const location = useLocation();
@@ -208,12 +222,49 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
 
   // Determine which navigation to show based on context
   const navigationItems = context === 'home' ? homeNavigation : appNavigation;
+  const basePath = context === 'app' && activeApp ? `/apps/${activeApp.name}` : '';
+  const isStudioApp = context === 'app' && activeApp?.name === 'studio';
+  const studioHomeSearch = React.useMemo(() => {
+    if (!isStudioApp) return '';
+    const packageId = new URLSearchParams(location.search).get('package') || contextValues.active_package;
+    return packageId ? `?package=${encodeURIComponent(packageId)}` : '';
+  }, [contextValues.active_package, isStudioApp, location.search]);
+
+  const studioNavigationItems = React.useMemo(() => {
+    if (context !== 'app' || activeApp?.name !== 'studio') return navigationItems;
+    const packageManagementLabel = t('sidebar.packageManagement', {
+      defaultValue: 'Package management',
+    });
+    const walk = (items: NavigationItem[]): NavigationItem[] =>
+      items.flatMap((item) => {
+        if (isMetadataDirectoryItem(item)) return [];
+        const children = item.children?.length ? walk(item.children) : item.children;
+        if (item.type === 'group' && children?.length === 0) return [];
+        if (isPackagesItem(item)) {
+          return [{
+            ...item,
+            type: 'url' as const,
+            label: packageManagementLabel,
+            url: `${basePath}/component/developer/packages${studioHomeSearch}`,
+            children,
+          }];
+        }
+        if (children !== item.children) {
+          return [{ ...item, children }];
+        }
+        return [item];
+      });
+    return walk(navigationItems).flatMap((item) => {
+      if (!isOverviewGroup(item)) return [item];
+      return item.children ?? [];
+    });
+  }, [activeApp?.name, basePath, context, navigationItems, studioHomeSearch, t]);
 
   // Apply saved order and pin state
   const processedNavigation = React.useMemo(() => {
-    const ordered = applyOrder(navigationItems);
+    const ordered = applyOrder(studioNavigationItems);
     return applyPins(ordered);
-  }, [navigationItems, applyOrder, applyPins]);
+  }, [studioNavigationItems, applyOrder, applyPins]);
 
   // Recent section collapsed by default
   const [recentExpanded, setRecentExpanded] = React.useState(false);
@@ -255,7 +306,7 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
     [registeredObjectNames],
   );
 
-  const basePath = context === 'app' && activeApp ? `/apps/${activeApp.name}` : '';
+  const isStudioHomeActive = isStudioApp && location.pathname.replace(/\/+$/, '') === basePath;
 
   return (
     <>
@@ -287,13 +338,32 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
            <>
           {/* App-level context selectors (e.g. package scope) */}
           {contextSelectorsUI && (
-            <SidebarGroup className="group-data-[state=collapsed]:hidden">
-              <SidebarGroupLabel className="flex items-center gap-1.5">
-                <Package className="h-3.5 w-3.5" />
-                {t('sidebar.scope', { defaultValue: '范围' })}
-              </SidebarGroupLabel>
+            <SidebarGroup className="group-data-[state=collapsed]:hidden px-2 pb-1">
+              <div className="rounded-lg border border-sidebar-border/70 bg-sidebar-accent/25 p-1.5 shadow-xs">
+                <SidebarGroupContent>
+                  {contextSelectorsUI}
+                </SidebarGroupContent>
+              </div>
+            </SidebarGroup>
+          )}
+
+          {isStudioApp && (
+            <SidebarGroup>
               <SidebarGroupContent>
-                {contextSelectorsUI}
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isStudioHomeActive}
+                      tooltip={t('home.nav', { defaultValue: 'Home' })}
+                    >
+                      <Link to={{ pathname: basePath, search: studioHomeSearch }}>
+                        <Home className="h-4 w-4" />
+                        <span>{t('home.nav', { defaultValue: 'Home' })}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
           )}
@@ -342,7 +412,11 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
              resolveObjectLabel={(objectName, fallback) => resolveNavObjectLabel({ name: objectName, label: fallback })}
              resolveDashboardLabel={(dashboardName, fallback) => resolveNavDashboardLabel({ name: dashboardName, label: fallback })}
              resolveGroupLabel={activeApp ? (groupId, fallback) => resolveNavGroupLabel(activeApp.name, groupId, fallback) : undefined}
-             resolveItemLabel={activeApp ? (itemId, fallback) => resolveNavGroupLabel(activeApp.name, itemId, fallback) : undefined}
+             resolveItemLabel={activeApp ? (itemId, fallback) => (
+               activeApp.name === 'studio' && fallback === t('sidebar.packageManagement', { defaultValue: 'Package management' })
+                 ? fallback
+                 : resolveNavGroupLabel(activeApp.name, itemId, fallback)
+             ) : undefined}
              resolveViewLabel={(objectName, viewName, fallback) => resolveNavViewLabel(objectName, viewName, fallback)}
              t={t}
              templateContext={{ currentUserId: user?.id ?? null, contextValues }}

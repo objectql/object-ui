@@ -173,6 +173,17 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
     launcherApps.find((a: any) => a.isDefault === true) ||
     launcherApps[0];
 
+  useEffect(() => {
+    if (!activeApp?.name) return;
+    const packageMetadataPath = `/apps/${activeApp.name}/metadata/package`;
+    if (
+      location.pathname === packageMetadataPath ||
+      location.pathname.startsWith(`${packageMetadataPath}/`)
+    ) {
+      navigate(`/apps/${activeApp.name}/component/developer/packages`, { replace: true });
+    }
+  }, [activeApp?.name, location.pathname, navigate]);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -415,6 +426,10 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                     wins React Router's score tiebreaker (both
                     `metadata/:type/:name` and `:objectName/view/:viewId`
                     score 16; declaration order breaks the tie). */}
+                <Route
+                  path="metadata/package/*"
+                  element={<Navigate to={`/apps/${activeApp.name}/component/developer/packages`} replace />}
+                />
                 <Route path="metadata">
                   <Route index element={<MetadataDirectoryPage />} />
                   <Route path="_diagnostics" element={<MetadataDiagnosticsPage />} />
@@ -670,4 +685,3 @@ function RouteNotFound() {
     </div>
   );
 }
-

@@ -28,6 +28,7 @@ The console opens at **http://localhost:5175** with MSW (Mock Service Worker) pr
 | **Expression Visibility** | Show/hide navigation items using `visible: "${data.role === 'admin'}"`. |
 | **Branding** | Per-app colors, favicons, and logos via `AppShell` branding. |
 | **Command Palette** | `⌘+K` opens a searchable command bar for quick navigation. |
+| **Studio Package Scope** | Studio home, metadata counts, quick-create links, and diagnostics follow the selected package. |
 | **App Creation Wizard** | 4-step wizard (Basic Info → Objects → Navigation → Branding) to create or edit apps. |
 | **Error Boundary** | Graceful error handling with a retry button. |
 
