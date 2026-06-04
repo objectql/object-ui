@@ -42,6 +42,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
+import { SetPasswordPage } from './pages/auth/SetPasswordPage';
 import { VerifyEmailPage } from './pages/auth/VerifyEmailPage';
 import { VerifyEmailPromptPage } from './pages/auth/VerifyEmailPromptPage';
 import { SetupPage } from './pages/auth/SetupPage';
@@ -137,6 +138,14 @@ export function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            {/*
+              * Set an initial local password after SSO-as-owner entry on a
+              * per-environment runtime. Public (session cookie already set by
+              * the cloud sso-exchange) + shell-less, like the other auth
+              * surfaces — see SetPasswordPage. The cloud auth-proxy redirects
+              * here as `/set-password?next=…`.
+              */}
+            <Route path="/set-password" element={<SetPasswordPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/verify-email-prompt" element={<VerifyEmailPromptPage />} />
             <Route path="/setup" element={<SetupPage />} />

@@ -22,35 +22,9 @@ import {
   Badge,
   Alert,
   AlertDescription,
-  AlertTitle,
 } from '@object-ui/components';
 import { useUpload } from '@object-ui/providers';
-import { CheckCircle2, AlertCircle, User, Lock, Upload, Loader2, X, ShieldAlert } from 'lucide-react';
-
-/**
- * `?recovery_needed=true` is set by the cloud `sso_as_owner` redirect when
- * the SSO-handoff lands a user that has no `credential` account on this
- * environment yet. We surface a prominent banner + scroll to the password
- * card so the operator can set a disaster-recovery local password before
- * the SSO bridge becomes unreachable. See `auth-proxy-plugin.ts` →
- * `sso-exchange` for the upstream redirect logic.
- */
-function useRecoveryNeededFlag(): { recoveryNeeded: boolean; clear: () => void } {
-  const [recoveryNeeded, setRecoveryNeeded] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    setRecoveryNeeded(params.get('recovery_needed') === 'true');
-  }, []);
-  const clear = () => {
-    if (typeof window === 'undefined') return;
-    const url = new URL(window.location.href);
-    url.searchParams.delete('recovery_needed');
-    window.history.replaceState({}, '', url.toString());
-    setRecoveryNeeded(false);
-  };
-  return { recoveryNeeded, clear };
-}
+import { CheckCircle2, AlertCircle, User, Lock, Upload, Loader2, X } from 'lucide-react';
 
 export function ProfilePage() {
   const { user, updateUser, isLoading, changePassword, setInitialPassword, hasLocalPassword } = useAuth();
@@ -61,8 +35,6 @@ export function ProfilePage() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
-  const passwordCardRef = useRef<HTMLDivElement>(null);
-  const { recoveryNeeded, clear: clearRecoveryFlag } = useRecoveryNeededFlag();
 
   // Sync local `name` state when the user object arrives or changes.
   // useState's initial value is only evaluated on first render, so when
@@ -72,16 +44,6 @@ export function ProfilePage() {
   useEffect(() => {
     setName(user?.name ?? '');
   }, [user?.name]);
-
-  // When the SSO-handoff dropped us here, jump straight to the password
-  // section so the operator can finish the recovery flow in one motion.
-  useEffect(() => {
-    if (!recoveryNeeded) return;
-    const t = setTimeout(() => {
-      passwordCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 200);
-    return () => clearTimeout(t);
-  }, [recoveryNeeded]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,22 +94,6 @@ export function ProfilePage() {
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Profile</h1>
         <p className="text-sm text-muted-foreground mt-1">Manage your account settings</p>
       </div>
-
-      {recoveryNeeded && (
-        <Alert
-          variant="default"
-          className="border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
-          data-testid="profile-recovery-banner"
-        >
-          <ShieldAlert className="h-4 w-4" />
-          <AlertTitle>Set a recovery password</AlertTitle>
-          <AlertDescription>
-            You signed in via single sign-on from the control plane. Set a local password
-            below so you can still sign in to this environment directly if SSO ever becomes
-            unavailable.
-          </AlertDescription>
-        </Alert>
-      )}
 
       {/* Avatar & Identity */}
       <Card>
@@ -281,15 +227,11 @@ export function ProfilePage() {
       </Card>
 
       {/* Password Change */}
-      <div ref={passwordCardRef}>
-        <PasswordCard
-          changePassword={changePassword}
-          setInitialPassword={setInitialPassword}
-          hasLocalPassword={hasLocalPassword}
-          highlight={recoveryNeeded}
-          onPasswordSet={clearRecoveryFlag}
-        />
-      </div>
+      <PasswordCard
+        changePassword={changePassword}
+        setInitialPassword={setInitialPassword}
+        hasLocalPassword={hasLocalPassword}
+      />
     </div>
   );
 }
