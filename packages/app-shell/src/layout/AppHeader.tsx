@@ -161,6 +161,27 @@ export function AppHeader({
   const activityUnavailableRef = useRef(false);
   const notificationsUnavailableRef = useRef(false);
 
+  // Tracks whether the component is still mounted. Used by the pollers to
+  // decide whether to apply an in-flight fetch's result, independent of any
+  // single effect run's `cancelled` flag — so a fetch that outlives the
+  // effect run that started it (because deps settled mid-flight during
+  // bootstrap) still populates state instead of being silently dropped.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    // Reset on (re)mount too, so StrictMode's mount→cleanup→mount cycle
+    // doesn't leave it latched false and silence the pollers.
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // In-flight guards: during bootstrap the poller effects re-run several
+  // times as `dataSource` / `isApp` / `user.id` settle, and each run kicks
+  // an immediate fetch. Without these the same query fired 5× concurrently
+  // (nothing cached yet) and flooded the backend. They coalesce to one.
+  const notifInFlightRef = useRef(false);
+  const approvalsInFlightRef = useRef(false);
+  const activityInFlightRef = useRef(false);
+
   /** M11.C15: pending approvals count for the topbar shortcut. */
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const approvalsUnavailableRef = useRef(false);
@@ -180,6 +201,11 @@ export function AppHeader({
     // transport-level provider (<PresenceProvider>) which is not yet
     // wired — see ROADMAP for the realtime plan.
     if (activityUnavailableRef.current) return;
+    // In-flight dedupe: this callback's identity changes as dataSource/isApp
+    // settle during bootstrap, re-firing the mount effect below; coalesce the
+    // immediate fetches into one instead of N (sys_activity fired 3×+).
+    if (activityInFlightRef.current) return;
+    activityInFlightRef.current = true;
     try {
       const activityResult = await dataSource
         .find('sys_activity', { $orderby: { timestamp: 'desc' }, $top: 20 })
@@ -193,7 +219,9 @@ export function AppHeader({
         );
         if (items.length) setApiActivities(items);
       }
-    } catch { /* fallback below */ }
+    } catch { /* fallback below */ } finally {
+      activityInFlightRef.current = false;
+    }
   }, [dataSource, isApp]);
 
   useEffect(() => { fetchPresenceAndActivities(); }, [fetchPresenceAndActivities]);
@@ -232,6 +260,8 @@ export function AppHeader({
       err?.httpStatus === 404 || err?.status === 404 || err?.code === 'object_not_found';
     const READ_STATES = new Set(['read', 'clicked', 'dismissed']);
     const fetchOnce = async () => {
+      if (notifInFlightRef.current) return;
+      notifInFlightRef.current = true;
       try {
         const [inboxRes, receiptRes] = await Promise.all([
           dataSource.find('sys_inbox_message', {
@@ -246,7 +276,7 @@ export function AppHeader({
             $top: 200,
           }) as Promise<any>).catch(() => ({ data: [] })),
         ]);
-        if (cancelled) return;
+        if (!mountedRef.current) return;
         const rows: any[] = Array.isArray(inboxRes?.data) ? inboxRes.data : [];
         const receipts: any[] = Array.isArray(receiptRes?.data) ? receiptRes.data : [];
         // notification_id → { id, state } (most-advanced receipt wins).
@@ -283,6 +313,8 @@ export function AppHeader({
           return;
         }
         backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
+      } finally {
+        notifInFlightRef.current = false;
       }
     };
     const scheduleNext = () => {
@@ -319,6 +351,13 @@ export function AppHeader({
    * Hits the framework's `/api/v1/approvals/requests?status=pending`
    * endpoint with the user's identities (id, email, role:<r>). Degrades
    * silently to zero on 404 (approvals plugin not installed).
+   *
+   * The endpoint accepts a comma-separated `approverId` and matches a
+   * request when ANY identity is a pending approver, so this issues ONE
+   * request per poll. (It previously looped one fetch per identity, firing
+   * N near-simultaneous calls every cycle — the dominant duplicate-request
+   * offender on the control plane. Requires framework with multi-approverId
+   * support; ship the framework + console SHA bumps together.)
    */
   useEffect(() => {
     if (!isApp || !user?.id) return;
@@ -335,19 +374,25 @@ export function AppHeader({
     let timer: ReturnType<typeof setTimeout> | null = null;
     const POLL_MS = 30_000;
     const fetchOnce = async () => {
+      if (identities.length === 0) return;
+      // In-flight dedupe: bootstrap re-runs this effect a few times; coalesce
+      // the immediate fetches into one instead of firing them concurrently.
+      if (approvalsInFlightRef.current) return;
+      approvalsInFlightRef.current = true;
       try {
+        const qs = new URLSearchParams({ status: 'pending', approverId: identities.join(',') });
+        const res = await fetch(`${base}?${qs}`, { credentials: 'include' });
+        if (res.status === 404) { approvalsUnavailableRef.current = true; return; }
+        if (!res.ok) return;
+        const payload = await res.json().catch(() => null);
         const seen = new Set<string>();
-        if (identities.length === 0) return;
-        for (const id of identities) {
-          const qs = new URLSearchParams({ status: 'pending', approverId: id });
-          const res = await fetch(`${base}?${qs}`, { credentials: 'include' });
-          if (res.status === 404) { approvalsUnavailableRef.current = true; return; }
-          if (!res.ok) return;
-          const payload = await res.json().catch(() => null);
-          for (const row of (payload?.data || []) as { id: string }[]) seen.add(row.id);
-        }
-        if (!cancelled) setPendingApprovalsCount(seen.size);
-      } catch { /* transient — keep last value */ }
+        for (const row of (payload?.data || []) as { id: string }[]) seen.add(row.id);
+        // Apply if still mounted (not gated on this run's `cancelled`, so the
+        // single in-flight fetch survives a bootstrap re-run mid-flight).
+        if (mountedRef.current) setPendingApprovalsCount(seen.size);
+      } catch { /* transient — keep last value */ } finally {
+        approvalsInFlightRef.current = false;
+      }
     };
     const schedule = () => {
       if (cancelled || approvalsUnavailableRef.current) return;

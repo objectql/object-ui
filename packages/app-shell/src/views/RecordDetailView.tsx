@@ -584,9 +584,27 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     return relations;
   }, [objectDef, objects]);
 
-  // Fetch related child records for each reverse reference
+  // Fetch related child records for each reverse reference.
+  //
+  // PERF: skip this eager fan-out when the reference rail will render the
+  // related lists instead. `buildDefaultPageSchema` emits the rail (and
+  // hides the duplicate Related tab) whenever there are ≥2 related lists
+  // and the author hasn't opted out via `hideReferenceRail`. In that
+  // layout `childRelatedData` is never displayed — the rail fetches its
+  // own data lazily (on-visible + concurrency-capped, see
+  // record-reference-rail.tsx). Preloading every child here therefore
+  // produced ~N redundant concurrent queries on every record open that
+  // head-of-line-blocked the rail's real fetches (measured: opening a
+  // record with 8 related lists fired ~50 concurrent requests, all TTFB
+  // ~9s). When the rail is NOT emitted (≤1 related list, or
+  // hideReferenceRail), the Related tab consumes this data, so we still
+  // load it.
   useEffect(() => {
     if (!dataSource || !pureRecordId || childRelations.length === 0) return;
+    const railWillRender =
+      childRelations.length >= 2 &&
+      (objectDef as any)?.detail?.hideReferenceRail !== true;
+    if (railWillRender) return;
     let cancelled = false;
     Promise.all(
       childRelations.map(({ childObject, referenceField }) =>
@@ -611,7 +629,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       setChildRelatedData(data);
     });
     return () => { cancelled = true; };
-  }, [dataSource, pureRecordId, childRelations]);
+  }, [dataSource, pureRecordId, childRelations, objectDef]);
 
   // ── Audit history fetch ────────────────────────────────────────────
   // Loads recent sys_audit_log entries for this record so the DetailView can

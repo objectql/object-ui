@@ -122,47 +122,114 @@ export const RecordReferenceRailRenderer: React.FC<RecordReferenceRailRendererPr
 
   const [states, setStates] = React.useState<Record<string, EntryState>>({});
 
+  // PERF: gate the rail's per-entry queries on visibility. The rail lives in
+  // an aside region that is `hidden xl:flex` (see buildDefaultPageSchema), so
+  // on sub-`xl` viewports (the common laptop width) it is `display:none` and
+  // the IntersectionObserver never reports intersection → zero queries on
+  // record open. On `xl`+ it fetches once the rail scrolls near the viewport.
+  // Without this, every related collection was fetched eagerly on mount,
+  // which (together with RecordDetailView's preload, now removed for this
+  // layout) produced ~50 concurrent requests that head-of-line-blocked one
+  // another on a single backend container.
+  const railRef = React.useRef<HTMLDivElement>(null);
+  const [railVisible, setRailVisible] = React.useState(false);
+  // Mounted latch: results are applied while mounted regardless of which
+  // effect run dispatched them, so a fetch that outlives a re-render isn't
+  // dropped (and then never retried because of the sig guard below).
+  const mountedRef = React.useRef(true);
   React.useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  // Signature of the entry set already dispatched. The fetch effect re-runs
+  // whenever the record context hands down a new `dataSource` identity during
+  // the drawer's mount churn; without this guard each re-run re-drained the
+  // whole queue (every related collection fetched 3–5×). We fetch once per
+  // (parentId + entries) and skip identical re-runs.
+  const fetchedSigRef = React.useRef<string>('');
+  React.useEffect(() => {
+    if (railVisible) return; // latch: once visible, stop observing
+    const el = railRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      // No element yet or unsupported environment (SSR/tests): fall back to
+      // eager so behaviour never regresses to "never loads".
+      setRailVisible(true);
+      return;
+    }
+    const obs = new IntersectionObserver(
+      (records) => {
+        if (records.some((r) => r.isIntersecting)) setRailVisible(true);
+      },
+      { rootMargin: '200px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [railVisible]);
+
+  const entriesSig = JSON.stringify(entries.map((e) => `${e.objectName}:${e.relationshipField}:${e.limit ?? 3}`));
+  React.useEffect(() => {
+    if (!railVisible) return;
     if (!dataSource?.find || !parentId || entries.length === 0) return;
-    let cancelled = false;
-    entries.forEach((entry) => {
+    // Fetch once per (parentId + entries). Re-runs triggered purely by a new
+    // `dataSource` identity (drawer mount churn) are no-ops; navigating to a
+    // different record changes the signature and refetches.
+    const sig = `${parentId}::${entriesSig}`;
+    if (fetchedSigRef.current === sig) return;
+    fetchedSigRef.current = sig;
+    // Mark every entry as loading up front so the skeletons render.
+    setStates((prev) => {
+      const next = { ...prev };
+      for (const entry of entries) {
+        next[entry.objectName] = {
+          loading: true,
+          total: 0,
+          items: prev[entry.objectName]?.items || [],
+        };
+      }
+      return next;
+    });
+    const fetchEntry = async (entry: ReferenceRailEntry) => {
       const key = entry.objectName;
-      setStates((prev) => ({
-        ...prev,
-        [key]: { loading: true, total: 0, items: prev[key]?.items || [] },
-      }));
-      dataSource
-        .find(entry.objectName, {
+      try {
+        const res: any = await dataSource.find(entry.objectName, {
           $filter: { [entry.relationshipField]: parentId },
           $top: entry.limit ?? 3,
           $count: true,
-        })
-        .then((res: any) => {
-          if (cancelled) return;
-          const items = Array.isArray(res) ? res : res?.data || [];
-          const total =
-            typeof res?.total === 'number'
-              ? res.total
-              : typeof res?.count === 'number'
-                ? res.count
-                : items.length;
-          setStates((prev) => ({
-            ...prev,
-            [key]: { loading: false, total, items },
-          }));
-        })
-        .catch((err: any) => {
-          if (cancelled) return;
-          setStates((prev) => ({
-            ...prev,
-            [key]: { loading: false, total: 0, items: [], error: String(err?.message || err) },
-          }));
         });
-    });
-    return () => {
-      cancelled = true;
+        if (!mountedRef.current) return;
+        const items = Array.isArray(res) ? res : res?.data || [];
+        const total =
+          typeof res?.total === 'number'
+            ? res.total
+            : typeof res?.count === 'number'
+              ? res.count
+              : items.length;
+        setStates((prev) => ({ ...prev, [key]: { loading: false, total, items } }));
+      } catch (err: any) {
+        if (!mountedRef.current) return;
+        setStates((prev) => ({
+          ...prev,
+          [key]: { loading: false, total: 0, items: [], error: String(err?.message || err) },
+        }));
+      }
     };
-  }, [dataSource, parentId, JSON.stringify(entries.map((e) => `${e.objectName}:${e.relationshipField}:${e.limit ?? 3}`))]);
+    // Concurrency-capped pool: drain the entries a few at a time instead of
+    // firing all N at once, so the rail never floods the backend in a burst.
+    const MAX_CONCURRENCY = 3;
+    const queue = [...entries];
+    const runWorker = async () => {
+      while (mountedRef.current) {
+        const entry = queue.shift();
+        if (!entry) return;
+        await fetchEntry(entry);
+      }
+    };
+    const workers = Array.from(
+      { length: Math.min(MAX_CONCURRENCY, queue.length) },
+      () => runWorker(),
+    );
+    void Promise.all(workers);
+  }, [railVisible, dataSource, parentId, entriesSig]);
 
   if (entries.length === 0) return null;
 
@@ -195,7 +262,7 @@ export const RecordReferenceRailRenderer: React.FC<RecordReferenceRailRendererPr
     );
 
   return (
-    <div className={cn('flex flex-col gap-3', schema.className, className)} {...designer}>
+    <div ref={railRef} className={cn('flex flex-col gap-3', schema.className, className)} {...designer}>
       {visibleEntries.map((entry) => {
         const key = entry.objectName;
         const state = states[key] || { loading: true, total: 0, items: [] };
