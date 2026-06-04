@@ -364,8 +364,42 @@ export async function getCloudInstallationInfo(
   packageId: string,
   environmentId: string,
 ): Promise<CloudInstallationInfo | null> {
-  if (!packageId || !environmentId) return null;
-  const base = getCloudBase() || SERVER_URL;
+  if (!packageId) return null;
+
+  // ── In-environment (tenant runtime) path ──────────────────────────────
+  // When `getCloudBase()` is non-empty we're a tenant runtime browsing a
+  // *separate* cloud origin. A direct `${cloudBase}/api/v1/data/...` read is
+  // a cross-origin, cross-site-cookie request the browser blocks — the exact
+  // reason `installPackage()` routes through the same-origin proxy. Mirror it
+  // here: the cloud-owned runtime plugin's `/cloud-connection/installation`
+  // route resolves the env by hostname and queries the control plane
+  // server-to-server. Without this, the "Installed" CTA never flips and an
+  // already-installed package keeps inviting another install.
+  const cloudBase = getCloudBase();
+  if (cloudBase) {
+    try {
+      const res = await fetch(
+        `/api/v1/cloud-connection/installation?package_id=${encodeURIComponent(packageId)}`,
+        { credentials: 'include', headers: { 'Accept': 'application/json' } },
+      );
+      if (!res.ok) return null;
+      const payload: any = await res.json().catch(() => ({}));
+      const data: any = payload?.data ?? payload ?? {};
+      if (!data.installed) return null;
+      return {
+        installationId: String(data.installationId ?? ''),
+        version: String(data.version ?? 'installed'),
+        withSampleData: data.withSampleData === true,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // ── Cloud control-plane path (runtime IS cloud) ───────────────────────
+  // Same-origin read against the control plane's data API.
+  if (!environmentId) return null;
+  const base = SERVER_URL;
   const filter = JSON.stringify([
     'and',
     ['package_id', '=', packageId],

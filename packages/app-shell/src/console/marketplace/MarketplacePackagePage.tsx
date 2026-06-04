@@ -598,7 +598,12 @@ export function MarketplacePackagePage() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          {!localInstall && cloudInstall && (
+          {/* Reseed / purge still POST cross-origin to the control plane, which
+              the browser blocks on a tenant subdomain. Only offer them when the
+              runtime IS the cloud (same-origin). On tenants the install state is
+              still detected — the CTA flips to "Installed" — we just hide the
+              sample-data actions until they route through a same-origin proxy. */}
+          {!localInstall && cloudInstall && !getRuntimeConfig().cloudUrl && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="lg" className="px-2.5" aria-label={t('marketplace.detail.moreOptions') || 'More options'}>
