@@ -41,6 +41,12 @@ const en = {
     toggleSidebar: 'Toggle sidebar',
     package: 'Package',
   },
+  actions: {
+    resultDialog: {
+      defaultTitle: 'Save this value now',
+      acknowledge: 'I have saved this',
+    },
+  },
   validation: {
     required: '{{field}} is required',
     minLength: '{{field}} must be at least {{min}} characters',
@@ -195,6 +201,7 @@ const en = {
     moreEvents: '+{{count}} more',
   },
   list: {
+    loading: 'Loading records…',
     recordCount: '{{count}} records',
     recordCountOne: '{{count}} record',
     addRecord: 'Add record',
@@ -648,6 +655,10 @@ const en = {
     redo: 'Redo',
     resetZoom: 'Reset zoom',
   },
+  designer: {
+    undo: 'Undo',
+    redo: 'Redo',
+  },
   dashboard: {
     addWidget: 'Add widget',
     removeWidget: 'Remove widget',
@@ -963,6 +974,8 @@ const en = {
       objectNotFound: 'Object Not Found',
       objectNotFoundDescription: 'The object "{{objectName}}" does not exist in the current configuration.',
       objectNotFoundHint: 'Check your app navigation settings or select a different object from the sidebar.',
+      systemViewReadonly: 'System view defined in code — duplicate to customize.',
+      expandToPage: 'Open as full page',
       allRecords: 'All Records',
       exitDesignMode: 'Exit Design Mode',
       enterDesignMode: 'Enter Design Mode',

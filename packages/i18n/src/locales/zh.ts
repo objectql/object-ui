@@ -41,6 +41,12 @@ const zh = {
     toggleSidebar: '切换侧边栏',
     package: '软件包',
   },
+  actions: {
+    resultDialog: {
+      defaultTitle: 'Save this value now',
+      acknowledge: 'I have saved this',
+    },
+  },
   validation: {
     required: '{{field}}不能为空',
     minLength: '{{field}}至少需要{{min}}个字符',
@@ -195,6 +201,7 @@ const zh = {
     moreEvents: '+{{count}} 更多',
   },
   list: {
+    loading: 'Loading records...',
     recordCount: '{{count}} 条记录',
     recordCountOne: '{{count}} 条记录',
     addRecord: '添加记录',
@@ -294,6 +301,10 @@ const zh = {
     tabActionsFor: '{{name}} 的视图操作',
     readonlyAriaLabel: '只读视图',
     readonlyTooltip: '系统视图 — 复制后可自定义。',
+  },
+  designer: {
+    undo: 'Undo',
+    redo: 'Redo',
   },
   detail: {
     back: '返回',
@@ -960,6 +971,8 @@ const zh = {
       system: '系统',
     },
     objectView: {
+      systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      expandToPage: 'Open as full page',
       objectNotFound: '未找到对象',
       objectNotFoundDescription: '对象"{{objectName}}"在当前配置中不存在。',
       objectNotFoundHint: '请检查您的应用导航设置或从侧边栏选择其他对象。',

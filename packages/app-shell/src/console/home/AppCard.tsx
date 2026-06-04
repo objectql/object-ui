@@ -46,7 +46,6 @@ export function AppCard({ app, onClick, isFavorite, index = 0 }: AppCardProps) {
   const Icon = getIcon(app.icon);
   const label = appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) });
   const description = appDescription({ name: app.name, description: resolveI18nLabel(app.description, t) });
-  const primaryColor: string | undefined = app.branding?.primaryColor;
   const accent = ACCENTS[(hashStr(app.name) + index) % ACCENTS.length];
 
   const handleToggleFavorite = (e: React.MouseEvent) => {
@@ -61,51 +60,41 @@ export function AppCard({ app, onClick, isFavorite, index = 0 }: AppCardProps) {
 
   return (
     <Card
-      role="button"
-      tabIndex={0}
-      aria-label={label}
       className={cn(
-        'group relative cursor-pointer overflow-hidden border border-border/70 bg-card/80 backdrop-blur-sm',
+        'group relative overflow-hidden border border-border/70 bg-card/80 backdrop-blur-sm',
         'transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-lg',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         'motion-reduce:transition-none motion-reduce:hover:transform-none',
-        !primaryColor && accent.ring,
+        accent.ring,
       )}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick();
-        }
-      }}
       data-testid={`app-card-${app.name}`}
-      style={primaryColor ? { borderColor: undefined } : undefined}
     >
-      {/* Top accent strip */}
-      <div
-        aria-hidden
-        className={cn('absolute inset-x-0 top-0 h-1', primaryColor ? '' : accent.solid)}
-        style={primaryColor ? { backgroundColor: primaryColor } : undefined}
+      <button
+        type="button"
+        aria-label={label}
+        className="absolute inset-0 z-10 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        onClick={onClick}
+        data-testid={`app-card-open-${app.name}`}
       />
 
-      {/* Soft gradient background revealed on hover */}
-      {!primaryColor && (
-        <div
-          aria-hidden
-          className={cn(
-            'absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity duration-300 group-hover:opacity-100',
-            accent.from,
-            accent.to,
-          )}
-        />
-      )}
+      <div
+        aria-hidden
+        className={cn('absolute inset-x-0 top-0 h-1', accent.solid)}
+      />
+
+      <div
+        aria-hidden
+        className={cn(
+          'absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity duration-300 group-hover:opacity-100',
+          accent.from,
+          accent.to,
+        )}
+      />
 
       <CardContent className="relative p-5">
-        {/* Favorite Button */}
         <Button
           variant="ghost"
           size="sm"
-          className="absolute top-2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+          className="absolute top-2 right-2 z-20 h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
           onClick={handleToggleFavorite}
           aria-label={isFavorite
             ? t('common.removeFromFavorites', { defaultValue: 'Remove from favorites' }) + ` — ${label}`
@@ -120,23 +109,19 @@ export function AppCard({ app, onClick, isFavorite, index = 0 }: AppCardProps) {
           )}
         </Button>
 
-        {/* App Icon tile */}
         <div
           className={cn(
             'inline-flex h-14 w-14 items-center justify-center rounded-xl mb-4 ring-1 ring-inset',
-            primaryColor ? '' : cn('bg-gradient-to-br', accent.from, accent.to, 'ring-border/40'),
+            'bg-gradient-to-br ring-border/40',
+            accent.from,
+            accent.to,
           )}
-          style={primaryColor
-            ? { backgroundColor: `${primaryColor}1f`, boxShadow: `inset 0 0 0 1px ${primaryColor}33` }
-            : undefined}
         >
           <Icon
-            className={cn('h-7 w-7', primaryColor ? '' : accent.text)}
-            style={primaryColor ? { color: primaryColor } : undefined}
+            className={cn('h-7 w-7', accent.text)}
           />
         </div>
 
-        {/* App Info */}
         <div>
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-base sm:text-lg leading-tight truncate">{label}</h3>
@@ -154,7 +139,6 @@ export function AppCard({ app, onClick, isFavorite, index = 0 }: AppCardProps) {
           </p>
         </div>
 
-        {/* Open affordance */}
         <div className="mt-4 flex items-center justify-between text-xs font-medium">
           <span className="inline-flex items-center gap-1 text-muted-foreground transition-colors group-hover:text-foreground">
             {t('home.open', { defaultValue: 'Open' })}

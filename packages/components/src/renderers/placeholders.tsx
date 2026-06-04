@@ -106,7 +106,7 @@ export function registerPlaceholders() {
     PROTOCOL_COMPONENTS.forEach(type => {
         // Only register if not already registered (to avoid overwriting real implementations)
         if (!ComponentRegistry.get(type)) {
-            ComponentRegistry.register(type, PlaceholderRenderer);
+            ComponentRegistry.register(type, PlaceholderRenderer, { namespace: 'protocol-placeholder' });
         }
     });
 }

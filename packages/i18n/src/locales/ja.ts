@@ -38,6 +38,12 @@ const ja = {
     toggleSidebar: "サイドバーを切り替え",
     package: "パッケージ",
   },
+  actions: {
+    resultDialog: {
+      defaultTitle: 'Save this value now',
+      acknowledge: 'I have saved this',
+    },
+  },
   validation: {
     required: "{{field}}は必須です",
     minLength: "{{field}}は{{min}}文字以上で入力してください",
@@ -192,6 +198,7 @@ const ja = {
     moreEvents: "+{{count}} 件",
   },
   list: {
+    loading: 'Loading records...',
     recordCount: "{{count}} 件のレコード",
     recordCountOne: "{{count}} 件のレコード",
     addRecord: "レコードを追加",
@@ -291,6 +298,10 @@ const ja = {
     tabActionsFor: "{{name}} のビュー操作",
     readonlyAriaLabel: "読み取り専用ビュー",
     readonlyTooltip: "システムビュー — 複製してカスタマイズしてください。",
+  },
+  designer: {
+    undo: 'Undo',
+    redo: 'Redo',
   },
   detail: {
     back: "戻る",
@@ -809,6 +820,8 @@ const ja = {
       system: "システム",
     },
     objectView: {
+      systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      expandToPage: 'Open as full page',
       objectNotFound: "オブジェクトが見つかりません",
       objectNotFoundDescription: "オブジェクト「{{objectName}}」は現在の設定に存在しません。",
       objectNotFoundHint: "アプリのナビゲーション設定を確認するか、サイドバーから別のオブジェクトを選択してください。",

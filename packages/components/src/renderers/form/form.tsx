@@ -25,7 +25,7 @@ import {
 import { renderChildren } from '../../lib/utils';
 import { Alert, AlertDescription } from '../../ui/alert';
 import { AlertCircle, ChevronDown, ChevronRight, Loader2, Maximize2, Check, X } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { cn } from '../../lib/utils';
 import React from 'react';
 import { SchemaRendererContext } from '@object-ui/react';
@@ -66,6 +66,53 @@ const useSafeFormTranslation = createSafeTranslation(
   { 'common.selectOption': 'Select an option' },
   'common.selectOption',
 );
+
+const BUILTIN_FIELD_TYPES = new Set(['input', 'textarea', 'checkbox', 'switch', 'select']);
+const DATA_SOURCE_FIELD_TYPES = new Set(['lookup', 'master_detail', 'tree']);
+
+function stripRendererOnlyProps<T extends Record<string, any>>(props: T): T {
+  const {
+    dataSource: _dataSource,
+    inputType: _inputType,
+    options: _options,
+    field: _field,
+    schema: _schema,
+    showActions: _showActions,
+    fieldContainerClass: _fieldContainerClass,
+    mobileStickyActions: _mobileStickyActions,
+    mobile_fullscreen: _mobileFullscreen,
+    fullscreen: _fullscreen,
+    dependentValues: _dependentValues,
+    ...domProps
+  } = props;
+
+  return domProps as T;
+}
+
+function normalizeFieldType(type: string): string {
+  return type.startsWith('field:') ? type.slice('field:'.length) : type;
+}
+
+function stripRegisteredFieldProps(type: string, props: RenderFieldProps): RenderFieldProps {
+  const {
+    dataSource,
+    inputType: _inputType,
+    showActions: _showActions,
+    fieldContainerClass: _fieldContainerClass,
+    mobileStickyActions: _mobileStickyActions,
+    mobile_fullscreen: _mobileFullscreen,
+    fullscreen: _fullscreen,
+    dependentValues,
+    schema: _schema,
+    ...fieldProps
+  } = props;
+  const normalizedType = normalizeFieldType(type);
+
+  return {
+    ...fieldProps,
+    ...(DATA_SOURCE_FIELD_TYPES.has(normalizedType) ? { dataSource, dependentValues } : {}),
+  };
+}
 
 /**
  * FullscreenTextarea — `<Textarea>` with a top-right "expand" button that
@@ -118,6 +165,9 @@ function FullscreenTextarea({
         >
           <DialogHeader className="p-4 border-b">
             <DialogTitle className="text-base">{label ?? 'Edit text'}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Edit the full text value, then save or cancel your changes.
+            </DialogDescription>
           </DialogHeader>
           <div className="flex-1 min-h-0 p-4">
             <Textarea
@@ -305,11 +355,15 @@ ComponentRegistry.register('form',
         cancelLabel: _cancelLabel,
         showSubmit: _showSubmit,
         showCancel: _showCancel,
-        resetOnSubmit: _resetOnSubmit,
-        defaultValues: _defaultValues,
-        inputType: _inputType,
-        ...formProps 
-    } = props;
+	        resetOnSubmit: _resetOnSubmit,
+	        defaultValues: _defaultValues,
+	        inputType: _inputType,
+          dataSource: _dataSource,
+          showActions: _showActions,
+          fieldContainerClass: _fieldContainerClass,
+          mobileStickyActions: _mobileStickyActions,
+	        ...formProps
+	    } = props;
 
     return (
       <Form {...form}>
@@ -659,30 +713,32 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
   //    available (e.g. so { type: 'text' } in a form schema resolves to the
   //    text input field, not the display text widget that shares the same
   //    short name in the global registry).
-  const RegisteredComponent =
-    (!type.includes(':') && ComponentRegistry.get(`field:${type}`)) ||
-    ComponentRegistry.get(type);
+  const RegisteredComponent = !BUILTIN_FIELD_TYPES.has(type)
+    ? ((!type.includes(':') && ComponentRegistry.get(`field:${type}`)) ||
+      ComponentRegistry.get(type))
+    : undefined;
 
   if (RegisteredComponent) {
-    // For specialized fields (e.g. fields package), they expect 'field' prop.
-    // Ensure we pass all props.
-    // Also pass 'schema' for standard renderers that expect it
-    return <RegisteredComponent schema={props} {...props} />;
+    const registeredProps = stripRegisteredFieldProps(type, props);
+    const fieldSchema = props.field || props.schema || props;
+    return <RegisteredComponent schema={fieldSchema} {...registeredProps} />;
   }
 
   const { inputType, options = [], placeholder, ...fieldProps } = props;
+  const domFieldProps = stripRendererOnlyProps(fieldProps);
 
   switch (type) {
     case 'input':
       if (inputType === 'file') {
         // File inputs cannot be controlled with value prop
-         const { value, ...fileProps } = fieldProps;
+         const { value, ...fileProps } = domFieldProps;
          return <Input type="file" placeholder={placeholder} className="min-h-[44px] sm:min-h-0" {...fileProps} />;
       }
-      return <Input type={inputType || 'text'} placeholder={placeholder} className="min-h-[44px] sm:min-h-0" {...fieldProps} value={fieldProps.value ?? ''} />;
+      return <Input type={inputType || 'text'} placeholder={placeholder} className="min-h-[44px] sm:min-h-0" {...domFieldProps} value={domFieldProps.value ?? ''} />;
       
     case 'textarea': {
-      const { mobile_fullscreen, fullscreen, label, ...rest } = fieldProps as any;
+      const { mobile_fullscreen, fullscreen, label } = fieldProps as any;
+      const { label: _label, ...rest } = stripRendererOnlyProps(fieldProps);
       if (mobile_fullscreen || fullscreen) {
         return (
           <FullscreenTextarea
@@ -699,7 +755,7 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
     
     case 'checkbox': {
       // For checkbox, we need to handle the value differently
-      const { value, onChange, ...checkboxProps } = fieldProps;
+      const { value, onChange, ...checkboxProps } = domFieldProps;
       return (
         <Checkbox 
           checked={value}
@@ -712,7 +768,7 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
 
     case 'switch': {
       // For switch, we need to handle the value differently (same as checkbox)
-      const { value, onChange, ...switchProps } = fieldProps;
+      const { value, onChange, ...switchProps } = domFieldProps;
       return (
         <Switch 
           checked={value}
@@ -725,7 +781,7 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
     
     case 'select': {
       // For select with react-hook-form, we need to handle the onChange
-      const { value: selectValue, onChange: selectOnChange, ...selectProps } = fieldProps;
+      const { value: selectValue, onChange: selectOnChange, ...selectProps } = domFieldProps;
       
       // Safety check for options
       if (!options || options.length === 0) {
@@ -749,6 +805,6 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
     }
     
     default:
-      return <Input type={inputType || 'text'} placeholder={placeholder} {...fieldProps} />;
+      return <Input type={inputType || 'text'} placeholder={placeholder} {...domFieldProps} />;
   }
 }

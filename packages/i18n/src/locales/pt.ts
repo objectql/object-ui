@@ -38,6 +38,12 @@ const pt = {
     toggleSidebar: "Alternar barra lateral",
     package: "Pacote",
   },
+  actions: {
+    resultDialog: {
+      defaultTitle: 'Save this value now',
+      acknowledge: 'I have saved this',
+    },
+  },
   validation: {
     required: "{{field}} é obrigatório",
     minLength: "{{field}} deve ter pelo menos {{min}} caracteres",
@@ -192,6 +198,7 @@ const pt = {
     moreEvents: "+{{count}} mais",
   },
   list: {
+    loading: 'Loading records...',
     recordCount: "{{count}} registros",
     recordCountOne: "{{count}} registro",
     addRecord: "Adicionar registro",
@@ -291,6 +298,10 @@ const pt = {
     tabActionsFor: "Ações de exibição para {{name}}",
     readonlyAriaLabel: "Exibição somente leitura",
     readonlyTooltip: "Exibição do sistema — duplique para personalizar.",
+  },
+  designer: {
+    undo: 'Undo',
+    redo: 'Redo',
   },
   detail: {
     back: "Voltar",
@@ -809,6 +820,8 @@ const pt = {
       system: "Sistema",
     },
     objectView: {
+      systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      expandToPage: 'Open as full page',
       objectNotFound: "Objeto não encontrado",
       objectNotFoundDescription: "O objeto \"{{objectName}}\" não existe na configuração atual.",
       objectNotFoundHint: "Verifique as configurações de navegação do seu aplicativo ou selecione um objeto diferente na barra lateral.",

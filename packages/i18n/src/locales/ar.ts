@@ -38,6 +38,12 @@ const ar = {
     toggleSidebar: "تبديل الشريط الجانبي",
     package: "الحزمة",
   },
+  actions: {
+    resultDialog: {
+      defaultTitle: 'Save this value now',
+      acknowledge: 'I have saved this',
+    },
+  },
   validation: {
     required: "{{field}} مطلوب",
     minLength: "{{field}} يجب أن يكون {{min}} حرفاً على الأقل",
@@ -192,6 +198,7 @@ const ar = {
     moreEvents: "+{{count}} المزيد",
   },
   list: {
+    loading: 'Loading records...',
     recordCount: "{{count}} سجلات",
     recordCountOne: "{{count}} سجل",
     addRecord: "إضافة سجل",
@@ -291,6 +298,10 @@ const ar = {
     tabActionsFor: "إجراءات العرض لـ {{name}}",
     readonlyAriaLabel: "عرض للقراءة فقط",
     readonlyTooltip: "عرض النظام — انسخ للتخصيص.",
+  },
+  designer: {
+    undo: 'Undo',
+    redo: 'Redo',
   },
   detail: {
     back: "رجوع",
@@ -809,6 +820,8 @@ const ar = {
       system: "النظام",
     },
     objectView: {
+      systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      expandToPage: 'Open as full page',
       objectNotFound: "الكائن غير موجود",
       objectNotFoundDescription: "الكائن \"{{objectName}}\" غير موجود في الإعدادات الحالية.",
       objectNotFoundHint: "تحقق من إعدادات التنقل في تطبيقك أو اختر كائنًا آخر من الشريط الجانبي.",

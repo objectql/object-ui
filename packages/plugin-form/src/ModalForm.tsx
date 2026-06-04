@@ -488,7 +488,13 @@ export const ModalForm: React.FC<ModalFormProps> = ({
         {(schema.title || schema.description) && (
           <DialogHeader className="shrink-0 px-4 pt-4 sm:px-6 sm:pt-6 pb-2 border-b">
             {schema.title && <DialogTitle>{schema.title}</DialogTitle>}
-            {schema.description && <DialogDescription>{schema.description}</DialogDescription>}
+            {schema.description ? (
+              <DialogDescription>{schema.description}</DialogDescription>
+            ) : (
+              <DialogDescription className="sr-only">
+                Complete the form fields, then submit or cancel.
+              </DialogDescription>
+            )}
           </DialogHeader>
         )}
 

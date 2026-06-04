@@ -38,6 +38,12 @@ const de = {
     toggleSidebar: "Seitenleiste umschalten",
     package: "Paket",
   },
+  actions: {
+    resultDialog: {
+      defaultTitle: 'Save this value now',
+      acknowledge: 'I have saved this',
+    },
+  },
   validation: {
     required: "{{field}} ist erforderlich",
     minLength: "{{field}} muss mindestens {{min}} Zeichen lang sein",
@@ -192,6 +198,7 @@ const de = {
     moreEvents: "+{{count}} weitere",
   },
   list: {
+    loading: 'Loading records...',
     recordCount: "{{count}} Datensätze",
     recordCountOne: "{{count}} Datensatz",
     addRecord: "Datensatz hinzufügen",
@@ -291,6 +298,10 @@ const de = {
     tabActionsFor: "Ansichtsaktionen für {{name}}",
     readonlyAriaLabel: "Schreibgeschützte Ansicht",
     readonlyTooltip: "Systemansicht — zum Anpassen duplizieren.",
+  },
+  designer: {
+    undo: 'Undo',
+    redo: 'Redo',
   },
   detail: {
     back: "Zurück",
@@ -809,6 +820,8 @@ const de = {
       system: "System",
     },
     objectView: {
+      systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      expandToPage: 'Open as full page',
       objectNotFound: "Objekt nicht gefunden",
       objectNotFoundDescription: "Das Objekt „{{objectName}}\" existiert in der aktuellen Konfiguration nicht.",
       objectNotFoundHint: "Überprüfen Sie Ihre App-Navigationseinstellungen oder wählen Sie ein anderes Objekt aus der Seitenleiste.",

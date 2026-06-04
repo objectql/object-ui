@@ -38,6 +38,12 @@ const ru = {
     toggleSidebar: "Переключить боковую панель",
     package: "Пакет",
   },
+  actions: {
+    resultDialog: {
+      defaultTitle: 'Save this value now',
+      acknowledge: 'I have saved this',
+    },
+  },
   validation: {
     required: "Поле {{field}} обязательно для заполнения",
     minLength: "{{field}} должно содержать не менее {{min}} символов",
@@ -192,6 +198,7 @@ const ru = {
     moreEvents: "+{{count}} ещё",
   },
   list: {
+    loading: 'Loading records...',
     recordCount: "{{count}} записей",
     recordCountOne: "{{count}} запись",
     addRecord: "Добавить запись",
@@ -291,6 +298,10 @@ const ru = {
     tabActionsFor: "Действия с представлением {{name}}",
     readonlyAriaLabel: "Представление только для чтения",
     readonlyTooltip: "Системное представление — скопируйте для настройки.",
+  },
+  designer: {
+    undo: 'Undo',
+    redo: 'Redo',
   },
   detail: {
     back: "Назад",
@@ -809,6 +820,8 @@ const ru = {
       system: "Системная",
     },
     objectView: {
+      systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      expandToPage: 'Open as full page',
       objectNotFound: "Объект не найден",
       objectNotFoundDescription: "Объект «{{objectName}}» не существует в текущей конфигурации.",
       objectNotFoundHint: "Проверьте настройки навигации приложения или выберите другой объект на боковой панели.",

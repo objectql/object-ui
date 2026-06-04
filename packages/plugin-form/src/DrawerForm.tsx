@@ -420,7 +420,13 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
         {(schema.title || schema.description) && (
           <SheetHeader>
             {schema.title && <SheetTitle>{schema.title}</SheetTitle>}
-            {schema.description && <SheetDescription>{schema.description}</SheetDescription>}
+            {schema.description ? (
+              <SheetDescription>{schema.description}</SheetDescription>
+            ) : (
+              <SheetDescription className="sr-only">
+                Complete the form fields, then submit or cancel.
+              </SheetDescription>
+            )}
           </SheetHeader>
         )}
 

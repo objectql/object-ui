@@ -38,6 +38,12 @@ const fr = {
     toggleSidebar: "Basculer la barre latérale",
     package: "Package",
   },
+  actions: {
+    resultDialog: {
+      defaultTitle: 'Save this value now',
+      acknowledge: 'I have saved this',
+    },
+  },
   validation: {
     required: "{{field}} est obligatoire",
     minLength: "{{field}} doit contenir au moins {{min}} caractères",
@@ -192,6 +198,7 @@ const fr = {
     moreEvents: "+{{count}} de plus",
   },
   list: {
+    loading: 'Loading records...',
     recordCount: "{{count}} enregistrements",
     recordCountOne: "{{count}} enregistrement",
     addRecord: "Ajouter un enregistrement",
@@ -291,6 +298,10 @@ const fr = {
     tabActionsFor: "Actions de vue pour {{name}}",
     readonlyAriaLabel: "Vue en lecture seule",
     readonlyTooltip: "Vue système — dupliquer pour personnaliser.",
+  },
+  designer: {
+    undo: 'Undo',
+    redo: 'Redo',
   },
   detail: {
     back: "Retour",
@@ -809,6 +820,8 @@ const fr = {
       system: "Système",
     },
     objectView: {
+      systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      expandToPage: 'Open as full page',
       objectNotFound: "Objet introuvable",
       objectNotFoundDescription: "L'objet « {{objectName}} » n'existe pas dans la configuration actuelle.",
       objectNotFoundHint: "Vérifiez les paramètres de navigation de votre application ou sélectionnez un autre objet dans la barre latérale.",

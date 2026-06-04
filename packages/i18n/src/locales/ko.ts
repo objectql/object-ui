@@ -38,6 +38,12 @@ const ko = {
     toggleSidebar: "사이드바 전환",
     package: "패키지",
   },
+  actions: {
+    resultDialog: {
+      defaultTitle: 'Save this value now',
+      acknowledge: 'I have saved this',
+    },
+  },
   validation: {
     required: "{{field}}은(는) 필수입니다",
     minLength: "{{field}}은(는) 최소 {{min}}자 이상이어야 합니다",
@@ -192,6 +198,7 @@ const ko = {
     moreEvents: "+{{count}} 더보기",
   },
   list: {
+    loading: 'Loading records...',
     recordCount: "{{count}}개 레코드",
     recordCountOne: "{{count}}개 레코드",
     addRecord: "레코드 추가",
@@ -291,6 +298,10 @@ const ko = {
     tabActionsFor: "{{name}}의 보기 작업",
     readonlyAriaLabel: "읽기 전용 보기",
     readonlyTooltip: "시스템 보기 — 사용자 지정하려면 복제하세요.",
+  },
+  designer: {
+    undo: 'Undo',
+    redo: 'Redo',
   },
   detail: {
     back: "뒤로",
@@ -809,6 +820,8 @@ const ko = {
       system: "시스템",
     },
     objectView: {
+      systemViewReadonly: 'System view defined in code - duplicate to customize.',
+      expandToPage: 'Open as full page',
       objectNotFound: "객체를 찾을 수 없음",
       objectNotFoundDescription: "객체 \"{{objectName}}\"이(가) 현재 구성에 존재하지 않습니다.",
       objectNotFoundHint: "앱 탐색 설정을 확인하거나 사이드바에서 다른 객체를 선택하세요.",

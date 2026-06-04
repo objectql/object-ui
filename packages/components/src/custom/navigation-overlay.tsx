@@ -277,6 +277,12 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
   expandLabel = 'Open as full page',
   storageKey,
 }) => {
+  const widthStyle = getWidthStyle(width);
+  const resolvedTitle = title || 'Record Detail';
+  // Keep hooks above all conditional returns. Opening a record changes
+  // selectedRecord from null to an object, but hook order must stay stable.
+  const resize = useDrawerResize(mode === 'drawer' ? storageKey : undefined);
+
   // Non-overlay modes don't render anything
   if (mode === 'page' || mode === 'new_window' || mode === 'none') {
     return null;
@@ -286,12 +292,6 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
     return null;
   }
 
-  const widthStyle = getWidthStyle(width);
-  const resolvedTitle = title || 'Record Detail';
-  // Resize state lives outside the conditional drawer branch — hooks must
-  // run on every render. The helper itself no-ops when storageKey is
-  // absent, so non-drawer modes pay nothing.
-  const resize = useDrawerResize(mode === 'drawer' ? storageKey : undefined);
   // Drawer width policy:
   // - If the user explicitly drag-resized, honor that exact pixel value
   //   (their choice always wins).
@@ -347,8 +347,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
               aria-label="Resize drawer"
               onMouseDown={resize.handleMouseDown}
               onDoubleClick={resize.handleDoubleClick}
-              className="hidden sm:block absolute left-0 top-0 bottom-0 z-30 w-1 cursor-col-resize bg-transparent hover:bg-primary/40 active:bg-primary/60 transition-colors"
-              style={{ touchAction: 'none' }}
+              className="hidden sm:block absolute left-0 top-0 bottom-0 z-30 w-1 cursor-col-resize touch-none bg-transparent hover:bg-primary/40 active:bg-primary/60 transition-colors"
             />
           )}
           {/* Chrome header — subdued breadcrumb-style label that does not
@@ -361,8 +360,12 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
               <SheetTitle className="truncate text-xs font-medium tracking-wide text-muted-foreground">
                 {resolvedTitle}
               </SheetTitle>
-              {description && (
+              {description ? (
                 <SheetDescription className="truncate text-xs">{description}</SheetDescription>
+              ) : (
+                <SheetDescription className="sr-only">
+                  Record detail overlay for {resolvedTitle}.
+                </SheetDescription>
               )}
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
@@ -421,7 +424,13 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
           )}
           <DialogHeader>
             <DialogTitle>{resolvedTitle}</DialogTitle>
-            {description && <DialogDescription>{description}</DialogDescription>}
+            {description ? (
+              <DialogDescription>{description}</DialogDescription>
+            ) : (
+              <DialogDescription className="sr-only">
+                Record detail overlay for {resolvedTitle}.
+              </DialogDescription>
+            )}
           </DialogHeader>
           <div className="mt-4">
             {renderContent(selectedRecord)}
@@ -503,7 +512,13 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
           >
             <DialogHeader>
               <DialogTitle className="text-sm">{resolvedTitle}</DialogTitle>
-              {description && <DialogDescription className="text-xs">{description}</DialogDescription>}
+              {description ? (
+                <DialogDescription className="text-xs">{description}</DialogDescription>
+              ) : (
+                <DialogDescription className="sr-only">
+                  Record detail overlay for {resolvedTitle}.
+                </DialogDescription>
+              )}
             </DialogHeader>
             <div className="mt-2">
               {renderContent(selectedRecord)}
