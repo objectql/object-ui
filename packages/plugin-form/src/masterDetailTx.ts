@@ -1,0 +1,123 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * Pure helpers for the master-detail (parent + line items) client-orchestrated
+ * write. Kept free of React so the transaction logic is unit-testable in
+ * isolation (see ADR-0001). Both <MasterDetailForm> and <LineItemsPanel>
+ * delegate their child persistence here.
+ */
+
+import type { DataSource } from '@object-ui/types';
+
+export const idOf = (rec: any): string | undefined =>
+  rec == null ? undefined : (rec.id ?? rec._id ?? rec.recordId);
+
+export interface RowDiff {
+  toCreate: Record<string, any>[];
+  toUpdate: Record<string, any>[];
+  toDelete: string[];
+}
+
+/**
+ * Diff the current rows against a loaded snapshot. Rows without an id are
+ * creates; rows with an id are updates; snapshot ids no longer present are
+ * deletes.
+ */
+export function diffRows(
+  original: Record<string, any>[],
+  current: Record<string, any>[],
+): RowDiff {
+  const currentIds = new Set(current.map(idOf).filter(Boolean) as string[]);
+  return {
+    toCreate: current.filter((r) => !idOf(r)),
+    toUpdate: current.filter((r) => idOf(r)),
+    toDelete: (original || [])
+      .map(idOf)
+      .filter((id): id is string => !!id && !currentIds.has(id)),
+  };
+}
+
+/** Sum a numeric column across rows (blanks/NaN ignored). */
+export function sumRows(rows: Record<string, any>[], field: string): number {
+  if (!Array.isArray(rows)) return 0;
+  return rows.reduce((acc, r) => {
+    const v = Number(r?.[field]);
+    return acc + (Number.isFinite(v) ? v : 0);
+  }, 0);
+}
+
+/** Create child rows, preferring a single bulk call when the adapter has one. */
+async function createMany(
+  dataSource: DataSource,
+  childObject: string,
+  rows: Record<string, any>[],
+): Promise<any[]> {
+  if (rows.length === 0) return [];
+  if (typeof dataSource.bulk === 'function') {
+    return await dataSource.bulk(childObject, 'create', rows);
+  }
+  return await Promise.all(rows.map((r) => dataSource.create(childObject, r)));
+}
+
+export interface ApplyDetailOptions {
+  childObject: string;
+  relationshipField: string;
+  rows: Record<string, any>[];
+  /** Loaded snapshot — when present we diff (edit mode); otherwise create-all. */
+  original?: Record<string, any>[];
+  /** Numeric child column to sum. */
+  amountField?: string;
+  /** Parent field to receive the rolled-up sum. */
+  totalField?: string;
+}
+
+export interface ApplyDetailResult {
+  /** Child object + id pairs created in this call (for cleanup on failure). */
+  created: Array<{ object: string; id: string }>;
+}
+
+/**
+ * Persist one child collection for a known parent id. Sets the relationship FK
+ * on every row, then creates / updates / deletes, then (optionally) rolls the
+ * line total up onto the parent. Hooks can't do nested writes, so the rollup
+ * happens here on the client.
+ */
+export async function applyDetail(
+  dataSource: DataSource,
+  parentObject: string,
+  parentId: string,
+  opts: ApplyDetailOptions,
+): Promise<ApplyDetailResult> {
+  const created: Array<{ object: string; id: string }> = [];
+  const withFk = opts.rows.map((r) => ({ ...r, [opts.relationshipField]: parentId }));
+
+  if (opts.original !== undefined) {
+    const { toCreate, toUpdate, toDelete } = diffRows(opts.original, withFk);
+    const newRecords = await createMany(dataSource, opts.childObject, toCreate);
+    for (const rec of newRecords) {
+      const id = idOf(rec);
+      if (id) created.push({ object: opts.childObject, id });
+    }
+    await Promise.all(toUpdate.map((r) => dataSource.update(opts.childObject, idOf(r)!, r)));
+    await Promise.all(toDelete.map((id) => dataSource.delete(opts.childObject, id)));
+  } else {
+    const newRecords = await createMany(dataSource, opts.childObject, withFk);
+    for (const rec of newRecords) {
+      const id = idOf(rec);
+      if (id) created.push({ object: opts.childObject, id });
+    }
+  }
+
+  if (opts.totalField) {
+    const total = sumRows(opts.rows, opts.amountField || 'amount');
+    await dataSource.update(parentObject, parentId, { [opts.totalField]: total });
+  }
+
+  return { created };
+}

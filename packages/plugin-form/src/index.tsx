@@ -40,6 +40,14 @@ export { EmbeddableForm } from './EmbeddableForm';
 export type { EmbeddableFormProps, EmbeddableFormConfig, EmbeddableFormTexts } from './EmbeddableForm';
 export { FormAnalytics } from './FormAnalytics';
 export type { FormAnalyticsProps, FormSubmissionMetric } from './FormAnalytics';
+export { MasterDetailForm } from './MasterDetailForm';
+export type {
+  MasterDetailFormProps,
+  MasterDetailFormSchema,
+  MasterDetailDetailConfig,
+} from './MasterDetailForm';
+export { LineItemsPanel } from './LineItemsPanel';
+export type { LineItemsPanelSchema } from './LineItemsPanel';
 
 // Register object-form component
 const ObjectFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
@@ -140,4 +148,48 @@ ComponentRegistry.register('form-analytics', FormAnalyticsRenderer, {
     { name: 'formTitle', type: 'string', label: 'Form Title' },
     { name: 'metrics', type: 'object', label: 'Submission Metrics' },
   ]
+});
+
+// Register master-detail composite form (parent + child line items, entered
+// together — see ADR-0001).
+import { MasterDetailForm } from './MasterDetailForm';
+
+const MasterDetailFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
+  const ctx = useContext(SchemaRendererContext as React.Context<any>);
+  const dataSource = ctx?.dataSource ?? undefined;
+  return <MasterDetailForm schema={schema} dataSource={dataSource} />;
+};
+
+ComponentRegistry.register('object-master-detail-form', MasterDetailFormRenderer, {
+  namespace: 'plugin-form',
+  label: 'Master-Detail Form',
+  category: 'plugin',
+  inputs: [
+    { name: 'objectName', type: 'string', label: 'Parent Object', required: true },
+    { name: 'mode', type: 'enum', label: 'Mode', enum: ['create', 'edit'] },
+    { name: 'sections', type: 'array', label: 'Parent Sections' },
+    { name: 'details', type: 'array', label: 'Detail Collections', required: true },
+  ],
+});
+
+// Register record:line_items — child grid bound to an existing parent record,
+// usable on a record/detail page or slotted slot.
+import { LineItemsPanel } from './LineItemsPanel';
+
+const LineItemsPanelRenderer: React.FC<{ schema: any }> = ({ schema }) => (
+  <LineItemsPanel schema={schema} />
+);
+
+ComponentRegistry.register('line_items', LineItemsPanelRenderer, {
+  namespace: 'record',
+  skipFallback: true,
+  label: 'Line Items',
+  category: 'record',
+  inputs: [
+    { name: 'childObject', type: 'string', label: 'Child Object', required: true },
+    { name: 'relationshipField', type: 'string', label: 'Relationship Field', required: true },
+    { name: 'columns', type: 'array', label: 'Columns', required: true },
+    { name: 'totalField', type: 'string', label: 'Parent Total Field' },
+    { name: 'amountField', type: 'string', label: 'Amount Column' },
+  ],
 });
