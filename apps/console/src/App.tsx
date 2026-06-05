@@ -15,6 +15,7 @@
 import { type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, AuthGuard, useAuth } from '@object-ui/auth';
+import { DevMasterDetail } from './dev/DevMasterDetail';
 import {
   ConsoleShell,
   ConnectedShell,
@@ -177,6 +178,12 @@ export function App() {
             <Route path="/home" element={
               <ProtectedRoute>
                 <HomeRoute />
+              </ProtectedRoute>
+            } />
+            {/* Dev-only: ADR-0001 master-detail subform verification harness. */}
+            <Route path="/dev/master-detail" element={
+              <ProtectedRoute>
+                <DevMasterDetail />
               </ProtectedRoute>
             } />
             <Route path="/organizations" element={
