@@ -77,6 +77,8 @@ export function GridField({
 
   const allowAdd = cfg.allow_add !== false && !readonly && !disabled;
   const allowDelete = cfg.allow_delete !== false && !readonly && !disabled;
+  // Enterprise line grids (NetSuite/SAP/Salesforce) show a line-number column.
+  const showLineNumbers = cfg.show_line_numbers !== false;
   const minRows: number = cfg.min_rows ?? 0;
   const maxRows: number | undefined = cfg.max_rows;
   const totalField: string | undefined =
@@ -125,10 +127,16 @@ export function GridField({
         <table className="w-full text-sm">
           <thead className="bg-muted border-b border-border">
             <tr>
+              {showLineNumbers && (
+                <th className="w-10 px-2 py-2 text-right text-xs font-medium text-muted-foreground">#</th>
+              )}
               {columns.map((c) => (
                 <th
                   key={c.field}
-                  className="px-3 py-2 text-left text-xs font-medium text-muted-foreground"
+                  className={cn(
+                    'px-3 py-2 text-xs font-medium text-muted-foreground',
+                    isNumeric(c.type) ? 'text-right' : 'text-left',
+                  )}
                 >
                   {c.label || c.field}
                 </th>
@@ -139,7 +147,7 @@ export function GridField({
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={Math.max(columns.length, 1)}
+                  colSpan={Math.max(columns.length + (showLineNumbers ? 1 : 0), 1)}
                   className="px-3 py-6 text-center text-muted-foreground"
                 >
                   No items
@@ -148,8 +156,14 @@ export function GridField({
             ) : (
               rows.map((row, rowIdx) => (
                 <tr key={rowIdx}>
+                  {showLineNumbers && (
+                    <td className="px-2 py-2 text-right text-muted-foreground tabular-nums">{rowIdx + 1}</td>
+                  )}
                   {columns.map((c) => (
-                    <td key={c.field} className="px-3 py-2 text-foreground">
+                    <td
+                      key={c.field}
+                      className={cn('px-3 py-2 text-foreground', isNumeric(c.type) && 'text-right tabular-nums')}
+                    >
                       {row[c.field] != null && row[c.field] !== ''
                         ? String(row[c.field])
                         : '—'}
@@ -163,12 +177,12 @@ export function GridField({
             <tfoot className="border-t border-border bg-muted/40">
               <tr>
                 <td
-                  colSpan={Math.max(columns.length - 1, 1)}
+                  colSpan={Math.max((showLineNumbers ? 1 : 0) + columns.length - 1, 1)}
                   className="px-3 py-2 text-right text-xs font-medium text-muted-foreground"
                 >
                   Total
                 </td>
-                <td className="px-3 py-2 font-medium text-foreground">
+                <td className="px-3 py-2 text-right font-medium text-foreground tabular-nums">
                   {total.toLocaleString()}
                 </td>
               </tr>
@@ -186,10 +200,16 @@ export function GridField({
         <table className="w-full text-sm">
           <thead className="bg-muted border-b border-border">
             <tr>
+              {showLineNumbers && (
+                <th className="w-10 px-2 py-2 text-right text-xs font-medium text-muted-foreground">#</th>
+              )}
               {columns.map((c) => (
                 <th
                   key={c.field}
-                  className="px-3 py-2 text-left text-xs font-medium text-muted-foreground"
+                  className={cn(
+                    'px-3 py-2 text-xs font-medium text-muted-foreground',
+                    isNumeric(c.type) ? 'text-right' : 'text-left',
+                  )}
                   style={c.width ? { width: c.width } : undefined}
                 >
                   {c.label || c.field}
@@ -203,15 +223,20 @@ export function GridField({
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={columns.length + (allowDelete ? 1 : 0)}
+                  colSpan={columns.length + (allowDelete ? 1 : 0) + (showLineNumbers ? 1 : 0)}
                   className="px-3 py-6 text-center text-muted-foreground"
                 >
-                  No items yet — click “Add row” to begin.
+                  No items yet — click “{cfg.add_label || 'Add line'}” to begin.
                 </td>
               </tr>
             ) : (
               rows.map((row, rowIdx) => (
                 <tr key={rowIdx} className="hover:bg-muted/30">
+                  {showLineNumbers && (
+                    <td className="px-2 py-1.5 text-right align-middle text-muted-foreground tabular-nums">
+                      {rowIdx + 1}
+                    </td>
+                  )}
                   {columns.map((c) => (
                     <td key={c.field} className="px-2 py-1.5 align-top">
                       {c.type === 'select' ? (
@@ -239,7 +264,7 @@ export function GridField({
                             </span>
                           )}
                           <Input
-                            className={cn('h-8', c.type === 'currency' && 'pl-6')}
+                            className={cn('h-8', c.type === 'currency' && 'pl-6', isNumeric(c.type) && 'text-right')}
                             type={
                               c.type === 'date'
                                 ? 'date'
@@ -280,12 +305,12 @@ export function GridField({
             <tfoot className="border-t border-border bg-muted/40">
               <tr>
                 <td
-                  colSpan={Math.max(columns.length - 1, 1)}
+                  colSpan={Math.max((showLineNumbers ? 1 : 0) + columns.length - 1, 1)}
                   className="px-3 py-2 text-right text-xs font-medium text-muted-foreground"
                 >
                   Total
                 </td>
-                <td className="px-3 py-2 font-medium text-foreground" data-testid="line-items-total">
+                <td className="px-3 py-2 text-right font-medium text-foreground tabular-nums" data-testid="line-items-total">
                   {total.toLocaleString()}
                 </td>
                 {allowDelete && <td />}
@@ -304,7 +329,7 @@ export function GridField({
           disabled={maxRows != null && rows.length >= maxRows}
         >
           <Plus className="mr-1.5 h-4 w-4" />
-          {cfg.add_label || 'Add row'}
+          {cfg.add_label || 'Add line'}
         </Button>
       )}
     </div>

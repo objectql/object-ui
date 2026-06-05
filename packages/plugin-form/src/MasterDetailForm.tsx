@@ -27,7 +27,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DataSource } from '@object-ui/types';
 import { LineItemsField, type GridColumn } from '@object-ui/fields';
-import { Card, CardContent, CardHeader, CardTitle, cn } from '@object-ui/components';
+import { Button, Card, CardContent, CardHeader, CardTitle, cn } from '@object-ui/components';
 import { ObjectForm } from './ObjectForm';
 import { applyDetail, idOf } from './masterDetailTx';
 
@@ -65,6 +65,7 @@ export interface MasterDetailFormSchema {
   details: MasterDetailDetailConfig[];
   onSuccess?: (parent: any) => void | Promise<void>;
   onError?: (err: Error) => void;
+  onCancel?: () => void;
   className?: string;
 }
 
@@ -176,6 +177,9 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
     [dataSource, isEdit, persistDetails, schema],
   );
 
+  // The parent form renders WITHOUT its own submit button — the master-detail
+  // form owns a single action bar at the bottom (header → lines → Save), the
+  // layout every mainstream enterprise platform uses for header+line entry.
   const parentSchema = useMemo(
     () => ({
       type: 'object-form',
@@ -186,21 +190,36 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
       sections: schema.sections,
       fields: schema.fields,
       title: schema.title,
-      submitText: schema.submitText ?? (isEdit ? 'Save' : 'Create'),
+      showSubmit: false,
+      showCancel: false,
       onSuccess: handleParentSaved,
       onError: schema.onError,
     }),
-    [schema, isEdit, handleParentSaved],
+    [schema, handleParentSaved],
   );
 
+  const formHostRef = useRef<HTMLDivElement>(null);
+  const submitText = schema.submitText ?? (isEdit ? 'Save' : 'Create');
+
+  const handleSave = useCallback(() => {
+    // Drive the (button-less) parent form's submit so its validation + RHF
+    // onSubmit fire; success chains into child persistence via onSuccess.
+    const form = formHostRef.current?.querySelector('form') as HTMLFormElement | null;
+    if (form) form.requestSubmit();
+  }, []);
+
   return (
-    <div className={cn('space-y-4', className, schema.className)}>
+    <div className={cn('space-y-6', className, schema.className)}>
+      {/* 1) Header fields on top */}
+      <div ref={formHostRef}>
+        <ObjectForm schema={parentSchema as any} dataSource={dataSource} />
+      </div>
+
+      {/* 2) Line items below the header */}
       {details.map((d, i) => (
         <Card key={`${d.childObject}-${i}`} className="shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              {d.title || 'Line Items'}
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">{d.title || 'Line Items'}</CardTitle>
           </CardHeader>
           <CardContent>
             <LineItemsField
@@ -222,8 +241,17 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
         </Card>
       ))}
 
-      {/* Parent fields + the single submit button live here. */}
-      <ObjectForm schema={parentSchema as any} dataSource={dataSource} />
+      {/* 3) Single action bar at the bottom */}
+      <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+        {schema.onCancel && (
+          <Button type="button" variant="outline" onClick={schema.onCancel}>
+            Cancel
+          </Button>
+        )}
+        <Button type="button" onClick={handleSave}>
+          {submitText}
+        </Button>
+      </div>
     </div>
   );
 };

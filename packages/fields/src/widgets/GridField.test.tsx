@@ -19,13 +19,13 @@ describe('GridField / LineItemsField — editable line items', () => {
     render(<GridField value={[]} onChange={() => {}} field={field} />);
     expect(screen.getByText('Description')).toBeTruthy();
     expect(screen.getByText('Amount')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Add row/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Add line/i })).toBeTruthy();
   });
 
-  it('Add row appends a blank row keyed by columns', () => {
+  it('Add line appends a blank row keyed by columns', () => {
     const onChange = vi.fn();
     render(<GridField value={[]} onChange={onChange} field={field} />);
-    fireEvent.click(screen.getByRole('button', { name: /Add row/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Add line/i }));
     expect(onChange).toHaveBeenCalledWith([{ description: null, amount: null }]);
   });
 
