@@ -52,6 +52,20 @@ export function sumRows(rows: Record<string, any>[], field: string): number {
   }, 0);
 }
 
+/**
+ * Normalize whatever a create/bulk call resolves to into an array of records.
+ * Adapters vary: some return `T[]`, others `{ records: [...] }` / `{ data: [...] }`
+ * or a single record. We only use the result to collect ids for cleanup, so a
+ * best-effort coercion keeps the happy path from throwing on an odd shape.
+ */
+function toRecordArray(res: any): any[] {
+  if (Array.isArray(res)) return res;
+  if (res && Array.isArray(res.records)) return res.records;
+  if (res && Array.isArray(res.data)) return res.data;
+  if (res && (res.id || res._id)) return [res];
+  return [];
+}
+
 /** Create child rows, preferring a single bulk call when the adapter has one. */
 async function createMany(
   dataSource: DataSource,
@@ -60,9 +74,10 @@ async function createMany(
 ): Promise<any[]> {
   if (rows.length === 0) return [];
   if (typeof dataSource.bulk === 'function') {
-    return await dataSource.bulk(childObject, 'create', rows);
+    return toRecordArray(await dataSource.bulk(childObject, 'create', rows));
   }
-  return await Promise.all(rows.map((r) => dataSource.create(childObject, r)));
+  const created = await Promise.all(rows.map((r) => dataSource.create(childObject, r)));
+  return toRecordArray(created);
 }
 
 export interface ApplyDetailOptions {

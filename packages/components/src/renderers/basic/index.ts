@@ -17,3 +17,4 @@ import './button-group';
 import './pagination';
 import './navigation-menu';
 import './elements';
+import './data-list';

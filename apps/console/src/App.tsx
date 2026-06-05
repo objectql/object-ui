@@ -16,6 +16,7 @@ import { type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, AuthGuard, useAuth } from '@object-ui/auth';
 import { DevMasterDetail } from './dev/DevMasterDetail';
+import { DevLists } from './dev/DevLists';
 import {
   ConsoleShell,
   ConnectedShell,
@@ -184,6 +185,12 @@ export function App() {
             <Route path="/dev/master-detail" element={
               <ProtectedRoute>
                 <DevMasterDetail />
+              </ProtectedRoute>
+            } />
+            {/* Dev-only: lightweight list primitives (definition-list, repeater). */}
+            <Route path="/dev/lists" element={
+              <ProtectedRoute>
+                <DevLists />
               </ProtectedRoute>
             } />
             <Route path="/organizations" element={

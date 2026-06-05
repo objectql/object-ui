@@ -62,6 +62,28 @@ describe('applyDetail — client-orchestrated child write', () => {
     ]);
   });
 
+  it('tolerates a bulk() that returns {records:[...]} instead of an array', async () => {
+    // Mirrors the real ObjectStack adapter, whose createMany can resolve to a
+    // wrapped shape rather than a bare array (regression: "newRecords is not iterable").
+    const ds = mockDataSource({
+      bulk: vi.fn(async (_o: string, _op: string, rows: any[]) => ({
+        records: rows.map((r, i) => ({ id: 'w' + i, ...r })),
+      })),
+    });
+    const res = await applyDetail(ds, 'expense_claim', 'claim_1', {
+      childObject: 'expense_line',
+      relationshipField: 'expense_claim',
+      rows: [{ amount: 10 }, { amount: 5 }],
+      amountField: 'amount',
+      totalField: 'total_amount',
+    });
+    expect(res.created).toEqual([
+      { object: 'expense_line', id: 'w0' },
+      { object: 'expense_line', id: 'w1' },
+    ]);
+    expect(ds.update).toHaveBeenCalledWith('expense_claim', 'claim_1', { total_amount: 15 });
+  });
+
   it('create mode without bulk falls back to per-row create', async () => {
     const ds = mockDataSource({ bulk: undefined });
     await applyDetail(ds, 'po', 'po_1', {
