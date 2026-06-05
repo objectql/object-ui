@@ -209,7 +209,9 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               field={
                 {
                   columns: d.columns,
-                  total_field: d.totalField ? d.amountField || 'amount' : undefined,
+                  // Show the running total whenever an amount column is set,
+                  // independent of whether it also rolls up onto the parent.
+                  total_field: d.amountField || (d.totalField ? 'amount' : undefined),
                   min_rows: d.minRows,
                   max_rows: d.maxRows,
                   add_label: d.addLabel,
