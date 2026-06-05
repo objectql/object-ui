@@ -112,14 +112,18 @@ export function MarketplacePackagePage() {
     return () => { cancelled = true; };
   }, [packageId, localResult]);
 
-  // Seed cloud-install state: when the runtime advertises a default
-  // environment (per-subdomain ObjectOS), check whether this package is
-  // already installed in that env so the primary CTA renders as
-  // "Installed" on first paint instead of inviting another install.
+  // Seed cloud-install state so the primary CTA renders as "Installed" on
+  // first paint instead of inviting another install.
+  // NOTE: a tenant runtime (per-subdomain ObjectOS) has NO
+  // `defaultEnvironmentId` — but getCloudInstallationInfo's same-origin
+  // `/cloud-connection/installation` path resolves the env by hostname and
+  // does not need an explicit id (only the cloud-control-plane path needs
+  // one, and it no-ops on an empty id internally). So do NOT gate the probe
+  // on `currentEnvId` — that left the detail CTA stuck on "Install to
+  // cloud…" for every already-installed package in an env console.
   useEffect(() => {
     if (!packageId) return;
-    const currentEnvId = getRuntimeConfig().defaultEnvironmentId;
-    if (!currentEnvId) return;
+    const currentEnvId = getRuntimeConfig().defaultEnvironmentId ?? '';
     let cancelled = false;
     (async () => {
       const info = await getCloudInstallationInfo(packageId, currentEnvId);

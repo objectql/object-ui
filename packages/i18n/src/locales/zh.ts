@@ -1699,6 +1699,7 @@ const zh = {
         reinstall: '重新安装',
         working: '处理中…',
         installToCloud: '安装到云端…',
+        installed: '已安装',
         installing: '安装中…',
         uninstall: '卸载',
         uninstalling: '卸载中…',

@@ -1705,6 +1705,7 @@ const en = {
         reinstall: 'Reinstall',
         working: 'Working…',
         installToCloud: 'Install to cloud…',
+        installed: 'Installed',
         installing: 'Installing…',
         uninstall: 'Uninstall',
         uninstalling: 'Uninstalling…',
