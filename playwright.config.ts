@@ -11,6 +11,11 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './e2e',
+  // Live specs (e2e/live/**) drive the REAL running stack (backend :3000 +
+  // console :5180) via playwright.live.config.ts + an auth global-setup.
+  // Exclude them from the default/CI run, which serves a mocked production
+  // build with no backend.
+  testIgnore: ['**/live/**'],
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code */
