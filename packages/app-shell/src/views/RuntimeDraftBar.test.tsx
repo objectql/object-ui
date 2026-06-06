@@ -146,6 +146,52 @@ describe('RuntimeDraftBar (ADR-0034)', () => {
       expect((publishBtn as HTMLButtonElement).disabled).toBe(true);
     });
 
+    it('surfaces the indicator immediately when savedSignal bumps (no read race)', async () => {
+      vi.stubEnv('VITE_RUNTIME_EDIT_VIA_META', 'true');
+      const metadataClient = makeMetadataClient(null); // no draft on initial read
+
+      const { rerender, container } = render(
+        <RuntimeDraftBar
+          type="view"
+          name="my_view"
+          metadataClient={metadataClient}
+          savedSignal={0}
+        />,
+      );
+
+      // No draft yet → nothing rendered.
+      await waitFor(() => expect(metadataClient.get).toHaveBeenCalled());
+      expect(container.querySelector('[data-testid="runtime-draft-bar"]')).toBeNull();
+
+      // Host saved a draft → bump the signal → indicator appears at once,
+      // without depending on a re-read.
+      rerender(
+        <RuntimeDraftBar
+          type="view"
+          name="my_view"
+          metadataClient={metadataClient}
+          savedSignal={1}
+        />,
+      );
+      await waitFor(() =>
+        expect(screen.getByTestId('runtime-draft-bar')).toBeTruthy(),
+      );
+    });
+
+    it('savedSignal does nothing when the flag is off', async () => {
+      vi.stubEnv('VITE_RUNTIME_EDIT_VIA_META', '');
+      const metadataClient = makeMetadataClient(null);
+
+      const { rerender, container } = render(
+        <RuntimeDraftBar type="view" name="my_view" metadataClient={metadataClient} savedSignal={0} />,
+      );
+      rerender(
+        <RuntimeDraftBar type="view" name="my_view" metadataClient={metadataClient} savedSignal={1} />,
+      );
+
+      expect(container.querySelector('[data-testid="runtime-draft-bar"]')).toBeNull();
+    });
+
     it('stays inert until a name is known', async () => {
       vi.stubEnv('VITE_RUNTIME_EDIT_VIA_META', 'true');
       const metadataClient = makeMetadataClient({ item: { a: 1 } });

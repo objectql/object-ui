@@ -85,6 +85,8 @@ export function DashboardConfigPanel<
   // Unsaved-edits flag — gates Publish (mirrors studio's "save first"). The
   // panel unmounts on close, so this resets to false on each open.
   const [dirty, setDirty] = useState(false);
+  // Bumped on save so the draft chrome surfaces the indicator immediately.
+  const [savedSignal, setSavedSignal] = useState(0);
 
   // Controlled: merge an inspector patch into the current schema and bubble it
   // back up. No local draft state — `schema` is the single source of truth.
@@ -218,12 +220,14 @@ export function DashboardConfigPanel<
           metadataClient={metadataClient}
           dirty={dirty}
           onResume={handleResumeDraft}
+          savedSignal={savedSignal}
         />
         <Button
           size="sm"
           onClick={() => {
             onSave((schema ?? {}) as T);
             setDirty(false);
+            setSavedSignal((s) => s + 1);
           }}
           data-testid="dashboard-config-save"
         >

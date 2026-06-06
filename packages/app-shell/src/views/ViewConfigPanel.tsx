@@ -132,6 +132,9 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
     );
     const [draft, setDraft] = useState<InspectorViewDraft>(initialDraft);
     const [isDirty, setIsDirty] = useState(false);
+    // Bumped on each edit-mode save so the draft/publish chrome surfaces the
+    // "unpublished changes" indicator immediately (the save writes a draft).
+    const [savedSignal, setSavedSignal] = useState(0);
     // Mirror the committed draft into a ref so `handlePatch` can compute the
     // next draft synchronously without a side-effecting state updater.
     const draftRef = useRef(draft);
@@ -183,6 +186,7 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
             onCreate?.(flat);
         } else {
             onSave?.(flat);
+            setSavedSignal((s) => s + 1);
         }
         setIsDirty(false);
     }, [draft, onSave, onCreate, mode]);
@@ -251,6 +255,7 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                         metadataClient={metadataClient}
                         dirty={isDirty}
                         onResume={handleResumeDraft}
+                        savedSignal={savedSignal}
                     />
                 )}
                 <Button

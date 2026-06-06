@@ -80,10 +80,22 @@ export interface RichMetadataTypeEntry {
   ui?: Record<string, unknown>;
 }
 
-/** Use a single MetadataClient for the whole admin engine. */
+/**
+ * Use a single MetadataClient for the whole admin engine.
+ *
+ * The base resolves to `VITE_SERVER_URL` so `/meta/*` writes reach the backend
+ * even when the SPA and API are served from different origins (the split-origin
+ * `pnpm dev` setup: SPA on :5180, backend on :3000). In same-origin production
+ * `VITE_SERVER_URL` is unset → falls back to `''` (relative, current origin),
+ * matching every other client in the app (see `apps/console/src/main.tsx`).
+ */
 export function useMetadataClient(environmentId?: string): MetadataClient {
   return useMemo(() => {
-    const c = new MetadataClient({ baseUrl: '' });
+    const baseUrl =
+      (typeof import.meta !== 'undefined' &&
+        (import.meta as any).env?.VITE_SERVER_URL) ||
+      '';
+    const c = new MetadataClient({ baseUrl });
     return environmentId ? c.withEnvironment(environmentId) : c;
   }, [environmentId]);
 }

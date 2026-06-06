@@ -50,6 +50,14 @@ export interface RuntimeDraftBarProps {
   onResume?: (body: Record<string, unknown>) => void;
   /** Called after a successful publish / discard so the host can refresh. */
   onAfterChange?: () => void;
+  /**
+   * Monotonic counter the host bumps right after it saves a draft. The bar
+   * reads the pending draft only on open, so without this a save in an
+   * already-open panel wouldn't surface the indicator until reopen. Bumping
+   * this marks the indicator immediately (a save just created a draft) — no
+   * dependence on the fire-and-forget write's timing.
+   */
+  savedSignal?: number;
 }
 
 export function RuntimeDraftBar({
@@ -59,6 +67,7 @@ export function RuntimeDraftBar({
   dirty,
   onResume,
   onAfterChange,
+  savedSignal,
 }: RuntimeDraftBarProps) {
   const enabled = isViaMeta();
   const locale = detectLocale();
@@ -100,6 +109,16 @@ export function RuntimeDraftBar({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // A host save just wrote a draft → surface the indicator immediately,
+  // without waiting for a reopen or racing the fire-and-forget write.
+  // Skip the initial mount (savedSignal === 0 / undefined).
+  const lastSavedSignal = useRef(savedSignal);
+  useEffect(() => {
+    if (savedSignal === lastSavedSignal.current) return;
+    lastSavedSignal.current = savedSignal;
+    if (enabled && savedSignal) setHasDraft(true);
+  }, [savedSignal, enabled]);
 
   const handlePublish = useCallback(async () => {
     if (!name) return;
