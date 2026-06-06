@@ -15,6 +15,7 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useMetadata } from '../providers/MetadataProvider';
 import { useAdapter } from '../providers/AdapterProvider';
+import { useAuth } from '@object-ui/auth';
 import type { DataSource } from '@object-ui/types';
 
 // Fallback fields when no schema is available
@@ -34,6 +35,10 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   const { reportName } = useParams<{ reportName: string }>();
   const { showDebug } = useMetadataInspector();
   const adapter = useAdapter();
+  // Editing a report mutates the SHARED definition, so it is an admin-only
+  // quick-edit affordance (mirrors ObjectView's view-config gate).
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [configPanelOpen, setConfigPanelOpen] = useState(false);
   // Version counter — incremented on save to refresh the stable config reference
   const [configVersion, setConfigVersion] = useState(0);
@@ -426,6 +431,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
            )}
         </div>
         <div className="shrink-0 flex items-center gap-1.5">
+           {isAdmin && (
            <button
              type="button"
              onClick={handleOpenConfigPanel}
@@ -435,6 +441,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
              <Pencil className="h-3.5 w-3.5" />
              {t('common.edit')}
            </button>
+           )}
         </div>
       </div>
 
@@ -456,7 +463,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
          {/* Right-side config panel — studio's spec-driven report inspector,
              hosted locally in app-shell (see ReportConfigPanel). */}
          <ReportConfigPanel
-           open={configPanelOpen}
+           open={configPanelOpen && isAdmin}
            onClose={handleCloseConfigPanel}
            config={reportConfig}
            onSave={handleReportConfigSave}

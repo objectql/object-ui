@@ -11,6 +11,7 @@ import { useParams } from 'react-router-dom';
 import { DashboardRenderer } from '@object-ui/plugin-dashboard';
 import { ModalForm } from '@object-ui/plugin-form';
 import { DashboardConfigPanel } from './DashboardConfigPanel';
+import { useAuth } from '@object-ui/auth';
 import { toast } from 'sonner';
 import type { ModalHandler, ActionDef, ActionContext, ActionResult } from '@object-ui/core';
 import {
@@ -94,6 +95,10 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   const adapter = useAdapter();
   const { t } = useObjectTranslation();
   const { dashboardLabel, dashboardDescription } = useObjectLabel();
+  // Editing a dashboard mutates the SHARED definition, so it is an admin-only
+  // quick-edit affordance (mirrors ObjectView's view-config gate).
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [isLoading, setIsLoading] = useState(true);
   const [configPanelOpen, setConfigPanelOpen] = useState(false);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
@@ -382,6 +387,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
               ))}
             </div>
           )}
+          {isAdmin && (
           <button
             type="button"
             onClick={handleOpenConfigPanel}
@@ -391,6 +397,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
             <Pencil className="h-3.5 w-3.5" />
             {t('common.edit', { defaultValue: 'Edit' })}
           </button>
+          )}
         </div>
       </div>
 
@@ -413,7 +420,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
          {/* Right-side config panel — one controlled panel that switches
              between the dashboard-level and widget-level studio inspectors. */}
          <DashboardConfigPanel
-           open={configPanelOpen}
+           open={configPanelOpen && isAdmin}
            onClose={handleCloseConfigPanel}
            schema={panelSchema}
            selectedWidgetId={selectedWidgetId}
