@@ -127,6 +127,9 @@ export function GridField({
 
   const showTotal = !!totalField;
   const total = showTotal ? sumColumn(rows, totalField!) : 0;
+  // Align the running total under the column it sums (not blindly under the
+  // last column). The label sits right-aligned immediately to its left.
+  const totalColIndex = showTotal ? Math.max(0, columns.findIndex((c) => c.field === totalField)) : -1;
 
   // ── Read-only / view rendering ────────────────────────────────────────────
   if (readonly) {
@@ -197,14 +200,17 @@ export function GridField({
             <tfoot className="border-t border-border bg-muted/40">
               <tr>
                 <td
-                  colSpan={Math.max((showLineNumbers ? 1 : 0) + columns.length - 1, 1)}
+                  colSpan={Math.max((showLineNumbers ? 1 : 0) + totalColIndex, 1)}
                   className="px-3 py-2 text-right text-xs font-medium text-muted-foreground"
                 >
                   Total
                 </td>
-                <td className="px-3 py-2 text-right font-medium text-foreground tabular-nums">
+                <td className="px-3 py-2 text-right font-semibold text-foreground tabular-nums">
                   {total.toLocaleString()}
                 </td>
+                {columns.length - totalColIndex - 1 > 0 && (
+                  <td colSpan={columns.length - totalColIndex - 1} />
+                )}
               </tr>
             </tfoot>
           )}
@@ -341,15 +347,17 @@ export function GridField({
             <tfoot className="border-t border-border bg-muted/40">
               <tr>
                 <td
-                  colSpan={Math.max((showLineNumbers ? 1 : 0) + columns.length - 1, 1)}
+                  colSpan={Math.max((showLineNumbers ? 1 : 0) + totalColIndex, 1)}
                   className="px-3 py-2 text-right text-xs font-medium text-muted-foreground"
                 >
                   Total
                 </td>
-                <td className="px-3 py-2 text-right font-medium text-foreground tabular-nums" data-testid="line-items-total">
+                <td className="px-3 py-2 text-right font-semibold text-foreground tabular-nums" data-testid="line-items-total">
                   {total.toLocaleString()}
                 </td>
-                {allowDelete && <td />}
+                {(columns.length - totalColIndex - 1 + (allowDelete ? 1 : 0)) > 0 && (
+                  <td colSpan={columns.length - totalColIndex - 1 + (allowDelete ? 1 : 0)} />
+                )}
               </tr>
             </tfoot>
           )}

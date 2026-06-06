@@ -37,12 +37,16 @@ test('Account detail page auto-renders a relationship-derived Projects related l
   await relatedTab.waitFor({ state: 'visible', timeout: 15_000 });
   await relatedTab.click();
 
-  // 4) The relationship-derived related list renders with the declared
-  //    `relatedListTitle` ("Projects") and the override columns. Assert the
-  //    list header and a derived column are present in the Related panel.
+  // 4) The relationship-derived related list renders under its declared
+  //    `relatedListTitle` ("Projects").
   const relatedPanel = page.getByRole('tabpanel', { name: /Related/i });
   await expect(relatedPanel.getByText('Projects', { exact: false }).first()).toBeVisible({ timeout: 15_000 });
-  // `relatedListColumns` → the Health column header is one of the declared
-  // overrides (it would not appear in a naive all-fields derivation order).
-  await expect(relatedPanel.getByText(/Health/i).first()).toBeVisible({ timeout: 15_000 });
+  // The status column renders as a friendly, capitalized badge label (e.g.
+  // "Planned"/"Active") — NOT the raw lowercase value ("planned"). This guards
+  // the cell-renderer resolution for explicitly-supplied related-list columns.
+  // (Empty override columns like Health are pruned, so we don't assert those.)
+  await expect(
+    relatedPanel.getByText(/^(Planned|Active|On Hold|Completed|Cancelled)$/).first(),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(relatedPanel.getByText('planned', { exact: true })).toHaveCount(0);
 });

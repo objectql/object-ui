@@ -162,14 +162,17 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     }
   }, [data, dataProvided]);
 
-  // Auto-fetch object schema when api/dataSource available but columns missing
+  // Fetch the related object's schema whenever we can. Needed BOTH to
+  // auto-derive columns (no `columns` prop) AND to attach type-aware cell
+  // renderers to explicitly-supplied columns (so a `status` column resolves to
+  // a "Planned" badge instead of the raw `planned`). The fetch is cheap/cached.
   React.useEffect(() => {
-    if (api && dataSource?.getObjectSchema && !columns?.length) {
+    if (api && dataSource?.getObjectSchema) {
       dataSource.getObjectSchema(api).then(setObjectSchema).catch((err: unknown) => {
         console.warn(`[RelatedList] Failed to fetch schema for ${api}:`, err);
       });
     }
-  }, [api, dataSource, columns]);
+  }, [api, dataSource]);
 
   React.useEffect(() => {
     // Only auto-fetch when the caller didn't pass `data` at all. If the parent
@@ -402,16 +405,64 @@ export const RelatedList: React.FC<RelatedListProps> = ({
       });
     };
 
+    // Build a type-aware cell renderer for a field — so select options resolve
+    // to friendly labels/badges, lookups to names, currency/date to formatted
+    // values, etc. Shared by BOTH the explicit-columns path and the
+    // auto-derived path so a `status` column reads "Planned" (badge), never the
+    // raw `planned`, regardless of how the columns were supplied.
+    const makeCell = (key: string, def: any): ((value: any) => any) | undefined => {
+      if (!def?.type) return undefined;
+      const rendererType = resolveCellRendererType({ type: def.type, format: def.format }) || def.type;
+      const CellRenderer = getCellRenderer(rendererType);
+      if (!CellRenderer) return undefined;
+      const isLookup = def.type === 'lookup' || def.type === 'master_detail';
+      const resolvedMap = isLookup ? lookupLabels[key] : undefined;
+      const lookupOptions =
+        resolvedMap && Object.keys(resolvedMap).length > 0
+          ? Object.entries(resolvedMap).map(([id, label]) => ({ value: id, label }))
+          : undefined;
+      const fieldMeta: FieldMetadata = {
+        name: key,
+        label: def.label || key,
+        type: def.type,
+        ...((lookupOptions || def.options) && { options: lookupOptions || def.options }),
+        ...(def.currency && { currency: def.currency }),
+        ...(def.precision !== undefined && { precision: def.precision }),
+        ...(def.format && { format: def.format }),
+        ...((def.reference_to || def.reference) && { reference_to: def.reference_to || def.reference }),
+        ...(def.reference_field && { reference_field: def.reference_field }),
+      };
+      return (value: any) => {
+        if (value === null || value === undefined) {
+          return React.createElement('span', { className: 'text-muted-foreground/50 text-xs italic' }, '—');
+        }
+        return React.createElement(CellRenderer, { value, field: fieldMeta });
+      };
+    };
+
     // Normalize bare-string column entries (e.g. `'user_agent'`) into the
-     // `{accessorKey, header}` shape the data-table renderer expects.
-     // Without this, page authors passing `columns: ['user_agent', 'ip_address']`
-     // would see empty rows on desktop and "Untitled" cards on mobile because
-     // the renderer cannot extract field values from raw strings.
+     // `{accessorKey, header}` shape the data-table renderer expects, and attach
+     // a type-aware cell renderer resolved from the object schema.
+     // Without this, page authors passing `columns: ['status', 'amount']`
+     // would see raw values (e.g. `planned`, unformatted numbers).
      const normalizeColumn = (c: any): any => {
-       if (typeof c !== 'string') return c;
+       if (typeof c !== 'string') {
+         // Object column: attach a cell renderer when it lacks one and we can
+         // resolve the field def — preserves any author-supplied cell/render.
+         const key = c?.accessorKey || c?.field || c?.name;
+         if (c && !c.cell && !c.render && key) {
+           const def = (objectSchema?.fields as any)?.[key];
+           const cell = def ? makeCell(String(key), def) : undefined;
+           if (cell) return { ...c, cell };
+         }
+         return c;
+       }
        const fieldDef = objectSchema?.fields?.[c] as any;
        const header = fieldDef?.label || resolveFieldLabel(relatedObjectName, c, fieldDef) || c;
-       return { accessorKey: c, header, fieldDef, fieldType: fieldDef?.type };
+       const col: any = { accessorKey: c, header, fieldDef, fieldType: fieldDef?.type };
+       const cell = fieldDef ? makeCell(c, fieldDef) : undefined;
+       if (cell) col.cell = cell;
+       return col;
      };
      if (columns && columns.length > 0) {
        const normalized = columns.map(normalizeColumn);
@@ -464,38 +515,8 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         header: resolveFieldLabel(resolvedObjectName, key, def.label || key),
       };
       if (def.type) {
-        const rendererType = resolveCellRendererType({ type: def.type, format: def.format }) || def.type;
-        const CellRenderer = getCellRenderer(rendererType);
-        if (CellRenderer) {
-          // For lookup/master_detail fields, expose resolved id→label map as
-          // `options` so the cell renderer shows the friendly label instead
-          // of the raw record ID.
-          const isLookup = def.type === 'lookup' || def.type === 'master_detail';
-          const resolvedMap = isLookup ? lookupLabels[key] : undefined;
-          const lookupOptions =
-            resolvedMap && Object.keys(resolvedMap).length > 0
-              ? Object.entries(resolvedMap).map(([id, label]) => ({ value: id, label }))
-              : undefined;
-          const fieldMeta: FieldMetadata = {
-            name: key,
-            label: def.label || key,
-            type: def.type,
-            ...((lookupOptions || def.options) && {
-              options: lookupOptions || def.options,
-            }),
-            ...(def.currency && { currency: def.currency }),
-            ...(def.precision !== undefined && { precision: def.precision }),
-            ...(def.format && { format: def.format }),
-            ...((def.reference_to || def.reference) && { reference_to: def.reference_to || def.reference }),
-            ...(def.reference_field && { reference_field: def.reference_field }),
-          };
-          col.cell = (value: any) => {
-            if (value === null || value === undefined) {
-              return React.createElement('span', { className: 'text-muted-foreground/50 text-xs italic' }, '—');
-            }
-            return React.createElement(CellRenderer, { value, field: fieldMeta });
-          };
-        }
+        const cell = makeCell(key, def);
+        if (cell) col.cell = cell;
       }
       return col;
     });

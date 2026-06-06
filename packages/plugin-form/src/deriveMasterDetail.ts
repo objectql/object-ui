@@ -102,12 +102,59 @@ export function findRelationshipField(
 }
 
 /**
+ * Default cap on auto-derived inline columns. An inline line-item grid lives in
+ * a constrained width (modal / detail card); dumping *every* editable child
+ * field crushes inputs and forces horizontal scroll. We curate down to a
+ * focused set by default (authors can override with explicit `columns` /
+ * `inlineColumns`, which bypass curation entirely).
+ */
+export const DEFAULT_MAX_INLINE_COLUMNS = 6;
+
+/** Field names that read as a record's primary/display column. */
+const NAME_LIKE_FIELDS = ['name', 'title', 'subject', 'label', 'full_name', 'display_name', 'code'];
+
+/** Lower number = kept first when filling the column budget. */
+const TYPE_FILL_PRIORITY: Record<string, number> = {
+  select: 0,
+  currency: 1,
+  number: 1,
+  lookup: 2,
+  date: 3,
+  text: 4,
+};
+
+/**
+ * Curate a full column list down to `max`, always keeping the primary
+ * (name-like) column and every required column, then filling the remaining
+ * budget by type usefulness. Output preserves the original schema order so the
+ * grid still reads naturally.
+ */
+function curateColumns(cols: GridColumn[], max: number): GridColumn[] {
+  if (max <= 0 || cols.length <= max) return cols;
+  const keep = new Set<string>();
+  const primary = cols.find((c) => NAME_LIKE_FIELDS.includes(c.field)) ?? cols[0];
+  if (primary) keep.add(primary.field);
+  for (const c of cols) if (c.required) keep.add(c.field); // required is non-negotiable
+  const remaining = cols
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => !keep.has(c.field))
+    .sort((a, b) => (TYPE_FILL_PRIORITY[a.c.type] ?? 5) - (TYPE_FILL_PRIORITY[b.c.type] ?? 5) || a.i - b.i);
+  for (const { c } of remaining) {
+    if (keep.size >= max) break;
+    keep.add(c.field);
+  }
+  return cols.filter((c) => keep.has(c.field));
+}
+
+/**
  * Derive editable grid columns from a child object's fields, skipping system /
  * audit fields, non-editable types, and the back-reference FK to the parent.
+ * By default the result is curated to {@link DEFAULT_MAX_INLINE_COLUMNS} (pass
+ * `maxColumns: 0` to disable curation and return every editable column).
  */
 export function deriveColumns(
   childSchema: ObjectSchemaLike | undefined,
-  opts: { relationshipField?: string; exclude?: string[] } = {},
+  opts: { relationshipField?: string; exclude?: string[]; maxColumns?: number } = {},
 ): GridColumn[] {
   const fields = childSchema?.fields;
   if (!fields || typeof fields !== 'object') return [];
@@ -132,7 +179,8 @@ export function deriveColumns(
     }
     cols.push(col);
   }
-  return cols;
+  const maxColumns = opts.maxColumns ?? DEFAULT_MAX_INLINE_COLUMNS;
+  return curateColumns(cols, maxColumns);
 }
 
 export interface DerivedDetail {
