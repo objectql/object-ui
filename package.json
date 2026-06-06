@@ -53,7 +53,8 @@
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:live": "playwright test --config=playwright.live.config.ts"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",

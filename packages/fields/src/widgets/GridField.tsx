@@ -363,6 +363,7 @@ export function GridField({
           size="sm"
           onClick={addRow}
           disabled={maxRows != null && rows.length >= maxRows}
+          data-testid="line-items-add"
         >
           <Plus className="mr-1.5 h-4 w-4" />
           {cfg.add_label || 'Add line'}

@@ -592,7 +592,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
             className="min-w-0 flex-1 justify-start text-left font-normal"
             type="button"
             disabled={dependenciesMissing || (props as any).disabled}
-            data-testid={dependenciesMissing ? 'lookup-trigger-gated' : undefined}
+            data-testid={dependenciesMissing ? 'lookup-trigger-gated' : (((props as any).name || lookupField?.name) ? `lookup-trigger-${(props as any).name || lookupField.name}` : 'lookup-trigger')}
             title={dependenciesMissing
               ? `Select ${dependsOn.map(d => d.field).join(', ')} first`
               : undefined}

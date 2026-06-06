@@ -288,7 +288,17 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
     if (!form) return;
     savingRef.current = true;
     setSaving(true);
-    form.requestSubmit();
+    // IMPORTANT: defer the submit out of this click's React dispatch AND
+    // re-query the <form> inside the timer. Calling requestSubmit()
+    // synchronously inside the onClick (or on a form reference captured before
+    // the setSaving() re-render) intermittently fails to invoke react-hook-form's
+    // onSubmit — the nested submit event is dropped — which made "Create" feel
+    // unresponsive (only the occasional lucky click submitted). A fresh query in
+    // a macrotask reliably triggers RHF validation + submit.
+    setTimeout(() => {
+      const liveForm = formHostRef.current?.querySelector('form') as HTMLFormElement | null;
+      liveForm?.requestSubmit();
+    }, 0);
     // Safety net: react-hook-form blocks invalid submits without firing
     // onSuccess/onError, which would otherwise leave the button stuck. Release
     // the guard after a beat so the user can correct fields and retry.
@@ -333,11 +343,11 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
       {/* 3) Single action bar at the bottom */}
       <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
         {schema.onCancel && (
-          <Button type="button" variant="outline" onClick={schema.onCancel} disabled={saving}>
+          <Button type="button" variant="outline" onClick={schema.onCancel} disabled={saving} data-testid="md-form-cancel">
             Cancel
           </Button>
         )}
-        <Button type="button" onClick={handleSave} disabled={saving}>
+        <Button type="button" onClick={handleSave} disabled={saving} data-testid="md-form-submit">
           {saving ? 'Saving…' : submitText}
         </Button>
       </div>

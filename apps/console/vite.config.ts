@@ -136,6 +136,14 @@ export default defineConfig({
   resolve: {
     extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'],
     alias: workspaceAliases,
+    // Force a SINGLE copy of these libraries. The monorepo resolves slightly
+    // different React patch versions (19.2.6 vs 19.2.7) across packages, which
+    // duplicates `react`/`react-dom` and, downstream, `sonner` — so
+    // plugin-form's `toast()` and the console's `<Toaster>` ended up bound to
+    // different sonner instances and toasts never rendered (the "click does
+    // nothing — no feedback" bug). Deduping keeps one instance so context,
+    // hooks, and the sonner observer all line up.
+    dedupe: ['react', 'react-dom', 'sonner'],
   },
   optimizeDeps: {
     include: [

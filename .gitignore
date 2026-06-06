@@ -81,3 +81,7 @@ playwright-report
 .objectstack
 
 .playwright-mcp
+# Live e2e auth state (contains a session token) + artifacts
+e2e/live/.auth/
+test-results/
+playwright-report/
