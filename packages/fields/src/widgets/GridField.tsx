@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@object-ui/components';
 import { Plus, Trash2 } from 'lucide-react';
+import { LookupField } from './LookupField';
 
 /**
  * GridField / LineItemsField — editable child-grid ("line items") widget.
@@ -32,12 +33,17 @@ import { Plus, Trash2 } from 'lucide-react';
 export interface GridColumn {
   field: string;
   label?: string;
-  type?: 'text' | 'number' | 'currency' | 'date' | 'select';
+  type?: 'text' | 'number' | 'currency' | 'date' | 'select' | 'lookup';
   options?: Array<{ label: string; value: string }>;
   width?: number;
   required?: boolean;
   prefix?: string;
   step?: number;
+  /** For `type: 'lookup'` — the referenced object and label/id fields. */
+  reference?: string;
+  displayField?: string;
+  idField?: string;
+  multiple?: boolean;
 }
 
 type Row = Record<string, any>;
@@ -89,14 +95,19 @@ export function GridField({
     [onChange],
   );
 
-  const setCell = useCallback(
-    (rowIdx: number, col: GridColumn, raw: string) => {
-      const next = rows.map((r, i) =>
-        i === rowIdx ? { ...r, [col.field]: coerce(col.type, raw) } : r,
-      );
-      emit(next);
+  /** Set a cell to an already-typed value (lookup ids, etc.) without coercion. */
+  const setCellValue = useCallback(
+    (rowIdx: number, field: string, value: any) => {
+      emit(rows.map((r, i) => (i === rowIdx ? { ...r, [field]: value } : r)));
     },
     [rows, emit],
+  );
+
+  const setCell = useCallback(
+    (rowIdx: number, col: GridColumn, raw: string) => {
+      setCellValue(rowIdx, col.field, coerce(col.type, raw));
+    },
+    [setCellValue],
   );
 
   const addRow = useCallback(() => {
@@ -164,9 +175,18 @@ export function GridField({
                       key={c.field}
                       className={cn('px-3 py-2 text-foreground', isNumeric(c.type) && 'text-right tabular-nums')}
                     >
-                      {row[c.field] != null && row[c.field] !== ''
-                        ? String(row[c.field])
-                        : '—'}
+                      {c.type === 'lookup' && row[c.field] != null && row[c.field] !== '' ? (
+                        <LookupField
+                          value={row[c.field]}
+                          onChange={() => {}}
+                          readonly
+                          field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField } as any}
+                        />
+                      ) : row[c.field] != null && row[c.field] !== '' ? (
+                        String(row[c.field])
+                      ) : (
+                        '—'
+                      )}
                     </td>
                   ))}
                 </tr>
@@ -239,7 +259,23 @@ export function GridField({
                   )}
                   {columns.map((c) => (
                     <td key={c.field} className="px-2 py-1.5 align-top">
-                      {c.type === 'select' ? (
+                      {c.type === 'lookup' ? (
+                        <LookupField
+                          value={row[c.field]}
+                          onChange={(v: any) => setCellValue(rowIdx, c.field, v)}
+                          field={
+                            {
+                              reference: c.reference,
+                              display_field: c.displayField,
+                              id_field: c.idField,
+                              multiple: c.multiple,
+                              options: c.options,
+                              placeholder: '—',
+                            } as any
+                          }
+                          disabled={disabled}
+                        />
+                      ) : c.type === 'select' ? (
                         <Select
                           value={row[c.field] != null ? String(row[c.field]) : ''}
                           onValueChange={(v) => setCell(rowIdx, c, v)}

@@ -18,6 +18,7 @@ import { AuthProvider, AuthGuard, useAuth } from '@object-ui/auth';
 import { DevMasterDetail } from './dev/DevMasterDetail';
 import { DevLists } from './dev/DevLists';
 import { DevModal } from './dev/DevModal';
+import { DevLookup } from './dev/DevLookup';
 import {
   ConsoleShell,
   ConnectedShell,
@@ -198,6 +199,12 @@ export function App() {
             <Route path="/dev/modal" element={
               <ProtectedRoute>
                 <DevModal />
+              </ProtectedRoute>
+            } />
+            {/* Dev-only: line-item grid with a lookup cell. */}
+            <Route path="/dev/lookup" element={
+              <ProtectedRoute>
+                <DevLookup />
               </ProtectedRoute>
             } />
             <Route path="/organizations" element={
