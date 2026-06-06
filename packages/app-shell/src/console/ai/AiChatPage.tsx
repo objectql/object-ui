@@ -17,6 +17,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
+import { toast } from 'sonner';
 import {
   Select,
   SelectContent,
@@ -424,6 +425,33 @@ function ChatPane({
         toolApproveLabel="Approve & run"
         toolDenyLabel="Reject"
         toolDenyReason="Operator rejected from chat"
+        onPublishDrafts={async (packageId) => {
+          // Promote the conversation's staged drafts to live (ADR-0033 gate —
+          // the human still clicks). Same call as the floating chat + PackagesPage.
+          try {
+            const res = await fetch(
+              `/api/v1/packages/${encodeURIComponent(packageId)}/publish-drafts`,
+              {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: '{}',
+              },
+            );
+            const payload = await res.json().catch(() => null);
+            if (!res.ok || payload?.success === false) {
+              throw new Error(payload?.error?.message || `HTTP ${res.status}`);
+            }
+            const failed = payload?.data?.failedCount ?? payload?.failedCount ?? 0;
+            if (failed) throw new Error(String(failed));
+            toast.success(t('console.ai.publishOk', { defaultValue: 'Published — objects are now live.' }));
+          } catch (e) {
+            toast.error(t('console.ai.publishFailed', { defaultValue: 'Publish failed' }), {
+              description: e instanceof Error ? e.message : undefined,
+            });
+          }
+        }}
+        publishDraftsLabel={t('console.ai.publishDrafts', { defaultValue: 'Publish' })}
         data-testid="ai-chat-panel"
       />
     </div>
