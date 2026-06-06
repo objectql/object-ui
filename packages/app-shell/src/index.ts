@@ -122,6 +122,7 @@ export {
   navigationEqual,
   generateNavId,
   useResponsiveSidebar,
+  useActionModal,
 } from './hooks';
 export type { FavoriteItem } from './hooks';
 

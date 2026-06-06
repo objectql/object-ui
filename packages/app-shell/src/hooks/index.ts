@@ -1,4 +1,5 @@
 export { useFavorites, type FavoriteItem } from './useFavorites';
+export { useActionModal, type ModalDescriptor } from './useActionModal';
 export { useMetadataService } from './useMetadataService';
 export { useNavPins } from './useNavPins';
 export {

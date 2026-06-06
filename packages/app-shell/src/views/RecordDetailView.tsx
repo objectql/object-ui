@@ -32,6 +32,7 @@ import type { ActionDef, ActionParamDef } from '@object-ui/core';
 import { useRecordApprovals } from '../hooks/useRecordApprovals';
 import { getRecordDisplayName } from '../utils';
 import { useFavorites } from '../hooks/useFavorites';
+import { useActionModal } from '../hooks/useActionModal';
 import { useRecentItems } from '../hooks/useRecentItems';
 
 interface RecordDetailViewProps {
@@ -372,6 +373,10 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       return { success: false, error: (error as Error).message };
     }
   }, [dataSource, objectName, pureRecordId]);
+
+  // Client-side modal transport: `type:'modal'` actions open here (Dialog /
+  // Sheet / Drawer by `placement`) and render arbitrary SchemaNode content.
+  const { modalHandler, modalElement } = useActionModal(dataSource);
 
   // Authenticated fetch for direct backend calls (e.g. flow trigger).
   const authFetch = useMemo(() => createAuthenticatedFetch(), []);
@@ -1649,7 +1654,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             onNavigate={navigateHandler}
             onParamCollection={paramCollectionHandler}
             onResultDialog={resultDialogHandler}
-            handlers={{ api: apiHandler, flow: flowHandler, script: serverActionHandler, modal: serverActionHandler, approval: approvalHandler }}
+            onModal={modalHandler}
+            handlers={{ api: apiHandler, flow: flowHandler, script: serverActionHandler, approval: approvalHandler }}
           >
             <div className="flex-1 overflow-hidden flex flex-row">
               <div className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6 scroll-pb-48">
@@ -1693,6 +1699,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                 sections={[{ title: 'Page Schema', data: renderedPage }]}
               />
             </div>
+            {modalElement}
           </ActionProvider>
           </DiscussionContextProvider>
           </HighlightFieldsProvider>
@@ -1757,7 +1764,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             onNavigate={navigateHandler}
             onParamCollection={paramCollectionHandler}
             onResultDialog={resultDialogHandler}
-            handlers={{ api: apiHandler, flow: flowHandler, script: serverActionHandler, modal: serverActionHandler, approval: approvalHandler }}
+            onModal={modalHandler}
+            handlers={{ api: apiHandler, flow: flowHandler, script: serverActionHandler, approval: approvalHandler }}
           >
             <DetailView
               key={actionRefreshKey}
@@ -1797,6 +1805,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                 />
               }
             />
+            {modalElement}
           </ActionProvider>
         </div>
         <MetadataPanel

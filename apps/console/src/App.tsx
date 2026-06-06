@@ -17,6 +17,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AuthProvider, AuthGuard, useAuth } from '@object-ui/auth';
 import { DevMasterDetail } from './dev/DevMasterDetail';
 import { DevLists } from './dev/DevLists';
+import { DevModal } from './dev/DevModal';
 import {
   ConsoleShell,
   ConnectedShell,
@@ -191,6 +192,12 @@ export function App() {
             <Route path="/dev/lists" element={
               <ProtectedRoute>
                 <DevLists />
+              </ProtectedRoute>
+            } />
+            {/* Dev-only: action modal transport (center/side/bottom/fullscreen). */}
+            <Route path="/dev/modal" element={
+              <ProtectedRoute>
+                <DevModal />
               </ProtectedRoute>
             } />
             <Route path="/organizations" element={
