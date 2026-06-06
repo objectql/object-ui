@@ -5,11 +5,14 @@
  * API: shows this environment's base URL, the auto-generated CRUD endpoints per
  * object, a jump to the interactive API Console, and copy-paste samples.
  *
- * Read-only surfacing of shipped endpoints — no runtime change. Self-serve API
- * keys for external (non-browser) callers land with ADR-0036 Phase 1a
- * (better-auth apiKey auth); until then the in-console API Console (which uses
- * the logged-in session) is the way to exercise the API, and that is called out
- * honestly below.
+ * Also the env's agent surface (ADR-0036 Phase 2b): the <AgentConnectSection>
+ * shows the MCP endpoint, mints a show-once `sys_api_key`, and offers a portable
+ * Skill download — one connection per environment covers every app.
+ *
+ * Self-serve API keys are live (Phase 1a hand-rolled `sys_api_key` auth + the
+ * generation endpoint); send them as the `x-api-key` header (a session Bearer is
+ * not an API key). The in-console API Console (session-authed) remains for
+ * interactive exploration.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -24,6 +27,8 @@ import {
   Badge,
 } from '@object-ui/components';
 import { Terminal, Copy, Check, Plug, Database, KeyRound } from 'lucide-react';
+
+import { AgentConnectSection } from './AgentConnectSection';
 
 interface ConsoleObjectMeta {
   name: string;
@@ -96,7 +101,7 @@ export function IntegrationsPage() {
     () =>
       `# List ${sampleObject} records\n` +
       `curl "${baseUrl}/api/v1/data/${sampleObject}?$top=10" \\\n` +
-      `  -H "Authorization: Bearer <YOUR_API_KEY>"`,
+      `  -H "x-api-key: <YOUR_API_KEY>"`,
     [baseUrl, sampleObject],
   );
 
@@ -130,6 +135,9 @@ export function IntegrationsPage() {
           <CopyButton value={`${baseUrl}/api/v1`} label="base URL" />
         </CardContent>
       </Card>
+
+      {/* Connect an AI agent (MCP) — ADR-0036 Phase 2b */}
+      <AgentConnectSection />
 
       {/* Endpoints per object */}
       <Card>
@@ -184,8 +192,10 @@ export function IntegrationsPage() {
             In the console you're already authenticated — use <strong>Open API Console</strong> above to call these endpoints now.
           </p>
           <p>
-            For external programs and AI agents, <strong>self-serve API keys</strong> (a Bearer token scoped to your permissions)
-            are coming next (ADR-0036). Until then, treat the samples below as the shape to expect.
+            For external programs and AI agents, generate a <strong>self-serve API key</strong> in
+            the <strong>Connect an AI agent</strong> section above. Send it as the{' '}
+            <code className="font-mono text-xs">x-api-key</code> header; it runs under your
+            permissions and row-level security, and is revocable.
           </p>
         </CardContent>
       </Card>
