@@ -95,11 +95,13 @@ export interface RuntimePersistCtx {
   dataSource?: any;
   /** ObjectStack adapter — used by the legacy `sys_report`/`sys_dashboard` path. */
   adapter?: any;
-  /** Object name a view belongs to (for `toSysViewPayload`). */
+  /** Object a view belongs to — first arg to `updateViewConfig`. */
   objectName?: string;
   /**
-   * View-only payload shaper. Passed as a callback so the complex
-   * `toSysViewPayload` logic stays in ObjectView and isn't duplicated here.
+   * View-only payload shaper. NOT used by the view UPDATE path (which goes
+   * through `updateViewConfig` with the raw draft); reserved for wiring the
+   * view CREATE legacy `sys_view` fallback through the seam later, so the
+   * complex `toSysViewPayload` logic can stay in ObjectView.
    */
   toSysViewPayload?: (cfg: any, obj?: string) => any;
 }
@@ -135,15 +137,13 @@ export async function persistRuntimeMetadata(
   // ── flag OFF: legacy per-type tables (today's behaviour) ──
   switch (type) {
     case 'view': {
-      // NOTE: ObjectView is NOT wired to this seam yet (TODO, ADR-0034
-      // step 2/3). The view legacy branch is written here for the future
-      // so the contract is complete, but today ObjectView runs its own
-      // `create`-vs-`update` + debounce path. The seam only takes over the
-      // view write when ObjectView is migrated.
-      const payload = ctx.toSysViewPayload
-        ? ctx.toSysViewPayload(body, ctx.objectName)
-        : body;
-      await ctx.dataSource.update('sys_view', name, payload);
+      // ObjectView's UPDATE path goes through the adapter's `updateViewConfig`
+      // (the ADR-0005 overlay API), NOT a raw `sys_view` write — only the
+      // CREATE legacy fallback touches the physical table. So the flag-OFF
+      // view branch mirrors that update call exactly. The view CREATE path
+      // (`createView` + default-columns / kanban / gallery massaging) is more
+      // involved and is NOT wired to the seam yet (see ADR-0034 rollout).
+      await ctx.dataSource.updateViewConfig(ctx.objectName, name, body);
       return;
     }
     case 'report': {

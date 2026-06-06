@@ -81,22 +81,16 @@ describe('runtime-metadata-persistence seam (ADR-0034)', () => {
       expect(adapter.update).toHaveBeenCalledWith('sys_dashboard', 'my_dash', body);
     });
 
-    it('view → dataSource.update("sys_view", …) with toSysViewPayload', async () => {
-      const dataSource = { update: vi.fn().mockResolvedValue(undefined) };
-      const toSysViewPayload = vi.fn((cfg: any, obj?: string) => ({ ...cfg, obj }));
+    it('view → dataSource.updateViewConfig(objectName, name, body)', async () => {
+      const dataSource = { updateViewConfig: vi.fn().mockResolvedValue(undefined) };
       const body = { columns: ['name'] };
 
       await persistRuntimeMetadata('view', 'my_view', body, {
         dataSource,
         objectName: 'crm_lead',
-        toSysViewPayload,
       });
 
-      expect(toSysViewPayload).toHaveBeenCalledWith(body, 'crm_lead');
-      expect(dataSource.update).toHaveBeenCalledWith('sys_view', 'my_view', {
-        columns: ['name'],
-        obj: 'crm_lead',
-      });
+      expect(dataSource.updateViewConfig).toHaveBeenCalledWith('crm_lead', 'my_view', body);
     });
 
     it('publishRuntimeMetadata is a no-op (no draft concept in legacy model)', async () => {

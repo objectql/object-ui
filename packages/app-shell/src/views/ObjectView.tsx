@@ -37,6 +37,8 @@ import { getIcon } from '../utils/getIcon';
 import type { ListViewSchema, ViewNavigationConfig, FeedItem } from '@object-ui/types';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { ViewConfigPanel } from './ViewConfigPanel';
+import { useMetadataClient } from './metadata-admin/useMetadata';
+import { persistRuntimeMetadata } from './runtime-metadata-persistence';
 import { CreateViewDialog } from './CreateViewDialog';
 import { PageHeader } from '../layout/PageHeader';
 import { useMobileViewSwitcherRegistration } from '../layout/MobileViewSwitcherContext';
@@ -220,7 +222,10 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
     const { t } = useObjectTranslation();
     const { objectLabel, objectDescription: objectDesc, viewLabel, viewEmptyState, actionLabel, actionConfirm, actionSuccess, fieldLabel, fieldOptionLabel } = useObjectLabel();
     const { isFavorite, toggleFavorite } = useFavorites();
-    
+    // ADR-0034 seam: used only when the runtime-via-/meta flag is ON; the
+    // flag-OFF default still calls `dataSource.updateViewConfig(...)`.
+    const metadataClient = useMetadataClient();
+
     // Inline view config panel state (Airtable-style right sidebar)
     const [showViewConfigPanel, setShowViewConfigPanel] = useState(false);
     const [viewConfigPanelMode, setViewConfigPanelMode] = useState<'create' | 'edit'>('edit');
@@ -269,12 +274,19 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
         setViewDraft(draft);
         setRefreshKey(k => k + 1);
 
-        // Persist to backend if dataSource supports it
+        // Persist to backend if dataSource supports it.
+        // ADR-0034 seam: flag OFF (default) → `dataSource.updateViewConfig(...)`
+        // exactly as before; flag ON → metadata draft. Behaviour unchanged
+        // while the flag is off (the seam's view branch calls updateViewConfig).
         if (dataSource?.updateViewConfig) {
             const objName = objectName;
             const vid = draft.id;
             if (objName && vid) {
-                dataSource.updateViewConfig(objName, vid, draft).catch((err: any) => {
+                persistRuntimeMetadata('view', vid, draft, {
+                    dataSource,
+                    metadataClient,
+                    objectName: objName,
+                }).catch((err: any) => {
                     console.error('[ViewConfigPanel] Failed to persist view config:', err);
                 });
             } else {
@@ -283,7 +295,7 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
         } else {
             console.warn('[ViewConfigPanel] dataSource.updateViewConfig is not available. View config saved locally only.');
         }
-    }, [dataSource, objectName]);
+    }, [dataSource, objectName, metadataClient]);
 
     /** Create a new view via the config panel */
     const handleViewCreate = useCallback(async (config: Record<string, any>) => {
