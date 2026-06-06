@@ -6,10 +6,10 @@ const ReportViewer = lazy(() =>
 const ReportRenderer = lazy(() =>
   import('@object-ui/plugin-report').then((m) => ({ default: m.ReportRenderer })),
 );
-const ReportConfigPanel = lazy(() =>
-  import('@object-ui/plugin-report').then((m) => ({ default: m.ReportConfigPanel })),
-);
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
+// Runtime report editor — hosts the studio's spec-driven report inspector
+// (lives in app-shell to avoid a circular dep on plugin-report).
+import { ReportConfigPanel } from './ReportConfigPanel';
 import { Pencil, BarChart3, Loader2 } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
@@ -453,18 +453,17 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
              </div>
          </div>
 
-         {/* Right-side config panel — inline, matching DashboardView pattern */}
-         <Suspense fallback={null}>
-           <ReportConfigPanel
-             open={configPanelOpen}
-             onClose={handleCloseConfigPanel}
-             config={reportConfig}
-             onSave={handleReportConfigSave}
-             onFieldChange={handleReportFieldChange}
-             availableFields={availableFields}
-             getFieldsForObject={getFieldsForObject}
-           />
-         </Suspense>
+         {/* Right-side config panel — studio's spec-driven report inspector,
+             hosted locally in app-shell (see ReportConfigPanel). */}
+         <ReportConfigPanel
+           open={configPanelOpen}
+           onClose={handleCloseConfigPanel}
+           config={reportConfig}
+           onSave={handleReportConfigSave}
+           onFieldChange={handleReportFieldChange}
+           availableFields={availableFields}
+           getFieldsForObject={getFieldsForObject}
+         />
 
          <MetadataPanel
             open={showDebug}
