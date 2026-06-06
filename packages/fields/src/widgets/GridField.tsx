@@ -9,8 +9,13 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  Checkbox,
+  Label,
 } from '@object-ui/components';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, SlidersHorizontal } from 'lucide-react';
 import { LookupField } from './LookupField';
 
 /**
@@ -44,11 +49,31 @@ export interface GridColumn {
   displayField?: string;
   idField?: string;
   multiple?: boolean;
+  /**
+   * Hidden from the grid by default but revealable via the column chooser.
+   * Set by `deriveColumns` for fields beyond the default-visible budget — the
+   * data is NOT dropped (it's just collapsed, like Odoo's `optional` columns /
+   * Salesforce column personalization), so business-critical fields stay
+   * reachable. Required columns are never default-hidden.
+   */
+  defaultHidden?: boolean;
 }
 
 type Row = Record<string, any>;
 
 const isNumeric = (t?: string) => t === 'number' || t === 'currency';
+
+/** Comfortable minimum widths per column type so cells never get crushed; the
+ *  grid scrolls horizontally instead. Authors can still pin a `width`. */
+const MIN_WIDTH_BY_TYPE: Record<string, number> = {
+  text: 160,
+  select: 132,
+  lookup: 168,
+  number: 104,
+  currency: 116,
+  date: 150,
+};
+const minWidthFor = (c: GridColumn): number => c.width ?? MIN_WIDTH_BY_TYPE[c.type ?? 'text'] ?? 132;
 
 function coerce(type: string | undefined, raw: string): any {
   if (isNumeric(type)) {
@@ -78,8 +103,25 @@ export function GridField({
   ...props
 }: FieldWidgetProps<Row[]>) {
   const cfg = (field || (props as any).schema || {}) as any;
-  const columns: GridColumn[] = cfg.columns || [];
+  const allColumns: GridColumn[] = cfg.columns || [];
   const rows: Row[] = Array.isArray(value) ? value : [];
+
+  // Column visibility — a curated default-visible set with the rest revealable
+  // via the column chooser (mainstream "personalize columns" pattern). Required
+  // columns are always visible; nothing is ever silently dropped.
+  const [extraShown, setExtraShown] = React.useState<Set<string>>(() => new Set());
+  const optionalColumns = allColumns.filter((c) => c.defaultHidden && !c.required);
+  const columns: GridColumn[] = allColumns.filter(
+    (c) => !c.defaultHidden || c.required || extraShown.has(c.field),
+  );
+  const toggleColumn = useCallback((fieldName: string) => {
+    setExtraShown((prev) => {
+      const next = new Set(prev);
+      if (next.has(fieldName)) next.delete(fieldName);
+      else next.add(fieldName);
+      return next;
+    });
+  }, []);
 
   const allowAdd = cfg.allow_add !== false && !readonly && !disabled;
   const allowDelete = cfg.allow_delete !== false && !readonly && !disabled;
@@ -131,13 +173,58 @@ export function GridField({
   // last column). The label sits right-aligned immediately to its left.
   const totalColIndex = showTotal ? Math.max(0, columns.findIndex((c) => c.field === totalField)) : -1;
 
+  // Column chooser — reveal/hide the optional (default-hidden) columns. Only
+  // rendered when there are optional columns to manage.
+  const columnChooser = optionalColumns.length > 0 ? (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1.5 text-xs text-muted-foreground"
+          data-testid="line-items-columns"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          Columns
+          {extraShown.size > 0 && (
+            <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-medium text-primary">
+              +{extraShown.size}
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-56 p-2">
+        <div className="px-1 pb-1.5 text-xs font-medium text-muted-foreground">Optional columns</div>
+        <div className="max-h-64 space-y-0.5 overflow-y-auto">
+          {optionalColumns.map((c) => {
+            const id = `col-toggle-${c.field}`;
+            return (
+              <Label
+                key={c.field}
+                htmlFor={id}
+                className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 text-sm font-normal hover:bg-muted"
+              >
+                <Checkbox
+                  id={id}
+                  checked={extraShown.has(c.field)}
+                  onCheckedChange={() => toggleColumn(c.field)}
+                />
+                <span className="truncate">{c.label || c.field}</span>
+              </Label>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  ) : null;
+
   // ── Read-only / view rendering ────────────────────────────────────────────
   if (readonly) {
     return (
-      <div
-        className={cn('border border-border rounded-lg overflow-hidden', className)}
-        data-testid="line-items-readonly"
-      >
+      <div className={cn('space-y-2', className)}>
+        {columnChooser && <div className="flex justify-end">{columnChooser}</div>}
+        <div className="border border-border rounded-lg overflow-x-auto" data-testid="line-items-readonly">
         <table className="w-full text-sm">
           <thead className="bg-muted border-b border-border">
             <tr>
@@ -147,8 +234,9 @@ export function GridField({
               {columns.map((c) => (
                 <th
                   key={c.field}
+                  style={{ minWidth: minWidthFor(c) }}
                   className={cn(
-                    'px-3 py-2 text-xs font-medium text-muted-foreground',
+                    'px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap',
                     isNumeric(c.type) ? 'text-right' : 'text-left',
                   )}
                 >
@@ -215,6 +303,7 @@ export function GridField({
             </tfoot>
           )}
         </table>
+        </div>
       </div>
     );
   }
@@ -222,6 +311,7 @@ export function GridField({
   // ── Editable rendering ──────────────────────────────────────────────────────
   return (
     <div className={cn('space-y-2', className)} data-testid="line-items">
+      {columnChooser && <div className="flex justify-end">{columnChooser}</div>}
       <div className="border border-border rounded-lg overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted border-b border-border">
@@ -233,10 +323,10 @@ export function GridField({
                 <th
                   key={c.field}
                   className={cn(
-                    'px-3 py-2 text-xs font-medium text-muted-foreground',
+                    'px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap',
                     isNumeric(c.type) ? 'text-right' : 'text-left',
                   )}
-                  style={c.width ? { width: c.width } : undefined}
+                  style={{ width: c.width, minWidth: minWidthFor(c) }}
                 >
                   {c.label || c.field}
                   {c.required && <span className="text-destructive"> *</span>}

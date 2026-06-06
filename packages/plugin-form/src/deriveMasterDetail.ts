@@ -102,11 +102,13 @@ export function findRelationshipField(
 }
 
 /**
- * Default cap on auto-derived inline columns. An inline line-item grid lives in
- * a constrained width (modal / detail card); dumping *every* editable child
- * field crushes inputs and forces horizontal scroll. We curate down to a
- * focused set by default (authors can override with explicit `columns` /
- * `inlineColumns`, which bypass curation entirely).
+ * Default-visible column budget for an auto-derived inline grid. An inline
+ * line-item grid lives in a constrained width (modal / detail card), so we show
+ * a focused set by default and mark the rest `defaultHidden` — they are NOT
+ * dropped: the grid's column chooser reveals them on demand (the mainstream
+ * "personalize columns" pattern; cf. Odoo `optional` / Salesforce column
+ * personalization). Required columns are always visible. Authors can override
+ * with explicit `columns` / `inlineColumns` (no curation), or `maxColumns: 0`.
  */
 export const DEFAULT_MAX_INLINE_COLUMNS = 6;
 
@@ -124,33 +126,37 @@ const TYPE_FILL_PRIORITY: Record<string, number> = {
 };
 
 /**
- * Curate a full column list down to `max`, always keeping the primary
- * (name-like) column and every required column, then filling the remaining
- * budget by type usefulness. Output preserves the original schema order so the
- * grid still reads naturally.
+ * Choose the default-visible subset of `max` columns — always keeping the
+ * primary (name-like) column and every required column, then filling the
+ * remaining budget by type usefulness. Columns NOT in the visible set are
+ * marked `defaultHidden` (revealable via the grid's column chooser); none are
+ * dropped, so business-critical fields stay reachable. Output preserves the
+ * original schema order so the grid still reads naturally.
  */
 function curateColumns(cols: GridColumn[], max: number): GridColumn[] {
   if (max <= 0 || cols.length <= max) return cols;
-  const keep = new Set<string>();
+  const visible = new Set<string>();
   const primary = cols.find((c) => NAME_LIKE_FIELDS.includes(c.field)) ?? cols[0];
-  if (primary) keep.add(primary.field);
-  for (const c of cols) if (c.required) keep.add(c.field); // required is non-negotiable
+  if (primary) visible.add(primary.field);
+  for (const c of cols) if (c.required) visible.add(c.field); // required is always visible
   const remaining = cols
     .map((c, i) => ({ c, i }))
-    .filter(({ c }) => !keep.has(c.field))
+    .filter(({ c }) => !visible.has(c.field))
     .sort((a, b) => (TYPE_FILL_PRIORITY[a.c.type] ?? 5) - (TYPE_FILL_PRIORITY[b.c.type] ?? 5) || a.i - b.i);
   for (const { c } of remaining) {
-    if (keep.size >= max) break;
-    keep.add(c.field);
+    if (visible.size >= max) break;
+    visible.add(c.field);
   }
-  return cols.filter((c) => keep.has(c.field));
+  // Keep every column; collapse the overflow into the chooser.
+  return cols.map((c) => (visible.has(c.field) ? c : { ...c, defaultHidden: true }));
 }
 
 /**
  * Derive editable grid columns from a child object's fields, skipping system /
  * audit fields, non-editable types, and the back-reference FK to the parent.
- * By default the result is curated to {@link DEFAULT_MAX_INLINE_COLUMNS} (pass
- * `maxColumns: 0` to disable curation and return every editable column).
+ * Every editable column is returned; those beyond {@link DEFAULT_MAX_INLINE_COLUMNS}
+ * are flagged `defaultHidden` (collapsed into the grid's column chooser, not
+ * dropped). Pass `maxColumns: 0` to flag none.
  */
 export function deriveColumns(
   childSchema: ObjectSchemaLike | undefined,

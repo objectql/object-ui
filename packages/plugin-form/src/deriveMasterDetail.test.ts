@@ -84,24 +84,30 @@ describe('deriveColumns curation (column budget)', () => {
     },
   };
 
-  it('caps to the default budget (6) when a child has many editable fields', () => {
+  const visible = (cols: any[]) => cols.filter((c) => !c.defaultHidden).map((c) => c.field);
+
+  it('returns ALL columns — none dropped — and defaults a focused 6 visible', () => {
     const cols = deriveColumns(wideSchema, { relationshipField: 'parent' });
-    expect(cols.length).toBe(6);
+    expect(cols.length).toBe(12);              // every editable column kept (parent FK excluded)
+    expect(visible(cols).length).toBe(6);      // default-visible budget
+    expect(cols.some((c) => c.defaultHidden)).toBe(true); // the rest collapsed, not gone
   });
 
-  it('always keeps required columns even under the cap', () => {
-    const names = deriveColumns(wideSchema, { relationshipField: 'parent' }).map((c) => c.field);
-    expect(names).toContain('title');  // name-like + required
-    expect(names).toContain('status'); // required
+  it('always keeps required columns visible (never default-hidden)', () => {
+    const cols = deriveColumns(wideSchema, { relationshipField: 'parent' });
+    expect(visible(cols)).toContain('title');  // name-like + required
+    expect(visible(cols)).toContain('status'); // required
   });
 
-  it('drops low-signal text columns before keeping them all', () => {
-    const names = deriveColumns(wideSchema, { relationshipField: 'parent' }).map((c) => c.field);
-    expect(names).not.toContain('notes');
-    expect(names).not.toContain('labels');
+  it('collapses low-signal text columns into the chooser (hidden, not dropped)', () => {
+    const cols = deriveColumns(wideSchema, { relationshipField: 'parent' });
+    const byName = Object.fromEntries(cols.map((c) => [c.field, c]));
+    expect(byName.notes).toBeDefined();
+    expect(byName.notes.defaultHidden).toBe(true);
+    expect(byName.labels.defaultHidden).toBe(true);
   });
 
-  it('preserves schema order in the curated output', () => {
+  it('preserves schema order (including hidden columns)', () => {
     const names = deriveColumns(wideSchema, { relationshipField: 'parent' }).map((c) => c.field);
     const sorted = [...names].sort(
       (a, b) => Object.keys(wideSchema.fields).indexOf(a) - Object.keys(wideSchema.fields).indexOf(b),
@@ -109,12 +115,13 @@ describe('deriveColumns curation (column budget)', () => {
     expect(names).toEqual(sorted);
   });
 
-  it('maxColumns: 0 disables curation and returns every editable column', () => {
+  it('maxColumns: 0 marks no column hidden (all visible)', () => {
     const cols = deriveColumns(wideSchema, { relationshipField: 'parent', maxColumns: 0 });
-    expect(cols.length).toBe(12); // all editable (parent FK excluded)
+    expect(cols.length).toBe(12);
+    expect(cols.every((c) => !c.defaultHidden)).toBe(true);
   });
 
-  it('keeps all required columns even if more than the budget', () => {
+  it('keeps all required columns visible even if more than the budget', () => {
     const reqHeavy = {
       fields: {
         a: { type: 'text', required: true },
@@ -128,8 +135,10 @@ describe('deriveColumns curation (column budget)', () => {
         parent: { type: 'master_detail', reference: 'p', required: true },
       },
     };
-    const names = deriveColumns(reqHeavy, { relationshipField: 'parent' }).map((c) => c.field);
-    expect(names).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g']); // 7 required kept, non-required 'h' dropped
+    const cols = deriveColumns(reqHeavy, { relationshipField: 'parent' });
+    expect(visible(cols)).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g']); // 7 required visible
+    expect(cols.find((c) => c.field === 'h')?.defaultHidden).toBe(true); // non-required collapsed
+    expect(cols.length).toBe(8); // nothing dropped
   });
 });
 

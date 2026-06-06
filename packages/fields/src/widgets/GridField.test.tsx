@@ -29,6 +29,36 @@ describe('GridField / LineItemsField — editable line items', () => {
     expect(onChange).toHaveBeenCalledWith([{ description: null, amount: null }]);
   });
 
+  describe('column chooser (defaultHidden columns)', () => {
+    const withHidden = {
+      columns: [
+        { field: 'title', label: 'Title', type: 'text' as const, required: true },
+        { field: 'amount', label: 'Amount', type: 'currency' as const },
+        { field: 'notes', label: 'Notes', type: 'text' as const, defaultHidden: true },
+      ],
+    } as any;
+
+    it('hides defaultHidden columns by default but keeps required/visible ones', () => {
+      render(<GridField value={[]} onChange={() => {}} field={withHidden} />);
+      expect(screen.getByText('Title')).toBeTruthy();
+      expect(screen.getByText('Amount')).toBeTruthy();
+      expect(screen.queryByText('Notes')).toBeNull(); // collapsed into the chooser
+      expect(screen.getByTestId('line-items-columns')).toBeTruthy();
+    });
+
+    it('reveals an optional column when toggled in the chooser', () => {
+      render(<GridField value={[]} onChange={() => {}} field={withHidden} />);
+      fireEvent.click(screen.getByTestId('line-items-columns'));
+      fireEvent.click(screen.getByLabelText('Notes'));
+      expect(screen.getAllByText('Notes').length).toBeGreaterThan(0);
+    });
+
+    it('shows no chooser when there are no optional columns', () => {
+      render(<GridField value={[]} onChange={() => {}} field={field} />);
+      expect(screen.queryByTestId('line-items-columns')).toBeNull();
+    });
+  });
+
   it('editing a text cell emits the raw string', () => {
     const onChange = vi.fn();
     render(<GridField value={[{ description: '', amount: null }]} onChange={onChange} field={field} />);
