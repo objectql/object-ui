@@ -32,6 +32,7 @@ import {
 import { Share2, SquarePen } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import { useChatConversation, type HydratedUIMessage } from '../hooks';
 import { useAssistant, requestAssistantReview, type AssistantEditorContext } from '../assistant/assistantBus';
 
@@ -254,6 +255,7 @@ function ChatbotInner({
   initialMessages: persistedMessages,
 }: ChatbotInnerProps) {
   const { language } = useObjectTranslation();
+  const navigate = useNavigate();
 
   // What the user is currently editing in a designer (if any). Merged into
   // the agent context so "add a priority field" acts on the open object,
@@ -475,6 +477,14 @@ function ChatbotInner({
             const failed = payload?.data?.failedCount ?? payload?.failedCount ?? 0;
             if (failed) throw new Error(String(failed));
             toast.success(locale.publishOk);
+            // Publish & Open: land the user ON the thing they just built rather
+            // than leaving them on an empty home with only a toast. Prefer the
+            // published App (a full navigable surface); the bare-object case has
+            // no app to open yet, so the toast is the only feedback there.
+            const published: Array<{ type?: string; name?: string }> =
+              payload?.data?.published ?? payload?.published ?? [];
+            const app = published.find((p) => p?.type === 'app' && p?.name);
+            if (app?.name) navigate(`/apps/${encodeURIComponent(app.name)}`);
           } catch (e) {
             toast.error(locale.publishFailed, {
               description: e instanceof Error ? e.message : undefined,
