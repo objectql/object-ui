@@ -106,113 +106,6 @@ function substituteFilterTokens(filter: any, currentUserId: string | undefined):
     return filter.map(sub);
 }
 
-/**
- * Translate a NamedListView spec object (shape: `type`, `label`, `columns`,
- * `filter`, `sort`, `kanban`/`chart`/`gantt`/... sub-blocks, `bulkActions`,
- * `rowActions`, `pagination`, ...) into the `sys_view` storage shape that the
- * server's `sys_view` object schema actually exposes (snake_case scalars +
- * `*_json` text columns for complex shapes).
- *
- * The server rejects any other column name (`bulkActions`, `objectName`,
- * `isPinned`, ...) with `table sys_view has no column named …`, and knex
- * flattens raw arrays into positional bindings which mangles the SQL — so
- * every write path that targets `sys_view` MUST go through this helper.
- */
-function toSysViewPayload(
-    config: Record<string, any>,
-    objectName: string | undefined,
-    opts: { defaultColumns?: string[] } = {},
-): Record<string, any> {
-    const VIEW_TYPE_KEYS = [
-        'kanban', 'calendar', 'timeline', 'gantt',
-        'gallery', 'map', 'chart', 'grid',
-    ] as const;
-    // Fold view-type-specific sub-blocks plus any non-storage NamedListView
-    // fields into a single `config_json` blob so the round-trip preserves
-    // everything the renderer might need (bulkActions, rowActions, pagination,
-    // navigation, emptyState, exportOptions, rowHeight, isPinned, isDefault,
-    // visibility, sortOrder, …).
-    const subConfig: Record<string, any> = {};
-    for (const k of VIEW_TYPE_KEYS) {
-        if (config[k] && typeof config[k] === 'object') {
-            Object.assign(subConfig, config[k]);
-        }
-    }
-    const EXTRA_CONFIG_KEYS = [
-        'bulkActions', 'bulkActionDefs', 'rowActions', 'pagination', 'navigation',
-        'emptyState', 'exportOptions', 'rowHeight',
-        'isPinned', 'isDefault', 'visibility', 'sortOrder',
-        'showSort',
-    ];
-    for (const k of EXTRA_CONFIG_KEYS) {
-        if (config[k] !== undefined) subConfig[k] = config[k];
-    }
-
-    const incomingColumns = Array.isArray(config.columns) && config.columns.length > 0
-        ? config.columns
-        : (opts.defaultColumns ?? []);
-    const viewType = (config.type as string) || 'grid';
-    const baseLabel = (config.label as string) || (config.name as string) || 'Untitled View';
-    const slug = baseLabel
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .slice(0, 60) || 'view';
-
-    return {
-        name: `${slug}_${Date.now().toString(36)}`,
-        label: baseLabel,
-        object_name: objectName,
-        view_type: viewType,
-        columns_json: JSON.stringify(incomingColumns),
-        filters_json: config.filter ? JSON.stringify(config.filter) : null,
-        sort_json: config.sort ? JSON.stringify(config.sort) : null,
-        config_json: Object.keys(subConfig).length > 0
-            ? JSON.stringify(subConfig)
-            : null,
-        page_size: config.pageSize ?? 25,
-        show_search: config.showSearch !== false,
-        show_filters: config.showFilters !== false,
-        managed_by: 'user',
-    };
-}
-
-/**
- * Inverse of {@link toSysViewPayload}. Decodes a raw `sys_view` record
- * (snake_case fields + `*_json` text columns) back into the NamedListView
- * spec shape (`type`, `columns`, `filter`, `sort`, plus everything stashed
- * inside `config_json`) so the rest of the UI — ViewTabBar, ListView, the
- * grid renderer — can consume it without caring about the storage layer.
- *
- * Robust to fixtures/mocks that already store the spec shape directly
- * (older tests, the in-memory dev adapter): if `*_json` is missing we fall
- * back to `sv.columns` / `sv.filter` / `sv.sort` as-is.
- */
-function fromSysViewRecord(sv: Record<string, any>): Record<string, any> {
-    const parse = (raw: any): any => {
-        if (raw == null) return undefined;
-        if (typeof raw !== 'string') return raw;
-        try { return JSON.parse(raw); } catch { return undefined; }
-    };
-    const columns = parse(sv.columns_json) ?? sv.columns;
-    const filter = parse(sv.filters_json) ?? sv.filter;
-    const sort = parse(sv.sort_json) ?? sv.sort;
-    const extra = parse(sv.config_json) ?? {};
-    return {
-        ...sv,
-        ...extra,
-        type: sv.view_type ?? sv.type ?? 'grid',
-        objectName: sv.object_name ?? sv.objectName,
-        columns,
-        filter,
-        sort,
-        showSearch: sv.show_search ?? sv.showSearch,
-        showFilters: sv.show_filters ?? sv.showFilters,
-        pageSize: sv.page_size ?? sv.pageSize,
-    };
-}
-
-
 export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: any) {
     const navigate = useNavigate();
     const { appName, objectName, viewId } = useParams();
@@ -222,8 +115,8 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
     const { t } = useObjectTranslation();
     const { objectLabel, objectDescription: objectDesc, viewLabel, viewEmptyState, actionLabel, actionConfirm, actionSuccess, fieldLabel, fieldOptionLabel } = useObjectLabel();
     const { isFavorite, toggleFavorite } = useFavorites();
-    // ADR-0034 seam: used only when the runtime-via-/meta flag is ON; the
-    // flag-OFF default still calls `dataSource.updateViewConfig(...)`.
+    // ADR-0034: runtime view edits persist via the metadata draft/publish
+    // model (the `sys_view` table is retired).
     const metadataClient = useMetadataClient();
 
     // Inline view config panel state (Airtable-style right sidebar)
@@ -274,34 +167,23 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
         setViewDraft(draft);
         setRefreshKey(k => k + 1);
 
-        // Persist to backend if dataSource supports it.
-        // ADR-0034 seam: flag OFF (default) → `dataSource.updateViewConfig(...)`
-        // exactly as before; flag ON → metadata draft. Behaviour unchanged
-        // while the flag is off (the seam's view branch calls updateViewConfig).
-        if (dataSource?.updateViewConfig) {
-            const objName = objectName;
-            const vid = draft.id;
-            if (objName && vid) {
-                persistRuntimeMetadata('view', vid, draft, {
-                    dataSource,
-                    metadataClient,
-                    objectName: objName,
-                }).catch((err: any) => {
-                    console.error('[ViewConfigPanel] Failed to persist view config:', err);
-                });
-            } else {
-                console.warn('[ViewConfigPanel] Cannot persist view config: missing objectName or viewId.');
-            }
+        // ADR-0034: stage a per-item draft via the metadata seam; an explicit
+        // Publish (RuntimeDraftBar) promotes it + records a version.
+        const vid = draft.id;
+        if (metadataClient && vid) {
+            persistRuntimeMetadata('view', vid, draft, { metadataClient }).catch((err: any) => {
+                console.error('[ViewConfigPanel] Failed to persist view config:', err);
+            });
         } else {
-            console.warn('[ViewConfigPanel] dataSource.updateViewConfig is not available. View config saved locally only.');
+            console.warn('[ViewConfigPanel] Cannot persist view config: missing metadataClient or viewId.');
         }
-    }, [dataSource, objectName, metadataClient]);
+    }, [metadataClient]);
 
     /** Create a new view via the config panel */
     const handleViewCreate = useCallback(async (config: Record<string, any>) => {
         try {
             let createdId: string | undefined;
-            if (dataSource?.create) {
+            if (metadataClient) {
                 // Prefill sensible defaults so the saved view renders rows
                 // immediately even if the user didn't pick columns yet.
                 const objectDef = objects?.find?.((o: any) => o.name === objectName);
@@ -340,22 +222,15 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
                         spec.gallery = { ...existing, visibleFields: incomingColumns };
                     }
                 }
-                // ADR-0034 seam (#1517): route the create WRITE through the
-                // shared seam. flag OFF (default) reproduces today's path
-                // byte-for-byte — `createView` preferred, legacy `sys_view`
-                // insert via `toSysViewPayload` as fallback; flag ON saves the
-                // new view as an invisible per-item draft. UI-layer concerns
-                // (default columns, kanban/gallery massaging above, and the
-                // auto-activation below) stay here.
+                // ADR-0034: a new view is created as an invisible per-item
+                // draft via the metadata seam; an explicit Publish promotes it.
+                // UI-layer concerns (default columns, kanban/gallery massaging
+                // above, and the auto-activation below) stay here.
                 const draftName = String(
                     (config as any)?.name ?? (config as any)?.id ?? (spec as any)?.id ?? '',
                 );
                 createdId = await createRuntimeMetadata('view', draftName, spec, {
-                    dataSource,
                     metadataClient,
-                    objectName,
-                    toSysViewPayload: (cfg: any, obj?: string) =>
-                        toSysViewPayload(cfg, obj, { defaultColumns }),
                 });
             }
             setShowViewConfigPanel(false);
@@ -431,10 +306,11 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
     // Import wizard open/close state — toolbar entry triggers it.
     const [showImport, setShowImport] = useState(false);
 
-    // ─── User-defined views (sys_view) ──────────────────────────────────
-    // Saved views created via the ViewConfigPanel ("Add View") are persisted
-    // to the `sys_view` object. We fetch them here and merge into `views` so
-    // the ViewTabBar can render them alongside metadata-defined listViews.
+    // ─── User-defined views (metadata overlay) ──────────────────────────
+    // Saved views created via the ViewConfigPanel ("Add View") live in the
+    // metadata overlay (`/meta/view`). We fetch them via `listViews` and merge
+    // into `views` so the ViewTabBar renders them alongside metadata-defined
+    // listViews.
     const [savedViews, setSavedViews] = useState<any[]>([]);
     useEffect(() => {
         let cancelled = false;
@@ -442,10 +318,8 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
             setSavedViews([]);
             return;
         }
-        // ADR-0005: use the metadata overlay API instead of writing to
-        // the physical `sys_view` table (which has incompatible columns).
-        // Falls back to the legacy `find('sys_view', ...)` path only when
-        // the adapter doesn't expose `listViews` (e.g. test mocks).
+        // Read saved views from the metadata overlay (`/meta/view`) via the
+        // adapter's `listViews`. Adapters without it surface no saved views.
         if (typeof (dataSource as any)?.listViews === 'function') {
             (dataSource as any).listViews(objectName)
                 .then((rows: any[]) => {
@@ -470,39 +344,9 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
                 });
             return () => { cancelled = true; };
         }
-        if (!dataSource?.find) {
-            setSavedViews([]);
-            return;
-        }
-        dataSource
-            .find('sys_view', {
-                $filter: ['object_name', '=', objectName],
-                $orderby: [{ field: 'created_at', order: 'asc' }],
-                $top: 200,
-            })
-            .then((res: any) => {
-                if (cancelled) return;
-                const rows: any[] = Array.isArray(res)
-                    ? res
-                    : Array.isArray(res?.data) ? res.data
-                    : Array.isArray(res?.records) ? res.records
-                    : Array.isArray(res?.value) ? res.value
-                    : [];
-                // Defensive client-side filter: only keep rows that look like
-                // sys_view records for *this* object. Adapters that don't
-                // honour $filter (or test mocks that ignore it) won't pollute
-                // the view list with arbitrary records. Match either casing —
-                // the storage column is `object_name`, but older mock fixtures
-                // and tests may still emit `objectName`.
-                const filtered = rows
-                    .filter(r => r && (r.object_name === objectName || r.objectName === objectName))
-                    .map(fromSysViewRecord);
-                setSavedViews(filtered);
-            })
-            .catch((err: any) => {
-                console.error('[ObjectView] Failed to load sys_view records:', err);
-                if (!cancelled) setSavedViews([]);
-            });
+        // No overlay API available (e.g. a minimal adapter / test mock) → no
+        // saved views. The retired `sys_view` table is no longer read.
+        setSavedViews([]);
         return () => { cancelled = true; };
     }, [dataSource, objectName, refreshKey]);
 
@@ -825,11 +669,9 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
             return;
         }
         try {
-            // ADR-0005 overlay path — `vid` is the view's `name` field
+            // Metadata overlay path — `vid` is the view's `name` field.
             if (typeof (dataSource as any)?.updateView === 'function') {
                 await (dataSource as any).updateView(objectName, vid, { label: newName });
-            } else if (dataSource?.update) {
-                await dataSource.update('sys_view', vid, { label: newName });
             }
             setRefreshKey(k => k + 1);
         } catch (err) {
@@ -898,8 +740,6 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
         try {
             if (typeof (dataSource as any)?.deleteView === 'function') {
                 await (dataSource as any).deleteView(objectName, vid);
-            } else if (dataSource?.delete) {
-                await dataSource.delete('sys_view', vid);
             }
             // If we deleted the active view, fall back to the first remaining view.
             if (vid === activeViewId) {
@@ -922,8 +762,6 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
         try {
             if (typeof (dataSource as any)?.updateView === 'function') {
                 await (dataSource as any).updateView(objectName, vid, { isPinned: pinned });
-            } else if (dataSource?.update) {
-                await dataSource.update('sys_view', vid, { isPinned: pinned });
             }
             setRefreshKey(k => k + 1);
         } catch (err) {
@@ -942,20 +780,12 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
         }
         try {
             // Clear `isDefault` on all other saved views, then set this one.
-            const hasOverlay = typeof (dataSource as any)?.updateView === 'function';
+            if (typeof (dataSource as any)?.updateView !== 'function') return;
+            const updateView = (dataSource as any).updateView;
             const updates = savedViews
                 .filter((sv: any) => (sv.id || sv._id) !== vid && sv.isDefault)
-                .map((sv: any) => {
-                    const id = sv.id || sv._id;
-                    return hasOverlay
-                        ? (dataSource as any).updateView(objectName, id, { isDefault: false })
-                        : dataSource.update!('sys_view', id, { isDefault: false });
-                });
-            updates.push(
-                hasOverlay
-                    ? (dataSource as any).updateView(objectName, vid, { isDefault: true })
-                    : dataSource.update!('sys_view', vid, { isDefault: true }),
-            );
+                .map((sv: any) => updateView(objectName, sv.id || sv._id, { isDefault: false }));
+            updates.push(updateView(objectName, vid, { isDefault: true }));
             await Promise.all(updates);
             setRefreshKey(k => k + 1);
         } catch (err) {
@@ -975,15 +805,12 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
         } catch { /* ignore */ }
         // Best-effort: also persist `sortOrder` on each saved view so other
         // sessions / users can pick up the order from the backend.
-        if (dataSource) {
-            const hasOverlay = typeof (dataSource as any)?.updateView === 'function';
+        if (typeof (dataSource as any)?.updateView === 'function') {
+            const updateView = (dataSource as any).updateView;
             const savedIdSet = new Set(savedViews.map((sv: any) => sv.id || sv._id));
             const updates = orderedIds
                 .filter(id => savedIdSet.has(id))
-                .map((id, idx) => hasOverlay
-                    ? (dataSource as any).updateView(objectName, id, { sortOrder: idx })
-                    : dataSource.update?.('sys_view', id, { sortOrder: idx }))
-                .filter(Boolean);
+                .map((id, idx) => updateView(objectName, id, { sortOrder: idx }));
             try {
                 await Promise.all(updates);
             } catch (err) {

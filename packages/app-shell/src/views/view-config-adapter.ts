@@ -8,7 +8,7 @@
  *
  *   { id, label, type, columns, filter, sort, … }
  *
- * (already decoded from the `sys_view` record by `fromSysViewRecord`).
+ * (read from the metadata overlay via the adapter's `listViews`).
  *
  * The studio {@link ViewVariantInspector} authors a canonical ViewItem draft
  * (ADR-0017, "Object has-many View"):
@@ -19,9 +19,9 @@
  * bound object additionally lives at `config.data.object` for list views.
  *
  * This adapter converts both ways so the runtime panel can host the studio
- * inspector without changing the `sys_view` persistence path: edits are kept
- * as a ViewItem draft while the panel is open, then flattened back to the
- * runtime view shape on update / save / create.
+ * inspector: edits are kept as a ViewItem draft while the panel is open, then
+ * flattened back to the runtime view shape on update / save / create (which
+ * persist via the metadata draft/publish model).
  */
 
 /** View `type`s that belong to the FORM family (no column list). */

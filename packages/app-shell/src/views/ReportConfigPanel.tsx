@@ -59,8 +59,7 @@ export interface ReportConfigPanelProps {
   name?: string;
   /**
    * Studio metadata client — drives the draft/publish chrome
-   * ({@link RuntimeDraftBar}). Only used when `VITE_RUNTIME_EDIT_VIA_META`
-   * is on; the chrome renders nothing otherwise.
+   * ({@link RuntimeDraftBar}).
    */
   metadataClient?: any;
 }

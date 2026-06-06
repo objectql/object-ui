@@ -60,8 +60,7 @@ export interface DashboardConfigPanelProps<
   name?: string;
   /**
    * Studio metadata client — drives the ADR-0034 draft/publish chrome
-   * ({@link RuntimeDraftBar}). Only used when `VITE_RUNTIME_EDIT_VIA_META`
-   * is on; the chrome renders nothing otherwise.
+   * ({@link RuntimeDraftBar}).
    */
   metadataClient?: any;
 }

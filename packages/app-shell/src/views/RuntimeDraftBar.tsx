@@ -5,25 +5,16 @@
  * runtime config panels (ViewConfigPanel / ReportConfigPanel /
  * DashboardConfigPanel).
  *
- * It mirrors studio's `ResourceEditPage` affordances — an "unpublished
- * changes" indicator, a **Publish** button, and a **Discard draft** button —
- * but is **entirely gated by {@link isViaMeta}**:
- *
- *   • flag OFF (default) → renders `null`. Mounting it adds NO DOM, so the
- *     existing panel footers are byte-identical to before this change.
- *   • flag ON → on open it reads the pending draft (`?state=draft`), shows the
- *     indicator when one exists, optionally resumes it into the editor
- *     (`onResume`), and exposes Publish / Discard.
- *
- * Hooks are always called (no conditional hooks); only the rendered output and
- * the network effects are gated, so flipping the flag never changes hook order.
+ * It mirrors studio's `ResourceEditPage` affordances: on open it reads the
+ * pending draft (`?state=draft`), shows an "unpublished changes" indicator when
+ * one exists, resumes it into the editor (`onResume`), and exposes **Publish**
+ * and **Discard draft**. It renders nothing until there is a pending draft.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@object-ui/components';
 import { Loader2, Send, Undo2 } from 'lucide-react';
 import {
-  isViaMeta,
   publishRuntimeMetadata,
   discardRuntimeDraft,
   readRuntimeDraft,
@@ -69,7 +60,6 @@ export function RuntimeDraftBar({
   onAfterChange,
   savedSignal,
 }: RuntimeDraftBarProps) {
-  const enabled = isViaMeta();
   const locale = detectLocale();
   const [hasDraft, setHasDraft] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -78,7 +68,7 @@ export function RuntimeDraftBar({
   const resumedRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!enabled || !name || !metadataClient) {
+    if (!name || !metadataClient) {
       setHasDraft(false);
       return;
     }
@@ -103,7 +93,7 @@ export function RuntimeDraftBar({
         console.error('[RuntimeDraftBar] Resume draft failed:', err);
       }
     }
-  }, [enabled, type, name, metadataClient, onResume]);
+  }, [type, name, metadataClient, onResume]);
 
   // Read the pending draft on open / when the edited item changes.
   useEffect(() => {
@@ -117,8 +107,8 @@ export function RuntimeDraftBar({
   useEffect(() => {
     if (savedSignal === lastSavedSignal.current) return;
     lastSavedSignal.current = savedSignal;
-    if (enabled && savedSignal) setHasDraft(true);
-  }, [savedSignal, enabled]);
+    if (savedSignal) setHasDraft(true);
+  }, [savedSignal]);
 
   const handlePublish = useCallback(async () => {
     if (!name) return;
@@ -155,7 +145,8 @@ export function RuntimeDraftBar({
   }, [type, name, metadataClient, onAfterChange, locale]);
 
   // flag OFF, or nothing pending → render nothing (zero DOM, zero layout shift).
-  if (!enabled || !hasDraft) return null;
+  // Nothing pending → render nothing (no indicator, no buttons).
+  if (!hasDraft) return null;
 
   return (
     <div

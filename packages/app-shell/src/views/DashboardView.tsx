@@ -196,12 +196,10 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   const saveSchema = useCallback(
     async (schema: DashboardSchema) => {
       try {
-        if (adapter) {
-          // ADR-0034 seam: flag OFF (default) reproduces the prior behaviour
-          // exactly — `adapter.updateDashboard(...)` when available, otherwise
-          // `adapter.update('sys_dashboard', …)`. Flag ON → metadata draft.
+        if (metadataClient) {
+          // ADR-0034: save stages a per-item draft; an explicit Publish
+          // promotes it (RuntimeDraftBar). `sys_dashboard` is retired.
           await persistRuntimeMetadata('dashboard', dashboardName!, schema, {
-            adapter,
             metadataClient,
           });
         }
@@ -216,7 +214,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
         toast.error(`Failed to save dashboard: ${message}`);
       }
     },
-    [adapter, metadataClient, dashboardName, refresh],
+    [metadataClient, dashboardName, refresh],
   );
 
   // ---- Open / close config panel ------------------------------------------

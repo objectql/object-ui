@@ -72,9 +72,8 @@ export interface ViewConfigPanelProps {
     /** Called when create-mode view is created */
     onCreate?: (config: Record<string, any>) => void;
     /**
-     * Studio metadata client — drives the ADR-0034 draft/publish chrome
-     * ({@link RuntimeDraftBar}). Only used when `VITE_RUNTIME_EDIT_VIA_META`
-     * is on; the chrome renders nothing otherwise.
+     * Studio metadata client — drives saves and the ADR-0034 draft/publish
+     * chrome ({@link RuntimeDraftBar}).
      */
     metadataClient?: any;
 }

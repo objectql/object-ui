@@ -94,12 +94,10 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   const saveSchema = useCallback(
     async (schema: any) => {
       try {
-        if (adapter) {
-          // ADR-0034 seam: flag OFF (default) → `adapter.update('sys_report',…)`
-          // exactly as before; flag ON → metadata draft. Behaviour unchanged
-          // while the flag is off.
+        if (metadataClient) {
+          // ADR-0034: save stages a per-item draft; an explicit Publish
+          // promotes it (RuntimeDraftBar). `sys_report` is retired.
           await persistRuntimeMetadata('report', reportName!, schema, {
-            adapter,
             metadataClient,
           });
           refresh().catch(() => {});
@@ -108,7 +106,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
         console.warn('[ReportView] Auto-save failed:', err);
       }
     },
-    [adapter, metadataClient, reportName, refresh],
+    [metadataClient, reportName, refresh],
   );
 
   // ---- Open / close config panel ------------------------------------------
