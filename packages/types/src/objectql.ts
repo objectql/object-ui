@@ -970,6 +970,27 @@ export interface ObjectFormSchema extends BaseSchema {
   submitHandler?: (values: Record<string, any>) => any | Promise<any>;
 
   /**
+   * Inline child collections (master-detail). When present, the form renders as
+   * a master-detail form: the object's own fields on top, then an editable grid
+   * per child collection, persisted together in one atomic transaction. Each
+   * entry needs only `childObject` — the relationship FK and grid columns are
+   * derived from the child object's metadata (override with
+   * `relationshipField` / `columns`). This lets a regular form view declare
+   * master-detail without a bespoke page.
+   */
+  subforms?: Array<{
+    childObject: string;
+    relationshipField?: string;
+    columns?: any[];
+    amountField?: string;
+    totalField?: string;
+    title?: string;
+    addLabel?: string;
+    minRows?: number;
+    maxRows?: number;
+  }>;
+
+  /**
    * Callback on error
    */
   onError?: (error: Error) => void;

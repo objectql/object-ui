@@ -24,6 +24,7 @@ import { WizardForm } from './WizardForm';
 import { SplitForm } from './SplitForm';
 import { DrawerForm } from './DrawerForm';
 import { ModalForm } from './ModalForm';
+import { MasterDetailForm } from './MasterDetailForm';
 import { FormSection } from './FormSection';
 import { applyAutoLayout } from './autoLayout';
 
@@ -98,6 +99,35 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
   const { sectionLabel } = useSafeFieldLabel();
   const tSec = (s: any) =>
     s?.name ? sectionLabel(schema.objectName, s.name, s.label || s.name) : s?.label;
+
+  // Master-detail: when the schema declares inline child collections, render as
+  // a master-detail form (parent fields + child grids, persisted atomically).
+  // This lets a plain form view become master-detail by config — no bespoke
+  // page. Skipped in view mode (read-only detail uses related lists instead).
+  if ((schema as any).subforms?.length && schema.mode !== 'view') {
+    return (
+      <MasterDetailForm
+        schema={{
+          type: 'object-master-detail-form',
+          objectName: schema.objectName,
+          mode: schema.mode === 'edit' ? 'edit' : 'create',
+          recordId: schema.recordId,
+          formType: schema.formType === 'tabbed' ? 'tabbed' : 'simple',
+          sections: schema.sections as any,
+          fields: schema.fields as any,
+          title: schema.title,
+          submitText: schema.submitText,
+          details: (schema as any).subforms,
+          onSuccess: schema.onSuccess,
+          onError: schema.onError,
+          onCancel: schema.onCancel,
+          className: schema.className,
+        }}
+        dataSource={dataSource}
+      />
+    );
+  }
+
   // Route to specialized form variant based on formType
   if (schema.formType === 'tabbed' && schema.sections?.length) {
     return (

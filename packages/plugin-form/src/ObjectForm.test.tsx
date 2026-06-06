@@ -112,4 +112,38 @@ describe('ObjectForm Integration', () => {
             expect(onSuccess).toHaveBeenCalled();
         });
     });
+
+    it('renders as a master-detail form when schema.subforms is set', async () => {
+        // A plain object form becomes master-detail by config (no bespoke page):
+        // parent fields on top + an editable child grid + a single Save action.
+        const ds: any = {
+            getObjectSchema: vi.fn().mockResolvedValue({
+                name: 'test_object',
+                fields: { name: { type: 'text', label: 'Name' } },
+            }),
+            batchTransaction: vi.fn(),
+        };
+
+        render(
+            <ObjectForm
+                schema={{
+                    type: 'object-form',
+                    objectName: 'test_object',
+                    mode: 'create',
+                    subforms: [
+                        { childObject: 'test_line', relationshipField: 'parent', title: 'Lines',
+                          columns: [{ field: 'qty', type: 'number' }] },
+                    ],
+                } as any}
+                dataSource={ds}
+            />,
+        );
+
+        // MasterDetailForm renders its single action bar (md-form-submit) and the
+        // child section title — proof we delegated to the master-detail form.
+        await waitFor(() => {
+            expect(screen.getByTestId('md-form-submit')).toBeTruthy();
+        });
+        expect(screen.getByText('Lines')).toBeTruthy();
+    });
 });
