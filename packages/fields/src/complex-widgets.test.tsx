@@ -522,8 +522,8 @@ describe('Complex & Relationship Widgets', () => {
 
     describe('GridField', () => {
         const columns = [
-            { name: 'name', label: 'Name' },
-            { name: 'age', label: 'Age' }
+            { field: 'name', label: 'Name' },
+            { field: 'age', label: 'Age', type: 'number' }
         ];
         const data = [
             { name: 'Alice', age: 30 },
@@ -534,17 +534,20 @@ describe('Complex & Relationship Widgets', () => {
             field: { ...mockField, columns }
         };
 
-        it('renders row count in readonly', () => {
+        it('renders the rows as text in readonly mode', () => {
             render(<GridField {...gridProps} readonly value={data} />);
-            expect(screen.getByText('2 rows')).toBeInTheDocument();
+            expect(screen.getByText('Alice')).toBeInTheDocument();
+            expect(screen.getByText('Bob')).toBeInTheDocument();
+            expect(screen.getByText('30')).toBeInTheDocument();
         });
 
-        it('renders table with data in edit mode (readonly view)', () => {
+        it('renders an editable table with values in edit mode', () => {
              render(<GridField {...gridProps} value={data} />);
              expect(screen.getByRole('table')).toBeInTheDocument();
              expect(screen.getByText('Name')).toBeInTheDocument();
-             expect(screen.getByText('Alice')).toBeInTheDocument();
-             expect(screen.getByText('30')).toBeInTheDocument();
+             // edit mode renders inputs whose values are the row data
+             expect(screen.getByDisplayValue('Alice')).toBeInTheDocument();
+             expect(screen.getByDisplayValue('30')).toBeInTheDocument();
         });
     });
 
