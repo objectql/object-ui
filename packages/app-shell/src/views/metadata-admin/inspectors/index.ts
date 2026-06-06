@@ -8,6 +8,7 @@
 import { registerMetadataInspector } from '../inspector-registry';
 import { registerMetadataDefaultInspector } from '../default-inspector-registry';
 import { DashboardWidgetInspector } from './DashboardWidgetInspector';
+import { DashboardDefaultInspector } from './DashboardDefaultInspector';
 import { FlowInspector } from './FlowInspector';
 import { AppNavInspector } from './AppNavInspector';
 import { ViewInspector, ViewDefaultInspector } from './ViewInspector';
@@ -19,6 +20,7 @@ import { ObjectDefaultInspector } from './ObjectDefaultInspector';
 
 export function registerBuiltinInspectors(): void {
   registerMetadataInspector('dashboard', DashboardWidgetInspector);
+  registerMetadataDefaultInspector('dashboard', DashboardDefaultInspector);
   // Approval is authored as a flow node (`type: 'approval'`) since ADR-0019 —
   // edited through FlowInspector, not a standalone step inspector. FlowInspector
   // routes node vs. edge selections to the right scoped editor.
