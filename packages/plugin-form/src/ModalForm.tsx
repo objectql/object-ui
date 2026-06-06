@@ -27,6 +27,7 @@ import {
 } from '@object-ui/components';
 import { Loader2 } from 'lucide-react';
 import { FormSection } from './FormSection';
+import { MasterDetailForm } from './MasterDetailForm';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules, evaluateCondition } from '@object-ui/fields';
 import { applyAutoLayout, inferModalSize } from './autoLayout';
@@ -90,6 +91,19 @@ export interface ModalFormSchema {
   onError?: (error: Error) => void;
   onCancel?: () => void;
   className?: string;
+  /** Inline child collections — renders the modal as an atomic master-detail
+   *  form. Each entry needs only `childObject` (FK + columns derived). */
+  subforms?: Array<{
+    childObject: string;
+    relationshipField?: string;
+    columns?: any[];
+    amountField?: string;
+    totalField?: string;
+    title?: string;
+    addLabel?: string;
+    minRows?: number;
+    maxRows?: number;
+  }>;
 }
 
 export interface ModalFormProps {
@@ -479,6 +493,47 @@ export const ModalForm: React.FC<ModalFormProps> = ({
       />
     );
   };
+
+  // Master-detail in a modal: when the schema declares inline child collections,
+  // render the master-detail form inside the dialog (it owns its own Save/Cancel
+  // action bar, so the modal footer is suppressed). Persisted atomically.
+  const subforms = (schema as any).subforms as any[] | undefined;
+  if (subforms?.length && schema.mode !== 'view') {
+    return (
+      <Dialog open={isOpen} onOpenChange={schema.onOpenChange}>
+        <MobileDialogContent className={cn(sizeClass, 'flex flex-col h-[100dvh] sm:h-auto sm:max-h-[90vh] overflow-hidden p-0', className, schema.className)}>
+          {(schema.title || schema.description) && (
+            <DialogHeader className="shrink-0 px-4 pt-4 sm:px-6 sm:pt-6 pb-2 border-b">
+              {schema.title && <DialogTitle>{schema.title}</DialogTitle>}
+              {schema.description ? (
+                <DialogDescription>{schema.description}</DialogDescription>
+              ) : (
+                <DialogDescription className="sr-only">Enter the record and its line items, then save.</DialogDescription>
+              )}
+            </DialogHeader>
+          )}
+          <div className="@container flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+            <MasterDetailForm
+              schema={{
+                type: 'object-master-detail-form',
+                objectName: schema.objectName,
+                mode: schema.mode === 'edit' ? 'edit' : 'create',
+                recordId: schema.recordId,
+                fields: schema.fields as any,
+                sections: schema.sections as any,
+                submitText: submitLabel,
+                details: subforms as any,
+                onSuccess: async (rec: any) => { await schema.onSuccess?.(rec); schema.onOpenChange?.(false); },
+                onError: schema.onError,
+                onCancel: () => schema.onOpenChange?.(false),
+              }}
+              dataSource={dataSource}
+            />
+          </div>
+        </MobileDialogContent>
+      </Dialog>
+    );
+  }
 
   const hasFooter = !loading && !error && (showSubmit || showCancel);
 

@@ -495,6 +495,11 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                 objectName: currentObjectDef.name,
                 mode: editingRecord ? 'edit' : 'create',
                 recordId: editingRecord?.id,
+                // Master-detail by config: if the object's form view declares
+                // inline child collections, the standard New/Edit modal renders
+                // them as an atomic master-detail form (no bespoke page).
+                subforms: (currentObjectDef as any).form?.subforms
+                  ?? (currentObjectDef as any).formViews?.default?.subforms,
                 title: editingRecord
                   ? t('form.editTitle', { object: objectLabel(currentObjectDef as any) })
                   : t('form.createTitle', { object: objectLabel(currentObjectDef as any) }),
