@@ -10,6 +10,9 @@ export type {
   RecordFormTarget,
 } from './recordFormNavigation';
 
+export { deriveRelatedLists } from './deriveRelatedLists';
+export type { DerivedRelatedList } from './deriveRelatedLists';
+
 /**
  * Resolves an I18nLabel to a plain string.
  * I18nLabel can be either a string or an object { key, defaultValue?, params? }.

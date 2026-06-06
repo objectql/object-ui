@@ -20,6 +20,7 @@ import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { SkeletonDetail } from '../skeletons';
 import { ManagedByBadge } from '../components/ManagedByBadge';
 import { resolveCrudAffordances } from '../utils/crudAffordances';
+import { deriveRelatedLists } from '../utils/deriveRelatedLists';
 import { hasExplicitDiscussion } from '../utils/pageSchemaIntrospect';
 import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog';
 import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog';
@@ -556,38 +557,17 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // tabs). The semantic owner field for a child record is its primary
   // `*_id` lookup; audit attribution belongs in audit views, not in the
   // related-records summary.
-  const childRelations = useMemo(() => {
-    if (!objectDef || !objects) return [];
-    const AUDIT_FIELDS = new Set(['created_by', 'updated_by', 'owner_id']);
-    const relations: Array<{ childObject: string; childLabel: string; referenceField: string }> = [];
-    // Dedupe by childObject — if a child has multiple non-audit FKs to this
-    // object (e.g. sys_user_permission_set with user_id + assigned_by + …),
-    // we only surface the first FK to keep the right rail / tabs from
-    // ballooning into N duplicate cards per child object. The primary
-    // semantic relation is almost always the canonical `<parent>_id` field
-    // (e.g. `user_id`), which is what most schemas declare first.
-    const seenChild = new Set<string>();
-    for (const obj of objects) {
-      if (obj.name === objectDef.name) continue;
-      for (const [fieldName, fieldDef] of Object.entries<any>(obj.fields || {})) {
-        if (AUDIT_FIELDS.has(fieldName)) continue;
-        if (
-          fieldDef &&
-          (fieldDef.type === 'lookup' || fieldDef.type === 'master_detail') &&
-          (fieldDef.reference_to || fieldDef.reference) === objectDef.name
-        ) {
-          if (seenChild.has(obj.name)) continue;
-          seenChild.add(obj.name);
-          relations.push({
-            childObject: obj.name,
-            childLabel: obj.label || obj.name,
-            referenceField: fieldName,
-          });
-        }
-      }
-    }
-    return relations;
-  }, [objectDef, objects]);
+  // Detail-page related lists — the read-side mirror of the form's inline
+  // master-detail. Derived purely from the relationship graph: every child
+  // object whose lookup/master_detail FK references this object becomes a
+  // related list (owned `master_detail` children first), unless its FK opts
+  // out via `relatedList: false`. `relatedListTitle` / `relatedListColumns`
+  // on the FK override the derived title / columns. Audit FKs are skipped and
+  // children deduped — see `deriveRelatedLists`.
+  const childRelations = useMemo(
+    () => deriveRelatedLists(objectDef, objects),
+    [objectDef, objects],
+  );
 
   // Fetch related child records for each reverse reference.
   //
@@ -1274,12 +1254,15 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // surfaces as header `+ New` / `View All` buttons and per-row Edit /
     // Delete controls.
     const baseAppUrl = appName ? `/apps/${appName}` : '';
-    const related = childRelations.map(({ childObject, childLabel, referenceField }) => {
+    const related = childRelations.map(({ childObject, childLabel, referenceField, title: titleOverride, columns: columnsOverride }) => {
       const childObjectDef = objects.find((o: any) => o.name === childObject);
       const parentId = pureRecordId || '';
-      const localizedTitle = childObjectDef
-        ? objectLabel({ name: childObjectDef.name, label: childObjectDef.label || childLabel })
-        : childLabel;
+      // A `relatedListTitle` on the relationship wins; else fall back to the
+      // localized child-object label.
+      const localizedTitle = titleOverride
+        || (childObjectDef
+          ? objectLabel({ name: childObjectDef.name, label: childObjectDef.label || childLabel })
+          : childLabel);
 
       const buildNewUrl = () => {
         const qs = new URLSearchParams({ [referenceField]: parentId }).toString();
@@ -1345,6 +1328,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         api: childObject,
         data: childRelatedData[childObject] || [],
         referenceField,
+        // Explicit columns from `relatedListColumns` on the relationship; when
+        // absent the related-list renderer auto-derives them from the child
+        // object's fields.
+        ...(Array.isArray(columnsOverride) && columnsOverride.length > 0
+          ? { columns: columnsOverride }
+          : {}),
         icon: childObjectDef?.icon,
         // Surface the child object's canonical display field so the
         // right-rail can show meaningful labels (`user_agent`, `email`,
