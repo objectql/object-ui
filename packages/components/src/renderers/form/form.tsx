@@ -228,9 +228,22 @@ ComponentRegistry.register('form',
     const schemaCtx = React.useContext(SchemaRendererContext);
     const contextDataSource = schemaCtx?.dataSource ?? null;
 
-    // React to defaultValues changes
+    // React to defaultValues changes — but ONLY when the values actually
+    // change, not on every new object identity. Callers often pass a freshly
+    // built `defaultValues` object on each render; resetting on identity alone
+    // wiped user input mid-interaction (e.g. a parent re-render between a submit
+    // click and the deferred requestSubmit emptied the form, so validation then
+    // failed on now-blank required fields and nothing was saved). Compare by
+    // value so a genuine change (e.g. an edit-mode record finishing loading)
+    // still resets, while identity churn is ignored.
+    const lastDefaultsKey = React.useRef<string | undefined>(undefined);
     React.useEffect(() => {
+      let key: string;
+      try { key = JSON.stringify(defaultValues ?? {}); } catch { key = String(Date.now()); }
+      if (lastDefaultsKey.current === key) return;
+      lastDefaultsKey.current = key;
       form.reset(defaultValues);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [defaultValues]);
 
     // Watch for form changes - only track changes when onAction is available
