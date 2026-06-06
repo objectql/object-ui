@@ -125,7 +125,7 @@ export function useActionModal(dataSource?: any) {
             type: 'object-form',
             formType: 'modal',
             objectName: d.objectName,
-            mode: d.mode || 'create',
+            mode: (d.mode as 'create' | 'view' | 'edit') || 'create',
             recordId: d.recordId,
             title: d.title,
             description: d.description,

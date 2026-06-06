@@ -380,7 +380,6 @@ function RegionSection({
   onMoveBlock,
   onAddBlock,
   onRenameLabel,
-  baseIdOf,
   onSelectId,
   onAddNested,
 }: {
