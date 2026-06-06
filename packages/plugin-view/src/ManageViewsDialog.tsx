@@ -77,6 +77,11 @@ export interface ManageViewsDialogProps {
   // --- Action callbacks (reuse the same handlers from ObjectView) ---
   onRename?: (viewId: string, newName: string) => void;
   onDelete?: (viewId: string) => void;
+  /**
+   * Opt-in duplicate action — the row's "Duplicate" button renders only when
+   * wired. Deliberate generic affordance (not dead code); the console defers
+   * view duplication to per-user personalisation (objectui#1520). Omit to hide.
+   */
   onDuplicate?: (viewId: string) => void;
   onSetDefault?: (viewId: string) => void;
   onSetPinned?: (viewId: string, pinned: boolean) => void;

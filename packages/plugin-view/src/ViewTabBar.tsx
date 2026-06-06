@@ -164,7 +164,14 @@ export interface ViewTabBarProps {
   onAddView?: () => void;
   /** Called when a view is renamed via context menu or double-click */
   onRenameView?: (viewId: string, newName: string) => void;
-  /** Called when a view is duplicated */
+  /**
+   * Called when a view is duplicated. **Opt-in**: the Duplicate menu item
+   * renders only when a host wires this. It is a deliberate generic affordance
+   * of this reusable tab bar (duplicate = a fresh override, even for read-only
+   * views) — not dead code. The console currently does not wire it (runtime
+   * view duplication is deferred to the per-user personalisation work,
+   * objectui#1520); omit the prop to hide the affordance.
+   */
   onDuplicateView?: (viewId: string) => void;
   /** Called when a view is deleted */
   onDeleteView?: (viewId: string) => void;
@@ -477,7 +484,7 @@ export const ViewTabBar: React.FC<ViewTabBarProps> = ({
               />
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs">
-              {view.readonlyReason || viewTabLabel('view.readonlyTooltip', 'System view — duplicate to customize.')}
+              {view.readonlyReason || viewTabLabel('view.readonlyTooltip', 'System view — defined in code, read-only.')}
             </TooltipContent>
           </Tooltip>
         )}
