@@ -27,7 +27,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DataSource } from '@object-ui/types';
 import { LineItemsField, type GridColumn } from '@object-ui/fields';
-import { Button, Card, CardContent, CardHeader, CardTitle, cn } from '@object-ui/components';
+import { Button, Card, CardContent, CardHeader, CardTitle, cn, toast } from '@object-ui/components';
 import { ObjectForm } from './ObjectForm';
 import { applyDetail, idOf, buildMasterDetailBatch, sumRows } from './masterDetailTx';
 
@@ -97,6 +97,21 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  // Bumped after a successful CREATE to remount the parent <ObjectForm> (which
+  // owns react-hook-form state) so its fields clear for the next entry.
+  const [formKey, setFormKey] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const saveGuardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const releaseSave = useCallback(() => {
+    savingRef.current = false;
+    setSaving(false);
+    if (saveGuardTimer.current) {
+      clearTimeout(saveGuardTimer.current);
+      saveGuardTimer.current = null;
+    }
+  }, []);
+
   // Edit mode: load existing children for each detail collection.
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +142,36 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
   const setRows = useCallback((detailIdx: number, rows: Record<string, any>[]) => {
     setState((prev) => prev.map((s, i) => (i === detailIdx ? { ...s, rows } : s)));
   }, []);
+
+  /**
+   * Built-in feedback so a save is NEVER silent (a silent success looks broken
+   * and invites duplicate submits). Shows a toast, and on CREATE clears the
+   * form for the next entry by resetting the line items + remounting the parent
+   * form. A page-supplied `onSuccess` still runs afterwards (e.g. to navigate).
+   */
+  const handleSaved = useCallback(
+    async (parent: any) => {
+      releaseSave();
+      toast.success(isEdit ? (schema.title ? `${schema.title} saved` : 'Saved') : 'Created');
+      if (!isEdit) {
+        setState(details.map(() => ({ rows: [], original: [] })));
+        setFormKey((k) => k + 1);
+      }
+      await schema.onSuccess?.(parent);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isEdit, schema.onSuccess, schema.title, details.length, releaseSave],
+  );
+
+  /** Surface failures (validation / network / atomic rollback) to the user. */
+  const handleError = useCallback(
+    (err: Error) => {
+      releaseSave();
+      toast.error(err?.message || 'Save failed');
+      schema.onError?.(err);
+    },
+    [schema, releaseSave],
+  );
 
   /** Persist all child collections for a known parent id. Returns created ids
    *  (create mode) so the caller can clean up on a later failure. */
@@ -172,9 +217,9 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
         }
         throw err;
       }
-      await schema.onSuccess?.(parent);
+      await handleSaved(parent);
     },
-    [dataSource, isEdit, persistDetails, schema],
+    [dataSource, isEdit, persistDetails, schema, handleSaved],
   );
 
   // When the server exposes the transactional batch endpoint, a NEW parent +
@@ -223,11 +268,13 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
       showSubmit: false,
       showCancel: false,
       // Atomic path: ObjectForm validates + hands values to submitViaBatch
-      // (which persists parent+children in one transaction), then onSuccess.
-      ...(canBatch ? { submitHandler: submitViaBatch, onSuccess: schema.onSuccess } : { onSuccess: handleParentSaved }),
-      onError: schema.onError,
+      // (which persists parent+children in one transaction), then handleSaved
+      // (toast + reset + page onSuccess). The non-atomic path persists children
+      // in handleParentSaved, which also ends in handleSaved.
+      ...(canBatch ? { submitHandler: submitViaBatch, onSuccess: handleSaved } : { onSuccess: handleParentSaved }),
+      onError: handleError,
     }),
-    [schema, handleParentSaved, canBatch, submitViaBatch],
+    [schema, handleParentSaved, canBatch, submitViaBatch, handleSaved, handleError],
   );
 
   const formHostRef = useRef<HTMLDivElement>(null);
@@ -236,15 +283,25 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
   const handleSave = useCallback(() => {
     // Drive the (button-less) parent form's submit so its validation + RHF
     // onSubmit fire; success chains into child persistence via onSuccess.
+    if (savingRef.current) return; // guard against duplicate submits
     const form = formHostRef.current?.querySelector('form') as HTMLFormElement | null;
-    if (form) form.requestSubmit();
-  }, []);
+    if (!form) return;
+    savingRef.current = true;
+    setSaving(true);
+    form.requestSubmit();
+    // Safety net: react-hook-form blocks invalid submits without firing
+    // onSuccess/onError, which would otherwise leave the button stuck. Release
+    // the guard after a beat so the user can correct fields and retry.
+    saveGuardTimer.current = setTimeout(() => releaseSave(), 1500);
+  }, [releaseSave]);
+
+  useEffect(() => () => { if (saveGuardTimer.current) clearTimeout(saveGuardTimer.current); }, []);
 
   return (
     <div className={cn('space-y-6', className, schema.className)}>
       {/* 1) Header fields on top */}
       <div ref={formHostRef}>
-        <ObjectForm schema={parentSchema as any} dataSource={dataSource} />
+        <ObjectForm key={formKey} schema={parentSchema as any} dataSource={dataSource} />
       </div>
 
       {/* 2) Line items below the header */}
@@ -276,12 +333,12 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
       {/* 3) Single action bar at the bottom */}
       <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
         {schema.onCancel && (
-          <Button type="button" variant="outline" onClick={schema.onCancel}>
+          <Button type="button" variant="outline" onClick={schema.onCancel} disabled={saving}>
             Cancel
           </Button>
         )}
-        <Button type="button" onClick={handleSave}>
-          {submitText}
+        <Button type="button" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : submitText}
         </Button>
       </div>
     </div>
