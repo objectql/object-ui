@@ -959,7 +959,16 @@ export interface ObjectFormSchema extends BaseSchema {
    * Callback on successful submission
    */
   onSuccess?: (data: any) => void | Promise<void>;
-  
+
+  /**
+   * Override persistence. When supplied, the form validates and hands the
+   * collected values to this handler INSTEAD of calling dataSource.create /
+   * dataSource.update — the host owns the write (e.g. MasterDetailForm batching
+   * the parent + child line items into one atomic server transaction). The
+   * returned record is passed on to `onSuccess`.
+   */
+  submitHandler?: (values: Record<string, any>) => any | Promise<any>;
+
   /**
    * Callback on error
    */

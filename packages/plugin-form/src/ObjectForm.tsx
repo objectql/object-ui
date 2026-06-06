@@ -551,8 +551,13 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
 
     try {
       let result;
-      
-      if (schema.mode === 'create') {
+
+      if (schema.submitHandler) {
+        // The host owns persistence (e.g. MasterDetailForm batching the parent
+        // + children into one atomic transaction). The form just validates and
+        // hands over the values; it does NOT create/update itself.
+        result = await schema.submitHandler(payload);
+      } else if (schema.mode === 'create') {
         result = await dataSource.create(schema.objectName, payload);
       } else if (schema.mode === 'edit' && schema.recordId) {
         result = await dataSource.update(schema.objectName, schema.recordId, payload);

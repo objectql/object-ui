@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { ObjectForm } from './ObjectForm';
 import { registerAllFields } from '@object-ui/fields';
 import React from 'react';
@@ -57,5 +57,59 @@ describe('ObjectForm Integration', () => {
         // Assert input exists
         // Since we don't have getByLabelText working reliably without full accessibility tree in happy-dom sometimes,
         // we can try looking for inputs.
+    });
+
+    it('delegates persistence to submitHandler instead of dataSource.create', async () => {
+        // When a host (e.g. MasterDetailForm batching parent+children into one
+        // atomic transaction) supplies a `submitHandler`, the form must validate
+        // and hand the values over WITHOUT creating/updating on its own.
+        const submitHandler = vi.fn().mockResolvedValue({ id: 'p1' });
+        const onSuccess = vi.fn();
+        const ds: any = {
+            getObjectSchema: vi.fn().mockResolvedValue({
+                name: 'test_object',
+                fields: { name: { type: 'text', label: 'Name' } },
+            }),
+            create: vi.fn(),
+            update: vi.fn(),
+        };
+
+        const { container } = render(
+            <ObjectForm
+                schema={{
+                    type: 'object-form',
+                    objectName: 'test_object',
+                    mode: 'create',
+                    submitHandler,
+                    onSuccess,
+                } as any}
+                dataSource={ds}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(ds.getObjectSchema).toHaveBeenCalledWith('test_object');
+        });
+
+        const input = await waitFor(() => {
+            const el = container.querySelector('input[name="name"]') as HTMLInputElement | null;
+            if (!el) throw new Error('name input not yet rendered');
+            return el;
+        });
+        fireEvent.change(input, { target: { value: 'Atomic demo' } });
+
+        const form = container.querySelector('form') as HTMLFormElement;
+        fireEvent.submit(form);
+
+        await waitFor(() => {
+            expect(submitHandler).toHaveBeenCalledTimes(1);
+        });
+        expect(submitHandler).toHaveBeenCalledWith(expect.objectContaining({ name: 'Atomic demo' }));
+        // The form must NOT persist on its own when a submitHandler is present.
+        expect(ds.create).not.toHaveBeenCalled();
+        expect(ds.update).not.toHaveBeenCalled();
+        await waitFor(() => {
+            expect(onSuccess).toHaveBeenCalled();
+        });
     });
 });

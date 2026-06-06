@@ -29,7 +29,7 @@ import type { DataSource } from '@object-ui/types';
 import { LineItemsField, type GridColumn } from '@object-ui/fields';
 import { Button, Card, CardContent, CardHeader, CardTitle, cn } from '@object-ui/components';
 import { ObjectForm } from './ObjectForm';
-import { applyDetail, idOf } from './masterDetailTx';
+import { applyDetail, idOf, buildMasterDetailBatch, sumRows } from './masterDetailTx';
 
 export interface MasterDetailDetailConfig {
   /** Child object name, e.g. 'expense_line'. */
@@ -177,6 +177,36 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
     [dataSource, isEdit, persistDetails, schema],
   );
 
+  // When the server exposes the transactional batch endpoint, a NEW parent +
+  // its children are persisted in ONE atomic transaction (commit all or roll
+  // back all) — no client-side best-effort cleanup. Otherwise fall back to the
+  // client-orchestrated create (parent → children with FK).
+  const canBatch = !isEdit && typeof (dataSource as any)?.batchTransaction === 'function';
+
+  const submitViaBatch = useCallback(
+    async (parentValues: Record<string, any>) => {
+      const ds: any = dataSource;
+      const parentData: Record<string, any> = { ...parentValues };
+      // Client-side rollups merged into the parent payload (hooks can't do
+      // nested writes — see ADR-0001).
+      details.forEach((d, i) => {
+        if (d.totalField) parentData[d.totalField] = sumRows(stateRef.current[i]?.rows ?? [], d.amountField || 'amount');
+      });
+      const ops = buildMasterDetailBatch(
+        schema.objectName,
+        parentData,
+        details.map((d, i) => ({
+          childObject: d.childObject,
+          relationshipField: d.relationshipField,
+          rows: stateRef.current[i]?.rows ?? [],
+        })),
+      );
+      const res = await ds.batchTransaction(ops);
+      return res?.results?.[0];
+    },
+    [dataSource, details, schema.objectName],
+  );
+
   // The parent form renders WITHOUT its own submit button — the master-detail
   // form owns a single action bar at the bottom (header → lines → Save), the
   // layout every mainstream enterprise platform uses for header+line entry.
@@ -192,10 +222,12 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
       title: schema.title,
       showSubmit: false,
       showCancel: false,
-      onSuccess: handleParentSaved,
+      // Atomic path: ObjectForm validates + hands values to submitViaBatch
+      // (which persists parent+children in one transaction), then onSuccess.
+      ...(canBatch ? { submitHandler: submitViaBatch, onSuccess: schema.onSuccess } : { onSuccess: handleParentSaved }),
       onError: schema.onError,
     }),
-    [schema, handleParentSaved],
+    [schema, handleParentSaved, canBatch, submitViaBatch],
   );
 
   const formHostRef = useRef<HTMLDivElement>(null);

@@ -29,6 +29,38 @@ export interface RowDiff {
  * creates; rows with an id are updates; snapshot ids no longer present are
  * deletes.
  */
+export interface BatchDetailInput {
+  childObject: string;
+  relationshipField: string;
+  rows: Record<string, any>[];
+}
+
+export interface BatchOp {
+  object: string;
+  action: 'create';
+  data: Record<string, any>;
+}
+
+/**
+ * Build cross-object batch operations for an ATOMIC master-detail create:
+ * the parent at index 0, then each child with its relationship FK set to
+ * `{ $ref: 0 }` so the server resolves it to the parent's generated id inside
+ * one transaction (commit all or roll back all).
+ */
+export function buildMasterDetailBatch(
+  parentObject: string,
+  parentData: Record<string, any>,
+  details: BatchDetailInput[],
+): BatchOp[] {
+  const ops: BatchOp[] = [{ object: parentObject, action: 'create', data: parentData }];
+  for (const d of details) {
+    for (const row of d.rows) {
+      ops.push({ object: d.childObject, action: 'create', data: { ...row, [d.relationshipField]: { $ref: 0 } } });
+    }
+  }
+  return ops;
+}
+
 export function diffRows(
   original: Record<string, any>[],
   current: Record<string, any>[],

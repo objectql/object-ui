@@ -1,5 +1,26 @@
 import { describe, it, expect, vi } from 'vitest';
-import { diffRows, sumRows, applyDetail, idOf } from './masterDetailTx';
+import { diffRows, sumRows, applyDetail, idOf, buildMasterDetailBatch } from './masterDetailTx';
+
+describe('buildMasterDetailBatch — atomic master-detail ops', () => {
+  it('puts the parent first and references it via $ref:0 on each child FK', () => {
+    const ops = buildMasterDetailBatch(
+      'expense_claim',
+      { title: 'Trip', total_amount: 42 },
+      [{ childObject: 'expense_line', relationshipField: 'expense_claim', rows: [{ amount: 10 }, { amount: 32 }] }],
+    );
+    expect(ops).toEqual([
+      { object: 'expense_claim', action: 'create', data: { title: 'Trip', total_amount: 42 } },
+      { object: 'expense_line', action: 'create', data: { amount: 10, expense_claim: { $ref: 0 } } },
+      { object: 'expense_line', action: 'create', data: { amount: 32, expense_claim: { $ref: 0 } } },
+    ]);
+  });
+
+  it('handles a parent with no children', () => {
+    const ops = buildMasterDetailBatch('p', { name: 'x' }, [{ childObject: 'c', relationshipField: 'p', rows: [] }]);
+    expect(ops).toHaveLength(1);
+    expect(ops[0].object).toBe('p');
+  });
+});
 
 describe('masterDetailTx — pure helpers', () => {
   it('idOf reads id / _id / recordId', () => {

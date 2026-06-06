@@ -857,6 +857,32 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * @param data - Array of records to process
    * @returns Promise resolving to array of results
    */
+  /**
+   * Cross-object transactional batch (ObjectStack #1604). Runs the operations
+   * in ONE server transaction — commit all or roll back all. A field value of
+   * `{ $ref: <earlier op index> }` resolves to that op's created id, so a child
+   * can reference its parent created earlier in the same batch (master-detail).
+   */
+  async batchTransaction(
+    operations: Array<{ object: string; action?: 'create' | 'update' | 'delete'; data?: any; id?: string }>,
+  ): Promise<{ results: any[] }> {
+    const url = `${this.baseUrl}/api/v1/batch`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
+      body: JSON.stringify({ operations }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: response.statusText }));
+      throw new ObjectStackError(
+        error.error || error.message || `Batch failed with status ${response.status}`,
+        'BATCH_ERROR',
+        response.status,
+      );
+    }
+    return response.json();
+  }
+
   async bulk(resource: string, operation: 'create' | 'update' | 'delete', data: Partial<T>[]): Promise<T[]> {
     await this.connect();
 
