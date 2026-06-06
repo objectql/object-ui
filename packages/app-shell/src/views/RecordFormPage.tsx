@@ -288,6 +288,11 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
                       }),
                 layout: 'vertical',
                 fields,
+                // Master-detail by config: if the object's form view declares
+                // inline child collections, ObjectForm renders them as an atomic
+                // master-detail form on this page — no bespoke page needed.
+                subforms: (objectDef as any).form?.subforms
+                  ?? (objectDef as any).formViews?.default?.subforms,
                 onSuccess: handleSuccess,
                 onCancel: handleCancel,
                 showSubmit: true,

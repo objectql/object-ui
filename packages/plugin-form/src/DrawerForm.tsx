@@ -25,6 +25,7 @@ import {
 } from '@object-ui/components';
 
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
+import { MasterDetailForm } from './MasterDetailForm';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 import { applyAutoLayout } from './autoLayout';
 import { sanitizeFormData } from './sanitize';
@@ -101,6 +102,19 @@ export interface DrawerFormSchema {
   onError?: (error: Error) => void;
   onCancel?: () => void;
   className?: string;
+  /** Inline child collections — renders the drawer as an atomic master-detail
+   *  form. Each entry needs only `childObject` (FK + columns derived). */
+  subforms?: Array<{
+    childObject: string;
+    relationshipField?: string;
+    columns?: any[];
+    amountField?: string;
+    totalField?: string;
+    title?: string;
+    addLabel?: string;
+    minRows?: number;
+    maxRows?: number;
+  }>;
 }
 
 export interface DrawerFormProps {
@@ -410,6 +424,30 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
     );
   };
 
+  // Master-detail in a drawer: render the master-detail form (it owns its Save
+  // bar) when the schema declares inline child collections; saved atomically.
+  const subforms = (schema as any).subforms as any[] | undefined;
+  const drawerBody = subforms?.length && schema.mode !== 'view' ? (
+    <MasterDetailForm
+      schema={{
+        type: 'object-master-detail-form',
+        objectName: schema.objectName,
+        mode: schema.mode === 'edit' ? 'edit' : 'create',
+        recordId: schema.recordId,
+        fields: schema.fields as any,
+        sections: schema.sections as any,
+        submitText: schema.submitText,
+        details: subforms as any,
+        onSuccess: async (rec: any) => { await schema.onSuccess?.(rec); schema.onOpenChange?.(false); },
+        onError: schema.onError,
+        onCancel: () => schema.onOpenChange?.(false),
+      }}
+      dataSource={dataSource}
+    />
+  ) : (
+    renderContent()
+  );
+
   return (
     <Sheet open={isOpen} onOpenChange={schema.onOpenChange}>
       <SheetContent
@@ -431,7 +469,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
         )}
 
         <div className="@container py-4">
-          {renderContent()}
+          {drawerBody}
         </div>
       </SheetContent>
     </Sheet>

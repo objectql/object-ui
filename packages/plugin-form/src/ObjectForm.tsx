@@ -104,7 +104,10 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
   // a master-detail form (parent fields + child grids, persisted atomically).
   // This lets a plain form view become master-detail by config — no bespoke
   // page. Skipped in view mode (read-only detail uses related lists instead).
-  if ((schema as any).subforms?.length && schema.mode !== 'view') {
+  // For drawer/modal formTypes we fall through to DrawerForm/ModalForm, which
+  // host the master-detail form INSIDE their envelope.
+  if ((schema as any).subforms?.length && schema.mode !== 'view'
+      && schema.formType !== 'drawer' && schema.formType !== 'modal') {
     return (
       <MasterDetailForm
         schema={{
