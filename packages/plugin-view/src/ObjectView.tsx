@@ -821,6 +821,10 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       initialValues: schema.form?.initialValues,
       readOnly: schema.form?.readOnly || formMode === 'view',
       className: schema.form?.className,
+      // Master-detail by config: a form view can declare inline child
+      // collections; ObjectForm renders them as an atomic master-detail form
+      // (no bespoke page). ObjectForm skips them in view mode.
+      subforms: schema.form?.subforms,
       onSuccess: handleFormSuccess,
       onCancel: handleFormCancel,
     };
