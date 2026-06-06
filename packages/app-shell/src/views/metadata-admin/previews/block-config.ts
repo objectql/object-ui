@@ -68,6 +68,30 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
       ],
     },
   ],
+
+  // ── Lightweight lists (compact, for simple data) ──────────────────────────
+  'element:definition-list': [
+    {
+      name: 'items',
+      label: 'Items',
+      kind: 'array',
+      addLabel: 'Add item',
+      itemFields: [
+        { name: 'label', label: 'Label', kind: 'text' },
+        { name: 'value', label: 'Value', kind: 'text' },
+      ],
+    },
+    { name: 'columns', label: 'Columns (1 or 2)', kind: 'number', placeholder: '1' },
+    { name: 'inline', label: 'Inline (label · value)', kind: 'boolean' },
+  ],
+  'element:repeater': [
+    { name: 'object', label: 'Object', kind: 'object-picker' },
+    { name: 'titleField', label: 'Title field', kind: 'field-picker', objectFrom: 'self', objectProp: 'object' },
+    { name: 'fields', label: 'Fields', kind: 'field-list', objectFrom: 'self', objectProp: 'object' },
+    { name: 'limit', label: 'Limit', kind: 'number', placeholder: '10' },
+    { name: 'emptyText', label: 'Empty text', kind: 'text' },
+    { name: 'divided', label: 'Dividers between rows', kind: 'boolean' },
+  ],
   'element:number': [
     { name: 'object', label: 'Object', kind: 'object-picker' },
     { name: 'field', label: 'Field', kind: 'field-picker', objectFrom: 'self', objectProp: 'object' },
