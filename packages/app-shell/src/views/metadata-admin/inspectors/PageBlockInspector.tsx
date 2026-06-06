@@ -18,11 +18,15 @@ import {
   InspectorShell,
   InspectorReorderButtons,
   InspectorTextField,
+  InspectorNumberField,
+  InspectorSelectField,
+  InspectorCheckboxField,
   InspectorRemoveButton,
   InspectorEmptyState,
   spliceArray,
   moveArray,
 } from './_shared';
+import { BLOCK_CONFIG, blockHasConfig, type BlockPropField } from '../previews/block-config';
 
 interface Block {
   type?: string;
@@ -148,6 +152,62 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
   }
 
   const patch = (updates: Partial<Block>) => onPatch(writeAt(draft, hops, { ...block, ...updates }));
+
+  // Per-block configurable properties (spec `properties`). The renderer hoists
+  // `properties.*` to the top level, so we read from either and always write
+  // back to `properties` (the canonical shape).
+  const blockProps = (block.properties as Record<string, unknown>) || {};
+  const readProp = (name: string): unknown => blockProps[name] ?? (block as any)[name];
+  const patchProp = (name: string, value: unknown) =>
+    patch({ properties: { ...blockProps, [name]: value } } as Partial<Block>);
+
+  const renderPropField = (f: BlockPropField) => {
+    switch (f.kind) {
+      case 'number':
+        return (
+          <InspectorNumberField
+            key={f.name}
+            label={f.label}
+            value={typeof readProp(f.name) === 'number' ? (readProp(f.name) as number) : undefined}
+            placeholder={f.placeholder}
+            onCommit={(v) => patchProp(f.name, v)}
+            disabled={readOnly}
+          />
+        );
+      case 'boolean':
+        return (
+          <InspectorCheckboxField
+            key={f.name}
+            label={f.label}
+            value={!!readProp(f.name)}
+            onCommit={(v) => patchProp(f.name, v)}
+            disabled={readOnly}
+          />
+        );
+      case 'select':
+        return (
+          <InspectorSelectField
+            key={f.name}
+            label={f.label}
+            value={readProp(f.name) != null ? String(readProp(f.name)) : undefined}
+            options={f.options}
+            onCommit={(v) => patchProp(f.name, v)}
+            disabled={readOnly}
+          />
+        );
+      default:
+        return (
+          <InspectorTextField
+            key={f.name}
+            label={f.label}
+            value={readProp(f.name) != null ? String(readProp(f.name)) : ''}
+            placeholder={f.placeholder}
+            onCommit={(v) => patchProp(f.name, v)}
+            disabled={readOnly}
+          />
+        );
+    }
+  };
   const remove = () => { onPatch(writeAt(draft, hops, null)); onClearSelection(); };
   const move = (to: number) => {
     if (!sibInfo) return;
@@ -181,6 +241,15 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
       <InspectorTextField label={t('engine.inspector.pageBlock.id', locale)} value={block.id ?? ''} onCommit={(v) => patch({ id: v })} disabled={readOnly} mono />
       <InspectorTextField label={t('engine.inspector.pageBlock.className', locale)} value={block.className ?? ''} onCommit={(v) => patch({ className: v })} disabled={readOnly} mono />
       <InspectorTextField label={t('engine.inspector.pageBlock.hidden', locale)} value={block.hidden ?? ''} onCommit={(v) => patch({ hidden: v })} disabled={readOnly} mono />
+
+      {blockHasConfig(block.type) && (
+        <div className="space-y-3 border-t border-border pt-3">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {t('engine.inspector.pageBlock.properties', locale)}
+          </div>
+          {BLOCK_CONFIG[block.type as string].map(renderPropField)}
+        </div>
+      )}
     </InspectorShell>
   );
 }
