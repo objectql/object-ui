@@ -9,6 +9,7 @@ describe('block-config', () => {
       'page:header', 'page:card', 'page:tabs', 'page:accordion',
       'record:related_list', 'record:highlights', 'record:details', 'record:alert',
       'record:path', 'record:quick_actions', 'ai:chat_window', 'ai:input',
+      'element:definition-list', 'element:repeater',
     ]) {
       expect(blockHasConfig(type), type).toBe(true);
       expect(BLOCK_CONFIG[type].length).toBeGreaterThan(0);
@@ -21,12 +22,17 @@ describe('block-config', () => {
     expect(blockHasConfig(undefined)).toBe(false);
   });
 
-  it('prunes shell-singleton blocks from the page palette', () => {
-    for (const type of ['app:launcher', 'global:notifications', 'user:profile']) {
+  it('prunes shell-singleton and unimplemented blocks from the page palette', () => {
+    for (const type of [
+      'app:launcher', 'global:notifications', 'user:profile', // shell singletons
+      'element:form', 'element:filter', 'element:record_picker', // no renderer
+    ]) {
       expect((BLOCK_TYPE_META as any)[type]).toBeUndefined();
     }
-    // page-content navigation stays
+    // page-content navigation stays; the real list primitives are now in the palette
     expect((BLOCK_TYPE_META as any)['nav:menu']).toBeTruthy();
+    expect((BLOCK_TYPE_META as any)['element:definition-list']).toBeTruthy();
+    expect((BLOCK_TYPE_META as any)['element:repeater']).toBeTruthy();
   });
 
   it('also exposes the array-valued blocks', () => {

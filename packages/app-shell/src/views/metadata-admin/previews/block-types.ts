@@ -38,9 +38,8 @@ import {
   Image as ImageIcon,
   Minus,
   MousePointerClick,
-  Filter,
-  ClipboardList,
-  Target,
+  List,
+  Rows3,
   Box,
   type LucideIcon,
 } from 'lucide-react';
@@ -62,7 +61,7 @@ export type BlockTypeId =
   | 'ai:chat_window' | 'ai:suggestion'
   // element:*
   | 'element:text' | 'element:number' | 'element:image' | 'element:divider'
-  | 'element:button' | 'element:filter' | 'element:form' | 'element:record_picker';
+  | 'element:button' | 'element:definition-list' | 'element:repeater';
 
 export type BlockCategory = 'layout' | 'record' | 'navigation' | 'element' | 'ai' | 'misc';
 
@@ -110,9 +109,8 @@ export const BLOCK_TYPE_META: Record<BlockTypeId, Omit<BlockTypeMeta, 'id'>> = {
   'element:image':          { label: 'Image',           category: 'element', Icon: ImageIcon },
   'element:divider':        { label: 'Divider',         category: 'element', Icon: Minus },
   'element:button':         { label: 'Button',          category: 'element', Icon: MousePointerClick },
-  'element:filter':         { label: 'Filter',          category: 'element', Icon: Filter },
-  'element:form':           { label: 'Form',            category: 'element', Icon: ClipboardList },
-  'element:record_picker':  { label: 'Record picker',   category: 'element', Icon: Target },
+  'element:definition-list': { label: 'Definition list', category: 'element', Icon: List },
+  'element:repeater':       { label: 'Repeater',        category: 'element', Icon: Rows3 },
 };
 
 export const CATEGORY_LABEL_EN: Record<BlockCategory, string> = {
