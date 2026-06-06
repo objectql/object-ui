@@ -222,6 +222,58 @@ export function mergeViewsIntoObjects(objects: any[], views: any[]): any[] {
   });
 }
 
+/**
+ * Relationship-driven master-detail: a child object's `master_detail`/`lookup`
+ * field can carry `inlineEdit: true` to declare "edit me inline within my
+ * parent's form". This pass scans every object for such fields and merges the
+ * resulting child collections into each parent object's form view as
+ * `subforms` — so the parent's standard create/edit form renders an atomic
+ * master-detail form with NO view config and NO bespoke page. The intent lives
+ * in the data model (where it's defined once, e.g. by an AI modelling the
+ * schema); forms just follow. An explicit `form.subforms` entry for the same
+ * child overrides the model-derived one.
+ */
+export function attachInlineSubforms(objects: any[]): any[] {
+  if (!objects?.length) return objects;
+  const inlineByParent: Record<string, any[]> = {};
+  for (const child of objects) {
+    const fields = child?.fields;
+    if (!fields) continue;
+    const entries: Array<[string, any]> = Array.isArray(fields)
+      ? fields.map((f: any) => [f?.name, f])
+      : Object.entries(fields);
+    for (const [fname, fdef] of entries) {
+      const d: any = fdef;
+      if (!fname || !d?.inlineEdit) continue;
+      if (d.type !== 'master_detail' && d.type !== 'lookup') continue;
+      const parent = d.reference;
+      if (!parent) continue;
+      (inlineByParent[parent] ||= []).push({
+        childObject: child.name,
+        relationshipField: fname,
+        ...(d.inlineTitle ? { title: d.inlineTitle } : {}),
+        ...(Array.isArray(d.inlineColumns) ? { columns: d.inlineColumns } : {}),
+        ...(typeof d.inlineAmountField === 'string' ? { amountField: d.inlineAmountField } : {}),
+      });
+    }
+  }
+  if (!Object.keys(inlineByParent).length) return objects;
+  return objects.map((obj) => {
+    const derived = inlineByParent[obj.name];
+    if (!derived?.length) return obj;
+    const form: any = { ...(obj.form || { type: 'simple' }) };
+    const explicit: any[] = Array.isArray(form.subforms) ? form.subforms : [];
+    const explicitChildren = new Set(explicit.map((s: any) => s.childObject));
+    // Model-derived first; an explicit view subform for the same child wins.
+    form.subforms = [...derived.filter((d) => !explicitChildren.has(d.childObject)), ...explicit];
+    const next: any = { ...obj, form };
+    if (obj.formViews?.default) {
+      next.formViews = { ...obj.formViews, default: { ...obj.formViews.default, subforms: form.subforms } };
+    }
+    return next;
+  });
+}
+
 function emptyEntry(): TypeCacheEntry {
   return {
     status: 'idle',
@@ -485,7 +537,8 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
       get objects() {
         const objs = readType(TYPE_BY_STATE_KEY.objects);
         const views = readType('view');
-        return views.length ? mergeViewsIntoObjects(objs, views) : objs;
+        const merged = views.length ? mergeViewsIntoObjects(objs, views) : objs;
+        return attachInlineSubforms(merged);
       },
       get dashboards() {
         return readType(TYPE_BY_STATE_KEY.dashboards);

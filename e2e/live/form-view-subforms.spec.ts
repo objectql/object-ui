@@ -3,12 +3,13 @@ import { selectOption, fillLookup, addLineItem } from './helpers';
 
 /**
  * Tier 0 live e2e: an object's standard New/Edit modal renders inline child
- * collections purely from `formViews.default.subforms` (no bespoke page). Here
- * the showcase_project form view declares { childObject: 'showcase_task' }, so
- * "New Project" opens a master-detail modal that submits parent + children in
- * one atomic /api/v1/batch.
+ * collections derived from the DATA MODEL (no view config, no bespoke page).
+ * `showcase_task.project` declares `inlineEdit: true`, so every standard
+ * Project form auto-renders a Tasks subtable; "New Project" opens a
+ * master-detail modal that submits parent + children in one atomic
+ * /api/v1/batch. (An explicit `form.subforms` would override the derived one.)
  */
-test('New <object> modal renders form-view subforms and submits an atomic batch', async ({ page }) => {
+test('New <object> modal renders relationship-derived subforms and submits an atomic batch', async ({ page }) => {
   const batches: any[] = [];
   page.on('request', (r) => {
     if (r.method() === 'POST' && r.url().includes('/api/v1/batch')) {

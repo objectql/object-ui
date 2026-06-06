@@ -86,3 +86,57 @@ describe('mergeViewsIntoObjects', () => {
     expect(obj.formViews.list).toBeUndefined();
   });
 });
+
+import { attachInlineSubforms } from './MetadataProvider';
+
+describe('attachInlineSubforms — relationship-level inlineEdit', () => {
+  const objects = [
+    { name: 'invoice', fields: { number: { type: 'text' } } },
+    {
+      name: 'invoice_line',
+      fields: {
+        amount: { type: 'number' },
+        invoice: { type: 'master_detail', reference: 'invoice', inlineEdit: true, inlineTitle: 'Lines' },
+      },
+    },
+    {
+      name: 'comment',
+      // master_detail but NOT inlineEdit → must NOT be inlined
+      fields: { body: { type: 'text' }, invoice: { type: 'master_detail', reference: 'invoice' } },
+    },
+  ];
+
+  it('merges inlineEdit children into the parent form as subforms', () => {
+    const out = attachInlineSubforms(objects);
+    const invoice = out.find((o) => o.name === 'invoice')!;
+    expect(invoice.form?.subforms).toEqual([
+      { childObject: 'invoice_line', relationshipField: 'invoice', title: 'Lines' },
+    ]);
+  });
+
+  it('does not inline master_detail children without inlineEdit', () => {
+    const out = attachInlineSubforms(objects);
+    const invoice = out.find((o) => o.name === 'invoice')!;
+    const children = (invoice.form?.subforms ?? []).map((s: any) => s.childObject);
+    expect(children).not.toContain('comment');
+  });
+
+  it('lets an explicit form.subforms entry override the derived one', () => {
+    const withExplicit = objects.map((o) =>
+      o.name === 'invoice'
+        ? { ...o, form: { type: 'simple', subforms: [{ childObject: 'invoice_line', columns: [{ field: 'amount' }] }] } }
+        : o,
+    );
+    const out = attachInlineSubforms(withExplicit);
+    const invoice = out.find((o) => o.name === 'invoice')!;
+    // single entry for invoice_line, and it's the explicit one (has columns)
+    const lineSubforms = invoice.form.subforms.filter((s: any) => s.childObject === 'invoice_line');
+    expect(lineSubforms).toHaveLength(1);
+    expect(lineSubforms[0].columns).toBeTruthy();
+  });
+
+  it('returns objects unchanged when no inlineEdit relationships exist', () => {
+    const plain = [{ name: 'a', fields: { x: { type: 'text' } } }];
+    expect(attachInlineSubforms(plain)).toBe(plain);
+  });
+});
