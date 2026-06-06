@@ -540,7 +540,11 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                                 key={tool.toolCallId}
                                 defaultOpen={
                                   state === 'output-error' ||
-                                  state === 'approval-requested'
+                                  state === 'approval-requested' ||
+                                  // Surface pending draft actions (Publish / Review)
+                                  // immediately — they live inside ToolContent, so a
+                                  // collapsed card hides the primary CTA from the user.
+                                  Boolean(tool.draftReview && tool.draftReview.items.length > 0)
                                 }
                               >
                                 <ToolHeader
