@@ -34,6 +34,31 @@ import {
   resolveBlockTone,
   type BlockTypeId,
 } from './block-types';
+import { parsePath, hopsToPath, getByPath, setByPath } from '../inspectors/PageBlockInspector';
+
+/** Container blocks expose nested child arrays (issue #1499). Returns each
+ *  group's display label, the path suffix to its children array (relative to
+ *  the block), and the current children. */
+function childGroups(block: Block): Array<{ label: string; pathSuffix: string; children: Block[] }> {
+  const props = (block?.properties as any) || {};
+  switch (block?.type) {
+    case 'page:tabs':
+    case 'page:accordion': {
+      const items = Array.isArray(props.items) ? props.items : [];
+      return items.map((it: any, i: number) => ({
+        label: it?.label || it?.key || `Item ${i + 1}`,
+        pathSuffix: `properties.items[${i}].children`,
+        children: Array.isArray(it?.children) ? it.children : [],
+      }));
+    }
+    case 'page:card':
+      return [{ label: 'Body', pathSuffix: 'properties.body', children: Array.isArray(props.body) ? props.body : [] }];
+    case 'page:section':
+      return [{ label: 'Content', pathSuffix: 'properties.children', children: Array.isArray(props.children) ? props.children : [] }];
+    default:
+      return [];
+  }
+}
 
 interface Block {
   type?: string;
@@ -238,6 +263,41 @@ export function PageBlockCanvas({
     writeRegions(next);
   }, [onPatch, regions, writeRegions]);
 
+  // Append a block into a container's nested child array (issue #1499).
+  // `baseId` is the container's selection id (`regions[r].components[c]` or
+  // `slot:<name>:<idx>`); `pathSuffix` locates the children array within it.
+  const addNestedBlock = React.useCallback(
+    (baseId: string, pathSuffix: string, type: BlockTypeId) => {
+      if (!onPatch) return;
+      const slot = /^slot:([a-zA-Z_]+):(\d+)$/.exec(baseId);
+      const subHops = parsePath(pathSuffix);
+      if (!subHops) return;
+      const subPath = hopsToPath(subHops);
+      if (slot) {
+        const name = slot[1];
+        const idx = Number(slot[2]);
+        const slots = ((draft as any).slots || {}) as Record<string, any>;
+        const v = slots[name];
+        const arr = Array.isArray(v) ? [...v] : v != null ? [v] : [];
+        const base = arr[idx];
+        if (!base) return;
+        const cur = getByPath(base, subPath) || [];
+        arr[idx] = setByPath(base, subPath, [...cur, { type }]);
+        onPatch({ slots: { ...slots, [name]: arr } });
+        onSelectionChange?.({ kind: 'block', id: `${baseId}.${pathSuffix}[${cur.length}]`, label: type });
+      } else {
+        const fullHops = parsePath(`${baseId}.${pathSuffix}`);
+        if (!fullHops) return;
+        const fullPath = hopsToPath(fullHops);
+        const cur = getByPath(draft, fullPath) || [];
+        const next = setByPath(draft, fullPath, [...cur, { type }]);
+        onPatch({ [fullPath[0] as string]: next[fullPath[0]] });
+        onSelectionChange?.({ kind: 'block', id: `${baseId}.${pathSuffix}[${cur.length}]`, label: type });
+      }
+    },
+    [onPatch, draft, onSelectionChange],
+  );
+
   const handleBgClick = React.useCallback(
     (e: React.MouseEvent) => {
       if (e.target === e.currentTarget && selectedId) onSelectionChange?.(null);
@@ -290,6 +350,9 @@ export function PageBlockCanvas({
             onMoveBlock={moveBlock}
             onAddBlock={addBlock}
             onRenameLabel={renameLabel}
+            baseIdOf={(compIdx) => selectionId(shape, regionIdx, compIdx, region.name)}
+            onSelectId={(sid, lbl) => onSelectionChange?.({ kind: 'block', id: sid, label: lbl })}
+            onAddNested={addNestedBlock}
           />
         ))}
         {!readOnly && shape === 'regions' && (
@@ -317,6 +380,9 @@ function RegionSection({
   onMoveBlock,
   onAddBlock,
   onRenameLabel,
+  baseIdOf,
+  onSelectId,
+  onAddNested,
 }: {
   region: Region;
   regionIdx: number;
@@ -332,6 +398,9 @@ function RegionSection({
   ) => void;
   onAddBlock: (regionIdx: number, type: BlockTypeId) => void;
   onRenameLabel: (regionIdx: number, compIdx: number, nextLabel: string) => void;
+  baseIdOf: (compIdx: number) => string;
+  onSelectId: (id: string, label: string) => void;
+  onAddNested: (baseId: string, pathSuffix: string, type: BlockTypeId) => void;
 }) {
   const comps = Array.isArray(region.components) ? region.components : [];
   const [active, setActive] = React.useState(false);
@@ -389,17 +458,26 @@ function RegionSection({
           comps.map((blk, compIdx) => {
             const id = selectionId(shape, regionIdx, compIdx, region.name);
             return (
-              <BlockRow
-                key={`${regionIdx}:${compIdx}`}
-                block={blk}
-                regionIdx={regionIdx}
-                compIdx={compIdx}
-                selected={id === selectedId}
-                readOnly={readOnly}
-                onClick={() => onSelectBlock(compIdx, blk)}
-                onMoveBlock={onMoveBlock}
-                onRenameLabel={(v) => onRenameLabel(regionIdx, compIdx, v)}
-              />
+              <React.Fragment key={`${regionIdx}:${compIdx}`}>
+                <BlockRow
+                  block={blk}
+                  regionIdx={regionIdx}
+                  compIdx={compIdx}
+                  selected={id === selectedId}
+                  readOnly={readOnly}
+                  onClick={() => onSelectBlock(compIdx, blk)}
+                  onMoveBlock={onMoveBlock}
+                  onRenameLabel={(v) => onRenameLabel(regionIdx, compIdx, v)}
+                />
+                <NestedChildren
+                  block={blk}
+                  baseId={id}
+                  selectedId={selectedId}
+                  readOnly={readOnly}
+                  onSelectId={onSelectId}
+                  onAddNested={onAddNested}
+                />
+              </React.Fragment>
             );
           })
         )}
@@ -566,6 +644,66 @@ function BlockRow({
       {dropZone === 'after' && (
         <div className="absolute left-0 right-0 -bottom-1 h-0.5 bg-primary rounded-full" />
       )}
+    </div>
+  );
+}
+
+/* ─────────────── Nested container children (issue #1499) ─────────────── */
+
+function NestedChildren({
+  block,
+  baseId,
+  selectedId,
+  readOnly,
+  onSelectId,
+  onAddNested,
+}: {
+  block: Block;
+  baseId: string;
+  selectedId: string | null;
+  readOnly: boolean;
+  onSelectId: (id: string, label: string) => void;
+  onAddNested: (baseId: string, pathSuffix: string, type: BlockTypeId) => void;
+}) {
+  const groups = childGroups(block);
+  if (groups.length === 0) return null;
+  return (
+    <div className="ml-5 mt-1.5 space-y-2.5 border-l border-dashed border-border pl-3">
+      {groups.map((g, gi) => (
+        <div key={gi} className="space-y-1.5">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">{g.label}</div>
+          {g.children.length === 0 ? (
+            <div className="rounded border border-dashed bg-background/40 py-2 px-3 text-[11px] text-muted-foreground">
+              Empty — add a block.
+            </div>
+          ) : (
+            g.children.map((child, ci) => {
+              const cid = `${baseId}.${g.pathSuffix}[${ci}]`;
+              const typeStr = String(child?.type ?? '');
+              const meta = BLOCK_TYPE_META[typeStr as BlockTypeId];
+              const Icon = meta?.Icon ?? UnknownBlockIcon;
+              return (
+                <button
+                  key={ci}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onSelectId(cid, blockLabel(child)); }}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded border px-2.5 py-1.5 text-left text-xs transition-colors',
+                    cid === selectedId
+                      ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
+                      : 'border-border bg-background hover:bg-muted/40',
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="flex-1 truncate">{blockLabel(child)}</span>
+                  <span className="font-mono text-[10px] text-muted-foreground/60">{typeStr}</span>
+                </button>
+              );
+            })
+          )}
+          {!readOnly && <AddBlockButton onPick={(type) => onAddNested(baseId, g.pathSuffix, type)} />}
+        </div>
+      ))}
     </div>
   );
 }

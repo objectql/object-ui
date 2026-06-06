@@ -23,7 +23,6 @@ import {
   InspectorCheckboxField,
   InspectorRemoveButton,
   InspectorEmptyState,
-  spliceArray,
   moveArray,
 } from './_shared';
 import { BLOCK_CONFIG, blockHasConfig, type BlockPropField } from '../previews/block-config';
@@ -119,115 +118,109 @@ interface Block {
   [k: string]: unknown;
 }
 
+/**
+ * A path hop. `index < 0` means a plain object-property access (e.g.
+ * `properties`); `index >= 0` adds an array index after the key (e.g.
+ * `items[0]`). Supporting object hops lets us address nested container
+ * children at `…components[0].properties.items[0].children[0]` (issue #1499).
+ */
 type Hop = { key: string; index: number };
 
-function parsePath(id: string): Hop[] | null {
+export type PathSeg = string | number;
+const REMOVE: unique symbol = Symbol('remove');
+
+/** A segment is `key` (object) or `key[i]` (array). */
+export function parsePath(id: string): Hop[] | null {
   const segs = id.split('.');
   const hops: Hop[] = [];
   for (const s of segs) {
-    const m = /^([a-zA-Z_]\w*)\[(\d+)\]$/.exec(s);
+    const m = /^([a-zA-Z_]\w*)(?:\[(\d+)\])?$/.exec(s);
     if (!m) return null;
-    hops.push({ key: m[1], index: Number(m[2]) });
+    hops.push({ key: m[1], index: m[2] != null ? Number(m[2]) : -1 });
   }
   return hops.length > 0 ? hops : null;
 }
 
-function readAt(root: Record<string, unknown>, hops: Hop[]): Block | null {
-  let arr = (root as any)[hops[0].key] as Block[] | undefined;
-  if (!Array.isArray(arr)) return null;
-  let node: Block | null = arr[hops[0].index] ?? null;
-  for (let h = 1; h < hops.length; h++) {
-    if (!node) return null;
-    arr = (node as any)[hops[h].key] as Block[] | undefined;
-    if (!Array.isArray(arr)) return null;
-    node = arr[hops[h].index] ?? null;
+/** Flatten hops to a JSON-pointer-like path: object key, then index if any. */
+export function hopsToPath(hops: Hop[]): PathSeg[] {
+  const p: PathSeg[] = [];
+  for (const h of hops) {
+    p.push(h.key);
+    if (h.index >= 0) p.push(h.index);
   }
-  return node;
+  return p;
 }
 
-function writeAt(root: Record<string, unknown>, hops: Hop[], replacement: Block | null): Record<string, unknown> {
-  const rootKey = hops[0].key;
-  const rootArr = Array.isArray((root as any)[rootKey]) ? [...(root as any)[rootKey] as Block[]] : [];
-  if (hops.length === 1) {
-    return { [rootKey]: spliceArray(rootArr, hops[0].index, replacement) };
+export function getByPath(root: any, path: PathSeg[]): any {
+  let node = root;
+  for (const seg of path) {
+    if (node == null) return null;
+    node = node[seg as any];
   }
-  let arr = rootArr;
-  for (let h = 0; h < hops.length - 1; h++) {
-    const cur = { ...(arr[hops[h].index] ?? {}) } as Block;
-    const nextKey = hops[h + 1].key;
-    const childArr = Array.isArray((cur as any)[nextKey]) ? [...(cur as any)[nextKey] as Block[]] : [];
-    (cur as any)[nextKey] = childArr;
-    arr[hops[h].index] = cur;
-    arr = childArr;
-  }
-  spliceArray; // (silence unused if any optimizer)
-  const last = hops[hops.length - 1];
-  // Replace within the inner-most reference (already cloned above).
-  if (replacement === null) arr.splice(last.index, 1);
-  else arr[last.index] = replacement;
-  return { [rootKey]: rootArr };
+  return node ?? null;
 }
 
-/**
- * Read the sibling array containing the node at `hops` along with the
- * leaf index, so the inspector can offer reorder controls without
- * re-traversing the tree.
- */
-function readSiblings(root: Record<string, unknown>, hops: Hop[]): { siblings: Block[]; index: number } | null {
-  let arr = (root as any)[hops[0].key] as Block[] | undefined;
-  if (!Array.isArray(arr)) return null;
-  if (hops.length === 1) return { siblings: arr, index: hops[0].index };
-  let node: Block | null = arr[hops[0].index] ?? null;
-  for (let h = 1; h < hops.length - 1; h++) {
-    if (!node) return null;
-    arr = (node as any)[hops[h].key] as Block[] | undefined;
-    if (!Array.isArray(arr)) return null;
-    node = arr[hops[h].index] ?? null;
+/** Immutable set/remove along a path. `value === REMOVE` deletes the leaf. */
+export function setByPath(root: any, path: PathSeg[], value: any): any {
+  if (path.length === 0) return value;
+  const [head, ...rest] = path;
+  if (typeof head === 'number') {
+    const arr = Array.isArray(root) ? [...root] : [];
+    if (rest.length === 0) {
+      if (value === REMOVE) arr.splice(head, 1);
+      else arr[head] = value;
+    } else arr[head] = setByPath(arr[head], rest, value);
+    return arr;
   }
-  if (!node) return null;
-  const last = hops[hops.length - 1];
-  const sibs = (node as any)[last.key] as Block[] | undefined;
-  if (!Array.isArray(sibs)) return null;
-  return { siblings: sibs, index: last.index };
+  const obj = { ...(root || {}) };
+  if (rest.length === 0) {
+    if (value === REMOVE) delete (obj as any)[head];
+    else (obj as any)[head] = value;
+  } else (obj as any)[head] = setByPath((obj as any)[head], rest, value);
+  return obj;
 }
 
-/**
- * Replace the sibling array at `hops` (without the final index hop)
- * with `nextSiblings`. Used by reorder so we can hand back a freshly
- * permuted array.
- */
-function writeSiblings(root: Record<string, unknown>, hops: Hop[], nextSiblings: Block[]): Record<string, unknown> {
-  const rootKey = hops[0].key;
-  if (hops.length === 1) {
-    return { [rootKey]: nextSiblings };
-  }
-  const rootArr = Array.isArray((root as any)[rootKey]) ? [...(root as any)[rootKey] as Block[]] : [];
-  let arr = rootArr;
-  for (let h = 0; h < hops.length - 2; h++) {
-    const cur = { ...(arr[hops[h].index] ?? {}) } as Block;
-    const nextKey = hops[h + 1].key;
-    const childArr = Array.isArray((cur as any)[nextKey]) ? [...(cur as any)[nextKey] as Block[]] : [];
-    (cur as any)[nextKey] = childArr;
-    arr[hops[h].index] = cur;
-    arr = childArr;
-  }
-  // Replace the inner-most container's child array with the permuted siblings.
-  const parentHop = hops[hops.length - 2];
-  const lastKey = hops[hops.length - 1].key;
-  const parentCopy = { ...(arr[parentHop.index] ?? {}) } as Block;
-  (parentCopy as any)[lastKey] = nextSiblings;
-  arr[parentHop.index] = parentCopy;
-  return { [rootKey]: rootArr };
+export function readAt(root: Record<string, unknown>, hops: Hop[]): Block | null {
+  return getByPath(root, hopsToPath(hops)) as Block | null;
+}
+
+/** Returns a shallow patch `{ [topKey]: newValue }` for onPatch. */
+export function writeAt(root: Record<string, unknown>, hops: Hop[], replacement: Block | null): Record<string, unknown> {
+  const path = hopsToPath(hops);
+  const next = setByPath(root, path, replacement === null ? REMOVE : replacement);
+  const topKey = path[0] as string;
+  return { [topKey]: next[topKey] };
+}
+
+export function readSiblings(root: Record<string, unknown>, hops: Hop[]): { siblings: Block[]; index: number } | null {
+  const path = hopsToPath(hops);
+  const last = path[path.length - 1];
+  if (typeof last !== 'number') return null;
+  const siblings = getByPath(root, path.slice(0, -1));
+  if (!Array.isArray(siblings)) return null;
+  return { siblings: siblings as Block[], index: last };
+}
+
+export function writeSiblings(root: Record<string, unknown>, hops: Hop[], nextSiblings: Block[]): Record<string, unknown> {
+  const path = hopsToPath(hops);
+  const next = setByPath(root, path.slice(0, -1), nextSiblings);
+  const topKey = path[0] as string;
+  return { [topKey]: next[topKey] };
 }
 
 export function PageBlockInspector({ selection, draft, onPatch, onClearSelection, onSelectionChange, locale, readOnly }: MetadataInspectorProps) {
   // Slotted record page: selection ids are `slot:<name>:<index>` and address
   // `draft.slots.<name>` (a single component is normalised to a 1-element array).
-  const slotMatch = /^slot:([a-zA-Z_]+):(\d+)$/.exec(selection.id);
+  // `slot:<name>:<idx>` optionally followed by a nested sub-path within the
+  // slot's block (e.g. `slot:tabs:0.properties.items[0].children[0]`), so a
+  // block inside a slotted container is addressable too (issue #1499).
+  const slotMatch = /^slot:([a-zA-Z_]+):(\d+)(?:\.(.+))?$/.exec(selection.id);
   const hops = slotMatch ? null : parsePath(selection.id);
 
   const slotName = slotMatch ? slotMatch[1] : '';
   const slotIdx = slotMatch ? Number(slotMatch[2]) : -1;
+  const slotSub = slotMatch ? slotMatch[3] : undefined;
+  const subHops = slotSub ? parsePath(slotSub) : null;
   const slotsObj: Record<string, any> =
     (draft as any).slots && typeof (draft as any).slots === 'object' ? ((draft as any).slots as Record<string, any>) : {};
   const slotArr: Block[] = slotMatch
@@ -237,10 +230,26 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
         ? [slotsObj[slotName] as Block]
         : []
     : [];
+  const slotBase: Block | null = slotMatch ? (slotArr[slotIdx] ?? null) : null;
+  // Write the slot's whole array back (delete the base block when null).
   const writeSlot = (nextArr: Block[]) => onPatch({ slots: { ...slotsObj, [slotName]: nextArr } });
+  const writeSlotBase = (nextBase: Block | null) =>
+    writeSlot(nextBase === null ? slotArr.filter((_, i) => i !== slotIdx) : slotArr.map((b, i) => (i === slotIdx ? nextBase : b)));
 
-  const block: Block | null = slotMatch ? (slotArr[slotIdx] ?? null) : hops ? readAt(draft, hops) : null;
-  const sibInfo = slotMatch ? { siblings: slotArr, index: slotIdx } : hops ? readSiblings(draft, hops) : null;
+  const block: Block | null = slotMatch
+    ? subHops
+      ? readAt((slotBase || {}) as any, subHops)
+      : slotBase
+    : hops
+      ? readAt(draft, hops)
+      : null;
+  const sibInfo = slotMatch
+    ? subHops
+      ? readSiblings((slotBase || {}) as any, subHops)
+      : { siblings: slotArr, index: slotIdx }
+    : hops
+      ? readSiblings(draft, hops)
+      : null;
 
   if ((!slotMatch && !hops) || !block) {
     return (
@@ -250,10 +259,11 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
     );
   }
 
-  const patch = (updates: Partial<Block>) =>
-    slotMatch
-      ? writeSlot(slotArr.map((b, i) => (i === slotIdx ? { ...block, ...updates } : b)))
-      : onPatch(writeAt(draft, hops!, { ...block, ...updates }));
+  const patch = (updates: Partial<Block>) => {
+    if (!slotMatch) return onPatch(writeAt(draft, hops!, { ...block, ...updates }));
+    if (subHops) return writeSlotBase({ ...(slotBase as Block), ...writeAt((slotBase || {}) as any, subHops, { ...block, ...updates }) });
+    return writeSlotBase({ ...block, ...updates });
+  };
 
   // Per-block configurable properties (spec `properties`). The renderer hoists
   // `properties.*` to the top level, so we read from either and always write
@@ -384,22 +394,31 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
     }
   };
   const remove = () => {
-    if (slotMatch) writeSlot(slotArr.filter((_, i) => i !== slotIdx));
-    else onPatch(writeAt(draft, hops!, null));
+    if (slotMatch) {
+      if (subHops) writeSlotBase({ ...(slotBase as Block), ...writeAt((slotBase || {}) as any, subHops, null) });
+      else writeSlotBase(null);
+    } else onPatch(writeAt(draft, hops!, null));
     onClearSelection();
   };
+  // Re-serialise hops to an id, honouring object hops (index < 0 → no `[i]`).
+  const fmtHops = (hs: Hop[]) => hs.map((h) => (h.index >= 0 ? `${h.key}[${h.index}]` : h.key)).join('.');
   const move = (to: number) => {
     if (!sibInfo) return;
     if (slotMatch) {
-      writeSlot(moveArray(slotArr, slotIdx, to));
-      onSelectionChange?.({ kind: 'block', id: `slot:${slotName}:${to}`, label: String(block.id || block.type || to) });
+      if (subHops) {
+        const next = moveArray(sibInfo.siblings, sibInfo.index, to);
+        writeSlotBase({ ...(slotBase as Block), ...writeSiblings((slotBase || {}) as any, subHops, next) });
+        const newSub = fmtHops([...subHops.slice(0, -1), { key: subHops[subHops.length - 1].key, index: to }]);
+        onSelectionChange?.({ kind: 'block', id: `slot:${slotName}:${slotIdx}.${newSub}`, label: String(block.id || block.type || to) });
+      } else {
+        writeSlot(moveArray(slotArr, slotIdx, to));
+        onSelectionChange?.({ kind: 'block', id: `slot:${slotName}:${to}`, label: String(block.id || block.type || to) });
+      }
       return;
     }
     const next = moveArray(sibInfo.siblings, sibInfo.index, to);
     onPatch(writeSiblings(draft, hops!, next));
-    const prefix = hops!.slice(0, -1).map((h) => `${h.key}[${h.index}]`).join('.');
-    const lastKey = hops![hops!.length - 1].key;
-    const newId = prefix ? `${prefix}.${lastKey}[${to}]` : `${lastKey}[${to}]`;
+    const newId = fmtHops([...hops!.slice(0, -1), { key: hops![hops!.length - 1].key, index: to }]);
     onSelectionChange?.({ kind: 'block', id: newId, label: String(block.id || block.type || newId) });
   };
 
