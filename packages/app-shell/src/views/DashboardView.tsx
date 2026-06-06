@@ -1,18 +1,16 @@
 /**
  * Dashboard View Component
  * Renders a dashboard based on the dashboardName parameter.
- * Edit mode shows an inline config panel (DashboardConfigPanel / WidgetConfigPanel)
- * on the right side, following the same pattern as ListView.
+ * Edit mode shows a single inline config panel (DashboardConfigPanel) on the
+ * right side that hosts the studio's dashboard / widget inspectors, following
+ * the same pattern as ReportView.
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import {
-  DashboardRenderer,
-  DashboardConfigPanel,
-  WidgetConfigPanel,
-} from '@object-ui/plugin-dashboard';
+import { DashboardRenderer } from '@object-ui/plugin-dashboard';
 import { ModalForm } from '@object-ui/plugin-form';
+import { DashboardConfigPanel } from './DashboardConfigPanel';
 import { toast } from 'sonner';
 import type { ModalHandler, ActionDef, ActionContext, ActionResult } from '@object-ui/core';
 import {
@@ -37,7 +35,6 @@ import {
   Table2,
   LayoutGrid,
   Plus,
-  Trash2,
 } from 'lucide-react';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { SkeletonDashboard } from '../skeletons';
@@ -88,120 +85,6 @@ function defaultWidgetTitle(type: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers: flatten / unflatten widget config for WidgetConfigPanel
-// ---------------------------------------------------------------------------
-
-// Top-level widget schema keys that the config panel exposes as flat fields.
-// Anything outside this set (e.g. pivot rowField/columnField, table searchable,
-// chart xAxisField/yAxisFields, list itemTemplate, custom component) is stored
-// under `widget.options` per the spec and round-tripped via spread.
-const TOP_LEVEL_WIDGET_KEYS = new Set([
-  'title',
-  'description',
-  'type',
-  'object',
-  'categoryField',
-  'valueField',
-  'aggregate',
-  'colorVariant',
-  'actionUrl',
-  'layoutW',
-  'layoutH',
-  'id',
-  // Spec-declared top-level fields that the renderer reads directly off the
-  // widget (not from options). Keeping them here ensures the unflatten path
-  // does not silently drop them into options where the renderer ignores them.
-  'searchable',
-  'pagination',
-  // Drill-down virtual flat keys are handled explicitly below — listing them
-  // here keeps the generic options-collector from duplicating them.
-  'drillDownEnabled',
-  'drillDownTarget',
-]);
-
-function flattenWidgetConfig(widget: DashboardWidgetSchema): Record<string, any> {
-  // Spread options first so explicit top-level widget fields take precedence
-  // on collision. This surfaces type-specific options (pivot/table/chart axes,
-  // list itemTemplate, etc.) so they appear pre-filled in the config panel.
-  const options = ((widget as any).options ?? {}) as Record<string, any>;
-  const drillDown = (options.drillDown ?? {}) as Record<string, any>;
-  return {
-    ...options,
-    title: widget.title ?? '',
-    description: widget.description ?? '',
-    type: widget.type ?? 'metric',
-    object: widget.object ?? '',
-    categoryField: widget.categoryField ?? options.categoryField ?? '',
-    valueField: widget.valueField ?? options.valueField ?? '',
-    aggregate: widget.aggregate ?? options.aggregate ?? 'count',
-    layoutW: widget.layout?.w ?? 1,
-    layoutH: widget.layout?.h ?? 1,
-    colorVariant: widget.colorVariant ?? options.colorVariant ?? 'default',
-    actionUrl: widget.actionUrl ?? options.actionUrl ?? '',
-    searchable: (widget as any).searchable ?? options.searchable ?? false,
-    pagination: (widget as any).pagination ?? options.pagination ?? false,
-    // Surface drill-down nested shape as flat switches for the panel
-    drillDownEnabled: drillDown.enabled ?? false,
-    drillDownTarget: drillDown.target ?? 'drawer',
-  };
-}
-
-function unflattenWidgetConfig(
-  config: Record<string, any>,
-  base: DashboardWidgetSchema,
-): Partial<DashboardWidgetSchema> {
-  // Collect any unknown keys (pivot/table/chart-specific) into options so the
-  // serialized widget keeps the spec-compliant nested shape.
-  const baseOptions = ((base as any).options ?? {}) as Record<string, any>;
-  const newOptions: Record<string, any> = { ...baseOptions };
-  for (const [key, value] of Object.entries(config)) {
-    if (TOP_LEVEL_WIDGET_KEYS.has(key)) continue;
-    if (value === undefined) continue;
-    newOptions[key] = value;
-  }
-  // Re-nest drill-down flat keys back under options.drillDown so the renderer
-  // (which reads `options.drillDown`) picks them up.
-  const drillDownEnabled = config.drillDownEnabled;
-  const drillDownTarget = config.drillDownTarget;
-  if (drillDownEnabled !== undefined || drillDownTarget !== undefined) {
-    newOptions.drillDown = {
-      ...((baseOptions as any).drillDown || {}),
-      ...(drillDownEnabled !== undefined ? { enabled: !!drillDownEnabled } : {}),
-      ...(drillDownTarget !== undefined ? { target: drillDownTarget } : {}),
-    };
-  }
-  return {
-    title: config.title,
-    description: config.description,
-    type: config.type,
-    object: config.object,
-    categoryField: config.categoryField,
-    valueField: config.valueField,
-    aggregate: config.aggregate,
-    layout: { ...(base.layout || {}), w: config.layoutW, h: config.layoutH } as DashboardWidgetSchema['layout'],
-    colorVariant: config.colorVariant,
-    actionUrl: config.actionUrl,
-    ...(config.searchable !== undefined ? { searchable: !!config.searchable } : {}),
-    ...(config.pagination !== undefined ? { pagination: !!config.pagination } : {}),
-    ...(Object.keys(newOptions).length > 0 ? { options: newOptions } : {}),
-  } as Partial<DashboardWidgetSchema>;
-}
-
-function extractDashboardConfig(schema: DashboardSchema | null | undefined): Record<string, any> {
-  const s = (schema ?? {}) as Partial<DashboardSchema> & Record<string, any>;
-  return {
-    columns: s.columns ?? 3,
-    gap: s.gap ?? 4,
-    rowHeight: String(s.rowHeight ?? '120'),
-    refreshInterval: String(s.refreshInterval ?? '0'),
-    title: s.title ?? '',
-    description: s.description ?? '',
-    showDescription: s.showDescription ?? true,
-    theme: s.theme ?? 'auto',
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -214,8 +97,6 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   const [isLoading, setIsLoading] = useState(true);
   const [configPanelOpen, setConfigPanelOpen] = useState(false);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
-  // Version counter — incremented on save to refresh the stable config reference
-  const [configVersion, setConfigVersion] = useState(0);
 
   // Modal state for header action buttons that request a modal (e.g. New Opportunity)
   const [modalState, setModalState] = useState<{
@@ -329,7 +210,6 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   const handleOpenConfigPanel = useCallback(() => {
     setEditSchema(ensureWidgetIds(dashboard as DashboardSchema));
     setConfigPanelOpen(true);
-    setConfigVersion((v) => v + 1);
   }, [dashboard]);
 
   const handleCloseConfigPanel = useCallback(() => {
@@ -357,7 +237,6 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
       setEditSchema(newSchema);
       saveSchema(newSchema);
       setSelectedWidgetId(id);
-      setConfigVersion((v) => v + 1);
     },
     [editSchema, saveSchema],
   );
@@ -393,137 +272,12 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
     [editSchema, dashboard, saveSchema],
   );
 
-  // ---- Dashboard config panel handlers ------------------------------------
-  // Stabilize config reference: only recompute after explicit actions (panel
-  // open, save, widget add). configVersion is incremented on those actions.
-  // This prevents useConfigDraft from resetting the draft on every live field
-  // change (same pattern as ViewConfigPanel's stableActiveView).
-  const dashboardConfig = useMemo(
-    () => extractDashboardConfig(editSchema || (dashboard as DashboardSchema)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [configVersion],
-  );
-
-  const handleDashboardConfigSave = useCallback(
-    (config: Record<string, any>) => {
-      if (!editSchema) return;
-      const toNum = (v: any, fallback?: number) => {
-        const n = Number(v);
-        return Number.isFinite(n) ? n : fallback;
-      };
-      const newSchema = {
-        ...editSchema,
-        columns: toNum(config.columns, editSchema.columns),
-        gap: toNum(config.gap, editSchema.gap),
-        rowHeight: toNum(config.rowHeight, editSchema.rowHeight),
-        refreshInterval: toNum(config.refreshInterval, 0) ?? 0,
-        title: config.title,
-        description: config.description,
-        showDescription: config.showDescription,
-        theme: config.theme,
-      } as DashboardSchema;
-      setEditSchema(newSchema);
-      saveSchema(newSchema);
-      setConfigVersion((v) => v + 1);
-    },
-    [editSchema, saveSchema],
-  );
-
-  const handleDashboardFieldChange = useCallback(
-    (field: string, value: any) => {
-      if (!editSchema) return;
-      // Map config field keys to proper DashboardSchema updates for live preview.
-      // Coerce numeric layout fields so previews/save payloads stay typed.
-      setEditSchema((prev: any) => {
-        if (!prev) return prev;
-        const numericFields = new Set(['columns', 'gap', 'rowHeight', 'refreshInterval']);
-        if (numericFields.has(field)) {
-          const n = Number(value);
-          return { ...prev, [field]: Number.isFinite(n) ? n : prev[field] };
-        }
-        return { ...prev, [field]: value };
-      });
-    },
-    [editSchema],
-  );
-
-  // ---- Widget config panel handlers ---------------------------------------
-  const selectedWidget = editSchema?.widgets?.find((w: any) => w.id === selectedWidgetId);
-
-  // Stabilize widget config: only recompute after explicit actions (widget
-  // switch, save, add). configVersion is incremented on save/add, and
-  // selectedWidgetId changes on widget switch — this prevents useConfigDraft
-  // from resetting the draft on every live field change.
-  const widgetConfig = useMemo(
-    () => (selectedWidget ? flattenWidgetConfig(selectedWidget) : {}),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedWidgetId, configVersion],
-  );
-
-  const handleWidgetConfigSave = useCallback(
-    (config: Record<string, any>) => {
-      if (!editSchema || !selectedWidgetId || !selectedWidget) return;
-      const updates = unflattenWidgetConfig(config, selectedWidget);
-      const newSchema = {
-        ...editSchema,
-        widgets: editSchema.widgets.map((w: any) =>
-          w.id === selectedWidgetId ? { ...w, ...updates } : w,
-        ),
-      };
-      setEditSchema(newSchema);
-      saveSchema(newSchema);
-      setConfigVersion((v) => v + 1);
-    },
-    [editSchema, selectedWidgetId, selectedWidget, saveSchema],
-  );
-
-  const handleWidgetFieldChange = useCallback(
-    (field: string, value: any) => {
-      if (!selectedWidgetId) return;
-      setEditSchema((prev: any) => {
-        if (!prev) return prev;
-        const widget = prev.widgets?.find((w: any) => w.id === selectedWidgetId);
-        if (!widget) return prev;
-        const flat = flattenWidgetConfig(widget);
-        flat[field] = value;
-        const updates = unflattenWidgetConfig(flat, widget);
-        return {
-          ...prev,
-          widgets: prev.widgets.map((w: any) =>
-            w.id === selectedWidgetId ? { ...w, ...updates } : w,
-          ),
-        };
-      });
-    },
-    [selectedWidgetId],
-  );
-
-  // ---- Metadata-driven dropdown options -----------------------------------
-  const availableObjects = useMemo(() => {
-    if (!metadataObjects?.length) return undefined;
-    return metadataObjects.map((obj: any) => ({
-      value: obj.name,
-      label: obj.label || obj.name,
-    }));
-  }, [metadataObjects]);
-
-  const availableFields = useMemo(() => {
-    const objectName = selectedWidget?.object;
-    if (!objectName || !metadataObjects?.length) return undefined;
-    const obj = metadataObjects.find((o: any) => o.name === objectName);
-    if (!obj?.fields) return undefined;
-    const fields = obj.fields;
-    if (Array.isArray(fields)) {
-      return fields
-        .filter((f: any) => f.name)
-        .map((f: any) => ({ value: f.name, label: f.label || f.name }));
-    }
-    // fields can be Record<string, FieldMetadata>
-    return Object.entries(fields).map(([key, f]: [string, any]) => ({
-      value: key,
-      label: f.label || key,
-    }));
-  }, [selectedWidget?.object, metadataObjects]);
+  // ---- Live-edit schema for the config panel ------------------------------
+  // The single controlled config panel hosts the studio inspectors, which edit
+  // the FULL nested dashboard draft directly (dashboard-level via shallow patch,
+  // widget-level by addressing `widgets` by id). No flatten / unflatten / config
+  // extraction is required anymore.
+  const panelSchema = (editSchema || (dashboard as DashboardSchema)) ?? null;
 
   // ---- Runtime capability gate (must run before guards to respect Rules of Hooks)
   // Hide widgets whose `requiresObject` is not registered (mirrors
@@ -656,39 +410,18 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
             />
          </div>
 
-         {/* Right-side config panel — switches between dashboard / widget config */}
-         {selectedWidget ? (
-           <WidgetConfigPanel
-             key={selectedWidgetId}
-             open={configPanelOpen}
-             onClose={handleCloseConfigPanel}
-             config={widgetConfig}
-             onSave={handleWidgetConfigSave}
-             onFieldChange={handleWidgetFieldChange}
-             availableObjects={availableObjects}
-             availableFields={availableFields}
-             headerExtra={
-               <Button
-                 size="sm"
-                 variant="ghost"
-                 onClick={() => removeWidget(selectedWidgetId!)}
-                 className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                 data-testid="widget-delete-button"
-                 title="Delete widget"
-               >
-                 <Trash2 className="h-3.5 w-3.5" />
-               </Button>
-             }
-           />
-         ) : (
-           <DashboardConfigPanel
-             open={configPanelOpen}
-             onClose={handleCloseConfigPanel}
-             config={dashboardConfig}
-             onSave={handleDashboardConfigSave}
-             onFieldChange={handleDashboardFieldChange}
-           />
-         )}
+         {/* Right-side config panel — one controlled panel that switches
+             between the dashboard-level and widget-level studio inspectors. */}
+         <DashboardConfigPanel
+           open={configPanelOpen}
+           onClose={handleCloseConfigPanel}
+           schema={panelSchema}
+           selectedWidgetId={selectedWidgetId}
+           onSelectWidget={setSelectedWidgetId}
+           onSave={saveSchema}
+           onChange={setEditSchema}
+           onRemoveWidget={removeWidget}
+         />
 
          <MetadataPanel
             open={showDebug}
