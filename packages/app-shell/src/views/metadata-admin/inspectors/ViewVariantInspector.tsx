@@ -42,6 +42,7 @@ import {
   getFormVariantSchema,
 } from '../view-schema';
 import { isFormFamilyKey } from '../view-variant-model';
+import { t } from '../i18n';
 
 export interface ViewVariantInspectorProps extends MetadataDefaultInspectorProps {
   /**
@@ -69,7 +70,8 @@ export interface ViewVariantInspectorProps extends MetadataDefaultInspectorProps
   objectFieldsOverride?: ObjectFieldInfo[];
 }
 
-/** Human labels for the spec `type` enum (falls back to the raw value). */
+/** English fallback labels for the spec `type` enum (used when the i18n
+ * catalog has no entry for a view type the spec introduces later). */
 const TYPE_LABELS: Record<string, string> = {
   grid: 'Table / List',
   kanban: 'Kanban',
@@ -80,6 +82,14 @@ const TYPE_LABELS: Record<string, string> = {
   map: 'Map',
   chart: 'Chart',
 };
+
+/** Localized label for a view `type`, falling back to the English map (and
+ * then the raw value) when the i18n catalog has no entry. */
+function typeLabel(value: string, locale?: string): string {
+  const key = `engine.inspector.view.type.${value}`;
+  const translated = t(key, locale);
+  return translated === key ? (TYPE_LABELS[value] ?? value) : translated;
+}
 
 /** Keys re-pinned from the live draft after every spec-form edit. */
 const PRESERVED_KEYS = ['columns', 'data', 'name'] as const;
@@ -111,7 +121,7 @@ function readObjectBinding(
 }
 
 /** Build the View-type <select> options from the spec `type` enum. */
-function useTypeOptions(currentType: string) {
+function useTypeOptions(currentType: string, locale?: string) {
   return React.useMemo(() => {
     const schema = getListVariantSchema();
     const rawEnum = schema?.properties?.type?.enum;
@@ -119,12 +129,12 @@ function useTypeOptions(currentType: string) {
       Array.isArray(rawEnum) && rawEnum.length
         ? rawEnum.filter((v: unknown): v is string => typeof v === 'string')
         : ['grid', 'kanban', 'calendar', 'gallery', 'gantt', 'timeline'];
-    const opts = values.map((v) => ({ value: v, label: TYPE_LABELS[v] ?? v }));
+    const opts = values.map((v) => ({ value: v, label: typeLabel(v, locale) }));
     if (!opts.some((o) => o.value === currentType) && currentType) {
-      opts.push({ value: currentType, label: currentType });
+      opts.push({ value: currentType, label: typeLabel(currentType, locale) });
     }
     return opts;
-  }, [currentType]);
+  }, [currentType, locale]);
 }
 
 export function ViewVariantInspector({
@@ -137,13 +147,14 @@ export function ViewVariantInspector({
   onClearSelection,
   onSelectionChange,
   objectFieldsOverride,
+  locale,
 }: ViewVariantInspectorProps) {
   const variant = (draft[variantKey] as Record<string, unknown> | undefined) ?? {};
 
   const isFormFamily = isFormFamilyKey(familyKey ?? variantKey);
   const viewType =
     typeof variant.type === 'string' ? (variant.type as string) : 'grid';
-  const typeOptions = useTypeOptions(viewType);
+  const typeOptions = useTypeOptions(viewType, locale);
   const binding = readObjectBinding(variant, draft);
 
   // Canonical label lives at the top level (`draft.label`); a list `config`
@@ -218,31 +229,31 @@ export function ViewVariantInspector({
 
   return (
     <InspectorShell
-      kindLabel="View"
+      kindLabel={t('engine.inspector.view.kind', locale)}
       title={String(labelValue || draft.name || variantKey)}
       onClose={() => onClearSelection?.()}
-      closeLabel="Close"
+      closeLabel={t('engine.inspector.view.close', locale)}
       hideClose={isHome}
     >
       <InspectorTextField
-        label="Label"
+        label={t('engine.inspector.view.label', locale)}
         value={labelValue}
         onCommit={setLabel}
-        placeholder="e.g. All Leads"
+        placeholder={t('engine.inspector.view.labelPlaceholder', locale)}
         disabled={readOnly}
       />
       <InspectorSelectField
-        label="View type"
+        label={t('engine.inspector.view.type', locale)}
         value={viewType}
         options={typeOptions}
         onCommit={(v) => writeVariant({ type: v })}
         disabled={readOnly}
       />
       <InspectorTextField
-        label="Object"
+        label={t('engine.inspector.view.object', locale)}
         value={binding.value}
         onCommit={setObject}
-        placeholder="e.g. crm_lead"
+        placeholder={t('engine.inspector.view.objectPlaceholder', locale)}
         disabled={readOnly}
         mono
       />
@@ -277,7 +288,7 @@ export function ViewVariantInspector({
           />
         ) : (
           <p className="text-[11px] text-muted-foreground">
-            Spec schema unavailable — basic properties only.
+            {t('engine.inspector.view.noSchema', locale)}
           </p>
         )}
       </div>
