@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { diffRows, sumRows, applyDetail, idOf, buildMasterDetailBatch } from './masterDetailTx';
+import { diffRows, sumRows, applyDetail, idOf, buildMasterDetailBatch, buildMasterDetailEditBatch } from './masterDetailTx';
 
 describe('buildMasterDetailBatch — atomic master-detail ops', () => {
   it('puts the parent first and references it via $ref:0 on each child FK', () => {
@@ -19,6 +19,41 @@ describe('buildMasterDetailBatch — atomic master-detail ops', () => {
     const ops = buildMasterDetailBatch('p', { name: 'x' }, [{ childObject: 'c', relationshipField: 'p', rows: [] }]);
     expect(ops).toHaveLength(1);
     expect(ops[0].object).toBe('p');
+  });
+});
+
+describe('buildMasterDetailEditBatch — atomic master-detail edit ops', () => {
+  it('updates the parent then diffs children into create/update/delete', () => {
+    const ops = buildMasterDetailEditBatch(
+      'po',
+      'p1',
+      { status: 'open', total_amount: 45 },
+      [
+        {
+          childObject: 'po_line',
+          relationshipField: 'po',
+          rows: [{ id: 'l1', amount: 15 }, { amount: 30 }], // l1 edited, one new, l2 removed
+          original: [{ id: 'l1', amount: 10 }, { id: 'l2', amount: 20 }],
+        },
+      ],
+    );
+    expect(ops).toEqual([
+      { object: 'po', action: 'update', id: 'p1', data: { status: 'open', total_amount: 45 } },
+      { object: 'po_line', action: 'create', data: { amount: 30, po: 'p1' } },
+      { object: 'po_line', action: 'update', id: 'l1', data: { id: 'l1', amount: 15, po: 'p1' } },
+      { object: 'po_line', action: 'delete', id: 'l2' },
+    ]);
+  });
+
+  it('emits only the parent update when children are unchanged', () => {
+    const rows = [{ id: 'l1', amount: 10 }];
+    const ops = buildMasterDetailEditBatch('po', 'p1', { status: 'open' }, [
+      { childObject: 'po_line', relationshipField: 'po', rows, original: [{ id: 'l1', amount: 10 }] },
+    ]);
+    // parent update + l1 update (rows with ids always re-update; no creates/deletes)
+    expect(ops[0]).toEqual({ object: 'po', action: 'update', id: 'p1', data: { status: 'open' } });
+    expect(ops.filter((o) => o.action === 'delete')).toHaveLength(0);
+    expect(ops.filter((o) => o.action === 'create')).toHaveLength(0);
   });
 });
 

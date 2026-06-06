@@ -29,7 +29,7 @@ import type { DataSource } from '@object-ui/types';
 import { LineItemsField, type GridColumn } from '@object-ui/fields';
 import { Button, Card, CardContent, CardHeader, CardTitle, cn, toast } from '@object-ui/components';
 import { ObjectForm } from './ObjectForm';
-import { applyDetail, idOf, buildMasterDetailBatch, sumRows } from './masterDetailTx';
+import { applyDetail, idOf, buildMasterDetailBatch, buildMasterDetailEditBatch, sumRows } from './masterDetailTx';
 
 export interface MasterDetailDetailConfig {
   /** Child object name, e.g. 'expense_line'. */
@@ -222,11 +222,13 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
     [dataSource, isEdit, persistDetails, schema, handleSaved],
   );
 
-  // When the server exposes the transactional batch endpoint, a NEW parent +
-  // its children are persisted in ONE atomic transaction (commit all or roll
-  // back all) — no client-side best-effort cleanup. Otherwise fall back to the
-  // client-orchestrated create (parent → children with FK).
-  const canBatch = !isEdit && typeof (dataSource as any)?.batchTransaction === 'function';
+  // When the server exposes the transactional batch endpoint, the parent + its
+  // children are persisted in ONE atomic transaction (commit all or roll back
+  // all) — no client-side best-effort cleanup. This now covers BOTH create
+  // (parent + child creates via `$ref`) and edit (parent update + child
+  // create/update/delete diffs). Otherwise fall back to the client-orchestrated
+  // path (handleParentSaved).
+  const canBatch = typeof (dataSource as any)?.batchTransaction === 'function';
 
   const submitViaBatch = useCallback(
     async (parentValues: Record<string, any>) => {
@@ -237,19 +239,32 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
       details.forEach((d, i) => {
         if (d.totalField) parentData[d.totalField] = sumRows(stateRef.current[i]?.rows ?? [], d.amountField || 'amount');
       });
-      const ops = buildMasterDetailBatch(
-        schema.objectName,
-        parentData,
-        details.map((d, i) => ({
-          childObject: d.childObject,
-          relationshipField: d.relationshipField,
-          rows: stateRef.current[i]?.rows ?? [],
-        })),
-      );
+      const ops = isEdit
+        ? buildMasterDetailEditBatch(
+            schema.objectName,
+            schema.recordId!,
+            parentData,
+            details.map((d, i) => ({
+              childObject: d.childObject,
+              relationshipField: d.relationshipField,
+              rows: stateRef.current[i]?.rows ?? [],
+              original: stateRef.current[i]?.original ?? [],
+            })),
+          )
+        : buildMasterDetailBatch(
+            schema.objectName,
+            parentData,
+            details.map((d, i) => ({
+              childObject: d.childObject,
+              relationshipField: d.relationshipField,
+              rows: stateRef.current[i]?.rows ?? [],
+            })),
+          );
       const res = await ds.batchTransaction(ops);
-      return res?.results?.[0];
+      // create → parent is op 0; edit → echo the parent values back.
+      return res?.results?.[0] ?? { ...parentData, id: schema.recordId };
     },
-    [dataSource, details, schema.objectName],
+    [dataSource, details, schema.objectName, schema.recordId, isEdit],
   );
 
   // The parent form renders WITHOUT its own submit button — the master-detail

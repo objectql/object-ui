@@ -35,10 +35,18 @@ export interface BatchDetailInput {
   rows: Record<string, any>[];
 }
 
+/** Edit-mode detail input: current rows + the loaded snapshot to diff against. */
+export interface BatchEditDetailInput extends BatchDetailInput {
+  original: Record<string, any>[];
+}
+
 export interface BatchOp {
   object: string;
-  action: 'create';
-  data: Record<string, any>;
+  action: 'create' | 'update' | 'delete';
+  /** Present for create/update. */
+  data?: Record<string, any>;
+  /** Present for update/delete. */
+  id?: string;
 }
 
 /**
@@ -56,6 +64,38 @@ export function buildMasterDetailBatch(
   for (const d of details) {
     for (const row of d.rows) {
       ops.push({ object: d.childObject, action: 'create', data: { ...row, [d.relationshipField]: { $ref: 0 } } });
+    }
+  }
+  return ops;
+}
+
+/**
+ * Build cross-object batch operations for an ATOMIC master-detail EDIT: update
+ * the existing parent (index 0), then per child collection diff the current
+ * rows against the loaded snapshot into create / update / delete ops. The
+ * parent id is already known, so children reference it directly (no `$ref`).
+ * The whole set commits or rolls back as one transaction.
+ */
+export function buildMasterDetailEditBatch(
+  parentObject: string,
+  parentId: string,
+  parentData: Record<string, any>,
+  details: BatchEditDetailInput[],
+): BatchOp[] {
+  const ops: BatchOp[] = [{ object: parentObject, action: 'update' as const, id: parentId, data: parentData }];
+  for (const d of details) {
+    const withFk = (d.rows || []).map((r) => ({ ...r, [d.relationshipField]: parentId }));
+    const { toCreate, toUpdate, toDelete } = diffRows(d.original || [], withFk);
+    for (const row of toCreate) {
+      // Strip any client-only id so the server generates one.
+      const { id: _omit, _id: _omit2, recordId: _omit3, ...clean } = row as any;
+      ops.push({ object: d.childObject, action: 'create', data: clean });
+    }
+    for (const row of toUpdate) {
+      ops.push({ object: d.childObject, action: 'update', id: idOf(row)!, data: row });
+    }
+    for (const id of toDelete) {
+      ops.push({ object: d.childObject, action: 'delete', id });
     }
   }
   return ops;
