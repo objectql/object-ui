@@ -13,7 +13,7 @@ import {
   CardTitle,
   CardDescription,
 } from '@object-ui/components';
-import { Terminal, Workflow, FileText } from 'lucide-react';
+import { Terminal, Workflow, FileText, Plug } from 'lucide-react';
 
 interface HubCard {
   title: string;
@@ -28,6 +28,12 @@ export function DeveloperHubPage() {
   const basePath = appName ? `/apps/${appName}` : '';
 
   const cards: HubCard[] = [
+    {
+      title: 'Integrations & APIs',
+      description: 'Your app as a REST API — base URL, endpoints, and connect samples',
+      icon: Plug,
+      href: `${basePath}/developer/integrations`,
+    },
     {
       title: 'API Console',
       description: 'Inspect and exercise REST endpoints with auto-discovered services',

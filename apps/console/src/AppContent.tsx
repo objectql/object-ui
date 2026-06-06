@@ -29,6 +29,7 @@ const DeveloperHubPage = lazy(() => import('./pages/developer/DeveloperHubPage')
 const ApiConsolePage = lazy(() => import('./pages/developer/ApiConsolePage').then(m => ({ default: m.ApiConsolePage })));
 const FlowRunsPage = lazy(() => import('./pages/developer/FlowRunsPage').then(m => ({ default: m.FlowRunsPage })));
 const PublicFormsPage = lazy(() => import('./pages/developer/PublicFormsPage').then(m => ({ default: m.PublicFormsPage })));
+const IntegrationsPage = lazy(() => import('./pages/developer/IntegrationsPage').then(m => ({ default: m.IntegrationsPage })));
 
 // Note: marketplace routes (`system/marketplace`, `system/marketplace/:packageId`)
 // are registered by DefaultAppContent in @object-ui/app-shell so they're
@@ -82,6 +83,7 @@ const systemRoutes = (
     <Route path="developer/api-console" element={<Suspense fallback={<LoadingScreen />}><ApiConsolePage /></Suspense>} />
     <Route path="developer/flow-runs" element={<Suspense fallback={<LoadingScreen />}><FlowRunsPage /></Suspense>} />
     <Route path="developer/public-forms" element={<Suspense fallback={<LoadingScreen />}><PublicFormsPage /></Suspense>} />
+    <Route path="developer/integrations" element={<Suspense fallback={<LoadingScreen />}><IntegrationsPage /></Suspense>} />
     {/* Legacy URL redirects → metadata-admin engine (zero-cost compatibility). */}
     <Route path="system/objects" element={<ObjectRedirect />} />
     <Route path="system/objects/:objectName" element={<ObjectRedirect />} />
