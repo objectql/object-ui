@@ -1,28 +1,37 @@
 /**
- * ViewConfigPanel — Airtable-style simplified configuration panel.
+ * ViewConfigPanel — the runtime ObjectView's right-rail "view editor".
  *
- * Renders a focused, opinionated set of sections (Page / Data /
- * Appearance / Toolbar / User actions / Navigation / Advanced) — matching
- * Airtable's Interface designer right rail. Power-user sections (records,
- * sharing, accessibility) are intentionally excluded to keep the panel
- * approachable; they can be re-introduced later as a dedicated "advanced"
- * settings dialog if needed.
+ * MIGRATED: this panel now hosts the studio's spec-driven
+ * {@link ViewVariantInspector} instead of the legacy `buildViewConfigSchema`
+ * engine, so the runtime and the metadata studio share ONE inspector. The
+ * inspector renders the per-view-type config fields straight from
+ * `@objectstack/spec` (grid / kanban / calendar / gallery / …) plus the
+ * shared column / filter / sort / toolbar sections.
  *
- * All changes are buffered in a local draft state. Clicking Save commits
- * the draft via onSave; Discard resets to the original activeView.
+ * The runtime ObjectView keeps the active view as a FLAT NamedListView; the
+ * inspector authors a canonical ViewItem draft. {@link view-config-adapter}
+ * bridges the two shapes so the `sys_view` persistence path is untouched:
+ * edits live as a ViewItem draft while the panel is open, then flatten back
+ * to the runtime view shape on update / save / create.
+ *
+ * Field loading is network-free: `objectDef.fields` is mapped into the
+ * inspector's `objectFieldsOverride` so neither the inspector nor its
+ * column editor issue a `client.get('object', …)` request.
  */
 
 import { useMemo, useEffect, useRef, useCallback, useState } from 'react';
-import { ConfigPanelRenderer, useConfigDraft, Button } from '@object-ui/components';
-import { Settings2 } from 'lucide-react';
+import { Button } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
+import { ViewVariantInspector } from './metadata-admin/inspectors/ViewVariantInspector';
+import { isFormFamilyKey } from './metadata-admin/view-variant-model';
+import { detectLocale } from './metadata-admin/i18n';
+import type { ObjectFieldInfo } from './metadata-admin/previews/useObjectFields';
 import {
-  buildViewConfigSchema,
-  deriveFieldOptions,
-  toFilterGroup,
-  toSortItems,
-  VIEW_TYPE_LABELS,
-} from '@object-ui/plugin-view';
+    runtimeViewToInspectorDraft,
+    inspectorDraftToRuntimeView,
+    type InspectorViewDraft,
+    type RuntimeView,
+} from './view-config-adapter';
 
 /** Editor panel types that can be opened from clickable rows */
 export type EditorPanelType = 'columns' | 'filter' | 'sort';
@@ -43,13 +52,6 @@ export interface ViewConfigPanelProps {
         filter?: any[];
         sort?: any[];
         description?: string;
-        showSearch?: boolean;
-        showFilters?: boolean;
-        showSort?: boolean;
-        allowExport?: boolean;
-        showDescription?: boolean;
-        addRecordViaForm?: boolean;
-        exportOptions?: any;
         [key: string]: any;
     };
     /** The object definition */
@@ -70,159 +72,177 @@ export interface ViewConfigPanelProps {
     onCreate?: (config: Record<string, any>) => void;
 }
 
+/**
+ * Map an Object definition's `fields` record into the inspector's flat field
+ * catalog so it can render field-reference pickers (columns, groupByField, …)
+ * without a network fetch.
+ */
+function mapObjectFields(objectDef: ViewConfigPanelProps['objectDef']): ObjectFieldInfo[] {
+    const fields = objectDef.fields;
+    if (!fields || typeof fields !== 'object') return [];
+    return Object.entries(fields).map(([name, def]) => {
+        const f = (def ?? {}) as Record<string, any>;
+        return {
+            name,
+            label: typeof f.label === 'string' && f.label ? f.label : name,
+            type: typeof f.type === 'string' ? f.type : 'text',
+            hidden: f.hidden === true,
+        };
+    });
+}
+
 export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, objectDef, onViewUpdate, onSave, onCreate }: ViewConfigPanelProps) {
     const { t } = useObjectTranslation();
     const panelRef = useRef<HTMLDivElement>(null);
+    const locale = useMemo(() => detectLocale(), []);
 
-    // "Show advanced settings" — when false (default), the panel only shows
-    // the Airtable-essential subset. When true, every section/field is
-    // surfaced for power users. Reset whenever the panel closes so reopening
-    // returns to the simplified view.
-    const [showAdvanced, setShowAdvanced] = useState(false);
-    useEffect(() => {
-        if (!open) setShowAdvanced(false);
-    }, [open]);
+    // Provisional id for a create-mode view. A lazy useState initializer runs
+    // exactly once, keeping the impure `Date.now()` out of render; the backend
+    // assigns the real `name` on create, so this only needs to be unique
+    // within the draft.
+    const [newViewId] = useState(() => `view_${Date.now()}`);
 
-    // Default empty view for create mode
-    const defaultNewView = useMemo(() => ({
-        id: `view_${Date.now()}`,
+    // Default empty view used to seed create mode.
+    const defaultNewView = useMemo<RuntimeView>(() => ({
+        id: newViewId,
         label: t('console.objectView.newView'),
         type: 'grid',
         columns: [],
         filter: [],
         sort: [],
-        showSearch: true,
-        showFilters: true,
-        showSort: true,
     }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Stabilize source reference: only change when view ID changes.
-    // This prevents useConfigDraft from resetting on every parent re-render
-    // (same behavior as original useEffect with [activeView.id] dependency).
+    // Inspector draft state. Rebuilt only when the source view ID (or create
+    // mode) changes — not on every parent re-render — so in-flight edits are
+    // not clobbered (same stabilization the legacy panel used with stableKey).
     const stableKey = mode === 'create' ? 'create' : activeView.id;
-    const stableActiveView = useMemo(
-        () => ({ ...activeView }),
-        [stableKey], // eslint-disable-line react-hooks/exhaustive-deps
+    const initialDraft = useMemo<InspectorViewDraft>(
+        () => runtimeViewToInspectorDraft(
+            mode === 'create' ? defaultNewView : (activeView as RuntimeView),
+            objectDef.name,
+        ),
+        [stableKey, objectDef.name], // eslint-disable-line react-hooks/exhaustive-deps
     );
-    const effectiveActiveView = mode === 'create' ? defaultNewView : stableActiveView;
+    const [draft, setDraft] = useState<InspectorViewDraft>(initialDraft);
+    const [isDirty, setIsDirty] = useState(false);
+    // Mirror the committed draft into a ref so `handlePatch` can compute the
+    // next draft synchronously without a side-effecting state updater.
+    const draftRef = useRef(draft);
+    // Reset the draft when the source view changes — derived from `initialDraft`
+    // during render (React's "adjust state on prop change" pattern) rather than
+    // in an effect, so there's no extra render pass.
+    const lastDraftRef = useRef(initialDraft);
+    if (lastDraftRef.current !== initialDraft) {
+        lastDraftRef.current = initialDraft;
+        draftRef.current = initialDraft;
+        setDraft(initialDraft);
+        setIsDirty(false);
+    }
+    useEffect(() => { draftRef.current = draft; }, [draft]);
 
-    // Schema-driven draft state management
-    const { draft, isDirty, updateField, discard, undo, redo, canUndo, canRedo } = useConfigDraft(effectiveActiveView, {
-        mode,
-        onUpdate: onViewUpdate,
-    });
-
-    // Focus the panel when it opens for keyboard accessibility
+    // Focus the panel when it opens for keyboard accessibility.
     useEffect(() => {
         if (open && panelRef.current) {
             panelRef.current.focus();
         }
     }, [open]);
 
-    // Derive field options from objectDef
-    const fieldOptions = useMemo(() => deriveFieldOptions(objectDef), [objectDef.fields]);
+    // Network-free field catalog sourced from the object definition the host
+    // already holds.
+    const objectFields = useMemo(() => mapObjectFields(objectDef), [objectDef.fields]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Bridge: filter/sort → builder format
-    const filterGroupValue = useMemo(() => toFilterGroup(draft.filter), [draft.filter]);
-    const sortItemsValue = useMemo(() => toSortItems(draft.sort), [draft.sort]);
+    const familyKey = isFormFamilyKey(draft.viewKind) ? 'form' : 'list';
 
-    // Build schema. essentialOnly is the default; the user can opt-in to the
-    // full advanced surface via the "Show advanced settings" toggle below.
-    const schema = useMemo(
-        () => buildViewConfigSchema({
-            t,
-            fieldOptions,
-            objectDef,
-            updateField,
-            filterGroupValue,
-            sortItemsValue,
-            essentialOnly: !showAdvanced,
-        }),
-        [t, fieldOptions, objectDef, updateField, filterGroupValue, sortItemsValue, showAdvanced],
-    );
-
-    // Override breadcrumb with dynamic view type
-    const viewType = draft.type || 'grid';
-    const dynamicSchema = useMemo(() => ({
-        ...schema,
-        breadcrumb: [t('console.objectView.page'), VIEW_TYPE_LABELS[viewType] || viewType],
-    }), [schema, t, viewType]);
-
-    // Save/discard handlers with create mode support
-    const handleSave = useCallback(() => {
-        if (mode === 'create') {
-            onCreate?.(draft);
-        } else {
-            onSave?.(draft);
+    // Shallow-merge an inspector patch into the draft, then mirror the
+    // flattened runtime view back to the host field-by-field (matching the
+    // legacy onViewUpdate(field, value) contract ObjectView expects).
+    const handlePatch = useCallback((patch: Record<string, unknown>) => {
+        const next: InspectorViewDraft = { ...draftRef.current, ...(patch as Partial<InspectorViewDraft>) };
+        draftRef.current = next;
+        setDraft(next);
+        setIsDirty(true);
+        if (onViewUpdate) {
+            const flat = inspectorDraftToRuntimeView(next);
+            for (const [field, value] of Object.entries(flat)) {
+                if (field === 'id') continue;
+                onViewUpdate(field, value);
+            }
         }
-        // Clear dirty state after save while preserving draft values
-        discard();
-    }, [draft, onSave, onCreate, mode, discard]);
+    }, [onViewUpdate]);
+
+    const handleSave = useCallback(() => {
+        const flat = inspectorDraftToRuntimeView(draft);
+        if (mode === 'create') {
+            onCreate?.(flat);
+        } else {
+            onSave?.(flat);
+        }
+        setIsDirty(false);
+    }, [draft, onSave, onCreate, mode]);
 
     const handleDiscard = useCallback(() => {
         if (mode === 'create') {
             onClose();
             return;
         }
-        discard();
-    }, [discard, mode, onClose]);
+        setDraft(initialDraft);
+        setIsDirty(false);
+    }, [initialDraft, mode, onClose]);
 
     const panelTitle = mode === 'create'
         ? t('console.objectView.createView')
         : t('console.objectView.configureView');
 
-    // Header-extra: "Show advanced" toggle button. Subtle gear icon button
-    // sitting next to undo/redo/close — clearly affordant but not visually
-    // dominant. Title swaps between "Show advanced settings" and "Show fewer
-    // settings" so the user always knows what the next click will do.
-    const advancedToggle = (
-        <Button
-            size="sm"
-            variant={showAdvanced ? 'secondary' : 'ghost'}
-            onClick={() => setShowAdvanced(v => !v)}
-            className="h-7 w-7 p-0"
-            data-testid="view-config-advanced-toggle"
-            aria-pressed={showAdvanced}
-            title={
-                showAdvanced
-                    ? t('console.objectView.showFewerSettings', { defaultValue: 'Show fewer settings' })
-                    : t('console.objectView.showAdvancedSettings', { defaultValue: 'Show advanced settings' })
-            }
-        >
-            <Settings2 className="h-3.5 w-3.5" />
-        </Button>
-    );
+    if (!open) {
+        // Keep the slide container (owned by ObjectView) able to collapse to
+        // zero width without rendering inspector internals while hidden.
+        return <div ref={panelRef} tabIndex={-1} data-testid="view-config-panel" aria-hidden />;
+    }
 
     return (
-        <ConfigPanelRenderer
-            open={open}
-            onClose={onClose}
-            schema={dynamicSchema}
-            draft={draft}
-            isDirty={isDirty}
-            onFieldChange={updateField}
-            onSave={handleSave}
-            onDiscard={handleDiscard}
-            onUndo={undo}
-            onRedo={redo}
-            canUndo={canUndo}
-            canRedo={canRedo}
-            undoLabel={t('designer.undo')}
-            redoLabel={t('designer.redo')}
-            objectDef={objectDef}
-            saveLabel={t('console.objectView.save')}
-            discardLabel={t('console.objectView.discard')}
-            panelRef={panelRef}
-            role="complementary"
-            ariaLabel={panelTitle}
+        <div
+            ref={panelRef}
             tabIndex={-1}
-            testId="view-config-panel"
-            closeTitle={t('console.objectView.closePanel')}
-            footerTestId="view-config-footer"
-            saveTestId="view-config-save"
-            discardTestId="view-config-discard"
-            headerExtra={advancedToggle}
-            className="transition-all overflow-hidden"
-        />
+            role="complementary"
+            aria-label={panelTitle}
+            data-testid="view-config-panel"
+            className="flex h-full flex-col"
+        >
+            <div className="min-h-0 flex-1 overflow-auto">
+                <ViewVariantInspector
+                    type="view"
+                    name={draft.name}
+                    draft={draft as unknown as Record<string, unknown>}
+                    variantKey="config"
+                    familyKey={familyKey}
+                    isHome
+                    readOnly={false}
+                    locale={locale}
+                    objectFieldsOverride={objectFields}
+                    onPatch={handlePatch}
+                />
+            </div>
+            <div
+                data-testid="view-config-footer"
+                className="flex items-center justify-end gap-2 border-t px-4 py-2.5"
+            >
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDiscard}
+                    data-testid="view-config-discard"
+                >
+                    {t('console.objectView.discard')}
+                </Button>
+                <Button
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={mode === 'edit' && !isDirty}
+                    data-testid="view-config-save"
+                >
+                    {t('console.objectView.save')}
+                </Button>
+            </div>
+        </div>
     );
 }

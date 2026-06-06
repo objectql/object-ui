@@ -44,6 +44,11 @@ export interface FieldsListEditorProps {
   allStrings: boolean;
   /** Bound object name — drives field icons + the Add-field picker. */
   objectName?: string;
+  /**
+   * Pre-resolved field catalog. When supplied, skips the network fetch and
+   * uses this list instead (host already holds the object definition).
+   */
+  objectFieldsOverride?: ObjectFieldInfo[];
   /** Index of the currently selected column, or null when none. */
   selectedIndex: number | null;
   /** Read-only mode disables drag / add / remove. */
@@ -62,13 +67,17 @@ export function FieldsListEditor({
   columns,
   allStrings,
   objectName,
+  objectFieldsOverride,
   selectedIndex,
   readOnly,
   onPatch,
   onSelectionChange,
 }: FieldsListEditorProps) {
   const canEdit = !readOnly;
-  const { fields, loading, error } = useObjectFields(objectName || undefined);
+  const { fields, loading, error } = useObjectFields(
+    objectName || undefined,
+    objectFieldsOverride,
+  );
 
   const fieldTypeByName = React.useMemo(() => {
     const m = new Map<string, string>();

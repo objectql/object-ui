@@ -34,7 +34,7 @@ import {
 } from './_shared';
 import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
 import { SchemaForm } from '../SchemaForm';
-import { useObjectFields } from '../previews/useObjectFields';
+import { useObjectFields, type ObjectFieldInfo } from '../previews/useObjectFields';
 import { FieldsListEditor } from '../previews/FieldsListEditor';
 import {
   getViewForm,
@@ -59,6 +59,14 @@ export interface ViewVariantInspectorProps extends MetadataDefaultInspectorProps
   isHome: boolean;
   /** Clear the current selection (scoped mode only). */
   onClearSelection?: () => void;
+  /**
+   * Pre-resolved field catalog for the bound object. When supplied, both
+   * this inspector and its {@link FieldsListEditor} skip the network fetch
+   * (`useObjectFields`) and use this list instead. Hosts that already hold
+   * the object definition (e.g. the runtime ViewConfigPanel) pass it to keep
+   * the inspector free of any network dependency.
+   */
+  objectFieldsOverride?: ObjectFieldInfo[];
 }
 
 /** Human labels for the spec `type` enum (falls back to the raw value). */
@@ -128,6 +136,7 @@ export function ViewVariantInspector({
   readOnly,
   onClearSelection,
   onSelectionChange,
+  objectFieldsOverride,
 }: ViewVariantInspectorProps) {
   const variant = (draft[variantKey] as Record<string, unknown> | undefined) ?? {};
 
@@ -153,7 +162,10 @@ export function ViewVariantInspector({
   // Load the bound object's field catalog so field-reference config props
   // (groupByField, startDateField, xAxisField, visibleFields, …) render as
   // object-field pickers rather than free-text inputs.
-  const { fields: objectFields } = useObjectFields(binding.value || undefined);
+  const { fields: objectFields } = useObjectFields(
+    binding.value || undefined,
+    objectFieldsOverride,
+  );
   const widgetContext = React.useMemo(
     () => ({
       objectFields: objectFields.map((f) => ({
@@ -243,6 +255,7 @@ export function ViewVariantInspector({
             columns={rawColumns}
             allStrings={allStrings}
             objectName={binding.value || undefined}
+            objectFieldsOverride={objectFieldsOverride}
             selectedIndex={null}
             readOnly={readOnly}
             onPatch={onPatch}

@@ -26,11 +26,10 @@ export type { FilterUIProps } from './FilterUI';
 export type { SortUIProps } from './SortUI';
 export type { SharedViewLinkProps } from './SharedViewLink';
 
-// Declarative view config-panel builder (filters/sort/columns).
-// Hosts (e.g. designer panels, console ViewConfigPanel) consume this to build
-// a uniform ConfigPanelSchema for any object view.
-export { buildViewConfigSchema, ESSENTIAL_SECTION_KEYS } from './config/view-config-schema';
-export type { ViewSchemaFactoryOptions } from './config/view-config-schema';
+// View config helpers (field options, filter/sort builders, view-type
+// metadata). The runtime ViewConfigPanel now hosts the studio's spec-driven
+// inspector, so the legacy `buildViewConfigSchema` engine has been retired;
+// these utilities still back the CreateViewDialog field pickers.
 export {
   deriveFieldOptions,
   toFilterGroup,

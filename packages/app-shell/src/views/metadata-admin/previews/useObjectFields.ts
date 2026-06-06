@@ -34,15 +34,30 @@ export interface UseObjectFieldsResult {
   error: string | null;
 }
 
-export function useObjectFields(objectName: string | undefined): UseObjectFieldsResult {
+export function useObjectFields(
+  objectName: string | undefined,
+  /**
+   * Pre-resolved field catalog. When supplied the hook skips the network
+   * fetch entirely and returns this list verbatim — used by hosts that
+   * already hold the object definition (e.g. the runtime ViewConfigPanel,
+   * which reads `objectDef.fields`) so the inspector has zero network
+   * dependency.
+   */
+  override?: ObjectFieldInfo[],
+): UseObjectFieldsResult {
   const client = useMetadataClient();
   const [state, setState] = React.useState<UseObjectFieldsResult>({
     fields: [],
-    loading: !!objectName,
+    loading: !override && !!objectName,
     error: null,
   });
 
   React.useEffect(() => {
+    // Override short-circuits the fetch: trust the caller-supplied catalog.
+    if (override) {
+      setState({ fields: override, loading: false, error: null });
+      return;
+    }
     if (!objectName) {
       setState({ fields: [], loading: false, error: null });
       return;
@@ -80,7 +95,7 @@ export function useObjectFields(objectName: string | undefined): UseObjectFields
     return () => {
       cancelled = true;
     };
-  }, [client, objectName]);
+  }, [client, objectName, override]);
 
   return state;
 }
