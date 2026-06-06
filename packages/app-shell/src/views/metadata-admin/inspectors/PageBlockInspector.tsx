@@ -27,8 +27,88 @@ import {
   moveArray,
 } from './_shared';
 import { BLOCK_CONFIG, blockHasConfig, type BlockPropField } from '../previews/block-config';
-import { Button, Input, Label } from '@object-ui/components';
+import { useObjectOptions } from '../previews/useObjectOptions';
+import { useObjectFields } from '../previews/useObjectFields';
+import {
+  Button, Input, Label,
+  Select, SelectTrigger, SelectContent, SelectItem, SelectValue,
+} from '@object-ui/components';
 import { Plus, X, Trash2 } from 'lucide-react';
+
+// ── Schema-driven picker fields ──────────────────────────────────────────────
+
+/** Field options for an object (visible fields), as {value,label}. */
+function useFieldOptions(objectName: string | undefined): Array<{ value: string; label: string }> {
+  const { fields } = useObjectFields(objectName);
+  return React.useMemo(
+    () =>
+      fields
+        .filter((f) => !f.hidden)
+        .map((f) => ({ value: f.name, label: f.label && f.label !== f.name ? `${f.label} (${f.name})` : f.name })),
+    [fields],
+  );
+}
+
+/** Object dropdown; falls back to a free-text input when the list is empty. */
+function ObjectPickerField({ label, value, onCommit, disabled }: {
+  label: string; value: string | undefined; onCommit: (v: string) => void; disabled?: boolean;
+}) {
+  const { options } = useObjectOptions();
+  if (options.length === 0) {
+    return <InspectorTextField label={label} value={value ?? ''} placeholder="snake_case object" onCommit={onCommit} disabled={disabled} mono />;
+  }
+  return <InspectorSelectField label={label} value={value || undefined} options={options} onCommit={onCommit} disabled={disabled} />;
+}
+
+/** Field dropdown for `objectName`; falls back to free text when unresolved. */
+function FieldPickerField({ label, objectName, value, onCommit, disabled }: {
+  label: string; objectName: string | undefined; value: string | undefined; onCommit: (v: string) => void; disabled?: boolean;
+}) {
+  const options = useFieldOptions(objectName);
+  if (!objectName || options.length === 0) {
+    return <InspectorTextField label={label} value={value ?? ''} onCommit={onCommit} disabled={disabled} mono />;
+  }
+  return <InspectorSelectField label={label} value={value || undefined} options={options} onCommit={onCommit} disabled={disabled} />;
+}
+
+/** Editable list of field names — each row a field dropdown (or text fallback). */
+function FieldListField({ label, objectName, value, onChange, disabled }: {
+  label: string; objectName: string | undefined; value: unknown; onChange: (v: string[]) => void; disabled?: boolean;
+}) {
+  const options = useFieldOptions(objectName);
+  const arr: string[] = Array.isArray(value) ? (value as string[]) : [];
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      {arr.map((s, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          {options.length > 0 ? (
+            <div className="flex-1">
+              <Select value={s ? String(s) : ''} onValueChange={(v) => { const n = [...arr]; n[i] = v; onChange(n); }} disabled={disabled}>
+                <SelectTrigger className="h-8"><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectContent>
+                  {options.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <Input className="h-8 text-sm" value={String(s ?? '')} placeholder="field name" disabled={disabled}
+              onChange={(e) => { const n = [...arr]; n[i] = e.target.value; onChange(n); }} />
+          )}
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" disabled={disabled} aria-label="Remove"
+            onClick={() => onChange(arr.filter((_, j) => j !== i))}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+      {!disabled && (
+        <Button type="button" variant="outline" size="sm" onClick={() => onChange([...arr, ''])}>
+          <Plus className="mr-1 h-3.5 w-3.5" /> Add
+        </Button>
+      )}
+    </div>
+  );
+}
 
 interface Block {
   type?: string;
@@ -159,6 +239,15 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
   // `properties.*` to the top level, so we read from either and always write
   // back to `properties` (the canonical shape).
   const blockProps = (block.properties as Record<string, unknown>) || {};
+  // The record page's bound object — drives `field-picker`/`field-list` with
+  // objectFrom:'page'. (objectFrom:'self' reads a sibling block property.)
+  const pageObject = typeof (draft as any)?.object === 'string' ? ((draft as any).object as string) : undefined;
+  const resolveObject = (src: BlockPropField & { objectFrom?: string; objectProp?: string }): string | undefined =>
+    src.objectFrom === 'page'
+      ? pageObject
+      : src.objectProp != null && blockProps[src.objectProp] != null
+        ? String(blockProps[src.objectProp])
+        : undefined;
   const readProp = (name: string): unknown => blockProps[name] ?? (block as any)[name];
   const patchProp = (name: string, value: unknown) =>
     patch({ properties: { ...blockProps, [name]: value } } as Partial<Block>);
@@ -249,11 +338,28 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
           </div>
         );
       }
+      case 'object-picker':
+        return (
+          <ObjectPickerField key={k} label={f.label}
+            value={read(f.name) != null ? String(read(f.name)) : undefined}
+            onCommit={(v) => write(f.name, v)} disabled={readOnly} />
+        );
+      case 'field-picker':
+        return (
+          <FieldPickerField key={k} label={f.label} objectName={resolveObject(f)}
+            value={read(f.name) != null ? String(read(f.name)) : undefined}
+            onCommit={(v) => write(f.name, v)} disabled={readOnly} />
+        );
+      case 'field-list':
+        return (
+          <FieldListField key={k} label={f.label} objectName={resolveObject(f)}
+            value={read(f.name)} onChange={(v) => write(f.name, v)} disabled={readOnly} />
+        );
       default:
         return (
           <InspectorTextField key={k} label={f.label}
             value={read(f.name) != null ? String(read(f.name)) : ''}
-            placeholder={f.placeholder} onCommit={(v) => write(f.name, v)} disabled={readOnly} />
+            placeholder={(f as any).placeholder} onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
     }
   };

@@ -14,13 +14,22 @@
  *   array (+ itemFields)              — an array of objects (e.g. tab items)
  */
 
+/** Where a field/field-list picker resolves its object from:
+ *  - 'page' — the record page's bound object (draft.object)
+ *  - 'self' — a sibling property on the same block (objectProp) */
+export type ObjectSource = { objectFrom: 'page' } | { objectFrom: 'self'; objectProp: string };
+
 export type BlockPropField =
   | { name: string; label: string; kind: 'text'; placeholder?: string }
   | { name: string; label: string; kind: 'number'; placeholder?: string }
   | { name: string; label: string; kind: 'boolean' }
   | { name: string; label: string; kind: 'select'; options: Array<{ value: string; label: string }> }
   | { name: string; label: string; kind: 'string-list'; placeholder?: string }
-  | { name: string; label: string; kind: 'array'; itemFields: BlockPropField[]; addLabel?: string };
+  | { name: string; label: string; kind: 'array'; itemFields: BlockPropField[]; addLabel?: string }
+  // Schema-driven pickers — dropdowns populated from the live metadata.
+  | { name: string; label: string; kind: 'object-picker'; placeholder?: string }
+  | ({ name: string; label: string; kind: 'field-picker'; placeholder?: string } & ObjectSource)
+  | ({ name: string; label: string; kind: 'field-list'; placeholder?: string } & ObjectSource);
 
 const ALIGN_OPTS = [
   { value: 'left', label: 'Left' },
@@ -60,8 +69,8 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
     },
   ],
   'element:number': [
-    { name: 'object', label: 'Object', kind: 'text', placeholder: 'snake_case object' },
-    { name: 'field', label: 'Field', kind: 'text' },
+    { name: 'object', label: 'Object', kind: 'object-picker' },
+    { name: 'field', label: 'Field', kind: 'field-picker', objectFrom: 'self', objectProp: 'object' },
     {
       name: 'aggregate',
       label: 'Aggregate',
@@ -153,13 +162,13 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
 
   // ── Record context ────────────────────────────────────────────────────────
   'record:related_list': [
-    { name: 'objectName', label: 'Object', kind: 'text', placeholder: 'snake_case object' },
-    { name: 'relationshipField', label: 'Relationship field', kind: 'text' },
+    { name: 'objectName', label: 'Object', kind: 'object-picker' },
+    { name: 'relationshipField', label: 'Relationship field', kind: 'field-picker', objectFrom: 'self', objectProp: 'objectName' },
     { name: 'title', label: 'Title', kind: 'text' },
     { name: 'limit', label: 'Limit', kind: 'number', placeholder: '10' },
   ],
   'record:highlights': [
-    { name: 'fields', label: 'Fields', kind: 'string-list', placeholder: 'field name' },
+    { name: 'fields', label: 'Fields', kind: 'field-list', objectFrom: 'page' },
   ],
   'record:details': [
     {
@@ -170,7 +179,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
       itemFields: [
         { name: 'label', label: 'Label', kind: 'text' },
         { name: 'columns', label: 'Columns', kind: 'number', placeholder: '2' },
-        { name: 'fields', label: 'Fields', kind: 'string-list', placeholder: 'field name' },
+        { name: 'fields', label: 'Fields', kind: 'field-list', objectFrom: 'page' },
       ],
     },
   ],
@@ -192,7 +201,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
     { name: 'dismissible', label: 'Dismissible', kind: 'boolean' },
   ],
   'record:path': [
-    { name: 'statusField', label: 'Status field', kind: 'text', placeholder: 'e.g. stage' },
+    { name: 'statusField', label: 'Status field', kind: 'field-picker', objectFrom: 'page' },
     {
       name: 'stages',
       label: 'Stages',
