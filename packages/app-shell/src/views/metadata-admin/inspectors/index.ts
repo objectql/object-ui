@@ -13,6 +13,7 @@ import { AppNavInspector } from './AppNavInspector';
 import { ViewInspector, ViewDefaultInspector } from './ViewInspector';
 import { PageBlockInspector } from './PageBlockInspector';
 import { ReportColumnInspector } from './ReportColumnInspector';
+import { ReportDefaultInspector } from './ReportDefaultInspector';
 import { ObjectFieldInspector } from './ObjectFieldInspector';
 import { ObjectDefaultInspector } from './ObjectDefaultInspector';
 
@@ -30,6 +31,7 @@ export function registerBuiltinInspectors(): void {
   registerMetadataDefaultInspector('view', ViewDefaultInspector);
   registerMetadataInspector('page', PageBlockInspector);
   registerMetadataInspector('report', ReportColumnInspector);
+  registerMetadataDefaultInspector('report', ReportDefaultInspector);
   registerMetadataInspector('object', ObjectFieldInspector);
   registerMetadataDefaultInspector('object', ObjectDefaultInspector);
 }
