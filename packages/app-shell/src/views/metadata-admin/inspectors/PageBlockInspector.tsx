@@ -27,6 +27,8 @@ import {
   moveArray,
 } from './_shared';
 import { BLOCK_CONFIG, blockHasConfig, type BlockPropField } from '../previews/block-config';
+import { Button, Input, Label } from '@object-ui/components';
+import { Plus, X, Trash2 } from 'lucide-react';
 
 interface Block {
   type?: string;
@@ -161,50 +163,97 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
   const patchProp = (name: string, value: unknown) =>
     patch({ properties: { ...blockProps, [name]: value } } as Partial<Block>);
 
-  const renderPropField = (f: BlockPropField) => {
+  // Generic, recursive field renderer. `read`/`write` abstract the value source
+  // (the block's `properties` at the top level, or an item object inside an
+  // `array` field), so the same code drives nested array-item editors.
+  const renderField = (
+    f: BlockPropField,
+    read: (name: string) => unknown,
+    write: (name: string, value: unknown) => void,
+    keyPrefix = '',
+  ): React.ReactNode => {
+    const k = `${keyPrefix}${f.name}`;
     switch (f.kind) {
       case 'number':
         return (
-          <InspectorNumberField
-            key={f.name}
-            label={f.label}
-            value={typeof readProp(f.name) === 'number' ? (readProp(f.name) as number) : undefined}
-            placeholder={f.placeholder}
-            onCommit={(v) => patchProp(f.name, v)}
-            disabled={readOnly}
-          />
+          <InspectorNumberField key={k} label={f.label}
+            value={typeof read(f.name) === 'number' ? (read(f.name) as number) : undefined}
+            placeholder={f.placeholder} onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
       case 'boolean':
         return (
-          <InspectorCheckboxField
-            key={f.name}
-            label={f.label}
-            value={!!readProp(f.name)}
-            onCommit={(v) => patchProp(f.name, v)}
-            disabled={readOnly}
-          />
+          <InspectorCheckboxField key={k} label={f.label} value={!!read(f.name)}
+            onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
       case 'select':
         return (
-          <InspectorSelectField
-            key={f.name}
-            label={f.label}
-            value={readProp(f.name) != null ? String(readProp(f.name)) : undefined}
-            options={f.options}
-            onCommit={(v) => patchProp(f.name, v)}
-            disabled={readOnly}
-          />
+          <InspectorSelectField key={k} label={f.label}
+            value={read(f.name) != null ? String(read(f.name)) : undefined}
+            options={f.options} onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
+      case 'string-list': {
+        const arr = Array.isArray(read(f.name)) ? (read(f.name) as unknown[]) : [];
+        return (
+          <div key={k} className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{f.label}</Label>
+            {arr.map((s, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <Input className="h-8 text-sm" value={String(s ?? '')} placeholder={f.placeholder} disabled={readOnly}
+                  onChange={(e) => { const next = [...arr]; next[i] = e.target.value; write(f.name, next); }} />
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8" disabled={readOnly}
+                  aria-label="Remove" onClick={() => write(f.name, arr.filter((_, j) => j !== i))}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            {!readOnly && (
+              <Button type="button" variant="outline" size="sm" onClick={() => write(f.name, [...arr, ''])}>
+                <Plus className="mr-1 h-3.5 w-3.5" /> Add
+              </Button>
+            )}
+          </div>
+        );
+      }
+      case 'array': {
+        const arr = Array.isArray(read(f.name)) ? (read(f.name) as unknown[]) : [];
+        return (
+          <div key={k} className="space-y-2">
+            <Label className="text-xs text-muted-foreground">{f.label}</Label>
+            {arr.map((item, i) => {
+              const itemObj = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+              return (
+                <div key={i} className="space-y-2 rounded-md border border-border p-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">#{i + 1}</span>
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={readOnly}
+                      aria-label="Remove item" onClick={() => write(f.name, arr.filter((_, j) => j !== i))}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  {f.itemFields.map((itf) =>
+                    renderField(
+                      itf,
+                      (n) => itemObj[n],
+                      (n, v) => { const next = [...arr]; next[i] = { ...itemObj, [n]: v }; write(f.name, next); },
+                      `${k}-${i}-`,
+                    ),
+                  )}
+                </div>
+              );
+            })}
+            {!readOnly && (
+              <Button type="button" variant="outline" size="sm" onClick={() => write(f.name, [...arr, {}])}>
+                <Plus className="mr-1 h-3.5 w-3.5" /> {f.addLabel || 'Add'}
+              </Button>
+            )}
+          </div>
+        );
+      }
       default:
         return (
-          <InspectorTextField
-            key={f.name}
-            label={f.label}
-            value={readProp(f.name) != null ? String(readProp(f.name)) : ''}
-            placeholder={f.placeholder}
-            onCommit={(v) => patchProp(f.name, v)}
-            disabled={readOnly}
-          />
+          <InspectorTextField key={k} label={f.label}
+            value={read(f.name) != null ? String(read(f.name)) : ''}
+            placeholder={f.placeholder} onCommit={(v) => write(f.name, v)} disabled={readOnly} />
         );
     }
   };
@@ -247,7 +296,7 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {t('engine.inspector.pageBlock.properties', locale)}
           </div>
-          {BLOCK_CONFIG[block.type as string].map(renderPropField)}
+          {BLOCK_CONFIG[block.type as string].map((f) => renderField(f, readProp, patchProp))}
         </div>
       )}
     </InspectorShell>

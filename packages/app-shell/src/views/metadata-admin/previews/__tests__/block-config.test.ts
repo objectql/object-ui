@@ -15,17 +15,26 @@ describe('block-config', () => {
     expect(blockHasConfig(undefined)).toBe(false);
   });
 
-  it('every field has a name, label and a valid kind', () => {
-    const kinds = new Set(['text', 'number', 'boolean', 'select']);
-    for (const [type, fields] of Object.entries(BLOCK_CONFIG)) {
-      for (const f of fields) {
-        expect(f.name, `${type}.name`).toBeTruthy();
-        expect(f.label, `${type}.label`).toBeTruthy();
-        expect(kinds.has(f.kind), `${type}.${f.name} kind=${f.kind}`).toBe(true);
-        if (f.kind === 'select') {
-          expect(Array.isArray(f.options) && f.options.length > 0).toBe(true);
-        }
+  it('also exposes the array-valued blocks', () => {
+    for (const type of ['page:tabs', 'record:details', 'record:highlights']) {
+      expect(blockHasConfig(type)).toBe(true);
+    }
+  });
+
+  it('every field (incl. nested array items) has a name, label and valid kind', () => {
+    const kinds = new Set(['text', 'number', 'boolean', 'select', 'string-list', 'array']);
+    const check = (f: any, path: string) => {
+      expect(f.name, `${path}.name`).toBeTruthy();
+      expect(f.label, `${path}.label`).toBeTruthy();
+      expect(kinds.has(f.kind), `${path}.${f.name} kind=${f.kind}`).toBe(true);
+      if (f.kind === 'select') expect(Array.isArray(f.options) && f.options.length > 0).toBe(true);
+      if (f.kind === 'array') {
+        expect(Array.isArray(f.itemFields) && f.itemFields.length > 0).toBe(true);
+        for (const itf of f.itemFields) check(itf, `${path}.${f.name}[]`);
       }
+    };
+    for (const [type, fields] of Object.entries(BLOCK_CONFIG)) {
+      for (const f of fields) check(f, type);
     }
   });
 });

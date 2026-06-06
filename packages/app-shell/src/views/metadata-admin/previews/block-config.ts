@@ -5,17 +5,28 @@
  *
  * The page block inspector renders these as typed fields that edit the block's
  * `properties` (the spec convention; the renderer hoists `properties.*` to the
- * top level). This is the minimal, SDUI-essential set of content blocks so each
- * is configurable in the UI instead of only via raw JSON. Add more block types
- * here as they are needed — keep the field `name`s aligned with the property
- * names the corresponding renderer reads.
+ * top level). Keep each field `name` aligned with the property name the
+ * corresponding renderer reads. Add block types here as they are needed.
+ *
+ * Field kinds:
+ *   text | number | boolean | select  — scalar props
+ *   string-list                       — an array of strings (e.g. field names)
+ *   array (+ itemFields)              — an array of objects (e.g. tab items)
  */
 
 export type BlockPropField =
   | { name: string; label: string; kind: 'text'; placeholder?: string }
   | { name: string; label: string; kind: 'number'; placeholder?: string }
   | { name: string; label: string; kind: 'boolean' }
-  | { name: string; label: string; kind: 'select'; options: Array<{ value: string; label: string }> };
+  | { name: string; label: string; kind: 'select'; options: Array<{ value: string; label: string }> }
+  | { name: string; label: string; kind: 'string-list'; placeholder?: string }
+  | { name: string; label: string; kind: 'array'; itemFields: BlockPropField[]; addLabel?: string };
+
+const ALIGN_OPTS = [
+  { value: 'left', label: 'Left' },
+  { value: 'center', label: 'Center' },
+  { value: 'right', label: 'Right' },
+];
 
 export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
   // ── Content elements ──────────────────────────────────────────────────────
@@ -32,16 +43,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
         { value: 'caption', label: 'Caption' },
       ],
     },
-    {
-      name: 'align',
-      label: 'Align',
-      kind: 'select',
-      options: [
-        { value: 'left', label: 'Left' },
-        { value: 'center', label: 'Center' },
-        { value: 'right', label: 'Right' },
-      ],
-    },
+    { name: 'align', label: 'Align', kind: 'select', options: ALIGN_OPTS },
   ],
   'element:image': [
     { name: 'src', label: 'Source URL', kind: 'text', placeholder: 'https://…' },
@@ -57,6 +59,60 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
       ],
     },
   ],
+  'element:number': [
+    { name: 'object', label: 'Object', kind: 'text', placeholder: 'snake_case object' },
+    { name: 'field', label: 'Field', kind: 'text' },
+    {
+      name: 'aggregate',
+      label: 'Aggregate',
+      kind: 'select',
+      options: [
+        { value: 'count', label: 'Count' },
+        { value: 'sum', label: 'Sum' },
+        { value: 'avg', label: 'Average' },
+        { value: 'min', label: 'Min' },
+        { value: 'max', label: 'Max' },
+      ],
+    },
+    {
+      name: 'format',
+      label: 'Format',
+      kind: 'select',
+      options: [
+        { value: 'number', label: 'Number' },
+        { value: 'currency', label: 'Currency' },
+        { value: 'percent', label: 'Percent' },
+      ],
+    },
+    { name: 'prefix', label: 'Prefix', kind: 'text' },
+    { name: 'suffix', label: 'Suffix', kind: 'text' },
+  ],
+  'element:button': [
+    { name: 'label', label: 'Label', kind: 'text' },
+    {
+      name: 'variant',
+      label: 'Variant',
+      kind: 'select',
+      options: [
+        { value: 'primary', label: 'Primary' },
+        { value: 'secondary', label: 'Secondary' },
+        { value: 'danger', label: 'Danger' },
+        { value: 'ghost', label: 'Ghost' },
+        { value: 'link', label: 'Link' },
+      ],
+    },
+    {
+      name: 'size',
+      label: 'Size',
+      kind: 'select',
+      options: [
+        { value: 'small', label: 'Small' },
+        { value: 'medium', label: 'Medium' },
+        { value: 'large', label: 'Large' },
+      ],
+    },
+    { name: 'icon', label: 'Icon', kind: 'text', placeholder: 'lucide icon name' },
+  ],
 
   // ── Layout containers ─────────────────────────────────────────────────────
   'page:header': [
@@ -69,6 +125,18 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
     { name: 'title', label: 'Title', kind: 'text' },
     { name: 'bordered', label: 'Bordered', kind: 'boolean' },
   ],
+  'page:tabs': [
+    {
+      name: 'items',
+      label: 'Tabs',
+      kind: 'array',
+      addLabel: 'Add tab',
+      itemFields: [
+        { name: 'key', label: 'Key', kind: 'text' },
+        { name: 'label', label: 'Label', kind: 'text' },
+      ],
+    },
+  ],
 
   // ── Record context ────────────────────────────────────────────────────────
   'record:related_list': [
@@ -76,6 +144,39 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
     { name: 'relationshipField', label: 'Relationship field', kind: 'text' },
     { name: 'title', label: 'Title', kind: 'text' },
     { name: 'limit', label: 'Limit', kind: 'number', placeholder: '10' },
+  ],
+  'record:highlights': [
+    { name: 'fields', label: 'Fields', kind: 'string-list', placeholder: 'field name' },
+  ],
+  'record:details': [
+    {
+      name: 'sections',
+      label: 'Sections',
+      kind: 'array',
+      addLabel: 'Add section',
+      itemFields: [
+        { name: 'label', label: 'Label', kind: 'text' },
+        { name: 'columns', label: 'Columns', kind: 'number', placeholder: '2' },
+        { name: 'fields', label: 'Fields', kind: 'string-list', placeholder: 'field name' },
+      ],
+    },
+  ],
+  'record:alert': [
+    {
+      name: 'severity',
+      label: 'Severity',
+      kind: 'select',
+      options: [
+        { value: 'info', label: 'Info' },
+        { value: 'warning', label: 'Warning' },
+        { value: 'error', label: 'Error' },
+        { value: 'success', label: 'Success' },
+      ],
+    },
+    { name: 'title', label: 'Title', kind: 'text' },
+    { name: 'body', label: 'Body', kind: 'text' },
+    { name: 'icon', label: 'Icon', kind: 'text', placeholder: 'lucide icon name' },
+    { name: 'dismissible', label: 'Dismissible', kind: 'boolean' },
   ],
 };
 
