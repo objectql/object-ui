@@ -15,6 +15,8 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useMetadata } from '../providers/MetadataProvider';
 import { useAdapter } from '../providers/AdapterProvider';
+import { useMetadataClient } from './metadata-admin/useMetadata';
+import { persistRuntimeMetadata } from './runtime-metadata-persistence';
 import { useAuth } from '@object-ui/auth';
 import type { DataSource } from '@object-ui/types';
 
@@ -35,6 +37,9 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   const { reportName } = useParams<{ reportName: string }>();
   const { showDebug } = useMetadataInspector();
   const adapter = useAdapter();
+  // ADR-0034 seam: used only when the runtime-via-/meta flag is ON; the
+  // flag-OFF default still writes to `sys_report` via the adapter below.
+  const metadataClient = useMetadataClient();
   // Editing a report mutates the SHARED definition, so it is an admin-only
   // quick-edit affordance (mirrors ObjectView's view-config gate).
   const { user } = useAuth();
@@ -90,14 +95,20 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
     async (schema: any) => {
       try {
         if (adapter) {
-          await adapter.update('sys_report', reportName!, schema);
+          // ADR-0034 seam: flag OFF (default) → `adapter.update('sys_report',…)`
+          // exactly as before; flag ON → metadata draft. Behaviour unchanged
+          // while the flag is off.
+          await persistRuntimeMetadata('report', reportName!, schema, {
+            adapter,
+            metadataClient,
+          });
           refresh().catch(() => {});
         }
       } catch (err) {
         console.warn('[ReportView] Auto-save failed:', err);
       }
     },
-    [adapter, reportName, refresh],
+    [adapter, metadataClient, reportName, refresh],
   );
 
   // ---- Open / close config panel ------------------------------------------

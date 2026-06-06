@@ -42,6 +42,8 @@ import { SkeletonDashboard } from '../skeletons';
 import { useMetadata } from '../providers/MetadataProvider';
 import { resolveI18nLabel } from '../utils';
 import { useAdapter } from '../providers/AdapterProvider';
+import { useMetadataClient } from './metadata-admin/useMetadata';
+import { persistRuntimeMetadata } from './runtime-metadata-persistence';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
 
@@ -93,6 +95,9 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   const { dashboardName } = useParams<{ dashboardName: string }>();
   const { showDebug } = useMetadataInspector();
   const adapter = useAdapter();
+  // ADR-0034 seam: used only when the runtime-via-/meta flag is ON; the
+  // flag-OFF default still writes to `sys_dashboard` via the adapter below.
+  const metadataClient = useMetadataClient();
   const { t } = useObjectTranslation();
   const { dashboardLabel, dashboardDescription } = useObjectLabel();
   // Editing a dashboard mutates the SHARED definition, so it is an admin-only
@@ -191,11 +196,14 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   const saveSchema = useCallback(
     async (schema: DashboardSchema) => {
       try {
-        if (adapter && (adapter as any).updateDashboard) {
-          await (adapter as any).updateDashboard(dashboardName!, schema);
-        } else if (adapter) {
-          // Fallback for adapters that don't expose updateDashboard
-          await adapter.update('sys_dashboard', dashboardName!, schema);
+        if (adapter) {
+          // ADR-0034 seam: flag OFF (default) reproduces the prior behaviour
+          // exactly — `adapter.updateDashboard(...)` when available, otherwise
+          // `adapter.update('sys_dashboard', …)`. Flag ON → metadata draft.
+          await persistRuntimeMetadata('dashboard', dashboardName!, schema, {
+            adapter,
+            metadataClient,
+          });
         }
         // Refresh metadata cache so closing the config panel shows saved data
         refresh().catch(() => {});
@@ -208,7 +216,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
         toast.error(`Failed to save dashboard: ${message}`);
       }
     },
-    [adapter, dashboardName, refresh],
+    [adapter, metadataClient, dashboardName, refresh],
   );
 
   // ---- Open / close config panel ------------------------------------------
