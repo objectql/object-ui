@@ -436,6 +436,8 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
            onSave={saveSchema}
            onChange={setEditSchema}
            onRemoveWidget={removeWidget}
+           name={dashboardName}
+           metadataClient={metadataClient}
          />
 
          <MetadataPanel

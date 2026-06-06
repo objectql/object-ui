@@ -300,7 +300,7 @@ const zh = {
     defaultView: '默认视图',
     tabActionsFor: '{{name}} 的视图操作',
     readonlyAriaLabel: '只读视图',
-    readonlyTooltip: '系统视图 — 复制后可自定义。',
+    readonlyTooltip: '系统视图 — 由代码定义，只读。',
   },
   designer: {
     undo: 'Undo',
@@ -1028,7 +1028,7 @@ const zh = {
       system: '系统',
     },
     objectView: {
-      systemViewReadonly: '系统视图由代码定义，请复制后再自定义。',
+      systemViewReadonly: '系统视图由代码定义，只读。',
       expandToPage: '以完整页面打开',
       objectNotFound: '未找到对象',
       objectNotFoundDescription: '对象"{{objectName}}"在当前配置中不存在。',

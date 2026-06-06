@@ -38,7 +38,7 @@ import type { ListViewSchema, ViewNavigationConfig, FeedItem } from '@object-ui/
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { ViewConfigPanel } from './ViewConfigPanel';
 import { useMetadataClient } from './metadata-admin/useMetadata';
-import { persistRuntimeMetadata } from './runtime-metadata-persistence';
+import { persistRuntimeMetadata, createRuntimeMetadata } from './runtime-metadata-persistence';
 import { CreateViewDialog } from './CreateViewDialog';
 import { PageHeader } from '../layout/PageHeader';
 import { useMobileViewSwitcherRegistration } from '../layout/MobileViewSwitcherContext';
@@ -340,15 +340,23 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
                         spec.gallery = { ...existing, visibleFields: incomingColumns };
                     }
                 }
-                if (typeof (dataSource as any)?.createView === 'function') {
-                    const created = await (dataSource as any).createView(objectName, spec);
-                    createdId = (created as any)?.name || (config as any)?.name;
-                } else if (dataSource?.create) {
-                    // Legacy fallback for adapters that don't expose createView.
-                    const payload = toSysViewPayload(spec, objectName, { defaultColumns });
-                    const created = await dataSource.create('sys_view', payload);
-                    createdId = created?.id ?? created?._id;
-                }
+                // ADR-0034 seam (#1517): route the create WRITE through the
+                // shared seam. flag OFF (default) reproduces today's path
+                // byte-for-byte — `createView` preferred, legacy `sys_view`
+                // insert via `toSysViewPayload` as fallback; flag ON saves the
+                // new view as an invisible per-item draft. UI-layer concerns
+                // (default columns, kanban/gallery massaging above, and the
+                // auto-activation below) stay here.
+                const draftName = String(
+                    (config as any)?.name ?? (config as any)?.id ?? (spec as any)?.id ?? '',
+                );
+                createdId = await createRuntimeMetadata('view', draftName, spec, {
+                    dataSource,
+                    metadataClient,
+                    objectName,
+                    toSysViewPayload: (cfg: any, obj?: string) =>
+                        toSysViewPayload(cfg, obj, { defaultColumns }),
+                });
             }
             setShowViewConfigPanel(false);
             setViewConfigPanelMode('edit');
@@ -366,7 +374,7 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
         } catch (err) {
             console.error('[ViewConfigPanel] Failed to create view:', err);
         }
-    }, [dataSource, objectName, objects, navigate, viewId]);
+    }, [dataSource, objectName, objects, navigate, viewId, metadataClient]);
     
     // Record count tracking for footer
     const [recordCount, setRecordCount] = useState<number | undefined>(undefined);
@@ -905,54 +913,6 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
         }
     }, [dataSource, isSavedView, activeViewId, views, viewId, navigate, t, confirmHandler]);
 
-    const handleDuplicateView = useCallback(async (vid: string) => {
-        if (!dataSource) return;
-        const source = views.find((v: any) => v.id === vid);
-        if (!source) return;
-        try {
-            // ADR-0005 overlay path — store the full NamedListView spec
-            // shape directly under a unique `name`. No legacy sys_view
-            // column-flattening required.
-            const baseName = String(source.name || vid).toLowerCase()
-                .replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') || 'view';
-            const newName = `${baseName}_copy_${Date.now().toString(36)}`;
-            // Drop `id` so the overlay row is keyed purely by `name`; copying
-            // the source's `id` would collide with the source view in the
-            // tab-bar dedup logic and silently shadow it.
-            const { id: _omitId, ...rest } = source as any;
-            const spec = {
-                ...rest,
-                name: newName,
-                label: `${source.label || vid} (Copy)`,
-                isDefault: false,
-                isPinned: false,
-                data: source.data || { provider: 'object', object: objectName },
-                object: source.object || objectName,
-            };
-            let newId: string | undefined;
-            if (typeof (dataSource as any)?.createView === 'function') {
-                const created = await (dataSource as any).createView(objectName, spec);
-                newId = (created as any)?.name || newName;
-            } else if (dataSource?.create) {
-                const payload = toSysViewPayload(spec, objectName);
-                const created = await dataSource.create('sys_view', payload);
-                newId = created?.id ?? created?._id;
-            }
-            setRefreshKey(k => k + 1);
-            // Auto-activate the duplicate (Airtable parity).
-            if (newId) {
-                if (viewId) {
-                    navigate(`../${newId}`, { relative: 'path' });
-                } else {
-                    navigate(`view/${newId}`);
-                }
-            }
-        } catch (err) {
-            console.error('[ViewTabBar] Failed to duplicate view:', err);
-            toast.error('Failed to duplicate view');
-        }
-    }, [dataSource, views, objectName, navigate, viewId]);
-
     const handlePinView = useCallback(async (vid: string, pinned: boolean) => {
         if (!dataSource) return;
         if (!isSavedView(vid)) {
@@ -976,7 +936,7 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
         if (!isSavedView(vid)) {
             toast.error(
                 t('console.objectView.cannotEditMetaView')
-                || 'System view — duplicate it to mark a default.',
+                || 'System view — it cannot be set as a default.',
             );
             return;
         }
@@ -1036,11 +996,11 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
     const handleConfigView = useCallback((vid: string) => {
         // System (metadata-defined) views are read-only — opening the
         // ViewConfigPanel against one would let the user save changes that
-        // never persist. Steer them to "Duplicate view" instead.
+        // never persist.
         if (!isSavedView(vid)) {
             toast.error(
                 t('console.objectView.cannotEditMetaView')
-                || 'System view — duplicate it to make changes.',
+                || 'System view — it cannot be edited.',
             );
             return;
         }
@@ -1836,7 +1796,6 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
         viewActions: isAdmin ? [
             { type: 'settings' as const },
             { type: 'share' as const },
-            { type: 'duplicate' as const },
             { type: 'delete' as const },
         ] : [],
         onNavigate: (recordId: string | number, mode: 'view' | 'edit') => {
@@ -2065,7 +2024,7 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
                    readonly: isSystem,
                    readonlyReason: isSystem
                      ? (t('console.objectView.systemViewReadonly')
-                       || 'System view defined in code — duplicate to customize.')
+                       || 'System view defined in code — read-only.')
                      : undefined,
                  } as ViewTabItem;
                });
@@ -2086,7 +2045,6 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
                    onAddView={isAdmin ? handleAddView : undefined}
                    onRenameView={isAdmin ? handleRenameView : undefined}
                    onDeleteView={isAdmin ? handleDeleteView : undefined}
-                   onDuplicateView={isAdmin ? handleDuplicateView : undefined}
                    onPinView={isAdmin ? handlePinView : undefined}
                    onSetDefaultView={isAdmin ? handleSetDefaultView : undefined}
                    onConfigView={isAdmin ? handleConfigView : undefined}
@@ -2101,7 +2059,6 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
                      viewTypeIcons={VIEW_TYPE_ICONS}
                      onRename={handleRenameView}
                      onDelete={handleDeleteView}
-                     onDuplicate={handleDuplicateView}
                      onSetDefault={handleSetDefaultView}
                      onSetPinned={handlePinView}
                      onReorder={handleReorderViews}
@@ -2216,6 +2173,7 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
                         onSave={handleViewConfigSave}
                         onViewUpdate={handleViewUpdate}
                         onCreate={handleViewCreate}
+                        metadataClient={metadataClient}
                     />
                 </div>
                 <CreateViewDialog

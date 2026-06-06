@@ -23,6 +23,7 @@ import { useMemo, useEffect, useRef, useCallback, useState } from 'react';
 import { Button } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { ViewVariantInspector } from './metadata-admin/inspectors/ViewVariantInspector';
+import { RuntimeDraftBar } from './RuntimeDraftBar';
 import { isFormFamilyKey } from './metadata-admin/view-variant-model';
 import { detectLocale } from './metadata-admin/i18n';
 import type { ObjectFieldInfo } from './metadata-admin/previews/useObjectFields';
@@ -70,6 +71,12 @@ export interface ViewConfigPanelProps {
     onSave?: (draft: Record<string, any>) => void;
     /** Called when create-mode view is created */
     onCreate?: (config: Record<string, any>) => void;
+    /**
+     * Studio metadata client — drives the ADR-0034 draft/publish chrome
+     * ({@link RuntimeDraftBar}). Only used when `VITE_RUNTIME_EDIT_VIA_META`
+     * is on; the chrome renders nothing otherwise.
+     */
+    metadataClient?: any;
 }
 
 /**
@@ -91,7 +98,7 @@ function mapObjectFields(objectDef: ViewConfigPanelProps['objectDef']): ObjectFi
     });
 }
 
-export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, objectDef, onViewUpdate, onSave, onCreate }: ViewConfigPanelProps) {
+export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, objectDef, onViewUpdate, onSave, onCreate, metadataClient }: ViewConfigPanelProps) {
     const { t } = useObjectTranslation();
     const panelRef = useRef<HTMLDivElement>(null);
     const locale = useMemo(() => detectLocale(), []);
@@ -189,6 +196,17 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
         setIsDirty(false);
     }, [initialDraft, mode, onClose]);
 
+    // ADR-0034 (#1515): resume a pending draft into the inspector when the
+    // panel reopens (flag-ON only; the bar never fires this when the flag is
+    // off). The stored body is the flat runtime view, so adapt it back to the
+    // inspector draft shape before seeding.
+    const handleResumeDraft = useCallback((body: Record<string, unknown>) => {
+        const resumed = runtimeViewToInspectorDraft(body as RuntimeView, objectDef.name);
+        draftRef.current = resumed;
+        setDraft(resumed);
+        setIsDirty(false);
+    }, [objectDef.name]);
+
     const panelTitle = mode === 'create'
         ? t('console.objectView.createView')
         : t('console.objectView.configureView');
@@ -226,6 +244,15 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                 data-testid="view-config-footer"
                 className="flex items-center justify-end gap-2 border-t px-4 py-2.5"
             >
+                {mode === 'edit' && (
+                    <RuntimeDraftBar
+                        type="view"
+                        name={activeView.id}
+                        metadataClient={metadataClient}
+                        dirty={isDirty}
+                        onResume={handleResumeDraft}
+                    />
+                )}
                 <Button
                     variant="ghost"
                     size="sm"

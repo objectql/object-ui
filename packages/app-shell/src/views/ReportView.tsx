@@ -481,6 +481,8 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
            onFieldChange={handleReportFieldChange}
            availableFields={availableFields}
            getFieldsForObject={getFieldsForObject}
+           name={reportName}
+           metadataClient={metadataClient}
          />
 
          <MetadataPanel

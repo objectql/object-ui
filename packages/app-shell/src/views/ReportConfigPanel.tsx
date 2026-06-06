@@ -29,6 +29,7 @@ import { Button } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { X } from 'lucide-react';
 import { ReportDefaultInspector } from './metadata-admin/inspectors/ReportDefaultInspector';
+import { RuntimeDraftBar } from './RuntimeDraftBar';
 import { detectLocale } from './metadata-admin/i18n';
 import type { ObjectFieldInfo } from './metadata-admin/previews/useObjectFields';
 
@@ -54,6 +55,14 @@ export interface ReportConfigPanelProps {
   availableFields?: AvailableField[];
   /** Reserved for parity with the legacy panel; unused by the inspector. */
   getFieldsForObject?: (objectName: string | undefined) => AvailableField[] | undefined;
+  /** Report artifact name — the `:name` for the ADR-0034 draft/publish chrome. */
+  name?: string;
+  /**
+   * Studio metadata client — drives the draft/publish chrome
+   * ({@link RuntimeDraftBar}). Only used when `VITE_RUNTIME_EDIT_VIA_META`
+   * is on; the chrome renders nothing otherwise.
+   */
+  metadataClient?: any;
 }
 
 /** Map the host's `{ value, label, type }` fields into the inspector's catalog. */
@@ -74,10 +83,14 @@ export function ReportConfigPanel({
   onSave,
   onFieldChange,
   availableFields,
+  name,
+  metadataClient,
 }: ReportConfigPanelProps) {
   const { t } = useObjectTranslation();
   const locale = useMemo(() => detectLocale(), []);
   const objectFields = useMemo(() => toObjectFields(availableFields), [availableFields]);
+  // Unsaved-edits flag — gates Publish (mirrors studio's "save first").
+  const [dirty, setDirty] = useState(false);
 
   // Draft state seeded from `config`. Rebuilt only when the source identity
   // changes (the host stabilizes `config` and bumps it on open / save) — never
@@ -90,6 +103,7 @@ export function ReportConfigPanel({
     lastSourceRef.current = initialDraft;
     draftRef.current = initialDraft;
     setDraft(initialDraft);
+    setDirty(false);
   }
 
   // Shallow-merge an inspector patch into the draft, then mirror each changed
@@ -98,6 +112,7 @@ export function ReportConfigPanel({
     const next = { ...draftRef.current, ...patch };
     draftRef.current = next;
     setDraft(next);
+    setDirty(true);
     if (onFieldChange) {
       for (const [key, value] of Object.entries(patch)) {
         onFieldChange(key, value, next);
@@ -107,8 +122,19 @@ export function ReportConfigPanel({
 
   const handleSave = useCallback(() => {
     onSave(draftRef.current);
+    setDirty(false);
     onClose();
   }, [onSave, onClose]);
+
+  // ADR-0034 (#1515): resume a pending draft into the inspector on open
+  // (flag-ON only). The report document IS the inspector draft, so seed it
+  // directly.
+  const handleResumeDraft = useCallback((body: Record<string, unknown>) => {
+    const next = { ...body };
+    draftRef.current = next;
+    setDraft(next);
+    setDirty(false);
+  }, []);
 
   const handleDiscard = useCallback(() => {
     onClose();
@@ -155,6 +181,13 @@ export function ReportConfigPanel({
         data-testid="report-config-footer"
         className="flex items-center justify-end gap-2 border-t px-4 py-2.5 shrink-0"
       >
+        <RuntimeDraftBar
+          type="report"
+          name={name}
+          metadataClient={metadataClient}
+          dirty={dirty}
+          onResume={handleResumeDraft}
+        />
         <Button variant="ghost" size="sm" onClick={handleDiscard} data-testid="report-config-discard">
           {t('common.cancel', { defaultValue: 'Cancel' })}
         </Button>

@@ -98,12 +98,132 @@ export interface RuntimePersistCtx {
   /** Object a view belongs to — first arg to `updateViewConfig`. */
   objectName?: string;
   /**
-   * View-only payload shaper. NOT used by the view UPDATE path (which goes
-   * through `updateViewConfig` with the raw draft); reserved for wiring the
-   * view CREATE legacy `sys_view` fallback through the seam later, so the
-   * complex `toSysViewPayload` logic can stay in ObjectView.
+   * View-only payload shaper for the CREATE legacy `sys_view` fallback. Used
+   * by {@link createRuntimeMetadata} when the data source has no `createView`.
+   * Kept as a call-site callback so the complex `toSysViewPayload` logic
+   * (default-column derivation, etc.) stays in ObjectView's UI layer; the seam
+   * only invokes it.
    */
   toSysViewPayload?: (cfg: any, obj?: string) => any;
+}
+
+/**
+ * Unwrap a `?state=draft` GET response into its bare body, or `null` when
+ * there is nothing pending.
+ *
+ * The framework wraps draft reads in a `{ type, name, item }` envelope (see
+ * {@link MetadataClient.getDraft}); a published/legacy read is the bare body.
+ * This accepts either shape and returns `null` for an empty/absent draft so
+ * `!!readRuntimeDraft(...)` is a reliable "has pending changes" check. Mirrors
+ * studio's `extractDraftBody` in `ResourceEditPage`.
+ */
+export function unwrapDraftBody(
+  resp: unknown,
+): Record<string, unknown> | null {
+  if (!resp || typeof resp !== 'object') return null;
+  const env = resp as Record<string, unknown>;
+  if ('item' in env) {
+    const body = env.item;
+    if (!body || typeof body !== 'object') return null;
+    return Object.keys(body as object).length > 0
+      ? (body as Record<string, unknown>)
+      : null;
+  }
+  return Object.keys(env).length > 0 ? env : null;
+}
+
+/**
+ * Create a NEW runtime artifact, routed through the same seam as edits so the
+ * flag controls create and update identically (ADR-0034 step / #1517).
+ *
+ * • flag OFF → reproduces ObjectView's legacy `handleViewCreate` write exactly:
+ *   prefer the ADR-0005 overlay API (`dataSource.createView(objectName, body)`),
+ *   else fall back to a physical `sys_view` insert
+ *   (`dataSource.create('sys_view', toSysViewPayload(body, objectName))`).
+ * • flag ON → `metadataClient.save(type, name, body, { mode: 'draft' })` — the
+ *   new view is born as an invisible per-item draft, promoted by an explicit
+ *   publish.
+ *
+ * Returns the created artifact's id/name (for auto-activation by the caller),
+ * matching the legacy resolution: `created.name ?? name` for the overlay path,
+ * `created.id ?? created._id` for the legacy `sys_view` insert.
+ *
+ * The UI-layer concerns the legacy path had (default-column derivation,
+ * kanban/gallery sub-config massaging, auto-activation) stay in ObjectView;
+ * only the final write call is centralised here.
+ *
+ * @param type artifact type (today only `view` has a create path)
+ * @param name best-known identifier for the new item (the draft `:name` when
+ *   flag ON; also the createView fallback id when the server omits one)
+ * @param body the spec/config to persist
+ * @param ctx  call-site capabilities (see {@link RuntimePersistCtx})
+ */
+export async function createRuntimeMetadata(
+  type: RuntimeArtifactType,
+  name: string,
+  body: any,
+  ctx: RuntimePersistCtx,
+): Promise<string | undefined> {
+  if (isViaMeta()) {
+    // ── flag ON: create-as-draft via the unified /meta model ──
+    await ctx.metadataClient.save(type, name, body, { mode: 'draft' });
+    return name;
+  }
+
+  // ── flag OFF: legacy create write (today's `handleViewCreate` behaviour) ──
+  switch (type) {
+    case 'view': {
+      if (typeof ctx.dataSource?.createView === 'function') {
+        const created = await ctx.dataSource.createView(ctx.objectName, body);
+        return (created as any)?.name ?? name;
+      }
+      if (ctx.dataSource?.create) {
+        const payload = ctx.toSysViewPayload
+          ? ctx.toSysViewPayload(body, ctx.objectName)
+          : body;
+        const created = await ctx.dataSource.create('sys_view', payload);
+        return (created as any)?.id ?? (created as any)?._id;
+      }
+      return undefined;
+    }
+    // report/dashboard creation is not (yet) a runtime path — only update is.
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Read the pending draft body for a runtime artifact (for the "unpublished
+ * changes" indicator and resume-on-open). Returns the bare body, or `null`
+ * when nothing is pending.
+ *
+ * • flag OFF → always `null`: the legacy `sys_*` model has no draft concept.
+ * • flag ON  → `metadataClient.get(type, name, { state: 'draft' })`, unwrapped.
+ */
+export async function readRuntimeDraft<T = Record<string, unknown>>(
+  type: RuntimeArtifactType,
+  name: string,
+  ctx: RuntimePersistCtx,
+): Promise<T | null> {
+  if (!isViaMeta()) return null;
+  const resp = await ctx.metadataClient.get(type, name, { state: 'draft' });
+  return unwrapDraftBody(resp) as T | null;
+}
+
+/**
+ * Discard the pending draft of a runtime artifact (Studio's "Discard draft").
+ * The published overlay is untouched.
+ *
+ * • flag OFF → **no-op**: there is no draft to discard in the legacy model.
+ * • flag ON  → `metadataClient.reset(type, name, { state: 'draft' })`.
+ */
+export async function discardRuntimeDraft(
+  type: RuntimeArtifactType,
+  name: string,
+  ctx: RuntimePersistCtx,
+): Promise<void> {
+  if (!isViaMeta()) return;
+  await ctx.metadataClient.reset(type, name, { state: 'draft' });
 }
 
 /**

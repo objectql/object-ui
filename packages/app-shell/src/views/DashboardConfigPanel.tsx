@@ -27,12 +27,13 @@
  * draft, the runtime's old flatten / unflatten / extract adapters are gone.
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Button } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { ArrowLeft, Trash2, X } from 'lucide-react';
 import { DashboardDefaultInspector } from './metadata-admin/inspectors/DashboardDefaultInspector';
 import { DashboardWidgetInspector } from './metadata-admin/inspectors/DashboardWidgetInspector';
+import { RuntimeDraftBar } from './RuntimeDraftBar';
 import { detectLocale } from './metadata-admin/i18n';
 import type { MetadataSelection } from './metadata-admin/preview-registry';
 
@@ -55,6 +56,14 @@ export interface DashboardConfigPanelProps<
   onChange: (schema: T) => void;
   /** Remove the given widget (used by the widget-level header trash button). */
   onRemoveWidget?: (id: string) => void;
+  /** Dashboard artifact name — the `:name` for the draft/publish chrome. */
+  name?: string;
+  /**
+   * Studio metadata client — drives the ADR-0034 draft/publish chrome
+   * ({@link RuntimeDraftBar}). Only used when `VITE_RUNTIME_EDIT_VIA_META`
+   * is on; the chrome renders nothing otherwise.
+   */
+  metadataClient?: any;
 }
 
 export function DashboardConfigPanel<
@@ -68,17 +77,35 @@ export function DashboardConfigPanel<
   onSave,
   onChange,
   onRemoveWidget,
+  name: artifactName,
+  metadataClient,
 }: DashboardConfigPanelProps<T>) {
   const { t } = useObjectTranslation();
   const locale = useMemo(() => detectLocale(), []);
+  // Unsaved-edits flag — gates Publish (mirrors studio's "save first"). The
+  // panel unmounts on close, so this resets to false on each open.
+  const [dirty, setDirty] = useState(false);
 
   // Controlled: merge an inspector patch into the current schema and bubble it
   // back up. No local draft state — `schema` is the single source of truth.
   const handlePatch = useCallback(
     (patch: Record<string, unknown>) => {
+      setDirty(true);
       onChange({ ...(schema ?? {}), ...patch } as T);
     },
     [schema, onChange],
+  );
+
+  // ADR-0034 (#1515): resume a pending draft into the editor on open
+  // (flag-ON only). The dashboard document IS the controlled schema, so push
+  // it up as a live edit (preview only — no save) and treat it as the clean
+  // baseline.
+  const handleResumeDraft = useCallback(
+    (body: Record<string, unknown>) => {
+      onChange(body as T);
+      setDirty(false);
+    },
+    [onChange],
   );
 
   const handleSelectionChange = useCallback(
@@ -185,9 +212,19 @@ export function DashboardConfigPanel<
         data-testid="dashboard-config-footer"
         className="flex items-center justify-end gap-2 border-t px-4 py-2.5 shrink-0"
       >
+        <RuntimeDraftBar
+          type="dashboard"
+          name={artifactName || name || undefined}
+          metadataClient={metadataClient}
+          dirty={dirty}
+          onResume={handleResumeDraft}
+        />
         <Button
           size="sm"
-          onClick={() => onSave((schema ?? {}) as T)}
+          onClick={() => {
+            onSave((schema ?? {}) as T);
+            setDirty(false);
+          }}
           data-testid="dashboard-config-save"
         >
           {t('common.save', { defaultValue: 'Save' })}

@@ -300,7 +300,7 @@ const en = {
     defaultView: 'Default view',
     tabActionsFor: 'View actions for {{name}}',
     readonlyAriaLabel: 'Read-only view',
-    readonlyTooltip: 'System view — duplicate to customize.',
+    readonlyTooltip: 'System view — defined in code, read-only.',
   },
   detail: {
     back: 'Back',
@@ -1031,7 +1031,7 @@ const en = {
       objectNotFound: 'Object Not Found',
       objectNotFoundDescription: 'The object "{{objectName}}" does not exist in the current configuration.',
       objectNotFoundHint: 'Check your app navigation settings or select a different object from the sidebar.',
-      systemViewReadonly: 'System view defined in code — duplicate to customize.',
+      systemViewReadonly: 'System view defined in code — read-only.',
       expandToPage: 'Open as full page',
       allRecords: 'All Records',
       exitDesignMode: 'Exit Design Mode',

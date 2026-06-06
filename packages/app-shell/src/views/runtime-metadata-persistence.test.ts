@@ -4,6 +4,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   persistRuntimeMetadata,
   publishRuntimeMetadata,
+  createRuntimeMetadata,
+  readRuntimeDraft,
+  discardRuntimeDraft,
+  unwrapDraftBody,
   isViaMeta,
 } from './runtime-metadata-persistence';
 
@@ -27,6 +31,8 @@ function makeMetadataClient() {
   return {
     save: vi.fn().mockResolvedValue(undefined),
     publish: vi.fn().mockResolvedValue(undefined),
+    get: vi.fn().mockResolvedValue(null),
+    reset: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -100,6 +106,59 @@ describe('runtime-metadata-persistence seam (ADR-0034)', () => {
 
       expect(metadataClient.publish).not.toHaveBeenCalled();
     });
+
+    it('createRuntimeMetadata(view) → dataSource.createView(objectName, body), returns created name', async () => {
+      const dataSource = {
+        createView: vi.fn().mockResolvedValue({ name: 'srv_assigned_name' }),
+        create: vi.fn(),
+      };
+      const metadataClient = makeMetadataClient();
+      const body = { id: 'view_123', columns: ['name'] };
+
+      const id = await createRuntimeMetadata('view', 'view_123', body, {
+        dataSource,
+        metadataClient,
+        objectName: 'crm_lead',
+      });
+
+      expect(dataSource.createView).toHaveBeenCalledWith('crm_lead', body);
+      expect(id).toBe('srv_assigned_name');
+      expect(metadataClient.save).not.toHaveBeenCalled();
+    });
+
+    it('createRuntimeMetadata(view) → legacy sys_view insert via toSysViewPayload when no createView', async () => {
+      const created = { id: 'row_42' };
+      const dataSource = { create: vi.fn().mockResolvedValue(created) };
+      const toSysViewPayload = vi.fn((cfg: any) => ({ shaped: cfg }));
+      const body = { id: 'view_123', columns: ['name'] };
+
+      const id = await createRuntimeMetadata('view', 'view_123', body, {
+        dataSource,
+        objectName: 'crm_lead',
+        toSysViewPayload,
+      });
+
+      expect(toSysViewPayload).toHaveBeenCalledWith(body, 'crm_lead');
+      expect(dataSource.create).toHaveBeenCalledWith('sys_view', { shaped: body });
+      expect(id).toBe('row_42');
+    });
+
+    it('readRuntimeDraft is null (no draft concept in legacy model)', async () => {
+      const metadataClient = makeMetadataClient();
+
+      const draft = await readRuntimeDraft('view', 'my_view', { metadataClient });
+
+      expect(draft).toBeNull();
+      expect(metadataClient.get).not.toHaveBeenCalled();
+    });
+
+    it('discardRuntimeDraft is a no-op (nothing to discard in legacy model)', async () => {
+      const metadataClient = makeMetadataClient();
+
+      await discardRuntimeDraft('view', 'my_view', { metadataClient });
+
+      expect(metadataClient.reset).not.toHaveBeenCalled();
+    });
   });
 
   describe('flag ON (/meta draft/publish path)', () => {
@@ -147,6 +206,84 @@ describe('runtime-metadata-persistence seam (ADR-0034)', () => {
 
       expect(metadataClient.publish).toHaveBeenCalledTimes(1);
       expect(metadataClient.publish).toHaveBeenCalledWith('report', 'my_report');
+    });
+
+    it('createRuntimeMetadata → metadataClient.save(..., { mode: "draft" }) and returns name', async () => {
+      const dataSource = { createView: vi.fn(), create: vi.fn() };
+      const metadataClient = makeMetadataClient();
+      const body = { id: 'view_123', columns: ['name'] };
+
+      const id = await createRuntimeMetadata('view', 'view_123', body, {
+        dataSource,
+        metadataClient,
+        objectName: 'crm_lead',
+      });
+
+      expect(metadataClient.save).toHaveBeenCalledWith('view', 'view_123', body, {
+        mode: 'draft',
+      });
+      expect(id).toBe('view_123');
+      // Legacy create path must NOT run when the flag is on.
+      expect(dataSource.createView).not.toHaveBeenCalled();
+      expect(dataSource.create).not.toHaveBeenCalled();
+    });
+
+    it('readRuntimeDraft → unwraps metadataClient.get(..., { state: "draft" })', async () => {
+      const metadataClient = makeMetadataClient();
+      metadataClient.get.mockResolvedValue({
+        type: 'view',
+        name: 'my_view',
+        item: { columns: ['name', 'stage'] },
+      });
+
+      const draft = await readRuntimeDraft('view', 'my_view', { metadataClient });
+
+      expect(metadataClient.get).toHaveBeenCalledWith('view', 'my_view', {
+        state: 'draft',
+      });
+      expect(draft).toEqual({ columns: ['name', 'stage'] });
+    });
+
+    it('readRuntimeDraft → null when no draft is pending', async () => {
+      const metadataClient = makeMetadataClient();
+      metadataClient.get.mockResolvedValue(null);
+
+      const draft = await readRuntimeDraft('view', 'my_view', { metadataClient });
+
+      expect(draft).toBeNull();
+    });
+
+    it('discardRuntimeDraft → metadataClient.reset(type, name, { state: "draft" })', async () => {
+      const metadataClient = makeMetadataClient();
+
+      await discardRuntimeDraft('report', 'my_report', { metadataClient });
+
+      expect(metadataClient.reset).toHaveBeenCalledWith('report', 'my_report', {
+        state: 'draft',
+      });
+    });
+  });
+
+  describe('unwrapDraftBody', () => {
+    it('unwraps the { type, name, item } envelope', () => {
+      expect(unwrapDraftBody({ type: 'view', name: 'v', item: { a: 1 } })).toEqual({
+        a: 1,
+      });
+    });
+
+    it('returns a bare body as-is', () => {
+      expect(unwrapDraftBody({ a: 1 })).toEqual({ a: 1 });
+    });
+
+    it('returns null for an empty envelope item', () => {
+      expect(unwrapDraftBody({ type: 'view', name: 'v', item: {} })).toBeNull();
+    });
+
+    it('returns null for null / non-object / empty', () => {
+      expect(unwrapDraftBody(null)).toBeNull();
+      expect(unwrapDraftBody(undefined)).toBeNull();
+      expect(unwrapDraftBody('x')).toBeNull();
+      expect(unwrapDraftBody({})).toBeNull();
     });
   });
 });
