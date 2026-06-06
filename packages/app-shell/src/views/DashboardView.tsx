@@ -95,8 +95,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   const { dashboardName } = useParams<{ dashboardName: string }>();
   const { showDebug } = useMetadataInspector();
   const adapter = useAdapter();
-  // ADR-0034 seam: used only when the runtime-via-/meta flag is ON; the
-  // flag-OFF default still writes to `sys_dashboard` via the adapter below.
+  // ADR-0034: dashboard edits persist via the metadata draft/publish model.
   const metadataClient = useMetadataClient();
   const { t } = useObjectTranslation();
   const { dashboardLabel, dashboardDescription } = useObjectLabel();
@@ -436,6 +435,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
            onRemoveWidget={removeWidget}
            name={dashboardName}
            metadataClient={metadataClient}
+           onAfterChange={() => refresh().catch(() => {})}
          />
 
          <MetadataPanel

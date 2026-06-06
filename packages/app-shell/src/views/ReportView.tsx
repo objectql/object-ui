@@ -37,8 +37,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   const { reportName } = useParams<{ reportName: string }>();
   const { showDebug } = useMetadataInspector();
   const adapter = useAdapter();
-  // ADR-0034 seam: used only when the runtime-via-/meta flag is ON; the
-  // flag-OFF default still writes to `sys_report` via the adapter below.
+  // ADR-0034: report edits persist via the metadata draft/publish model.
   const metadataClient = useMetadataClient();
   // Editing a report mutates the SHARED definition, so it is an admin-only
   // quick-edit affordance (mirrors ObjectView's view-config gate).
@@ -481,6 +480,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
            getFieldsForObject={getFieldsForObject}
            name={reportName}
            metadataClient={metadataClient}
+           onAfterChange={() => refresh().catch(() => {})}
          />
 
          <MetadataPanel

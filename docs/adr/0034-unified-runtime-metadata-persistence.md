@@ -1,6 +1,6 @@
 # ADR-0034: Runtime editing reuses studio's per-item draft → publish → version model (retire `sys_view` / `sys_report` / `sys_dashboard`)
 
-**Status**: Proposed (2026-06-06)
+**Status**: Implemented (2026-06-06) — see [#1533](https://github.com/objectstack-ai/objectui/pull/1533) (chrome + view-create seam) and [#1534](https://github.com/objectstack-ai/objectui/pull/1534) (retire `sys_*`, drop the flag).
 **Author**: ObjectUI renderer team
 **Consumers**: `@object-ui/app-shell` (ObjectView / ReportView / DashboardView + metadata-admin), `@object-ui/data-objectstack` (metadata client), and the ObjectStack backend (`/api/v1/meta/*`).
 
@@ -53,10 +53,10 @@ Runtime panels gain a small **draft/publish chrome** (Save draft · Publish · "
 ## Rollout (flagged, reversible, back-compat)
 
 1. **(done)** Unify the editing UI (#1496/#1503/#1504/#1505) and gate report/dashboard editing (#1508).
-2. **Seam (this ADR's first code):** a single `persistRuntimeMetadata(type, name, draft, …)` (+ `publishRuntimeMetadata`). Behind a flag (default **off**) it routes to the existing `sys_*` writes — **zero behaviour change** — so it is safe to merge and unit-test now. Flag **on** routes to `metadataClient` draft/publish.
-3. **UI:** add the draft/publish chrome to the runtime panels, flag-gated.
-4. **Verify in a real environment** (this sandbox has no backend; the save→draft→publish→read round trip cannot be verified here). Then flip the default.
-5. **Retire:** migrate existing `sys_*` rows → published overlays (dual-read window), drop the tables, delete the shape adapters.
+2. **(done)** Seam — `persistRuntimeMetadata` / `publishRuntimeMetadata` (#1513/#1514), behind the `VITE_RUNTIME_EDIT_VIA_META` flag (default off) routing to the legacy `sys_*` writes; flag on → `metadataClient` draft/publish.
+3. **(done)** UI — the draft/publish chrome on the runtime panels (#1515), plus the view-create path through the seam (#1517).
+4. **(done)** Verified in a real environment (the app-showcase backend): save→draft→publish→version, resume-on-open, discard, and rename-via-overlay all confirmed end-to-end (#1518).
+5. **(done)** Retire — the flag and all legacy `sys_*` write/read/fallback paths + shape adapters were removed (#1534); runtime editing is now metadata-only. The system was pre-launch, so **no data migration** was needed. Note: the physical `sys_view`/`sys_report`/`sys_dashboard` tables/object-schemas turned out **never to have existed** on this backend (only the metadata overlay + `sys_metadata` were ever used), so there were no tables to drop.
 
 ## Risks
 

@@ -63,6 +63,8 @@ export interface DashboardConfigPanelProps<
    * ({@link RuntimeDraftBar}).
    */
   metadataClient?: any;
+  /** Called after a publish / discard so the host can refresh its read. */
+  onAfterChange?: () => void;
 }
 
 export function DashboardConfigPanel<
@@ -78,6 +80,7 @@ export function DashboardConfigPanel<
   onRemoveWidget,
   name: artifactName,
   metadataClient,
+  onAfterChange,
 }: DashboardConfigPanelProps<T>) {
   const { t } = useObjectTranslation();
   const locale = useMemo(() => detectLocale(), []);
@@ -220,6 +223,7 @@ export function DashboardConfigPanel<
           dirty={dirty}
           onResume={handleResumeDraft}
           savedSignal={savedSignal}
+          onAfterChange={onAfterChange}
         />
         <Button
           size="sm"

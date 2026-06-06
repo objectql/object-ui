@@ -76,6 +76,8 @@ export interface ViewConfigPanelProps {
      * chrome ({@link RuntimeDraftBar}).
      */
     metadataClient?: any;
+    /** Called after a publish / discard so the host can refresh its read. */
+    onAfterChange?: () => void;
 }
 
 /**
@@ -97,7 +99,7 @@ function mapObjectFields(objectDef: ViewConfigPanelProps['objectDef']): ObjectFi
     });
 }
 
-export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, objectDef, onViewUpdate, onSave, onCreate, metadataClient }: ViewConfigPanelProps) {
+export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, objectDef, onViewUpdate, onSave, onCreate, metadataClient, onAfterChange }: ViewConfigPanelProps) {
     const { t } = useObjectTranslation();
     const panelRef = useRef<HTMLDivElement>(null);
     const locale = useMemo(() => detectLocale(), []);
@@ -255,6 +257,7 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
                         dirty={isDirty}
                         onResume={handleResumeDraft}
                         savedSignal={savedSignal}
+                        onAfterChange={onAfterChange}
                     />
                 )}
                 <Button

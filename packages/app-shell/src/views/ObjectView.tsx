@@ -2001,6 +2001,7 @@ export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: 
                         onViewUpdate={handleViewUpdate}
                         onCreate={handleViewCreate}
                         metadataClient={metadataClient}
+                        onAfterChange={() => setRefreshKey(k => k + 1)}
                     />
                 </div>
                 <CreateViewDialog

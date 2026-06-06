@@ -62,6 +62,8 @@ export interface ReportConfigPanelProps {
    * ({@link RuntimeDraftBar}).
    */
   metadataClient?: any;
+  /** Called after a publish / discard so the host can refresh its read. */
+  onAfterChange?: () => void;
 }
 
 /** Map the host's `{ value, label, type }` fields into the inspector's catalog. */
@@ -84,6 +86,7 @@ export function ReportConfigPanel({
   availableFields,
   name,
   metadataClient,
+  onAfterChange,
 }: ReportConfigPanelProps) {
   const { t } = useObjectTranslation();
   const locale = useMemo(() => detectLocale(), []);
@@ -186,6 +189,7 @@ export function ReportConfigPanel({
           metadataClient={metadataClient}
           dirty={dirty}
           onResume={handleResumeDraft}
+          onAfterChange={onAfterChange}
         />
         <Button variant="ghost" size="sm" onClick={handleDiscard} data-testid="report-config-discard">
           {t('common.cancel', { defaultValue: 'Cancel' })}
