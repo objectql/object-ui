@@ -221,11 +221,28 @@ function writeSiblings(root: Record<string, unknown>, hops: Hop[], nextSiblings:
 }
 
 export function PageBlockInspector({ selection, draft, onPatch, onClearSelection, onSelectionChange, locale, readOnly }: MetadataInspectorProps) {
-  const hops = parsePath(selection.id);
-  const block = hops ? readAt(draft, hops) : null;
-  const sibInfo = hops ? readSiblings(draft, hops) : null;
+  // Slotted record page: selection ids are `slot:<name>:<index>` and address
+  // `draft.slots.<name>` (a single component is normalised to a 1-element array).
+  const slotMatch = /^slot:([a-zA-Z_]+):(\d+)$/.exec(selection.id);
+  const hops = slotMatch ? null : parsePath(selection.id);
 
-  if (!hops || !block) {
+  const slotName = slotMatch ? slotMatch[1] : '';
+  const slotIdx = slotMatch ? Number(slotMatch[2]) : -1;
+  const slotsObj: Record<string, any> =
+    (draft as any).slots && typeof (draft as any).slots === 'object' ? ((draft as any).slots as Record<string, any>) : {};
+  const slotArr: Block[] = slotMatch
+    ? Array.isArray(slotsObj[slotName])
+      ? (slotsObj[slotName] as Block[])
+      : slotsObj[slotName] != null
+        ? [slotsObj[slotName] as Block]
+        : []
+    : [];
+  const writeSlot = (nextArr: Block[]) => onPatch({ slots: { ...slotsObj, [slotName]: nextArr } });
+
+  const block: Block | null = slotMatch ? (slotArr[slotIdx] ?? null) : hops ? readAt(draft, hops) : null;
+  const sibInfo = slotMatch ? { siblings: slotArr, index: slotIdx } : hops ? readSiblings(draft, hops) : null;
+
+  if ((!slotMatch && !hops) || !block) {
     return (
       <InspectorShell kindLabel={t('engine.inspector.pageBlock.kind', locale)} title={selection.label ?? selection.id} onClose={onClearSelection} closeLabel={t('engine.inspector.pageBlock.close', locale)}>
         <InspectorEmptyState message={selection.id} />
@@ -233,7 +250,10 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
     );
   }
 
-  const patch = (updates: Partial<Block>) => onPatch(writeAt(draft, hops, { ...block, ...updates }));
+  const patch = (updates: Partial<Block>) =>
+    slotMatch
+      ? writeSlot(slotArr.map((b, i) => (i === slotIdx ? { ...block, ...updates } : b)))
+      : onPatch(writeAt(draft, hops!, { ...block, ...updates }));
 
   // Per-block configurable properties (spec `properties`). The renderer hoists
   // `properties.*` to the top level, so we read from either and always write
@@ -363,13 +383,22 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
         );
     }
   };
-  const remove = () => { onPatch(writeAt(draft, hops, null)); onClearSelection(); };
+  const remove = () => {
+    if (slotMatch) writeSlot(slotArr.filter((_, i) => i !== slotIdx));
+    else onPatch(writeAt(draft, hops!, null));
+    onClearSelection();
+  };
   const move = (to: number) => {
     if (!sibInfo) return;
+    if (slotMatch) {
+      writeSlot(moveArray(slotArr, slotIdx, to));
+      onSelectionChange?.({ kind: 'block', id: `slot:${slotName}:${to}`, label: String(block.id || block.type || to) });
+      return;
+    }
     const next = moveArray(sibInfo.siblings, sibInfo.index, to);
-    onPatch(writeSiblings(draft, hops, next));
-    const prefix = hops.slice(0, -1).map((h) => `${h.key}[${h.index}]`).join('.');
-    const lastKey = hops[hops.length - 1].key;
+    onPatch(writeSiblings(draft, hops!, next));
+    const prefix = hops!.slice(0, -1).map((h) => `${h.key}[${h.index}]`).join('.');
+    const lastKey = hops![hops!.length - 1].key;
     const newId = prefix ? `${prefix}.${lastKey}[${to}]` : `${lastKey}[${to}]`;
     onSelectionChange?.({ kind: 'block', id: newId, label: String(block.id || block.type || newId) });
   };

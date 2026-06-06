@@ -57,9 +57,41 @@ export interface PageBlockCanvasProps {
   onSelectionChange?: (next: MetadataSelection | null) => void;
 }
 
+/** Canonical record-page slots, in render order. A `kind:'slotted'` page
+ *  overrides individual slots; unoverridden ones are filled by the synthesizer.
+ *  We surface all of them so an author can override an inherited slot too. */
+export const SLOT_ORDER = ['header', 'actions', 'alerts', 'highlights', 'details', 'tabs', 'discussion'] as const;
+
+/** slots object → one region per slot (single component normalised to array). */
+export function slotsToRegions(slots: Record<string, unknown> | undefined): Region[] {
+  const s = slots || {};
+  return SLOT_ORDER.map((name) => {
+    const v = (s as any)[name];
+    const components = Array.isArray(v) ? (v as Block[]) : v != null ? [v as Block] : [];
+    return { name, components };
+  });
+}
+
+/** regions (one per slot) → slots object; empty slots are omitted (= inherited). */
+export function regionsToSlots(regions: Region[]): Record<string, unknown> {
+  const slots: Record<string, unknown> = {};
+  for (const r of regions) {
+    const comps = Array.isArray(r.components) ? r.components : [];
+    if (comps.length === 0 || !r.name) continue; // omit empty → inherit the default
+    slots[r.name] = comps;
+  }
+  return slots;
+}
+
 function readRegions(
   draft: Record<string, unknown>,
-): { regions: Region[]; shape: 'regions' | 'children' } {
+): { regions: Region[]; shape: 'regions' | 'children' | 'slots' } {
+  // Slotted record page — edit the named slots (must win over an empty
+  // `regions: []`, which slotted pages carry).
+  const slots = (draft as any).slots;
+  if ((draft as any).kind === 'slotted' && slots && typeof slots === 'object' && !Array.isArray(slots)) {
+    return { regions: slotsToRegions(slots), shape: 'slots' };
+  }
   const raw = (draft as any).regions;
   if (Array.isArray(raw)) return { regions: raw as Region[], shape: 'regions' };
   const kids = (draft as any).children;
@@ -75,13 +107,14 @@ function readRegions(
  *  - children shape: children[j]  (flat, no nesting)
  */
 function selectionId(
-  shape: 'regions' | 'children',
+  shape: 'regions' | 'children' | 'slots',
   regionIdx: number,
   compIdx: number,
+  slotName?: string,
 ): string {
-  return shape === 'children'
-    ? `children[${compIdx}]`
-    : `regions[${regionIdx}].components[${compIdx}]`;
+  if (shape === 'children') return `children[${compIdx}]`;
+  if (shape === 'slots') return `slot:${slotName}:${compIdx}`;
+  return `regions[${regionIdx}].components[${compIdx}]`;
 }
 
 function blockLabel(b: Block): string {
@@ -111,6 +144,8 @@ export function PageBlockCanvas({
       if (shape === 'children') {
         const comps = next.flatMap((r) => (Array.isArray(r.components) ? r.components : []));
         onPatch?.({ children: comps });
+      } else if (shape === 'slots') {
+        onPatch?.({ slots: regionsToSlots(next) });
       } else {
         onPatch?.({ regions: next });
       }
@@ -153,10 +188,10 @@ export function PageBlockCanvas({
       dstComps.splice(insertAt, 0, moved);
       writeRegions(next);
       // Re-issue selection so inspector follows the move.
-      const newId = `regions[${dst.region}].components[${insertAt}]`;
+      const newId = selectionId(shape, dst.region, insertAt, next[dst.region]?.name);
       onSelectionChange?.({ kind: 'block', id: newId, label: blockLabel(moved) });
     },
-    [onPatch, onSelectionChange, regions, writeRegions],
+    [onPatch, onSelectionChange, regions, writeRegions, shape],
   );
 
   const addBlock = React.useCallback(
@@ -175,11 +210,11 @@ export function PageBlockCanvas({
       const idx = next[regionIdx].components!.length - 1;
       onSelectionChange?.({
         kind: 'block',
-        id: `regions[${regionIdx}].components[${idx}]`,
+        id: selectionId(shape, regionIdx, idx, next[regionIdx]?.name),
         label: blockLabel(newBlock),
       });
     },
-    [onPatch, onSelectionChange, regions, writeRegions],
+    [onPatch, onSelectionChange, regions, writeRegions, shape],
   );
 
   const renameLabel = React.useCallback(
@@ -248,7 +283,7 @@ export function PageBlockCanvas({
             onSelectBlock={(compIdx, blk) =>
               onSelectionChange?.({
                 kind: 'block',
-                id: `regions[${regionIdx}].components[${compIdx}]`,
+                id: selectionId(shape, regionIdx, compIdx, region.name),
                 label: blockLabel(blk),
               })
             }
@@ -285,7 +320,7 @@ function RegionSection({
 }: {
   region: Region;
   regionIdx: number;
-  shape: 'regions' | 'children';
+  shape: 'regions' | 'children' | 'slots';
   selectedId: string | null;
   readOnly: boolean;
   onSelectBlock: (compIdx: number, blk: Block) => void;
@@ -346,11 +381,13 @@ function RegionSection({
       <div className="space-y-2.5">
         {comps.length === 0 ? (
           <div className="rounded border border-dashed bg-background/50 py-6 px-4 text-center text-xs text-muted-foreground">
-            Empty region — drop a block here or use the add button below.
+            {shape === 'slots'
+              ? 'Inherited from the default page — add a block to override this slot.'
+              : 'Empty region — drop a block here or use the add button below.'}
           </div>
         ) : (
           comps.map((blk, compIdx) => {
-            const id = selectionId(shape, regionIdx, compIdx);
+            const id = selectionId(shape, regionIdx, compIdx, region.name);
             return (
               <BlockRow
                 key={`${regionIdx}:${compIdx}`}
