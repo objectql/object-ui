@@ -31,6 +31,7 @@ import {
 } from '@object-ui/components';
 import { Share2, SquarePen } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
+import { toast } from 'sonner';
 import { useChatConversation, type HydratedUIMessage } from '../hooks';
 import { useAssistant, requestAssistantReview, type AssistantEditorContext } from '../assistant/assistantBus';
 
@@ -93,6 +94,9 @@ function buildChatLocale(
       newChat: '开启新对话',
       share: '分享对话',
       reviewDraft: (n: number) => `查看 ${n} 项变更`,
+      publishDrafts: '发布',
+      publishOk: '已发布，对象已生效。',
+      publishFailed: '发布失败',
       suggestions,
     };
   }
@@ -118,6 +122,9 @@ function buildChatLocale(
     newChat: 'New chat',
     share: 'Share conversation',
     reviewDraft: (n: number) => `Review ${n} change${n === 1 ? '' : 's'}`,
+    publishDrafts: 'Publish',
+    publishOk: 'Published — objects are now live.',
+    publishFailed: 'Publish failed',
     suggestions,
   };
 }
@@ -447,6 +454,34 @@ function ChatbotInner({
           if (items[0]) requestAssistantReview(items[0]);
         }}
         toolReviewLabel={locale.reviewDraft}
+        onPublishDrafts={async (packageId) => {
+          // ADR-0033 — promote the conversation's staged drafts to live in one
+          // click (the human still confirms here). Mirrors PackagesPage's
+          // publish-drafts call; cookie-authenticated like the rest of the SPA.
+          try {
+            const res = await fetch(
+              `/api/v1/packages/${encodeURIComponent(packageId)}/publish-drafts`,
+              {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: '{}',
+              },
+            );
+            const payload = await res.json().catch(() => null);
+            if (!res.ok || payload?.success === false) {
+              throw new Error(payload?.error?.message || `HTTP ${res.status}`);
+            }
+            const failed = payload?.data?.failedCount ?? payload?.failedCount ?? 0;
+            if (failed) throw new Error(String(failed));
+            toast.success(locale.publishOk);
+          } catch (e) {
+            toast.error(locale.publishFailed, {
+              description: e instanceof Error ? e.message : undefined,
+            });
+          }
+        }}
+        publishDraftsLabel={locale.publishDrafts}
       />
       {conversationId && (
         <ShareDialog

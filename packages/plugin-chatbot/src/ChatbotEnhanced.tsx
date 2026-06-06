@@ -19,7 +19,7 @@
  */
 import * as React from 'react';
 import { cn } from '@object-ui/components';
-import { AlertCircle, Copy, Check, RefreshCw, CornerDownLeft, Bot, GitCompareArrows } from 'lucide-react';
+import { AlertCircle, Copy, Check, RefreshCw, CornerDownLeft, Bot, GitCompareArrows, Rocket } from 'lucide-react';
 import type { ChatStatus } from 'ai';
 import {
   humanizeToolName,
@@ -134,7 +134,7 @@ export interface ChatToolInvocation {
    * change(s)" affordance that opens the designer's review/diff. Nothing is
    * live until the human publishes — this is the review entry point.
    */
-  draftReview?: { items: Array<{ type: string; name: string }>; summary?: string };
+  draftReview?: { items: Array<{ type: string; name: string }>; summary?: string; packageId?: string };
 }
 
 export interface ChatSource {
@@ -267,6 +267,16 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   onReviewDraft?: (items: Array<{ type: string; name: string }>) => void;
   /** Label for the review-draft button (default "Review {n} change(s)"). */
   toolReviewLabel?: (count: number) => string;
+  /**
+   * When provided AND the drafted tool result reported its owning `packageId`,
+   * tool parts render a one-click "Publish" button so the human can promote the
+   * staged drafts to live without leaving the conversation (the ADR-0033 gate
+   * stays — the human still clicks). The host wires this to
+   * `POST /api/v1/packages/:packageId/publish-drafts`.
+   */
+  onPublishDrafts?: (packageId: string) => void;
+  /** Label for the publish-drafts button (default "Publish"). */
+  publishDraftsLabel?: string;
 }
 
 export type ToolDecisionState =
@@ -344,6 +354,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       toolDecisions,
       onReviewDraft,
       toolReviewLabel = (n) => `Review ${n} change${n === 1 ? '' : 's'}`,
+      onPublishDrafts,
+      publishDraftsLabel = 'Publish',
       ...props
     },
     ref
@@ -600,16 +612,37 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                                       </button>
                                     </div>
                                   ) : null}
-                                  {tool.draftReview && tool.draftReview.items.length > 0 && onReviewDraft ? (
+                                  {tool.draftReview &&
+                                  tool.draftReview.items.length > 0 &&
+                                  (onReviewDraft ||
+                                    (onPublishDrafts && tool.draftReview.packageId)) ? (
                                     <div className="flex items-center gap-2 p-3 border-t bg-muted/30">
-                                      <button
-                                        type="button"
-                                        onClick={() => onReviewDraft(tool.draftReview!.items)}
-                                        className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-                                      >
-                                        <GitCompareArrows className="size-3.5" />
-                                        {toolReviewLabel(tool.draftReview.items.length)}
-                                      </button>
+                                      {onPublishDrafts && tool.draftReview.packageId ? (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            onPublishDrafts(tool.draftReview!.packageId!)
+                                          }
+                                          className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                                        >
+                                          <Rocket className="size-3.5" />
+                                          {publishDraftsLabel}
+                                        </button>
+                                      ) : null}
+                                      {onReviewDraft ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => onReviewDraft(tool.draftReview!.items)}
+                                          className={
+                                            onPublishDrafts && tool.draftReview.packageId
+                                              ? 'inline-flex h-7 items-center gap-1.5 rounded-md border px-3 text-xs font-medium hover:bg-muted'
+                                              : 'inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90'
+                                          }
+                                        >
+                                          <GitCompareArrows className="size-3.5" />
+                                          {toolReviewLabel(tool.draftReview.items.length)}
+                                        </button>
+                                      ) : null}
                                       {tool.draftReview.summary ? (
                                         <span className="truncate text-xs text-muted-foreground">
                                           {tool.draftReview.summary}

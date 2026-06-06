@@ -128,7 +128,7 @@ function detectPendingApproval(
  */
 function detectDraftResult(
   result: unknown,
-): { items: Array<{ type: string; name: string }>; summary?: string } | undefined {
+): { items: Array<{ type: string; name: string }>; summary?: string; packageId?: string } | undefined {
   const obj = parseResultEnvelope(result);
   if (!obj || obj.status !== 'drafted') return undefined;
   const items: Array<{ type: string; name: string }> = [];
@@ -143,7 +143,15 @@ function detectDraftResult(
     items.push({ type: obj.type, name: obj.name });
   }
   if (items.length === 0) return undefined;
-  return { items, summary: typeof obj.summary === 'string' ? obj.summary : undefined };
+  // The owning package (when the staging tool reported it) lets the chat offer
+  // a one-click "publish" — POST /packages/:packageId/publish-drafts — so the
+  // ADR-0033 human gate is reachable from the conversation, not just a deep
+  // link into the designer.
+  return {
+    items,
+    summary: typeof obj.summary === 'string' ? obj.summary : undefined,
+    ...(typeof obj.packageId === 'string' && obj.packageId ? { packageId: obj.packageId } : {}),
+  };
 }
 
 function extractToolInvocations(parts: AnyPart[]): ChatToolInvocation[] {
