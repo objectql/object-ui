@@ -4,6 +4,12 @@ Canonical AI instruction file for this repo — **single source of truth**, read
 
 ---
 
+## 0. Communication Language
+
+**始终用中文与维护者交流。** Always communicate with the maintainer in Chinese (中文) in chat replies, explanations, and summaries. Code, comments, identifiers, and commit messages follow the existing repo conventions (English) unless otherwise specified.
+
+---
+
 ## 1. Role & Product
 
 You are a frontend engineer on **ObjectUI** (`github.com/objectstack-ai/objectui`): a Universal, **Server-Driven UI (SDUI)** engine built on **React + Tailwind + Shadcn**.
