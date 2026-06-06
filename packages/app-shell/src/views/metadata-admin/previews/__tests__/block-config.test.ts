@@ -1,18 +1,32 @@
 import { describe, it, expect } from 'vitest';
 import { BLOCK_CONFIG, blockHasConfig } from '../block-config';
+import { BLOCK_TYPE_META } from '../block-types';
 
 describe('block-config', () => {
-  it('exposes a configurable panel for the minimal SDUI block set', () => {
-    for (const type of ['element:text', 'element:image', 'page:header', 'page:card', 'record:related_list']) {
-      expect(blockHasConfig(type)).toBe(true);
+  it('exposes a configurable panel for every content block with authorable props', () => {
+    for (const type of [
+      'element:text', 'element:image', 'element:number', 'element:button',
+      'page:header', 'page:card', 'page:tabs', 'page:accordion',
+      'record:related_list', 'record:highlights', 'record:details', 'record:alert',
+      'record:path', 'record:quick_actions', 'ai:chat_window', 'ai:input',
+    ]) {
+      expect(blockHasConfig(type), type).toBe(true);
       expect(BLOCK_CONFIG[type].length).toBeGreaterThan(0);
     }
   });
 
-  it('returns false for blocks without a config schema (and for undefined)', () => {
+  it('returns false for pure-container blocks without scalar props (and undefined)', () => {
     expect(blockHasConfig('page:section')).toBe(false);
-    expect(blockHasConfig('nav:menu')).toBe(false);
+    expect(blockHasConfig('element:divider')).toBe(false);
     expect(blockHasConfig(undefined)).toBe(false);
+  });
+
+  it('prunes shell-singleton blocks from the page palette', () => {
+    for (const type of ['app:launcher', 'global:notifications', 'user:profile']) {
+      expect((BLOCK_TYPE_META as any)[type]).toBeUndefined();
+    }
+    // page-content navigation stays
+    expect((BLOCK_TYPE_META as any)['nav:menu']).toBeTruthy();
   });
 
   it('also exposes the array-valued blocks', () => {

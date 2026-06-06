@@ -137,6 +137,19 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
       ],
     },
   ],
+  'page:accordion': [
+    { name: 'title', label: 'Title', kind: 'text' },
+    {
+      name: 'items',
+      label: 'Sections',
+      kind: 'array',
+      addLabel: 'Add section',
+      itemFields: [
+        { name: 'value', label: 'Key', kind: 'text' },
+        { name: 'label', label: 'Label', kind: 'text' },
+      ],
+    },
+  ],
 
   // ── Record context ────────────────────────────────────────────────────────
   'record:related_list': [
@@ -177,6 +190,46 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
     { name: 'body', label: 'Body', kind: 'text' },
     { name: 'icon', label: 'Icon', kind: 'text', placeholder: 'lucide icon name' },
     { name: 'dismissible', label: 'Dismissible', kind: 'boolean' },
+  ],
+  'record:path': [
+    { name: 'statusField', label: 'Status field', kind: 'text', placeholder: 'e.g. stage' },
+    {
+      name: 'stages',
+      label: 'Stages',
+      kind: 'array',
+      addLabel: 'Add stage',
+      itemFields: [
+        { name: 'value', label: 'Value', kind: 'text' },
+        { name: 'label', label: 'Label', kind: 'text' },
+      ],
+    },
+  ],
+  'record:quick_actions': [
+    { name: 'actionNames', label: 'Action names', kind: 'string-list', placeholder: 'action name' },
+    {
+      name: 'location',
+      label: 'Location',
+      kind: 'select',
+      options: [
+        { value: 'record_header', label: 'Record header' },
+        { value: 'record_more', label: 'Record more menu' },
+        { value: 'record_section', label: 'Record section' },
+        { value: 'record_related', label: 'Record related' },
+        { value: 'list_toolbar', label: 'List toolbar' },
+        { value: 'list_item', label: 'List item' },
+        { value: 'global_nav', label: 'Global nav' },
+      ],
+    },
+  ],
+
+  // ── AI ────────────────────────────────────────────────────────────────────
+  'ai:chat_window': [
+    { name: 'agentName', label: 'Agent', kind: 'text', placeholder: 'agent name' },
+    { name: 'placeholder', label: 'Input placeholder', kind: 'text' },
+  ],
+  'ai:input': [
+    { name: 'agentName', label: 'Agent', kind: 'text', placeholder: 'agent name' },
+    { name: 'placeholder', label: 'Input placeholder', kind: 'text' },
   ],
 };
 

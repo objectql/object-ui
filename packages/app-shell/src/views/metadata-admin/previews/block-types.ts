@@ -29,11 +29,8 @@ import {
   Zap,
   BookOpen,
   History,
-  Rocket,
   Menu,
   Search,
-  Bell,
-  User,
   Bot,
   Sparkles,
   Type,
@@ -56,14 +53,11 @@ export type BlockTypeId =
   | 'record:details' | 'record:highlights' | 'record:related_list'
   | 'record:activity' | 'record:chatter' | 'record:path' | 'record:alert'
   | 'record:quick_actions' | 'record:reference_rail' | 'record:history'
-  // app:*
-  | 'app:launcher'
-  // nav:*
+  // nav:* — page-content navigation (shell singletons like app:launcher /
+  // global:notifications / user:profile are intentionally NOT page blocks)
   | 'nav:menu' | 'nav:breadcrumb'
   // global:*
-  | 'global:search' | 'global:notifications'
-  // user:*
-  | 'user:profile'
+  | 'global:search'
   // ai:*
   | 'ai:chat_window' | 'ai:suggestion'
   // element:*
@@ -101,13 +95,10 @@ export const BLOCK_TYPE_META: Record<BlockTypeId, Omit<BlockTypeMeta, 'id'>> = {
   'record:reference_rail':  { label: 'Reference rail',      category: 'record', Icon: BookOpen },
   'record:history':         { label: 'History',             category: 'record', Icon: History },
 
-  // App & navigation
-  'app:launcher':       { label: 'App launcher',        category: 'navigation', Icon: Rocket },
+  // Navigation (page-content only; shell singletons are not page blocks)
   'nav:menu':           { label: 'Nav menu',            category: 'navigation', Icon: Menu },
   'nav:breadcrumb':     { label: 'Breadcrumb',          category: 'navigation', Icon: Compass },
   'global:search':      { label: 'Global search',       category: 'navigation', Icon: Search },
-  'global:notifications': { label: 'Notifications',     category: 'navigation', Icon: Bell },
-  'user:profile':       { label: 'User profile',        category: 'navigation', Icon: User },
 
   // AI
   'ai:chat_window':     { label: 'AI chat window',      category: 'ai', Icon: Bot },
