@@ -30,14 +30,18 @@ import { LineItemsField, type GridColumn } from '@object-ui/fields';
 import { Button, Card, CardContent, CardHeader, CardTitle, cn, toast } from '@object-ui/components';
 import { ObjectForm } from './ObjectForm';
 import { applyDetail, idOf, buildMasterDetailBatch, buildMasterDetailEditBatch, sumRows } from './masterDetailTx';
+import { deriveDetail } from './deriveMasterDetail';
 
 export interface MasterDetailDetailConfig {
   /** Child object name, e.g. 'expense_line'. */
   childObject: string;
-  /** FK field on the child pointing back to the parent, e.g. 'expense_claim'. */
-  relationshipField: string;
-  /** Editable columns for the child grid. */
-  columns: GridColumn[];
+  /** FK field on the child pointing back to the parent, e.g. 'expense_claim'.
+   *  Optional — auto-detected from the child's master_detail/lookup field that
+   *  references the parent object when omitted. */
+  relationshipField?: string;
+  /** Editable columns for the child grid. Optional — derived from the child
+   *  object's fields (via DataSource.getObjectSchema) when omitted. */
+  columns?: GridColumn[];
   /** Numeric child column to sum, e.g. 'amount'. */
   amountField?: string;
   /** Parent field to receive the rolled-up sum, e.g. 'total_amount'. */
@@ -87,12 +91,53 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
   dataSource,
   className,
 }) => {
-  const details = schema.details || [];
+  const rawDetails = schema.details || [];
   const isEdit = schema.mode === 'edit' && !!schema.recordId;
 
-  // One row-state per detail collection.
+  // A detail can be configured with just `{ childObject }` — the relationship
+  // FK and grid columns are then derived from the child object's metadata
+  // (DataSource.getObjectSchema). Resolve those before rendering the grid.
+  const needsDerive = rawDetails.some((d) => !d.relationshipField || !d.columns?.length);
+  const [resolvedDetails, setResolvedDetails] = useState<MasterDetailDetailConfig[] | null>(
+    needsDerive ? null : rawDetails,
+  );
+  const details = resolvedDetails ?? rawDetails; // length always matches rawDetails
+
+  useEffect(() => {
+    if (!needsDerive) { setResolvedDetails(rawDetails); return; }
+    if (!dataSource || typeof (dataSource as any).getObjectSchema !== 'function') return;
+    let cancelled = false;
+    (async () => {
+      const out = await Promise.all(
+        rawDetails.map(async (d) => {
+          if (d.relationshipField && d.columns?.length) return d;
+          try {
+            const childSchema = await dataSource.getObjectSchema(d.childObject);
+            const derived = deriveDetail(d.childObject, childSchema, schema.objectName, {
+              relationshipField: d.relationshipField,
+              columns: d.columns,
+              amountField: d.amountField,
+            });
+            return {
+              ...d,
+              relationshipField: derived.relationshipField,
+              columns: derived.columns,
+              amountField: d.amountField ?? derived.amountField,
+            };
+          } catch {
+            return d; // leave as-is; the grid card will show a config hint
+          }
+        }),
+      );
+      if (!cancelled) setResolvedDetails(out);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataSource, schema.objectName, schema.details]);
+
+  // One row-state per detail collection (length is known up-front from rawDetails).
   const [state, setState] = useState<RowState[]>(() =>
-    details.map(() => ({ rows: [], original: [] })),
+    rawDetails.map(() => ({ rows: [], original: [] })),
   );
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -119,6 +164,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
     (async () => {
       const loaded = await Promise.all(
         details.map(async (d) => {
+          if (!d.relationshipField) return { rows: [], original: [] }; // not resolved yet
           try {
             const res = await dataSource.find(d.childObject, {
               $filter: { [d.relationshipField]: schema.recordId },
@@ -137,7 +183,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, dataSource, schema.recordId]);
+  }, [isEdit, dataSource, schema.recordId, resolvedDetails]);
 
   const setRows = useCallback((detailIdx: number, rows: Record<string, any>[]) => {
     setState((prev) => prev.map((s, i) => (i === detailIdx ? { ...s, rows } : s)));
@@ -181,6 +227,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
       for (let i = 0; i < details.length; i++) {
         const d = details[i];
         const { rows, original } = stateRef.current[i];
+        if (!d.relationshipField) continue; // unresolved — skip (save is gated)
         const { created } = await applyDetail(dataSource!, schema.objectName, parentId, {
           childObject: d.childObject,
           relationshipField: d.relationshipField,
@@ -244,9 +291,9 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
             schema.objectName,
             schema.recordId!,
             parentData,
-            details.map((d, i) => ({
+            details.filter((d) => d.relationshipField).map((d, i) => ({
               childObject: d.childObject,
-              relationshipField: d.relationshipField,
+              relationshipField: d.relationshipField!,
               rows: stateRef.current[i]?.rows ?? [],
               original: stateRef.current[i]?.original ?? [],
             })),
@@ -254,9 +301,9 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
         : buildMasterDetailBatch(
             schema.objectName,
             parentData,
-            details.map((d, i) => ({
+            details.filter((d) => d.relationshipField).map((d, i) => ({
               childObject: d.childObject,
-              relationshipField: d.relationshipField,
+              relationshipField: d.relationshipField!,
               rows: stateRef.current[i]?.rows ?? [],
             })),
           );
@@ -336,6 +383,9 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
             <CardTitle className="text-sm font-medium">{d.title || 'Line Items'}</CardTitle>
           </CardHeader>
           <CardContent>
+            {!d.columns?.length ? (
+              <p className="py-4 text-sm text-muted-foreground">Loading columns…</p>
+            ) : (
             <LineItemsField
               value={state[i]?.rows ?? []}
               onChange={(rows) => setRows(i, rows)}
@@ -351,6 +401,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
                 } as any
               }
             />
+            )}
           </CardContent>
         </Card>
       ))}
@@ -362,7 +413,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
             Cancel
           </Button>
         )}
-        <Button type="button" onClick={handleSave} disabled={saving} data-testid="md-form-submit">
+        <Button type="button" onClick={handleSave} disabled={saving || (needsDerive && !resolvedDetails)} data-testid="md-form-submit">
           {saving ? 'Saving…' : submitText}
         </Button>
       </div>
