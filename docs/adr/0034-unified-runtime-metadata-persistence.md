@@ -77,3 +77,38 @@ Runtime panels gain a small **draft/publish chrome** (Save draft · Publish · "
 | ObjectView | `dataSource.create/update('sys_view', toSysViewPayload(...))` (`handleViewConfigSave` / `handleViewCreate`; `persistViewPatch` for incremental toolbar state) | `packages/app-shell/src/views/ObjectView.tsx` |
 | ReportView | `adapter.update('sys_report', name, schema)` (`saveSchema`) | `packages/app-shell/src/views/ReportView.tsx` |
 | DashboardView | `adapter.updateDashboard(name, schema)` / `adapter.update('sys_dashboard', …)` (`saveSchema`) | `packages/app-shell/src/views/DashboardView.tsx` |
+
+---
+
+## Amendment (2026-06-07): record `page` joins the model (#1541)
+
+Record pages now author through the same per-item `/meta` draft → publish →
+version model — via **Studio**, not a bespoke runtime editor. The end-user
+runtime "design this page" entry is intentionally deferred; the Studio path is
+the supported authoring surface.
+
+What shipped:
+
+- **Seam** — `RuntimeArtifactType` gained `'page'` (#1571), plus pure helpers
+  `recordPageName(object, existing?)` / `recordPageEnvelope(object, schema, name?)`
+  in `runtime-metadata-persistence.ts` (forward-looking; for a future runtime
+  entry — the Studio path uses `ResourceEditPage`'s own draft/publish chrome).
+- **Create** — the Studio "New page" form was identity-only (label/name/icon/
+  description), so a record page couldn't be created or bound to an object. The
+  `page` resource anchor now exposes **Object / Page type (default `record`) /
+  Kind**, mirroring `view` (#1572). Root cause was objectui-side config, not the
+  protocol — the page *edit* form and the protocol schema already carried the
+  full field set.
+- **Seed** — a generic async `createSeed` hook on `MetadataResourceConfig`; the
+  `page` resource seeds a new record page's `regions` from
+  `buildDefaultPageSchema(objectDef)` so authoring starts from the auto-generated
+  default detail layout, not a blank canvas (#1574).
+- **Edit + publish** — the existing `PagePreview` WYSIWYG canvas + draft/publish/
+  version chrome (`MetadataResourceEditPage`) handle composition and release.
+- **Render** — `usePageAssignment` already resolves a published record page over
+  the synthesized default (`RecordDetailView.effectivePage`), so a published page
+  renders on that object's records.
+
+Net: create (bound + seeded) → design in PagePreview → publish → renders on
+records — entirely through Studio, no `sys_page` table, no runtime end-user
+editor.
