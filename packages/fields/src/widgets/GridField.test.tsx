@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
-import { GridField, LineItemsField, sumColumn } from './GridField';
+import { GridField, LineItemsField, sumColumn, lookupAutofillPatch } from './GridField';
 
 const columns = [
   { field: 'description', label: 'Description', type: 'text' as const },
@@ -197,6 +197,30 @@ describe('GridField / LineItemsField — editable line items', () => {
     expect(screen.getByTestId('line-items-readonly')).toBeTruthy();
     expect(screen.getByText('Total')).toBeTruthy();
     expect(screen.getByText('30')).toBeTruthy();
+  });
+
+  describe('lookupAutofillPatch (item typeahead auto-fill)', () => {
+    const cols = [
+      { field: 'product', type: 'lookup' as const, reference: 'product' },
+      { field: 'description', type: 'text' as const },
+      { field: 'quantity', type: 'number' as const },
+      { field: 'unit_price', type: 'currency' as const },
+      { field: 'amount', type: 'currency' as const, computed: true, expr: 'record.quantity * record.unit_price' },
+    ];
+    const product = { value: 'p1', label: 'Widget A', name: 'Widget A', description: 'Standard widget', unit_price: 29.99, sku: 'WIDGET-A' };
+
+    it('sets the FK id and copies same-named sibling fields from the record', () => {
+      const patch = lookupAutofillPatch(cols, cols[0], product);
+      expect(patch).toEqual({ product: 'p1', description: 'Standard widget', unit_price: 29.99 });
+      // quantity (not on the record) and computed amount are left to the row/compute.
+      expect(patch).not.toHaveProperty('quantity');
+      expect(patch).not.toHaveProperty('amount');
+    });
+
+    it('copies only the FK id when autofill is disabled', () => {
+      const patch = lookupAutofillPatch(cols, { ...cols[0], autofill: false }, product);
+      expect(patch).toEqual({ product: 'p1' });
+    });
   });
 
   it('sumColumn ignores blanks and NaN', () => {

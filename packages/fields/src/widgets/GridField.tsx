@@ -71,6 +71,10 @@ export interface GridColumn {
   expr?: string;
   /** Decimal places to round a computed numeric/currency result to. */
   scale?: number;
+  /** For `type: 'lookup'` — when a record is picked, copy its fields into any
+   *  sibling columns of the same name (e.g. a product's unit_price/description).
+   *  On by default for lookup columns; set `false` to disable the auto-fill. */
+  autofill?: boolean;
 }
 
 type Row = Record<string, any>;
@@ -196,6 +200,26 @@ export function evalArith(expr: string, row: Row): number | null {
  * inputs, returning a new row. Called after each edit so computed columns and
  * the running total stay live, and so the computed value persists in the batch.
  */
+/**
+ * Build the row patch for a lookup-cell selection: set the FK column to the
+ * chosen record's id, and (unless the column opts out with `autofill: false`)
+ * copy any of the record's fields whose names match a sibling column — the
+ * catalog-typeahead behaviour (pick a product → its unit_price/description fill
+ * in). Skips the lookup column itself and computed columns. Pure + exported so
+ * it is unit-testable independent of the picker UI.
+ */
+export function lookupAutofillPatch(columns: GridColumn[], col: GridColumn, record: any): Row {
+  const patch: Row = { [col.field]: record?.value ?? record?.id ?? record?._id };
+  if (col.autofill !== false && record && typeof record === 'object') {
+    for (const other of columns) {
+      if (other.field === col.field || other.computed || other.type === 'lookup') continue;
+      const v = record[other.field];
+      if (v !== undefined && v !== null && v !== '') patch[other.field] = v;
+    }
+  }
+  return patch;
+}
+
 export function computeRow(columns: GridColumn[], row: Row): Row {
   const computedCols = columns.filter((c) => c.computed && c.expr);
   if (computedCols.length === 0) return row;
@@ -315,22 +339,41 @@ export function GridField({
   }, [columns]);
 
   /**
-   * Apply a single cell change. `rowIdx === rows.length` targets the trailing
-   * "ghost" row (always-present empty line) — editing it materialises a new
-   * real row, so the user never has to click "Add line" to keep entering.
+   * Merge a field patch into a row. `rowIdx === rows.length` targets the
+   * trailing "ghost" row (always-present empty line) — editing it materialises
+   * a new real row, so the user never has to click "Add line" to keep entering.
    * Computed columns are recomputed for the touched row on every change.
    */
-  const applyCell = useCallback(
-    (rowIdx: number, field: string, value: any) => {
+  const applyPatch = useCallback(
+    (rowIdx: number, patch: Row) => {
       const isGhost = rowIdx >= rows.length;
       if (isGhost) {
         if (maxRows != null && rows.length >= maxRows) return;
-        emit([...rows, computeRow(columns, { ...blankRow(), [field]: value })]);
+        emit([...rows, computeRow(columns, { ...blankRow(), ...patch })]);
         return;
       }
-      emit(rows.map((r, i) => (i === rowIdx ? computeRow(columns, { ...r, [field]: value }) : r)));
+      emit(rows.map((r, i) => (i === rowIdx ? computeRow(columns, { ...r, ...patch }) : r)));
     },
     [rows, columns, maxRows, blankRow, emit],
+  );
+
+  const applyCell = useCallback(
+    (rowIdx: number, field: string, value: any) => applyPatch(rowIdx, { [field]: value }),
+    [applyPatch],
+  );
+
+  /**
+   * A lookup cell selection — set the FK id and auto-fill any sibling cells
+   * whose column name matches a field on the chosen record (and isn't itself a
+   * lookup/computed column). The catalog-typeahead behaviour every invoicing
+   * tool has: pick a product → its unit_price / description drop into the row.
+   * Opt out per column with `autofill: false`.
+   */
+  const applyLookupSelection = useCallback(
+    (rowIdx: number, col: GridColumn, record: any) => {
+      applyPatch(rowIdx, lookupAutofillPatch(columns, col, record));
+    },
+    [columns, applyPatch],
   );
 
   /** Set a cell to an already-typed value (lookup ids, etc.) without coercion. */
@@ -569,6 +612,7 @@ export function GridField({
         <LookupField
           value={val}
           onChange={(v: any) => setCellValue(rowIdx, c.field, v)}
+          onSelectRecord={(rec: any) => applyLookupSelection(rowIdx, c, rec)}
           field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField, multiple: c.multiple, options: c.options, placeholder: '—' } as any}
           disabled={disabled}
         />

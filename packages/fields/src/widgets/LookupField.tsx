@@ -467,23 +467,30 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
     ? (Array.isArray(value) ? value : []).map(findOption).filter(Boolean)
     : value ? [findOption(value)].filter(Boolean) : [];
 
+  // Optional: receive the FULL selected record (not just its id) so a host can
+  // auto-fill sibling fields from it — e.g. a line-item grid copying a product's
+  // unit_price/description when the item is chosen. When provided (single
+  // select), it drives the update and the host owns the resulting value change.
+  const onSelectRecord = (props as any).onSelectRecord as ((record: LookupOption) => void) | undefined;
+
   const handleSelect = useCallback(
     (option: LookupOption) => {
       if (multiple) {
         const currentValues = Array.isArray(value) ? value : [];
         const isSelected = currentValues.includes(option.value);
-        
+
         if (isSelected) {
           onChange(currentValues.filter((v: any) => v !== option.value));
         } else {
           onChange([...currentValues, option.value]);
         }
       } else {
-        onChange(option.value);
+        if (onSelectRecord) onSelectRecord(option);
+        else onChange(option.value);
         setIsOpen(false);
       }
     },
-    [multiple, value, onChange],
+    [multiple, value, onChange, onSelectRecord],
   );
 
   const handleRemove = (optionValue: any) => {
