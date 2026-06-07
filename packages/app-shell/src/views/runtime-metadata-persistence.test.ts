@@ -8,6 +8,8 @@ import {
   readRuntimeDraft,
   discardRuntimeDraft,
   unwrapDraftBody,
+  recordPageName,
+  recordPageEnvelope,
 } from './runtime-metadata-persistence';
 
 /**
@@ -44,17 +46,57 @@ describe('runtime-metadata-persistence seam (ADR-0034)', () => {
     });
   });
 
-  it('persistRuntimeMetadata works for view / dashboard too', async () => {
+  it('persistRuntimeMetadata works for view / dashboard / page too', async () => {
     const metadataClient = makeMetadataClient();
 
     await persistRuntimeMetadata('view', 'my_view', { columns: ['name'] }, { metadataClient });
     await persistRuntimeMetadata('dashboard', 'my_dash', { widgets: [] }, { metadataClient });
+    await persistRuntimeMetadata('page', 'invoice_record', { regions: [] }, { metadataClient });
 
     expect(metadataClient.save).toHaveBeenCalledWith('view', 'my_view', { columns: ['name'] }, {
       mode: 'draft',
     });
     expect(metadataClient.save).toHaveBeenCalledWith('dashboard', 'my_dash', { widgets: [] }, {
       mode: 'draft',
+    });
+    expect(metadataClient.save).toHaveBeenCalledWith('page', 'invoice_record', { regions: [] }, {
+      mode: 'draft',
+    });
+  });
+
+  describe('record page helpers (#1541)', () => {
+    it('recordPageName prefers an existing name, else mints <object>_record', () => {
+      expect(recordPageName('invoice')).toBe('invoice_record');
+      expect(recordPageName('invoice', 'custom_invoice_page')).toBe('custom_invoice_page');
+      expect(recordPageName('invoice', null)).toBe('invoice_record');
+    });
+
+    it('recordPageEnvelope sets the record-page identity fields the resolver matches on', () => {
+      const env = recordPageEnvelope('invoice', { type: 'page', title: 'Invoice', regions: [{ name: 'main' }] });
+      expect(env).toMatchObject({
+        type: 'page',
+        name: 'invoice_record',
+        object: 'invoice',
+        pageType: 'record',
+        kind: 'full',
+        title: 'Invoice',
+        regions: [{ name: 'main' }],
+      });
+    });
+
+    it('recordPageEnvelope keeps an explicit/existing page name', () => {
+      expect(recordPageEnvelope('invoice', { name: 'inv_v2' }).name).toBe('inv_v2');
+      expect(recordPageEnvelope('invoice', {}, 'inv_v3').name).toBe('inv_v3');
+    });
+
+    it('a page draft round-trips through the seam', async () => {
+      const metadataClient = makeMetadataClient();
+      metadataClient.get.mockResolvedValue({ type: 'page', name: 'invoice_record', item: { regions: [{ name: 'x' }] } });
+      const draft = await readRuntimeDraft('page', 'invoice_record', { metadataClient });
+      expect(metadataClient.get).toHaveBeenCalledWith('page', 'invoice_record', { state: 'draft' });
+      expect(draft).toEqual({ regions: [{ name: 'x' }] });
+      await publishRuntimeMetadata('page', 'invoice_record', { metadataClient });
+      expect(metadataClient.publish).toHaveBeenCalledWith('page', 'invoice_record');
     });
   });
 

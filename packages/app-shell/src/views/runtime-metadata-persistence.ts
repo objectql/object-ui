@@ -18,8 +18,42 @@
  * a legacy write path here.
  */
 
-/** The three runtime-editable artifact types ADR-0034 unifies. */
-export type RuntimeArtifactType = 'view' | 'report' | 'dashboard';
+/** The runtime-editable artifact types ADR-0034 unifies. `page` (a record
+ *  `PageSchema`) joins the original three (#1541): a record page is edited in
+ *  the browser and staged/published through the same `/meta` draft model. */
+export type RuntimeArtifactType = 'view' | 'report' | 'dashboard' | 'page';
+
+/**
+ * The metadata `name` (the `:name` in `/meta/page/:name`) for an object's
+ * record page. Prefer an already-assigned record page's name; otherwise mint
+ * the convention `<object>_record`. Editing the synthesized default for the
+ * first time materialises a real named page under this key so it has something
+ * to draft / publish / version against.
+ */
+export function recordPageName(objectName: string, existingName?: string | null): string {
+  return existingName || `${objectName}_record`;
+}
+
+/**
+ * Wrap an edited `PageSchema` as a persistable **record page** body: ensures the
+ * `name` / `object` / `pageType: 'record'` / `kind: 'full'` identity fields the
+ * resolver (`usePageAssignment`) matches on, so a published page overrides the
+ * synthesized default for that object on the next render.
+ */
+export function recordPageEnvelope(
+  objectName: string,
+  schema: Record<string, any>,
+  name?: string,
+): Record<string, any> {
+  return {
+    ...schema,
+    type: 'page',
+    name: recordPageName(objectName, name ?? (schema?.name as string | undefined)),
+    object: objectName,
+    pageType: 'record',
+    kind: 'full',
+  };
+}
 
 /** Everything the seam needs to persist any of the three artifact types. */
 export interface RuntimePersistCtx {
