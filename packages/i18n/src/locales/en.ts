@@ -1461,8 +1461,11 @@ const en = {
       dismiss: 'Dismiss',
     },
     pendingDrafts: {
-      message: 'You have {{count}} unpublished change(s) — review and publish to make them live.',
-      cta: 'Review & publish',
+      message: 'You have {{count}} unpublished change(s) — publish to make them live.',
+      cta: 'Publish',
+      publishing: 'Publishing…',
+      published: 'Published! Your changes are live.',
+      publishFailed: 'Publish failed',
     },
     createFirstApp: 'Create app manually',
     systemSettings: 'System Settings',
