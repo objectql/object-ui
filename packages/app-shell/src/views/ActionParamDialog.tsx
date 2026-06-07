@@ -36,6 +36,11 @@ import { LookupField } from '@object-ui/fields';
 export interface ParamDialogState {
   open: boolean;
   params: ActionParamDef[];
+  /** Dialog title — defaults to the generic "Action parameters" label when
+   *  absent. Callers pass the action's own label (e.g. "Create environment")
+   *  so the dialog reads as the task, not a generic param prompt. */
+  title?: string;
+  description?: string;
   resolve?: (value: Record<string, any> | null) => void;
 }
 
@@ -104,9 +109,9 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
     }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t('actionDialog.title')}</DialogTitle>
+          <DialogTitle>{state.title || t('actionDialog.title')}</DialogTitle>
           <DialogDescription>
-            {t('actionDialog.description')}
+            {state.description || t('actionDialog.description')}
           </DialogDescription>
         </DialogHeader>
 

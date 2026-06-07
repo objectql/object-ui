@@ -77,6 +77,11 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
         await execute({
           type: schema.actionType || schema.type,
           name: schema.name,
+          // Forward the human label/description so a param-collection dialog
+          // can title itself as the action ("Create Environment") instead of a
+          // generic "Action parameters" prompt.
+          label: schema.label,
+          description: (schema as any).description,
           target: schema.target,
           execute: schema.execute,
           endpoint: schema.endpoint,

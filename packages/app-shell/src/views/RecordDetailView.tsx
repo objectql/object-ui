@@ -316,7 +316,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     });
   }, []);
 
-  const paramCollectionHandler = useCallback((params: ActionParamDef[]) => {
+  const paramCollectionHandler = useCallback((params: ActionParamDef[], action?: any) => {
     return new Promise<Record<string, any> | null>((resolve) => {
       const resolved = resolveActionParams(params as any, {
         objectName: objectName || objectDef?.name || '',
@@ -324,7 +324,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         fieldLabel,
         fieldOptionLabel,
       });
-      setParamState({ open: true, params: resolved, resolve });
+      setParamState({
+        open: true,
+        params: resolved,
+        // Title the dialog as the action rather than the generic "Action parameters".
+        title: action?.label || action?.title,
+        description: action?.description,
+        resolve,
+      });
     });
   }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel]);
 

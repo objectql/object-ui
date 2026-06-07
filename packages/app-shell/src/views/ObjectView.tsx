@@ -744,7 +744,15 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 fieldOptionLabel,
                 row,
             });
-            setParamState({ open: true, params: resolved, resolve });
+            setParamState({
+                open: true,
+                params: resolved,
+                // Title the dialog as the action ("Create environment") rather
+                // than the generic "Action parameters".
+                title: action?.label || action?.title,
+                description: action?.description,
+                resolve,
+            });
         });
     }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel]);
 
