@@ -8,6 +8,7 @@
 
 export * from './ExpressionContext.js';
 export * from './ExpressionEvaluator.js';
+export * from './fieldRules.js';
 export * from './ExpressionCache.js';
 export * from './FormulaFunctions.js';
 export * from './SafeExpressionParser.js';

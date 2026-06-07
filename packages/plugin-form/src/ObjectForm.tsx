@@ -454,8 +454,14 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
           placeholder: field.placeholder,
           description: field.help || field.description,
           validation: buildValidationRules(field),
+          // Field-level CEL conditional rules (B2). Carried through verbatim so
+          // the form renderer evaluates them reactively via the canonical
+          // engine (same dialect the server enforces). Undefined when absent.
+          visibleWhen: field.visibleWhen,
+          readonlyWhen: field.readonlyWhen,
+          requiredWhen: field.requiredWhen ?? field.conditionalRequired,
           // Important: Pass the original field metadata so widgets can access properties like precision, currency, etc.
-          field: field, 
+          field: field,
         };
 
         // Add field-specific properties

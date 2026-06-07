@@ -1030,6 +1030,9 @@ importers:
       '@object-ui/types':
         specifier: workspace:*
         version: link:../types
+      '@objectstack/formula':
+        specifier: ^7.9.0
+        version: 7.9.0(ai@6.0.194(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^7.8.0
         version: 7.8.0(ai@6.0.194(zod@4.4.3))
@@ -3735,6 +3738,11 @@ packages:
   '@maplibre/vt-pbf@4.3.0':
     resolution: {integrity: sha512-jIvp8F5hQCcreqOOpEt42TJMUlsrEcpf/kI1T2v85YrQRV6PPXUcEXUg5karKtH6oh47XJZ4kHu56pUkOuqA7w==}
 
+  '@marcbachmann/cel-js@7.6.1':
+    resolution: {integrity: sha512-YyY8yiDU07ByKb2rJUoNgMAkYeeDvkdrONBREV2MP9siAW7yNft0KfbIoonWTIMY0fGtv8og0EhzKx3Xsi1Nmg==}
+    engines: {node: '>=20.19.0'}
+    hasBin: true
+
   '@mdx-js/mdx@3.1.1':
     resolution: {integrity: sha512-f6ZO2ifpwAQIpzGWaBQT2TXxPv6z3RBzQKpVftEWN78Vl/YweF1uwussDx8ECAXVtr3Rs89fKyG9YlzUs9DyGQ==}
 
@@ -3882,8 +3890,20 @@ packages:
     resolution: {integrity: sha512-Whvubqw2nSZeSf6s6JEHheszq+zwBhSKdiOTCfDa9MZdamtHrCztBH90DnFBkUiNQHzrvHbaUag6KxGie3DuOA==}
     engines: {node: '>=18.0.0'}
 
+  '@objectstack/formula@7.9.0':
+    resolution: {integrity: sha512-58RShr27FiB/zNydIRi+pEkmnnR/lQe3uWlS/5o6J5UHtLERSRTPv0qqHiMIjHvLGVtx3qUeSnnGBVrFQJeqPA==}
+
   '@objectstack/spec@7.8.0':
     resolution: {integrity: sha512-eOdt6KVi8D52mGxV1slwzEqvnejW5teDhDk20lBWVAvn4XVN5DT0NVGjSPfABaKvoFKItk0lS+7Ur/p0NgIEQA==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      ai: ^6.0.0
+    peerDependenciesMeta:
+      ai:
+        optional: true
+
+  '@objectstack/spec@7.9.0':
+    resolution: {integrity: sha512-B/tEB4Xggdwck9v4d97dB+K3dOjgjjm/TALcRqSFotRmBs3hbsiLXxKYMsyhl71E57/DNxwwikaZ3inwOi+ZUA==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       ai: ^6.0.0
@@ -11579,6 +11599,8 @@ snapshots:
       pbf: 4.0.1
       supercluster: 8.0.1
 
+  '@marcbachmann/cel-js@7.6.1': {}
+
   '@mdx-js/mdx@3.1.1':
     dependencies:
       '@types/estree': 1.0.9
@@ -11771,7 +11793,20 @@ snapshots:
     transitivePeerDependencies:
       - ai
 
+  '@objectstack/formula@7.9.0(ai@6.0.194(zod@4.4.3))':
+    dependencies:
+      '@marcbachmann/cel-js': 7.6.1
+      '@objectstack/spec': 7.9.0(ai@6.0.194(zod@4.4.3))
+    transitivePeerDependencies:
+      - ai
+
   '@objectstack/spec@7.8.0(ai@6.0.194(zod@4.4.3))':
+    dependencies:
+      zod: 4.4.3
+    optionalDependencies:
+      ai: 6.0.194(zod@4.4.3)
+
+  '@objectstack/spec@7.9.0(ai@6.0.194(zod@4.4.3))':
     dependencies:
       zod: 4.4.3
     optionalDependencies:

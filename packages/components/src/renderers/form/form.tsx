@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, resolveFieldRuleState } from '@object-ui/core';
 import type { FormSchema, FormField as FormFieldConfig, ValidationRule, FieldCondition, SelectOption } from '@object-ui/types';
 import { useForm } from 'react-hook-form';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '../../ui/form';
@@ -223,6 +223,12 @@ ComponentRegistry.register('form',
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [submitError, setSubmitError] = React.useState<string | null>(null);
 
+    // Live snapshot of all form values — subscribes to every change so
+    // field-level CEL rules (visibleWhen/readonlyWhen/requiredWhen) re-evaluate
+    // reactively as the user edits. Evaluated below via the canonical
+    // `@objectstack/formula` engine (same dialect the server enforces).
+    const recordValues = form.watch() as Record<string, unknown>;
+
     // Read DataSource from SchemaRendererContext and propagate it to field
     // widgets as a prop so they can dynamically load related records.
     const schemaCtx = React.useContext(SchemaRendererContext);
@@ -412,7 +418,7 @@ ComponentRegistry.register('form',
                   label,
                   description,
                   type = 'input',
-                  required = false,
+                  required: staticRequired = false,
                   disabled: fieldDisabled = false,
                   validation = {},
                   condition,
@@ -420,7 +426,11 @@ ComponentRegistry.register('form',
                   hidden,
                   widget,
                   visibleOn,
-                  readonly,
+                  readonly: staticReadonly,
+                  visibleWhen,
+                  readonlyWhen,
+                  requiredWhen,
+                  conditionalRequired,
                   ...fieldProps
                 } = field;
 
@@ -431,10 +441,10 @@ ComponentRegistry.register('form',
                 if (condition) {
                   const watchField = condition.field;
                   const watchValue = form.watch(watchField);
-                  
+
                   // Check for null/undefined before evaluating conditions
                   const hasValue = watchValue !== undefined && watchValue !== null;
-                  
+
                   if (condition.equals !== undefined && watchValue !== condition.equals) {
                     return null;
                   }
@@ -445,6 +455,20 @@ ComponentRegistry.register('form',
                     return null;
                   }
                 }
+
+                // Field-level CEL conditional rules (B2). Evaluated reactively
+                // against the live record via the canonical engine — same
+                // dialect the server enforces (requiredWhen / readonlyWhen), so
+                // the UX and the persisted verdict agree. A field with no rules
+                // resolves to its static flags unchanged.
+                const ruleState = resolveFieldRuleState(
+                  { visibleWhen, readonlyWhen, requiredWhen, conditionalRequired },
+                  recordValues,
+                  { required: staticRequired, readonly: staticReadonly === true },
+                );
+                if (!ruleState.visible) return null;
+                const required = ruleState.required;
+                const readonly = ruleState.readonly;
 
                 // Section divider — renders a collapsible FormSection header inline
                 // so all fields share the same form instance (enables cross-section conditions).

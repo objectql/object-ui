@@ -852,6 +852,34 @@ export interface FormField {
    */
   readonly?: boolean;
   /**
+   * CEL predicate: when it evaluates TRUE for the live record the field is
+   * shown, when FALSE it is hidden. Aligns with @objectstack/spec
+   * Field.visibleWhen and is enforced client-side via the canonical
+   * `@objectstack/formula` engine (same dialect the server uses). A broken
+   * predicate fails open (field stays visible).
+   * @example "record.status == 'sent'"
+   */
+  visibleWhen?: string | { dialect?: string; source: string };
+  /**
+   * CEL predicate: when TRUE the field becomes read-only (the server also
+   * strips matching writes via `stripReadonlyWhenFields`). Aligns with
+   * @objectstack/spec Field.readonlyWhen. Fails open (field stays editable).
+   * @example "record.status == 'paid'"
+   */
+  readonlyWhen?: string | { dialect?: string; source: string };
+  /**
+   * CEL predicate: when TRUE the field is required (the server enforces the
+   * same rule in its rule-validator). Aligns with @objectstack/spec
+   * Field.requiredWhen. Fails open (field is not required).
+   * @example "record.status == 'sent'"
+   */
+  requiredWhen?: string | { dialect?: string; source: string };
+  /**
+   * @deprecated Back-compat alias of {@link requiredWhen}. Aligns with
+   * @objectstack/spec Field.conditionalRequired.
+   */
+  conditionalRequired?: string | { dialect?: string; source: string };
+  /**
    * Additional field-specific props
    */
   [key: string]: any;
