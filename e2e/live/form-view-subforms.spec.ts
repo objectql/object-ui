@@ -53,6 +53,12 @@ test('New <object> modal renders relationship-derived subforms and submits an at
   // Computed Amount = 2 × 29.99 (read-only).
   await expect(li.locator('[data-computed="amount"]').first()).toContainText('59.98');
 
+  // Document totals stack: set the header tax rate → Subtotal / Tax / Total.
+  await dialog.locator('input[name="tax_rate"]').fill('10');
+  await expect(dialog.getByTestId('md-subtotal')).toContainText('59.98');
+  await expect(dialog.getByTestId('md-tax')).toContainText('6.00');        // 10% of 59.98 → 5.998 ≈ 6.00
+  await expect(dialog.getByTestId('md-grand-total')).toContainText('65.98'); // 59.98 + 5.998
+
   await Promise.all([
     page.waitForRequest((r) => r.url().includes('/api/v1/batch'), { timeout: 15_000 }).catch(() => null),
     dialog.getByTestId('md-form-submit').click(),

@@ -74,6 +74,10 @@ export interface MasterDetailFormSchema {
   submitText?: string;
   /** One or more child collections. */
   details: MasterDetailDetailConfig[];
+  /** Parent header field holding a tax rate (percent). When the parent form has
+   *  this field, a live Subtotal / Tax / Total stack renders under the lines.
+   *  Defaults to `tax_rate`; the stack only appears if the field is present. */
+  taxRateField?: string;
   onSuccess?: (parent: any) => void | Promise<void>;
   onError?: (err: Error) => void;
   onCancel?: () => void;
@@ -197,6 +201,36 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
   const setRows = useCallback((detailIdx: number, rows: Record<string, any>[]) => {
     setState((prev) => prev.map((s, i) => (i === detailIdx ? { ...s, rows } : s)));
   }, []);
+
+  // Live header tax rate, read from the parent form's `tax_rate` input via
+  // scoped event delegation on the form host (no coupling into ObjectForm's
+  // internals). Drives the Subtotal / Tax / Total stack under the lines.
+  const taxRateField = schema.taxRateField || 'tax_rate';
+  const [taxRate, setTaxRate] = useState<number | null>(null);
+  useEffect(() => {
+    const host = formHostRef.current;
+    if (!host) return;
+    const read = () => {
+      const el = host.querySelector(`[name="${taxRateField}"]`) as HTMLInputElement | null;
+      if (!el) { setTaxRate(null); return; }
+      const n = Number(el.value);
+      setTaxRate(Number.isFinite(n) ? n : 0);
+    };
+    read();
+    const onInput = (e: Event) => {
+      const t = e.target as HTMLInputElement | null;
+      if (t && t.name === taxRateField) read();
+    };
+    host.addEventListener('input', onInput);
+    host.addEventListener('change', onInput);
+    const t = setTimeout(read, 300); // re-read once the form has mounted its fields
+    return () => {
+      host.removeEventListener('input', onInput);
+      host.removeEventListener('change', onInput);
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taxRateField, formKey, details.length]);
 
   // Per-row "expand to full form": opens the child's complete form (all business
   // fields, incl. rich types the grid omits) in a drawer, pre-filled with the
@@ -424,6 +458,16 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
 
   useEffect(() => () => { if (saveGuardTimer.current) clearTimeout(saveGuardTimer.current); }, []);
 
+  // Document totals: Subtotal (Σ line amounts) → Tax (header rate %) → Total.
+  // Shown only when the parent has the tax-rate field AND a detail has an
+  // amount column; otherwise each grid keeps its own footer total.
+  const subtotal = details.reduce((acc, d, i) => acc + sumRows(state[i]?.rows ?? [], d.amountField || 'amount'), 0);
+  const showTaxStack = taxRate !== null && details.some((d) => !!d.amountField);
+  const taxPct = taxRate ?? 0;
+  const taxAmount = subtotal * (taxPct / 100);
+  const grandTotal = subtotal + taxAmount;
+  const money = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   return (
     <div className={cn('space-y-6', className, schema.className)}>
       {/* 1) Header fields on top */}
@@ -457,9 +501,9 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               field={
                 {
                   columns: d.columns,
-                  // Show the running total whenever an amount column is set,
-                  // independent of whether it also rolls up onto the parent.
-                  total_field: d.amountField || (d.totalField ? 'amount' : undefined),
+                  // Show the per-grid running total whenever an amount column is
+                  // set — unless the document totals stack below subsumes it.
+                  total_field: showTaxStack ? undefined : (d.amountField || (d.totalField ? 'amount' : undefined)),
                   min_rows: d.minRows,
                   max_rows: d.maxRows,
                   add_label: d.inlineMode === 'form' ? (d.addLabel || 'Add') : d.addLabel,
@@ -470,6 +514,27 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
           </CardContent>
         </Card>
       ))}
+
+      {/* Document totals stack (Subtotal / Tax / Total) — the right-aligned block
+          every invoicing tool shows. Live as lines and the header tax rate change. */}
+      {showTaxStack && (
+        <div className="flex justify-end">
+          <dl className="w-64 space-y-1.5 text-sm" data-testid="md-totals">
+            <div className="flex items-center justify-between">
+              <dt className="text-muted-foreground">Subtotal</dt>
+              <dd className="tabular-nums" data-testid="md-subtotal">{money(subtotal)}</dd>
+            </div>
+            <div className="flex items-center justify-between">
+              <dt className="text-muted-foreground">Tax ({taxPct}%)</dt>
+              <dd className="tabular-nums" data-testid="md-tax">{money(taxAmount)}</dd>
+            </div>
+            <div className="flex items-center justify-between border-t border-border pt-1.5 text-base font-semibold">
+              <dt>Total</dt>
+              <dd className="tabular-nums" data-testid="md-grand-total">{money(grandTotal)}</dd>
+            </div>
+          </dl>
+        </div>
+      )}
 
       {/* Per-row "expand to full form": an inline editor panel for the selected
           row. Rendered INLINE (not a portaled drawer) so it behaves identically
