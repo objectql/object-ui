@@ -1003,9 +1003,9 @@ const en = {
           recordCounts: 'Count records for each object.',
         },
         metadataAssistant: {
-          objectTypes: 'Which object types are registered in the system?',
-          userFields: 'What fields does the sys_user object have?',
-          userRelationships: 'Describe the user-related object relationships.',
+          buildCrm: 'Build a CRM: customers, contacts and opportunities, with relationships.',
+          buildApp: 'Create a project management app: projects, tasks and members.',
+          buildFlow: 'Design a ticketing system: tickets, priority and a status flow.',
         },
         generic: {
           help: 'What can you help me with?',

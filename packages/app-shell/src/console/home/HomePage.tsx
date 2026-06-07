@@ -200,6 +200,15 @@ export function HomePage() {
             {t('home.heroTagline', { defaultValue: 'Pick up where you left off, or explore something new.' })}
           </p>
 
+          {/* AI-first action: keep the magic moment one click away even after
+              the workspace has apps — describe a need, let AI build it. */}
+          <div className="mt-5">
+            <Button onClick={() => navigate('/ai?agent=metadata_assistant')} data-testid="home-build-with-ai">
+              <Sparkles className="mr-2 h-4 w-4" />
+              {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
+            </Button>
+          </div>
+
           {/* At-a-glance stat pills */}
           <div className="mt-5 flex flex-wrap items-center gap-2.5">
             <StatPill

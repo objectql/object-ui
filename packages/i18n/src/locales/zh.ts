@@ -1003,9 +1003,9 @@ const zh = {
           recordCounts: '统计每个对象的记录数。',
         },
         metadataAssistant: {
-          objectTypes: '系统里注册了哪些对象类型？',
-          userFields: 'sys_user 对象有哪些字段？',
-          userRelationships: '描述一下用户相关的对象关系。',
+          buildCrm: '帮我搭建一个 CRM：客户、联系人、商机，并建立它们之间的关系。',
+          buildApp: '做一个项目管理应用：项目、任务、成员。',
+          buildFlow: '设计一个工单系统：工单、优先级、状态流转。',
         },
         generic: {
           help: '你可以帮我做什么？',

@@ -480,10 +480,13 @@ function dataChatSuggestions(t: TranslationFn): string[] {
 }
 
 function metadataAssistantSuggestions(t: TranslationFn): string[] {
+  // Creation-first starters: the authoring agent's job is to BUILD from a
+  // natural-language description (the magic moment), so the empty-state nudges
+  // toward "describe a system" rather than inspecting existing schema.
   return [
-    t('console.ai.suggestions.metadataAssistant.objectTypes', { defaultValue: 'Which object types are registered in the system?' }),
-    t('console.ai.suggestions.metadataAssistant.userFields', { defaultValue: 'What fields does the sys_user object have?' }),
-    t('console.ai.suggestions.metadataAssistant.userRelationships', { defaultValue: 'Describe the user-related object relationships.' }),
+    t('console.ai.suggestions.metadataAssistant.buildCrm', { defaultValue: 'Build a CRM: customers, contacts and opportunities, with relationships.' }),
+    t('console.ai.suggestions.metadataAssistant.buildApp', { defaultValue: 'Create a project management app: projects, tasks and members.' }),
+    t('console.ai.suggestions.metadataAssistant.buildFlow', { defaultValue: 'Design a ticketing system: tickets, priority and a status flow.' }),
   ];
 }
 
