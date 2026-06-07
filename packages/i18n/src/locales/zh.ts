@@ -1447,9 +1447,10 @@ const zh = {
     loading: '正在加载工作区...',
     recent: '最近使用',
     starred: '收藏',
-    welcome: '欢迎使用 ObjectUI',
-    welcomeDescription: '从创建您的第一个应用开始，或者先完成系统设置。',
-    createFirstApp: '创建您的第一个应用',
+    welcome: '用 AI 搭建你的业务系统',
+    welcomeDescription: '用一句话描述你的业务，AI 帮你生成对象、界面、API 和 agent 工具。也可以手动从零开始。',
+    buildWithAI: '用 AI 搭建',
+    createFirstApp: '手动创建应用',
     systemSettings: '系统设置',
     browseMarketplace: '浏览应用市场',
     quickActions: {

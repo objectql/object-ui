@@ -1448,9 +1448,10 @@ const en = {
     loading: 'Loading workspace...',
     recent: 'Recent',
     starred: 'Starred',
-    welcome: 'Welcome to ObjectUI',
-    welcomeDescription: 'Get started by creating your first application or configure your system settings.',
-    createFirstApp: 'Create Your First App',
+    welcome: 'Build your business system with AI',
+    welcomeDescription: 'Describe your business in one sentence — AI generates the objects, screens, APIs and agent tools. Or start from scratch.',
+    buildWithAI: 'Build with AI',
+    createFirstApp: 'Create app manually',
     systemSettings: 'System Settings',
     browseMarketplace: 'Browse App Marketplace',
     quickActions: {

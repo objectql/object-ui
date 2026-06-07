@@ -14,7 +14,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { toast } from 'sonner';
@@ -86,6 +86,17 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   const { t } = useObjectTranslation();
   const userId = user?.id;
   const { conversationId: urlConversationId } = useParams<{ conversationId?: string }>();
+  const [searchParams] = useSearchParams();
+  // Deep-link entry point: `/ai?agent=metadata_assistant` opens the workspace
+  // directly on a specific agent. Used by the AI-first home hero to land a new
+  // user straight on the authoring assistant (the magic moment) instead of the
+  // data-query default. Falls back gracefully when the agent isn't available.
+  //
+  // Captured ONCE at mount: this page immediately replaces `/ai` with
+  // `/ai/:conversationId` (see the redirect effect below), which strips the
+  // query string — so reading it lazily would lose the agent before the
+  // selection effect runs. The initializer snapshots it before that race.
+  const [agentParam] = useState<string | undefined>(() => searchParams.get('agent') ?? undefined);
   const navigate = useNavigate();
   const { setContext } = useNavigationContext();
 
@@ -105,11 +116,11 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
       // Prefer the data-query agent over "first in catalog" so the
       // dedicated AI workspace opens on the same default the rest of the
       // platform binds to.
-      const preferred = defaultAgentProp ?? envDefaultAgent;
+      const preferred = agentParam ?? defaultAgentProp ?? envDefaultAgent;
       const resolved = resolveDefaultAgentName(agents, preferred);
       if (resolved) setActiveAgent(resolved);
     }
-  }, [agents, activeAgent, defaultAgentProp, envDefaultAgent]);
+  }, [agents, activeAgent, agentParam, defaultAgentProp, envDefaultAgent]);
 
   const chatApi = activeAgent
     ? `${apiBase}/agents/${encodeURIComponent(activeAgent)}/chat`
