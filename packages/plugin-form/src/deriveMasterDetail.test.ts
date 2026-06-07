@@ -238,6 +238,22 @@ describe('deriveDetail', () => {
     expect(d.amountField).toBe('amount'); // running total prefers the computed line total
   });
 
+  it('detects a sort/position field, excludes it from columns, and reports it as sortField', () => {
+    const lineSchema = {
+      fields: {
+        invoice: { type: 'master_detail', reference: 'inv' },
+        position: { type: 'number', label: 'Position' },
+        product: { type: 'text', label: 'Product', required: true },
+        quantity: { type: 'number', label: 'Qty', required: true },
+      },
+    };
+    const d = deriveDetail('inv_line', lineSchema, 'inv');
+    expect(d.sortField).toBe('position');
+    expect(d.columns.map((c) => c.field)).not.toContain('position'); // not user-edited
+    expect(d.formFields).not.toContain('position');
+    expect(d.columns.map((c) => c.field)).toEqual(['product', 'quantity']);
+  });
+
   it('honors explicit overrides over derived values', () => {
     const d = deriveDetail('showcase_task', taskSchema, 'showcase_project', {
       relationshipField: 'project',

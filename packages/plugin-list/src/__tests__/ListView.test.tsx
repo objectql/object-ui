@@ -232,7 +232,10 @@ describe('ListView', () => {
     await vi.waitFor(() => {
       expect(screen.getByTestId('empty-state')).toBeInTheDocument();
     });
-    expect(screen.getByText('No items found')).toBeInTheDocument();
+    // With no filters/search this is the FIRST-RUN empty state ("Nothing here
+    // yet"), which invites the user to create — "No items found" is reserved
+    // for the filtered/no-matches case (see the hasActiveQuery branch).
+    expect(screen.getByText('Nothing here yet')).toBeInTheDocument();
   });
 
   it('should show custom empty state when configured', async () => {

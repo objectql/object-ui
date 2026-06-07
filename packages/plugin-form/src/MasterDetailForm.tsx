@@ -51,6 +51,9 @@ export interface MasterDetailDetailConfig {
   inlineMode?: InlineMode;
   /** Numeric child column to sum, e.g. 'amount'. */
   amountField?: string;
+  /** Child field holding the line sort position — stamped on drag-reorder so
+   *  order persists. Auto-derived from a `position`/`sort_order`/… field. */
+  sortField?: string;
   /** Parent field to receive the rolled-up sum, e.g. 'total_amount'. */
   totalField?: string;
   /** Section title. */
@@ -136,6 +139,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               formFields: d.formFields ?? derived.formFields,
               inlineMode: d.inlineMode ?? derived.mode,
               amountField: d.amountField ?? derived.amountField,
+              sortField: d.sortField ?? derived.sortField,
             };
           } catch {
             return d; // leave as-is; the grid card will show a config hint
@@ -475,13 +479,13 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
         <ObjectForm key={formKey} schema={parentSchema as any} dataSource={dataSource} />
       </div>
 
-      {/* 2) Line items below the header */}
+      {/* 2) Line items below the header. Rendered as a light section (label +
+          the grid's own bordered table) rather than a heavy Card — a Card here
+          would double-frame the grid and its p-6 padding wastes the width the
+          line table needs. */}
       {details.map((d, i) => (
-        <Card key={`${d.childObject}-${i}`} className="shadow-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">{d.title || 'Line Items'}</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <section key={`${d.childObject}-${i}`} className="space-y-2">
+          <h3 className="text-sm font-medium text-foreground">{d.title || 'Line Items'}</h3>
             {!d.columns?.length ? (
               <p className="py-4 text-sm text-muted-foreground">Loading columns…</p>
             ) : (
@@ -504,6 +508,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
                   // Show the per-grid running total whenever an amount column is
                   // set — unless the document totals stack below subsumes it.
                   total_field: showTaxStack ? undefined : (d.amountField || (d.totalField ? 'amount' : undefined)),
+                  sort_field: d.sortField,
                   min_rows: d.minRows,
                   max_rows: d.maxRows,
                   add_label: d.inlineMode === 'form' ? (d.addLabel || 'Add') : d.addLabel,
@@ -511,8 +516,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               }
             />
             )}
-          </CardContent>
-        </Card>
+        </section>
       ))}
 
       {/* Document totals stack (Subtotal / Tax / Total) — the right-aligned block

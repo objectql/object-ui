@@ -652,6 +652,7 @@ export function GridField({
           value={val}
           onChange={(v: any) => setCellValue(rowIdx, c.field, v)}
           onSelectRecord={(rec: any) => applyLookupSelection(rowIdx, c, rec)}
+          compact
           field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField, multiple: c.multiple, options: c.options, placeholder: '—' } as any}
           disabled={disabled}
         />

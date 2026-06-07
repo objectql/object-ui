@@ -76,6 +76,7 @@ test('New <object> modal renders relationship-derived subforms and submits an at
   expect(child?.data?.description).toBe('Standard widget');  // auto-filled
   expect(Number(child?.data?.unit_price)).toBe(29.99);       // auto-filled
   expect(Number(child?.data?.amount)).toBe(59.98);           // computed (2 × 29.99)
+  expect(Number(child?.data?.position)).toBe(0);             // sort position stamped from row order
   // The empty ghost line must NOT have been persisted as a blank child.
   expect(ops.filter((o: any) => o.object === 'showcase_invoice_line')).toHaveLength(1);
 });

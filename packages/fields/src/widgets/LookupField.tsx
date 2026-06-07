@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useContext, useMemo } from 'react';
-import { Button, 
+import { cn,
+  Button,
   Input,
   Badge,
   Popover,
@@ -565,14 +566,20 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
     );
   }
 
+  // Compact mode (e.g. inside a line-item grid cell): show the selected value
+  // INSIDE a borderless trigger on a single line — no chip stacked above a
+  // separate "Select…" button (which double-stacks and wastes the row height).
+  const compact = !!(props as any).compact;
+  const singleSelectedLabel = selectedOptions[0]?.label || selectedOptions[0]?.[displayField];
+
   return (
-    <div className="space-y-2">
-      {/* Selected values display */}
-      {selectedOptions.length > 0 && (
+    <div className={compact ? '' : 'space-y-2'}>
+      {/* Selected values display (full mode only — compact shows it in-trigger) */}
+      {selectedOptions.length > 0 && !compact && (
         <div className="flex flex-wrap gap-1">
           {selectedOptions.map((opt, idx) => (
-            <Badge 
-              key={idx} 
+            <Badge
+              key={idx}
               variant="outline"
               className="gap-1"
             >
@@ -594,9 +601,12 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
       <div className="flex items-center gap-1.5">
       <Popover open={isOpen} onOpenChange={(o) => !dependenciesMissing && setIsOpen(o)}>
         <PopoverTrigger asChild>
-          <Button 
-            variant="outline" 
-            className="min-w-0 flex-1 justify-start text-left font-normal"
+          <Button
+            variant="outline"
+            className={cn(
+              'min-w-0 flex-1 justify-start text-left font-normal',
+              compact && 'h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus-visible:ring-1 focus-visible:ring-ring/60',
+            )}
             type="button"
             disabled={dependenciesMissing || (props as any).disabled}
             data-testid={dependenciesMissing ? 'lookup-trigger-gated' : (((props as any).name || lookupField?.name) ? `lookup-trigger-${(props as any).name || lookupField.name}` : 'lookup-trigger')}
@@ -604,13 +614,17 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
               ? `Select ${dependsOn.map(d => d.field).join(', ')} first`
               : undefined}
           >
-            <Search className="mr-2 size-4" />
+            <Search className={cn('size-4 shrink-0 text-muted-foreground', compact ? 'mr-1.5' : 'mr-2')} />
+            <span className={cn('truncate', compact && selectedOptions.length === 0 && 'text-muted-foreground')}>
             {dependenciesMissing
               ? `Select ${dependsOn.map(d => d.field).join(', ')} first`
-              : selectedOptions.length === 0 
-                ? lookupField?.placeholder || t('common.select')
-                : multiple ? t('table.selected', { count: selectedOptions.length }) : t('common.select')
+              : compact && !multiple && selectedOptions.length > 0
+                ? singleSelectedLabel
+                : selectedOptions.length === 0
+                  ? lookupField?.placeholder || t('common.select')
+                  : multiple ? t('table.selected', { count: selectedOptions.length }) : t('common.select')
             }
+            </span>
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">

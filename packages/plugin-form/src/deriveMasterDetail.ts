@@ -29,6 +29,10 @@ const SYSTEM_FIELDS = new Set([
   'organization_id', 'tenant_id', 'space', 'owner',
 ]);
 
+/** Field names that hold a line's sort position — excluded from the editable
+ *  columns and the row form (the grid stamps them on drag-reorder instead). */
+const SORT_FIELD_NAMES = new Set(['position', 'sort_order', 'sequence', 'line_no', 'line_number', 'sort']);
+
 /** Field types that are not directly editable in a line-item grid. */
 const NON_EDITABLE_TYPES = new Set([
   'formula', 'summary', 'rollup', 'autonumber', 'auto_number',
@@ -168,7 +172,7 @@ export function deriveColumns(
   const cols: GridColumn[] = [];
   for (const [name, def] of Object.entries(fields)) {
     const d = def as any;
-    if (SYSTEM_FIELDS.has(name) || exclude.has(name)) continue;
+    if (SYSTEM_FIELDS.has(name) || exclude.has(name) || SORT_FIELD_NAMES.has(name)) continue;
     if (d?.system || d?.readonly || d?.hidden) continue;
     if (NON_EDITABLE_TYPES.has(d?.type)) continue;
     const col: GridColumn = {
@@ -220,7 +224,7 @@ export function deriveFormFields(
   const out: string[] = [];
   for (const [name, def] of Object.entries(fields)) {
     const d = def as any;
-    if (SYSTEM_FIELDS.has(name) || exclude.has(name)) continue;
+    if (SYSTEM_FIELDS.has(name) || exclude.has(name) || SORT_FIELD_NAMES.has(name)) continue;
     if (d?.system || d?.hidden) continue;
     if (NON_INPUT_TYPES.has(d?.type)) continue;
     out.push(name);
@@ -294,6 +298,9 @@ export interface DerivedDetail {
   mode: InlineMode;
   /** First numeric column, used as the running-total source when none is set. */
   amountField?: string;
+  /** Child field holding the line sort position, if any — the grid stamps it on
+   *  drag-reorder so order persists (excluded from the editable columns). */
+  sortField?: string;
 }
 
 /**
@@ -322,5 +329,6 @@ export function deriveDetail(
   // `inlineEdit` value, else the smart default from the child's shape.
   const inlineEdit = override.inlineEdit ?? (childSchema?.fields as any)?.[relationshipField]?.inlineEdit;
   const mode = resolveInlineMode(childSchema, inlineEdit, { relationshipField });
-  return { childObject, relationshipField, columns, formFields, mode, amountField };
+  const sortField = Object.keys(childSchema?.fields ?? {}).find((n) => SORT_FIELD_NAMES.has(n));
+  return { childObject, relationshipField, columns, formFields, mode, amountField, sortField };
 }
