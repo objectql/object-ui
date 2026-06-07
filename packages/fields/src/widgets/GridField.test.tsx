@@ -100,15 +100,75 @@ describe('GridField / LineItemsField — editable line items', () => {
   it('editing a text cell emits the raw string', () => {
     const onChange = vi.fn();
     render(<GridField value={[{ description: '', amount: null }]} onChange={onChange} field={field} />);
-    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Taxi' } });
+    // [0] = the data row ([1] would be the always-present trailing ghost row).
+    fireEvent.change(screen.getAllByLabelText('Description')[0], { target: { value: 'Taxi' } });
     expect(onChange).toHaveBeenCalledWith([{ description: 'Taxi', amount: null }]);
   });
 
   it('editing a currency cell coerces to a number', () => {
     const onChange = vi.fn();
     render(<GridField value={[{ description: 'Taxi', amount: null }]} onChange={onChange} field={field} />);
-    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '42.5' } });
+    fireEvent.change(screen.getAllByLabelText('Amount')[0], { target: { value: '42.5' } });
     expect(onChange).toHaveBeenCalledWith([{ description: 'Taxi', amount: 42.5 }]);
+  });
+
+  describe('trailing ghost row (start-with-one + auto-append)', () => {
+    it('renders a trailing empty row so an empty grid still has one input line', () => {
+      render(<GridField value={[]} onChange={() => {}} field={field} />);
+      // No "No items" empty-state in grid mode — the ghost row IS the first line.
+      expect(screen.getByText('Description')).toBeTruthy();
+      expect(screen.getAllByLabelText('Description')).toHaveLength(1); // just the ghost
+    });
+
+    it('typing in the ghost row materialises a new row (no Add click needed)', () => {
+      const onChange = vi.fn();
+      render(<GridField value={[{ description: 'A', amount: 1 }]} onChange={onChange} field={field} />);
+      const inputs = screen.getAllByLabelText('Description');
+      expect(inputs).toHaveLength(2); // data row + ghost
+      fireEvent.change(inputs[1], { target: { value: 'B' } }); // type in the ghost
+      expect(onChange).toHaveBeenCalledWith([
+        { description: 'A', amount: 1 },
+        { description: 'B', amount: null },
+      ]);
+    });
+  });
+
+  describe('computed columns (amount = qty × unit_price)', () => {
+    const computedField = {
+      columns: [
+        { field: 'product', label: 'Product', type: 'text' as const },
+        { field: 'quantity', label: 'Qty', type: 'number' as const },
+        { field: 'unit_price', label: 'Unit Price', type: 'currency' as const },
+        { field: 'amount', label: 'Amount', type: 'currency' as const, computed: true, expr: 'record.quantity * record.unit_price', scale: 2 },
+      ],
+      total_field: 'amount',
+    } as any;
+
+    it('renders a computed column read-only (no input) and recomputes on edit', () => {
+      const onChange = vi.fn();
+      render(<GridField value={[{ product: 'Widget', quantity: 3, unit_price: 10, amount: 30 }]} onChange={onChange} field={computedField} />);
+      // Amount is display-only — there is no editable Amount cell.
+      expect(screen.queryByLabelText('Amount')).toBeNull();
+      // Editing quantity recomputes amount in the emitted row.
+      fireEvent.change(screen.getAllByLabelText('Qty')[0], { target: { value: '4' } });
+      expect(onChange).toHaveBeenCalledWith([{ product: 'Widget', quantity: 4, unit_price: 10, amount: 40 }]);
+    });
+
+    it('shows a dash for a computed cell whose inputs are blank', () => {
+      render(<GridField value={[{ product: 'Widget', quantity: null, unit_price: null, amount: null }]} onChange={() => {}} field={computedField} />);
+      // The computed amount cell reads "—" until its inputs exist.
+      expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('keyboard navigation', () => {
+    it('Enter moves focus to the same column in the next row', () => {
+      render(<GridField value={[{ description: 'A', amount: 1 }, { description: 'B', amount: 2 }]} onChange={() => {}} field={field} />);
+      const row0 = screen.getAllByLabelText('Description')[0];
+      row0.focus();
+      fireEvent.keyDown(row0, { key: 'Enter' });
+      expect(document.activeElement).toBe(screen.getAllByLabelText('Description')[1]);
+    });
   });
 
   it('removing a row emits the array without it', () => {

@@ -444,7 +444,14 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
             <LineItemsField
               value={state[i]?.rows ?? []}
               onChange={(rows) => setRows(i, rows)}
-              onRowExpand={(rowIdx) => setExpanded({ detailIdx: i, rowIdx })}
+              // Per-row "expand to full form" is offered when it adds something:
+              // always in form mode (it IS the editor), and in grid mode only
+              // when the full form has fields the grid omits. A thin grid whose
+              // columns already cover every field (e.g. invoice lines) shows no
+              // redundant expand button.
+              {...((d.inlineMode === 'form' || (d.formFields?.length ?? 0) > (d.columns?.length ?? 0))
+                ? { onRowExpand: (rowIdx: number) => setExpanded({ detailIdx: i, rowIdx }) }
+                : {})}
               displayMode={d.inlineMode === 'form' ? 'list' : 'grid'}
               {...(d.inlineMode === 'form' ? { onAdd: () => addRowViaForm(i) } : {})}
               field={

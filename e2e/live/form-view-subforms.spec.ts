@@ -1,13 +1,19 @@
 import { test, expect } from '@playwright/test';
-import { selectOption, fillLookup, addLineItem } from './helpers';
+import { selectOption, fillLookup } from './helpers';
 
 /**
  * Tier 0 live e2e: an object's standard New/Edit modal renders inline child
  * collections derived from the DATA MODEL (no view config, no bespoke page).
  * `showcase_invoice_line.invoice` declares `inlineEdit: 'grid'`, so every
- * standard Invoice form auto-renders a "Line Items" grid; "New Invoice" opens
- * a master-detail modal that submits the header + its lines in one atomic
- * /api/v1/batch. (An explicit `form.subforms` would override the derived one.)
+ * standard Invoice form auto-renders a spreadsheet-style "Line Items" grid;
+ * "New Invoice" opens a master-detail modal that submits the header + its
+ * lines in one atomic /api/v1/batch.
+ *
+ * This also exercises the modern grid mechanics:
+ *   • the always-present trailing "ghost" row — you type straight into it, no
+ *     "Add line" click, and it auto-appends the next blank line;
+ *   • the computed read-only `amount = quantity × unit_price`, recomputed live
+ *     and persisted in the batch (so the parent total rolls it up server-side).
  */
 test('New <object> modal renders relationship-derived subforms and submits an atomic batch', async ({ page }) => {
   const batches: any[] = [];
@@ -31,8 +37,14 @@ test('New <object> modal renders relationship-derived subforms and submits an at
   await selectOption(page, 'status', 'draft');
   await expect(dialog.getByText('Northwind', { exact: false }).first()).toBeVisible();
 
-  const row = await addLineItem(page);
-  await row.getByRole('textbox').first().fill('Widget A');
+  // Type straight into the ghost row — no "Add line" click needed.
+  const li = dialog.getByTestId('line-items');
+  await li.locator('input[aria-label="Product"]').first().fill('Widget A');
+  await li.locator('input[aria-label="Qty"]').first().fill('2');
+  await li.locator('input[aria-label="Unit Price"]').first().fill('50');
+
+  // The computed Amount column shows the live line total (read-only).
+  await expect(li.locator('[data-computed="amount"]').first()).toContainText('100');
 
   await Promise.all([
     page.waitForRequest((r) => r.url().includes('/api/v1/batch'), { timeout: 15_000 }).catch(() => null),
@@ -47,4 +59,9 @@ test('New <object> modal renders relationship-derived subforms and submits an at
   expect(ops[0].data.status).toBe('draft');
   const child = ops.find((o: any) => o.object === 'showcase_invoice_line');
   expect(child?.data?.invoice).toEqual({ $ref: 0 });
+  expect(child?.data?.product).toBe('Widget A');
+  // The client-computed amount (2 × 50) is persisted, so the server total rolls it up.
+  expect(Number(child?.data?.amount)).toBe(100);
+  // The empty ghost line must NOT have been persisted as a blank child.
+  expect(ops.filter((o: any) => o.object === 'showcase_invoice_line')).toHaveLength(1);
 });

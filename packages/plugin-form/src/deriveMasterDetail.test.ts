@@ -214,7 +214,28 @@ describe('deriveDetail', () => {
     const d = deriveDetail('showcase_task', taskSchema, 'showcase_project');
     expect(d.relationshipField).toBe('project');
     expect(d.columns.map((c) => c.field)).toContain('estimate_hours');
-    expect(d.amountField).toBe('estimate_hours'); // first numeric/currency column
+    // The running total prefers the (last) currency column over a raw number
+    // like hours — a line-grid footer is almost always a money total.
+    expect(d.amountField).toBe('budget');
+  });
+
+  it('maps a field expression to a read-only computed column and totals it', () => {
+    const lineSchema = {
+      fields: {
+        invoice: { type: 'master_detail', reference: 'inv' },
+        product: { type: 'text', label: 'Product', required: true },
+        quantity: { type: 'number', label: 'Qty', required: true },
+        unit_price: { type: 'currency', label: 'Unit Price' },
+        // Normalized CEL envelope, as the server serves it.
+        amount: { type: 'currency', label: 'Amount', scale: 2, expression: { dialect: 'cel', source: 'record.quantity * record.unit_price' } },
+      },
+    };
+    const d = deriveDetail('inv_line', lineSchema, 'inv');
+    const amountCol = d.columns.find((c) => c.field === 'amount')!;
+    expect(amountCol.computed).toBe(true);
+    expect(amountCol.expr).toBe('record.quantity * record.unit_price');
+    expect(amountCol.required).toBe(false); // computed → never user-required
+    expect(d.amountField).toBe('amount'); // running total prefers the computed line total
   });
 
   it('honors explicit overrides over derived values', () => {

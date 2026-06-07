@@ -49,6 +49,23 @@ export interface BatchOp {
   id?: string;
 }
 
+const ID_KEYS = new Set(['id', '_id', 'recordId']);
+
+/**
+ * A row that carries no user input — every field is blank once the back-
+ * reference FK and id keys are set aside. Computed cells (e.g. amount) read
+ * null while their inputs are blank, so they don't count as input. Used to
+ * drop the always-present trailing "ghost" line (and any row the user cleared)
+ * so it never persists as an empty child record.
+ */
+export function isBlankRow(row: Record<string, any>, relationshipField?: string): boolean {
+  if (!row) return true;
+  return Object.entries(row).every(([k, v]) => {
+    if (k === relationshipField || ID_KEYS.has(k)) return true;
+    return v === null || v === undefined || v === '';
+  });
+}
+
 /**
  * Build cross-object batch operations for an ATOMIC master-detail create:
  * the parent at index 0, then each child with its relationship FK set to
@@ -63,6 +80,7 @@ export function buildMasterDetailBatch(
   const ops: BatchOp[] = [{ object: parentObject, action: 'create', data: parentData }];
   for (const d of details) {
     for (const row of d.rows) {
+      if (isBlankRow(row, d.relationshipField)) continue; // skip the ghost/empty line
       ops.push({ object: d.childObject, action: 'create', data: { ...row, [d.relationshipField]: { $ref: 0 } } });
     }
   }
@@ -87,6 +105,7 @@ export function buildMasterDetailEditBatch(
     const withFk = (d.rows || []).map((r) => ({ ...r, [d.relationshipField]: parentId }));
     const { toCreate, toUpdate, toDelete } = diffRows(d.original || [], withFk);
     for (const row of toCreate) {
+      if (isBlankRow(row, d.relationshipField)) continue; // skip the ghost/empty line
       // Strip any client-only id so the server generates one.
       const { id: _omit, _id: _omit2, recordId: _omit3, ...clean } = row as any;
       ops.push({ object: d.childObject, action: 'create', data: clean });
@@ -182,7 +201,10 @@ export async function applyDetail(
   opts: ApplyDetailOptions,
 ): Promise<ApplyDetailResult> {
   const created: Array<{ object: string; id: string }> = [];
-  const withFk = opts.rows.map((r) => ({ ...r, [opts.relationshipField]: parentId }));
+  const withFk = opts.rows
+    // Drop blank/ghost lines that were never filled in (keep existing rows).
+    .filter((r) => idOf(r) || !isBlankRow(r, opts.relationshipField))
+    .map((r) => ({ ...r, [opts.relationshipField]: parentId }));
 
   if (opts.original !== undefined) {
     const { toCreate, toUpdate, toDelete } = diffRows(opts.original, withFk);

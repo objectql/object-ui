@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { diffRows, sumRows, applyDetail, idOf, buildMasterDetailBatch, buildMasterDetailEditBatch } from './masterDetailTx';
+import { diffRows, sumRows, applyDetail, idOf, isBlankRow, buildMasterDetailBatch, buildMasterDetailEditBatch } from './masterDetailTx';
 
 describe('buildMasterDetailBatch — atomic master-detail ops', () => {
   it('puts the parent first and references it via $ref:0 on each child FK', () => {
@@ -19,6 +19,29 @@ describe('buildMasterDetailBatch — atomic master-detail ops', () => {
     const ops = buildMasterDetailBatch('p', { name: 'x' }, [{ childObject: 'c', relationshipField: 'p', rows: [] }]);
     expect(ops).toHaveLength(1);
     expect(ops[0].object).toBe('p');
+  });
+
+  it('skips blank/ghost rows so an untouched trailing line never persists', () => {
+    const ops = buildMasterDetailBatch(
+      'inv',
+      { name: 'INV-1' },
+      [{ childObject: 'inv_line', relationshipField: 'invoice', rows: [
+        { product: 'Widget', quantity: 2, amount: 20 },
+        { product: null, quantity: null, amount: null }, // ghost — must be dropped
+      ] }],
+    );
+    expect(ops).toHaveLength(2); // parent + the one real line only
+    expect(ops[1].data).toMatchObject({ product: 'Widget', invoice: { $ref: 0 } });
+  });
+});
+
+describe('isBlankRow', () => {
+  it('treats a row as blank when only the FK / id keys carry values', () => {
+    expect(isBlankRow({ product: null, amount: null, invoice: { $ref: 0 } }, 'invoice')).toBe(true);
+    expect(isBlankRow({ id: 'x', product: '', amount: null }, 'invoice')).toBe(true);
+  });
+  it('is not blank when any business field has a value', () => {
+    expect(isBlankRow({ product: 'Widget', amount: null }, 'invoice')).toBe(false);
   });
 });
 

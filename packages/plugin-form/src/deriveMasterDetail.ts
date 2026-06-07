@@ -183,6 +183,16 @@ export function deriveColumns(
       col.reference = d?.reference;
       col.displayField = d?.display_field || d?.reference_field;
     }
+    // A field carrying an arithmetic `expression` (e.g. amount = quantity *
+    // unit_price) becomes a live read-only computed column. The expression may
+    // be a bare string or the normalized CEL envelope `{ dialect, source }`.
+    const expr = typeof d?.expression === 'string' ? d.expression : d?.expression?.source;
+    if (expr && typeof expr === 'string') {
+      col.computed = true;
+      col.expr = expr;
+      col.required = false; // computed → never user-entered, so never required
+      if (typeof d?.scale === 'number') col.scale = d.scale;
+    }
     cols.push(col);
   }
   const maxColumns = opts.maxColumns ?? DEFAULT_MAX_INLINE_COLUMNS;
@@ -252,6 +262,28 @@ export function resolveInlineMode(
   return 'grid';
 }
 
+/** Field names that read as a per-line money total (summed into the footer). */
+const AMOUNT_LIKE_FIELDS = ['amount', 'total', 'subtotal', 'line_total', 'line_amount', 'net_amount'];
+
+/**
+ * Choose which numeric column feeds the running total. The line total is, in
+ * order of preference: a computed numeric column (e.g. amount = qty × price),
+ * an `amount`/`total`-named numeric column, the last currency column, then the
+ * last numeric column. Preferring the LAST currency over the first stops a
+ * grid from accidentally summing `quantity` or `unit_price`.
+ */
+function pickAmountField(columns: GridColumn[]): string | undefined {
+  const numeric = columns.filter((c) => c.type === 'number' || c.type === 'currency');
+  if (numeric.length === 0) return undefined;
+  const computed = numeric.find((c) => c.computed);
+  if (computed) return computed.field;
+  const named = numeric.find((c) => AMOUNT_LIKE_FIELDS.includes(c.field));
+  if (named) return named.field;
+  const lastCurrency = [...numeric].reverse().find((c) => c.type === 'currency');
+  if (lastCurrency) return lastCurrency.field;
+  return numeric[numeric.length - 1].field;
+}
+
 export interface DerivedDetail {
   childObject: string;
   relationshipField: string;
@@ -284,7 +316,7 @@ export function deriveDetail(
     );
   }
   const columns = override.columns?.length ? override.columns : deriveColumns(childSchema, { relationshipField });
-  const amountField = override.amountField || columns.find((c) => c.type === 'number' || c.type === 'currency')?.field;
+  const amountField = override.amountField || pickAmountField(columns);
   const formFields = deriveFormFields(childSchema, { relationshipField });
   // Resolve mode from the explicit override, else the relationship field's
   // `inlineEdit` value, else the smart default from the child's shape.
