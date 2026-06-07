@@ -36,6 +36,17 @@ describe('evalFieldPredicate', () => {
     expect(evalFieldPredicate('record.status ===', { status: 'paid' }, true)).toBe(true);
   });
 
+  it('fails open when a referenced field is MISSING from the record (CEL "No such key")', () => {
+    // CEL throws on a missing map key (vs. comparing cleanly against null). A
+    // predicate referencing an absent field must fall back, not surface the
+    // fault — the renderer seeds declared fields to null to avoid this, but the
+    // helper must be safe on its own.
+    expect(evalFieldPredicate("record.status == 'paid'", {}, true)).toBe(true);
+    expect(evalFieldPredicate("record.status == 'paid'", {}, false)).toBe(false);
+    // Present-but-null compares cleanly to a real boolean (no fault).
+    expect(evalFieldPredicate("record.status == 'paid'", { status: null }, true)).toBe(false);
+  });
+
   it('exposes previous.* for transition predicates', () => {
     expect(
       evalFieldPredicate("record.status == 'paid' && previous.status != 'paid'", { status: 'paid' }, false, {

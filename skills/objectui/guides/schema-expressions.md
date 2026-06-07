@@ -193,6 +193,48 @@ The `On` variants accept raw expressions without `${}` wrapping — the entire s
 { "disabledOn": "!data.canPerformAction || data.isLocked" }
 ```
 
+## Field-level conditional rules (CEL — `visibleWhen` / `readonlyWhen` / `requiredWhen`)
+
+> **Different engine, different layer.** The `${}` / `On` conditions above are
+> the *schema/widget* tier and run on the recursive-descent
+> `SafeExpressionParser`. The three rules below are the **data-model tier**:
+> they live on the **object's field metadata**, are written in **CEL**, and are
+> evaluated by the canonical `@objectstack/formula` engine — the *same* engine
+> the server uses. Use these when the rule belongs to the field itself and must
+> hold everywhere the object is edited (and, for `readonlyWhen`/`requiredWhen`,
+> be enforced server-side too). See ADR-0036.
+
+```ts
+// On the object's Field definition (server-side metadata):
+issued_on: Field.date({ requiredWhen: "record.status in ['sent', 'paid']" }),
+tax_rate:  Field.number({ readonlyWhen: "record.status == 'paid'" }),
+paid_on:   Field.date({
+  visibleWhen:  "record.status == 'paid'",   // UX-only — hide until paid
+  requiredWhen: "record.status == 'paid'",   // enforced client AND server
+}),
+```
+
+| Rule           | Predicate TRUE ⇒          | Where it's enforced     |
+| -------------- | ------------------------- | ----------------------- |
+| `visibleWhen`  | field shown (else hidden) | client only (UX)        |
+| `readonlyWhen` | field read-only           | **client + server**     |
+| `requiredWhen` | field required            | **client + server**     |
+
+- Predicate scope is `record` (the live/merged record) and `previous` (the
+  prior persisted record, for transition rules like
+  `"record.status == 'paid' && previous.status != 'paid'"`).
+- A predicate is `string` (treated as CEL) or `{ dialect: 'cel', source }`.
+- `conditionalRequired` is a **deprecated alias** of `requiredWhen`.
+- The form renderer re-evaluates these **reactively** as the user edits, via
+  `resolveFieldRuleState` (`@object-ui/core`). Static `required: true` /
+  `readonly: true` is a floor a FALSE predicate can't weaken.
+- **Gotchas:** CEL throws on a *missing* map key but compares cleanly against
+  `null` — author predicates against fields that exist (the renderer seeds
+  declared fields to `null` so unregistered fields don't fault). Evaluation is
+  **fail-open**: a broken predicate never hides content, never blocks submit,
+  never locks a field. `visibleWhen` is client-only — never rely on it for
+  security; use `readonlyWhen`/`requiredWhen` (or a validation rule) for guarantees.
+
 ## Data binding with `bind`
 
 The `bind` field is NOT expression-evaluated. It's a path string resolved by `useDataScope()`:

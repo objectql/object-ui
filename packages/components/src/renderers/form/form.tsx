@@ -226,8 +226,26 @@ ComponentRegistry.register('form',
     // Live snapshot of all form values — subscribes to every change so
     // field-level CEL rules (visibleWhen/readonlyWhen/requiredWhen) re-evaluate
     // reactively as the user edits. Evaluated below via the canonical
-    // `@objectstack/formula` engine (same dialect the server enforces).
-    const recordValues = form.watch() as Record<string, unknown>;
+    // `@objectstack/formula` engine (same dialect the server enforces). We seed
+    // every declared field name to `null` first so a predicate that references
+    // a field react-hook-form hasn't registered yet (e.g. on initial mount,
+    // before defaults populate) evaluates against a present-but-null value
+    // rather than faulting — mirroring the server, which evaluates over the
+    // full merged record.
+    const watched = form.watch() as Record<string, unknown>;
+    const ruleRecord = React.useMemo(() => {
+      // Seed every declared field to `null` so a predicate referencing a field
+      // that's absent / not-yet-registered evaluates against a present-null
+      // value. The canonical CEL engine throws "No such key" on a *missing*
+      // field (which would fail the predicate open), but compares cleanly
+      // against `null`. Overlay only DEFINED watched values so an unregistered
+      // field (value `undefined`) doesn't clobber its null seed back to missing.
+      const out: Record<string, unknown> = {};
+      for (const f of fields) if (f?.name) out[f.name] = null;
+      for (const k of Object.keys(watched)) if (watched[k] !== undefined) out[k] = watched[k];
+      return out;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fields, JSON.stringify(watched)]);
 
     // Read DataSource from SchemaRendererContext and propagate it to field
     // widgets as a prop so they can dynamically load related records.
@@ -463,7 +481,7 @@ ComponentRegistry.register('form',
                 // resolves to its static flags unchanged.
                 const ruleState = resolveFieldRuleState(
                   { visibleWhen, readonlyWhen, requiredWhen, conditionalRequired },
-                  recordValues,
+                  ruleRecord,
                   { required: staticRequired, readonly: staticReadonly === true },
                 );
                 if (!ruleState.visible) return null;
