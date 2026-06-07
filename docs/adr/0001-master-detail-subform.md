@@ -274,3 +274,49 @@ forcing the page to `kind: 'full'`.
 
 Verification is the gate: the feature is "done" only when a claim with lines is
 created end-to-end through the running console.
+
+---
+
+## Amendment (2026-06-07): spreadsheet-style line-item editor
+
+`grid` mode evolved from a "table of inputs" into an enterprise line editor (the
+QuickBooks / Stripe / NetSuite pattern), in `GridField` (`@object-ui/fields`) so
+every inline grid benefits. All of it is driven from the DATA MODEL — no UI
+config — so the standard derived form picks it up automatically.
+
+- **Computed read-only columns.** `GridColumn.computed`/`expr` (derived from a
+  child field's `expression`) render read-only and recompute live from sibling
+  cells via a tiny safe arithmetic evaluator (`evalArith`, `computeRow` — `+ - *
+  / %`, parens, `record.<field>` refs; never `eval`/`Function`). The computed
+  value is written back into the row so it persists and the running total
+  reflects it. The field stays a **stored** `currency`/`number` (not a `formula`
+  field) so the parent `summary` rollup keeps working — the server only treats
+  `type:'formula'` as computed, so a stored field's `expression` is a client
+  compute hint. `deriveDetail.amountField` now prefers the computed / last
+  currency column over the first numeric.
+- **Trailing "ghost" row.** The grid always renders one empty line (index-stable
+  keys so focus/caret survive); typing materialises a real row + a new ghost.
+  Blank/ghost rows are filtered from the batch (`isBlankRow` in `masterDetailTx`).
+- **Item typeahead auto-fill.** `LookupField` gains `onSelectRecord(record)` and
+  a `compact` (single-line, borderless) mode for grid cells; `GridField`'s
+  `lookupAutofillPatch(columns, col, record)` copies the picked record's fields
+  into same-named sibling columns (opt out: `autofill: false`).
+- **Keyboard nav** (Enter / Arrow Up-Down move between rows in a column),
+  **role-based column widths**, **inline per-cell validation** (required-empty
+  cells flag in place), **duplicate**, and **drag-to-reorder** (a `sort_field`
+  config — auto-derived from a `position`/`sort_order`/… child field — stamps
+  `row[sortField] = index` so order persists).
+- **Per-row "expand to full form"** is gated: shown in `form` mode (it *is* the
+  editor) and in `grid` mode only when the grid omits fields (no redundant
+  expand on a thin line).
+- **Document totals stack.** `MasterDetailForm` renders a live Subtotal / Tax /
+  Total block under the lines when the parent form has a tax-rate field
+  (`taxRateField`, default `tax_rate`), read via scoped event delegation on the
+  form host (no coupling into `ObjectForm` internals).
+- **Layout.** The line-item section is a light label + the grid's own bordered
+  table — not a `Card` wrapping an already-bordered grid (that double-framed it
+  and `p-6` wasted the table's width).
+
+Showcase: `showcase_invoice` + `showcase_invoice_line` + `showcase_product`
+exercise the whole set. See the objectstack-ui / objectstack-data skills for the
+data-model recipe.
