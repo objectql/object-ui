@@ -115,11 +115,47 @@ export function registerBuiltinAnchors(): void {
       groupLabel: 'Pages',
       order: 40,
     }],
-    createFields: ['label', 'name', 'description', 'icon'],
+    // Mirror `view`'s create form: a page (esp. a *record* page) must be able to
+    // bind an `object` and pick its page `type` / `kind` at creation — the
+    // identity-only form (label/name/icon/description) couldn't make a record
+    // page. The block layout is then composed in the editor's PagePreview canvas.
+    createFields: ['label', 'name', 'object', 'type', 'kind'],
     createDerive: [
       { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
     ],
-    createDefaults: { regions: [] },
+    createSchema: {
+      type: 'object',
+      required: ['label', 'name', 'type'],
+      properties: {
+        label: { type: 'string', title: 'Label', description: 'Human-readable page title.' },
+        name: {
+          type: 'string',
+          title: 'Name',
+          description: 'Page key (snake_case).',
+          pattern: '^[a-z_][a-z0-9_]*$',
+        },
+        type: {
+          type: 'string',
+          title: 'Page type',
+          enum: ['record', 'app', 'home', 'dashboard', 'utility'],
+          default: 'record',
+          description: 'A `record` page renders for an object’s records; pick the object below.',
+        },
+        object: {
+          type: 'string',
+          title: 'Object',
+          description: 'For a record page — the object whose records this page renders.',
+        },
+        kind: {
+          type: 'string',
+          title: 'Kind',
+          enum: ['full', 'slotted'],
+          default: 'full',
+          description: 'full = the whole page; slotted = override only named slots of the default.',
+        },
+      },
+    },
+    createDefaults: { type: 'record', kind: 'full', regions: [] },
   });
 
   // A view is the canonical first-class ViewItem ({ viewKind, config }),
