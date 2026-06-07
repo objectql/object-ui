@@ -119,7 +119,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const location = useLocation();
   const originFrom = (location.state as any)?.from as { pathname?: string; label?: string } | undefined;
   const { t } = useObjectTranslation();
-  const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess, fieldLabel, fieldOptionLabel } = useObjectLabel();
+  const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess, actionParamText, fieldLabel, fieldOptionLabel } = useObjectLabel();
   const { isFavorite, toggleFavorite, refreshLabel: refreshFavoriteLabel } = useFavorites();
   const { addRecentItem } = useRecentItems();
   const [isLoading, setIsLoading] = useState(true);
@@ -324,16 +324,25 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         fieldLabel,
         fieldOptionLabel,
       });
+      // Localize param label/placeholder/helpText (see ObjectView for the
+      // convention); falls back to the metadata literal.
+      const objForI18n = objectName || objectDef?.name;
+      const localized = (resolved as any[]).map((p: any) => ({
+        ...p,
+        label: actionParamText(objForI18n, action?.name, p.name, 'label', p.label) ?? p.label,
+        placeholder: actionParamText(objForI18n, action?.name, p.name, 'placeholder', p.placeholder) ?? p.placeholder,
+        helpText: actionParamText(objForI18n, action?.name, p.name, 'helpText', p.helpText) ?? p.helpText,
+      }));
       setParamState({
         open: true,
-        params: resolved,
+        params: localized,
         // Title the dialog as the action rather than the generic "Action parameters".
         title: action?.label || action?.title,
         description: action?.description,
         resolve,
       });
     });
-  }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel]);
+  }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel, actionParamText]);
 
   const toastHandler = useCallback((message: string, options?: { type?: string }) => {
     if (options?.type === 'error') toast.error(message);

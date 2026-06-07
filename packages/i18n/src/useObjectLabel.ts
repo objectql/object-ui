@@ -384,6 +384,29 @@ export function useObjectLabel() {
       const resolved = resolve(suffixes, fb);
       return resolved || undefined;
     },
+
+    /**
+     * Resolve translated action-PARAMETER text (label / placeholder / helpText).
+     * Convention: `{ns}.objects.{objectName}._actions.{actionName}.params.{paramName}.{attr}`.
+     * Falls back to the provided value (the metadata's literal string) when no
+     * translation exists, so untranslated params keep rendering as authored.
+     */
+    actionParamText: (
+      objectName: string | undefined,
+      actionName: string | undefined,
+      paramName: string,
+      attr: 'label' | 'placeholder' | 'helpText',
+      fallback?: string,
+    ) => {
+      const fb = fallback ?? '';
+      if (!actionName || !paramName) return fb || undefined;
+      const suffix = `_actions.${actionName}.params.${paramName}.${attr}`;
+      const suffixes = objectName
+        ? objectSuffixes(objectName, suffix)
+        : `globalActions.${actionName}.params.${paramName}.${attr}`;
+      const resolved = resolve(suffixes, fb);
+      return resolved || undefined;
+    },
   };
   }, [t, i18n]);
 }

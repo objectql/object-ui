@@ -158,7 +158,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const location = useLocation();
     const { showDebug } = useMetadataInspector();
     const { t } = useObjectTranslation();
-    const { objectLabel, objectDescription: objectDesc, viewLabel, viewEmptyState, actionLabel, actionConfirm, actionSuccess, fieldLabel, fieldOptionLabel } = useObjectLabel();
+    const { objectLabel, objectDescription: objectDesc, viewLabel, viewEmptyState, actionLabel, actionConfirm, actionSuccess, actionParamText, fieldLabel, fieldOptionLabel } = useObjectLabel();
     const { isFavorite, toggleFavorite } = useFavorites();
     // ADR-0034: runtime view edits persist via the metadata draft/publish
     // model (the `sys_view` table is retired).
@@ -744,9 +744,20 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 fieldOptionLabel,
                 row,
             });
+            // Localize each param's label/placeholder/helpText via the
+            // `_actions.<action>.params.<param>.<attr>` convention, falling back
+            // to the metadata literal. Without this, action params (e.g. the
+            // "Name" field on Create Environment) render untranslated.
+            const objForI18n = objectName || objectDef?.name;
+            const localized = (resolved as any[]).map((p: any) => ({
+                ...p,
+                label: actionParamText(objForI18n, action?.name, p.name, 'label', p.label) ?? p.label,
+                placeholder: actionParamText(objForI18n, action?.name, p.name, 'placeholder', p.placeholder) ?? p.placeholder,
+                helpText: actionParamText(objForI18n, action?.name, p.name, 'helpText', p.helpText) ?? p.helpText,
+            }));
             setParamState({
                 open: true,
-                params: resolved,
+                params: localized,
                 // Title the dialog as the action ("Create environment") rather
                 // than the generic "Action parameters".
                 title: action?.label || action?.title,
@@ -754,7 +765,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 resolve,
             });
         });
-    }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel]);
+    }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel, actionParamText]);
 
     const handleDeleteView = useCallback(async (vid: string) => {
         if (!dataSource) return;
