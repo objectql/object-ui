@@ -191,6 +191,20 @@ export interface MetadataResourceConfig {
   createBuildBody?: (draft: Record<string, unknown>) => Record<string, unknown>;
 
   /**
+   * Async create-time body augmentation that needs runtime context the pure
+   * {@link createBuildBody} can't reach — e.g. fetching another metadata item.
+   * Its returned fields are merged into the create body AFTER `createBuildBody`
+   * / `createDefaults`. Best-effort: errors are swallowed (the create still
+   * proceeds with the un-augmented body). Used by `page` to seed a record
+   * page's `regions` from the bound object's synthesized default detail page,
+   * so authoring starts from the auto-generated layout instead of blank.
+   */
+  createSeed?: (
+    draft: Record<string, unknown>,
+    ctx: { client: any },
+  ) => Record<string, unknown> | Promise<Record<string, unknown>>;
+
+  /**
    * Optional load-time normaliser: the wire item returned by the server
    * (`layered.effective` / a pending draft) → the draft shape the editor
    * (SchemaForm / inspector / preview) expects. Applied on initial load

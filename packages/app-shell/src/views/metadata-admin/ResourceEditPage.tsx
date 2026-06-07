@@ -796,7 +796,7 @@ function MetadataResourceEditPageImpl({
       // or `{ list: { data: { object } } }` for view) is present so
       // the saved body satisfies its JSONSchema. User-supplied values
       // always win over the defaults.
-      const builtBody = createMode
+      let builtBody = createMode
         ? (config.createBuildBody
             ? config.createBuildBody(draft)
             : { ...(config.createDefaults ?? {}), ...draft })
@@ -804,6 +804,19 @@ function MetadataResourceEditPageImpl({
         // (inverse of `toDraft` — e.g. `view` folds the `{ list | form }`
         // family key back into the ViewItem `config` wrapper).
         : (config.fromDraft ? config.fromDraft(draft) : draft);
+      // Async create-time augmentation (e.g. seed a record page's regions from
+      // the bound object's synthesized default). Best-effort — a failure leaves
+      // the un-augmented body. User/builder-supplied keys win over the seed.
+      if (createMode && config.createSeed) {
+        try {
+          const seeded = await config.createSeed(draft, { client });
+          if (seeded && typeof seeded === 'object') {
+            // Seed wins over the empty defaults (`builtBody` already folded the
+            // user's draft in, which only carries default-empty `regions`).
+            builtBody = { ...(builtBody as Record<string, unknown>), ...seeded };
+          }
+        } catch { /* seed is best-effort; proceed with the un-augmented body */ }
+      }
       const savedName = String(
         (builtBody as Record<string, unknown>)[identityField] ?? draft[identityField] ?? name,
       );

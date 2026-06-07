@@ -156,6 +156,24 @@ export function registerBuiltinAnchors(): void {
       },
     },
     createDefaults: { type: 'record', kind: 'full', regions: [] },
+    // Seed a record page's regions from the bound object's synthesized default
+    // detail page, so authoring starts from the auto-generated layout (the same
+    // one the runtime renders by default) instead of a blank canvas.
+    createSeed: async (draft, { client }) => {
+      if (draft?.type !== 'record' || !draft?.object) return {};
+      try {
+        const objectDef = await client.get('object', String(draft.object));
+        if (!objectDef || typeof objectDef !== 'object') return {};
+        const { buildDefaultPageSchema } = await import('@object-ui/plugin-detail');
+        const synth = buildDefaultPageSchema(objectDef as any) as Record<string, any>;
+        const seed: Record<string, unknown> = {};
+        if (Array.isArray(synth?.regions) && synth.regions.length) seed.regions = synth.regions;
+        if (synth?.template) seed.template = synth.template;
+        return seed;
+      } catch {
+        return {};
+      }
+    },
   });
 
   // A view is the canonical first-class ViewItem ({ viewKind, config }),
