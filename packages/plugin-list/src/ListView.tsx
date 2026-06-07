@@ -200,6 +200,12 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.recordCountOne': '{{count}} record',
   'list.noItems': 'No items found',
   'list.noItemsMessage': 'There are no records to display. Try adjusting your filters or adding new data.',
+  // First-run (truly empty, no filter/search) vs filtered-to-empty. Showing
+  // "adjust your filters" to a brand-new user with nothing to adjust is wrong.
+  'list.firstRunTitle': 'Nothing here yet',
+  'list.firstRunMessage': 'Create your first record to get started.',
+  'list.noMatches': 'No matching records',
+  'list.noMatchesMessage': 'No records match your current filters or search. Try adjusting or clearing them.',
   'list.loading': 'Loading records…',
   'list.search': 'Search',
   'list.filter': 'Filter',
@@ -2107,8 +2113,18 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                   iconName.split('-').map((w: any) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
                 ] ?? Inbox)
               : Inbox;
-            const title = (typeof schema.emptyState?.title === 'string' ? schema.emptyState.title : undefined) ?? t('list.noItems');
-            const description = (typeof schema.emptyState?.message === 'string' ? schema.emptyState.message : undefined) ?? t('list.noItemsMessage');
+            // Distinguish "filtered/searched to empty" from "truly empty
+            // (first run)". A new user with no filters shouldn't be told to
+            // "adjust your filters" — they should be invited to create.
+            const hasActiveQuery =
+              !!(searchTerm && searchTerm.trim()) ||
+              (Array.isArray(userFilterConditions) && userFilterConditions.length > 0) ||
+              activeQuickFilters.size > 0 ||
+              (Array.isArray(currentFilters?.conditions) && currentFilters.conditions.length > 0);
+            const title = (typeof schema.emptyState?.title === 'string' ? schema.emptyState.title : undefined)
+              ?? (hasActiveQuery ? t('list.noMatches') : t('list.firstRunTitle'));
+            const description = (typeof schema.emptyState?.message === 'string' ? schema.emptyState.message : undefined)
+              ?? (hasActiveQuery ? t('list.noMatchesMessage') : t('list.firstRunMessage'));
             return (
               <DataEmptyState
                 data-testid="empty-state"
