@@ -1473,6 +1473,10 @@ const zh = {
       cta: '设置密码',
       dismiss: '关闭',
     },
+    pendingDrafts: {
+      message: '你有 {{count}} 项未发布的更改 —— 审核并发布即可生效。',
+      cta: '查看并发布',
+    },
     createFirstApp: '手动创建应用',
     systemSettings: '系统设置',
     browseMarketplace: '浏览应用市场',

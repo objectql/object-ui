@@ -1460,6 +1460,10 @@ const en = {
       cta: 'Set password',
       dismiss: 'Dismiss',
     },
+    pendingDrafts: {
+      message: 'You have {{count}} unpublished change(s) — review and publish to make them live.',
+      cta: 'Review & publish',
+    },
     createFirstApp: 'Create app manually',
     systemSettings: 'System Settings',
     browseMarketplace: 'Browse App Marketplace',

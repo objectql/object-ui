@@ -346,8 +346,14 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
 
   const isCreateAppRoute = location.pathname.endsWith('/create-app');
   const isSystemRoute = location.pathname.includes('/system');
+  // The metadata designer (Studio) must be reachable even with no active app —
+  // a brand-new env where AI just drafted everything has ZERO published apps,
+  // so without this exemption the "no apps configured" guard below would block
+  // the very surface you need to REVIEW & PUBLISH those first drafts (a
+  // chicken-and-egg that stranded the AI magic-moment loop).
+  const isMetadataRoute = location.pathname.includes('/metadata');
 
-  if (!activeApp && !isCreateAppRoute && !isSystemRoute) return (
+  if (!activeApp && !isCreateAppRoute && !isSystemRoute && !isMetadataRoute) return (
     <div className="h-screen flex items-center justify-center">
       <Empty>
         <EmptyTitle>{t('empty.noAppsConfigured')}</EmptyTitle>
@@ -366,7 +372,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
     </div>
   );
 
-  if (!activeApp && (isCreateAppRoute || isSystemRoute)) {
+  if (!activeApp && (isCreateAppRoute || isSystemRoute || isMetadataRoute)) {
     return (
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
@@ -374,6 +380,14 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
           <Route path="system/marketplace" element={<MarketplacePage />} />
           <Route path="system/marketplace/installed" element={<MarketplaceInstalledPage />} />
           <Route path="system/marketplace/:packageId" element={<MarketplacePackagePage />} />
+          {/* Studio / metadata designer — reachable with no active app so a
+              fresh env can review + publish its first (AI-authored) drafts. */}
+          <Route path="metadata" element={<MetadataDirectoryPage />} />
+          <Route path="metadata/_diagnostics" element={<MetadataDiagnosticsPage />} />
+          <Route path="metadata/:type" element={<MetadataResourceListPage />} />
+          <Route path="metadata/:type/new" element={<MetadataResourceEditPage createMode />} />
+          <Route path="metadata/:type/:name" element={<MetadataResourceEditPage />} />
+          <Route path="metadata/:type/:name/history" element={<MetadataResourceHistoryPage />} />
           {extraRoutesNoApp}
         </Routes>
       </Suspense>

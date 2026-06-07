@@ -27,7 +27,8 @@ import { AppCard } from './AppCard';
 import { RecentApps } from './RecentApps';
 import { StarredApps } from './StarredApps';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
-import { Plus, Settings, Sparkles, Star, Clock, ArrowDown, Store, LayoutGrid, ShieldAlert, X } from 'lucide-react';
+import { Plus, Settings, Sparkles, Star, Clock, ArrowDown, Store, LayoutGrid, ShieldAlert, X, UploadCloud } from 'lucide-react';
+import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
 
 function pickGreetingKey(hour: number): string {
   if (hour < 5) return 'home.greetingNight';
@@ -99,6 +100,44 @@ function StatPill({
       <span className="font-semibold tabular-nums">{value}</span>
       <span className="text-muted-foreground">{label}</span>
     </span>
+  );
+}
+
+/**
+ * Pending-drafts banner — closes the AI magic-moment loop. After the metadata
+ * assistant drafts objects/views/apps (ADR-0033 draft-gated authoring), nothing
+ * is live until the human publishes. Without this, a user who just had AI build
+ * their whole system landed back on an empty-looking home with no trace of it
+ * and no path to publish. This surfaces the pending drafts and routes to the
+ * designer to review + publish. Disappears automatically once published
+ * (listDrafts → 0).
+ */
+function PendingDraftsBanner({ t }: { t: (key: string, opts?: any) => string }) {
+  const navigate = useNavigate();
+  const client = useMetadataClient();
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve(client.listDrafts?.({}))
+      .then((drafts) => { if (!cancelled && Array.isArray(drafts)) setCount(drafts.length); })
+      .catch(() => { /* drafts unsupported / error → don't show */ });
+    return () => { cancelled = true; };
+  }, [client]);
+  if (count <= 0) return null;
+  return (
+    <div className="px-4 sm:px-6 lg:px-8 pt-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center gap-3 rounded-xl border border-indigo-300/60 dark:border-indigo-700/50 bg-indigo-50 dark:bg-indigo-950/30 px-4 py-3">
+          <UploadCloud className="h-5 w-5 shrink-0 text-indigo-600 dark:text-indigo-400" />
+          <p className="flex-1 min-w-0 text-sm text-indigo-900 dark:text-indigo-200">
+            {t('home.pendingDrafts.message', { count, defaultValue: 'You have {{count}} unpublished change(s) — review and publish to make them live.' })}
+          </p>
+          <Button size="sm" onClick={() => navigate('/apps/setup/metadata')} data-testid="pending-drafts-review">
+            {t('home.pendingDrafts.cta', { defaultValue: 'Review & publish' })}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -183,6 +222,7 @@ export function HomePage() {
   if (activeApps.length === 0) {
     return (
       <div className="flex flex-col flex-1">
+        <PendingDraftsBanner t={t} />
         <RecoveryPasswordReminder t={t} />
         <div className="flex flex-1 items-center justify-center p-6">
         <Empty>
@@ -228,6 +268,7 @@ export function HomePage() {
         the gradient display name in the hero.
       */}
 
+      <PendingDraftsBanner t={t} />
       <RecoveryPasswordReminder t={t} />
 
       {/* Hero */}
