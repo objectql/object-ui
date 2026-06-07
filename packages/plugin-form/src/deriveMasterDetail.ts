@@ -218,12 +218,48 @@ export function deriveFormFields(
   return out;
 }
 
+/** Inline-edit form factor. */
+export type InlineMode = 'grid' | 'form';
+
+/** Rich / form-only field types that read poorly in a narrow grid cell — their
+ *  presence on a child tips the smart default toward the per-row `form`. */
+const FORM_ONLY_TYPES = new Set([
+  'textarea', 'richtext', 'html', 'markdown', 'rich-text',
+  'file', 'image', 'avatar', 'attachment', 'json', 'location', 'address',
+]);
+
+/** Above this many editable business fields, the grid gets cramped → `form`. */
+export const SMART_FORM_FIELD_THRESHOLD = 8;
+
+/**
+ * Resolve the inline-edit form factor for a child collection.
+ *   - explicit `'grid'` / `'form'` win;
+ *   - otherwise (`true` / undefined) pick by the child's shape: a `form` when it
+ *     has rich/form-only fields or more than {@link SMART_FORM_FIELD_THRESHOLD}
+ *     editable business fields, else a `grid`.
+ */
+export function resolveInlineMode(
+  childSchema: ObjectSchemaLike | undefined,
+  inlineEdit: boolean | InlineMode | undefined,
+  opts: { relationshipField?: string } = {},
+): InlineMode {
+  if (inlineEdit === 'grid' || inlineEdit === 'form') return inlineEdit;
+  const fields = (childSchema?.fields ?? {}) as Record<string, any>;
+  const names = deriveFormFields(childSchema, { relationshipField: opts.relationshipField });
+  const hasRich = names.some((n) => FORM_ONLY_TYPES.has(fields[n]?.type));
+  if (hasRich) return 'form';
+  if (names.length > SMART_FORM_FIELD_THRESHOLD) return 'form';
+  return 'grid';
+}
+
 export interface DerivedDetail {
   childObject: string;
   relationshipField: string;
   columns: GridColumn[];
   /** Field names for the per-row expand form (broader than `columns`). */
   formFields: string[];
+  /** Inline-edit form factor (grid = editable cells; form = list + per-row form). */
+  mode: InlineMode;
   /** First numeric column, used as the running-total source when none is set. */
   amountField?: string;
 }
@@ -238,7 +274,7 @@ export function deriveDetail(
   childObject: string,
   childSchema: ObjectSchemaLike | undefined,
   parentObjectName: string,
-  override: { relationshipField?: string; columns?: GridColumn[]; amountField?: string } = {},
+  override: { relationshipField?: string; columns?: GridColumn[]; amountField?: string; inlineEdit?: boolean | InlineMode } = {},
 ): DerivedDetail {
   const relationshipField = override.relationshipField || findRelationshipField(childSchema, parentObjectName);
   if (!relationshipField) {
@@ -250,5 +286,9 @@ export function deriveDetail(
   const columns = override.columns?.length ? override.columns : deriveColumns(childSchema, { relationshipField });
   const amountField = override.amountField || columns.find((c) => c.type === 'number' || c.type === 'currency')?.field;
   const formFields = deriveFormFields(childSchema, { relationshipField });
-  return { childObject, relationshipField, columns, formFields, amountField };
+  // Resolve mode from the explicit override, else the relationship field's
+  // `inlineEdit` value, else the smart default from the child's shape.
+  const inlineEdit = override.inlineEdit ?? (childSchema?.fields as any)?.[relationshipField]?.inlineEdit;
+  const mode = resolveInlineMode(childSchema, inlineEdit, { relationshipField });
+  return { childObject, relationshipField, columns, formFields, mode, amountField };
 }

@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { resolveInlineMode } from '@object-ui/plugin-form';
 import { MetadataCtx, useMetadata, type MetadataContextValue, type MetadataState } from '@object-ui/react';
 
 export type { MetadataState, MetadataContextValue };
@@ -251,6 +252,9 @@ export function attachInlineSubforms(objects: any[]): any[] {
       (inlineByParent[parent] ||= []).push({
         childObject: child.name,
         relationshipField: fname,
+        // Resolve the inline-edit form factor (grid vs per-row form) from the
+        // declared value, falling back to the smart default by child shape.
+        inlineMode: resolveInlineMode(child, d.inlineEdit, { relationshipField: fname }),
         ...(d.inlineTitle ? { title: d.inlineTitle } : {}),
         ...(Array.isArray(d.inlineColumns) ? { columns: d.inlineColumns } : {}),
         ...(typeof d.inlineAmountField === 'string' ? { amountField: d.inlineAmountField } : {}),

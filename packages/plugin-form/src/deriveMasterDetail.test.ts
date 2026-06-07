@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findRelationshipField, deriveColumns, deriveDetail, deriveFormFields, fieldTypeToColumnType } from './deriveMasterDetail';
+import { findRelationshipField, deriveColumns, deriveDetail, deriveFormFields, resolveInlineMode, fieldTypeToColumnType } from './deriveMasterDetail';
 
 const taskSchema = {
   name: 'showcase_task',
@@ -176,6 +176,36 @@ describe('deriveFormFields (per-row expand form)', () => {
     expect(Array.isArray(d.formFields)).toBe(true);
     expect(d.formFields).toContain('title');
     expect(d.formFields).not.toContain('project');
+  });
+});
+
+describe('resolveInlineMode (grid vs form)', () => {
+  const thin = { fields: { name: { type: 'text' }, amount: { type: 'currency' }, parent: { type: 'master_detail', reference: 'p' } } };
+  const rich = { fields: { name: { type: 'text' }, notes: { type: 'textarea' }, parent: { type: 'master_detail', reference: 'p' } } };
+  const wide = {
+    fields: Object.fromEntries(
+      ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map((n) => [n, { type: 'text' }])
+        .concat([['parent', { type: 'master_detail', reference: 'p' }]]),
+    ),
+  };
+
+  it('honors explicit grid/form', () => {
+    expect(resolveInlineMode(thin, 'grid', { relationshipField: 'parent' })).toBe('grid');
+    expect(resolveInlineMode(rich, 'grid', { relationshipField: 'parent' })).toBe('grid'); // explicit wins over heuristic
+    expect(resolveInlineMode(thin, 'form', { relationshipField: 'parent' })).toBe('form');
+  });
+
+  it('smart default: thin child → grid', () => {
+    expect(resolveInlineMode(thin, true, { relationshipField: 'parent' })).toBe('grid');
+    expect(resolveInlineMode(thin, undefined, { relationshipField: 'parent' })).toBe('grid');
+  });
+
+  it('smart default: child with a rich/form-only type → form', () => {
+    expect(resolveInlineMode(rich, true, { relationshipField: 'parent' })).toBe('form');
+  });
+
+  it('smart default: many business fields → form', () => {
+    expect(resolveInlineMode(wide, true, { relationshipField: 'parent' })).toBe('form'); // 9 fields > 8
   });
 });
 

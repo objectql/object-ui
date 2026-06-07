@@ -59,6 +59,44 @@ describe('GridField / LineItemsField — editable line items', () => {
     });
   });
 
+  describe('list mode (displayMode="list" — form-factor for fat children)', () => {
+    const listField = {
+      columns: [
+        { field: 'title', label: 'Title', type: 'text' as const, required: true },
+        { field: 'status', label: 'Status', type: 'select' as const, options: [{ label: 'To Do', value: 'todo' }] },
+      ],
+    } as any;
+
+    it('renders rows read-only (no cell inputs) and an Add button', () => {
+      const onAdd = vi.fn();
+      render(
+        <GridField
+          value={[{ title: 'Ship it', status: 'todo' }]}
+          onChange={() => {}}
+          field={listField}
+          displayMode="list"
+          onRowExpand={() => {}}
+          onAdd={onAdd}
+        />,
+      );
+      // Read-only display: the status renders its option label, not a combobox.
+      expect(screen.getByText('To Do')).toBeTruthy();
+      expect(screen.queryByLabelText('Title')).toBeNull(); // no editable input
+      expect(screen.getByRole('button', { name: /Open row/i })).toBeTruthy(); // per-row edit
+    });
+
+    it('Add calls onAdd (host opens the full form) instead of inserting a blank row', () => {
+      const onAdd = vi.fn();
+      const onChange = vi.fn();
+      render(
+        <GridField value={[]} onChange={onChange} field={listField} displayMode="list" onRowExpand={() => {}} onAdd={onAdd} />,
+      );
+      fireEvent.click(screen.getByTestId('line-items-add'));
+      expect(onAdd).toHaveBeenCalledTimes(1);
+      expect(onChange).not.toHaveBeenCalled(); // did NOT insert a blank inline row
+    });
+  });
+
   it('editing a text cell emits the raw string', () => {
     const onChange = vi.fn();
     render(<GridField value={[{ description: '', amount: null }]} onChange={onChange} field={field} />);

@@ -109,9 +109,14 @@ describe('attachInlineSubforms — relationship-level inlineEdit', () => {
   it('merges inlineEdit children into the parent form as subforms', () => {
     const out = attachInlineSubforms(objects);
     const invoice = out.find((o) => o.name === 'invoice')!;
-    expect(invoice.form?.subforms).toEqual([
-      { childObject: 'invoice_line', relationshipField: 'invoice', title: 'Lines' },
-    ]);
+    expect(invoice.form?.subforms).toHaveLength(1);
+    expect(invoice.form?.subforms?.[0]).toMatchObject({
+      childObject: 'invoice_line',
+      relationshipField: 'invoice',
+      title: 'Lines',
+    });
+    // The resolved inline-edit mode is attached too.
+    expect(['grid', 'form']).toContain(invoice.form?.subforms?.[0]?.inlineMode);
   });
 
   it('does not inline master_detail children without inlineEdit', () => {

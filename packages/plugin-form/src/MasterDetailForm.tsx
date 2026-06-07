@@ -30,7 +30,7 @@ import { LineItemsField, type GridColumn } from '@object-ui/fields';
 import { Button, Card, CardContent, CardHeader, CardTitle, cn, toast } from '@object-ui/components';
 import { ObjectForm } from './ObjectForm';
 import { applyDetail, idOf, buildMasterDetailBatch, buildMasterDetailEditBatch, sumRows } from './masterDetailTx';
-import { deriveDetail } from './deriveMasterDetail';
+import { deriveDetail, type InlineMode } from './deriveMasterDetail';
 
 export interface MasterDetailDetailConfig {
   /** Child object name, e.g. 'expense_line'. */
@@ -45,6 +45,10 @@ export interface MasterDetailDetailConfig {
   /** Field names for the per-row expand form. Optional — derived from the child
    *  object's fields (broader than `columns`: includes rich types) when omitted. */
   formFields?: string[];
+  /** Inline-edit form factor: 'grid' = editable cells; 'form' = read-only list +
+   *  per-row full form. Optional — resolved from the relationship's `inlineEdit`
+   *  (incl. the smart default) when omitted. */
+  inlineMode?: InlineMode;
   /** Numeric child column to sum, e.g. 'amount'. */
   amountField?: string;
   /** Parent field to receive the rolled-up sum, e.g. 'total_amount'. */
@@ -126,6 +130,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               relationshipField: derived.relationshipField,
               columns: derived.columns,
               formFields: d.formFields ?? derived.formFields,
+              inlineMode: d.inlineMode ?? derived.mode,
               amountField: d.amountField ?? derived.amountField,
             };
           } catch {
@@ -197,7 +202,9 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
   // fields, incl. rich types the grid omits) in a drawer, pre-filled with the
   // row. Saving writes back into the in-memory row — the atomic batch still
   // persists everything on the parent Save (no separate backend write here).
-  const [expanded, setExpanded] = useState<{ detailIdx: number; rowIdx: number } | null>(null);
+  // `isNew` marks a row created by "Add" in list/form mode — cancelling the
+  // editor without applying discards that empty row.
+  const [expanded, setExpanded] = useState<{ detailIdx: number; rowIdx: number; isNew?: boolean } | null>(null);
   const expandedRow =
     expanded ? state[expanded.detailIdx]?.rows?.[expanded.rowIdx] : undefined;
   const expandedDetail = expanded ? details[expanded.detailIdx] : undefined;
@@ -214,6 +221,28 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
     },
     [],
   );
+
+  /** List/form mode "Add": append a blank row and open it in the full form. */
+  const addRowViaForm = useCallback((detailIdx: number) => {
+    setState((prev) => {
+      const next = prev.map((s, i) => (i === detailIdx ? { ...s, rows: [...s.rows, {}] } : s));
+      const rowIdx = next[detailIdx].rows.length - 1;
+      setExpanded({ detailIdx, rowIdx, isNew: true });
+      return next;
+    });
+  }, []);
+
+  /** Editor cancelled: drop the row if it was a freshly-added (empty) one. */
+  const cancelRowEdit = useCallback(() => {
+    setExpanded((cur) => {
+      if (cur?.isNew) {
+        setState((prev) =>
+          prev.map((s, i) => (i === cur.detailIdx ? { ...s, rows: s.rows.filter((_, j) => j !== cur.rowIdx) } : s)),
+        );
+      }
+      return null;
+    });
+  }, []);
 
   /**
    * Built-in feedback so a save is NEVER silent (a silent success looks broken
@@ -416,6 +445,8 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               value={state[i]?.rows ?? []}
               onChange={(rows) => setRows(i, rows)}
               onRowExpand={(rowIdx) => setExpanded({ detailIdx: i, rowIdx })}
+              displayMode={d.inlineMode === 'form' ? 'list' : 'grid'}
+              {...(d.inlineMode === 'form' ? { onAdd: () => addRowViaForm(i) } : {})}
               field={
                 {
                   columns: d.columns,
@@ -424,7 +455,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
                   total_field: d.amountField || (d.totalField ? 'amount' : undefined),
                   min_rows: d.minRows,
                   max_rows: d.maxRows,
-                  add_label: d.addLabel,
+                  add_label: d.inlineMode === 'form' ? (d.addLabel || 'Add') : d.addLabel,
                 } as any
               }
             />
@@ -452,7 +483,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               variant="ghost"
               size="sm"
               className="h-7 text-xs text-muted-foreground"
-              onClick={() => setExpanded(null)}
+              onClick={cancelRowEdit}
             >
               Close
             </Button>
@@ -475,7 +506,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
                   applyRowEdit(expanded.detailIdx, expanded.rowIdx, values);
                   setExpanded(null);
                 },
-                onCancel: () => setExpanded(null),
+                onCancel: cancelRowEdit,
               } as any}
               dataSource={dataSource}
             />

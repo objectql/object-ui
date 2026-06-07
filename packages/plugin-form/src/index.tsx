@@ -48,6 +48,8 @@ export type {
 } from './MasterDetailForm';
 export { LineItemsPanel } from './LineItemsPanel';
 export type { LineItemsPanelSchema } from './LineItemsPanel';
+export { deriveDetail, deriveColumns, deriveFormFields, findRelationshipField, resolveInlineMode } from './deriveMasterDetail';
+export type { DerivedDetail, InlineMode } from './deriveMasterDetail';
 
 // Register object-form component
 const ObjectFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {

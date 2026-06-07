@@ -75,6 +75,22 @@ const MIN_WIDTH_BY_TYPE: Record<string, number> = {
 };
 const minWidthFor = (c: GridColumn): number => c.width ?? MIN_WIDTH_BY_TYPE[c.type ?? 'text'] ?? 132;
 
+/** Read-only display text for a cell in list mode (select → option label,
+ *  currency/number → formatted, empty → em dash). Lookups render separately. */
+function displayText(c: GridColumn, value: any): string {
+  if (value === null || value === undefined || value === '') return '—';
+  if (c.type === 'select' && Array.isArray(c.options)) {
+    const opt = c.options.find((o) => String(o.value) === String(value));
+    return opt ? opt.label : String(value);
+  }
+  if (isNumeric(c.type)) {
+    const n = Number(value);
+    if (Number.isFinite(n)) return c.type === 'currency' ? `${c.prefix || '¥'}${n.toLocaleString()}` : n.toLocaleString();
+  }
+  if (Array.isArray(value)) return value.join(', ');
+  return String(value);
+}
+
 function coerce(type: string | undefined, raw: string): any {
   if (isNumeric(type)) {
     if (raw === '' || raw == null) return null;
@@ -101,6 +117,8 @@ export function GridField({
   disabled,
   className,
   onRowExpand,
+  displayMode,
+  onAdd,
   ...props
 }: FieldWidgetProps<Row[]> & {
   /** When provided, each row shows an "expand" button that opens the row in a
@@ -108,10 +126,19 @@ export function GridField({
    *  writes the edited values back). Lets a "fat" child be edited in a real form
    *  while the grid stays a quick at-a-glance editor. */
   onRowExpand?: (rowIndex: number) => void;
+  /** 'grid' (default) = editable cells; 'list' = read-only rows whose primary
+   *  action is per-row edit (via `onRowExpand`) and whose Add opens a new row
+   *  in the full form (via `onAdd`). The form-factor for "fat" children. */
+  displayMode?: 'grid' | 'list';
+  /** In 'list' mode, "Add" calls this (host opens the full form for a new row)
+   *  instead of inserting a blank inline row. */
+  onAdd?: () => void;
 }) {
   const cfg = (field || (props as any).schema || {}) as any;
   const allColumns: GridColumn[] = cfg.columns || [];
   const rows: Row[] = Array.isArray(value) ? value : [];
+  // List mode: rows are read-only at-a-glance; editing happens in the full form.
+  const isList = displayMode === 'list' && !readonly;
 
   // Column visibility — a curated default-visible set with the rest revealable
   // via the column chooser (mainstream "personalize columns" pattern). Required
@@ -364,8 +391,21 @@ export function GridField({
                     </td>
                   )}
                   {columns.map((c) => (
-                    <td key={c.field} className="px-2 py-1.5 align-top">
-                      {c.type === 'lookup' ? (
+                    <td key={c.field} className={cn('px-2 py-1.5', isList ? 'align-middle' : 'align-top')}>
+                      {isList ? (
+                        c.type === 'lookup' && row[c.field] != null && row[c.field] !== '' ? (
+                          <LookupField
+                            value={row[c.field]}
+                            onChange={() => {}}
+                            readonly
+                            field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField } as any}
+                          />
+                        ) : (
+                          <span className={cn('text-sm text-foreground', isNumeric(c.type) && 'tabular-nums', (row[c.field] == null || row[c.field] === '') && 'text-muted-foreground')}>
+                            {displayText(c, row[c.field])}
+                          </span>
+                        )
+                      ) : c.type === 'lookup' ? (
                         <LookupField
                           value={row[c.field]}
                           onChange={(v: any) => setCellValue(rowIdx, c.field, v)}
@@ -485,7 +525,7 @@ export function GridField({
           type="button"
           variant="outline"
           size="sm"
-          onClick={addRow}
+          onClick={isList && onAdd ? onAdd : addRow}
           disabled={maxRows != null && rows.length >= maxRows}
           data-testid="line-items-add"
         >
