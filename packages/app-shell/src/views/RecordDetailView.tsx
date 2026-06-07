@@ -449,6 +449,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // server-registered handler name (engine.registerAction). Sends the
   // current recordId, objectName, and any collected/static params, and the
   // server resolves the handler (with wildcard '*' fallback) and runs it.
+  const serverActionInFlight = useRef<Set<string>>(new Set());
   const serverActionHandler = useCallback(async (action: ActionDef) => {
     const targetName = action.target || action.name;
     if (!targetName) {
@@ -457,6 +458,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     const params = (action.params && !Array.isArray(action.params))
       ? (action.params as Record<string, unknown>)
       : {};
+
+    // Re-entrancy guard: ignore a repeat click while this action+record runs.
+    const inflightKey = `${targetName}:${pureRecordId ?? ''}`;
+    if (serverActionInFlight.current.has(inflightKey)) {
+      return { success: false, error: 'Action already in progress' };
+    }
+    serverActionInFlight.current.add(inflightKey);
 
     // ── Popup-blocker workaround ──────────────────────────────────────
     // When `action.opensInNewTab` is set, the handler is known to return
@@ -475,7 +483,15 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       // tab to the redirectUrl (the double-navigation bug: env opens in a new
       // tab AND the list/detail page jumps to the now-consumed SSO URL). We
       // need the reference to drive the pre-opened tab to the SSO redirect.
-      try { preOpenedTab = window.open('about:blank', '_blank'); } catch { preOpenedTab = null; }
+      try {
+        preOpenedTab = window.open('about:blank', '_blank');
+        // Paint progress immediately so the new tab isn't blank/frozen during
+        // the (slow) SSO-handoff mint.
+        if (preOpenedTab) {
+          preOpenedTab.document.write('<!doctype html><meta charset="utf-8"><title>正在打开… Opening…</title><body style="margin:0;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;color:#4b5563"><div style="width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#6366f1;border-radius:50%;animation:s .8s linear infinite"></div><div>正在为你打开环境…</div><style>@keyframes s{to{transform:rotate(360deg)}}</style></body>');
+          preOpenedTab.document.close();
+        }
+      } catch { preOpenedTab = null; }
     }
 
     try {
@@ -520,7 +536,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           // No 'noopener' so a successful open returns a truthy handle; with
           // it, the null return would always trip the current-tab fallback.
           try { popup = window.open(redirectUrl, '_blank'); } catch { popup = null; }
-          if (!popup) { window.location.href = redirectUrl; }
+          if (!popup) {
+            // Don't silently hijack the current tab — offer a one-click open.
+            toast('浏览器拦截了弹窗 / Popup blocked', {
+              description: '点击在新标签页打开环境',
+              action: { label: '打开环境', onClick: () => { try { window.open(redirectUrl, '_blank'); } catch { window.location.href = redirectUrl; } } },
+              duration: 10000,
+            });
+          }
         }
       } else if (preOpenedTab) {
         // Handler didn't return a redirectUrl — close the empty tab we
@@ -533,6 +556,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       const msg = (error as Error).message;
       toast.error(msg);
       return { success: false, error: msg };
+    } finally {
+      serverActionInFlight.current.delete(inflightKey);
     }
   }, [authFetch, pureRecordId, objectName]);
 

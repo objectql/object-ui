@@ -182,6 +182,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // network write.
     const persistTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
     const persistPending = useRef<Record<string, Record<string, any>>>({});
+    // Guards against double-firing a server action (e.g. an "Open" that mints a
+    // slow SSO handoff) — without it, a user who clicks again because the button
+    // "looks stuck" spawns a second blank tab + a second request.
+    const serverActionInFlight = useRef<Set<string>>(new Set());
     const persistViewPatch = useCallback(
         (viewIdLocal: string, baseViewDef: Record<string, any>, patch: Record<string, any>) => {
             if (!dataSource?.updateViewConfig || !objectName || !viewIdLocal) return;
@@ -1115,22 +1119,32 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         const recordIdField = (action as any).recordIdField || 'id';
         const resolvedRecordId = (params as any).recordId ?? _rowRecord?.[recordIdField];
 
+        // Re-entrancy guard: ignore a repeat click while this exact
+        // action+record is already running — otherwise a user who clicks again
+        // because the button "looks stuck" spawns another blank tab + request.
+        const inflightKey = `${targetName}:${resolvedRecordId ?? ''}`;
+        if (serverActionInFlight.current.has(inflightKey)) {
+            return { success: false, error: 'Action already in progress' };
+        }
+        serverActionInFlight.current.add(inflightKey);
+
         // ── Popup-blocker workaround (mirrors RecordDetailView) ───────────
-        // When `action.opensInNewTab` is set, the handler returns
-        // `{ redirectUrl }` for the UI to navigate to. Pre-open `about:blank`
-        // synchronously *before* the await so the user-gesture context is
-        // preserved and Chrome/Safari don't block the eventual navigation —
-        // without this, the post-await window.open() on the row-action path
-        // is dropped as an unsolicited popup. Falls back to navigating the
-        // current tab if the pre-open is itself blocked.
+        // Pre-open `about:blank` synchronously *before* the await so the
+        // user-gesture context is preserved and Chrome/Safari don't block the
+        // eventual navigation. No 'noopener' — it would null the handle and
+        // trip the current-tab fallback (double-navigation bug).
         let preOpenedTab: Window | null = null;
         if ((action as any).opensInNewTab) {
-            // NOTE: no 'noopener' — per spec it forces window.open to return
-            // null even when the tab opens, losing the handle so we'd fall
-            // through to the popup branch and navigate the *current* (list)
-            // tab to the redirectUrl (double-navigation bug). We need the
-            // reference to drive the pre-opened tab to the SSO redirect.
-            try { preOpenedTab = window.open('about:blank', '_blank'); } catch { preOpenedTab = null; }
+            try {
+                preOpenedTab = window.open('about:blank', '_blank');
+                // Paint progress immediately so the new tab never looks blank/
+                // frozen during the (slow) SSO-handoff mint — the #1 reason
+                // users thought "Open" was broken and re-clicked.
+                if (preOpenedTab) {
+                    preOpenedTab.document.write('<!doctype html><meta charset="utf-8"><title>正在打开… Opening…</title><body style="margin:0;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;color:#4b5563"><div style="width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#6366f1;border-radius:50%;animation:s .8s linear infinite"></div><div>正在为你打开环境…</div><style>@keyframes s{to{transform:rotate(360deg)}}</style></body>');
+                    preOpenedTab.document.close();
+                }
+            } catch { preOpenedTab = null; }
         }
         try {
             const baseUrl = import.meta.env.VITE_SERVER_URL || '';
@@ -1175,7 +1189,17 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     // handle; with it the null return would always trip the
                     // current-tab fallback below.
                     try { popup = window.open(redirectUrl, '_blank'); } catch { popup = null; }
-                    if (!popup) window.location.href = redirectUrl;
+                    if (!popup) {
+                        // Popup blocked even with the gesture — DON'T silently
+                        // hijack the control-plane tab after a long wait (the
+                        // jarring "it suddenly navigated away" report). Offer a
+                        // one-click open (a fresh user gesture) instead.
+                        toast('浏览器拦截了弹窗 / Popup blocked', {
+                            description: '点击在新标签页打开环境',
+                            action: { label: '打开环境', onClick: () => { try { window.open(redirectUrl, '_blank'); } catch { window.location.href = redirectUrl; } } },
+                            duration: 10000,
+                        });
+                    }
                 }
             } else if (preOpenedTab) {
                 // opensInNewTab declared but no redirectUrl came back — don't
@@ -1188,6 +1212,8 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             const msg = (error as Error).message;
             toast.error(msg);
             return { success: false, error: msg };
+        } finally {
+            serverActionInFlight.current.delete(inflightKey);
         }
     }, [authFetch, objectDef.name]);
 
