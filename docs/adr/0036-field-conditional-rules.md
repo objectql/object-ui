@@ -108,6 +108,38 @@ paid_on:   Field.date({
 Covered by the `field-conditional-rules` live e2e (drives Status →
 paid/sent/draft and asserts each dependent field re-gates).
 
+## Inline grids (line items)
+
+The same rules apply to **inline line-item grid cells**. `deriveMasterDetail`
+carries a column's `readonlyWhen` / `requiredWhen` through to its `GridColumn`,
+and `GridField` evaluates them **per row** via `resolveFieldRuleState`:
+
+- A `readonlyWhen`-TRUE cell renders locked (its control is disabled).
+- A `requiredWhen`-TRUE empty cell flags inline-invalid on that row
+  (`data-testid="line-items-invalid-<row>-<field>"`), the same affordance a
+  statically-required empty cell uses.
+
+Scope: today the grid evaluates against the **row** (`record.*`) — e.g.
+`description.requiredWhen = "record.quantity >= 100"` (a bulk line needs a
+note). The core helpers also accept an extra `scope` (so a predicate could
+reference the header as `parent.*`, e.g. lock a paid invoice's lines), and
+`GridField` accepts a `contextRecord` prop for it — but wiring the live header
+record into the grid requires isolating the grid's re-renders from the
+reset-sensitive master-detail header form (a parent re-render mid-submit can
+fire the header's `form.reset`). That header-driven lock is therefore a
+**deferred** follow-up; row-scoped rules ship now.
+
+## Submit-time enforcement
+
+`requiredWhen` is enforced not just visually but at **submit**: the form
+renderer registers react-hook-form's `required` rule from the *resolved*
+(CEL) required state, so saving while the predicate is TRUE and the value is
+empty blocks submission and attaches the error to the field. When the predicate
+later flips FALSE (e.g. the status that imposed it changes), a reactive effect
+clears the now-stale *required* error (react-hook-form keeps an error until the
+erroring field itself revalidates) — and a field hidden by `visibleWhen` clears
+all of its errors.
+
 ## Consequences
 
 - Authors express conditional UX once, on the field, in the same CEL they

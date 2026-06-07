@@ -48,16 +48,25 @@ function toExpression(pred: FieldRulePredicate): Expression {
  *                  `false` for readonly/required (don't lock/block on error),
  *                  `true` for visibility (don't hide on error).
  * @param previous  The prior persisted record, if any (for `previous.*` refs).
+ * @param scope     Extra top-level scope variables bound alongside `record` —
+ *                  e.g. `{ parent }` so an inline line-item cell can reference
+ *                  its header (`parent.status == 'paid'`) as well as its own
+ *                  row (`record.quantity`). Bound via the engine's `extra`.
  */
 export function evalFieldPredicate(
   pred: FieldRulePredicate | undefined | null,
   record: Record<string, unknown>,
   fallback: boolean,
   previous?: Record<string, unknown>,
+  scope?: Record<string, unknown>,
 ): boolean {
   if (pred == null || (typeof pred === 'string' && !pred.trim())) return fallback;
   try {
-    const res = ExpressionEngine.evaluate<boolean>(toExpression(pred), { record, previous });
+    const res = ExpressionEngine.evaluate<boolean>(toExpression(pred), {
+      record,
+      previous,
+      ...(scope ? { extra: scope } : {}),
+    });
     if (!res.ok) return fallback;
     return res.value === true;
   } catch {
@@ -83,22 +92,23 @@ export function resolveFieldRuleState(
   record: Record<string, unknown>,
   statics: { required?: boolean; readonly?: boolean },
   previous?: Record<string, unknown>,
+  scope?: Record<string, unknown>,
 ): { visible: boolean; readonly: boolean; required: boolean } {
   const visible =
     rules.visibleWhen != null
-      ? evalFieldPredicate(rules.visibleWhen, record, true, previous)
+      ? evalFieldPredicate(rules.visibleWhen, record, true, previous, scope)
       : true;
 
   const readonly =
     statics.readonly === true ||
     (rules.readonlyWhen != null
-      ? evalFieldPredicate(rules.readonlyWhen, record, false, previous)
+      ? evalFieldPredicate(rules.readonlyWhen, record, false, previous, scope)
       : false);
 
   const requiredPred = rules.requiredWhen ?? rules.conditionalRequired;
   const required =
     statics.required === true ||
-    (requiredPred != null ? evalFieldPredicate(requiredPred, record, false, previous) : false);
+    (requiredPred != null ? evalFieldPredicate(requiredPred, record, false, previous, scope) : false);
 
   return { visible, readonly, required };
 }

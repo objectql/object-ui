@@ -16,6 +16,7 @@ import {
   Label,
 } from '@object-ui/components';
 import { Plus, Trash2, SlidersHorizontal, Maximize2, Copy, GripVertical } from 'lucide-react';
+import { resolveFieldRuleState } from '@object-ui/core';
 import { LookupField } from './LookupField';
 
 /**
@@ -75,6 +76,20 @@ export interface GridColumn {
    *  sibling columns of the same name (e.g. a product's unit_price/description).
    *  On by default for lookup columns; set `false` to disable the auto-fill. */
   autofill?: boolean;
+  /**
+   * CEL predicate: when TRUE for this row, the cell is **read-only** (B2 field
+   * rules, generalized to grid cells). Evaluated per row against the row as
+   * `record` plus the header as `parent` (so a line locks when
+   * `parent.status == 'paid'` *or* on an intra-row condition like
+   * `record.kind == 'auto'`). Client-side UX; fails open (stays editable).
+   */
+  readonlyWhen?: string | { dialect?: string; source: string };
+  /**
+   * CEL predicate: when TRUE for this row, the cell is **required** (flagged
+   * inline-invalid while empty). Same `record` + `parent` scope as
+   * {@link readonlyWhen}.
+   */
+  requiredWhen?: string | { dialect?: string; source: string };
 }
 
 type Row = Record<string, any>;
@@ -291,10 +306,35 @@ export function GridField({
   /** In 'list' mode, "Add" calls this (host opens the full form for a new row)
    *  instead of inserting a blank inline row. */
   onAdd?: () => void;
+  /** The header/parent record, bound as `parent` when evaluating a column's
+   *  `readonlyWhen` / `requiredWhen` CEL predicate — so a line cell can react to
+   *  the header (`parent.status == 'paid'`). Supplied by MasterDetailForm. */
+  contextRecord?: Record<string, unknown>;
 }) {
   const cfg = (field || (props as any).schema || {}) as any;
   const allColumns: GridColumn[] = cfg.columns || [];
   const rows: Row[] = Array.isArray(value) ? value : [];
+  const contextRecord = (props as any).contextRecord as Record<string, unknown> | undefined;
+
+  // Per-cell CEL rule state (B2 in grids). A column with no readonlyWhen/
+  // requiredWhen resolves to its static flags (cheap fast-path — no engine
+  // call). Otherwise evaluate against the row (`record`) + header (`parent`).
+  const cellRules = useCallback(
+    (c: GridColumn, row: Row): { readonly: boolean; required: boolean } => {
+      if (!c.readonlyWhen && !c.requiredWhen) {
+        return { readonly: false, required: !!c.required };
+      }
+      const s = resolveFieldRuleState(
+        { readonlyWhen: c.readonlyWhen, requiredWhen: c.requiredWhen },
+        (row || {}) as Record<string, unknown>,
+        { required: !!c.required, readonly: false },
+        undefined,
+        contextRecord ? { parent: contextRecord } : undefined,
+      );
+      return { readonly: s.readonly, required: s.required };
+    },
+    [contextRecord],
+  );
   // List mode: rows are read-only at-a-glance; editing happens in the full form.
   const isList = displayMode === 'list' && !readonly;
 
@@ -620,6 +660,8 @@ export function GridField({
    *  editable borderless control (spreadsheet feel). */
   const renderCellInput = (c: GridColumn, colIdx: number, rowIdx: number, row: Row) => {
     const val = row?.[c.field];
+    // A readonlyWhen-TRUE cell is locked: treat like the form-wide `disabled`.
+    const locked = disabled || cellRules(c, row).readonly;
     // List (form-factor) mode → read-only at-a-glance display.
     if (isList) {
       if (c.type === 'lookup' && val != null && val !== '') {
@@ -654,13 +696,13 @@ export function GridField({
           onSelectRecord={(rec: any) => applyLookupSelection(rowIdx, c, rec)}
           compact
           field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField, multiple: c.multiple, options: c.options, placeholder: '—' } as any}
-          disabled={disabled}
+          disabled={locked}
         />
       );
     }
     if (c.type === 'select') {
       return (
-        <Select value={val != null ? String(val) : ''} onValueChange={(v) => setCell(rowIdx, c, v)} disabled={disabled}>
+        <Select value={val != null ? String(val) : ''} onValueChange={(v) => setCell(rowIdx, c, v)} disabled={locked}>
           <SelectTrigger className="h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus:ring-1 focus:ring-ring/60" aria-label={c.label || c.field}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
@@ -690,7 +732,7 @@ export function GridField({
           aria-label={c.label || c.field}
           value={val != null ? String(val) : ''}
           onChange={(e) => setCell(rowIdx, c, e.target.value)}
-          disabled={disabled}
+          disabled={locked}
         />
       </div>
     );
@@ -772,8 +814,11 @@ export function GridField({
                     )}
                     {columns.map((c, colIdx) => {
                       // Inline validation: a required, non-computed cell that's
-                      // empty on a real (non-ghost) row flags red in place.
-                      const invalid = !isGhost && !isList && !!c.required && !c.computed && (row[c.field] == null || row[c.field] === '');
+                      // empty on a real (non-ghost) row flags red in place. The
+                      // "required" verdict honors a column's `requiredWhen` CEL
+                      // rule (B2), evaluated against the row + parent header.
+                      const required = cellRules(c, row).required;
+                      const invalid = !isGhost && !isList && required && !c.computed && (row[c.field] == null || row[c.field] === '');
                       return (
                         <td
                           key={c.field}

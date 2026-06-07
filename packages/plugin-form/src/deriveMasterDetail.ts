@@ -187,6 +187,11 @@ export function deriveColumns(
       col.reference = d?.reference;
       col.displayField = d?.display_field || d?.reference_field;
     }
+    // Field-level CEL conditional rules (B2 in grids). Carried through verbatim
+    // so the grid cell evaluates them per row (against the row + `parent`
+    // header). requiredWhen falls back to the conditionalRequired alias.
+    if (d?.readonlyWhen) col.readonlyWhen = d.readonlyWhen;
+    if (d?.requiredWhen ?? d?.conditionalRequired) col.requiredWhen = d.requiredWhen ?? d.conditionalRequired;
     // A field carrying an arithmetic `expression` (e.g. amount = quantity *
     // unit_price) becomes a live read-only computed column. The expression may
     // be a bare string or the normalized CEL envelope `{ dialect, source }`.

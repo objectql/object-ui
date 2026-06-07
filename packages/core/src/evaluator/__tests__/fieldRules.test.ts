@@ -47,6 +47,22 @@ describe('evalFieldPredicate', () => {
     expect(evalFieldPredicate("record.status == 'paid'", { status: null }, true)).toBe(false);
   });
 
+  it('binds an extra scope (parent.*) for inline line-item cells', () => {
+    // A grid cell can reference both its own row and the header via `parent`.
+    expect(
+      evalFieldPredicate("parent.status == 'paid'", { quantity: 2 }, false, undefined, {
+        parent: { status: 'paid' },
+      }),
+    ).toBe(true);
+    expect(
+      evalFieldPredicate("parent.status == 'paid' || record.quantity == 0", { quantity: 0 }, false, undefined, {
+        parent: { status: 'draft' },
+      }),
+    ).toBe(true);
+    // Without the scope, `parent` is unbound → fault → fallback.
+    expect(evalFieldPredicate("parent.status == 'paid'", { quantity: 2 }, false)).toBe(false);
+  });
+
   it('exposes previous.* for transition predicates', () => {
     expect(
       evalFieldPredicate("record.status == 'paid' && previous.status != 'paid'", { status: 'paid' }, false, {

@@ -247,6 +247,35 @@ ComponentRegistry.register('form',
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fields, JSON.stringify(watched)]);
 
+    // When a field's CEL rule relaxes — it becomes hidden (visibleWhen FALSE) or
+    // no longer required (requiredWhen FALSE) — clear any stale validation error
+    // left from a prior submit attempt. react-hook-form keeps an error until the
+    // erroring field itself revalidates; without this a "required" message would
+    // linger after the condition that imposed it (e.g. status) changed.
+    React.useEffect(() => {
+      const errs = form.formState.errors as Record<string, unknown>;
+      if (!errs || Object.keys(errs).length === 0) return;
+      for (const f of fields as FormFieldConfig[]) {
+        const name = f?.name;
+        if (!name || !errs[name]) continue;
+        const st = resolveFieldRuleState(
+          {
+            visibleWhen: (f as any).visibleWhen,
+            readonlyWhen: (f as any).readonlyWhen,
+            requiredWhen: (f as any).requiredWhen,
+            conditionalRequired: (f as any).conditionalRequired,
+          },
+          ruleRecord,
+          { required: !!f.required, readonly: (f as any).readonly === true },
+        );
+        // A hidden field shows no errors at all; an un-required field clears
+        // only its *required* error (keep legitimate format/min/etc. errors).
+        const errType = (errs[name] as { type?: string } | undefined)?.type;
+        if (!st.visible || (!st.required && errType === 'required')) form.clearErrors(name);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ruleRecord]);
+
     // Read DataSource from SchemaRendererContext and propagate it to field
     // widgets as a prop so they can dynamically load related records.
     const schemaCtx = React.useContext(SchemaRendererContext);
