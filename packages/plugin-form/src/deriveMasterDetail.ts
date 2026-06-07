@@ -189,10 +189,41 @@ export function deriveColumns(
   return curateColumns(cols, maxColumns);
 }
 
+/** Computed / non-input field types — excluded from the row form (read-only,
+ *  server-derived). Unlike grid columns we DO keep rich inputs (textarea,
+ *  richtext, file, image, json…) since the row form has room for them. */
+const NON_INPUT_TYPES = new Set(['formula', 'summary', 'rollup', 'autonumber', 'auto_number']);
+
+/**
+ * Field names for a child's full "row form" (the per-row expand editor) — every
+ * editable business field, skipping system/audit fields, the back-reference FK,
+ * and computed types. Broader than {@link deriveColumns} (which only returns
+ * grid-friendly types): the form has room for textarea/richtext/file/etc.
+ */
+export function deriveFormFields(
+  childSchema: ObjectSchemaLike | undefined,
+  opts: { relationshipField?: string; exclude?: string[] } = {},
+): string[] {
+  const fields = childSchema?.fields;
+  if (!fields || typeof fields !== 'object') return [];
+  const exclude = new Set([...(opts.exclude ?? []), ...(opts.relationshipField ? [opts.relationshipField] : [])]);
+  const out: string[] = [];
+  for (const [name, def] of Object.entries(fields)) {
+    const d = def as any;
+    if (SYSTEM_FIELDS.has(name) || exclude.has(name)) continue;
+    if (d?.system || d?.hidden) continue;
+    if (NON_INPUT_TYPES.has(d?.type)) continue;
+    out.push(name);
+  }
+  return out;
+}
+
 export interface DerivedDetail {
   childObject: string;
   relationshipField: string;
   columns: GridColumn[];
+  /** Field names for the per-row expand form (broader than `columns`). */
+  formFields: string[];
   /** First numeric column, used as the running-total source when none is set. */
   amountField?: string;
 }
@@ -218,5 +249,6 @@ export function deriveDetail(
   }
   const columns = override.columns?.length ? override.columns : deriveColumns(childSchema, { relationshipField });
   const amountField = override.amountField || columns.find((c) => c.type === 'number' || c.type === 'currency')?.field;
-  return { childObject, relationshipField, columns, amountField };
+  const formFields = deriveFormFields(childSchema, { relationshipField });
+  return { childObject, relationshipField, columns, formFields, amountField };
 }

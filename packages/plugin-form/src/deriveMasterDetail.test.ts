@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findRelationshipField, deriveColumns, deriveDetail, fieldTypeToColumnType } from './deriveMasterDetail';
+import { findRelationshipField, deriveColumns, deriveDetail, deriveFormFields, fieldTypeToColumnType } from './deriveMasterDetail';
 
 const taskSchema = {
   name: 'showcase_task',
@@ -139,6 +139,43 @@ describe('deriveColumns curation (column budget)', () => {
     expect(visible(cols)).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g']); // 7 required visible
     expect(cols.find((c) => c.field === 'h')?.defaultHidden).toBe(true); // non-required collapsed
     expect(cols.length).toBe(8); // nothing dropped
+  });
+});
+
+describe('deriveFormFields (per-row expand form)', () => {
+  it('returns business fields, excluding system/audit/FK/computed', () => {
+    const fields = deriveFormFields(taskSchema, { relationshipField: 'project' });
+    expect(fields).toContain('title');
+    expect(fields).toContain('status');
+    expect(fields).toContain('assignee');
+    expect(fields).not.toContain('id');         // system
+    expect(fields).not.toContain('created_at'); // audit
+    expect(fields).not.toContain('project');    // back-reference FK
+    expect(fields).not.toContain('health');     // formula (computed)
+  });
+
+  it('keeps rich input types the grid omits (textarea/file/etc.)', () => {
+    const rich = {
+      fields: {
+        title: { type: 'text', required: true },
+        parent: { type: 'master_detail', reference: 'p', required: true },
+        notes: { type: 'textarea' },
+        cover: { type: 'image' },
+        attachment: { type: 'file' },
+        total: { type: 'summary' }, // computed → excluded
+      },
+    };
+    const fields = deriveFormFields(rich, { relationshipField: 'parent' });
+    expect(fields).toEqual(expect.arrayContaining(['title', 'notes', 'cover', 'attachment']));
+    expect(fields).not.toContain('total');
+    expect(fields).not.toContain('parent');
+  });
+
+  it('is surfaced on deriveDetail output', () => {
+    const d = deriveDetail('showcase_task', taskSchema, 'showcase_project');
+    expect(Array.isArray(d.formFields)).toBe(true);
+    expect(d.formFields).toContain('title');
+    expect(d.formFields).not.toContain('project');
   });
 });
 

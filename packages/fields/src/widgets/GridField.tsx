@@ -15,7 +15,7 @@ import {
   Checkbox,
   Label,
 } from '@object-ui/components';
-import { Plus, Trash2, SlidersHorizontal } from 'lucide-react';
+import { Plus, Trash2, SlidersHorizontal, Maximize2 } from 'lucide-react';
 import { LookupField } from './LookupField';
 
 /**
@@ -100,8 +100,15 @@ export function GridField({
   readonly,
   disabled,
   className,
+  onRowExpand,
   ...props
-}: FieldWidgetProps<Row[]>) {
+}: FieldWidgetProps<Row[]> & {
+  /** When provided, each row shows an "expand" button that opens the row in a
+   *  full form (the host — e.g. MasterDetailForm — renders the drawer/modal and
+   *  writes the edited values back). Lets a "fat" child be edited in a real form
+   *  while the grid stays a quick at-a-glance editor. */
+  onRowExpand?: (rowIndex: number) => void;
+}) {
   const cfg = (field || (props as any).schema || {}) as any;
   const allColumns: GridColumn[] = cfg.columns || [];
   const rows: Row[] = Array.isArray(value) ? value : [];
@@ -125,6 +132,9 @@ export function GridField({
 
   const allowAdd = cfg.allow_add !== false && !readonly && !disabled;
   const allowDelete = cfg.allow_delete !== false && !readonly && !disabled;
+  // Per-row "expand to full form" (mainstream hybrid: quick grid + rich form).
+  const showExpand = typeof onRowExpand === 'function' && !readonly;
+  const hasRowActions = showExpand || allowDelete;
   // Enterprise line grids (NetSuite/SAP/Salesforce) show a line-number column.
   const showLineNumbers = cfg.show_line_numbers !== false;
   const minRows: number = cfg.min_rows ?? 0;
@@ -332,14 +342,14 @@ export function GridField({
                   {c.required && <span className="text-destructive"> *</span>}
                 </th>
               ))}
-              {allowDelete && <th className="w-10" />}
+              {hasRowActions && <th style={{ width: showExpand && allowDelete ? 84 : 44 }} />}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={columns.length + (allowDelete ? 1 : 0) + (showLineNumbers ? 1 : 0)}
+                  colSpan={columns.length + (hasRowActions ? 1 : 0) + (showLineNumbers ? 1 : 0)}
                   className="px-3 py-6 text-center text-muted-foreground"
                 >
                   No items yet — click “{cfg.add_label || 'Add line'}” to begin.
@@ -414,19 +424,35 @@ export function GridField({
                       )}
                     </td>
                   ))}
-                  {allowDelete && (
-                    <td className="px-2 py-1.5 text-center align-middle">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        aria-label="Remove row"
-                        onClick={() => removeRow(rowIdx)}
-                        disabled={disabled || rows.length <= minRows}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                  {hasRowActions && (
+                    <td className="px-2 py-1.5 text-center align-middle whitespace-nowrap">
+                      {showExpand && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          aria-label="Open row"
+                          title="Open full form"
+                          data-testid={`line-items-expand-${rowIdx}`}
+                          onClick={() => onRowExpand!(rowIdx)}
+                        >
+                          <Maximize2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {allowDelete && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          aria-label="Remove row"
+                          onClick={() => removeRow(rowIdx)}
+                          disabled={disabled || rows.length <= minRows}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </td>
                   )}
                 </tr>
@@ -445,8 +471,8 @@ export function GridField({
                 <td className="px-3 py-2 text-right font-semibold text-foreground tabular-nums" data-testid="line-items-total">
                   {total.toLocaleString()}
                 </td>
-                {(columns.length - totalColIndex - 1 + (allowDelete ? 1 : 0)) > 0 && (
-                  <td colSpan={columns.length - totalColIndex - 1 + (allowDelete ? 1 : 0)} />
+                {(columns.length - totalColIndex - 1 + (hasRowActions ? 1 : 0)) > 0 && (
+                  <td colSpan={columns.length - totalColIndex - 1 + (hasRowActions ? 1 : 0)} />
                 )}
               </tr>
             </tfoot>

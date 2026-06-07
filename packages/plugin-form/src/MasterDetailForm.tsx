@@ -42,6 +42,9 @@ export interface MasterDetailDetailConfig {
   /** Editable columns for the child grid. Optional — derived from the child
    *  object's fields (via DataSource.getObjectSchema) when omitted. */
   columns?: GridColumn[];
+  /** Field names for the per-row expand form. Optional — derived from the child
+   *  object's fields (broader than `columns`: includes rich types) when omitted. */
+  formFields?: string[];
   /** Numeric child column to sum, e.g. 'amount'. */
   amountField?: string;
   /** Parent field to receive the rolled-up sum, e.g. 'total_amount'. */
@@ -122,6 +125,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               ...d,
               relationshipField: derived.relationshipField,
               columns: derived.columns,
+              formFields: d.formFields ?? derived.formFields,
               amountField: d.amountField ?? derived.amountField,
             };
           } catch {
@@ -188,6 +192,28 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
   const setRows = useCallback((detailIdx: number, rows: Record<string, any>[]) => {
     setState((prev) => prev.map((s, i) => (i === detailIdx ? { ...s, rows } : s)));
   }, []);
+
+  // Per-row "expand to full form": opens the child's complete form (all business
+  // fields, incl. rich types the grid omits) in a drawer, pre-filled with the
+  // row. Saving writes back into the in-memory row — the atomic batch still
+  // persists everything on the parent Save (no separate backend write here).
+  const [expanded, setExpanded] = useState<{ detailIdx: number; rowIdx: number } | null>(null);
+  const expandedRow =
+    expanded ? state[expanded.detailIdx]?.rows?.[expanded.rowIdx] : undefined;
+  const expandedDetail = expanded ? details[expanded.detailIdx] : undefined;
+
+  const applyRowEdit = useCallback(
+    (detailIdx: number, rowIdx: number, values: Record<string, any>) => {
+      setState((prev) =>
+        prev.map((s, i) =>
+          i === detailIdx
+            ? { ...s, rows: s.rows.map((r, j) => (j === rowIdx ? { ...r, ...values } : r)) }
+            : s,
+        ),
+      );
+    },
+    [],
+  );
 
   /**
    * Built-in feedback so a save is NEVER silent (a silent success looks broken
@@ -389,6 +415,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
             <LineItemsField
               value={state[i]?.rows ?? []}
               onChange={(rows) => setRows(i, rows)}
+              onRowExpand={(rowIdx) => setExpanded({ detailIdx: i, rowIdx })}
               field={
                 {
                   columns: d.columns,
@@ -406,7 +433,57 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
         </Card>
       ))}
 
-      {/* 3) Single action bar at the bottom */}
+      {/* Per-row "expand to full form": an inline editor panel for the selected
+          row. Rendered INLINE (not a portaled drawer) so it behaves identically
+          whether this form is itself inside a modal (New-from-list) or a full
+          page — nested portaled overlays inherit the host modal's
+          pointer-events / aria-hidden lock and become unclickable. Edits the
+          row in the child's COMPLETE form (rich types the grid omits) and writes
+          the values back into the in-memory row; the atomic batch persists
+          everything on the parent Save. */}
+      {expanded && expandedDetail && (
+        <Card className="border-primary/40 shadow-none ring-1 ring-primary/10" data-testid="md-row-form">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2 space-y-0">
+            <CardTitle className="text-sm font-medium">
+              {(expandedDetail.title || 'Line item')} — row {expanded.rowIdx + 1}
+            </CardTitle>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-muted-foreground"
+              onClick={() => setExpanded(null)}
+            >
+              Close
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <ObjectForm
+              key={`row-${expanded.detailIdx}-${expanded.rowIdx}`}
+              schema={{
+                type: 'object-form',
+                objectName: expandedDetail.childObject,
+                mode: 'edit',
+                // No recordId → ObjectForm uses initialData (no backend fetch).
+                initialData: expandedRow ?? {},
+                ...(expandedDetail.formFields?.length ? { fields: expandedDetail.formFields } : {}),
+                submitText: 'Apply',
+                // Non-persisting: return the values; the atomic batch on the
+                // parent Save does the real write.
+                submitHandler: async (values: any) => values,
+                onSuccess: (values: any) => {
+                  applyRowEdit(expanded.detailIdx, expanded.rowIdx, values);
+                  setExpanded(null);
+                },
+                onCancel: () => setExpanded(null),
+              } as any}
+              dataSource={dataSource}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Single action bar at the bottom */}
       <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
         {schema.onCancel && (
           <Button type="button" variant="outline" onClick={schema.onCancel} disabled={saving} data-testid="md-form-cancel">
