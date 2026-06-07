@@ -1128,6 +1128,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             if (!res.ok || (json && json.success === false)) {
                 const errMsg = json?.error || `Action "${targetName}" failed (HTTP ${res.status})`;
                 if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
+                // Surface the failure — this custom new-tab path bypasses
+                // ActionRunner's toast-on-error, so without this the user sees
+                // nothing (e.g. "Open" hitting a 503 looked like a dead button).
+                toast.error(errMsg);
                 return { success: false, error: errMsg };
             }
             const shouldRefresh = action.refreshAfter !== false;
@@ -1162,7 +1166,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             return { success: true, data, reload: shouldRefresh };
         } catch (error) {
             if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
-            return { success: false, error: (error as Error).message };
+            const msg = (error as Error).message;
+            toast.error(msg);
+            return { success: false, error: msg };
         }
     }, [authFetch, objectDef.name]);
 

@@ -477,6 +477,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       if (!res.ok || (json && json.success === false)) {
         const errMsg = json?.error || `Action "${targetName}" failed (HTTP ${res.status})`;
         if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
+        // Surface the failure — this custom new-tab path bypasses
+        // ActionRunner's toast-on-error, so otherwise the user gets no feedback.
+        toast.error(errMsg);
         return { success: false, error: errMsg };
       }
       const shouldRefresh = action.refreshAfter !== false;
@@ -511,7 +514,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       return { success: true, data: result, reload: shouldRefresh };
     } catch (error) {
       if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
-      return { success: false, error: (error as Error).message };
+      const msg = (error as Error).message;
+      toast.error(msg);
+      return { success: false, error: msg };
     }
   }, [authFetch, pureRecordId, objectName]);
 
