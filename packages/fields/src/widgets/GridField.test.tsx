@@ -223,6 +223,27 @@ describe('GridField / LineItemsField — editable line items', () => {
     });
   });
 
+  describe('P1 affordances (duplicate / validation)', () => {
+    it('duplicates a row (id stripped) directly below the original', () => {
+      const onChange = vi.fn();
+      render(<GridField value={[{ id: 'r1', description: 'A', amount: 5 }]} onChange={onChange} field={field} />);
+      fireEvent.click(screen.getByTestId('line-items-duplicate-0'));
+      expect(onChange).toHaveBeenCalledWith([
+        { id: 'r1', description: 'A', amount: 5 },
+        { description: 'A', amount: 5 }, // copy without the id → persists as a new record
+      ]);
+    });
+
+    it('flags a required, empty cell on a real row (not the ghost row)', () => {
+      const reqField = { columns: [{ field: 'description', label: 'Description', type: 'text' as const, required: true }] } as any;
+      render(<GridField value={[{ description: '' }]} onChange={() => {}} field={reqField} />);
+      // The data row's required-empty cell is flagged...
+      expect(screen.getByTestId('line-items-invalid-0-description')).toBeTruthy();
+      // ...but the trailing ghost row (index 1) is not.
+      expect(screen.queryByTestId('line-items-invalid-1-description')).toBeNull();
+    });
+  });
+
   it('sumColumn ignores blanks and NaN', () => {
     expect(sumColumn([{ amount: 1 }, { amount: 2 }, { amount: null }], 'amount')).toBe(3);
   });

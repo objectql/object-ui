@@ -15,7 +15,7 @@ import {
   Checkbox,
   Label,
 } from '@object-ui/components';
-import { Plus, Trash2, SlidersHorizontal, Maximize2 } from 'lucide-react';
+import { Plus, Trash2, SlidersHorizontal, Maximize2, Copy, GripVertical } from 'lucide-react';
 import { LookupField } from './LookupField';
 
 /**
@@ -317,19 +317,27 @@ export function GridField({
 
   const allowAdd = cfg.allow_add !== false && !readonly && !disabled;
   const allowDelete = cfg.allow_delete !== false && !readonly && !disabled;
+  const allowDuplicate = cfg.allow_duplicate !== false && allowAdd;
   // Per-row "expand to full form" (mainstream hybrid: quick grid + rich form).
   const showExpand = typeof onRowExpand === 'function' && !readonly;
-  const hasRowActions = showExpand || allowDelete;
   // Enterprise line grids (NetSuite/SAP/Salesforce) show a line-number column.
   const showLineNumbers = cfg.show_line_numbers !== false;
   const minRows: number = cfg.min_rows ?? 0;
   const maxRows: number | undefined = cfg.max_rows;
   const totalField: string | undefined =
     cfg.total_field || cfg.amount_field || cfg.amountField;
+  // When set, the row's order is persisted by stamping `row[sortField] = index`
+  // on every change — so drag-reorder survives a reload (the app adds a numeric
+  // position field and lists sort by it). Without it, reorder is order-of-entry.
+  const sortField: string | undefined = cfg.sort_field;
+  // Drag-to-reorder is on for editable grids (off in read-only / list mode).
+  const allowReorder = cfg.reorderable !== false && !readonly && !disabled;
 
   const emit = useCallback(
-    (next: Row[]) => onChange?.(next),
-    [onChange],
+    (next: Row[]) => {
+      onChange?.(sortField ? next.map((r, i) => ({ ...r, [sortField]: i })) : next);
+    },
+    [onChange, sortField],
   );
 
   const blankRow = useCallback((): Row => {
@@ -427,6 +435,37 @@ export function GridField({
     },
     [rows, minRows, emit],
   );
+
+  /** Duplicate a row (id stripped so the copy persists as a new record),
+   *  inserted directly below the original — handy for near-identical lines. */
+  const duplicateRow = useCallback(
+    (rowIdx: number) => {
+      if (maxRows != null && rows.length >= maxRows) return;
+      const src = rows[rowIdx];
+      if (!src) return;
+      const { id: _i, _id: _i2, recordId: _i3, ...copy } = src as any;
+      const next = [...rows];
+      next.splice(rowIdx + 1, 0, { ...copy });
+      emit(next);
+    },
+    [rows, maxRows, emit],
+  );
+
+  /** Move a row from one position to another (drag-to-reorder). */
+  const moveRow = useCallback(
+    (from: number, to: number) => {
+      if (from === to || from < 0 || to < 0 || from >= rows.length || to >= rows.length) return;
+      const next = [...rows];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      emit(next);
+    },
+    [rows, emit],
+  );
+  const dragIndex = useRef<number | null>(null);
+
+  const hasRowActions = showExpand || allowDelete || allowDuplicate;
+  const actionColWidth = ((showExpand ? 1 : 0) + (allowDuplicate ? 1 : 0) + (allowDelete ? 1 : 0)) * 34 + 12;
 
   const showTotal = !!totalField;
   const total = showTotal ? sumColumn(rows, totalField!) : 0;
@@ -664,7 +703,7 @@ export function GridField({
           <thead className="bg-muted/60 border-b border-border">
             <tr>
               {showLineNumbers && (
-                <th className="w-10 px-2 py-2 text-right text-xs font-medium text-muted-foreground">#</th>
+                <th className={cn('px-2 py-2 text-right text-xs font-medium text-muted-foreground', allowReorder ? 'w-14' : 'w-10')}>#</th>
               )}
               {columns.map((c) => (
                 <th
@@ -679,7 +718,7 @@ export function GridField({
                   {c.required && !c.computed && <span className="text-destructive"> *</span>}
                 </th>
               ))}
-              {hasRowActions && <th style={{ width: showExpand && allowDelete ? 76 : 40 }} />}
+              {hasRowActions && <th style={{ width: actionColWidth }} />}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -695,54 +734,114 @@ export function GridField({
             ) : (
               displayRows.map((row, rowIdx) => {
                 const isGhost = hasGhost && rowIdx === rows.length;
+                const reorderable = allowReorder && !isGhost && !isList;
                 return (
-                  <tr key={rowIdx} className={cn('group', !isGhost && 'hover:bg-muted/30')}>
+                  <tr
+                    key={rowIdx}
+                    className={cn('group', !isGhost && 'hover:bg-muted/30')}
+                    {...(allowReorder && !isGhost
+                      ? {
+                          onDragOver: (e: React.DragEvent) => { if (dragIndex.current != null) e.preventDefault(); },
+                          onDrop: (e: React.DragEvent) => {
+                            e.preventDefault();
+                            if (dragIndex.current != null) { moveRow(dragIndex.current, rowIdx); dragIndex.current = null; }
+                          },
+                        }
+                      : {})}
+                  >
                     {showLineNumbers && (
-                      <td className="px-2 py-1 text-right align-middle text-xs text-muted-foreground tabular-nums">
-                        <span className={cn(isGhost && 'opacity-30')}>{rowIdx + 1}</span>
+                      <td className="px-1 py-1 text-right align-middle text-xs text-muted-foreground tabular-nums">
+                        <span className="inline-flex items-center justify-end gap-0.5">
+                          {reorderable && (
+                            <span
+                              draggable
+                              onDragStart={() => { dragIndex.current = rowIdx; }}
+                              onDragEnd={() => { dragIndex.current = null; }}
+                              className="cursor-grab text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100"
+                              title="Drag to reorder"
+                              aria-label="Drag to reorder"
+                              data-testid={`line-items-drag-${rowIdx}`}
+                            >
+                              <GripVertical className="h-3.5 w-3.5" />
+                            </span>
+                          )}
+                          <span className={cn(isGhost && 'opacity-30')}>{rowIdx + 1}</span>
+                        </span>
                       </td>
                     )}
-                    {columns.map((c, colIdx) => (
-                      <td
-                        key={c.field}
-                        className={cn('border-r border-border/40 px-1 py-0.5 align-middle last:border-r-0', isList && 'px-2 py-1.5')}
-                      >
-                        {renderCellInput(c, colIdx, rowIdx, row)}
-                      </td>
-                    ))}
+                    {columns.map((c, colIdx) => {
+                      // Inline validation: a required, non-computed cell that's
+                      // empty on a real (non-ghost) row flags red in place.
+                      const invalid = !isGhost && !isList && !!c.required && !c.computed && (row[c.field] == null || row[c.field] === '');
+                      return (
+                        <td
+                          key={c.field}
+                          aria-invalid={invalid || undefined}
+                          title={invalid ? `${c.label || c.field} is required` : undefined}
+                          data-testid={invalid ? `line-items-invalid-${rowIdx}-${c.field}` : undefined}
+                          className={cn(
+                            'border-r border-border/40 px-1 py-0.5 align-middle last:border-r-0',
+                            isList && 'px-2 py-1.5',
+                            invalid && 'bg-destructive/5 ring-1 ring-inset ring-destructive/50',
+                          )}
+                        >
+                          {renderCellInput(c, colIdx, rowIdx, row)}
+                        </td>
+                      );
+                    })}
                     {hasRowActions && (
-                      <td className="px-1 py-0.5 text-center align-middle whitespace-nowrap">
-                        {!isGhost && showExpand && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                            aria-label="Open row"
-                            title="Open full form"
-                            data-testid={`line-items-expand-${rowIdx}`}
-                            onClick={() => onRowExpand!(rowIdx)}
-                          >
-                            <Maximize2 className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        {!isGhost && allowDelete && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className={cn(
-                              'h-8 w-8 text-muted-foreground hover:text-destructive',
-                              !isList && 'opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100',
-                            )}
-                            aria-label="Remove row"
-                            data-testid={`line-items-remove-${rowIdx}`}
-                            onClick={() => removeRow(rowIdx)}
-                            disabled={disabled || rows.length <= minRows}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                      <td className="px-1 py-0.5 align-middle whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-0.5">
+                          {!isGhost && showExpand && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              aria-label="Open row"
+                              title="Open full form"
+                              data-testid={`line-items-expand-${rowIdx}`}
+                              onClick={() => onRowExpand!(rowIdx)}
+                            >
+                              <Maximize2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {!isGhost && allowDuplicate && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className={cn(
+                                'h-8 w-8 text-muted-foreground hover:text-foreground',
+                                !isList && 'opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100',
+                              )}
+                              aria-label="Duplicate row"
+                              title="Duplicate line"
+                              data-testid={`line-items-duplicate-${rowIdx}`}
+                              onClick={() => duplicateRow(rowIdx)}
+                              disabled={disabled || (maxRows != null && rows.length >= maxRows)}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {!isGhost && allowDelete && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className={cn(
+                                'h-8 w-8 text-muted-foreground hover:text-destructive',
+                                !isList && 'opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100',
+                              )}
+                              aria-label="Remove row"
+                              data-testid={`line-items-remove-${rowIdx}`}
+                              onClick={() => removeRow(rowIdx)}
+                              disabled={disabled || rows.length <= minRows}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     )}
                   </tr>
