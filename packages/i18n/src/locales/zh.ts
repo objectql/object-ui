@@ -1468,6 +1468,11 @@ const zh = {
     welcome: '用 AI 搭建你的业务系统',
     welcomeDescription: '用一句话描述你的业务，AI 帮你生成对象、界面、API 和 agent 工具。也可以手动从零开始。',
     buildWithAI: '用 AI 搭建',
+    recoveryReminder: {
+      message: '建议设置一个备用密码，这样即使单点登录不可用，你仍能直接登录此环境。',
+      cta: '设置密码',
+      dismiss: '关闭',
+    },
     createFirstApp: '手动创建应用',
     systemSettings: '系统设置',
     browseMarketplace: '浏览应用市场',

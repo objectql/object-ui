@@ -16,7 +16,7 @@
  * @module
  */
 
-import { useMemo, type ComponentType } from 'react';
+import { useMemo, useState, useEffect, type ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMetadata } from '../../providers/MetadataProvider';
 import { useRecentItems } from '../../hooks/useRecentItems';
@@ -27,7 +27,7 @@ import { AppCard } from './AppCard';
 import { RecentApps } from './RecentApps';
 import { StarredApps } from './StarredApps';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
-import { Plus, Settings, Sparkles, Star, Clock, ArrowDown, Store, LayoutGrid } from 'lucide-react';
+import { Plus, Settings, Sparkles, Star, Clock, ArrowDown, Store, LayoutGrid, ShieldAlert, X } from 'lucide-react';
 
 function pickGreetingKey(hour: number): string {
   if (hour < 5) return 'home.greetingNight';
@@ -102,6 +102,54 @@ function StatPill({
   );
 }
 
+/**
+ * Dismissible nudge to set a local recovery password — shown when the user
+ * signed in via SSO and has no local credential yet. We no longer force this
+ * before the first session (it walled off the magic moment); this gentle,
+ * one-time reminder preserves instance self-sufficiency without the friction.
+ */
+function RecoveryPasswordReminder({ t }: { t: (key: string, opts?: any) => string }) {
+  const navigate = useNavigate();
+  const { hasLocalPassword } = useAuth();
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('os:recovery-pw-dismissed') === '1') return;
+    let cancelled = false;
+    Promise.resolve(hasLocalPassword?.())
+      .then((has) => { if (!cancelled && has === false) setShow(true); })
+      .catch(() => { /* unknown → don't nag */ });
+    return () => { cancelled = true; };
+  }, [hasLocalPassword]);
+  const dismiss = () => {
+    try { localStorage.setItem('os:recovery-pw-dismissed', '1'); } catch { /* ignore */ }
+    setShow(false);
+  };
+  if (!show) return null;
+  return (
+    <div className="px-4 sm:px-6 lg:px-8 pt-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center gap-3 rounded-xl border border-amber-300/60 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
+          <ShieldAlert className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p className="flex-1 min-w-0 text-sm text-amber-900 dark:text-amber-200">
+            {t('home.recoveryReminder.message', { defaultValue: 'Set a recovery password so you can still sign in if single sign-on is ever unavailable.' })}
+          </p>
+          <Button size="sm" variant="outline" onClick={() => navigate('/set-password')} data-testid="recovery-pw-set">
+            {t('home.recoveryReminder.cta', { defaultValue: 'Set password' })}
+          </Button>
+          <button
+            type="button"
+            onClick={dismiss}
+            aria-label={t('home.recoveryReminder.dismiss', { defaultValue: 'Dismiss' })}
+            className="shrink-0 rounded-md p-1 text-amber-700/70 hover:text-amber-900 dark:text-amber-300/70 dark:hover:text-amber-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function HomePage() {
   const navigate = useNavigate();
   const { t } = useObjectTranslation();
@@ -134,7 +182,9 @@ export function HomePage() {
 
   if (activeApps.length === 0) {
     return (
-      <div className="flex flex-1 items-center justify-center p-6">
+      <div className="flex flex-col flex-1">
+        <RecoveryPasswordReminder t={t} />
+        <div className="flex flex-1 items-center justify-center p-6">
         <Empty>
           <EmptyTitle>{t('home.welcome', { defaultValue: 'Welcome to ObjectUI' })}</EmptyTitle>
           <EmptyDescription>
@@ -164,6 +214,7 @@ export function HomePage() {
             </Button>
           </div>
         </Empty>
+        </div>
       </div>
     );
   }
@@ -176,6 +227,8 @@ export function HomePage() {
         borders + micro-shadows on cards — the only brand-color highlight is
         the gradient display name in the hero.
       */}
+
+      <RecoveryPasswordReminder t={t} />
 
       {/* Hero */}
       <section className="px-4 sm:px-6 lg:px-8 pt-10 pb-6">
