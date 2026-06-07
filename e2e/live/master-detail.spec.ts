@@ -63,8 +63,17 @@ test('Create with a task line includes the child op referencing the parent', asy
   await selectOption(page, 'status', 'active');
   await expect(page.getByText('Northwind', { exact: false })).toBeVisible();
 
-  const row = await addLineItem(page);
-  await row.getByRole('textbox').first().fill('E2E Task A');
+  // `showcase_task` is a rich child, so its relationship smart-default resolves
+  // to the per-row `form` factor: "Add task" opens the child's full form
+  // inline (not editable grid cells). Fill the required fields and Apply to
+  // stage the row, then save the whole thing as one atomic batch.
+  await page.getByTestId('line-items-add').click();
+  const editor = page.getByTestId('md-row-form');
+  await expect(editor).toBeVisible();
+  await editor.locator('input[name="title"]').fill('E2E Task A');
+  await selectOption(editor, 'status', 'backlog');
+  await editor.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(editor).toBeHidden();
 
   await Promise.all([
     page.waitForRequest((r) => r.url().includes('/api/v1/batch'), { timeout: 15_000 }).catch(() => null),
@@ -78,5 +87,6 @@ test('Create with a task line includes the child op referencing the parent', asy
   // a child task op referencing the parent via $ref:0
   const child = ops.find((o: any) => o.object === 'showcase_task');
   expect(child).toBeTruthy();
+  expect(child?.data?.title).toBe('E2E Task A');
   expect(child?.data?.project).toEqual({ $ref: 0 });
 });
