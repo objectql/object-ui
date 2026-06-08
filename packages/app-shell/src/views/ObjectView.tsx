@@ -50,16 +50,11 @@ import { resolveManagedByEmptyState } from '../utils/managedByEmptyState';
 import { useObjectActions } from '../hooks/useObjectActions';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
-import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
+import { useAuth } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
 import { ActionProvider, useNavigationOverlay, SchemaRenderer } from '@object-ui/react';
 import { toast } from 'sonner';
-import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog';
-import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog';
-import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog';
-import { FlowRunner, type ScreenFlowState } from './FlowRunner';
-import { resolveActionParams } from '../utils/resolveActionParams';
-import type { ActionDef, ActionParamDef } from '@object-ui/core';
+import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
 
 /** Map view types to Lucide icons (Airtable-style) */
 const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
@@ -182,10 +177,6 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // network write.
     const persistTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
     const persistPending = useRef<Record<string, Record<string, any>>>({});
-    // Guards against double-firing a server action (e.g. an "Open" that mints a
-    // slow SSO handoff) — without it, a user who clicks again because the button
-    // "looks stuck" spawns a second blank tab + a second request.
-    const serverActionInFlight = useRef<Set<string>>(new Set());
     const persistViewPatch = useCallback(
         (viewIdLocal: string, baseViewDef: Record<string, any>, patch: Record<string, any>) => {
             if (!dataSource?.updateViewConfig || !objectName || !viewIdLocal) return;
@@ -315,8 +306,20 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
 
     // Refresh trigger — bumped after view CRUD or external data mutations.
     const [refreshKey, setRefreshKey] = useState(0);
-    // Screen-flow runtime: a paused `screen`-node flow awaiting user input.
-    const [screenFlow, setScreenFlow] = useState<ScreenFlowState | null>(null);
+
+    // Shared console action runtime: confirm/param/result dialogs, the
+    // authenticated api/flow/server-action handlers, SPA navigation, and the
+    // paused screen-flow runner. The same runtime PageView mounts (#1605).
+    // ObjectView additionally feeds its confirm/toast handlers into
+    // useObjectActions below, so it consumes the hook directly (rather than the
+    // ConsoleActionRuntimeProvider wrapper).
+    const actionRuntime = useConsoleActionRuntime({
+        dataSource,
+        objects,
+        objectName: objectDef.name,
+        onRefresh: () => setRefreshKey((k) => k + 1),
+    });
+    const { confirmHandler, toastHandler } = actionRuntime;
 
     // Resolve which generic CRUD affordances belong in the toolbar for
     // this object's lifecycle bucket (`managedBy`).  config tables show
@@ -713,64 +716,6 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         }
     }, [dataSource, objectName, isSavedView, t]);
 
-    // Promise-based confirm/param dialogs — declared early so destructive
-    // handlers (delete, etc.) can `await confirmHandler(...)` for a proper
-    // Airtable-style confirmation flow.
-    const [confirmState, setConfirmState] = useState<ConfirmDialogState>({ open: false, message: '' });
-    const [paramState, setParamState] = useState<ParamDialogState>({ open: false, params: [] });
-    const [resultDialogState, setResultDialogState] = useState<ResultDialogState>({ open: false });
-
-    const resultDialogHandler = useCallback(
-        (spec: any, data: unknown) => new Promise<void>((resolve) => {
-            setResultDialogState({ open: true, spec, data, resolve });
-        }),
-        [],
-    );
-
-    const confirmHandler = useCallback((message: string, options?: { title?: string; confirmText?: string; cancelText?: string }) => {
-        return new Promise<boolean>((resolve) => {
-            setConfirmState({ open: true, message, options, resolve });
-        });
-    }, []);
-
-    const paramCollectionHandler = useCallback((params: ActionParamDef[], action?: any) => {
-        return new Promise<Record<string, any> | null>((resolve) => {
-            // List_item actions stash the row record under params._rowRecord
-            // (see ObjectGrid → onRowAction). Pull it out so resolveActionParams
-            // can pre-fill `defaultFromRow` params from the row's current values.
-            const row = action?.params && !Array.isArray(action.params)
-                ? (action.params as Record<string, any>)._rowRecord
-                : undefined;
-            const resolved = resolveActionParams(params as any, {
-                objectName: objectName || objectDef?.name || '',
-                objects: objects || [],
-                fieldLabel,
-                fieldOptionLabel,
-                row,
-            });
-            // Localize each param's label/placeholder/helpText via the
-            // `_actions.<action>.params.<param>.<attr>` convention, falling back
-            // to the metadata literal. Without this, action params (e.g. the
-            // "Name" field on Create Environment) render untranslated.
-            const objForI18n = objectName || objectDef?.name;
-            const localized = (resolved as any[]).map((p: any) => ({
-                ...p,
-                label: actionParamText(objForI18n, action?.name, p.name, 'label', p.label) ?? p.label,
-                placeholder: actionParamText(objForI18n, action?.name, p.name, 'placeholder', p.placeholder) ?? p.placeholder,
-                helpText: actionParamText(objForI18n, action?.name, p.name, 'helpText', p.helpText) ?? p.helpText,
-            }));
-            setParamState({
-                open: true,
-                params: localized,
-                // Title the dialog as the action ("Create environment") rather
-                // than the generic "Action parameters".
-                title: action?.label || action?.title,
-                description: action?.description,
-                resolve,
-            });
-        });
-    }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel, actionParamText]);
-
     const handleDeleteView = useCallback(async (vid: string) => {
         if (!dataSource) return;
         if (!isSavedView(vid)) {
@@ -892,15 +837,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         setShowCreateViewDialog(true);
     }, []);
 
-    // ─── ActionProvider handlers for schema-driven toolbar actions ──────
+    // Current user — also used below for `{current_user_id}` filter-token
+    // substitution. The schema-action handlers (toast/navigate/api/flow/server)
+    // now live in the shared `useConsoleActionRuntime` hook (declared earlier).
     const currentUser = user
         ? { id: user.id, name: user.name, avatar: user.image }
         : FALLBACK_USER;
-
-    const toastHandler = useCallback((message: string, options?: { type?: string }) => {
-        if (options?.type === 'error') toast.error(message);
-        else toast.success(message);
-    }, []);
 
     // Action system for toolbar operations — refreshKey moved up (declared earlier).
     // Wired to confirmHandler/toastHandler so deletes use the Shadcn AlertDialog
@@ -912,310 +854,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         onEdit,
         onRefresh: () => setRefreshKey(k => k + 1),
         onConfirm: confirmHandler,
-        onToast: toastHandler,
+        // ToastHandler's `type` is a string-literal union — a subset of the
+        // looser `{ type?: string }` useObjectActions declares; cast is sound.
+        onToast: toastHandler as (message: string, options?: { type?: string }) => void,
     });
-
-    const navigateHandler = useCallback((url: string, options?: { external?: boolean; newTab?: boolean }) => {
-        if (options?.external || options?.newTab) {
-            window.open(url, '_blank', 'noopener,noreferrer');
-        } else {
-            navigate(url);
-        }
-    }, [navigate]);
-
-    // Authenticated fetch for direct backend calls (e.g. flow trigger,
-    // schema actions targeting absolute API paths). Declared before
-    // apiHandler so the latter can close over it.
-    const authFetch = useMemo(() => createAuthenticatedFetch(), []);
-
-    const apiHandler = useCallback(async (action: ActionDef) => {
-        try {
-            const target = action.target || action.name;
-            const params = action.params || {};
-
-            // Absolute HTTP target (e.g. /api/v1/auth/organization/invite-member,
-            // http://..., https://...) — bypass dataSource and call the API
-            // directly through the authenticated fetch wrapper so:
-            //   - Authorization: Bearer <token> is injected
-            //   - X-Tenant-ID is injected (multi-tenant routing)
-            //   - Same-origin cookies (better-auth.session_token) ride along
-            //
-            // This is the canonical path for schema actions on managed-by
-            // tables (sys_user/invite_user, sys_session/revoke, …) where
-            // generic CRUD does not apply.
-            const targetStr = typeof target === 'string' ? target : '';
-            const isAbsolute = targetStr.startsWith('/') || /^https?:\/\//i.test(targetStr);
-            if (isAbsolute) {
-                const baseUrl = import.meta.env.VITE_SERVER_URL || '';
-                // Row context is stashed on params under `_rowRecord` by the
-                // row-action dispatcher (see ObjectGrid → onRowAction). Pull
-                // it out before assembling the request body.
-                const rawParams = { ...(params as Record<string, any>) };
-                const rowRecord = rawParams._rowRecord as Record<string, any> | undefined;
-                delete rawParams._rowRecord;
-
-                // Interpolate `{field}` tokens in the target URL from the
-                // row record. Lets actions hit data-API endpoints like
-                // `PATCH /api/v1/sys_api_key/{id}` without bespoke wiring.
-                let resolvedTarget = targetStr;
-                if (rowRecord && /\{[a-z_][a-z0-9_]*\}/i.test(resolvedTarget)) {
-                    resolvedTarget = resolvedTarget.replace(/\{([a-z_][a-z0-9_]*)\}/gi, (_, k) => {
-                        const v = rowRecord[k];
-                        return v == null ? '' : encodeURIComponent(String(v));
-                    });
-                }
-                const url = resolvedTarget.startsWith('http') ? resolvedTarget : `${baseUrl}${resolvedTarget}`;
-
-                // Apply bodyShape: 'flat' (default) keeps user params at top
-                // level; { wrap: 'data' } nests them under that key while
-                // `recordIdParam` / `organizationId` stay flat (better-auth
-                // organization/update semantics).
-                const wrap = action.bodyShape && typeof action.bodyShape === 'object' && action.bodyShape.wrap
-                    ? action.bodyShape.wrap
-                    : undefined;
-                const body: Record<string, any> = wrap
-                    ? { [wrap]: rawParams }
-                    : { ...rawParams };
-
-                // Inject row id (or chosen row field) for list_item actions.
-                if (rowRecord && action.recordIdParam) {
-                    const rowField = action.recordIdField || 'id';
-                    const rowValue = rowRecord[rowField];
-                    if (rowValue != null) body[action.recordIdParam] = rowValue;
-                }
-
-                // Auto-inject organizationId only for better-auth org-scoped
-                // endpoints. Data-API endpoints (/api/v1/{object}/{id}) must
-                // NOT receive a stray organizationId field — that would try
-                // to overwrite the row's tenant column.
-                const isAuthOrgEndpoint = /\/api\/v1\/auth\//.test(resolvedTarget);
-                if (isAuthOrgEndpoint && !body.organizationId && activeOrganization?.id) {
-                    body.organizationId = activeOrganization.id;
-                }
-
-                // Merge static body fragment last so constants override any
-                // user-collected values (e.g. resend:true on resend-invite,
-                // revoked:true on revoke-api-key).
-                if (action.bodyExtra && typeof action.bodyExtra === 'object') {
-                    Object.assign(body, action.bodyExtra);
-                }
-
-                const method = (action.method || 'POST').toUpperCase();
-                const init: any = {
-                    method,
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                };
-                // GET/DELETE conventionally have no body; for everything else
-                // we serialize. (We don't expect GET here today, but keep the
-                // guard for safety.)
-                if (method !== 'GET' && method !== 'DELETE') {
-                    init.body = JSON.stringify(body);
-                }
-                const res = await authFetch(url, init);
-                if (!res.ok) {
-                    let detail = `HTTP ${res.status}`;
-                    try {
-                        const j = await res.json();
-                        detail = (j as any)?.error || (j as any)?.message || detail;
-                    } catch { /* response body not JSON */ }
-                    return { success: false, error: detail };
-                }
-                const data = await res.json().catch(() => ({}));
-                if (action.refreshAfter !== false) setRefreshKey(k => k + 1);
-                return { success: true, data, reload: action.refreshAfter !== false };
-            }
-
-            // Generic list-level API handler: update/execute via dataSource
-            if (typeof dataSource.execute === 'function') {
-                await dataSource.execute(objectDef.name, target, params);
-            } else if (params.recordId && Object.keys(params).length > 1 && typeof dataSource.update === 'function') {
-                await dataSource.update(objectDef.name, params.recordId, params);
-            }
-
-            const shouldRefresh = action.refreshAfter !== false;
-            if (shouldRefresh) {
-                setRefreshKey(k => k + 1);
-            }
-            return { success: true, reload: shouldRefresh };
-        } catch (error) {
-            return { success: false, error: (error as Error).message };
-        }
-    }, [dataSource, objectDef.name, authFetch, activeOrganization]);
-
-    // Flow action handler — POST to /api/v1/automation/{name}/trigger.
-    // Triggered when an Action with `type: 'flow'` is invoked from list-level
-    // locations (list_toolbar, list_item). For list_item the row's recordId is
-    // expected in `action.params.recordId`.
-    const flowHandler = useCallback(async (action: ActionDef) => {
-        const flowName = action.target || action.name;
-        if (!flowName) {
-            return { success: false, error: 'No flow target provided for flow action' };
-        }
-        try {
-            const baseUrl = import.meta.env.VITE_SERVER_URL || '';
-            // Row context is stashed on params under `_rowRecord` by the row-action
-            // dispatcher (ObjectGrid → onRowAction). For a list_item flow action the
-            // row's id is the flow's `recordId` (e.g. the Reassign wizard targets it).
-            const params = { ...(action.params || {}) } as Record<string, any>;
-            const rowRecord = params._rowRecord as Record<string, any> | undefined;
-            delete params._rowRecord;
-            const recordId = params.recordId ?? rowRecord?.id;
-            if (recordId != null && params.recordId == null) params.recordId = recordId;
-            const res = await authFetch(
-                `${baseUrl}/api/v1/automation/${encodeURIComponent(flowName)}/trigger`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        recordId,
-                        objectName: objectDef.name,
-                        params,
-                    }),
-                },
-            );
-            const json = await res.json().catch(() => null);
-            if (!res.ok || (json && json.success === false)) {
-                const errMsg = json?.error || `Flow "${flowName}" failed (HTTP ${res.status})`;
-                return { success: false, error: errMsg };
-            }
-            // Screen-flow runtime: the run paused at a `screen` node awaiting
-            // input — open the FlowRunner to render the form + resume. Refresh
-            // happens when the FlowRunner completes, not now.
-            const data = json?.data ?? {};
-            if (data.status === 'paused' && data.screen) {
-                setScreenFlow({ flowName, runId: data.runId, screen: data.screen });
-                return { success: true };
-            }
-            const shouldRefresh = action.refreshAfter !== false;
-            if (shouldRefresh) {
-                setRefreshKey(k => k + 1);
-            }
-            return { success: true, data: json?.data, reload: shouldRefresh };
-        } catch (error) {
-            return { success: false, error: (error as Error).message };
-        }
-    }, [authFetch, objectDef.name]);
-
-    // Server-side action handler — POST to /api/v1/actions/{object}/{action}.
-    // For list-toolbar/list-item `script` and `modal` actions whose `target`
-    // matches a server-registered handler. selectedIds (from action.params)
-    // is forwarded so bulk handlers like massUpdateStage / addToCampaign work.
-    const serverActionHandler = useCallback(async (action: ActionDef) => {
-        const targetName = action.target || action.name;
-        if (!targetName) {
-            return { success: false, error: 'No action target provided' };
-        }
-        const params = (action.params && !Array.isArray(action.params))
-            ? { ...(action.params as Record<string, unknown>) }
-            : {};
-        // Row-action path stashes the row under `_rowRecord` (ObjectGrid →
-        // onRowAction) but ActionRunner doesn't set `recordId` for `script`
-        // handlers — derive it from the row so list_item actions (e.g. "Open"
-        // on an environment row) resolve their target record. Strip
-        // `_rowRecord` from the sent body.
-        const _rowRecord = (params as any)._rowRecord as Record<string, any> | undefined;
-        delete (params as any)._rowRecord;
-        const recordIdField = (action as any).recordIdField || 'id';
-        const resolvedRecordId = (params as any).recordId ?? _rowRecord?.[recordIdField];
-
-        // Re-entrancy guard: ignore a repeat click while this exact
-        // action+record is already running — otherwise a user who clicks again
-        // because the button "looks stuck" spawns another blank tab + request.
-        const inflightKey = `${targetName}:${resolvedRecordId ?? ''}`;
-        if (serverActionInFlight.current.has(inflightKey)) {
-            return { success: false, error: 'Action already in progress' };
-        }
-        serverActionInFlight.current.add(inflightKey);
-
-        // ── Popup-blocker workaround (mirrors RecordDetailView) ───────────
-        // Pre-open `about:blank` synchronously *before* the await so the
-        // user-gesture context is preserved and Chrome/Safari don't block the
-        // eventual navigation. No 'noopener' — it would null the handle and
-        // trip the current-tab fallback (double-navigation bug).
-        let preOpenedTab: Window | null = null;
-        if ((action as any).opensInNewTab) {
-            try {
-                preOpenedTab = window.open('about:blank', '_blank');
-                // Paint progress immediately so the new tab never looks blank/
-                // frozen during the (slow) SSO-handoff mint — the #1 reason
-                // users thought "Open" was broken and re-clicked.
-                if (preOpenedTab) {
-                    preOpenedTab.document.write('<!doctype html><meta charset="utf-8"><title>正在打开… Opening…</title><body style="margin:0;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;color:#4b5563"><div style="width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#6366f1;border-radius:50%;animation:s .8s linear infinite"></div><div>正在为你打开环境…</div><style>@keyframes s{to{transform:rotate(360deg)}}</style></body>');
-                    preOpenedTab.document.close();
-                }
-            } catch { preOpenedTab = null; }
-        }
-        try {
-            const baseUrl = import.meta.env.VITE_SERVER_URL || '';
-            const obj = action.objectName || objectDef.name || 'global';
-            const res = await authFetch(
-                `${baseUrl}/api/v1/actions/${encodeURIComponent(obj)}/${encodeURIComponent(targetName)}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ recordId: resolvedRecordId, params }),
-                },
-            );
-            const json = await res.json().catch(() => null);
-            if (!res.ok || (json && json.success === false)) {
-                const errMsg = json?.error || `Action "${targetName}" failed (HTTP ${res.status})`;
-                if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
-                // Surface the failure — this custom new-tab path bypasses
-                // ActionRunner's toast-on-error, so without this the user sees
-                // nothing (e.g. "Open" hitting a 503 looked like a dead button).
-                toast.error(errMsg);
-                return { success: false, error: errMsg };
-            }
-            const shouldRefresh = action.refreshAfter !== false;
-            if (shouldRefresh) setRefreshKey(k => k + 1);
-            const data = json?.data;
-            // `{ redirectUrl }` convention: drive the pre-opened tab to it
-            // (popup-safe); otherwise open lazily, falling back to the current
-            // tab if blocked so the user always reaches the destination.
-            const redirectUrl = (data && typeof data === 'object' && typeof (data as any).redirectUrl === 'string')
-                ? (data as any).redirectUrl as string
-                : null;
-            if (redirectUrl) {
-                if (preOpenedTab) {
-                    try { preOpenedTab.location.href = redirectUrl; }
-                    catch {
-                        try { preOpenedTab.close(); } catch { /* ignore */ }
-                        window.location.href = redirectUrl;
-                    }
-                } else {
-                    let popup: Window | null = null;
-                    // No 'noopener' so a successful open returns a truthy
-                    // handle; with it the null return would always trip the
-                    // current-tab fallback below.
-                    try { popup = window.open(redirectUrl, '_blank'); } catch { popup = null; }
-                    if (!popup) {
-                        // Popup blocked even with the gesture — DON'T silently
-                        // hijack the control-plane tab after a long wait (the
-                        // jarring "it suddenly navigated away" report). Offer a
-                        // one-click open (a fresh user gesture) instead.
-                        toast('浏览器拦截了弹窗 / Popup blocked', {
-                            description: '点击在新标签页打开环境',
-                            action: { label: '打开环境', onClick: () => { try { window.open(redirectUrl, '_blank'); } catch { window.location.href = redirectUrl; } } },
-                            duration: 10000,
-                        });
-                    }
-                }
-            } else if (preOpenedTab) {
-                // opensInNewTab declared but no redirectUrl came back — don't
-                // leave a dangling blank tab.
-                try { preOpenedTab.close(); } catch { /* ignore */ }
-            }
-            return { success: true, data, reload: shouldRefresh };
-        } catch (error) {
-            if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
-            const msg = (error as Error).message;
-            toast.error(msg);
-            return { success: false, error: msg };
-        } finally {
-            serverActionInFlight.current.delete(inflightKey);
-        }
-    }, [authFetch, objectDef.name]);
 
     // Real-time: auto-refresh when server reports data changes
     const { lastMessage: realtimeMessage } = useRealtimeSubscription({
@@ -1725,28 +1367,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     }), [objectDef, onEdit, activeView?.showSearch, activeView?.showFilters, activeView?.showSort, activeView?.name, activeView?.label, navigate, viewId, isAdmin, location.pathname, location.search, viewLabel, objectLabel]);
 
     return (
-        <ActionProvider
-            context={{
-                objectName: objectDef.name,
-                user: currentUser,
-                // Backend origin — lets `type: 'url'` actions issue
-                // full-page navigations to API endpoints (e.g.
-                // better-auth's `/sign-in/social`) even when the SPA
-                // and API are on different origins in dev.
-                apiBase: (import.meta as any).env?.VITE_SERVER_URL || '',
-                // Expose active org so `type: 'url'` actions can template
-                // `/organizations/${activeOrganization.slug}/...` etc.
-                activeOrganization: activeOrganization
-                  ? { id: activeOrganization.id, slug: activeOrganization.slug, name: activeOrganization.name }
-                  : null,
-            }}
-            onConfirm={confirmHandler}
-            onToast={toastHandler}
-            onNavigate={navigateHandler}
-            onParamCollection={paramCollectionHandler}
-            onResultDialog={resultDialogHandler}
-            handlers={{ api: apiHandler, flow: flowHandler, script: serverActionHandler, modal: serverActionHandler }}
-        >
+        <ActionProvider {...actionRuntime.actionProviderProps}>
         <div className="h-full flex flex-col bg-background min-w-0 overflow-hidden">
              {/* 1. Header with breadcrumb + description.
                  The managed-by badge sits inline with the title so the
@@ -2119,26 +1740,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
              </NavigationOverlay>
              )}
         </div>
-        <ActionConfirmDialog state={confirmState} onOpenChange={(open) => {
-            if (!open) setConfirmState({ open: false, message: '' });
-        }} />
-        <ActionParamDialog state={paramState} onOpenChange={(open) => {
-            if (!open) setParamState({ open: false, params: [] });
-        }} />
-        <ActionResultDialog
-            state={resultDialogState}
-            onAcknowledge={() => {
-                resultDialogState.resolve?.();
-                setResultDialogState({ open: false });
-            }}
-        />
-        <FlowRunner
-            state={screenFlow}
-            authFetch={authFetch}
-            baseUrl={import.meta.env.VITE_SERVER_URL || ''}
-            onClose={() => setScreenFlow(null)}
-            onComplete={() => { setScreenFlow(null); setRefreshKey(k => k + 1); }}
-        />
+        {actionRuntime.dialogs}
         </ActionProvider>
     );
 }
