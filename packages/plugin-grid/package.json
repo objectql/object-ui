@@ -26,7 +26,7 @@
     "@object-ui/mobile": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@tanstack/react-virtual": "^3.13.25",
+    "@tanstack/react-virtual": "^3.14.2",
     "lucide-react": "^1.16.0"
   },
   "peerDependencies": {
