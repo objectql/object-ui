@@ -696,8 +696,8 @@ importers:
         specifier: ^7.8.0
         version: 7.8.0(ai@6.0.194(zod@4.4.3))
       '@sentry/react':
-        specifier: ^10.55.0
-        version: 10.55.0(react@19.2.7)
+        specifier: ^10.56.0
+        version: 10.56.0(react@19.2.7)
       jsonc-parser:
         specifier: ^3.3.1
         version: 3.3.1
@@ -4945,32 +4945,32 @@ packages:
     resolution: {integrity: sha512-Nqc90v4lWCXyakD6xNyNACBJNJ0tNCwj2WNk/7ivyacYHxiITVgmLUFXTBOeCdy79iz6HtN9Y31uw/jbLrdOAg==}
     engines: {node: '>=20.0.0'}
 
-  '@sentry-internal/browser-utils@10.55.0':
-    resolution: {integrity: sha512-zUvyBr13EK0evKsSTzwSimRzZ3P9kugS32dLCj3ea5gNN+/DFtU/GsMTdcIQDhusEDraIlH17AGgqJH5gUAv5w==}
+  '@sentry-internal/browser-utils@10.56.0':
+    resolution: {integrity: sha512-I8tZWAFg8SZpD8BFUpglEtSTzhZjacmcThB5/Mlq/iFiiT8mBPG4ZWDWssSfmIBKvZywJZJ83uDA0+uiJU73Tw==}
     engines: {node: '>=18'}
 
-  '@sentry-internal/feedback@10.55.0':
-    resolution: {integrity: sha512-32X9WW1xs5DjCRlp89QJ/PLw4kbTIX6MsBDXN2RBN1nWBjm/2WcwXqO/v/WoIS4W2kTWXcZnQwalLSI22Fp33A==}
+  '@sentry-internal/feedback@10.56.0':
+    resolution: {integrity: sha512-fkRR9JroESTIlErkht3OrH4DXKd/DbPozr2KLdX7boMo31hPu4cL9fuqzwOrwyDPRq9B4j+qEgIWB8JrTbgvmg==}
     engines: {node: '>=18'}
 
-  '@sentry-internal/replay-canvas@10.55.0':
-    resolution: {integrity: sha512-lu/y7k9cK7FZ/qJpL0fBX4WqK6IFa/+bTPhedEaC5UpzjUNP7BfXt0H+R7q9CHWmp20Ffh/wGfO3j7O+Tv2MAA==}
+  '@sentry-internal/replay-canvas@10.56.0':
+    resolution: {integrity: sha512-SDg2K0CAZT/TnhrixQGwXoi6ZsWUB+DQy3UUk0bSQm6c/5k5zFBpGOiughQN+DYsDilKREfPKmUEEnqvUjm1HQ==}
     engines: {node: '>=18'}
 
-  '@sentry-internal/replay@10.55.0':
-    resolution: {integrity: sha512-OkQpANGwYU5UKfwLk6Y+NpESRC8nrLBjawRDLwF6cJ8HpNScOuNNJDEJEGwXHVkJPH0pcIixsH8y0Qfcltq6Xw==}
+  '@sentry-internal/replay@10.56.0':
+    resolution: {integrity: sha512-DjF09hpy3TF7Km/kOZc73YJmBqcbPCxuZ5rtRs+KtVHu3Vq48xeW83qKUcFEZv20ur9UD99OAJ/gaEt//1Qbwg==}
     engines: {node: '>=18'}
 
-  '@sentry/browser@10.55.0':
-    resolution: {integrity: sha512-5n1kxmW1m4j16ZDV9kt+Zo5uafFnKTy7s5YyEcGnC45KnOiO1Gy+QFd3woXns1K5GNxpjF7oOOc6tXgZLuXnQQ==}
+  '@sentry/browser@10.56.0':
+    resolution: {integrity: sha512-80X3NmsGB6tLmfzXYdjzWWdVAdL5CRukGKLcRWIcNhgGjtskOmnzaGb93egEZGI5bUTbtONJ0oyscQ3Z9yoAtQ==}
     engines: {node: '>=18'}
 
-  '@sentry/core@10.55.0':
-    resolution: {integrity: sha512-XUyoNtDSYCvgJnoNzlh+YeAXfIPhCRIXbhWqqM3GQ3AFtZICi85lkyfsrwXEl9wzlPGYnU+Eg8F4tOfScx+FcQ==}
+  '@sentry/core@10.56.0':
+    resolution: {integrity: sha512-L+u1dIz5SANrmST5jhIwETtt4apILgKrylv12X4hKJU0PvZl+NorjeV/ty3MwzpKQPg6b6q6qMOSLc1rLpy3iQ==}
     engines: {node: '>=18'}
 
-  '@sentry/react@10.55.0':
-    resolution: {integrity: sha512-cf6wI0W1FdrL/7d5FTHXUdTN5k5uRZ9AQu5QZxUujnxWN+DBxUWtow1HDD1zTEonQsCFyYuhXVu3w+qmBBW11A==}
+  '@sentry/react@10.56.0':
+    resolution: {integrity: sha512-HfPLyvnrydfyjRXw9Q0GMzj7w2YtEwuC9z5RrPUfarA2qpA0/J8cfGLzyFX2v0jBmA/kkj6J1uBUoSVhCTxFHg==}
     engines: {node: '>=18'}
     peerDependencies:
       react: 19.2.7
@@ -6713,8 +6713,8 @@ packages:
   dompurify@3.4.5:
     resolution: {integrity: sha512-OrwIBKsdNSVEeubdJ1HBv/wNENRM9ytAVCv7YXt//A3vPdVMNuACRqK9mXCGCBW2ln7BT/A4X0jXHo2Gu89miA==}
 
-  dompurify@3.4.7:
-    resolution: {integrity: sha512-2jBxDJY4RR06tQNy4w5FlFH7kfxsQZlufd0sbv+chfHCxeJwrFw2baUDsSwvBISD4K4RDbd0PTfy3uNXsR6siA==}
+  dompurify@3.4.8:
+    resolution: {integrity: sha512-yb1cEmaOum7wFvOCSQxyfgVlv5D47Rc30iZWoMpbDIWTnJ6grDDQyu2KFJzB2k7u0pMuJcQ1zphH//fFnw2tjQ==}
 
   domutils@3.2.2:
     resolution: {integrity: sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw==}
@@ -7721,8 +7721,8 @@ packages:
     resolution: {integrity: sha512-e6rvdUCiQCAuumZslxRJWR/Doq4VpPR82kqclvcS0efgt430SlGIk05vdCN58+VrzgtIcfNODjozVielycD4Sw==}
     engines: {node: '>=16'}
 
-  isbot@5.1.40:
-    resolution: {integrity: sha512-yNeeynhhtIVRBk12tBV4eHNxwB42HzR4Q3Ea7vCOiJhImGaAIdIMrbJtacQlBizGLjUPw+akkFI5Dn9T70XoVQ==}
+  isbot@5.1.41:
+    resolution: {integrity: sha512-9WFV/Vhh0FEj6CQ7MoHweEL9/vLKPjeoD2I2htbAjX7kbW7VJs3OCpWOVyd+JraNTWVU6/DRx2MZy2KaUNXHcg==}
     engines: {node: '>=18'}
 
   isexe@2.0.0:
@@ -12806,38 +12806,38 @@ snapshots:
 
   '@secretlint/types@10.2.2': {}
 
-  '@sentry-internal/browser-utils@10.55.0':
+  '@sentry-internal/browser-utils@10.56.0':
     dependencies:
-      '@sentry/core': 10.55.0
+      '@sentry/core': 10.56.0
 
-  '@sentry-internal/feedback@10.55.0':
+  '@sentry-internal/feedback@10.56.0':
     dependencies:
-      '@sentry/core': 10.55.0
+      '@sentry/core': 10.56.0
 
-  '@sentry-internal/replay-canvas@10.55.0':
+  '@sentry-internal/replay-canvas@10.56.0':
     dependencies:
-      '@sentry-internal/replay': 10.55.0
-      '@sentry/core': 10.55.0
+      '@sentry-internal/replay': 10.56.0
+      '@sentry/core': 10.56.0
 
-  '@sentry-internal/replay@10.55.0':
+  '@sentry-internal/replay@10.56.0':
     dependencies:
-      '@sentry-internal/browser-utils': 10.55.0
-      '@sentry/core': 10.55.0
+      '@sentry-internal/browser-utils': 10.56.0
+      '@sentry/core': 10.56.0
 
-  '@sentry/browser@10.55.0':
+  '@sentry/browser@10.56.0':
     dependencies:
-      '@sentry-internal/browser-utils': 10.55.0
-      '@sentry-internal/feedback': 10.55.0
-      '@sentry-internal/replay': 10.55.0
-      '@sentry-internal/replay-canvas': 10.55.0
-      '@sentry/core': 10.55.0
+      '@sentry-internal/browser-utils': 10.56.0
+      '@sentry-internal/feedback': 10.56.0
+      '@sentry-internal/replay': 10.56.0
+      '@sentry-internal/replay-canvas': 10.56.0
+      '@sentry/core': 10.56.0
 
-  '@sentry/core@10.55.0': {}
+  '@sentry/core@10.56.0': {}
 
-  '@sentry/react@10.55.0(react@19.2.7)':
+  '@sentry/react@10.56.0(react@19.2.7)':
     dependencies:
-      '@sentry/browser': 10.55.0
-      '@sentry/core': 10.55.0
+      '@sentry/browser': 10.56.0
+      '@sentry/core': 10.56.0
       react: 19.2.7
 
   '@shikijs/core@4.1.0':
@@ -13050,7 +13050,7 @@ snapshots:
       '@tanstack/history': 1.162.0
       '@tanstack/react-store': 0.9.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/router-core': 1.171.6
-      isbot: 5.1.40
+      isbot: 5.1.41
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
     optional: true
@@ -14624,7 +14624,7 @@ snapshots:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
-  dompurify@3.4.7:
+  dompurify@3.4.8:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
@@ -15809,7 +15809,7 @@ snapshots:
     dependencies:
       is-inside-container: 1.0.0
 
-  isbot@5.1.40:
+  isbot@5.1.41:
     optional: true
 
   isexe@2.0.0: {}
@@ -16715,7 +16715,7 @@ snapshots:
 
   monaco-editor@0.55.1:
     dependencies:
-      dompurify: 3.4.7
+      dompurify: 3.4.8
       marked: 14.0.0
 
   mongodb-connection-string-url@7.0.1:
