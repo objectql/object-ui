@@ -7,9 +7,9 @@ import { test, expect } from '@playwright/test';
  * line must carry a description — so a row whose quantity crosses the threshold
  * flags its (empty) Description cell required inline, and clears once filled.
  *
- * (This is the row-scoped generalization of B2 to grid cells. A header-driven
- * lock — "paid invoice → lock lines", referencing `parent` — is a separate
- * deferred capability; see ADR-0036.)
+ * (This is the row-scoped generalization of B2 to grid cells. The header-driven
+ * lock — "paid invoice → lock lines", referencing `parent` — is covered by
+ * grid-parent-rules.spec.ts; see ADR-0036 and #1581.)
  */
 test('a line cell flags required per row from a row-scoped requiredWhen', async ({ page }) => {
   await page.goto('/apps/showcase_app/showcase_invoice');

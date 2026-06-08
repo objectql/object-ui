@@ -94,6 +94,189 @@ interface RowState {
   original: Record<string, any>[];
 }
 
+/**
+ * Read the live header record from the rendered parent-form host by scraping its
+ * named controls. The header is owned by react-hook-form (inside <ObjectForm>),
+ * which exposes no values callback here; rather than couple into its internals
+ * we read the DOM the same way the tax-rate stack does. Radix <Select> renders a
+ * visually-hidden native `<select name=...>` for form participation, so selects
+ * (e.g. an invoice `status`) are captured too, and a user's pick dispatches a
+ * bubbling `change` the host listener catches.
+ */
+function scrapeHeaderRecord(host: HTMLElement | null): Record<string, unknown> {
+  if (!host) return {};
+  const out: Record<string, unknown> = {};
+  const els = host.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('[name]');
+  els.forEach((el) => {
+    const name = el.getAttribute('name');
+    if (!name) return;
+    if (el.tagName === 'INPUT') {
+      const input = el as HTMLInputElement;
+      if (input.type === 'checkbox') { out[name] = input.checked; return; }
+      if (input.type === 'radio') { if (input.checked) out[name] = input.value; return; }
+      if (input.type === 'number' || input.type === 'range') {
+        if (input.value === '') { out[name] = null; return; }
+        const n = Number(input.value);
+        out[name] = Number.isFinite(n) ? n : input.value;
+        return;
+      }
+      out[name] = input.value;
+      return;
+    }
+    // <select> (incl. Radix's hidden native select) and <textarea>.
+    out[name] = (el as HTMLSelectElement | HTMLTextAreaElement).value;
+  });
+  return out;
+}
+
+interface MasterDetailLinesProps {
+  details: MasterDetailDetailConfig[];
+  state: RowState[];
+  setRows: (detailIdx: number, rows: Record<string, any>[]) => void;
+  /** Host wrapping the header <ObjectForm> — scraped for the live parent record. */
+  formHostRef: React.RefObject<HTMLDivElement | null>;
+  taxRateField: string;
+  /** Bumped when the header form remounts (after create) so the lines re-scrape. */
+  formKey: number;
+  onRowExpand: (detailIdx: number, rowIdx: number) => void;
+  onAddViaForm: (detailIdx: number) => void;
+}
+
+/**
+ * The line-item grids + document totals, isolated from the header form.
+ *
+ * It owns `parentRecord` — the live header values, scraped from the form host —
+ * and binds it to every grid as `contextRecord`, so a column's `readonlyWhen` /
+ * `requiredWhen` CEL rule can react to the header (the "paid invoice → lock
+ * lines" case, `parent.status == 'paid'`; see #1581 / ADR-0036).
+ *
+ * Holding `parentRecord` HERE rather than in <MasterDetailForm> is the whole
+ * point: a header keystroke re-renders only these lines, never the header
+ * <ObjectForm> whose react-hook-form state would otherwise reset mid-edit. The
+ * scrape is deduped by value so an identical re-read causes no state churn.
+ */
+const MasterDetailLines: React.FC<MasterDetailLinesProps> = ({
+  details,
+  state,
+  setRows,
+  formHostRef,
+  taxRateField,
+  formKey,
+  onRowExpand,
+  onAddViaForm,
+}) => {
+  const [parentRecord, setParentRecord] = useState<Record<string, unknown>>({});
+  const parentKeyRef = useRef<string>('');
+
+  useEffect(() => {
+    const host = formHostRef.current;
+    if (!host) return;
+    const read = () => {
+      const next = scrapeHeaderRecord(host);
+      let key: string;
+      try { key = JSON.stringify(next); } catch { key = String(Math.random()); }
+      if (key === parentKeyRef.current) return; // value-identical → no re-render
+      parentKeyRef.current = key;
+      setParentRecord(next);
+    };
+    read();
+    const onEvt = () => read();
+    host.addEventListener('input', onEvt);
+    host.addEventListener('change', onEvt);
+    // The header populates asynchronously (schema fetch → edit-mode load → RHF
+    // reset), none of which fire input events, so re-read on a few ticks to
+    // capture the initial record (e.g. an already-paid invoice loads locked).
+    const timers = [120, 360, 800].map((ms) => setTimeout(read, ms));
+    return () => {
+      host.removeEventListener('input', onEvt);
+      host.removeEventListener('change', onEvt);
+      timers.forEach(clearTimeout);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formHostRef, formKey, details.length]);
+
+  // Document totals: Subtotal (Σ line amounts) → Tax (header rate %) → Total.
+  // Shown only when the header carries the tax-rate field AND a detail has an
+  // amount column; otherwise each grid keeps its own footer total.
+  const taxRaw = parentRecord[taxRateField];
+  const taxRate = taxRaw === undefined ? null : (Number.isFinite(Number(taxRaw)) ? Number(taxRaw) : 0);
+  const subtotal = details.reduce((acc, d, i) => acc + sumRows(state[i]?.rows ?? [], d.amountField || 'amount'), 0);
+  const showTaxStack = taxRate !== null && details.some((d) => !!d.amountField);
+  const taxPct = taxRate ?? 0;
+  const taxAmount = subtotal * (taxPct / 100);
+  const grandTotal = subtotal + taxAmount;
+  const money = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  return (
+    <>
+      {/* Line items below the header. Rendered as a light section (label + the
+          grid's own bordered table) rather than a heavy Card — a Card here would
+          double-frame the grid and its p-6 padding wastes the width the line
+          table needs. */}
+      {details.map((d, i) => (
+        <section key={`${d.childObject}-${i}`} className="space-y-2">
+          <h3 className="text-sm font-medium text-foreground">{d.title || 'Line Items'}</h3>
+          {!d.columns?.length ? (
+            <p className="py-4 text-sm text-muted-foreground">Loading columns…</p>
+          ) : (
+            <LineItemsField
+              value={state[i]?.rows ?? []}
+              onChange={(rows) => setRows(i, rows)}
+              // The live header record — a line cell's readonlyWhen/requiredWhen
+              // CEL rule evaluates against it as `parent` (e.g. lock when
+              // parent.status == 'paid').
+              contextRecord={parentRecord}
+              // Per-row "expand to full form" is offered when it adds something:
+              // always in form mode (it IS the editor), and in grid mode only
+              // when the full form has fields the grid omits. A thin grid whose
+              // columns already cover every field (e.g. invoice lines) shows no
+              // redundant expand button.
+              {...((d.inlineMode === 'form' || (d.formFields?.length ?? 0) > (d.columns?.length ?? 0))
+                ? { onRowExpand: (rowIdx: number) => onRowExpand(i, rowIdx) }
+                : {})}
+              displayMode={d.inlineMode === 'form' ? 'list' : 'grid'}
+              {...(d.inlineMode === 'form' ? { onAdd: () => onAddViaForm(i) } : {})}
+              field={
+                {
+                  columns: d.columns,
+                  // Show the per-grid running total whenever an amount column is
+                  // set — unless the document totals stack below subsumes it.
+                  total_field: showTaxStack ? undefined : (d.amountField || (d.totalField ? 'amount' : undefined)),
+                  sort_field: d.sortField,
+                  min_rows: d.minRows,
+                  max_rows: d.maxRows,
+                  add_label: d.inlineMode === 'form' ? (d.addLabel || 'Add') : d.addLabel,
+                } as any
+              }
+            />
+          )}
+        </section>
+      ))}
+
+      {/* Document totals stack (Subtotal / Tax / Total) — the right-aligned block
+          every invoicing tool shows. Live as lines and the header tax rate change. */}
+      {showTaxStack && (
+        <div className="flex justify-end">
+          <dl className="w-64 space-y-1.5 text-sm" data-testid="md-totals">
+            <div className="flex items-center justify-between">
+              <dt className="text-muted-foreground">Subtotal</dt>
+              <dd className="tabular-nums" data-testid="md-subtotal">{money(subtotal)}</dd>
+            </div>
+            <div className="flex items-center justify-between">
+              <dt className="text-muted-foreground">Tax ({taxPct}%)</dt>
+              <dd className="tabular-nums" data-testid="md-tax">{money(taxAmount)}</dd>
+            </div>
+            <div className="flex items-center justify-between border-t border-border pt-1.5 text-base font-semibold">
+              <dt>Total</dt>
+              <dd className="tabular-nums" data-testid="md-grand-total">{money(grandTotal)}</dd>
+            </div>
+          </dl>
+        </div>
+      )}
+    </>
+  );
+};
+
 export interface MasterDetailFormProps {
   schema: MasterDetailFormSchema;
   dataSource?: DataSource;
@@ -206,35 +389,9 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
     setState((prev) => prev.map((s, i) => (i === detailIdx ? { ...s, rows } : s)));
   }, []);
 
-  // Live header tax rate, read from the parent form's `tax_rate` input via
-  // scoped event delegation on the form host (no coupling into ObjectForm's
-  // internals). Drives the Subtotal / Tax / Total stack under the lines.
+  // Header tax-rate field name — the live value is read by <MasterDetailLines>
+  // (which scrapes the header record) and drives the Subtotal / Tax / Total stack.
   const taxRateField = schema.taxRateField || 'tax_rate';
-  const [taxRate, setTaxRate] = useState<number | null>(null);
-  useEffect(() => {
-    const host = formHostRef.current;
-    if (!host) return;
-    const read = () => {
-      const el = host.querySelector(`[name="${taxRateField}"]`) as HTMLInputElement | null;
-      if (!el) { setTaxRate(null); return; }
-      const n = Number(el.value);
-      setTaxRate(Number.isFinite(n) ? n : 0);
-    };
-    read();
-    const onInput = (e: Event) => {
-      const t = e.target as HTMLInputElement | null;
-      if (t && t.name === taxRateField) read();
-    };
-    host.addEventListener('input', onInput);
-    host.addEventListener('change', onInput);
-    const t = setTimeout(read, 300); // re-read once the form has mounted its fields
-    return () => {
-      host.removeEventListener('input', onInput);
-      host.removeEventListener('change', onInput);
-      clearTimeout(t);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taxRateField, formKey, details.length]);
 
   // Per-row "expand to full form": opens the child's complete form (all business
   // fields, incl. rich types the grid omits) in a drawer, pre-filled with the
@@ -462,16 +619,6 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
 
   useEffect(() => () => { if (saveGuardTimer.current) clearTimeout(saveGuardTimer.current); }, []);
 
-  // Document totals: Subtotal (Σ line amounts) → Tax (header rate %) → Total.
-  // Shown only when the parent has the tax-rate field AND a detail has an
-  // amount column; otherwise each grid keeps its own footer total.
-  const subtotal = details.reduce((acc, d, i) => acc + sumRows(state[i]?.rows ?? [], d.amountField || 'amount'), 0);
-  const showTaxStack = taxRate !== null && details.some((d) => !!d.amountField);
-  const taxPct = taxRate ?? 0;
-  const taxAmount = subtotal * (taxPct / 100);
-  const grandTotal = subtotal + taxAmount;
-  const money = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
   return (
     <div className={cn('space-y-6', className, schema.className)}>
       {/* 1) Header fields on top */}
@@ -479,66 +626,19 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
         <ObjectForm key={formKey} schema={parentSchema as any} dataSource={dataSource} />
       </div>
 
-      {/* 2) Line items below the header. Rendered as a light section (label +
-          the grid's own bordered table) rather than a heavy Card — a Card here
-          would double-frame the grid and its p-6 padding wastes the width the
-          line table needs. */}
-      {details.map((d, i) => (
-        <section key={`${d.childObject}-${i}`} className="space-y-2">
-          <h3 className="text-sm font-medium text-foreground">{d.title || 'Line Items'}</h3>
-            {!d.columns?.length ? (
-              <p className="py-4 text-sm text-muted-foreground">Loading columns…</p>
-            ) : (
-            <LineItemsField
-              value={state[i]?.rows ?? []}
-              onChange={(rows) => setRows(i, rows)}
-              // Per-row "expand to full form" is offered when it adds something:
-              // always in form mode (it IS the editor), and in grid mode only
-              // when the full form has fields the grid omits. A thin grid whose
-              // columns already cover every field (e.g. invoice lines) shows no
-              // redundant expand button.
-              {...((d.inlineMode === 'form' || (d.formFields?.length ?? 0) > (d.columns?.length ?? 0))
-                ? { onRowExpand: (rowIdx: number) => setExpanded({ detailIdx: i, rowIdx }) }
-                : {})}
-              displayMode={d.inlineMode === 'form' ? 'list' : 'grid'}
-              {...(d.inlineMode === 'form' ? { onAdd: () => addRowViaForm(i) } : {})}
-              field={
-                {
-                  columns: d.columns,
-                  // Show the per-grid running total whenever an amount column is
-                  // set — unless the document totals stack below subsumes it.
-                  total_field: showTaxStack ? undefined : (d.amountField || (d.totalField ? 'amount' : undefined)),
-                  sort_field: d.sortField,
-                  min_rows: d.minRows,
-                  max_rows: d.maxRows,
-                  add_label: d.inlineMode === 'form' ? (d.addLabel || 'Add') : d.addLabel,
-                } as any
-              }
-            />
-            )}
-        </section>
-      ))}
-
-      {/* Document totals stack (Subtotal / Tax / Total) — the right-aligned block
-          every invoicing tool shows. Live as lines and the header tax rate change. */}
-      {showTaxStack && (
-        <div className="flex justify-end">
-          <dl className="w-64 space-y-1.5 text-sm" data-testid="md-totals">
-            <div className="flex items-center justify-between">
-              <dt className="text-muted-foreground">Subtotal</dt>
-              <dd className="tabular-nums" data-testid="md-subtotal">{money(subtotal)}</dd>
-            </div>
-            <div className="flex items-center justify-between">
-              <dt className="text-muted-foreground">Tax ({taxPct}%)</dt>
-              <dd className="tabular-nums" data-testid="md-tax">{money(taxAmount)}</dd>
-            </div>
-            <div className="flex items-center justify-between border-t border-border pt-1.5 text-base font-semibold">
-              <dt>Total</dt>
-              <dd className="tabular-nums" data-testid="md-grand-total">{money(grandTotal)}</dd>
-            </div>
-          </dl>
-        </div>
-      )}
+      {/* 2) Line items + document totals, in a sibling component that owns the
+          live header record (scraped from the form host) so header edits never
+          re-render — and thus never reset — the header <ObjectForm> (see #1581). */}
+      <MasterDetailLines
+        details={details}
+        state={state}
+        setRows={setRows}
+        formHostRef={formHostRef}
+        taxRateField={taxRateField}
+        formKey={formKey}
+        onRowExpand={(detailIdx, rowIdx) => setExpanded({ detailIdx, rowIdx })}
+        onAddViaForm={addRowViaForm}
+      />
 
       {/* Per-row "expand to full form": an inline editor panel for the selected
           row. Rendered INLINE (not a portaled drawer) so it behaves identically

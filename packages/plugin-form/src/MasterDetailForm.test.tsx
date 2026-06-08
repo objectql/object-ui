@@ -107,3 +107,76 @@ describe('MasterDetailForm — submit feedback (never silent)', () => {
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 });
+
+describe('MasterDetailForm — parent-scoped line rules ("paid invoice → lock lines", #1581)', () => {
+  // Parent header carries a `status` text field (a real <select> can't be driven
+  // by synthetic events in jsdom — that path is covered by the live e2e spec).
+  const invSchema = { name: 'inv', fields: { status: { type: 'text', label: 'Status' } } };
+
+  function lockDataSource(overrides: any = {}) {
+    return {
+      getObjectSchema: vi.fn().mockResolvedValue(invSchema),
+      find: vi.fn().mockResolvedValue({ data: [] }),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      bulk: vi.fn(),
+      ...overrides,
+    } as any;
+  }
+
+  const schema = {
+    objectName: 'inv',
+    mode: 'create',
+    fields: ['status'],
+    details: [
+      {
+        childObject: 'inv_line',
+        relationshipField: 'inv',
+        columns: [
+          { field: 'product', label: 'Product', type: 'text' },
+          { field: 'qty', label: 'Qty', type: 'number', readonlyWhen: "parent.status == 'paid'" },
+        ],
+      },
+    ],
+  } as any;
+
+  it('locks a line cell when the header makes its readonlyWhen TRUE, and unlocks on change', async () => {
+    const { container } = render(<MasterDetailForm schema={schema} dataSource={lockDataSource()} />);
+
+    const status = await waitFor(() => {
+      const el = container.querySelector('input[name="status"]') as HTMLInputElement | null;
+      if (!el) throw new Error('header not ready');
+      return el;
+    });
+    const qty = () => screen.getAllByLabelText('Qty')[0] as HTMLInputElement;
+
+    // Header not paid → the Qty cell is editable.
+    await waitFor(() => expect(qty().disabled).toBe(false));
+
+    // Header becomes paid → the Qty cell locks (parent.status == 'paid').
+    fireEvent.change(status, { target: { value: 'paid' } });
+    await waitFor(() => expect(qty().disabled).toBe(true));
+    // A column without a rule stays editable regardless of the header.
+    expect((screen.getAllByLabelText('Product')[0] as HTMLInputElement).disabled).toBe(false);
+
+    // Header moves off paid → the cell unlocks again.
+    fireEvent.change(status, { target: { value: 'draft' } });
+    await waitFor(() => expect(qty().disabled).toBe(false));
+  });
+
+  it('does not reset the header form when a line locks (isolated re-render)', async () => {
+    const { container } = render(<MasterDetailForm schema={schema} dataSource={lockDataSource()} />);
+
+    const status = await waitFor(() => {
+      const el = container.querySelector('input[name="status"]') as HTMLInputElement | null;
+      if (!el) throw new Error('header not ready');
+      return el;
+    });
+
+    fireEvent.change(status, { target: { value: 'paid' } });
+    // The scrape-driven lock must NOT wipe the value the user just typed.
+    await waitFor(() => expect((screen.getAllByLabelText('Qty')[0] as HTMLInputElement).disabled).toBe(true));
+    expect((container.querySelector('input[name="status"]') as HTMLInputElement).value).toBe('paid');
+  });
+});

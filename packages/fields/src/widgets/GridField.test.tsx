@@ -247,4 +247,63 @@ describe('GridField / LineItemsField — editable line items', () => {
   it('sumColumn ignores blanks and NaN', () => {
     expect(sumColumn([{ amount: 1 }, { amount: 2 }, { amount: null }], 'amount')).toBe(3);
   });
+
+  describe('parent-scoped conditional rules (B2 follow-up — "paid invoice → lock lines")', () => {
+    const lockField = {
+      columns: [
+        { field: 'product', label: 'Product', type: 'text' as const },
+        { field: 'qty', label: 'Qty', type: 'number' as const, readonlyWhen: "parent.status == 'paid'" },
+        { field: 'unit_price', label: 'Unit Price', type: 'currency' as const, readonlyWhen: "parent.status == 'paid'" },
+      ],
+    } as any;
+
+    it('leaves cells editable when the parent rule is FALSE', () => {
+      render(
+        <GridField
+          value={[{ product: 'Widget', qty: 2, unit_price: 10 }]}
+          onChange={() => {}}
+          field={lockField}
+          contextRecord={{ status: 'draft' }}
+        />,
+      );
+      expect((screen.getAllByLabelText('Qty')[0] as HTMLInputElement).disabled).toBe(false);
+      expect((screen.getAllByLabelText('Unit Price')[0] as HTMLInputElement).disabled).toBe(false);
+    });
+
+    it('locks cells whose readonlyWhen references the parent header', () => {
+      render(
+        <GridField
+          value={[{ product: 'Widget', qty: 2, unit_price: 10 }]}
+          onChange={() => {}}
+          field={lockField}
+          contextRecord={{ status: 'paid' }}
+        />,
+      );
+      // The header is paid → quantity / unit price lock; product (no rule) stays editable.
+      expect((screen.getAllByLabelText('Qty')[0] as HTMLInputElement).disabled).toBe(true);
+      expect((screen.getAllByLabelText('Unit Price')[0] as HTMLInputElement).disabled).toBe(true);
+      expect((screen.getAllByLabelText('Product')[0] as HTMLInputElement).disabled).toBe(false);
+    });
+
+    it('re-evaluates per row, mixing the parent header with row data', () => {
+      const rowRule = {
+        columns: [
+          { field: 'qty', label: 'Qty', type: 'number' as const },
+          // Locks only when the header is paid AND this row is already invoiced.
+          { field: 'note', label: 'Note', type: 'text' as const, readonlyWhen: "parent.status == 'paid' && record.invoiced == true" },
+        ],
+      } as any;
+      render(
+        <GridField
+          value={[{ qty: 1, note: 'a', invoiced: true }, { qty: 2, note: 'b', invoiced: false }]}
+          onChange={() => {}}
+          field={rowRule}
+          contextRecord={{ status: 'paid' }}
+        />,
+      );
+      const notes = screen.getAllByLabelText('Note') as HTMLInputElement[];
+      expect(notes[0].disabled).toBe(true);  // invoiced row → locked
+      expect(notes[1].disabled).toBe(false); // not-yet-invoiced row → editable
+    });
+  });
 });
