@@ -16,7 +16,7 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/example-schema-catalog": "workspace:*",
     "@object-ui/fields": "workspace:*",
-    "@objectstack/spec": "^7.8.0",
+    "@objectstack/spec": "^8.0.1",
     "@object-ui/plugin-calendar": "workspace:*",
     "@object-ui/plugin-charts": "workspace:*",
     "@object-ui/plugin-chatbot": "workspace:*",
