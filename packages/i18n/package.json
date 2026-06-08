@@ -36,7 +36,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "i18next": "^26.3.0",
+    "i18next": "^26.3.1",
     "react-i18next": "^17.0.7"
   },
   "peerDependencies": {
