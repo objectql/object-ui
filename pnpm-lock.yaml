@@ -1031,8 +1031,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^7.9.0
-        version: 7.9.0(ai@6.0.198(zod@4.4.3))
+        specifier: ^8.0.1
+        version: 8.0.1(ai@6.0.198(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^8.0.1
         version: 8.0.1(ai@6.0.198(zod@4.4.3))
@@ -3876,8 +3876,8 @@ packages:
     resolution: {integrity: sha512-mZXkHiBiCJNHFxNKrHJNfYvJbO1mJX8fmRmtHXwvBawGsr8l/Q/iHk4pbZMEXxoL/YJK8EdEaerJ4/tGhJhmXg==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/formula@7.9.0':
-    resolution: {integrity: sha512-58RShr27FiB/zNydIRi+pEkmnnR/lQe3uWlS/5o6J5UHtLERSRTPv0qqHiMIjHvLGVtx3qUeSnnGBVrFQJeqPA==}
+  '@objectstack/formula@8.0.1':
+    resolution: {integrity: sha512-e/CfchRGxnJW4JB1sDAaNKCAj0kbM83fSpzDmn3UMppG89aW9gSyMiB9TvaOnB35iOxsyhTeZ8R9E/rwEEfmfg==}
 
   '@objectstack/spec@7.9.0':
     resolution: {integrity: sha512-B/tEB4Xggdwck9v4d97dB+K3dOjgjjm/TALcRqSFotRmBs3hbsiLXxKYMsyhl71E57/DNxwwikaZ3inwOi+ZUA==}
@@ -11620,10 +11620,10 @@ snapshots:
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/formula@7.9.0(ai@6.0.198(zod@4.4.3))':
+  '@objectstack/formula@8.0.1(ai@6.0.198(zod@4.4.3))':
     dependencies:
       '@marcbachmann/cel-js': 7.6.1
-      '@objectstack/spec': 7.9.0(ai@6.0.198(zod@4.4.3))
+      '@objectstack/spec': 8.0.1(ai@6.0.198(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
