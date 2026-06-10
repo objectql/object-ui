@@ -19,7 +19,7 @@
  */
 import * as React from 'react';
 import { cn } from '@object-ui/components';
-import { AlertCircle, Copy, Check, RefreshCw, CornerDownLeft, Bot, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import type { ChatStatus } from 'ai';
 import {
   humanizeToolName,
@@ -340,6 +340,15 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * `POST /api/v1/packages/:packageId/publish-drafts`.
    */
   onPublishDrafts?: (packageId: string) => void | boolean | Promise<void | boolean>;
+  /**
+   * When provided, a finished build tree (`buildProgress.phase === 'done'`) that
+   * created an `app` renders an "Open app" action so the user can jump straight
+   * into what was just built. The host wires this to its router (e.g.
+   * `navigate('/apps/<name>')`).
+   */
+  onOpenBuiltApp?: (appName: string) => void;
+  /** Label for the open-built-app action (default "Open app"). */
+  openBuiltAppLabel?: string;
   /** Label for the publish-drafts button (default "Publish"). */
   publishDraftsLabel?: string;
   /** Label for the published-state badge that replaces the button (default "Published"). */
@@ -535,6 +544,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       onReviewDraft,
       toolReviewLabel = (n) => `Review ${n} change${n === 1 ? '' : 's'}`,
       onPublishDrafts,
+      onOpenBuiltApp,
+      openBuiltAppLabel = 'Open app',
       publishDraftsLabel = 'Publish',
       publishedLabel = 'Published',
       autoPublishDrafts = false,
@@ -977,7 +988,11 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                       >
                     <MessageContent>
                       {buildProgress ? (
-                        <BuildProgressPanel progress={buildProgress} />
+                        <BuildProgressPanel
+                          progress={buildProgress}
+                          onOpenBuiltApp={onOpenBuiltApp}
+                          openBuiltAppLabel={openBuiltAppLabel}
+                        />
                       ) : null}
                       {!isUser && processVisibility === 'debug' && reasoning ? (
                         <Reasoning
@@ -1265,9 +1280,19 @@ const BUILD_GROUP_LABEL: Record<string, string> = {
  * watches objects → views → dashboard → app → sample data appear instead of a
  * blank thinking spinner. Collapses to a "Built X" summary when done.
  */
-function BuildProgressPanel({ progress }: { progress: ChatBuildProgress }) {
+function BuildProgressPanel({
+  progress,
+  onOpenBuiltApp,
+  openBuiltAppLabel = 'Open app',
+}: {
+  progress: ChatBuildProgress;
+  onOpenBuiltApp?: (appName: string) => void;
+  openBuiltAppLabel?: string;
+}) {
   const { phase, appLabel, items, done, total } = progress;
   const isDone = phase === 'done';
+  // The created `app` artifact (navigation shell) — the natural "open it" target.
+  const builtApp = items.find((it) => it.type === 'app');
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : isDone ? 100 : 6;
   const groups = new Map<string, string[]>();
   for (const it of items) {
@@ -1313,6 +1338,19 @@ function BuildProgressPanel({ progress }: { progress: ChatBuildProgress }) {
           );
         })}
       </ul>
+      {isDone && builtApp && onOpenBuiltApp ? (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => onOpenBuiltApp(builtApp.name)}
+            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+            data-testid="build-progress-open-app"
+          >
+            {openBuiltAppLabel}
+            <ArrowRight className="size-3.5" />
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

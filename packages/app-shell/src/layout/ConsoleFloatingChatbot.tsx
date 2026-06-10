@@ -121,6 +121,8 @@ function buildChatLocale(
       published: '已发布',
       publishOk: '已发布，对象已生效。',
       publishFailed: '发布失败',
+      seedWarn: '已发布，但部分示例数据未能载入。',
+      openBuiltApp: '打开应用',
       suggestions,
     };
   }
@@ -165,6 +167,8 @@ function buildChatLocale(
     published: 'Published',
     publishOk: 'Published — objects are now live.',
     publishFailed: 'Publish failed',
+    seedWarn: 'Published, but some sample data failed to load.',
+    openBuiltApp: 'Open app',
     suggestions,
   };
 }
@@ -501,6 +505,10 @@ function ChatbotInner({
           if (items[0]) requestAssistantReview(items[0]);
         }}
         toolReviewLabel={locale.reviewDraft}
+        // Build-tree "Open app": jump straight into the app the agent just
+        // built (the panel only shows this once the build reports done).
+        onOpenBuiltApp={(appName) => navigate(`/apps/${encodeURIComponent(appName)}`)}
+        openBuiltAppLabel={locale.openBuiltApp}
         onPublishDrafts={async (packageId) => {
           // ADR-0033 — promote the conversation's staged drafts to live in one
           // click (the human still confirms here). Mirrors PackagesPage's
@@ -521,7 +529,22 @@ function ChatbotInner({
             }
             const failed = payload?.data?.failedCount ?? payload?.failedCount ?? 0;
             if (failed) throw new Error(String(failed));
-            toast.success(locale.publishOk);
+            // The protocol materializes published `seed` rows and reports under
+            // `seedApplied` — a data problem never fails the publish, so it
+            // must be surfaced HERE or the user lands on an app with silently
+            // empty tables (the staging "No rows" incident).
+            const seedApplied = payload?.data?.seedApplied ?? payload?.seedApplied;
+            if (seedApplied && seedApplied.success === false) {
+              toast.warning(locale.seedWarn, {
+                description:
+                  seedApplied.error ??
+                  (Array.isArray(seedApplied.errors) && seedApplied.errors.length
+                    ? String(seedApplied.errors[0])
+                    : undefined),
+              });
+            } else {
+              toast.success(locale.publishOk);
+            }
             // Publish & Open: land the user ON the thing they just built rather
             // than leaving them on an empty home with only a toast. Prefer the
             // published App (a full navigable surface); the bare-object case has

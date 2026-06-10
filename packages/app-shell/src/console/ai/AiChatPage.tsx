@@ -538,6 +538,9 @@ function ChatPane({
         toolApproveLabel="Approve & run"
         toolDenyLabel="Reject"
         toolDenyReason="Operator rejected from chat"
+        // Build-tree "Open app": jump straight into the app the agent just built.
+        onOpenBuiltApp={(appName) => navigate(`/apps/${encodeURIComponent(appName)}`)}
+        openBuiltAppLabel={t('console.ai.openBuiltApp', { defaultValue: 'Open app' })}
         onPublishDrafts={async (packageId) => {
           // Promote the conversation's staged drafts to live (ADR-0033 gate —
           // the human still clicks). Same call as the floating chat + PackagesPage.
@@ -557,7 +560,23 @@ function ChatPane({
             }
             const failed = payload?.data?.failedCount ?? payload?.failedCount ?? 0;
             if (failed) throw new Error(String(failed));
-            toast.success(t('console.ai.publishOk', { defaultValue: 'Published — objects are now live.' }));
+            // Surface a seed-load problem (reported under `seedApplied`, never
+            // thrown) so "Published!" can't hide silently empty tables.
+            const seedApplied = payload?.data?.seedApplied ?? payload?.seedApplied;
+            if (seedApplied && seedApplied.success === false) {
+              toast.warning(
+                t('console.ai.seedWarn', { defaultValue: 'Published, but some sample data failed to load.' }),
+                {
+                  description:
+                    seedApplied.error ??
+                    (Array.isArray(seedApplied.errors) && seedApplied.errors.length
+                      ? String(seedApplied.errors[0])
+                      : undefined),
+                },
+              );
+            } else {
+              toast.success(t('console.ai.publishOk', { defaultValue: 'Published — objects are now live.' }));
+            }
             return true;
           } catch (e) {
             toast.error(t('console.ai.publishFailed', { defaultValue: 'Publish failed' }), {

@@ -411,4 +411,30 @@ describe('ChatbotEnhanced — streaming build preview (live build tree)', () => 
     render(<ChatbotEnhanced messages={[buildMsg('done')]} />);
     expect(screen.getByText(/Built CRM/i)).toBeInTheDocument();
   });
+
+  it('offers "Open app" on a finished build that created an app, wired to onOpenBuiltApp', () => {
+    const onOpenBuiltApp = vi.fn();
+    const doneWithApp: ChatMessage = {
+      ...buildMsg('done'),
+      buildProgress: {
+        ...buildMsg('done').buildProgress!,
+        items: [...buildMsg('done').buildProgress!.items, { type: 'app', name: 'crm' }],
+      },
+    };
+    render(<ChatbotEnhanced messages={[doneWithApp]} onOpenBuiltApp={onOpenBuiltApp} />);
+    const btn = screen.getByTestId('build-progress-open-app');
+    fireEvent.click(btn);
+    expect(onOpenBuiltApp).toHaveBeenCalledWith('crm');
+  });
+
+  it('shows no Open-app action while streaming or without an app artifact', () => {
+    const onOpenBuiltApp = vi.fn();
+    const { rerender } = render(
+      <ChatbotEnhanced isLoading messages={[buildMsg('data')]} onOpenBuiltApp={onOpenBuiltApp} />,
+    );
+    expect(screen.queryByTestId('build-progress-open-app')).not.toBeInTheDocument();
+    // Done but no `app` item → still no button (nothing to open).
+    rerender(<ChatbotEnhanced messages={[buildMsg('done')]} onOpenBuiltApp={onOpenBuiltApp} />);
+    expect(screen.queryByTestId('build-progress-open-app')).not.toBeInTheDocument();
+  });
 });

@@ -62,6 +62,37 @@ describe('uiMessageToChatMessage', () => {
     });
   });
 
+  it('promotes a stale input-available state to output-available when an output is present (reloaded conversations)', () => {
+    // A conversation persisted mid-stream can carry `input-available` next to a
+    // present output (the terminal state was never snapshotted) — without the
+    // promotion a reloaded chat shows "Running" forever on a finished build.
+    const out = uiMessageToChatMessage({
+      id: 'm-reload',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-apply_blueprint',
+          toolCallId: 'call_b',
+          state: 'input-available',
+          input: { blueprint: {} },
+          output: { status: 'drafted', drafted: [{ type: 'object', name: 'job' }] },
+        },
+      ],
+    });
+    expect(out.toolInvocations?.[0]?.state).toBe('output-available');
+  });
+
+  it('keeps input-available when there is genuinely no output yet (live stream)', () => {
+    const out = uiMessageToChatMessage({
+      id: 'm-live',
+      role: 'assistant',
+      parts: [
+        { type: 'tool-apply_blueprint', toolCallId: 'call_c', state: 'input-available', input: {} },
+      ],
+    });
+    expect(out.toolInvocations?.[0]?.state).toBe('input-available');
+  });
+
   it('preserves legacy msg.toolInvocations when no tool-* parts are present', () => {
     const out = uiMessageToChatMessage({
       id: 'm4',

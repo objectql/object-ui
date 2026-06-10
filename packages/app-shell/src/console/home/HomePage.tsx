@@ -148,10 +148,30 @@ function PendingDraftsBanner({ t }: { t: (key: string, opts?: any) => string }) 
             .filter((d) => d && typeof d.type === 'string' && typeof d.name === 'string')
             .map((d) => ({ type: d.type, name: d.name }));
       if (pending.length === 0) throw new Error('nothing to publish');
-      for (const d of pending) {
-        await client.publishDraft(d.type, d.name);
+      // Structure first, seeds LAST — a seed's rows can only land once its
+      // object's table exists. Publishing a `seed` also materializes its rows
+      // (reported under `seedApplied`, never thrown) — collect failures so
+      // "Published!" can't hide silently empty tables.
+      const ordered = [
+        ...pending.filter((d) => d.type !== 'seed'),
+        ...pending.filter((d) => d.type === 'seed'),
+      ];
+      const seedProblems: string[] = [];
+      for (const d of ordered) {
+        const res = await client.publishDraft(d.type, d.name);
+        const seedApplied = (res as any)?.seedApplied;
+        if (seedApplied && seedApplied.success === false) {
+          seedProblems.push(seedApplied.error ?? `${d.name}: sample data failed to load`);
+        }
       }
-      toast.success(t('home.pendingDrafts.published', { defaultValue: 'Published! Your changes are live.' }));
+      if (seedProblems.length > 0) {
+        toast.warning(
+          t('home.pendingDrafts.seedWarn', { defaultValue: 'Published, but some sample data failed to load.' }),
+          { description: seedProblems[0] },
+        );
+      } else {
+        toast.success(t('home.pendingDrafts.published', { defaultValue: 'Published! Your changes are live.' }));
+      }
       setDrafts([]);
       // Surface the now-live app — reload so the populated home shows it.
       setTimeout(() => { try { window.location.reload(); } catch { /* ignore */ } }, 700);

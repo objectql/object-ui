@@ -177,4 +177,24 @@ describe('MetadataClient', () => {
     });
     await expect(c.publishDraft('view', 'x')).rejects.toBeTruthy();
   });
+
+  it('publishDraft returns the result (incl. seedApplied) and unwraps the {data} envelope', async () => {
+    // Flat shape (rest-server passes protocol result through).
+    const flat = new MetadataClient({
+      baseUrl: '',
+      fetch: mockFetch(async () =>
+        jsonResponse({ success: true, seedApplied: { success: false, error: 'no readable seed bodies' } })),
+    });
+    const r1 = await flat.publishDraft('seed', 'job_sample');
+    expect(r1.seedApplied).toEqual({ success: false, error: 'no readable seed bodies' });
+
+    // Dispatcher `{ success, data: {...} }` envelope.
+    const enveloped = new MetadataClient({
+      baseUrl: '',
+      fetch: mockFetch(async () =>
+        jsonResponse({ success: true, data: { success: true, seedApplied: { success: true, inserted: 6, updated: 0 } } })),
+    });
+    const r2 = await enveloped.publishDraft('seed', 'candidate_sample');
+    expect(r2.seedApplied).toEqual({ success: true, inserted: 6, updated: 0 });
+  });
 });

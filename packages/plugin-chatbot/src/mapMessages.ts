@@ -186,7 +186,16 @@ function extractToolInvocations(parts: AnyPart[]): ChatToolInvocation[] {
       const result = p.output ?? p.result;
       const pending = detectPendingApproval(result);
       const draftReview = detectDraftResult(result);
-      const baseState = p.state;
+      // A part persisted mid-stream can carry a stale `input-*` state next to a
+      // present output (the terminal state wasn't snapshotted) — a reloaded
+      // conversation would then show "Running" forever. Output present = the
+      // call finished; promote so the badge reads Completed.
+      const persistedState = p.state;
+      const baseState: ChatToolInvocation['state'] =
+        (persistedState === 'input-available' || persistedState === 'input-streaming') &&
+        result !== undefined
+          ? 'output-available'
+          : persistedState;
       // Promote pending HITL results to `approval-requested` so the UI
       // unlocks the inline approve/reject buttons. Once the operator
       // decides, `useHitlInChat` flips `state` back via the per-call

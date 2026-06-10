@@ -474,8 +474,19 @@ export class MetadataClient {
    * draft, including ones with no `packageId` binding (which the package-scoped
    * `/packages/:id/publish-drafts` flow cannot reach). Use this to publish the
    * exact set returned by {@link listDrafts} without needing a package.
+   *
+   * Returns the server result. For `seed` drafts the protocol also materializes
+   * the rows and reports under `seedApplied` — a data problem never fails the
+   * publish, so callers should check `seedApplied?.success` and warn the user
+   * rather than assume the data went live.
    */
-  async publishDraft(type: string, name: string): Promise<void> {
+  async publishDraft(
+    type: string,
+    name: string,
+  ): Promise<{
+    success?: boolean;
+    seedApplied?: { success: boolean; inserted?: number; updated?: number; error?: string; errors?: unknown[] };
+  } & Record<string, unknown>> {
     const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}/publish`;
     const res = await this.fetchImpl(url, {
       method: 'POST',
@@ -483,6 +494,10 @@ export class MetadataClient {
       body: '{}',
     });
     if (!res.ok) throw await parseError(res);
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    // Tolerate the dispatcher's `{ success, data: {...} }` envelope.
+    const inner = (body as any)?.data && typeof (body as any).data === 'object' ? (body as any).data : body;
+    return inner as any;
   }
 
   /**
