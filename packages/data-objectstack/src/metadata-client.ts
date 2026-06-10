@@ -469,6 +469,23 @@ export class MetadataClient {
   }
 
   /**
+   * Publish a single pending draft BY REFERENCE — promotes the draft row for
+   * `(type, name)` into the active overlay and drops the draft. Works for ANY
+   * draft, including ones with no `packageId` binding (which the package-scoped
+   * `/packages/:id/publish-drafts` flow cannot reach). Use this to publish the
+   * exact set returned by {@link listDrafts} without needing a package.
+   */
+  async publishDraft(type: string, name: string): Promise<void> {
+    const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}/publish`;
+    const res = await this.fetchImpl(url, {
+      method: 'POST',
+      headers: { ...this.headers, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: '{}',
+    });
+    if (!res.ok) throw await parseError(res);
+  }
+
+  /**
    * Get the 3-state layered view of a metadata item (Phase 3a). Returns
    * `code` (the artifact / fallback default), `overlay` (the saved
    * customisation, if any), and `effective` (what the runtime sees).

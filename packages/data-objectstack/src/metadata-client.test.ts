@@ -155,4 +155,26 @@ describe('MetadataClient', () => {
     });
     expect((await bare.listDrafts()).map((d) => d.name)).toEqual(['b']);
   });
+
+  it('publishDraft POSTs /meta/:type/:name/publish (promotes a draft by ref, no package needed)', async () => {
+    const seen: { url: string; method?: string }[] = [];
+    const c = new MetadataClient({
+      baseUrl: 'http://localhost:3000',
+      fetch: mockFetch(async (url, init) => {
+        seen.push({ url, method: init?.method });
+        return jsonResponse({ success: true });
+      }),
+    });
+    await c.publishDraft('dashboard', 'sales_dashboard');
+    expect(seen[0]?.method).toBe('POST');
+    expect(seen[0]?.url).toBe('http://localhost:3000/api/v1/meta/dashboard/sales_dashboard/publish');
+  });
+
+  it('publishDraft throws on a non-ok response', async () => {
+    const c = new MetadataClient({
+      baseUrl: '',
+      fetch: mockFetch(async () => new Response('nope', { status: 500 })),
+    });
+    await expect(c.publishDraft('view', 'x')).rejects.toBeTruthy();
+  });
 });

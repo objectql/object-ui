@@ -115,43 +115,44 @@ function StatPill({
  */
 function PendingDraftsBanner({ t }: { t: (key: string, opts?: any) => string }) {
   const client = useMetadataClient();
-  const [count, setCount] = useState(0);
-  const [pkgIds, setPkgIds] = useState<string[]>([]);
+  const [drafts, setDrafts] = useState<Array<{ type: string; name: string }>>([]);
   const [publishing, setPublishing] = useState(false);
+  const count = drafts.length;
 
   useEffect(() => {
     let cancelled = false;
     Promise.resolve(client.listDrafts?.({}))
-      .then((drafts) => {
-        if (cancelled || !Array.isArray(drafts)) return;
-        setCount(drafts.length);
-        setPkgIds([...new Set(drafts.map((d: any) => d.packageId).filter(Boolean) as string[])]);
+      .then((rows) => {
+        if (cancelled || !Array.isArray(rows)) return;
+        setDrafts(
+          rows
+            .filter((d: any) => d && typeof d.type === 'string' && typeof d.name === 'string')
+            .map((d: any) => ({ type: d.type, name: d.name })),
+        );
       })
       .catch(() => { /* drafts unsupported / error → don't show */ });
     return () => { cancelled = true; };
   }, [client]);
 
-  // One-click publish: promote the draft package(s) directly so a brand-new
+  // One-click publish: promote every pending draft BY REFERENCE so a brand-new
   // user reaches "it's live" without hunting for a designer. (Pre-PMF activation
-  // > the draft-review gate; the review path can return when it matters.)
+  // > the draft-review gate.) Publishing per-(type,name) — not per-package —
+  // means a draft with no `packageId` binding still publishes, instead of the
+  // banner dead-ending with "no draft packages" while the count stays stuck.
   const publish = async () => {
     setPublishing(true);
     try {
-      const ids = pkgIds.length
-        ? pkgIds
-        : [...new Set((((await client.listDrafts?.({})) as any[]) || []).map((d) => d.packageId).filter(Boolean) as string[])];
-      if (ids.length === 0) throw new Error('no draft packages');
-      for (const id of ids) {
-        const res = await fetch(`/api/v1/packages/${encodeURIComponent(id)}/publish-drafts`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({}),
-        });
-        if (!res.ok) throw new Error((await res.text().catch(() => '')) || `HTTP ${res.status}`);
+      const pending = drafts.length
+        ? drafts
+        : (((await client.listDrafts?.({})) as any[]) || [])
+            .filter((d) => d && typeof d.type === 'string' && typeof d.name === 'string')
+            .map((d) => ({ type: d.type, name: d.name }));
+      if (pending.length === 0) throw new Error('nothing to publish');
+      for (const d of pending) {
+        await client.publishDraft(d.type, d.name);
       }
       toast.success(t('home.pendingDrafts.published', { defaultValue: 'Published! Your changes are live.' }));
-      setCount(0);
+      setDrafts([]);
       // Surface the now-live app — reload so the populated home shows it.
       setTimeout(() => { try { window.location.reload(); } catch { /* ignore */ } }, 700);
     } catch (e) {
