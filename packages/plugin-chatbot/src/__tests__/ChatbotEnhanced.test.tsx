@@ -342,3 +342,40 @@ describe('ChatbotEnhanced — auto-publish drafts (self-use magic moment)', () =
     expect(onPublishDrafts).toHaveBeenLastCalledWith('com.workspace');
   });
 });
+
+describe('ChatbotEnhanced — streaming build preview (live build tree)', () => {
+  const buildMsg = (phase: 'structure' | 'data' | 'done'): ChatMessage => ({
+    id: 'a1',
+    role: 'assistant',
+    content: '',
+    streaming: phase !== 'done',
+    buildProgress: {
+      phase,
+      appLabel: 'CRM',
+      items: [
+        { type: 'object', name: 'customer' },
+        { type: 'view', name: 'customer.list' },
+        { type: 'seed', name: 'customer_sample' },
+      ],
+      done: 3,
+      total: 6,
+    },
+  });
+
+  it('renders a live build tree (not thinking dots) while a build streams', () => {
+    render(<ChatbotEnhanced isLoading messages={[buildMsg('data')]} />);
+    expect(screen.getByTestId('build-progress')).toBeInTheDocument();
+    expect(screen.getByText(/Building CRM/i)).toBeInTheDocument();
+    // Artifacts are grouped by type with friendly labels.
+    expect(screen.getByText('Objects')).toBeInTheDocument();
+    expect(screen.getByText('Views')).toBeInTheDocument();
+    expect(screen.getByText('Sample data')).toBeInTheDocument();
+    // The artifact names render (seeds without the _sample suffix).
+    expect(screen.getAllByText(/customer/).length).toBeGreaterThan(0);
+  });
+
+  it('collapses to a "Built" summary when the build is done', () => {
+    render(<ChatbotEnhanced messages={[buildMsg('done')]} />);
+    expect(screen.getByText(/Built CRM/i)).toBeInTheDocument();
+  });
+});

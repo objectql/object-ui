@@ -19,7 +19,7 @@
  */
 import * as React from 'react';
 import { cn } from '@object-ui/components';
-import { AlertCircle, Copy, Check, RefreshCw, CornerDownLeft, Bot, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle } from 'lucide-react';
+import { AlertCircle, Copy, Check, RefreshCw, CornerDownLeft, Bot, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import type { ChatStatus } from 'ai';
 import {
   humanizeToolName,
@@ -96,6 +96,26 @@ export interface ChatMessage {
   sources?: ChatSource[];
   /** Optional backend trace id (e.g. `ai_traces.id`) for debugging. */
   traceId?: string;
+  /**
+   * Live build progress from a long-running tool (apply_blueprint), lifted from
+   * the stream's reconciled `data-build-progress` part. When present, the chat
+   * renders a growing "build tree" so the user watches the app take shape
+   * instead of staring at a thinking spinner.
+   */
+  buildProgress?: ChatBuildProgress;
+}
+
+/** A reconciled snapshot of an in-flight app build (apply_blueprint). */
+export interface ChatBuildProgress {
+  /** Coarse phase: drafting structure, generating sample data, or finished. */
+  phase: 'structure' | 'data' | 'done';
+  /** Human label for the app being built (for the panel header). */
+  appLabel?: string;
+  /** Artifacts drafted so far, cumulative. */
+  items: Array<{ type: string; name: string }>;
+  /** Count of artifacts done and the rough total (for the progress bar). */
+  done: number;
+  total: number;
 }
 
 export interface ChatToolInvocation {
@@ -907,12 +927,14 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                 const tools = message.toolInvocations ?? [];
                 const reasoning = message.reasoning?.trim();
                 const sources = message.sources ?? [];
+                const buildProgress = !isUser ? message.buildProgress : undefined;
                 const isEmptyAssistantStreaming =
                   !isUser &&
                   Boolean(message.streaming) &&
                   !message.content &&
                   tools.length === 0 &&
-                  !reasoning;
+                  !reasoning &&
+                  !buildProgress; // a streaming build shows its tree, not the dots
                 const summaryTools =
                   !isUser && processVisibility === 'summary'
                     ? tools.filter((tool) => !shouldRenderDetailedTool(tool))
@@ -949,6 +971,9 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                         )}
                       >
                     <MessageContent>
+                      {buildProgress ? (
+                        <BuildProgressPanel progress={buildProgress} />
+                      ) : null}
                       {!isUser && processVisibility === 'debug' && reasoning ? (
                         <Reasoning
                           isStreaming={Boolean(message.streaming) && !message.content}
@@ -1217,6 +1242,73 @@ function ThinkingDots() {
         <span className="size-1.5 rounded-full bg-current animate-pulse" />
       </span>
     </>
+  );
+}
+
+const BUILD_GROUP_ORDER = ['object', 'view', 'dashboard', 'app', 'seed'];
+const BUILD_GROUP_LABEL: Record<string, string> = {
+  object: 'Objects',
+  view: 'Views',
+  dashboard: 'Dashboards',
+  app: 'App',
+  seed: 'Sample data',
+};
+
+/**
+ * Live "build tree" for an in-flight app build (apply_blueprint). Renders the
+ * artifacts as they stream in (via the message's `buildProgress`), so the user
+ * watches objects → views → dashboard → app → sample data appear instead of a
+ * blank thinking spinner. Collapses to a "Built X" summary when done.
+ */
+function BuildProgressPanel({ progress }: { progress: ChatBuildProgress }) {
+  const { phase, appLabel, items, done, total } = progress;
+  const isDone = phase === 'done';
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : isDone ? 100 : 6;
+  const groups = new Map<string, string[]>();
+  for (const it of items) {
+    const arr = groups.get(it.type) ?? [];
+    arr.push(it.name.replace(/_sample$/, ''));
+    groups.set(it.type, arr);
+  }
+  const orderedTypes = [
+    ...BUILD_GROUP_ORDER.filter((t) => groups.has(t)),
+    ...[...groups.keys()].filter((t) => !BUILD_GROUP_ORDER.includes(t)),
+  ];
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3 text-sm" data-testid="build-progress">
+      <div className="mb-2 flex items-center gap-2 font-medium">
+        {isDone ? (
+          <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+        ) : (
+          <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
+        )}
+        <span>{isDone ? `Built ${appLabel ?? 'your app'}` : `Building ${appLabel ?? 'your app'}…`}</span>
+        {!isDone && phase === 'data' ? (
+          <span className="text-xs font-normal text-muted-foreground">adding sample data</span>
+        ) : null}
+      </div>
+      <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn('h-full rounded-full transition-all duration-500', isDone ? 'bg-emerald-500' : 'bg-primary')}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <ul className="space-y-1">
+        {orderedTypes.map((type) => {
+          const names = groups.get(type)!;
+          return (
+            <li key={type} className="flex items-start gap-2">
+              <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
+              <span className="min-w-0 text-muted-foreground">
+                <span className="font-medium text-foreground">{BUILD_GROUP_LABEL[type] ?? type}</span>{' '}
+                {names.slice(0, 6).join(', ')}
+                {names.length > 6 ? ` +${names.length - 6} more` : ''}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

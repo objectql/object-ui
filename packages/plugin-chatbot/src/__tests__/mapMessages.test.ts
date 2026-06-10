@@ -82,6 +82,38 @@ describe('uiMessageToChatMessage', () => {
     );
     expect(out.streaming).toBe(true);
   });
+
+  it('lifts a reconciled data-build-progress part into buildProgress', () => {
+    const out = uiMessageToChatMessage({
+      id: 'm6',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'data-build-progress',
+          id: 'build-progress',
+          data: {
+            phase: 'data',
+            appLabel: 'CRM',
+            items: [{ type: 'object', name: 'customer' }, { type: 'view', name: 'customer.list' }],
+            done: 2,
+            total: 6,
+          },
+        },
+      ],
+    });
+    expect(out.buildProgress).toEqual({
+      phase: 'data',
+      appLabel: 'CRM',
+      items: [{ type: 'object', name: 'customer' }, { type: 'view', name: 'customer.list' }],
+      done: 2,
+      total: 6,
+    });
+  });
+
+  it('leaves buildProgress undefined when there is no build-progress part', () => {
+    const out = uiMessageToChatMessage({ id: 'm7', role: 'assistant', parts: [{ type: 'text', text: 'hi' }] });
+    expect(out.buildProgress).toBeUndefined();
+  });
 });
 
 // ADR-0033 Phase B — the chat lifts draft envelopes onto the invocation so a

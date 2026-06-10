@@ -14,7 +14,7 @@
  * apps that drive `useChat` themselves (e.g. Studio, which needs a custom
  * `prepareSendMessagesRequest` transport).
  */
-import type { ChatMessage, ChatToolInvocation, ChatSource } from './ChatbotEnhanced';
+import type { ChatMessage, ChatToolInvocation, ChatSource, ChatBuildProgress } from './ChatbotEnhanced';
 
 interface AnyPart {
   type?: string;
@@ -31,6 +31,8 @@ interface AnyPart {
   url?: string;
   href?: string;
   title?: string;
+  /** Payload of a Vercel custom data part (`data-*`), e.g. build progress. */
+  data?: unknown;
 }
 
 interface AnyUIMessage {
@@ -218,6 +220,31 @@ function extractSources(parts: AnyPart[]): ChatSource[] | undefined {
 }
 
 /**
+ * Lift the live build progress from the stream's reconciled `data-build-progress`
+ * part (emitted by apply_blueprint via `ctx.onProgress`). With a stable id the
+ * SDK keeps a single, in-place-updated part, so we just read the latest one.
+ */
+function extractBuildProgress(parts: AnyPart[]): ChatBuildProgress | undefined {
+  const part = parts.filter((p) => p.type === 'data-build-progress').pop();
+  const data = part?.data;
+  if (!data || typeof data !== 'object') return undefined;
+  const d = data as Record<string, unknown>;
+  const items = Array.isArray(d.items)
+    ? (d.items as Array<Record<string, unknown>>)
+        .filter((i) => typeof i?.type === 'string' && typeof i?.name === 'string')
+        .map((i) => ({ type: i.type as string, name: i.name as string }))
+    : [];
+  const phase = d.phase === 'data' || d.phase === 'done' ? d.phase : 'structure';
+  return {
+    phase,
+    ...(typeof d.appLabel === 'string' ? { appLabel: d.appLabel } : {}),
+    items,
+    done: typeof d.done === 'number' ? d.done : items.length,
+    total: typeof d.total === 'number' ? d.total : items.length,
+  };
+}
+
+/**
  * Map a single Vercel AI SDK v6 `UIMessage` to the `ChatMessage` shape that
  * `<ChatbotEnhanced>` renders.
  *
@@ -239,6 +266,7 @@ export function uiMessageToChatMessage(
     reasoning: extractReasoning(parts),
     toolInvocations: tools.length > 0 ? tools : legacyTools,
     sources: extractSources(parts),
+    buildProgress: extractBuildProgress(parts),
     streaming: opts.streaming,
   };
 }
