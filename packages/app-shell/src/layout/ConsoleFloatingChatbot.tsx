@@ -341,6 +341,9 @@ function ChatbotInner({
         appName,
         objects: objects.map((o) => ({ name: o.name, label: o.label })),
         agentName: activeAgent,
+        // Publish posture, so the agent's narration matches reality (an
+        // auto-published build is live, not "to publish").
+        autoPublishAiBuilds: getRuntimeConfig().features.autoPublishAiBuilds,
         // The metadata item currently open in a designer, so the agent
         // can act on "this object/view/…" without the user restating it.
         ...(editor ? { editing: editor } : {}),

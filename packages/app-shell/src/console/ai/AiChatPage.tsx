@@ -397,6 +397,9 @@ function ChatPane({
       context: {
         activeApp: 'AI',
         agentName: activeAgent,
+        // Tell the agent the environment's publish posture so its narration
+        // matches reality (an auto-published build is live, not "to publish").
+        autoPublishAiBuilds: getRuntimeConfig().features.autoPublishAiBuilds,
       },
     },
     initialMessages: hydrated,
