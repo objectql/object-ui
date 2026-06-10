@@ -527,6 +527,43 @@ export interface LocalInstallResult {
   note?: string;
 }
 
+/**
+ * Org-scoped catalog (ADR-0007 step ②). The caller's own organization's
+ * packages (visibility org/private) — discoverable + installable from inside
+ * the environment via the same-origin /cloud-connection/org-packages proxy,
+ * distinct from the public marketplace browse. `connected: false` → not
+ * cloud-bound (self-hosted), so there is no org catalog to show.
+ */
+export interface OrgPackageSummary {
+  id: string;
+  manifest_id: string;
+  display_name: string;
+  description?: string | null;
+  category?: string | null;
+  icon_url?: string | null;
+  visibility?: string;
+  latest_version?: string | null;
+}
+export interface OrgPackagesResult {
+  connected: boolean;
+  items: OrgPackageSummary[];
+}
+export async function listOrgPackages(): Promise<OrgPackagesResult> {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/v1/cloud-connection/org-packages`, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return { connected: false, items: [] };
+    const payload: any = await res.json().catch(() => ({}));
+    const data: any = payload?.data ?? {};
+    const items: OrgPackageSummary[] = Array.isArray(data.items) ? data.items : [];
+    return { connected: data.connected === true, items };
+  } catch {
+    return { connected: false, items: [] };
+  }
+}
+
 export async function installLocal(input: {
   packageId: string;
   versionId?: string;

@@ -28,8 +28,12 @@ import { localizePackage } from './usePackageL10n';
 import {
   listMarketplacePackages,
   listLocalInstalls,
+  listOrgPackages,
+  listInstalledPackages,
+  installPackage,
   type MarketplacePackageSummary,
   type LocalInstallEntry,
+  type OrgPackageSummary,
 } from './marketplaceApi';
 
 /**
@@ -73,6 +77,12 @@ export function MarketplacePage() {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string>('');
   const [installed, setInstalled] = useState<LocalInstallEntry[]>([]);
+  // ADR-0007 step ②: the org's own packages (visibility org/private), shown in
+  // a "Your organization" section and installable inline (no public listing).
+  const [orgItems, setOrgItems] = useState<OrgPackageSummary[]>([]);
+  const [orgInstalling, setOrgInstalling] = useState<string | null>(null);
+  const [orgMsg, setOrgMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [installedIds, setInstalledIds] = useState<Set<string>>(new Set());
 
   const installedByManifestId = useMemo(() => {
     const m = new Map<string, LocalInstallEntry>();
@@ -84,12 +94,19 @@ export function MarketplacePage() {
     setLoading(true);
     setError(null);
     try {
-      const [resp, installs] = await Promise.all([
+      const [resp, installs, org, cloudInstalled] = await Promise.all([
         listMarketplacePackages({ limit: 100 }),
         listLocalInstalls(),
+        listOrgPackages(),
+        listInstalledPackages(),
       ]);
       setItems(resp.items ?? []);
       setInstalled(installs);
+      setOrgItems(org.items ?? []);
+      const ids = new Set<string>();
+      for (const e of installs) ids.add(e.manifestId);
+      for (const e of cloudInstalled.items) ids.add(e.manifestId);
+      setInstalledIds(ids);
     } catch (e: any) {
       setError(e?.message ?? String(e));
       setItems([]);
@@ -99,6 +116,23 @@ export function MarketplacePage() {
   };
 
   useEffect(() => { void load(); }, []);
+
+  // Install an org package into the current environment (ADR-0007 step ②).
+  // The same-origin /cloud-connection/install route resolves the env by
+  // hostname, so we only need the package id.
+  const doOrgInstall = async (pkg: OrgPackageSummary) => {
+    setOrgInstalling(pkg.id);
+    setOrgMsg(null);
+    try {
+      await installPackage({ packageId: pkg.id, environmentId: '', seedSampleData: true });
+      setOrgMsg({ ok: true, text: t('marketplace.org.installed', { defaultValue: `Installed ${pkg.display_name}`, name: pkg.display_name }) });
+      await load();
+    } catch (e: any) {
+      setOrgMsg({ ok: false, text: e?.message ?? String(e) });
+    } finally {
+      setOrgInstalling(null);
+    }
+  };
 
   const categories = useMemo(() => {
     const s = new Set<string>();
@@ -206,6 +240,72 @@ export function MarketplacePage() {
             />
           </div>
         </div>
+      )}
+
+      {orgItems.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Store className="h-5 w-5 text-primary" aria-hidden="true" />
+            <h2 className="text-sm font-semibold">
+              {t('marketplace.org.heading', { defaultValue: 'Your organization' })}
+            </h2>
+            <Badge variant="secondary" className="text-xs">{orgItems.length}</Badge>
+          </div>
+          {orgMsg && (
+            <div className={`rounded-md border p-3 text-sm ${orgMsg.ok ? 'border-green-500/30 bg-green-500/5 text-green-700 dark:text-green-400' : 'border-destructive/30 bg-destructive/5 text-destructive'}`}>
+              {orgMsg.text}
+            </div>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {orgItems.map((pkg) => {
+              const isInstalled = installedIds.has(pkg.manifest_id);
+              return (
+                <Card key={pkg.id} className="flex flex-col" data-testid={`org-card-${pkg.manifest_id}`}>
+                  <CardHeader className="flex flex-row items-start gap-3 pb-2">
+                    <PackageIcon iconUrl={pkg.icon_url} displayName={pkg.display_name} manifestId={pkg.manifest_id} />
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="text-base truncate">{pkg.display_name}</CardTitle>
+                      <CardDescription className="text-xs truncate">
+                        <code className="font-mono">{pkg.manifest_id}</code>
+                      </CardDescription>
+                    </div>
+                    {pkg.visibility && (
+                      <Badge variant="outline" className="shrink-0 text-xs">{pkg.visibility}</Badge>
+                    )}
+                  </CardHeader>
+                  <CardContent className="flex-1 flex flex-col gap-2">
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {pkg.description || t('marketplace.noDescription')}
+                    </p>
+                    <div className="flex items-center gap-2 mt-auto pt-2 flex-wrap">
+                      {pkg.latest_version && (
+                        <Badge variant="outline" className="text-xs">
+                          <Package className="h-3 w-3 mr-1" aria-hidden="true" />
+                          {t('marketplace.versionBadge', { version: pkg.latest_version })}
+                        </Badge>
+                      )}
+                      <div className="ml-auto">
+                        {isInstalled ? (
+                          <Badge variant="default" className="text-xs bg-green-600 hover:bg-green-600">
+                            <CheckCircle2 className="h-3 w-3 mr-1" aria-hidden="true" />
+                            {t('marketplace.org.installedBadge', { defaultValue: 'Installed' })}
+                          </Badge>
+                        ) : (
+                          <Button size="sm" onClick={() => void doOrgInstall(pkg)} disabled={orgInstalling === pkg.id}>
+                            {orgInstalling === pkg.id
+                              ? t('marketplace.org.installing', { defaultValue: 'Installing…' })
+                              : t('marketplace.org.install', { defaultValue: 'Install' })}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+          <div className="border-b pt-2" />
+        </section>
       )}
 
       {loading && items.length === 0 ? (
