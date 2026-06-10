@@ -368,6 +368,7 @@ function ChatPane({
   onShare,
 }: ChatPaneProps) {
   const { t } = useObjectTranslation();
+  const navigate = useNavigate();
   const activeAgentLabel = useMemo<string>(() => {
     const found = agents.find((a) => a.name === activeAgent);
     return localizeAgentLabel(t, activeAgent, found?.label ?? activeAgent ?? t('console.ai.assistant'));
