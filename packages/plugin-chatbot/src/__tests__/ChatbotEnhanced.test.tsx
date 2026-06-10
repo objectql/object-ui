@@ -176,6 +176,39 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     expect(screen.getByText(/Picked the query_data tool/i)).toBeInTheDocument();
   });
 
+  it('hides raw tool JSON for drafting tools in summary mode but keeps the Review affordance', () => {
+    const draftTool: ChatMessage = {
+      id: 'a1',
+      role: 'assistant',
+      content: 'Built your sales CRM.',
+      toolInvocations: [
+        {
+          toolCallId: 'tc1',
+          toolName: 'apply_blueprint',
+          state: 'output-available',
+          args: { blueprint: { summary: 'sales', objects: [{ name: 'opportunity_secret_field' }] } },
+          result: { status: 'drafted', drafted: [{ type: 'object', name: 'opportunity' }] },
+          draftReview: { items: [{ type: 'object', name: 'opportunity' }], summary: 'drafted 1 artifact(s)' },
+        },
+      ],
+    };
+    const onReviewDraft = vi.fn();
+    const { rerender } = render(
+      <ChatbotEnhanced messages={[draftTool]} onReviewDraft={onReviewDraft} />,
+    );
+    // Consumer surface (summary): the friendly card + Review affordance render,
+    // but the raw blueprint PARAMETERS / drafted RESULT JSON stay hidden.
+    expect(screen.getByText(/Apply blueprint/i)).toBeInTheDocument();
+    expect(screen.queryByText('Parameters')).not.toBeInTheDocument();
+    expect(screen.queryByText('Result')).not.toBeInTheDocument();
+    expect(screen.queryByText(/opportunity_secret_field/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Review/i)).toBeInTheDocument();
+
+    // Developer surface (debug): the raw PARAMETERS JSON is revealed.
+    rerender(<ChatbotEnhanced processVisibility="debug" messages={[draftTool]} onReviewDraft={onReviewDraft} />);
+    expect(screen.getByText('Parameters')).toBeInTheDocument();
+  });
+
   it('renders a model picker and forwards changes', () => {
     const onModelChange = vi.fn();
     render(

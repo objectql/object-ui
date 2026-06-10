@@ -705,10 +705,15 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         processVisibility === 'debug' &&
         friendlyTitle &&
         friendlyTitle.toLowerCase() !== tool.toolName.toLowerCase();
+      // Raw PARAMETERS/RESULT JSON is developer detail — only in `debug` mode,
+      // or when a HITL approval needs the operator to see the exact payload.
+      // A drafting tool (create_object / apply_blueprint) is NOT a reason to dump
+      // JSON: the human summary + the Publish/Review affordance below already tell
+      // a Build-with-AI user what happened, so on the consumer surface (`summary`)
+      // the whole-app blueprint JSON and "status: drafted" envelopes stay hidden.
       const showPayload =
         processVisibility === 'debug' ||
-        isAwaitingApproval ||
-        Boolean(tool.draftReview?.items.length);
+        isAwaitingApproval;
       const titleNode = (
         <span className="inline-flex items-center gap-2">
           <span>{friendlyTitle || tool.toolName}</span>
