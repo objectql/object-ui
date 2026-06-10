@@ -31,6 +31,7 @@ import { useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import {
   listLocalInstalls,
+  listInstalledPackages,
   uninstallLocal,
   type LocalInstallEntry,
 } from './marketplaceApi';
@@ -44,6 +45,9 @@ export function MarketplaceInstalledPage() {
   const basePath = appName ? `/apps/${appName}` : '';
 
   const [items, setItems] = useState<LocalInstallEntry[]>([]);
+  // 'cloud' = list comes from the control plane (CLI/marketplace/REST installs,
+  // ADR-0007 step ①); 'local' = self-hosted install-local cache.
+  const [source, setSource] = useState<'cloud' | 'local'>('local');
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -51,8 +55,16 @@ export function MarketplaceInstalledPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const list = await listLocalInstalls();
-      setItems(list);
+      // Cloud-connected env → authoritative installed list is the control
+      // plane's. Self-hosted (not bound) → fall back to the local cache.
+      const cloud = await listInstalledPackages();
+      if (cloud.connected) {
+        setSource('cloud');
+        setItems(cloud.items);
+      } else {
+        setSource('local');
+        setItems(await listLocalInstalls());
+      }
     } finally {
       setLoading(false);
     }
@@ -163,25 +175,29 @@ export function MarketplaceInstalledPage() {
                     <ExternalLink className="h-4 w-4 mr-1.5" aria-hidden="true" />
                     {t('marketplace.action.details')}
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void doUninstall(entry)}
-                    disabled={working === entry.manifestId}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                    {working === entry.manifestId ? t('marketplace.action.uninstalling') : t('marketplace.action.uninstall')}
-                  </Button>
+                  {source === 'local' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void doUninstall(entry)}
+                      disabled={working === entry.manifestId}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                      {working === entry.manifestId ? t('marketplace.action.uninstalling') : t('marketplace.action.uninstall')}
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
-              <CardContent
-                className="pt-0 text-xs text-muted-foreground"
-                dangerouslySetInnerHTML={{
-                  __html: t('marketplace.cachedAs', {
-                    path: `.objectstack/installed-packages/${entry.manifestId.replace(/[^a-zA-Z0-9._-]/g, '_')}.json`,
-                  }),
-                }}
-              />
+              {source === 'local' && (
+                <CardContent
+                  className="pt-0 text-xs text-muted-foreground"
+                  dangerouslySetInnerHTML={{
+                    __html: t('marketplace.cachedAs', {
+                      path: `.objectstack/installed-packages/${entry.manifestId.replace(/[^a-zA-Z0-9._-]/g, '_')}.json`,
+                    }),
+                  }}
+                />
+              )}
             </Card>
           ))}
         </div>

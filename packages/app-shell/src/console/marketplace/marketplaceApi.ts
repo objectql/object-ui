@@ -568,6 +568,52 @@ export async function listLocalInstalls(): Promise<LocalInstallEntry[]> {
   }
 }
 
+/**
+ * Cloud-managed installed list (ADR-0007 step ①).
+ *
+ * For a cloud-connected environment, the authoritative "what's installed"
+ * lives in the control plane's `sys_package_installation`, NOT the runtime's
+ * local `.objectstack/installed-packages/` cache. A tenant SPA can't read the
+ * control plane cross-origin, so the env's own runtime proxies it at the
+ * same-origin `/api/v1/cloud-connection/installed` route. This surfaces
+ * packages installed via ANY path (CLI `--env --install`, marketplace, REST).
+ *
+ * `connected: false` means this runtime is self-hosted / not cloud-bound — the
+ * caller should fall back to {@link listLocalInstalls}.
+ */
+export interface InstalledPackagesResult {
+  connected: boolean;
+  items: LocalInstallEntry[];
+}
+
+export async function listInstalledPackages(): Promise<InstalledPackagesResult> {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/v1/cloud-connection/installed`, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return { connected: false, items: [] };
+    const payload: any = await res.json().catch(() => ({}));
+    const data: any = payload?.data ?? {};
+    const pkgs: any[] = Array.isArray(data.packages) ? data.packages : [];
+    const items: LocalInstallEntry[] = pkgs.map((p) => {
+      const manifestId = String(p.packageId ?? p.package_id ?? '');
+      return {
+        packageId: manifestId,
+        versionId: String(p.package_version_id ?? ''),
+        manifestId,
+        version: String(p.version ?? 'installed'),
+        installedAt: String(p.installed_at ?? p.installedAt ?? ''),
+        installedBy: (p.installed_by ?? p.installedBy ?? null) as string | null,
+        withSampleData: p.with_sample_data === true || p.withSampleData === true,
+      };
+    });
+    return { connected: data.connected === true, items };
+  } catch {
+    return { connected: false, items: [] };
+  }
+}
+
 export async function uninstallLocal(manifestId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/install-local/${encodeURIComponent(manifestId)}`, {
     method: 'DELETE',
