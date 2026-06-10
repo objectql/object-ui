@@ -32,6 +32,14 @@ export interface RuntimeFeatures {
    * AI authoring affordances (generic data-chat assistant is unaffected).
    */
   aiStudio: boolean;
+  /**
+   * Auto-publish AI-built apps in the author's own environment. When true, the
+   * Studio chat fires the publish-drafts call automatically the moment the
+   * agent drafts an app, so the user refreshes and sees it live WITH its sample
+   * data — no manual "go home and publish" step. Server-derived from the plan
+   * (env-revertible via `OS_AI_AUTOPUBLISH_DISABLED`). Default true.
+   */
+  autoPublishAiBuilds: boolean;
 }
 
 export interface RuntimeBranding {
@@ -61,7 +69,7 @@ const defaults: RuntimeConfig = {
   singleEnvironment: false,
   defaultOrgId: null,
   defaultEnvironmentId: null,
-  features: { installLocal: false, marketplace: true, aiStudio: true },
+  features: { installLocal: false, marketplace: true, aiStudio: true, autoPublishAiBuilds: true },
   branding: { productName: 'ObjectOS', productShortName: 'ObjectOS' },
 };
 
@@ -114,6 +122,7 @@ export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
           installLocal: !!body.features.installLocal,
           marketplace: body.features.marketplace !== false,
           aiStudio: body.features.aiStudio !== false,
+          autoPublishAiBuilds: body.features.autoPublishAiBuilds !== false,
         }
         : current.features,
       branding: body.branding

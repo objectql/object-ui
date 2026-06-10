@@ -134,7 +134,19 @@ export interface ChatToolInvocation {
    * change(s)" affordance that opens the designer's review/diff. Nothing is
    * live until the human publishes — this is the review entry point.
    */
-  draftReview?: { items: Array<{ type: string; name: string }>; summary?: string; packageId?: string };
+  draftReview?: {
+    items: Array<{ type: string; name: string }>;
+    summary?: string;
+    packageId?: string;
+    /**
+     * Backend lifecycle intent (from the tool result). `true` for whole-app
+     * builds (apply_blueprint) — eligible for the auto-publish "magic moment".
+     * Omitted for incremental edits, which stay drafts for explicit review.
+     */
+    autoPublishable?: boolean;
+    /** Count of artifacts that failed in a partial build, surfaced not hidden. */
+    failedCount?: number;
+  };
 }
 
 export interface ChatSource {
@@ -307,9 +319,25 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * stays — the human still clicks). The host wires this to
    * `POST /api/v1/packages/:packageId/publish-drafts`.
    */
-  onPublishDrafts?: (packageId: string) => void;
+  onPublishDrafts?: (packageId: string) => void | boolean | Promise<void | boolean>;
   /** Label for the publish-drafts button (default "Publish"). */
   publishDraftsLabel?: string;
+  /** Label for the published-state badge that replaces the button (default "Published"). */
+  publishedLabel?: string;
+  /**
+   * Auto-fire `onPublishDrafts` the moment a turn finishes drafting an app —
+   * the self-use "magic moment" where the user refreshes and the app is already
+   * live WITH data, instead of clicking Publish. Server-gated by the plan
+   * (`features.autoPublishAiBuilds`, env-revertible via
+   * `OS_AI_AUTOPUBLISH_DISABLED`); the host passes the resolved flag.
+   *
+   * Only NEW drafts from the current session fire — drafts already present when
+   * the chat mounts (e.g. reopening a conversation) are left for the manual
+   * Publish button, so reopening history never silently publishes.
+   *
+   * @default false
+   */
+  autoPublishDrafts?: boolean;
   /**
    * Controls how agent internals are exposed. `summary` keeps end-user chat
    * readable by grouping repeated tool calls and hiding raw args/results.
@@ -488,6 +516,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       toolReviewLabel = (n) => `Review ${n} change${n === 1 ? '' : 's'}`,
       onPublishDrafts,
       publishDraftsLabel = 'Publish',
+      publishedLabel = 'Published',
+      autoPublishDrafts = false,
       processVisibility = 'summary',
       surface = 'card',
       ...props
@@ -527,6 +557,87 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       }),
       [labels],
     );
+
+    // Draft tool calls this chat has published (auto or via the manual button),
+    // so each card flips from a "Publish" button to a "Published" state instead
+    // of leaving a stale, now-meaningless button. Keyed by the draft's
+    // `toolCallId`, NOT its packageId: publishing a package promotes the drafts
+    // PENDING AT THAT MOMENT, but a later edit into the same package is a new,
+    // still-pending draft — it must NOT inherit the earlier build's "Published"
+    // badge (that would falsely tell the user an unpublished change is live).
+    const [publishedToolCalls, setPublishedToolCalls] = React.useState<ReadonlySet<string>>(
+      () => new Set(),
+    );
+    // Publish a package's drafts and reflect success on exactly the cards that
+    // were pending for it at publish time. The host's onPublishDrafts returns
+    // `false` on failure (and surfaces its own error); any other outcome (incl.
+    // void) counts as success.
+    const handlePublishDrafts = React.useCallback(
+      async (packageId: string) => {
+        if (!onPublishDrafts) return;
+        // Snapshot the on-screen draft cards this publish will promote, BEFORE
+        // awaiting — later edits into the same package won't be in this set.
+        const promoted: string[] = [];
+        for (const message of messages) {
+          for (const tool of message.toolInvocations ?? []) {
+            if (tool.draftReview?.packageId === packageId && tool.toolCallId) {
+              promoted.push(tool.toolCallId);
+            }
+          }
+        }
+        const ok = await onPublishDrafts(packageId);
+        if (ok !== false && promoted.length > 0) {
+          setPublishedToolCalls((prev) => {
+            const next = new Set(prev);
+            for (const id of promoted) next.add(id);
+            return next;
+          });
+        }
+      },
+      [onPublishDrafts, messages],
+    );
+
+    // Auto-publish "magic moment": when the environment enables autoPublishDrafts
+    // and a WHOLE-APP build finishes (the backend marks it `autoPublishable`),
+    // fire the same publish-drafts call the manual button uses — objects go live
+    // and seed data loads, so the user lands on a populated, running app instead
+    // of hunting for Publish. Incremental edits are NOT auto-published: they omit
+    // `autoPublishable` and stay drafts for explicit review (a destructive edit
+    // must never go live silently). Drafts already on screen when the chat mounts
+    // are seeded as "seen" so reopening a conversation never republishes prior
+    // work; only NEW builds fire, each at most once, after streaming completes.
+    //
+    // Dedup is keyed by the draft tool's `toolCallId`, NOT its packageId: every
+    // build is a distinct tool call and several can target the SAME workspace
+    // package in one session. Keying by packageId would publish it only once and
+    // silently leave later builds staged. Keyed by toolCallId, each new build
+    // publishes its package once (publish-drafts only promotes rows still
+    // pending, so re-publishing a package is safe).
+    const autoPublishedRef = React.useRef<Set<string>>(new Set());
+    const autoPublishSeededRef = React.useRef(false);
+    React.useEffect(() => {
+      const builds: Array<{ key: string; packageId: string }> = [];
+      for (const message of messages) {
+        for (const tool of message.toolInvocations ?? []) {
+          const dr = tool.draftReview;
+          if (dr?.autoPublishable && dr.packageId && tool.toolCallId && dr.items.length > 0) {
+            builds.push({ key: tool.toolCallId, packageId: dr.packageId });
+          }
+        }
+      }
+      if (!autoPublishSeededRef.current) {
+        autoPublishSeededRef.current = true;
+        for (const b of builds) autoPublishedRef.current.add(b.key);
+        return;
+      }
+      // Wait for the turn to finish so we publish the complete build once.
+      if (!autoPublishDrafts || !onPublishDrafts || isLoading) return;
+      const fresh = builds.filter((b) => !autoPublishedRef.current.has(b.key));
+      if (fresh.length === 0) return;
+      for (const b of fresh) autoPublishedRef.current.add(b.key);
+      // One publish per distinct package, even if a turn made several build calls.
+      for (const pkg of [...new Set(fresh.map((b) => b.packageId))]) void handlePublishDrafts(pkg);
+    }, [messages, isLoading, autoPublishDrafts, onPublishDrafts, handlePublishDrafts]);
 
     const handleSubmit = React.useCallback(
       (payload: PromptInputMessage) => {
@@ -667,16 +778,26 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
               (onPublishDrafts && tool.draftReview.packageId)) ? (
               <div className="flex items-center gap-2 p-3 border-t bg-muted/30">
                 {onPublishDrafts && tool.draftReview.packageId ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onPublishDrafts(tool.draftReview!.packageId!)
-                    }
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-                  >
-                    <Rocket className="size-3.5" />
-                    {publishDraftsLabel}
-                  </button>
+                  publishedToolCalls.has(tool.toolCallId) ? (
+                    // Published (auto or manual): a stable status badge, not a
+                    // stale button. Keeps the card honest about lifecycle state.
+                    <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700">
+                      <CheckCircle2 className="size-3.5" />
+                      {publishedLabel}
+                      {tool.draftReview.failedCount
+                        ? ` · ${tool.draftReview.failedCount} need${tool.draftReview.failedCount === 1 ? 's' : ''} attention`
+                        : ''}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void handlePublishDrafts(tool.draftReview!.packageId!)}
+                      className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                    >
+                      <Rocket className="size-3.5" />
+                      {publishDraftsLabel}
+                    </button>
+                  )
                 ) : null}
                 {onReviewDraft ? (
                   <button

@@ -45,6 +45,7 @@ import {
 } from '@object-ui/plugin-chatbot';
 
 import { AppHeader } from '../../layout/AppHeader';
+import { getRuntimeConfig } from '../../runtime-config';
 import { useNavigationContext } from '../../context/NavigationContext';
 import {
   sanitizeChatMessagesForCache,
@@ -554,13 +555,20 @@ function ChatPane({
             const failed = payload?.data?.failedCount ?? payload?.failedCount ?? 0;
             if (failed) throw new Error(String(failed));
             toast.success(t('console.ai.publishOk', { defaultValue: 'Published — objects are now live.' }));
+            return true;
           } catch (e) {
             toast.error(t('console.ai.publishFailed', { defaultValue: 'Publish failed' }), {
               description: e instanceof Error ? e.message : undefined,
             });
+            return false;
           }
         }}
         publishDraftsLabel={t('console.ai.publishDrafts', { defaultValue: 'Publish' })}
+        publishedLabel={t('console.ai.published', { defaultValue: 'Published' })}
+        // Self-use "magic moment": when the plan enables it, publish the drafted
+        // app automatically the moment the agent finishes — no manual click; the
+        // user refreshes and sees it live WITH data. Same governed endpoint.
+        autoPublishDrafts={getRuntimeConfig().features.autoPublishAiBuilds}
         data-testid="ai-chat-panel"
       />
     </div>

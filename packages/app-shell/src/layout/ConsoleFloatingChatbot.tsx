@@ -41,6 +41,7 @@ import {
   type HydratedUIMessage,
 } from '../hooks';
 import { useAssistant, requestAssistantReview, type AssistantEditorContext } from '../assistant/assistantBus';
+import { getRuntimeConfig } from '../runtime-config';
 
 /**
  * Display names for the built-in platform agents. The backend ships English
@@ -117,6 +118,7 @@ function buildChatLocale(
       share: '分享对话',
       reviewDraft: (n: number) => `查看 ${n} 项变更`,
       publishDrafts: '发布',
+      published: '已发布',
       publishOk: '已发布，对象已生效。',
       publishFailed: '发布失败',
       suggestions,
@@ -160,6 +162,7 @@ function buildChatLocale(
     share: 'Share conversation',
     reviewDraft: (n: number) => `Review ${n} change${n === 1 ? '' : 's'}`,
     publishDrafts: 'Publish',
+    published: 'Published',
     publishOk: 'Published — objects are now live.',
     publishFailed: 'Publish failed',
     suggestions,
@@ -524,13 +527,21 @@ function ChatbotInner({
               payload?.data?.published ?? payload?.published ?? [];
             const app = published.find((p) => p?.type === 'app' && p?.name);
             if (app?.name) navigate(`/apps/${encodeURIComponent(app.name)}`);
+            return true;
           } catch (e) {
             toast.error(locale.publishFailed, {
               description: e instanceof Error ? e.message : undefined,
             });
+            return false;
           }
         }}
         publishDraftsLabel={locale.publishDrafts}
+        publishedLabel={locale.published}
+        // Self-use "magic moment": when the plan enables it, auto-publish the
+        // drafted app the instant the agent finishes — the success path above
+        // then navigates straight to the live app, so "build" lands the user on
+        // a populated, running app with no manual Publish click.
+        autoPublishDrafts={getRuntimeConfig().features.autoPublishAiBuilds}
       />
       {conversationId && (
         <ShareDialog

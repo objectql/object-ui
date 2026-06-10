@@ -128,7 +128,13 @@ function detectPendingApproval(
  */
 function detectDraftResult(
   result: unknown,
-): { items: Array<{ type: string; name: string }>; summary?: string; packageId?: string } | undefined {
+): {
+  items: Array<{ type: string; name: string }>;
+  summary?: string;
+  packageId?: string;
+  autoPublishable?: boolean;
+  failedCount?: number;
+} | undefined {
   const obj = parseResultEnvelope(result);
   if (!obj || obj.status !== 'drafted') return undefined;
   const items: Array<{ type: string; name: string }> = [];
@@ -145,12 +151,20 @@ function detectDraftResult(
   if (items.length === 0) return undefined;
   // The owning package (when the staging tool reported it) lets the chat offer
   // a one-click "publish" — POST /packages/:packageId/publish-drafts — so the
-  // ADR-0033 human gate is reachable from the conversation, not just a deep
-  // link into the designer.
+  // approval gate is reachable from the conversation, not just a deep link into
+  // the designer.
+  //
+  // `autoPublishable` is the backend's lifecycle intent: whole-app builds
+  // (apply_blueprint) set it so the chat can auto-publish the magic moment;
+  // incremental edits omit it and stay drafts for explicit review. `failedCount`
+  // surfaces partial build failures so the UI never hides them.
+  const failedCount = Array.isArray(obj.failed) ? obj.failed.length : 0;
   return {
     items,
     summary: typeof obj.summary === 'string' ? obj.summary : undefined,
     ...(typeof obj.packageId === 'string' && obj.packageId ? { packageId: obj.packageId } : {}),
+    ...(obj.autoPublishable === true ? { autoPublishable: true } : {}),
+    ...(failedCount > 0 ? { failedCount } : {}),
   };
 }
 

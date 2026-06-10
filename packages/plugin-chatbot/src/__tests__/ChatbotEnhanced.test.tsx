@@ -8,7 +8,7 @@
  */
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ChatbotEnhanced, type ChatMessage } from '../ChatbotEnhanced';
 
 describe('ChatbotEnhanced (AI Elements composition)', () => {
@@ -191,5 +191,154 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     const picker = screen.getByLabelText(/Model/i) as HTMLSelectElement;
     fireEvent.change(picker, { target: { value: 'claude-3-5-sonnet' } });
     expect(onModelChange).toHaveBeenCalledWith('claude-3-5-sonnet');
+  });
+});
+
+describe('ChatbotEnhanced — auto-publish drafts (self-use magic moment)', () => {
+  const userMsg: ChatMessage = { id: 'u1', role: 'user', content: 'build a todo app' };
+  // A whole-app build: the backend marks it `autoPublishable` (apply_blueprint).
+  const draftMsg = (packageId: string): ChatMessage => ({
+    id: 'a1',
+    role: 'assistant',
+    content: 'Built your app.',
+    toolInvocations: [
+      {
+        toolCallId: 'tc1',
+        toolName: 'apply_blueprint',
+        state: 'output-available',
+        draftReview: { items: [{ type: 'object', name: 'task' }], packageId, autoPublishable: true },
+      },
+    ],
+  });
+  // An incremental edit: NOT auto-publishable — stays a draft for review.
+  const editMsg = (packageId: string): ChatMessage => ({
+    id: 'e1',
+    role: 'assistant',
+    content: 'Drafted a field.',
+    toolInvocations: [
+      {
+        toolCallId: 'tc-edit',
+        toolName: 'add_field',
+        state: 'output-available',
+        draftReview: { items: [{ type: 'object', name: 'task' }], packageId },
+      },
+    ],
+  });
+
+  it('auto-fires onPublishDrafts for a NEW draft once the turn finishes', () => {
+    const onPublishDrafts = vi.fn();
+    const { rerender } = render(
+      <ChatbotEnhanced autoPublishDrafts isLoading messages={[userMsg]} onPublishDrafts={onPublishDrafts} />,
+    );
+    // Draft streams in but the turn is still running → hold off.
+    rerender(
+      <ChatbotEnhanced autoPublishDrafts isLoading messages={[userMsg, draftMsg('app.todo')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    expect(onPublishDrafts).not.toHaveBeenCalled();
+    // Turn finished → publish exactly once, with the drafted package id.
+    rerender(
+      <ChatbotEnhanced autoPublishDrafts isLoading={false} messages={[userMsg, draftMsg('app.todo')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    expect(onPublishDrafts).toHaveBeenCalledTimes(1);
+    expect(onPublishDrafts).toHaveBeenCalledWith('app.todo');
+  });
+
+  it('does NOT auto-publish drafts already present when the chat mounts', () => {
+    const onPublishDrafts = vi.fn();
+    const { rerender } = render(
+      <ChatbotEnhanced autoPublishDrafts isLoading={false} messages={[draftMsg('app.old')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    rerender(
+      <ChatbotEnhanced autoPublishDrafts isLoading={false} messages={[draftMsg('app.old')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    expect(onPublishDrafts).not.toHaveBeenCalled();
+  });
+
+  it('does NOT auto-publish an incremental edit (not autoPublishable) — it stays a draft', () => {
+    const onPublishDrafts = vi.fn();
+    const { rerender } = render(
+      <ChatbotEnhanced autoPublishDrafts isLoading messages={[userMsg]} onPublishDrafts={onPublishDrafts} />,
+    );
+    // Even with auto-publish ON and the turn finished, an edit must not fire —
+    // destructive/incremental changes go live only on explicit review.
+    rerender(
+      <ChatbotEnhanced autoPublishDrafts isLoading={false} messages={[userMsg, editMsg('com.workspace')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    expect(onPublishDrafts).not.toHaveBeenCalled();
+  });
+
+  it('does not auto-publish when autoPublishDrafts is off', () => {
+    const onPublishDrafts = vi.fn();
+    const { rerender } = render(
+      <ChatbotEnhanced isLoading messages={[userMsg]} onPublishDrafts={onPublishDrafts} />,
+    );
+    rerender(
+      <ChatbotEnhanced isLoading={false} messages={[userMsg, draftMsg('app.todo')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    expect(onPublishDrafts).not.toHaveBeenCalled();
+  });
+
+  it('publishes the same draft tool call at most once across re-renders', () => {
+    const onPublishDrafts = vi.fn();
+    const withDraft = [userMsg, draftMsg('app.todo')];
+    const { rerender } = render(
+      <ChatbotEnhanced autoPublishDrafts isLoading messages={[userMsg]} onPublishDrafts={onPublishDrafts} />,
+    );
+    rerender(<ChatbotEnhanced autoPublishDrafts isLoading={false} messages={withDraft} onPublishDrafts={onPublishDrafts} />);
+    rerender(<ChatbotEnhanced autoPublishDrafts isLoading={false} messages={withDraft} onPublishDrafts={onPublishDrafts} />);
+    expect(onPublishDrafts).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows "Published" only on the published draft, not later edits into the same package', async () => {
+    // Regression: the published badge is keyed per draft (toolCallId), not per
+    // package. After a build auto-publishes com.workspace, a later edit into the
+    // same package is a fresh pending draft and must still offer "Publish".
+    const onPublishDrafts = vi.fn().mockResolvedValue(true);
+    const { rerender } = render(
+      <ChatbotEnhanced autoPublishDrafts isLoading messages={[userMsg]} onPublishDrafts={onPublishDrafts} />,
+    );
+    rerender(
+      <ChatbotEnhanced autoPublishDrafts isLoading={false} messages={[userMsg, draftMsg('com.workspace')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    await waitFor(() => expect(onPublishDrafts).toHaveBeenCalledTimes(1));
+    await screen.findByText('Published'); // the build card flips to published
+    // A later incremental edit into the SAME package — still pending.
+    rerender(
+      <ChatbotEnhanced autoPublishDrafts isLoading={false} messages={[userMsg, draftMsg('com.workspace'), editMsg('com.workspace')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    expect(screen.getAllByText('Published')).toHaveLength(1); // only the build card
+    expect(screen.getByText('Publish')).toBeInTheDocument(); // the edit card still needs publishing
+  });
+
+  it('auto-publishes a SECOND build into the SAME package (distinct tool call)', () => {
+    // Regression: dedup must be per draft tool call, not per packageId — both
+    // builds target com.workspace; keying by packageId would skip the second.
+    const onPublishDrafts = vi.fn();
+    const build = (callId: string, name: string): ChatMessage => ({
+      id: 'a-' + callId,
+      role: 'assistant',
+      content: 'built',
+      toolInvocations: [
+        {
+          toolCallId: callId,
+          toolName: 'apply_blueprint',
+          state: 'output-available',
+          draftReview: { items: [{ type: 'object', name }], packageId: 'com.workspace', autoPublishable: true },
+        },
+      ],
+    });
+    const { rerender } = render(
+      <ChatbotEnhanced autoPublishDrafts isLoading messages={[userMsg]} onPublishDrafts={onPublishDrafts} />,
+    );
+    rerender(
+      <ChatbotEnhanced autoPublishDrafts isLoading={false} messages={[userMsg, build('tc1', 'task')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    expect(onPublishDrafts).toHaveBeenCalledTimes(1);
+    // Second build into the same workspace package, new tool call → fires again.
+    rerender(
+      <ChatbotEnhanced autoPublishDrafts isLoading={false} messages={[userMsg, build('tc1', 'task'), build('tc2', 'customer')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    expect(onPublishDrafts).toHaveBeenCalledTimes(2);
+    expect(onPublishDrafts).toHaveBeenLastCalledWith('com.workspace');
   });
 });
