@@ -354,6 +354,9 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
             agentsError={agentsError}
             activeAgent={activeAgent}
             onAgentChange={setActiveAgent}
+            // ADR-0040: end users never pick an agent — the roster shows only
+            // on explicit ?agent= pins (developer surfaces like Studio).
+            showAgentPicker={Boolean(agentParam)}
             chatApi={chatApi}
             apiBase={apiBase}
             conversationId={conversationId}
@@ -373,6 +376,12 @@ interface ChatPaneProps {
   agentsError: Error | undefined;
   activeAgent: string | undefined;
   onAgentChange: (name: string) => void;
+  /**
+   * ADR-0040: the agent roster is NOT consumer UX. The picker renders only
+   * when an explicit `?agent=` pin is present (builder/developer deep links,
+   * e.g. Studio); end users see the resolved assistant's label.
+   */
+  showAgentPicker: boolean;
   chatApi: string | undefined;
   apiBase: string;
   conversationId: string | undefined;
@@ -384,6 +393,7 @@ interface ChatPaneProps {
 function ChatPane({
   agents,
   agentsLoading,
+  showAgentPicker,
   agentsError,
   activeAgent,
   onAgentChange,
@@ -485,7 +495,7 @@ function ChatPane({
   const headerSlot = (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 px-4 pb-2 pt-3 sm:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        {agents.length > 0 ? (
+        {showAgentPicker && agents.length > 0 ? (
           <Select value={activeAgent} onValueChange={onAgentChange} disabled={agentsLoading}>
             <SelectTrigger
               className="h-7 w-auto min-w-0 border-0 bg-transparent px-1.5 text-xs shadow-none hover:bg-accent focus:ring-0 focus:ring-offset-0 focus-visible:ring-1 focus-visible:ring-border/80 focus-visible:ring-offset-0 sm:min-w-[160px]"
