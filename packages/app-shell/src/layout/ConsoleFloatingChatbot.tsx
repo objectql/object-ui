@@ -510,6 +510,9 @@ function ChatbotInner({
         // built (the panel only shows this once the build reports done).
         onOpenBuiltApp={(appName) => navigate(`/apps/${encodeURIComponent(appName)}`)}
         openBuiltAppLabel={locale.openBuiltApp}
+        // ADR-0037: see the drafted app as-if-published before Publish — same
+        // route, draft overlay, watermark bar on top.
+        onPreviewDraftApp={(appName) => navigate(`/apps/${encodeURIComponent(appName)}?preview=draft`)}
         onPublishDrafts={async (packageId) => {
           // ADR-0033 — promote the conversation's staged drafts to live in one
           // click (the human still confirms here). Mirrors PackagesPage's

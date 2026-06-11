@@ -18,6 +18,7 @@ import { SchemaRendererProvider } from '@object-ui/react';
 import { createObjectStackUserStateAdapter } from '@object-ui/data-objectstack';
 import { AdapterProvider, useAdapter } from '../providers/AdapterProvider';
 import { MetadataProvider, useMetadata } from '../providers/MetadataProvider';
+import { PreviewModeProvider } from '../preview/PreviewModeContext';
 import { NavigationProvider } from '../context/NavigationContext';
 import { FavoritesProvider } from '../context/FavoritesProvider';
 import { RecentItemsProvider } from '../context/RecentItemsProvider';
@@ -73,7 +74,12 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
 export function ConnectedShell({ children }: { children: ReactNode }) {
   return (
     <AdapterProvider>
-      <ConnectedShellInner>{children}</ConnectedShellInner>
+      {/* ADR-0037: one URL flag (?preview=draft) flips the whole metadata
+          tree below into the draft-overlaid world. Above MetadataProvider so
+          the provider itself reads through the right source. */}
+      <PreviewModeProvider>
+        <ConnectedShellInner>{children}</ConnectedShellInner>
+      </PreviewModeProvider>
     </AdapterProvider>
   );
 }

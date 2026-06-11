@@ -198,3 +198,68 @@ describe('MetadataClient', () => {
     expect(r2.seedApplied).toEqual({ success: true, inserted: 6, updated: 0 });
   });
 });
+
+describe('MetadataClient — ADR-0037 previewDrafts', () => {
+  function previewClient(opts: { previewDrafts?: boolean; environmentId?: string } = {}) {
+    const urls: string[] = [];
+    const c = new MetadataClient({
+      baseUrl: 'http://localhost:3000',
+      ...opts,
+      fetch: mockFetch(async (url) => {
+        urls.push(url);
+        return jsonResponse([{ name: 'account' }]);
+      }),
+    });
+    return { c, urls };
+  }
+
+  it('list() and get() append ?preview=draft when enabled', async () => {
+    const { c, urls } = previewClient({ previewDrafts: true });
+    await c.list('object');
+    await c.get('object', 'account');
+    expect(urls[0]).toBe('http://localhost:3000/api/v1/meta/object?preview=draft');
+    expect(urls[1]).toBe('http://localhost:3000/api/v1/meta/object/account?preview=draft');
+  });
+
+  it('combines preview with the package filter on list()', async () => {
+    const { c, urls } = previewClient({ previewDrafts: true });
+    await c.list('object', { packageId: 'app.crm' });
+    expect(urls[0]).toBe('http://localhost:3000/api/v1/meta/object?package=app.crm&preview=draft');
+  });
+
+  it('an explicit state=draft read wins over the overlay flag', async () => {
+    const { c, urls } = previewClient({ previewDrafts: true });
+    await c.get('object', 'account', { state: 'draft' });
+    expect(urls[0]).toBe('http://localhost:3000/api/v1/meta/object/account?state=draft');
+  });
+
+  it('default client never sends the flag', async () => {
+    const { c, urls } = previewClient();
+    await c.list('object');
+    await c.get('object', 'account');
+    expect(urls[0]).not.toContain('preview');
+    expect(urls[1]).not.toContain('preview');
+  });
+
+  it('withPreviewDrafts derives a preview client and PRESERVES the environment scope', async () => {
+    const { c } = previewClient({ environmentId: 'env_1' });
+    const p = c.withPreviewDrafts(true);
+    expect(p.previewDrafts).toBe(true);
+    // Same instance back when the flag already matches.
+    expect(p.withPreviewDrafts(true)).toBe(p);
+    // Environment-scoped path survives the derivation (regression guard:
+    // a naive rebuild dropped /environments/:id from the base).
+    const urls: string[] = [];
+    const scoped = new MetadataClient({
+      baseUrl: 'http://localhost:3000',
+      environmentId: 'env_1',
+      previewDrafts: false,
+      fetch: mockFetch(async (url) => {
+        urls.push(url);
+        return jsonResponse([]);
+      }),
+    }).withPreviewDrafts(true);
+    await scoped.list('object');
+    expect(urls[0]).toBe('http://localhost:3000/api/v1/environments/env_1/meta/object?preview=draft');
+  });
+});

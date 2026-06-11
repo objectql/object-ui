@@ -56,6 +56,7 @@ import {
   type HydratedUIMessagePart,
 } from '../../hooks/useChatConversation';
 import { ConversationsSidebar } from './ConversationsSidebar';
+import { LiveCanvas } from './LiveCanvas';
 
 const DEFAULT_AI_PATH = '/api/v1/ai';
 
@@ -376,6 +377,29 @@ function ChatPane({
 }: ChatPaneProps) {
   const { t } = useObjectTranslation();
   const navigate = useNavigate();
+
+  // ── ADR-0037 Live Canvas ────────────────────────────────────────────────
+  // When a build session drafts an `app`, open the split-view canvas: the
+  // drafted app rendered as-if-published (`?preview=draft`) beside the chat.
+  // Per-artifact signals coalesce (800 ms) into one pane refresh so a
+  // whole-app build doesn't trigger an invalidation storm.
+  const [canvasApp, setCanvasApp] = useState<string | null>(null);
+  const [canvasRefreshKey, setCanvasRefreshKey] = useState(0);
+  const canvasTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (canvasTimerRef.current) window.clearTimeout(canvasTimerRef.current);
+  }, []);
+  const handleDraftArtifacts = useCallback((artifacts: Array<{ type: string; name: string }>) => {
+    const app = artifacts.find((a) => a.type === 'app');
+    if (app) setCanvasApp((prev) => prev ?? app.name);
+    if (canvasTimerRef.current) window.clearTimeout(canvasTimerRef.current);
+    canvasTimerRef.current = window.setTimeout(() => setCanvasRefreshKey((k) => k + 1), 800);
+  }, []);
+  // A different conversation is a different build session — close the pane.
+  useEffect(() => {
+    setCanvasApp(null);
+  }, [conversationId]);
+
   const activeAgentLabel = useMemo<string>(() => {
     const found = agents.find((a) => a.name === activeAgent);
     return localizeAgentLabel(t, activeAgent, found?.label ?? activeAgent ?? t('console.ai.assistant'));
@@ -497,7 +521,14 @@ function ChatPane({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 justify-center px-0">
+    <div className="flex min-h-0 flex-1 px-0">
+      <div
+        className={
+          canvasApp
+            ? 'flex min-h-0 w-[42%] min-w-[380px] max-w-[640px] shrink-0 justify-center'
+            : 'flex min-h-0 flex-1 justify-center'
+        }
+      >
       <ChatbotEnhanced
         className="min-h-0 flex-1 bg-background md:max-w-5xl"
         surface="plain"
@@ -602,8 +633,21 @@ function ChatPane({
         // app automatically the moment the agent finishes — no manual click; the
         // user refreshes and sees it live WITH data. Same governed endpoint.
         autoPublishDrafts={getRuntimeConfig().features.autoPublishAiBuilds}
+        // ADR-0037 Live Canvas: open/refresh the draft-preview pane as the
+        // agent's artifacts land; Preview buttons deep-link the same route.
+        onDraftArtifacts={handleDraftArtifacts}
+        onPreviewDraftApp={(appName) => setCanvasApp(appName)}
+        previewDraftLabel={t('console.ai.previewDraft', { defaultValue: 'Preview' })}
         data-testid="ai-chat-panel"
       />
+      </div>
+      {canvasApp ? (
+        <LiveCanvas
+          appName={canvasApp}
+          refreshKey={canvasRefreshKey}
+          onClose={() => setCanvasApp(null)}
+        />
+      ) : null}
     </div>
   );
 }

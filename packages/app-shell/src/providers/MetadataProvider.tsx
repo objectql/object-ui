@@ -6,9 +6,10 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
-import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { MetadataClient, type ObjectStackAdapter } from '@object-ui/data-objectstack';
 import { resolveInlineMode } from '@object-ui/plugin-form';
 import { MetadataCtx, useMetadata, type MetadataContextValue, type MetadataState } from '@object-ui/react';
+import { usePreviewDrafts } from '../preview/PreviewModeContext';
 
 export type { MetadataState, MetadataContextValue };
 export { useMetadataItem } from '@object-ui/react';
@@ -320,6 +321,21 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
   const adapterRef = useRef(adapter);
   adapterRef.current = adapter;
 
+  // ADR-0037 Live Canvas: when the tree is in draft-preview mode, metadata
+  // reads come from the REST `?preview=draft` overlay (pending ADR-0033
+  // drafts win over active) instead of the adapter SDK. The MetadataClient
+  // is used because the SDK's meta API doesn't carry the preview flag; same
+  // endpoints, same cookie auth. Reads only — every write path is unchanged.
+  const previewDrafts = usePreviewDrafts();
+  const previewClient = useMemo(() => {
+    if (!previewDrafts) return null;
+    const baseUrl =
+      (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SERVER_URL) || '';
+    return new MetadataClient({ baseUrl, previewDrafts: true });
+  }, [previewDrafts]);
+  const previewClientRef = useRef(previewClient);
+  previewClientRef.current = previewClient;
+
   const [version, setVersion] = useState(0);
   // Defer state bumps so they never occur synchronously during a consumer's
   // render phase. `ensureType` may be invoked from inside `useMemo` getters
@@ -333,6 +349,15 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
       Promise.resolve().then(() => setVersion(v => v + 1));
     }
   }, []);
+
+  // Entering/leaving preview swaps the entire metadata source — the published
+  // and draft-overlaid worlds must never mix in one cache. Drop everything and
+  // let consumers refetch through the new source.
+  useEffect(() => {
+    cacheRef.current.clear();
+    itemPromisesRef.current.clear();
+    bump();
+  }, [previewDrafts, bump]);
 
   const getEntry = useCallback((type: string): TypeCacheEntry => {
     let entry = cacheRef.current.get(type);
@@ -357,9 +382,13 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
       const started = Date.now();
       entry.status = 'loading';
       entry.error = null;
-      const client = adapterRef.current.getClient();
-      const promise = client.meta
-        .getItems(type)
+      // Preview mode reads the draft-overlaid world (`?preview=draft`);
+      // normal mode reads the adapter SDK as before.
+      const preview = previewClientRef.current;
+      const fetchItems: Promise<unknown> = preview
+        ? preview.list(type)
+        : adapterRef.current.getClient().meta.getItems(type);
+      const promise = fetchItems
         .then((res: unknown) => {
           const items = extractItems(res);
           entry.items = items;
@@ -373,7 +402,9 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
               entry.byName.set(it.name, it);
             }
           }
-          if (type === 'app') saveToSession(type, items);
+          // Never let the draft-overlaid world poison the published session
+          // cache — preview is ephemeral by design.
+          if (type === 'app' && !preview) saveToSession(type, items);
           debug(`fetched type=${type} items=${items.length} in ${Date.now() - started}ms`);
           bump();
           return items;
@@ -416,9 +447,11 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
       if (existing) return existing;
 
       const started = Date.now();
-      const client = adapterRef.current.getClient();
-      const promise = client.meta
-        .getItem(type, name)
+      const preview = previewClientRef.current;
+      const fetchItem: Promise<unknown> = preview
+        ? preview.get(type, name)
+        : adapterRef.current.getClient().meta.getItem(type, name);
+      const promise = fetchItem
         .then((res: unknown) => {
           const item = extractItem(res);
           if (item) entry.byName.set(name, item);
@@ -489,7 +522,9 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
   useEffect(() => {
     let cancelled = false;
 
-    const cached = loadFromSession('app');
+    // Session-cached apps are PUBLISHED-world data — seeding them while in
+    // draft preview would flash the wrong universe before the fetch lands.
+    const cached = previewDrafts ? null : loadFromSession('app');
     if (cached) {
       const entry = getEntry('app');
       entry.items = cached;
@@ -521,7 +556,7 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
     return () => {
       cancelled = true;
     };
-  }, [adapter, ensureType, getEntry, bump]);
+  }, [adapter, ensureType, getEntry, bump, previewDrafts]);
 
   const value = useMemo<MetadataContextValue>(() => {
     void version;

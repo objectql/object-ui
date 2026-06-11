@@ -17,6 +17,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { MetadataClient, type MetadataDiagnosticsSummary, type MetadataDiagnosticsEntry } from '@object-ui/data-objectstack';
+import { usePreviewDrafts } from '../../preview/PreviewModeContext';
 
 /**
  * A declarative **type-level** action surfaced on a metadata type by the
@@ -90,14 +91,17 @@ export interface RichMetadataTypeEntry {
  * matching every other client in the app (see `apps/console/src/main.tsx`).
  */
 export function useMetadataClient(environmentId?: string): MetadataClient {
+  // ADR-0037: inside a draft-preview tree (?preview=draft), reads overlay
+  // pending drafts on the active registry. Writes are unaffected.
+  const previewDrafts = usePreviewDrafts();
   return useMemo(() => {
     const baseUrl =
       (typeof import.meta !== 'undefined' &&
         (import.meta as any).env?.VITE_SERVER_URL) ||
       '';
-    const c = new MetadataClient({ baseUrl });
+    const c = new MetadataClient({ baseUrl, previewDrafts });
     return environmentId ? c.withEnvironment(environmentId) : c;
-  }, [environmentId]);
+  }, [environmentId, previewDrafts]);
 }
 
 /**

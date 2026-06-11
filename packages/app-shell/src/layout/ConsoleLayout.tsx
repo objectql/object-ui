@@ -16,6 +16,7 @@ import { useDiscovery } from '@object-ui/react';
 // shiki, streamdown, mermaid, @ai-sdk, ~20MB) only downloads on first
 // hover/click. See ConsoleChatbotFab.tsx.
 import { ConsoleChatbotFab } from './ConsoleChatbotFab';
+import { DraftPreviewBar } from '../preview/DraftPreviewBar';
 import { UnifiedSidebar } from './UnifiedSidebar';
 import { AppHeader } from './AppHeader';
 import { MobileViewSwitcherProvider } from './MobileViewSwitcherContext';
@@ -121,6 +122,9 @@ export function ConsoleLayout({
       }
     >
       <ConsoleLayoutInner>
+        {/* ADR-0037: unmistakable watermark while rendering the draft overlay
+            (?preview=draft) — with one-click exit and one-click Publish. */}
+        <DraftPreviewBar />
         {children}
       </ConsoleLayoutInner>
 

@@ -46,6 +46,15 @@ export interface MetadataClientConfig {
   fetch?: typeof fetch;
   /** Additional headers (e.g. auth) included on every request. */
   headers?: Record<string, string>;
+  /**
+   * ADR-0037 Live Canvas — render the world **as-if-published**. When true,
+   * `list()` and `get()` append `?preview=draft`, which the framework
+   * dispatcher maps to `getMetaItems/getMetaItem({ previewDrafts: true })`:
+   * pending ADR-0033 drafts overlay the active registry (draft wins by name,
+   * draft-only items surface). Reads only — writes are unaffected, and
+   * nothing the preview shows is live until Publish.
+   */
+  previewDrafts?: boolean;
 }
 
 export interface MetadataListOptions {
@@ -322,11 +331,14 @@ export class MetadataClient {
   private readonly base: string;
   private readonly fetchImpl: typeof fetch;
   private readonly headers: Record<string, string>;
+  /** ADR-0037: when true, reads render the draft-overlaid world. */
+  readonly previewDrafts: boolean;
 
   constructor(config: MetadataClientConfig) {
     this.base = buildBase(config);
     this.fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
     this.headers = { Accept: 'application/json', ...(config.headers ?? {}) };
+    this.previewDrafts = config.previewDrafts === true;
   }
 
   /** Update the client's environment scope at runtime. */
@@ -338,6 +350,28 @@ export class MetadataClient {
       environmentId,
       fetch: this.fetchImpl,
       headers: this.headers,
+      previewDrafts: this.previewDrafts,
+    });
+  }
+
+  /**
+   * Derive a client whose reads render the draft-overlaid world (or not).
+   * Same base/fetch/headers; used by the app-shell to switch the whole
+   * renderer tree into ADR-0037 preview mode off one URL flag.
+   */
+  withPreviewDrafts(previewDrafts: boolean): MetadataClient {
+    if (previewDrafts === this.previewDrafts) return this;
+    // Preserve the environment scope baked into the base path (unlike
+    // `withEnvironment`, which exists to REPLACE it).
+    const envMatch = this.base.match(/\/api\/v\d+\/environments\/([^/]+)\/meta$/);
+    return new MetadataClient({
+      baseUrl: this.base
+        .replace(/\/api\/v\d+(?:\/environments\/[^/]+)?\/meta$/, '')
+        .replace(/\/+$/, ''),
+      ...(envMatch ? { environmentId: decodeURIComponent(envMatch[1]) } : {}),
+      fetch: this.fetchImpl,
+      headers: this.headers,
+      previewDrafts,
     });
   }
 
@@ -362,9 +396,10 @@ export class MetadataClient {
 
   /** List items of a metadata type (e.g. `object`, `field`, `view`). */
   async list<T = unknown>(type: string, options: MetadataListOptions = {}): Promise<T[]> {
-    const qs = options.packageId
-      ? `?package=${encodeURIComponent(options.packageId)}`
-      : '';
+    const params: string[] = [];
+    if (options.packageId) params.push(`package=${encodeURIComponent(options.packageId)}`);
+    if (this.previewDrafts) params.push('preview=draft');
+    const qs = params.length ? `?${params.join('&')}` : '';
     const url = `${this.base}/${encodeURIComponent(type)}${qs}`;
     const res = await this.fetchImpl(url, { method: 'GET', headers: this.headers, cache: 'no-store' });
     if (!res.ok) throw await parseError(res);
@@ -411,7 +446,12 @@ export class MetadataClient {
     name: string,
     options: MetadataGetOptions = {},
   ): Promise<T | null> {
-    const qs = options.state === 'draft' ? '?state=draft' : '';
+    const params: string[] = [];
+    if (options.state === 'draft') params.push('state=draft');
+    // `state=draft` reads the raw draft row explicitly; the overlay flag is
+    // redundant (and the dispatcher resolves `state` first), so skip it.
+    else if (this.previewDrafts) params.push('preview=draft');
+    const qs = params.length ? `?${params.join('&')}` : '';
     const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}${qs}`;
     const res = await this.fetchImpl(url, { method: 'GET', headers: this.headers, cache: 'no-store' });
     if (res.status === 404) return null;

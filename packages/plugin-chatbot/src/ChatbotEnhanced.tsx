@@ -19,7 +19,7 @@
  */
 import * as React from 'react';
 import { cn } from '@object-ui/components';
-import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, Eye, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import type { ChatStatus } from 'ai';
 import {
   humanizeToolName,
@@ -358,6 +358,22 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   onOpenBuiltApp?: (appName: string) => void;
   /** Label for the open-built-app action (default "Open app"). */
   openBuiltAppLabel?: string;
+  /**
+   * ADR-0037 Live Canvas: preview the drafted app *before* it is published.
+   * Rendered next to the build tree's Open-app action and on draft chips
+   * whose items include an `app`. The host wires this to its router with the
+   * preview flag (e.g. `navigate('/apps/<name>?preview=draft')`).
+   */
+  onPreviewDraftApp?: (appName: string) => void;
+  /** Label for the preview-draft action (default "Preview"). */
+  previewDraftLabel?: string;
+  /**
+   * ADR-0037 Live Canvas: notifies the host whenever AI-authored draft
+   * artifacts land in the conversation (build-progress items + drafted
+   * envelopes), with the cumulative deduped set. Hosts use it to open and
+   * refresh the live draft-preview pane while the agent builds.
+   */
+  onDraftArtifacts?: (artifacts: Array<{ type: string; name: string }>) => void;
   /** Label for the publish-drafts button (default "Publish"). */
   publishDraftsLabel?: string;
   /** Label for the published-state badge that replaces the button (default "Published"). */
@@ -681,6 +697,9 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       onPublishDrafts,
       onOpenBuiltApp,
       openBuiltAppLabel = 'Open app',
+      onPreviewDraftApp,
+      previewDraftLabel = 'Preview',
+      onDraftArtifacts,
       publishDraftsLabel = 'Publish',
       publishedLabel = 'Published',
       autoPublishDrafts = false,
@@ -822,6 +841,35 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       // One publish per distinct package, even if a turn made several build calls.
       for (const pkg of [...new Set(fresh.map((b) => b.packageId))]) void handlePublishDrafts(pkg);
     }, [messages, isLoading, autoPublishDrafts, onPublishDrafts, handlePublishDrafts]);
+
+    // ADR-0037 Live Canvas: surface every AI-authored draft artifact to the
+    // host as it lands — both the streaming build tree's items and drafted
+    // envelopes. Deduped cumulatively; the callback fires only when the set
+    // actually grows, so hosts can refresh a preview pane without storms.
+    const draftArtifactKeysRef = React.useRef<Set<string>>(new Set());
+    React.useEffect(() => {
+      if (!onDraftArtifacts) return;
+      const artifacts = new Map<string, { type: string; name: string }>();
+      for (const message of messages) {
+        for (const item of message.buildProgress?.items ?? []) {
+          if (item?.type && item?.name) artifacts.set(`${item.type}:${item.name}`, item);
+        }
+        for (const tool of message.toolInvocations ?? []) {
+          for (const item of tool.draftReview?.items ?? []) {
+            if (item?.type && item?.name) artifacts.set(`${item.type}:${item.name}`, item);
+          }
+        }
+      }
+      const seen = draftArtifactKeysRef.current;
+      let grew = false;
+      for (const key of artifacts.keys()) {
+        if (!seen.has(key)) {
+          seen.add(key);
+          grew = true;
+        }
+      }
+      if (grew) onDraftArtifacts([...artifacts.values()]);
+    }, [messages, onDraftArtifacts]);
 
     const handleSubmit = React.useCallback(
       (payload: PromptInputMessage) => {
@@ -1003,6 +1051,25 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                       {toolReviewLabel(tool.draftReview.items.length)}
                     </button>
                   ) : null}
+                  {/* ADR-0037: drafted-app preview — see it as-if-published
+                      without publishing. Only when the draft set includes an
+                      app (the canvas previews whole apps, not single items). */}
+                  {onPreviewDraftApp && !publishedToolCalls.has(tool.toolCallId)
+                    ? (() => {
+                        const app = tool.draftReview!.items.find((i) => i.type === 'app');
+                        return app ? (
+                          <button
+                            type="button"
+                            onClick={() => onPreviewDraftApp(app.name)}
+                            className="inline-flex h-7 items-center gap-1.5 rounded-md border px-3 text-xs font-medium hover:bg-muted"
+                            data-testid="draft-preview-app"
+                          >
+                            <Eye className="size-3.5" />
+                            {previewDraftLabel}
+                          </button>
+                        ) : null;
+                      })()
+                    : null}
                   {tool.draftReview.summary ? (
                     <span className="truncate text-xs text-muted-foreground">
                       {tool.draftReview.summary}
@@ -1153,6 +1220,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                           progress={buildProgress}
                           onOpenBuiltApp={onOpenBuiltApp}
                           openBuiltAppLabel={openBuiltAppLabel}
+                          onPreviewDraftApp={onPreviewDraftApp}
+                          previewDraftLabel={previewDraftLabel}
                         />
                       ) : null}
                       {!isUser && processVisibility === 'debug' && reasoning ? (
@@ -1445,10 +1514,14 @@ function BuildProgressPanel({
   progress,
   onOpenBuiltApp,
   openBuiltAppLabel = 'Open app',
+  onPreviewDraftApp,
+  previewDraftLabel = 'Preview',
 }: {
   progress: ChatBuildProgress;
   onOpenBuiltApp?: (appName: string) => void;
   openBuiltAppLabel?: string;
+  onPreviewDraftApp?: (appName: string) => void;
+  previewDraftLabel?: string;
 }) {
   const { phase, appLabel, items, done, total } = progress;
   const isDone = phase === 'done';
@@ -1499,17 +1572,31 @@ function BuildProgressPanel({
           );
         })}
       </ul>
-      {isDone && builtApp && onOpenBuiltApp ? (
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => onOpenBuiltApp(builtApp.name)}
-            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-            data-testid="build-progress-open-app"
-          >
-            {openBuiltAppLabel}
-            <ArrowRight className="size-3.5" />
-          </button>
+      {isDone && builtApp && (onOpenBuiltApp || onPreviewDraftApp) ? (
+        <div className="mt-3 flex items-center gap-2">
+          {onOpenBuiltApp ? (
+            <button
+              type="button"
+              onClick={() => onOpenBuiltApp(builtApp.name)}
+              className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+              data-testid="build-progress-open-app"
+            >
+              {openBuiltAppLabel}
+              <ArrowRight className="size-3.5" />
+            </button>
+          ) : null}
+          {/* ADR-0037: see the drafted app as-if-published, before Publish. */}
+          {onPreviewDraftApp ? (
+            <button
+              type="button"
+              onClick={() => onPreviewDraftApp(builtApp.name)}
+              className="inline-flex h-7 items-center gap-1.5 rounded-md border px-3 text-xs font-medium hover:bg-muted"
+              data-testid="build-progress-preview-app"
+            >
+              <Eye className="size-3.5" />
+              {previewDraftLabel}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>
