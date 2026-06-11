@@ -82,15 +82,52 @@ describe('uiMessageToChatMessage', () => {
     expect(out.toolInvocations?.[0]?.state).toBe('output-available');
   });
 
-  it('keeps input-available when there is genuinely no output yet (live stream)', () => {
+  it('keeps input-available when there is genuinely no output yet AND this is the live streaming tail', () => {
+    const out = uiMessageToChatMessage(
+      {
+        id: 'm-live',
+        role: 'assistant',
+        parts: [
+          { type: 'tool-apply_blueprint', toolCallId: 'call_c', state: 'input-available', input: {} },
+        ],
+      },
+      { streaming: true },
+    );
+    expect(out.toolInvocations?.[0]?.state).toBe('input-available');
+  });
+
+  it('promotes a dangling input-available to Completed on a NON-streaming (historical) message, even without an output', () => {
+    // The real staging incident: a reloaded build conversation showed every
+    // tool stuck on "Running" because the server never snapshotted terminal
+    // tool states. A tool in a turn that has ENDED cannot still be running.
     const out = uiMessageToChatMessage({
-      id: 'm-live',
+      id: 'm-history',
       role: 'assistant',
       parts: [
-        { type: 'tool-apply_blueprint', toolCallId: 'call_c', state: 'input-available', input: {} },
+        { type: 'tool-add_field', toolCallId: 'call_d', state: 'input-available', input: {} },
+        { type: 'tool-verify_build', toolCallId: 'call_e', state: 'input-streaming', input: {} },
       ],
     });
-    expect(out.toolInvocations?.[0]?.state).toBe('input-available');
+    expect(out.toolInvocations?.[0]?.state).toBe('output-available');
+    expect(out.toolInvocations?.[1]?.state).toBe('output-available');
+  });
+
+  it('uiMessagesToChatMessages: only the streaming tail keeps a tool Running; prior messages terminalize', () => {
+    const msgs = [
+      {
+        id: 'm-prior',
+        role: 'assistant',
+        parts: [{ type: 'tool-create_object', toolCallId: 'c1', state: 'input-available', input: {} }],
+      },
+      {
+        id: 'm-tail',
+        role: 'assistant',
+        parts: [{ type: 'tool-add_field', toolCallId: 'c2', state: 'input-available', input: {} }],
+      },
+    ];
+    const out = uiMessagesToChatMessages(msgs as never, { isStreaming: true });
+    expect(out[0].toolInvocations?.[0]?.state).toBe('output-available'); // prior turn → terminalized
+    expect(out[1].toolInvocations?.[0]?.state).toBe('input-available');  // live tail → still Running
   });
 
   it('preserves legacy msg.toolInvocations when no tool-* parts are present', () => {

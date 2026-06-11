@@ -170,7 +170,10 @@ function detectDraftResult(
   };
 }
 
-function extractToolInvocations(parts: AnyPart[]): ChatToolInvocation[] {
+function extractToolInvocations(
+  parts: AnyPart[],
+  opts: { liveTail?: boolean } = {},
+): ChatToolInvocation[] {
   return parts
     .filter((p) => {
       if (p.type === 'dynamic-tool') return true;
@@ -186,14 +189,19 @@ function extractToolInvocations(parts: AnyPart[]): ChatToolInvocation[] {
       const result = p.output ?? p.result;
       const pending = detectPendingApproval(result);
       const draftReview = detectDraftResult(result);
-      // A part persisted mid-stream can carry a stale `input-*` state next to a
-      // present output (the terminal state wasn't snapshotted) — a reloaded
-      // conversation would then show "Running" forever. Output present = the
-      // call finished; promote so the badge reads Completed.
+      // Promote a dangling `input-*` state to a terminal one so a reloaded
+      // conversation never shows "Running" forever (the server doesn't always
+      // snapshot the terminal tool state). Two cases:
+      //   1. output present → the call finished → Completed.
+      //   2. NOT the live streaming tail → the turn that drove this tool has
+      //      ENDED, so it cannot still be running, output-snapshot or not.
+      // Only the actively-streaming trailing assistant message (`liveTail`)
+      // may legitimately keep a tool spinning; everything else is history.
       const persistedState = p.state;
+      const isDanglingInput =
+        persistedState === 'input-available' || persistedState === 'input-streaming';
       const baseState: ChatToolInvocation['state'] =
-        (persistedState === 'input-available' || persistedState === 'input-streaming') &&
-        result !== undefined
+        isDanglingInput && (result !== undefined || !opts.liveTail)
           ? 'output-available'
           : persistedState;
       // Promote pending HITL results to `approval-requested` so the UI
@@ -266,7 +274,9 @@ export function uiMessageToChatMessage(
   opts: { streaming?: boolean } = {},
 ): ChatMessage {
   const parts = Array.isArray(msg.parts) ? msg.parts : [];
-  const tools = extractToolInvocations(parts);
+  // Only the live streaming tail may keep tools in a "Running" state; for any
+  // other (historical) message a dangling tool state is stale by definition.
+  const tools = extractToolInvocations(parts, { liveTail: opts.streaming });
   const legacyTools = Array.isArray(msg.toolInvocations) ? msg.toolInvocations : [];
   return {
     id: (msg.id ?? `msg-${Math.random().toString(36).slice(2, 8)}`) as string,
