@@ -10,6 +10,7 @@ import { MetadataClient, type ObjectStackAdapter } from '@object-ui/data-objects
 import { resolveInlineMode } from '@object-ui/plugin-form';
 import { MetadataCtx, useMetadata, type MetadataContextValue, type MetadataState } from '@object-ui/react';
 import { usePreviewDrafts } from '../preview/PreviewModeContext';
+import { subscribeCanvasInvalidate } from '../assistant/assistantBus';
 
 export type { MetadataState, MetadataContextValue };
 export { useMetadataItem } from '@object-ui/react';
@@ -515,6 +516,17 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
     },
     [bump],
   );
+
+  // ADR-0037 P2.5 — same-document live refresh: while this tree renders the
+  // draft overlay, chat hosts announce each drafted artifact on the assistant
+  // bus; drop that type's cache entry so the next read refetches the updated
+  // draft world. Published-mode trees ignore the events entirely.
+  useEffect(() => {
+    if (!previewDrafts) return;
+    return subscribeCanvasInvalidate(({ type }) => {
+      invalidate(type);
+    });
+  }, [previewDrafts, invalidate]);
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [initialError, setInitialError] = useState<Error | null>(null);

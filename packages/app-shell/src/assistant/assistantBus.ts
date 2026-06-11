@@ -113,6 +113,35 @@ export const assistantBus = {
   },
 };
 
+// ── ADR-0037 P2.5 — canvas invalidations ───────────────────────────────────
+// The chat announces "this draft artifact just changed"; preview surfaces in
+// the SAME document (a page open on ?preview=draft while the floating chat
+// edits) subscribe and refetch the affected type. Kept OFF the snapshot bus:
+// invalidations are fire-and-forget events, not state — putting them in the
+// snapshot would re-render every useAssistant consumer per artifact.
+
+export interface CanvasInvalidation {
+  type: string;
+  name: string;
+}
+
+const invalidateListeners = new Set<(inv: CanvasInvalidation) => void>();
+
+/** Announce that a draft artifact changed (chat hosts call this). */
+export function emitCanvasInvalidate(inv: CanvasInvalidation): void {
+  for (const l of invalidateListeners) l(inv);
+}
+
+/** Subscribe to draft-artifact invalidations; returns an unsubscriber. */
+export function subscribeCanvasInvalidate(
+  listener: (inv: CanvasInvalidation) => void,
+): () => void {
+  invalidateListeners.add(listener);
+  return () => {
+    invalidateListeners.delete(listener);
+  };
+}
+
 /** Subscribe a component to the assistant bus snapshot. */
 export function useAssistant(): AssistantSnapshot {
   return useSyncExternalStore(

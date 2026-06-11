@@ -41,7 +41,7 @@ import {
   writeConversationMessagesCache,
   type HydratedUIMessage,
 } from '../hooks';
-import { useAssistant, requestAssistantReview, type AssistantEditorContext } from '../assistant/assistantBus';
+import { useAssistant, requestAssistantReview, emitCanvasInvalidate, type AssistantEditorContext } from '../assistant/assistantBus';
 import { getRuntimeConfig } from '../runtime-config';
 
 /**
@@ -513,6 +513,11 @@ function ChatbotInner({
         // ADR-0037: see the drafted app as-if-published before Publish — same
         // route, draft overlay, watermark bar on top.
         onPreviewDraftApp={(appName) => navigate(`/apps/${encodeURIComponent(appName)}?preview=draft`)}
+        // ADR-0037 P2.5: announce drafted artifacts so an open ?preview=draft
+        // page (same document) drops its cache and refetches the new draft.
+        onDraftArtifacts={(artifacts) => {
+          for (const a of artifacts) emitCanvasInvalidate(a);
+        }}
         onPublishDrafts={async (packageId) => {
           // ADR-0033 — promote the conversation's staged drafts to live in one
           // click (the human still confirms here). Mirrors PackagesPage's

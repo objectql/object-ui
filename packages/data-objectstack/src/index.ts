@@ -1827,9 +1827,18 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     await this.connect();
     const base = (this.baseUrl || '').replace(/\/$/, '');
     const url = `${base}/api/v1/analytics/dataset/query`;
+    // ADR-0037 P3 — draft data preview. Preview mode is URL-keyed by design
+    // (`?preview=draft` flips the whole document, incl. the Live Canvas
+    // iframe), so the adapter reads it straight off the location rather than
+    // threading a React context down through every widget package. When set,
+    // the server overlays the pending seed draft's rows on the dataset query
+    // and resolves draft-overlaid dataset definitions.
+    const previewDrafts =
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('preview') === 'draft';
     const requestBody = typeof dataset === 'string'
-      ? { datasetName: dataset, selection }
-      : { dataset, selection };
+      ? { datasetName: dataset, selection, ...(previewDrafts ? { previewDrafts: true } : {}) }
+      : { dataset, selection, ...(previewDrafts ? { previewDrafts: true } : {}) };
 
     const res = await this.fetchImpl(url, {
       method: 'POST',
