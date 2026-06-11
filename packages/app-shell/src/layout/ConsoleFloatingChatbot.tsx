@@ -18,6 +18,7 @@ import {
   useHitlInChat,
   resolveDefaultAgentName,
   uiMessagesToChatMessages,
+  publishHealthFromResponse,
   type ChatMessage,
   type AgentDescriptor,
 } from '@object-ui/plugin-chatbot';
@@ -553,7 +554,10 @@ function ChatbotInner({
               payload?.data?.published ?? payload?.published ?? [];
             const app = published.find((p) => p?.type === 'app' && p?.name);
             if (app?.name) navigate(`/apps/${encodeURIComponent(app.name)}`);
-            return true;
+            // ADR-0038 L3 — hand the runtime verification (seedApplied +
+            // probes) back to the chat so the Published card grows a
+            // build-health line instead of claiming bare success.
+            return { ok: true, health: publishHealthFromResponse(payload) };
           } catch (e) {
             toast.error(locale.publishFailed, {
               description: e instanceof Error ? e.message : undefined,

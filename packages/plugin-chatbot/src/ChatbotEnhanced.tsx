@@ -338,8 +338,17 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * staged drafts to live without leaving the conversation (the ADR-0033 gate
    * stays — the human still clicks). The host wires this to
    * `POST /api/v1/packages/:packageId/publish-drafts`.
+   *
+   * Return value (all forms accepted, `false`/`{ok:false}` = failure):
+   * - `boolean | void` — legacy success flag;
+   * - `{ ok: boolean; health?: PublishHealth }` — ADR-0038 L3: the publish
+   *   response's `seedApplied` + runtime `probes`, rendered as a build-health
+   *   line under the Published badge so "Published" and "actually works" are
+   *   two separately-verified statements.
    */
-  onPublishDrafts?: (packageId: string) => void | boolean | Promise<void | boolean>;
+  onPublishDrafts?: (
+    packageId: string,
+  ) => void | boolean | PublishOutcome | Promise<void | boolean | PublishOutcome>;
   /**
    * When provided, a finished build tree (`buildProgress.phase === 'done'`) that
    * created an `app` renders an "Open app" action so the user can jump straight
@@ -382,6 +391,77 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * @default 'card'
    */
   surface?: ChatbotSurface;
+}
+
+/**
+ * ADR-0038 L3 — what a publish actually did at runtime. Hosts extract this
+ * from the publish-drafts response (`seedApplied` + `probes`) so the chat can
+ * render a build-health line: "Published" and "actually works" are two
+ * separately-verified statements, and the second one must be visible too.
+ */
+export interface PublishHealth {
+  /** Rows materialized by published seeds (`seedApplied` inserted+updated). */
+  seededRows?: number;
+  /** Seed-load failure detail when sample data did NOT land. */
+  seedError?: string;
+  /** How many runtime probes ran per plane (`probes.checked`). */
+  checked?: { seeds: number; views: number; widgets: number };
+  /** Runtime findings (`probes.issues`), already human-readable. */
+  issues?: Array<{ severity: 'error' | 'warning'; code: string; message: string }>;
+}
+
+/** Structured result of `onPublishDrafts` — richer alternative to a bare boolean. */
+export interface PublishOutcome {
+  ok: boolean;
+  health?: PublishHealth;
+}
+
+/**
+ * Extract {@link PublishHealth} from a publish-drafts response body (tolerant
+ * of the dispatcher's `{ success, data }` envelope). Shared by the hosts that
+ * wire `onPublishDrafts` so they all read `seedApplied` + `probes` the same
+ * way; returns undefined when the server reported neither (older runtimes).
+ */
+export function publishHealthFromResponse(payload: unknown): PublishHealth | undefined {
+  const root = (payload ?? {}) as Record<string, unknown>;
+  const data = (root.data && typeof root.data === 'object' ? root.data : root) as Record<string, unknown>;
+  const seedApplied = data.seedApplied as
+    | { success?: boolean; inserted?: number; updated?: number; error?: string; errors?: unknown[] }
+    | undefined;
+  const probes = data.probes as
+    | {
+        checked?: { seeds?: number; views?: number; widgets?: number };
+        issues?: Array<{ severity?: string; code?: string; message?: string }>;
+      }
+    | undefined;
+  if (!seedApplied && !probes) return undefined;
+  const health: PublishHealth = {};
+  if (seedApplied) {
+    if (seedApplied.success === false) {
+      health.seedError =
+        seedApplied.error ??
+        (Array.isArray(seedApplied.errors) && seedApplied.errors.length
+          ? String(seedApplied.errors[0])
+          : 'Sample data failed to load.');
+    } else {
+      health.seededRows = (seedApplied.inserted ?? 0) + (seedApplied.updated ?? 0);
+    }
+  }
+  if (probes) {
+    health.checked = {
+      seeds: probes.checked?.seeds ?? 0,
+      views: probes.checked?.views ?? 0,
+      widgets: probes.checked?.widgets ?? 0,
+    };
+    health.issues = (probes.issues ?? [])
+      .filter((i) => i && typeof i.message === 'string')
+      .map((i) => ({
+        severity: i.severity === 'error' ? 'error' : 'warning',
+        code: String(i.code ?? 'runtime_issue'),
+        message: String(i.message),
+      }));
+  }
+  return health;
 }
 
 export type ToolDecisionState =
@@ -503,6 +583,61 @@ function summarizeTools(tools: ChatToolInvocation[]): ToolSummaryGroup[] {
   });
 }
 
+/**
+ * ADR-0038 L3 — the build-health line under a Published badge. Reads the
+ * publish's `seedApplied` + runtime-probe results and answers the question
+ * the badge alone can't: did the published app actually work when exercised?
+ * Renders nothing without health data (older hosts return a bare boolean).
+ */
+function PublishHealthLine({ health }: { health: PublishHealth | undefined }) {
+  if (!health) return null;
+  const issues = health.issues ?? [];
+  const errors = issues.filter((i) => i.severity === 'error');
+  const warnings = issues.filter((i) => i.severity !== 'error');
+  const checked = health.checked;
+  const probesRan = !!checked && checked.seeds + checked.views + checked.widgets > 0;
+  const okParts: string[] = [];
+  if (typeof health.seededRows === 'number' && health.seededRows > 0 && !health.seedError) {
+    okParts.push(`${health.seededRows} sample row${health.seededRows === 1 ? '' : 's'} live`);
+  }
+  if (probesRan && errors.length === 0) {
+    const planes: string[] = [];
+    if (checked!.views > 0) planes.push(`${checked!.views} view${checked!.views === 1 ? '' : 's'}`);
+    if (checked!.widgets > 0) planes.push(`${checked!.widgets} widget${checked!.widgets === 1 ? '' : 's'}`);
+    if (checked!.seeds > 0) planes.push(`${checked!.seeds} seed${checked!.seeds === 1 ? '' : 's'}`);
+    if (planes.length) okParts.push(`${planes.join(' · ')} verified`);
+  }
+  if (okParts.length === 0 && !health.seedError && issues.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1 border-t bg-muted/20 px-3 py-2" data-testid="publish-health">
+      {okParts.length > 0 ? (
+        <div className="flex items-center gap-1.5 text-xs text-emerald-700">
+          <CheckCircle2 className="size-3.5 shrink-0" />
+          <span>{okParts.join(' · ')}</span>
+        </div>
+      ) : null}
+      {health.seedError ? (
+        <div className="flex items-start gap-1.5 text-xs text-red-600">
+          <XCircle className="mt-0.5 size-3.5 shrink-0" />
+          <span>{health.seedError}</span>
+        </div>
+      ) : null}
+      {errors.map((i, idx) => (
+        <div key={`e${idx}`} className="flex items-start gap-1.5 text-xs text-red-600">
+          <XCircle className="mt-0.5 size-3.5 shrink-0" />
+          <span>{i.message}</span>
+        </div>
+      ))}
+      {warnings.map((i, idx) => (
+        <div key={`w${idx}`} className="flex items-start gap-1.5 text-xs text-amber-600">
+          <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+          <span>{i.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
   (
     {
@@ -599,10 +734,17 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     const [publishedToolCalls, setPublishedToolCalls] = React.useState<ReadonlySet<string>>(
       () => new Set(),
     );
+    // ADR-0038 L3 — per published card, what the publish actually did at
+    // runtime (rows seeded, probes run, findings). Rendered under the
+    // Published badge as the build-health line.
+    const [publishHealthByToolCall, setPublishHealthByToolCall] = React.useState<
+      ReadonlyMap<string, PublishHealth>
+    >(() => new Map());
     // Publish a package's drafts and reflect success on exactly the cards that
     // were pending for it at publish time. The host's onPublishDrafts returns
-    // `false` on failure (and surfaces its own error); any other outcome (incl.
-    // void) counts as success.
+    // `false` / `{ok:false}` on failure (and surfaces its own error); any other
+    // outcome (incl. void) counts as success. A structured outcome may carry
+    // `health` (seedApplied + runtime probes) for the health line.
     const handlePublishDrafts = React.useCallback(
       async (packageId: string) => {
         if (!onPublishDrafts) return;
@@ -616,13 +758,24 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             }
           }
         }
-        const ok = await onPublishDrafts(packageId);
-        if (ok !== false && promoted.length > 0) {
+        const res = await onPublishDrafts(packageId);
+        const outcome: PublishOutcome | undefined =
+          res && typeof res === 'object' ? (res as PublishOutcome) : undefined;
+        const ok = outcome ? outcome.ok !== false : res !== false;
+        if (ok && promoted.length > 0) {
           setPublishedToolCalls((prev) => {
             const next = new Set(prev);
             for (const id of promoted) next.add(id);
             return next;
           });
+          const health = outcome?.health;
+          if (health) {
+            setPublishHealthByToolCall((prev) => {
+              const next = new Map(prev);
+              for (const id of promoted) next.set(id, health);
+              return next;
+            });
+          }
         }
       },
       [onPublishDrafts, messages],
@@ -812,49 +965,57 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             tool.draftReview.items.length > 0 &&
             (onReviewDraft ||
               (onPublishDrafts && tool.draftReview.packageId)) ? (
-              <div className="flex items-center gap-2 p-3 border-t bg-muted/30">
-                {onPublishDrafts && tool.draftReview.packageId ? (
-                  publishedToolCalls.has(tool.toolCallId) ? (
-                    // Published (auto or manual): a stable status badge, not a
-                    // stale button. Keeps the card honest about lifecycle state.
-                    <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700">
-                      <CheckCircle2 className="size-3.5" />
-                      {publishedLabel}
-                      {tool.draftReview.failedCount
-                        ? ` · ${tool.draftReview.failedCount} need${tool.draftReview.failedCount === 1 ? 's' : ''} attention`
-                        : ''}
-                    </span>
-                  ) : (
+              <>
+                <div className="flex items-center gap-2 p-3 border-t bg-muted/30">
+                  {onPublishDrafts && tool.draftReview.packageId ? (
+                    publishedToolCalls.has(tool.toolCallId) ? (
+                      // Published (auto or manual): a stable status badge, not a
+                      // stale button. Keeps the card honest about lifecycle state.
+                      <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700">
+                        <CheckCircle2 className="size-3.5" />
+                        {publishedLabel}
+                        {tool.draftReview.failedCount
+                          ? ` · ${tool.draftReview.failedCount} need${tool.draftReview.failedCount === 1 ? 's' : ''} attention`
+                          : ''}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void handlePublishDrafts(tool.draftReview!.packageId!)}
+                        className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                      >
+                        <Rocket className="size-3.5" />
+                        {publishDraftsLabel}
+                      </button>
+                    )
+                  ) : null}
+                  {onReviewDraft ? (
                     <button
                       type="button"
-                      onClick={() => void handlePublishDrafts(tool.draftReview!.packageId!)}
-                      className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                      onClick={() => onReviewDraft(tool.draftReview!.items)}
+                      className={
+                        onPublishDrafts && tool.draftReview.packageId
+                          ? 'inline-flex h-7 items-center gap-1.5 rounded-md border px-3 text-xs font-medium hover:bg-muted'
+                          : 'inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90'
+                      }
                     >
-                      <Rocket className="size-3.5" />
-                      {publishDraftsLabel}
+                      <GitCompareArrows className="size-3.5" />
+                      {toolReviewLabel(tool.draftReview.items.length)}
                     </button>
-                  )
+                  ) : null}
+                  {tool.draftReview.summary ? (
+                    <span className="truncate text-xs text-muted-foreground">
+                      {tool.draftReview.summary}
+                    </span>
+                  ) : null}
+                </div>
+                {/* ADR-0038 L3 — build-health line: what the publish actually
+                    did at runtime. Renders only when the host supplied health
+                    data; "Published" alone never implies "verified". */}
+                {publishedToolCalls.has(tool.toolCallId) ? (
+                  <PublishHealthLine health={publishHealthByToolCall.get(tool.toolCallId)} />
                 ) : null}
-                {onReviewDraft ? (
-                  <button
-                    type="button"
-                    onClick={() => onReviewDraft(tool.draftReview!.items)}
-                    className={
-                      onPublishDrafts && tool.draftReview.packageId
-                        ? 'inline-flex h-7 items-center gap-1.5 rounded-md border px-3 text-xs font-medium hover:bg-muted'
-                        : 'inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90'
-                    }
-                  >
-                    <GitCompareArrows className="size-3.5" />
-                    {toolReviewLabel(tool.draftReview.items.length)}
-                  </button>
-                ) : null}
-                {tool.draftReview.summary ? (
-                  <span className="truncate text-xs text-muted-foreground">
-                    {tool.draftReview.summary}
-                  </span>
-                ) : null}
-              </div>
+              </>
             ) : null}
           </ToolContent>
         </Tool>

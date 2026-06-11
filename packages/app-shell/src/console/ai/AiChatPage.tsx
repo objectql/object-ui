@@ -39,6 +39,7 @@ import {
   useObjectChat,
   useHitlInChat,
   resolveDefaultAgentName,
+  publishHealthFromResponse,
   type AgentDescriptor,
   type ChatbotEnhancedToolInvocation,
   type ChatMessage,
@@ -578,7 +579,10 @@ function ChatPane({
             } else {
               toast.success(t('console.ai.publishOk', { defaultValue: 'Published — objects are now live.' }));
             }
-            return true;
+            // ADR-0038 L3 — hand the runtime verification (seedApplied +
+            // probes) back to the chat so the Published card grows a
+            // build-health line instead of claiming bare success.
+            return { ok: true, health: publishHealthFromResponse(payload) };
           } catch (e) {
             toast.error(t('console.ai.publishFailed', { defaultValue: 'Publish failed' }), {
               description: e instanceof Error ? e.message : undefined,

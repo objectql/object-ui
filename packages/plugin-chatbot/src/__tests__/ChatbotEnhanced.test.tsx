@@ -438,3 +438,140 @@ describe('ChatbotEnhanced — streaming build preview (live build tree)', () => 
     expect(screen.queryByTestId('build-progress-open-app')).not.toBeInTheDocument();
   });
 });
+
+/**
+ * ADR-0038 L3 — the build-health line under a Published card: the host's
+ * onPublishDrafts may return `{ ok, health }` (seedApplied + runtime probes)
+ * and the chat must show what the publish ACTUALLY did, not just "Published".
+ */
+describe('ChatbotEnhanced — publish build-health line (ADR-0038)', () => {
+  const userMsg: ChatMessage = { id: 'u1', role: 'user', content: 'build it' };
+  const draftMsg = (packageId: string): ChatMessage => ({
+    id: 'a1',
+    role: 'assistant',
+    content: 'Built your app.',
+    toolInvocations: [
+      {
+        toolCallId: 'tc-health',
+        toolName: 'apply_blueprint',
+        state: 'output-available',
+        draftReview: { items: [{ type: 'object', name: 'task' }], packageId, autoPublishable: true },
+      },
+    ],
+  });
+
+  it('renders rows-seeded + verified counts and runtime issues from a structured outcome', async () => {
+    const onPublishDrafts = vi.fn().mockResolvedValue({
+      ok: true,
+      health: {
+        seededRows: 12,
+        checked: { seeds: 2, views: 3, widgets: 4 },
+        issues: [
+          { severity: 'error', code: 'empty_query', message: 'widget "w1" returns NO data' },
+          { severity: 'warning', code: 'probes_unavailable', message: '1 widget not probed' },
+        ],
+      },
+    });
+    const { rerender } = render(
+      <ChatbotEnhanced autoPublishDrafts isLoading messages={[userMsg]} onPublishDrafts={onPublishDrafts} />,
+    );
+    rerender(
+      <ChatbotEnhanced autoPublishDrafts isLoading={false} messages={[userMsg, draftMsg('app.todo')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    await waitFor(() => expect(screen.getByTestId('publish-health')).toBeInTheDocument());
+    expect(screen.getByText(/12 sample rows live/i)).toBeInTheDocument();
+    // Errors present → the "verified" claim is withheld; the findings show instead.
+    expect(screen.queryByText(/verified/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/returns NO data/i)).toBeInTheDocument();
+    expect(screen.getByText(/not probed/i)).toBeInTheDocument();
+  });
+
+  it('claims "verified" only when the probes ran clean', async () => {
+    const onPublishDrafts = vi.fn().mockResolvedValue({
+      ok: true,
+      health: { seededRows: 6, checked: { seeds: 1, views: 2, widgets: 3 }, issues: [] },
+    });
+    const { rerender } = render(
+      <ChatbotEnhanced autoPublishDrafts isLoading messages={[userMsg]} onPublishDrafts={onPublishDrafts} />,
+    );
+    rerender(
+      <ChatbotEnhanced autoPublishDrafts isLoading={false} messages={[userMsg, draftMsg('app.todo')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    await waitFor(() => expect(screen.getByTestId('publish-health')).toBeInTheDocument());
+    expect(screen.getByText(/6 sample rows live · 2 views · 3 widgets · 1 seed verified/i)).toBeInTheDocument();
+  });
+
+  it('renders the seed-load failure loudly', async () => {
+    const onPublishDrafts = vi.fn().mockResolvedValue({
+      ok: true,
+      health: { seedError: 'no readable seed bodies' },
+    });
+    const { rerender } = render(
+      <ChatbotEnhanced autoPublishDrafts isLoading messages={[userMsg]} onPublishDrafts={onPublishDrafts} />,
+    );
+    rerender(
+      <ChatbotEnhanced autoPublishDrafts isLoading={false} messages={[userMsg, draftMsg('app.todo')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    await waitFor(() => expect(screen.getByTestId('publish-health')).toBeInTheDocument());
+    expect(screen.getByText(/no readable seed bodies/i)).toBeInTheDocument();
+  });
+
+  it('stays silent (no health element) for legacy boolean outcomes', async () => {
+    const onPublishDrafts = vi.fn().mockResolvedValue(true);
+    const { rerender } = render(
+      <ChatbotEnhanced autoPublishDrafts isLoading messages={[userMsg]} onPublishDrafts={onPublishDrafts} />,
+    );
+    rerender(
+      <ChatbotEnhanced autoPublishDrafts isLoading={false} messages={[userMsg, draftMsg('app.todo')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    // Publish resolves → Published badge, but no health line.
+    await waitFor(() => expect(screen.getByText('Published')).toBeInTheDocument());
+    expect(screen.queryByTestId('publish-health')).not.toBeInTheDocument();
+  });
+
+  it('treats {ok:false} as failure — no Published badge', async () => {
+    const onPublishDrafts = vi.fn().mockResolvedValue({ ok: false });
+    const { rerender } = render(
+      <ChatbotEnhanced autoPublishDrafts isLoading messages={[userMsg]} onPublishDrafts={onPublishDrafts} />,
+    );
+    rerender(
+      <ChatbotEnhanced autoPublishDrafts isLoading={false} messages={[userMsg, draftMsg('app.todo')]} onPublishDrafts={onPublishDrafts} />,
+    );
+    await waitFor(() => expect(onPublishDrafts).toHaveBeenCalled());
+    expect(screen.queryByText('Published')).not.toBeInTheDocument();
+  });
+});
+
+describe('publishHealthFromResponse', () => {
+  it('maps seedApplied + probes through the {success,data} envelope', async () => {
+    const { publishHealthFromResponse } = await import('../ChatbotEnhanced');
+    const health = publishHealthFromResponse({
+      success: true,
+      data: {
+        seedApplied: { success: true, inserted: 10, updated: 2 },
+        probes: {
+          checked: { seeds: 2, views: 1, widgets: 3 },
+          issues: [{ severity: 'error', code: 'empty_query', message: 'm' }],
+        },
+      },
+    });
+    expect(health).toEqual({
+      seededRows: 12,
+      checked: { seeds: 2, views: 1, widgets: 3 },
+      issues: [{ severity: 'error', code: 'empty_query', message: 'm' }],
+    });
+  });
+
+  it('maps a failed seedApplied to seedError and tolerates a flat body', async () => {
+    const { publishHealthFromResponse } = await import('../ChatbotEnhanced');
+    const health = publishHealthFromResponse({
+      seedApplied: { success: false, errors: ['row 3 rejected'] },
+    });
+    expect(health).toEqual({ seedError: 'row 3 rejected' });
+  });
+
+  it('returns undefined when the server reported neither (older runtimes)', async () => {
+    const { publishHealthFromResponse } = await import('../ChatbotEnhanced');
+    expect(publishHealthFromResponse({ success: true, data: { publishedCount: 3 } })).toBeUndefined();
+  });
+});

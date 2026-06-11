@@ -276,7 +276,7 @@ export * from './renderer';
 
 // Shared composition layer over the vendored AI Elements (used by both
 // Studio's sidebar panel and Console's floating chatbot).
-export { ChatbotEnhanced } from './ChatbotEnhanced';
+export { ChatbotEnhanced, publishHealthFromResponse } from './ChatbotEnhanced';
 export type {
   ChatbotEnhancedProps,
   ChatMessage as ChatbotEnhancedMessage,
@@ -284,6 +284,8 @@ export type {
   ChatSource as ChatbotEnhancedSource,
   ChatbotLabels,
   ToolDecisionState,
+  PublishHealth,
+  PublishOutcome,
 } from './ChatbotEnhanced';
 
 // Re-export the vendored Vercel AI Elements (MIT, src/elements/) so app
