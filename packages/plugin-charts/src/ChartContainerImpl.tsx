@@ -64,14 +64,19 @@ function ChartContainer({
         data-slot="chart"
         data-chart={chartId}
         className={cn(
-          "flex w-full h-[350px] justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground",
+          // Block (not flex) so Recharts' ResponsiveContainer child fills the
+          // box. Under `flex ... justify-center` the container collapsed to its
+          // content width (0) on first paint inside react-grid-layout, so
+          // Recharts measured width(-1) and rendered nothing until a later
+          // resize fired its ResizeObserver — leaving dashboard charts blank.
+          "block w-full h-[350px] text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground",
           className
         )}
-        // Guarantee a non-zero box for Recharts' ResponsiveContainer even
-        // when the consumer-supplied className overrides our h-[350px] (e.g.
-        // dashboard widgets that wrap the chart in flex/grid layouts without
-        // an explicit child height). Without this minHeight the chart
-        // computes width/height = -1 and renders invisibly.
+        // Guarantee a non-zero box for Recharts' ResponsiveContainer even when
+        // the consumer-supplied className overrides our h-[350px] (e.g. dashboard
+        // widgets that wrap the chart in flex/grid layouts without an explicit
+        // child height). Without this min-size the chart computes
+        // width/height = -1 and renders invisibly.
         style={{ minHeight: 280, minWidth: 0, ...props.style }}
         {...props}
       >
