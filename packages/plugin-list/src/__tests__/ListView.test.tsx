@@ -6,7 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { ComponentRegistry } from '@object-ui/core';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ListView, evaluateConditionalFormatting } from '../ListView';
 import type { ListViewSchema } from '@object-ui/types';
@@ -2186,5 +2187,39 @@ describe('ListView', () => {
       const filterButton = screen.getByRole('button', { name: /filter/i });
       expect(filterButton).toBeInTheDocument();
     });
+  });
+});
+
+describe('ListView — viewType normalization (AI-authored views)', () => {
+  // AI-authored view metadata carries the view KIND ('list'), not a renderer
+  // name; hosts forward it verbatim as viewType. Both 'list' and a missing
+  // viewType must normalize to the grid renderer — never reach the typeless
+  // default branch, which SchemaRenderer used to surface as a red
+  // "Unknown component type" box dumping the raw config at the user.
+  beforeAll(() => {
+    // The real object-grid lives in @object-ui/plugin-grid (not a test dep);
+    // register a stub so "did we emit a typed grid schema" is observable.
+    if (!ComponentRegistry.get('object-grid')) {
+      ComponentRegistry.register('object-grid', () => <div data-testid="grid-stub" />);
+    }
+  });
+  const base = { type: 'list-view', objectName: 'expense', fields: ['title', 'amount'] };
+
+  it("normalizes viewType:'list' to grid — renders the friendly empty state, not the red box", async () => {
+    renderWithProvider(<ListView schema={{ ...base, viewType: 'list' } as unknown as ListViewSchema} />);
+    expect(await screen.findByTestId('empty-state')).toBeInTheDocument();
+    expect(screen.queryByText(/Unknown component type/i)).not.toBeInTheDocument();
+  });
+
+  it('normalizes a MISSING viewType to grid — same friendly empty state', async () => {
+    renderWithProvider(<ListView schema={{ ...base } as unknown as ListViewSchema} />);
+    expect(await screen.findByTestId('empty-state')).toBeInTheDocument();
+    expect(screen.queryByText(/Unknown component type/i)).not.toBeInTheDocument();
+  });
+
+  it('an unrecognized viewType degrades to a TYPED grid schema (default branch is never typeless)', async () => {
+    renderWithProvider(<ListView schema={{ ...base, viewType: 'bogus' } as unknown as ListViewSchema} />);
+    expect(await screen.findByTestId('grid-stub')).toBeInTheDocument();
+    expect(screen.queryByText(/Unknown component type/i)).not.toBeInTheDocument();
   });
 });

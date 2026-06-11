@@ -324,12 +324,20 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   const { fieldLabel: resolveFieldLabel, actionLabel: resolveActionLabel } = useListFieldLabel();
   const { translateOptions } = useSafeFieldLabel();
 
-  // Kernel level default: Ensure viewType is always defined (default to 'grid').
-  // Perf: only allocate a new object when the default is actually needed,
+  // Kernel level default: Ensure viewType is always a RENDERABLE kind.
+  // Two inputs must land on 'grid': a missing viewType, and the view-metadata
+  // kind `'list'` (AI-authored views store `type/viewKind: 'list'`, which hosts
+  // forward verbatim) — 'list' names the view CATEGORY, not a renderer, and
+  // letting it through used to hit the typeless default branch below and
+  // render as a red "Unknown component type" box.
+  // Perf: only allocate a new object when normalization is actually needed,
   // otherwise return propSchema as-is so downstream useMemos see a stable
-  // reference when callers already provide viewType (the common case).
+  // reference when callers already provide a renderable viewType (the common case).
   const schema = React.useMemo(
-    () => (propSchema.viewType ? propSchema : { ...propSchema, viewType: 'grid' }),
+    () =>
+      propSchema.viewType && (propSchema.viewType as string) !== 'list'
+        ? propSchema
+        : { ...propSchema, viewType: 'grid' },
     [propSchema],
   );
 
@@ -1202,6 +1210,10 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     };
 
     switch (currentView) {
+      // `default` deliberately shares the grid branch: an unrecognized
+      // viewType must degrade to a working table, never to a typeless schema
+      // (SchemaRenderer shows those as a red "Unknown component type" box).
+      default:
       case 'grid':
         return {
           type: 'object-grid',
@@ -1332,8 +1344,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           className: 'h-[400px] w-full',
         };
       }
-      default:
-        return baseProps;
     }
   }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize]);
 
