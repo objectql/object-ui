@@ -221,10 +221,29 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     [apiBase],
   );
 
+  // New-conversation race guard. On an IN-SPA `/ai?new=1` navigation the
+  // URL-mirroring effect below fires in the SAME commit as the hook's effect,
+  // with this render's (stale) `conversationId` still in its closure — the
+  // hook's setConversationId(undefined) hasn't re-rendered yet. Unguarded, it
+  // bounced straight back to `/ai/:oldId` and stripped the flag before the
+  // fresh conversation existed (the New button looked like a no-op; a full
+  // page load on the same URL worked because state starts empty). Snapshot
+  // the id visible when the flag appears — a RENDER-phase ref write, so it's
+  // set before any effect of this commit runs — and refuse to mirror that
+  // exact id while the flag is up. The fresh id differs, mirrors normally,
+  // and the navigation strips `?new=1`, which resets the snapshot.
+  const staleNewTargetRef = useRef<{ id: string | undefined } | null>(null);
+  if (forceNewConversation) {
+    if (staleNewTargetRef.current === null) staleNewTargetRef.current = { id: conversationId };
+  } else {
+    staleNewTargetRef.current = null;
+  }
+
   // After the hook resolves a real id for a fresh `/ai` visit, mirror it into
   // the URL so the sidebar's active-row + share/refresh both work.
   useEffect(() => {
     if (!urlConversationId && conversationId) {
+      if (staleNewTargetRef.current && staleNewTargetRef.current.id === conversationId) return;
       navigate(`/ai/${conversationId}`, { replace: true });
     }
   }, [urlConversationId, conversationId, navigate]);
