@@ -32,6 +32,16 @@ export interface LiveCanvasProps {
   onClose: () => void;
 }
 
+/**
+ * The SPA's mount prefix for ABSOLUTE urls (the iframe bypasses the router's
+ * basename, unlike navigate()). The console ships under `/_console`; bare
+ * mounts (tests, custom hosts) fall back to ''.
+ */
+function spaBase(): string {
+  if (typeof window === 'undefined') return '';
+  return window.location.pathname.startsWith('/_console') ? '/_console' : '';
+}
+
 export function LiveCanvas({ appName, refreshKey, onClose }: LiveCanvasProps) {
   const { t } = useObjectTranslation();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -65,7 +75,7 @@ export function LiveCanvas({ appName, refreshKey, onClose }: LiveCanvasProps) {
       <iframe
         ref={iframeRef}
         title={`Draft preview: ${appName}`}
-        src={`/apps/${encodeURIComponent(appName)}?preview=draft`}
+        src={`${spaBase()}/apps/${encodeURIComponent(appName)}?preview=draft`}
         className="h-full w-full flex-1 border-0 bg-background"
         data-testid="live-canvas-frame"
       />
