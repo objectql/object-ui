@@ -169,6 +169,11 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   // query string — so reading it lazily would lose the agent before the
   // selection effect runs. The initializer snapshots it before that race.
   const [agentParam] = useState<string | undefined>(() => searchParams.get('agent') ?? undefined);
+  // Explicit new-conversation intent (`/ai?new=1`, the sidebar's New button).
+  // Read LIVE (not snapshotted): the button can be clicked again later from an
+  // existing conversation, and the flag is stripped once the fresh id is
+  // mirrored into the URL.
+  const forceNewConversation = searchParams.get('new') !== null;
   const navigate = useNavigate();
   const { setContext } = useNavigationContext();
 
@@ -203,6 +208,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     scope: activeAgent,
     apiBase,
     activeId: urlConversationId,
+    forceNew: forceNewConversation,
   });
 
   const [refreshKey, setRefreshKey] = useState(0);

@@ -29,6 +29,7 @@ import { StarredApps } from './StarredApps';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { Plus, Settings, Sparkles, Star, Clock, ArrowDown, Store, LayoutGrid, ShieldAlert, X, UploadCloud } from 'lucide-react';
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
+import { publishHealthFromResponse, type PublishHealth } from '@object-ui/plugin-chatbot';
 import { toast } from 'sonner';
 
 function pickGreetingKey(hour: number): string {
@@ -115,7 +116,7 @@ function StatPill({
  */
 function PendingDraftsBanner({ t }: { t: (key: string, opts?: any) => string }) {
   const client = useMetadataClient();
-  const [drafts, setDrafts] = useState<Array<{ type: string; name: string }>>([]);
+  const [drafts, setDrafts] = useState<Array<{ type: string; name: string; packageId: string | null }>>([]);
   const [publishing, setPublishing] = useState(false);
   const count = drafts.length;
 
@@ -127,18 +128,22 @@ function PendingDraftsBanner({ t }: { t: (key: string, opts?: any) => string }) 
         setDrafts(
           rows
             .filter((d: any) => d && typeof d.type === 'string' && typeof d.name === 'string')
-            .map((d: any) => ({ type: d.type, name: d.name })),
+            .map((d: any) => ({ type: d.type, name: d.name, packageId: typeof d.packageId === 'string' && d.packageId ? d.packageId : null })),
         );
       })
       .catch(() => { /* drafts unsupported / error → don't show */ });
     return () => { cancelled = true; };
   }, [client]);
 
-  // One-click publish: promote every pending draft BY REFERENCE so a brand-new
-  // user reaches "it's live" without hunting for a designer. (Pre-PMF activation
-  // > the draft-review gate.) Publishing per-(type,name) — not per-package —
-  // means a draft with no `packageId` binding still publishes, instead of the
-  // banner dead-ending with "no draft packages" while the count stays stuck.
+  // One-click publish. Package-bound drafts go through the package endpoint
+  // (`POST /packages/:id/publish-drafts`) — the governed path that orders
+  // structure-before-seeds server-side AND runs the ADR-0038 L3 runtime probes
+  // (seed rows landed? views read? widget queries return data?), so this
+  // banner can no longer say "Published!" over an app that is silently empty
+  // (the gym_management incident: a mid-publish container crash ate every
+  // seed row and the per-ref path had nothing checking). Drafts with no
+  // `packageId` keep the legacy by-reference fallback so they still publish
+  // instead of dead-ending the banner.
   const publish = async () => {
     setPublishing(true);
     try {
@@ -146,17 +151,45 @@ function PendingDraftsBanner({ t }: { t: (key: string, opts?: any) => string }) 
         ? drafts
         : (((await client.listDrafts?.({})) as any[]) || [])
             .filter((d) => d && typeof d.type === 'string' && typeof d.name === 'string')
-            .map((d) => ({ type: d.type, name: d.name }));
+            .map((d) => ({ type: d.type, name: d.name, packageId: typeof d.packageId === 'string' && d.packageId ? d.packageId : null }));
       if (pending.length === 0) throw new Error('nothing to publish');
-      // Structure first, seeds LAST — a seed's rows can only land once its
-      // object's table exists. Publishing a `seed` also materializes its rows
-      // (reported under `seedApplied`, never thrown) — collect failures so
-      // "Published!" can't hide silently empty tables.
-      const ordered = [
-        ...pending.filter((d) => d.type !== 'seed'),
-        ...pending.filter((d) => d.type === 'seed'),
-      ];
+
+      const packageIds = [...new Set(pending.map((d) => d.packageId).filter((p): p is string => p !== null))];
+      const orphans = pending.filter((d) => d.packageId === null);
+
       const seedProblems: string[] = [];
+      const probeProblems: string[] = [];
+      let seededRows = 0;
+      const recordHealth = (health: PublishHealth | undefined) => {
+        if (!health) return;
+        if (health.seedError) seedProblems.push(health.seedError);
+        if (typeof health.seededRows === 'number') seededRows += health.seededRows;
+        for (const issue of health.issues ?? []) {
+          if (issue.severity === 'error') probeProblems.push(issue.message);
+        }
+      };
+
+      for (const packageId of packageIds) {
+        const res = await fetch(`/api/v1/packages/${encodeURIComponent(packageId)}/publish-drafts`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: '{}',
+        });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok || (payload as any)?.success === false) {
+          throw new Error((payload as any)?.error?.message || `HTTP ${res.status}`);
+        }
+        recordHealth(publishHealthFromResponse(payload));
+      }
+
+      // Package-less stragglers: by reference, structure first, seeds LAST —
+      // a seed's rows can only land once its object's table exists. Publishing
+      // a `seed` also materializes its rows (reported under `seedApplied`).
+      const ordered = [
+        ...orphans.filter((d) => d.type !== 'seed'),
+        ...orphans.filter((d) => d.type === 'seed'),
+      ];
       for (const d of ordered) {
         const res = await client.publishDraft(d.type, d.name);
         const seedApplied = (res as any)?.seedApplied;
@@ -164,13 +197,27 @@ function PendingDraftsBanner({ t }: { t: (key: string, opts?: any) => string }) 
           seedProblems.push(seedApplied.error ?? `${d.name}: sample data failed to load`);
         }
       }
-      if (seedProblems.length > 0) {
+
+      if (probeProblems.length > 0) {
+        // Runtime probes found the published app broken — say so, loudly.
+        toast.warning(
+          t('home.pendingDrafts.probeWarn', { defaultValue: 'Published, but verification found problems.' }),
+          { description: probeProblems[0] },
+        );
+      } else if (seedProblems.length > 0) {
         toast.warning(
           t('home.pendingDrafts.seedWarn', { defaultValue: 'Published, but some sample data failed to load.' }),
           { description: seedProblems[0] },
         );
       } else {
-        toast.success(t('home.pendingDrafts.published', { defaultValue: 'Published! Your changes are live.' }));
+        toast.success(
+          seededRows > 0
+            ? t('home.pendingDrafts.publishedVerified', {
+                count: seededRows,
+                defaultValue: 'Published & verified — {{count}} sample row(s) live.',
+              })
+            : t('home.pendingDrafts.published', { defaultValue: 'Published! Your changes are live.' }),
+        );
       }
       setDrafts([]);
       // Surface the now-live app — reload so the populated home shows it.

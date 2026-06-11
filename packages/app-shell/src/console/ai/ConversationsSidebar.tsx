@@ -89,7 +89,10 @@ export function ConversationsSidebar({
   }, [decoratedConversations, filter]);
 
   const handleNew = useCallback(() => {
-    navigate('/ai');
+    // `?new=1` is the explicit new-conversation intent. A bare `/ai` resumes
+    // the last cached conversation (by design), so without the flag this
+    // button silently landed back on the current chat.
+    navigate('/ai?new=1');
     onNavigate?.();
   }, [navigate, onNavigate]);
 

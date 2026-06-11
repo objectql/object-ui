@@ -231,3 +231,70 @@ describe('useChatConversation', () => {
     expect(result.current.initialMessages).toEqual([]);
   });
 });
+
+describe('useChatConversation — forceNew (the sidebar New button)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    localStorage.clear();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('skips the cached conversation and creates a fresh one', async () => {
+    localStorage.setItem('objectstack:ai-chat-conversation-id:u1', 'conv-cached');
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'conv-fresh', messages: [] }));
+
+    const { result } = renderHook(() =>
+      useChatConversation({ userId: 'u1', apiBase: API_BASE, forceNew: true }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBe('conv-fresh');
+    // ONE call — the create; the cached id was never even fetched.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE}/conversations`);
+    expect(fetchMock.mock.calls[0][1]?.method).toBe('POST');
+    // Cache now points at the fresh conversation.
+    expect(localStorage.getItem('objectstack:ai-chat-conversation-id:u1')).toBe('conv-fresh');
+  });
+
+  it('overrides the resolved-once guard when flipping forceNew on an open page', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: 'conv-a', messages: [] }));
+
+    const { result, rerender } = renderHook(
+      ({ forceNew }: { forceNew: boolean }) =>
+        useChatConversation({ userId: 'u1', apiBase: API_BASE, forceNew }),
+      { initialProps: { forceNew: false } },
+    );
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-a'));
+
+    // The user clicks New: same mount, forceNew flips true. The stale id must
+    // clear immediately (so the URL-mirroring host can't bounce back), then a
+    // fresh conversation resolves.
+    fetchMock.mockResolvedValue(jsonResponse({ id: 'conv-b', messages: [] }));
+    rerender({ forceNew: true });
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-b'));
+    const createCalls = fetchMock.mock.calls.filter(
+      (c) => c[0] === `${API_BASE}/conversations` && c[1]?.method === 'POST',
+    );
+    expect(createCalls.length).toBe(2);
+  });
+
+  it('is ignored while an explicit activeId is set (deep link wins)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'conv-x', messages: [] }));
+
+    const { result } = renderHook(() =>
+      useChatConversation({ userId: 'u1', apiBase: API_BASE, activeId: 'conv-x', forceNew: true }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBe('conv-x');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE}/conversations/conv-x`);
+  });
+});

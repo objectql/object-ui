@@ -44,6 +44,16 @@ export interface UseChatConversationOptions {
    * original cache-first / create-on-miss behaviour.
    */
   activeId?: string;
+  /**
+   * Explicit "start a NEW conversation" intent (the sidebar's New button,
+   * `/ai?new=1`). Without it a bare `/ai` visit resumes the last cached
+   * conversation — which is right for a plain visit but made the New button a
+   * no-op: the resolved-once guard kept the current id and the URL-mirroring
+   * effect immediately rewrote `/ai` back to `/ai/:currentId`. When true (and
+   * no `activeId`), the cache and the guard are skipped and a fresh
+   * conversation is created. Ignored while `activeId` is set.
+   */
+  forceNew?: boolean;
 }
 
 export interface UseChatConversationReturn {
@@ -265,7 +275,7 @@ async function deleteConversation(apiBase: string, id: string): Promise<void> {
 export function useChatConversation(
   options: UseChatConversationOptions,
 ): UseChatConversationReturn {
-  const { userId, scope, apiBase, activeId } = options;
+  const { userId, scope, apiBase, activeId, forceNew } = options;
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const [initialMessages, setInitialMessages] = useState<HydratedUIMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(Boolean(userId));
@@ -292,11 +302,21 @@ export function useChatConversation(
     }
     // Already resolved a conversation for this user during the no-activeId
     // window — don't re-create just because `scope` or another dep changed.
-    if (!activeId && resolvedForUserRef.current === userId && conversationId) {
+    // An explicit new-conversation intent (`forceNew`) overrides the guard.
+    if (!activeId && !forceNew && resolvedForUserRef.current === userId && conversationId) {
       return;
     }
     let cancelled = false;
     const key = cacheKey(userId, scope);
+    // Explicit new-conversation intent: drop the previous id NOW, before the
+    // async create. The host page mirrors `conversationId` into the URL the
+    // moment `activeId` is empty — with the stale id still in state it would
+    // bounce straight back to `/ai/:oldId` and strip the `?new=1` flag before
+    // the fresh conversation ever existed.
+    if (!activeId && forceNew) {
+      setConversationId(undefined);
+      setInitialMessages([]);
+    }
     setIsLoading(true);
 
     (async () => {
@@ -315,7 +335,7 @@ export function useChatConversation(
           // Requested id is gone — fall through to create a fresh one.
           writeCache(key, undefined);
           writeConversationMessagesCache(activeId, []);
-        } else {
+        } else if (!forceNew) {
           const cached = readCache(key);
           if (cached) {
             const existing = await fetchConversation(apiBase, cached);
@@ -354,7 +374,7 @@ export function useChatConversation(
     // short-circuit guard, which is governed by the ref. Including it would
     // re-run the effect after we successfully resolved an id.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, scope, apiBase, activeId]);
+  }, [userId, scope, apiBase, activeId, forceNew]);
 
   const reset = useCallback(async () => {
     if (!userId) return;
