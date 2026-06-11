@@ -150,6 +150,30 @@ export class Registry<T = any> {
   }
 
   /**
+   * Remove a previously registered component. Mirrors {@link register} by
+   * clearing both the namespaced key and the bare-name fallback (when the
+   * fallback still points at this registration), plus any matching lazy stub.
+   * Notifies subscribers only when something was actually removed.
+   *
+   * Mainly used by tests that install a stub renderer and need to restore the
+   * prior registry state on teardown, since the registry is a process-level
+   * singleton shared across test files.
+   */
+  unregister(type: string, namespace?: string): boolean {
+    const fullType = namespace ? `${namespace}:${type}` : type;
+    const removed = this.components.delete(fullType);
+    // Only drop the bare fallback if it still resolves to this registration.
+    if (namespace) {
+      const bare = this.components.get(type);
+      if (bare && bare.type === fullType) this.components.delete(type);
+    }
+    this.lazyEntries.delete(fullType);
+    this.lazyEntries.delete(type);
+    if (removed) this.notify();
+    return removed;
+  }
+
+  /**
    * Register a lazy-loaded component. The `loader` is a function returning a
    * dynamic `import()` whose target module performs `register()` calls for
    * the given `type` as a top-level side effect.

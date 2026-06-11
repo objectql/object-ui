@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ListView, evaluateConditionalFormatting } from '../ListView';
@@ -2196,11 +2196,25 @@ describe('ListView — viewType normalization (AI-authored views)', () => {
   // viewType must normalize to the grid renderer — never reach the typeless
   // default branch, which SchemaRenderer used to surface as a red
   // "Unknown component type" box dumping the raw config at the user.
+  // The real object-grid lives in @object-ui/plugin-grid (not a test dep);
+  // register a stub so "did we emit a typed grid schema" is observable.
+  //
+  // Register UNCONDITIONALLY (and restore on teardown): ComponentRegistry is a
+  // process-level singleton shared across test files, so another suite
+  // (plugin-grid/plugin-view/react) may already have registered a real
+  // object-grid. The old `if (!get('object-grid'))` guard then skipped our stub
+  // and the 'bogus' case rendered the real grid instead of `grid-stub` — making
+  // this test pass in isolation but fail in the full suite (order-dependent).
+  let prevObjectGrid: ReturnType<typeof ComponentRegistry.get>;
   beforeAll(() => {
-    // The real object-grid lives in @object-ui/plugin-grid (not a test dep);
-    // register a stub so "did we emit a typed grid schema" is observable.
-    if (!ComponentRegistry.get('object-grid')) {
-      ComponentRegistry.register('object-grid', () => <div data-testid="grid-stub" />);
+    prevObjectGrid = ComponentRegistry.get('object-grid');
+    ComponentRegistry.register('object-grid', () => <div data-testid="grid-stub" />);
+  });
+  afterAll(() => {
+    if (prevObjectGrid) {
+      ComponentRegistry.register('object-grid', prevObjectGrid);
+    } else {
+      ComponentRegistry.unregister('object-grid');
     }
   });
   const base = { type: 'list-view', objectName: 'expense', fields: ['title', 'amount'] };
